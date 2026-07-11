@@ -4,6 +4,7 @@ import { loadConfig } from './config.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
+import { createAuthService } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -27,7 +28,8 @@ async function main(): Promise<void> {
     client.release();
   }
 
-  const server = createApiServer(pool);
+  const auth = createAuthService(config, pool);
+  const server = createApiServer({ pool, auth, cookieSecure: config.nodeEnv === 'production' });
   server.listen(config.port, () => {
     console.log(`[api] listening on http://0.0.0.0:${config.port} (${config.nodeEnv})`);
   });

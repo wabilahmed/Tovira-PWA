@@ -54,6 +54,7 @@ services:
       dockerfile: docker/web.Dockerfile
     environment:
       NODE_ENV: ${NODE_ENV:-development}
+      VITE_API_PROXY: http://api:3001
     ports:
       - "${WEB_PORT:-5173}:5173"
     volumes:

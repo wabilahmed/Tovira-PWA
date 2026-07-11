@@ -10,8 +10,10 @@ export class ConfigError extends Error {
 }
 
 export type ModelProvider = 'stub' | 'anthropic';
+export type AuthStore = 'memory' | 'postgres';
 
 const MODEL_PROVIDERS: readonly ModelProvider[] = ['stub', 'anthropic'];
+const AUTH_STORES: readonly AuthStore[] = ['memory', 'postgres'];
 
 export interface AppConfig {
   databaseUrl: string;
@@ -23,6 +25,9 @@ export interface AppConfig {
   anthropicBaseUrl: string;
   anthropicModel: string;
   storageDir: string;
+  // --- auth (P0-3) ---
+  authStore: AuthStore;
+  sessionTtlHours: number;
 }
 
 type Env = Record<string, string | undefined>;
@@ -53,7 +58,27 @@ export function loadConfig(env: Env = process.env): AppConfig {
     anthropicBaseUrl: env.ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com',
     anthropicModel: env.ANTHROPIC_MODEL?.trim() || 'claude-haiku-4-5-20251001',
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
+    authStore: parseAuthStore(env.AUTH_STORE),
+    sessionTtlHours: parseSessionTtlHours(env.SESSION_TTL_HOURS),
   };
+}
+
+function parseAuthStore(raw: string | undefined): AuthStore {
+  if (isBlank(raw)) return 'postgres';
+  const value = raw!.trim();
+  if (!AUTH_STORES.includes(value as AuthStore)) {
+    throw new ConfigError(`Invalid AUTH_STORE: "${value}". Expected one of: ${AUTH_STORES.join(', ')}.`);
+  }
+  return value as AuthStore;
+}
+
+function parseSessionTtlHours(raw: string | undefined): number {
+  if (isBlank(raw)) return 168; // 7 days
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new ConfigError(`Invalid SESSION_TTL_HOURS: "${raw}". Expected a positive number.`);
+  }
+  return n;
 }
 
 function parseModelProvider(raw: string | undefined): ModelProvider {
