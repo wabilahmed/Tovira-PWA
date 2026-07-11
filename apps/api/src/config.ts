@@ -9,10 +9,20 @@ export class ConfigError extends Error {
   override name = 'ConfigError';
 }
 
+export type ModelProvider = 'stub' | 'anthropic';
+
+const MODEL_PROVIDERS: readonly ModelProvider[] = ['stub', 'anthropic'];
+
 export interface AppConfig {
   databaseUrl: string;
   port: number;
   nodeEnv: string;
+  // --- swap-ready provider selection (P0-2) ---
+  modelProvider: ModelProvider;
+  anthropicApiKey: string | undefined;
+  anthropicBaseUrl: string;
+  anthropicModel: string;
+  storageDir: string;
 }
 
 type Env = Record<string, string | undefined>;
@@ -38,7 +48,23 @@ export function loadConfig(env: Env = process.env): AppConfig {
     databaseUrl: env.DATABASE_URL!.trim(),
     port,
     nodeEnv: env.NODE_ENV?.trim() || 'development',
+    modelProvider: parseModelProvider(env.MODEL_PROVIDER),
+    anthropicApiKey: isBlank(env.ANTHROPIC_API_KEY) ? undefined : env.ANTHROPIC_API_KEY!.trim(),
+    anthropicBaseUrl: env.ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com',
+    anthropicModel: env.ANTHROPIC_MODEL?.trim() || 'claude-haiku-4-5-20251001',
+    storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
   };
+}
+
+function parseModelProvider(raw: string | undefined): ModelProvider {
+  if (isBlank(raw)) return 'stub';
+  const value = raw!.trim();
+  if (!MODEL_PROVIDERS.includes(value as ModelProvider)) {
+    throw new ConfigError(
+      `Invalid MODEL_PROVIDER: "${value}". Expected one of: ${MODEL_PROVIDERS.join(', ')}.`,
+    );
+  }
+  return value as ModelProvider;
 }
 
 function parsePort(raw: string | undefined): number {

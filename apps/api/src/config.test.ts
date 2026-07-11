@@ -48,4 +48,17 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...valid, PORT: 'not-a-number' })).toThrow(ConfigError);
     expect(() => loadConfig({ ...valid, PORT: 'not-a-number' })).toThrow(/PORT/);
   });
+
+  // [P0-2] provider selectors — default to keyless local stand-ins.
+  it('defaults the model provider to the keyless stub', () => {
+    expect(loadConfig(valid).modelProvider).toBe('stub');
+  });
+
+  it('reads the model provider from MODEL_PROVIDER', () => {
+    expect(loadConfig({ ...valid, MODEL_PROVIDER: 'anthropic' }).modelProvider).toBe('anthropic');
+  });
+
+  it('rejects an unknown model provider with a named error', () => {
+    expect(() => loadConfig({ ...valid, MODEL_PROVIDER: 'gpt' })).toThrow(/MODEL_PROVIDER/);
+  });
 });
