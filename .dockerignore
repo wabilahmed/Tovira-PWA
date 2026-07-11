@@ -1,0 +1,13 @@
+**/node_modules
+node_modules
+.git
+dist
+build
+.vite
+apps/web/dev-dist
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+coverage

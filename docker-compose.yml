@@ -1,0 +1,77 @@
+# Tovira local stack — one command: `docker compose up`.
+# Postgres+pgvector, the Node API, and the Vite PWA dev server. Every service has
+# a healthcheck so `--wait` means genuinely-ready, and Postgres data lives in a
+# named volume so it survives restarts. Inline ${VAR:-default}s keep a clean
+# checkout running with no manual .env step.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tovira}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tovira}
+      POSTGRES_DB: ${POSTGRES_DB:-tovira}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - tovira-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tovira} -d ${POSTGRES_DB:-tovira}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: "3001"
+      DATABASE_URL: postgres://${POSTGRES_USER:-tovira}:${POSTGRES_PASSWORD:-tovira}@db:5432/${POSTGRES_DB:-tovira}
+    ports:
+      - "${API_PORT:-3001}:3001"
+    volumes:
+      - ./apps/api:/app/apps/api
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://localhost:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      - ./apps/web:/app/apps/web
+      - /app/node_modules
+    depends_on:
+      api:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://localhost:5173',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+volumes:
+  tovira-db-data:
