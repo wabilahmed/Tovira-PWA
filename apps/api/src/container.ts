@@ -17,6 +17,9 @@ import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
 import { PgSessionRepository } from './adapters/auth/pg-session-repository.js';
 import { AuthService } from './services/auth/auth-service.js';
 import { ScryptHasher } from './services/auth/password.js';
+import type { ClientRepository } from './ports/client-repository.js';
+import { InMemoryClientRepository } from './adapters/clients/in-memory-client-repository.js';
+import { PgClientRepository } from './adapters/clients/pg-client-repository.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -69,4 +72,13 @@ export function createAuthService(config: AppConfig, pool?: Pool): AuthService {
     hasher: new ScryptHasher(),
     sessionTtlMs: config.sessionTtlHours * 60 * 60 * 1000,
   });
+}
+
+/** Build the client repository, selecting the store from config (RLS-backed on pg). */
+export function createClientRepository(config: AppConfig, pool?: Pool): ClientRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgClientRepository(pool);
+  }
+  return new InMemoryClientRepository();
 }

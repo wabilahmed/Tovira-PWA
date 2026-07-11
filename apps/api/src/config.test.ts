@@ -61,4 +61,14 @@ describe('loadConfig', () => {
   it('rejects an unknown model provider with a named error', () => {
     expect(() => loadConfig({ ...valid, MODEL_PROVIDER: 'gpt' })).toThrow(/MODEL_PROVIDER/);
   });
+
+  // [P0-4] app-role connection for RLS enforcement.
+  it('defaults appDatabaseUrl to the primary DATABASE_URL when unset', () => {
+    expect(loadConfig(valid).appDatabaseUrl).toBe(valid.DATABASE_URL);
+  });
+
+  it('uses APP_DATABASE_URL (the non-superuser role) when provided', () => {
+    const appUrl = 'postgres://tovira_app:tovira_app@localhost:5432/tovira';
+    expect(loadConfig({ ...valid, APP_DATABASE_URL: appUrl }).appDatabaseUrl).toBe(appUrl);
+  });
 });

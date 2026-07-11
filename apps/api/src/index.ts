@@ -4,7 +4,7 @@ import { loadConfig } from './config.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
-import { createAuthService } from './container.js';
+import { createAuthService, createClientRepository } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -13,10 +13,9 @@ async function main(): Promise<void> {
   // Fail fast on bad config BEFORE opening any connection or port.
   const config = loadConfig();
 
-  const pool = createPool(config.databaseUrl);
-
-  // Apply migrations on boot. A failure here aborts startup (see MigrationError).
-  const client = await pool.connect();
+  // Migrations run as the superuser/owner (creates the app role + RLS policies).
+  const migrationPool = createPool(config.databaseUrl);
+  const client = await migrationPool.connect();
   try {
     const { applied } = await runMigrations(client, loadMigrations(migrationsDir));
     if (applied.length > 0) {
@@ -28,15 +27,19 @@ async function main(): Promise<void> {
     client.release();
   }
 
-  const auth = createAuthService(config, pool);
-  const server = createApiServer({ pool, auth, cookieSecure: config.nodeEnv === 'production' });
+  // Request-handling queries run through the non-superuser app pool so RLS is
+  // enforced (falls back to the superuser URL if APP_DATABASE_URL is unset).
+  const appPool = createPool(config.appDatabaseUrl);
+  const auth = createAuthService(config, appPool);
+  const clients = createClientRepository(config, appPool);
+  const server = createApiServer({ pool: appPool, auth, clients, cookieSecure: config.nodeEnv === 'production' });
   server.listen(config.port, () => {
     console.log(`[api] listening on http://0.0.0.0:${config.port} (${config.nodeEnv})`);
   });
 
   const shutdown = () => {
     server.close(() => {
-      void pool.end().then(() => process.exit(0));
+      void Promise.all([appPool.end(), migrationPool.end()]).then(() => process.exit(0));
     });
   };
   process.on('SIGTERM', shutdown);

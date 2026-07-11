@@ -29,6 +29,8 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: "3001"
       DATABASE_URL: postgres://${POSTGRES_USER:-tovira}:${POSTGRES_PASSWORD:-tovira}@db:5432/${POSTGRES_DB:-tovira}
+      # Non-superuser role (created by migration 0003) — RLS is enforced on this connection.
+      APP_DATABASE_URL: postgres://tovira_app:${APP_DB_PASSWORD:-tovira_app}@db:5432/${POSTGRES_DB:-tovira}
     ports:
       - "${API_PORT:-3001}:3001"
     volumes:

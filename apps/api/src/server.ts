@@ -1,12 +1,15 @@
 import { createServer, type Server } from 'node:http';
 import type { Pool } from 'pg';
 import type { AuthService } from './services/auth/auth-service.js';
+import type { ClientRepository } from './ports/client-repository.js';
 import { handleAuthRoute } from './http/auth-routes.js';
+import { handleClientRoute } from './http/clients-routes.js';
 import { sendJson } from './http/helpers.js';
 
 export interface ApiDeps {
   pool: Pool;
   auth: AuthService;
+  clients: ClientRepository;
   cookieSecure?: boolean;
 }
 
@@ -41,6 +44,7 @@ export function createApiServer(deps: ApiDeps): Server {
       }
 
       if (await handleAuthRoute(request, response, deps.auth, { cookieSecure })) return;
+      if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
 
       if (request.method === 'GET' && url === '/') {
         sendJson(response, 200, { name: 'tovira-api', status: 'ok' });

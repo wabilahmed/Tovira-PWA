@@ -17,6 +17,8 @@ const AUTH_STORES: readonly AuthStore[] = ['memory', 'postgres'];
 
 export interface AppConfig {
   databaseUrl: string;
+  /** Non-superuser role connection for request queries (RLS enforced). */
+  appDatabaseUrl: string;
   port: number;
   nodeEnv: string;
   // --- swap-ready provider selection (P0-2) ---
@@ -51,6 +53,9 @@ export function loadConfig(env: Env = process.env): AppConfig {
 
   return {
     databaseUrl: env.DATABASE_URL!.trim(),
+    // Falls back to the primary URL when unset (RLS then relies on the app-layer
+    // filter only); set APP_DATABASE_URL to the tovira_app role for the DB net.
+    appDatabaseUrl: isBlank(env.APP_DATABASE_URL) ? env.DATABASE_URL!.trim() : env.APP_DATABASE_URL!.trim(),
     port,
     nodeEnv: env.NODE_ENV?.trim() || 'development',
     modelProvider: parseModelProvider(env.MODEL_PROVIDER),
