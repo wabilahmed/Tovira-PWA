@@ -16,6 +16,11 @@ function compose(args: string, opts: { capture?: boolean } = {}): string {
     stdio: opts.capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
     encoding: 'utf8',
     timeout: 220_000,
+    // Publish to ephemeral host ports (0 → random free port). The stack talks
+    // internally over the compose network and we reach the DB via `exec`, so the
+    // test never needs a fixed host port — and can't collide with whatever else
+    // the developer happens to be running on 5432/3001/5173.
+    env: { ...process.env, DB_PORT: '0', API_PORT: '0', WEB_PORT: '0' },
   });
 }
 
