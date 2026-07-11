@@ -9,3 +9,6 @@ apps/web/dev-dist/
 !.env.example
 .DS_Store
 coverage/
+test-results/
+playwright-report/
+apps/web/dev-dist/

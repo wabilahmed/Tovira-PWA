@@ -27,10 +27,16 @@ export class AuthClient {
   }
 
   async getSession(): Promise<Session | null> {
-    const res = await fetch(this.url('/me'), { credentials: 'include' });
-    if (res.status !== 200) return null;
-    const data = (await res.json()) as Session;
-    return { user: data.user };
+    try {
+      const res = await fetch(this.url('/me'), { credentials: 'include' });
+      if (res.status !== 200) return null;
+      const data = (await res.json()) as Session;
+      return { user: data.user };
+    } catch {
+      // Offline / network error → treat as not-authenticated so the shell still
+      // renders (the PWA works offline; sign-in just needs a connection).
+      return null;
+    }
   }
 
   private async authPost(path: string, email: string, password: string): Promise<Session> {
