@@ -75,4 +75,17 @@ export class PgExtractionLogRepository implements ExtractionLogRepository {
       return (rows as unknown as LogRow[]).map(toRecord);
     });
   }
+
+  async findPromptVersionByNote(userId: string, noteId: string): Promise<string | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `SELECT prompt_version FROM extraction_logs
+         WHERE user_id = $1 AND note_id = $2
+         ORDER BY created_at DESC LIMIT 1`,
+        [userId, noteId],
+      );
+      const row = (rows as unknown as Array<{ prompt_version: string }>)[0];
+      return row ? row.prompt_version : null;
+    });
+  }
 }

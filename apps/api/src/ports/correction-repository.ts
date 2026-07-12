@@ -11,6 +11,11 @@ export interface CorrectionEntry {
   field: string; // e.g. 'text', 'owner', 'due_date'
   before: string | null;
   after: string | null;
+  // The prompt version that produced the original extraction (P7-2). Ties each
+  // correction to the exact prompt that made the mistake — the key to training a
+  // better model later. null when the source extraction wasn't logged; NEVER a
+  // fabricated version (a wrong fact is worse than a missing one).
+  promptVersion: string | null;
 }
 
 export interface CorrectionRecord extends CorrectionEntry {

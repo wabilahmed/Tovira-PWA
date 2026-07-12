@@ -26,4 +26,10 @@ export interface ExtractionLogRecord extends ExtractionLogEntry {
 export interface ExtractionLogRepository {
   log(userId: string, entry: ExtractionLogEntry): Promise<void>;
   listByUser(userId: string): Promise<ExtractionLogRecord[]>;
+  /**
+   * The prompt version of the most recent logged extraction for a note (P7-2) —
+   * used to stamp corrections with the prompt that produced the fact. Tenant-
+   * scoped. Returns null if the note has no logged extraction.
+   */
+  findPromptVersionByNote(userId: string, noteId: string): Promise<string | null>;
 }

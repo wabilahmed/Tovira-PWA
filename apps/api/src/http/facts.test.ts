@@ -188,3 +188,68 @@ describe('[P2-3] confirm & correct', () => {
     expect(del.status).toBe(404);
   });
 });
+
+const logEntry = (noteId: string, promptVersion: string) => ({
+  noteId, promptVersion, model: 'stub', input: 'raw note', rawOutput: '{}',
+  status: 'ok', inputTokens: 0, outputTokens: 0, latencyMs: 1,
+});
+
+describe('[P7-2] capture corrections as training data', () => {
+  // POSITIVE: fixing an extracted date yields a training record with
+  // original, corrected, note id, AND the prompt version that produced it.
+  it('stamps the correction with the prompt version of the original extraction', async () => {
+    const { token, userId } = await signup('training@example.com');
+    await deps.extractionLog.log(userId, logEntry('note-x', 'tovira-extract-vX'));
+    const id = await seedPromise(userId); // seeds note-x, due_date null
+
+    const res = await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ dueDate: '2026-07-20' }),
+    });
+    expect(res.status).toBe(200);
+
+    const corrections = await deps.corrections.listByUser(userId);
+    expect(corrections).toHaveLength(1);
+    const c = corrections[0]!;
+    expect(c.field).toBe('due_date');
+    expect(c.before).toBeNull();          // original: no date
+    expect(c.after).toBe('2026-07-20');   // corrected value
+    expect(c.noteId).toBe('note-x');      // context
+    expect(c.promptVersion).toBe('tovira-extract-vX'); // the prompt that produced it
+  });
+
+  // NEGATIVE: never fabricate a prompt version. If the note has no extraction
+  // log, the training record must record null, not a guessed version.
+  it('records a null prompt version when no extraction log exists (never fabricates)', async () => {
+    const { token, userId } = await signup('nolog@example.com');
+    const id = await seedPromise(userId); // no extraction log seeded
+
+    await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ dueDate: '2026-07-21' }),
+    });
+
+    const corrections = await deps.corrections.listByUser(userId);
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]!.promptVersion).toBeNull();
+  });
+
+  // NEGATIVE: the training store is tenant-scoped — corrections and the prompt
+  // version resolved from one rep's log never leak to another tenant.
+  it('does not leak corrections across tenants', async () => {
+    const a = await signup('a-train@example.com');
+    const b = await signup('b-train@example.com');
+    await deps.extractionLog.log(a.userId, logEntry('note-x', 'A-secret-version'));
+    const id = await seedPromise(a.userId);
+    await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${a.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ dueDate: '2026-07-22' }),
+    });
+
+    // B sees none of A's training data.
+    expect(await deps.corrections.listByUser(b.userId)).toEqual([]);
+  });
+});

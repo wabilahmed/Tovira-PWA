@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { FactsRepository, PromisePatch } from '../ports/facts-repository.js';
 import type { CorrectionRepository } from '../ports/correction-repository.js';
+import type { ExtractionLogRepository } from '../ports/extraction-log-repository.js';
 import { pendingConfirmations } from '../services/facts/confirmation.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
@@ -9,6 +10,7 @@ export interface FactsRouteDeps {
   auth: AuthService;
   facts: FactsRepository;
   corrections: CorrectionRepository;
+  extractionLog: ExtractionLogRepository;
 }
 
 const CONFIRM_RE = /^\/promises\/([^/]+)\/confirm$/;
@@ -97,6 +99,9 @@ export async function handleFactsRoute(
       ['dueRaw', 'due_raw', before.dueRaw],
       ['confidence', 'confidence', before.confidence],
     ];
+    // Resolve the prompt version that produced this fact once, up front (P7-2).
+    // null if the note was never logged — we never fabricate a version.
+    const promptVersion = await deps.extractionLog.findPromptVersionByNote(userId, before.noteId);
     for (const [key, logField, beforeVal] of fields) {
       if (!(key in body)) continue;
       const after = body[key] === null ? null : String(body[key]);
@@ -109,6 +114,7 @@ export async function handleFactsRoute(
         field: logField,
         before: beforeVal,
         after,
+        promptVersion,
       });
     }
     await deps.facts.updatePromise(userId, id, patch);

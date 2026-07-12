@@ -9,6 +9,7 @@ import type { ExtractionService } from './services/extraction/extraction-service
 import type { FollowUpService } from './services/followup/follow-up-service.js';
 import type { FactsRepository } from './ports/facts-repository.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
+import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import type { BriefService } from './services/brief/brief-service.js';
 import type { MeetingRepository } from './ports/meeting-repository.js';
 import type { MeetingParser } from './services/meetings/meeting-parser.js';
@@ -49,6 +50,7 @@ export interface ApiDeps {
   followUp: FollowUpService;
   facts: FactsRepository;
   corrections: CorrectionRepository;
+  extractionLog: ExtractionLogRepository;
   brief: BriefService;
   meetings: MeetingRepository;
   meetingParser: MeetingParser;
@@ -124,6 +126,7 @@ export function createApiServer(deps: ApiDeps): Server {
           auth: deps.auth,
           facts: deps.facts,
           corrections: deps.corrections,
+          extractionLog: deps.extractionLog,
         })
       )
         return;

@@ -89,6 +89,7 @@ async function main(): Promise<void> {
     followUp,
     facts,
     corrections,
+    extractionLog: extractionLogs,
     brief,
     meetings,
     meetingParser,

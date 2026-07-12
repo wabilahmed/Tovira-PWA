@@ -20,4 +20,11 @@ export class InMemoryExtractionLogRepository implements ExtractionLogRepository 
   async listByUser(userId: string): Promise<ExtractionLogRecord[]> {
     return this.rows.filter((r) => r.userId === userId);
   }
+
+  async findPromptVersionByNote(userId: string, noteId: string): Promise<string | null> {
+    const matches = this.rows.filter((r) => r.userId === userId && r.noteId === noteId);
+    if (matches.length === 0) return null;
+    // Most recent wins (the prompt in effect when this note was last extracted).
+    return matches.reduce((a, b) => (b.createdAt >= a.createdAt ? b : a)).promptVersion;
+  }
 }

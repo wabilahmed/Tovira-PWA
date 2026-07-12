@@ -15,6 +15,7 @@ interface Row {
   field: string;
   before_value: string | null;
   after_value: string | null;
+  prompt_version: string | null;
   created_at: Date;
 }
 
@@ -28,6 +29,7 @@ function toRecord(row: Row): CorrectionRecord {
     field: row.field,
     before: row.before_value,
     after: row.after_value,
+    promptVersion: row.prompt_version,
     createdAt: row.created_at.getTime(),
   };
 }
@@ -38,9 +40,9 @@ export class PgCorrectionRepository implements CorrectionRepository {
   async record(userId: string, entry: CorrectionEntry): Promise<void> {
     await withTenant(this.pool, userId, async (c) => {
       await c.query(
-        `INSERT INTO corrections (user_id, note_id, entity_type, entity_id, field, before_value, after_value)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [userId, entry.noteId, entry.entityType, entry.entityId, entry.field, entry.before, entry.after],
+        `INSERT INTO corrections (user_id, note_id, entity_type, entity_id, field, before_value, after_value, prompt_version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [userId, entry.noteId, entry.entityType, entry.entityId, entry.field, entry.before, entry.after, entry.promptVersion],
       );
     });
   }
@@ -48,7 +50,7 @@ export class PgCorrectionRepository implements CorrectionRepository {
   async listByUser(userId: string): Promise<CorrectionRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `SELECT id, user_id, note_id, entity_type, entity_id, field, before_value, after_value, created_at
+        `SELECT id, user_id, note_id, entity_type, entity_id, field, before_value, after_value, prompt_version, created_at
          FROM corrections WHERE user_id = $1 ORDER BY created_at DESC`,
         [userId],
       );
