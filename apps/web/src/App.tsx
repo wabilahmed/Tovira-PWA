@@ -177,7 +177,7 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       <h1>{client.name}</h1>
 
       <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)}>Pre-meeting brief</button>
-      {brief && <BriefPanel brief={brief} />}
+      {brief && <BriefPanel brief={brief} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />}
 
       {active ? (
         <button onClick={() => void stopRec()}>■ Stop &amp; save</button>
@@ -284,7 +284,7 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
   );
 }
 
-function BriefPanel({ brief }: { brief: Brief }): JSX.Element {
+function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void }): JSX.Element {
   if (brief.empty) {
     return (
       <section style={briefBox}>
@@ -304,7 +304,15 @@ function BriefPanel({ brief }: { brief: Brief }): JSX.Element {
       {brief.needsConfirmation.length > 0 && (
         <div>
           <strong style={{ color: '#a15c00' }}>To confirm (not yet facts)</strong>
-          <ul>{brief.needsConfirmation.map((p) => <li key={p.id}>{p.text}</li>)}</ul>
+          <ul>
+            {brief.needsConfirmation.map((p) => (
+              <li key={p.id}>
+                {p.text}{' '}
+                <button onClick={() => void clientsApi.confirmPromise(p.id).then(onChange)} style={{ marginLeft: 4 }}>Confirm</button>{' '}
+                <button onClick={() => void clientsApi.rejectPromise(p.id).then(onChange)}>Reject</button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       {brief.keyPeople.length > 0 && (

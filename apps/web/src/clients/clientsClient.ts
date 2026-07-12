@@ -100,4 +100,12 @@ export class ClientsClient {
     if (res.status !== 200) return null;
     return (await res.json()) as Brief;
   }
+
+  async confirmPromise(id: string): Promise<void> {
+    await fetch(this.url(`/promises/${id}/confirm`), { method: 'POST', credentials: 'include' });
+  }
+
+  async rejectPromise(id: string): Promise<void> {
+    await fetch(this.url(`/promises/${id}`), { method: 'DELETE', credentials: 'include' });
+  }
 }

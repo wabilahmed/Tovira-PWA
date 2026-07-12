@@ -77,3 +77,66 @@ describe('[P1-7] confirmation queue', () => {
     expect(bList.promises).toEqual([]);
   });
 });
+
+async function seedPromise(userId: string): Promise<string> {
+  await deps.facts.saveExtraction(userId, { noteId: 'note-x', clientId: 'client-x', promises: [lowConfidence] });
+  const [p] = await deps.facts.listPromisesByUser(userId);
+  return p!.id;
+}
+
+describe('[P2-3] confirm & correct', () => {
+  it('edits a promise and records a before/after correction (training data)', async () => {
+    const { token, userId } = await signup('edit@example.com');
+    const id = await seedPromise(userId);
+    const res = await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'send the FINAL plan' }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { text: string }).text).toBe('send the FINAL plan');
+
+    const corrections = await deps.corrections.listByUser(userId);
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]!.field).toBe('text');
+    expect(corrections[0]!.before).toBe('send plan');
+    expect(corrections[0]!.after).toBe('send the FINAL plan');
+  });
+
+  it('does not double-count a correction when nothing changed', async () => {
+    const { token, userId } = await signup('nochange@example.com');
+    const id = await seedPromise(userId);
+    await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'send plan' }), // same value
+    });
+    expect(await deps.corrections.listByUser(userId)).toEqual([]);
+  });
+
+  // NEGATIVE: rejecting an item removes it so it never surfaces again.
+  it('rejects (deletes) a promise so it no longer appears', async () => {
+    const { token, userId } = await signup('reject@example.com');
+    const id = await seedPromise(userId);
+    const del = await fetch(`${base}/promises/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+    expect(del.status).toBe(200);
+    const pending = (await (await fetch(`${base}/confirmations`, {
+      headers: { authorization: `Bearer ${token}` },
+    })).json()) as { promises: unknown[] };
+    expect(pending.promises).toEqual([]);
+  });
+
+  it('does not let a rep edit or delete another rep\'s promise (404)', async () => {
+    const a = await signup('a-edit@example.com');
+    const b = await signup('b-edit@example.com');
+    const id = await seedPromise(a.userId);
+    const patch = await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${b.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'hacked' }),
+    });
+    expect(patch.status).toBe(404);
+    const del = await fetch(`${base}/promises/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${b.token}` } });
+    expect(del.status).toBe(404);
+  });
+});

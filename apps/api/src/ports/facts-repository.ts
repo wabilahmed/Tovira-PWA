@@ -34,4 +34,16 @@ export interface FactsRepository {
   listPromisesByNote(userId: string, noteId: string): Promise<PromiseRecord[]>;
   /** Mark a promise confirmed by the rep. Returns false if not found/owned. */
   confirmPromise(userId: string, id: string): Promise<boolean>;
+  getPromise(userId: string, id: string): Promise<PromiseRecord | null>;
+  updatePromise(userId: string, id: string, patch: PromisePatch): Promise<boolean>;
+  deletePromise(userId: string, id: string): Promise<boolean>;
+}
+
+export interface PromisePatch {
+  text?: string;
+  owner?: string;
+  dueDate?: string | null;
+  dueRaw?: string | null;
+  confidence?: string;
+  done?: boolean;
 }

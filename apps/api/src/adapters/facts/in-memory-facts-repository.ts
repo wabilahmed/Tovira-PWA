@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { FactsRepository, PromiseRecord, SaveExtractionInput } from '../../ports/facts-repository.js';
+import type { FactsRepository, PromiseRecord, PromisePatch, SaveExtractionInput } from '../../ports/facts-repository.js';
 
 /** In-memory spine store mirroring the RLS isolation contract, for tests. */
 export class InMemoryFactsRepository implements FactsRepository {
@@ -31,6 +31,28 @@ export class InMemoryFactsRepository implements FactsRepository {
     if (!p) return false;
     p.confirmed = true;
     return true;
+  }
+
+  async getPromise(userId: string, id: string): Promise<PromiseRecord | null> {
+    return this.promises.find((x) => x.userId === userId && x.id === id) ?? null;
+  }
+
+  async updatePromise(userId: string, id: string, patch: PromisePatch): Promise<boolean> {
+    const p = this.promises.find((x) => x.userId === userId && x.id === id);
+    if (!p) return false;
+    if (patch.text !== undefined) p.text = patch.text;
+    if (patch.owner !== undefined) p.owner = patch.owner;
+    if (patch.dueDate !== undefined) p.dueDate = patch.dueDate;
+    if (patch.dueRaw !== undefined) p.dueRaw = patch.dueRaw;
+    if (patch.confidence !== undefined) p.confidence = patch.confidence;
+    if (patch.done !== undefined) p.done = patch.done;
+    return true;
+  }
+
+  async deletePromise(userId: string, id: string): Promise<boolean> {
+    const before = this.promises.length;
+    this.promises = this.promises.filter((x) => !(x.userId === userId && x.id === id));
+    return this.promises.length < before;
   }
 
   async listPromisesByUser(userId: string): Promise<PromiseRecord[]> {

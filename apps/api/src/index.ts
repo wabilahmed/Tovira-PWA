@@ -14,6 +14,7 @@ import {
   createExtractionService,
   createExtractionLogRepository,
   createBriefService,
+  createCorrectionRepository,
 } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -49,6 +50,7 @@ async function main(): Promise<void> {
   const extractionLogs = createExtractionLogRepository(config, appPool);
   const extraction = createExtractionService(config, clients, notes, facts, extractionLogs);
   const brief = createBriefService(clients, notes, facts);
+  const corrections = createCorrectionRepository(config, appPool);
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -58,6 +60,7 @@ async function main(): Promise<void> {
     transcription,
     extraction,
     facts,
+    corrections,
     brief,
     cookieSecure: config.nodeEnv === 'production',
   });

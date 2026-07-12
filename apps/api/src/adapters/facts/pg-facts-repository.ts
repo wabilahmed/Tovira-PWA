@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { FactsRepository, PromiseRecord, SaveExtractionInput } from '../../ports/facts-repository.js';
+import type { FactsRepository, PromiseRecord, PromisePatch, SaveExtractionInput } from '../../ports/facts-repository.js';
 import { withTenant } from '../../db/tenant.js';
 
 interface PromiseRow {
@@ -75,6 +75,48 @@ export class PgFactsRepository implements FactsRepository {
   async confirmPromise(userId: string, id: string): Promise<boolean> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query('UPDATE promises SET confirmed = true WHERE id = $1 RETURNING id', [id]);
+      return rows.length > 0;
+    });
+  }
+
+  async getPromise(userId: string, id: string): Promise<PromiseRecord | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${COLUMNS} FROM promises WHERE id = $1`, [id]);
+      return rows[0] ? toRecord(rows[0] as unknown as PromiseRow) : null;
+    });
+  }
+
+  async updatePromise(userId: string, id: string, patch: PromisePatch): Promise<boolean> {
+    return withTenant(this.pool, userId, async (c) => {
+      const cols: Record<string, unknown> = {
+        text: patch.text,
+        owner: patch.owner,
+        due_date: patch.dueDate,
+        due_raw: patch.dueRaw,
+        confidence: patch.confidence,
+        done: patch.done,
+      };
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      for (const [col, val] of Object.entries(cols)) {
+        if (val !== undefined) {
+          params.push(val);
+          sets.push(`${col} = $${params.length}`);
+        }
+      }
+      if (sets.length === 0) return true;
+      params.push(id);
+      const { rows } = await c.query(
+        `UPDATE promises SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING id`,
+        params,
+      );
+      return rows.length > 0;
+    });
+  }
+
+  async deletePromise(userId: string, id: string): Promise<boolean> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('DELETE FROM promises WHERE id = $1 RETURNING id', [id]);
       return rows.length > 0;
     });
   }

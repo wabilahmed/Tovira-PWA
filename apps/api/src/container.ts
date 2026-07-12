@@ -37,6 +37,9 @@ import type { ExtractionLogRepository } from './ports/extraction-log-repository.
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
 import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-repository.js';
 import { BriefService } from './services/brief/brief-service.js';
+import type { CorrectionRepository } from './ports/correction-repository.js';
+import { InMemoryCorrectionRepository } from './adapters/corrections/in-memory-correction-repository.js';
+import { PgCorrectionRepository } from './adapters/corrections/pg-correction-repository.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -166,6 +169,15 @@ export function createExtractionService(
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
   return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(), logs, modelId);
+}
+
+/** The rep-corrections training log (P2-3), RLS-backed on pg. */
+export function createCorrectionRepository(config: AppConfig, pool?: Pool): CorrectionRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgCorrectionRepository(pool);
+  }
+  return new InMemoryCorrectionRepository();
 }
 
 /** The pre-meeting brief service (spine + JSONB + semantic search). */

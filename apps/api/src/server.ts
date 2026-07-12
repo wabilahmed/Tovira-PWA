@@ -7,6 +7,7 @@ import type { Storage } from './ports/storage.js';
 import type { TranscriptionService } from './services/transcription/transcription-service.js';
 import type { ExtractionService } from './services/extraction/extraction-service.js';
 import type { FactsRepository } from './ports/facts-repository.js';
+import type { CorrectionRepository } from './ports/correction-repository.js';
 import type { BriefService } from './services/brief/brief-service.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
@@ -24,6 +25,7 @@ export interface ApiDeps {
   transcription: TranscriptionService;
   extraction: ExtractionService;
   facts: FactsRepository;
+  corrections: CorrectionRepository;
   brief: BriefService;
   cookieSecure?: boolean;
 }
@@ -72,7 +74,14 @@ export function createApiServer(deps: ApiDeps): Server {
         })
       )
         return;
-      if (await handleFactsRoute(request, response, { auth: deps.auth, facts: deps.facts })) return;
+      if (
+        await handleFactsRoute(request, response, {
+          auth: deps.auth,
+          facts: deps.facts,
+          corrections: deps.corrections,
+        })
+      )
+        return;
       if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
 
