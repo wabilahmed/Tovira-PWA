@@ -13,6 +13,10 @@ export class InMemoryExtractionLogRepository implements ExtractionLogRepository 
     this.rows.push({ ...entry, id: randomUUID(), userId, createdAt: Date.now() });
   }
 
+  async purgeUser(userId: string): Promise<void> {
+    this.rows = this.rows.filter((r) => r.userId !== userId);
+  }
+
   async listByUser(userId: string): Promise<ExtractionLogRecord[]> {
     return this.rows.filter((r) => r.userId === userId);
   }

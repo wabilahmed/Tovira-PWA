@@ -59,6 +59,10 @@ export class InMemoryNoteRepository implements NoteRepository {
     }
   }
 
+  async purgeUser(userId: string): Promise<void> {
+    for (const [id, n] of this.byId) if (n.userId === userId) { this.byId.delete(id); this.embeddings.delete(id); }
+  }
+
   async searchSimilar(
     userId: string,
     clientId: string,

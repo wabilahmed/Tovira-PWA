@@ -85,6 +85,11 @@ export class InMemoryFactsRepository implements FactsRepository {
     return true;
   }
 
+  async purgeUser(userId: string): Promise<void> {
+    this.promises = this.promises.filter((p) => p.userId !== userId);
+    this.keyDates = this.keyDates.filter((d) => d.userId !== userId);
+  }
+
   async listKeyDatesByUser(userId: string): Promise<KeyDateRecord[]> {
     return this.keyDates.filter((d) => d.userId === userId);
   }

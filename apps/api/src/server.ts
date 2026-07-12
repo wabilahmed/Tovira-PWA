@@ -19,6 +19,7 @@ import type { CardScanner } from './ports/card-scanner.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
 import type { BillingService } from './services/billing/billing-service.js';
+import type { AccountService } from './services/account/account-service.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
@@ -32,6 +33,8 @@ import { handleCardRoute } from './http/cards-routes.js';
 import { handleImageRoute } from './http/images-routes.js';
 import { handleHeroRoute } from './http/hero-routes.js';
 import { handleBillingRoute } from './http/billing-routes.js';
+import { handleAccountRoute } from './http/account-routes.js';
+import { handleOnboardingRoute } from './http/onboarding-routes.js';
 import { sendJson } from './http/helpers.js';
 
 export interface ApiDeps {
@@ -57,6 +60,7 @@ export interface ApiDeps {
   images: ImageRepository;
   hero: HeroService;
   billing: BillingService;
+  account: AccountService;
   cookieSecure?: boolean;
 }
 
@@ -146,6 +150,8 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
       if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing })) return;
+      if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
+      if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
 
       if (request.method === 'GET' && url === '/') {

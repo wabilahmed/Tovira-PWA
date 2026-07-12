@@ -102,6 +102,10 @@ export class AuthService {
     if (token) await this.deps.sessions.delete(token);
   }
 
+  async deleteUser(userId: string): Promise<void> {
+    await this.deps.users.delete(userId);
+  }
+
   async getPublicUser(userId: string): Promise<PublicUser | null> {
     const user = await this.deps.users.findById(userId);
     return user ? { id: user.id, email: user.email } : null;

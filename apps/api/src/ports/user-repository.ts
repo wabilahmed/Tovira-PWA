@@ -19,4 +19,6 @@ export interface UserRepository {
   findByEmail(email: string): Promise<UserRecord | null>;
   findById(id: string): Promise<UserRecord | null>;
   create(input: CreateUserInput): Promise<UserRecord>;
+  /** Delete the user (and, on Postgres, cascade all their data). */
+  delete(id: string): Promise<void>;
 }

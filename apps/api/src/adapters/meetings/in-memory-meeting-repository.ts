@@ -40,6 +40,10 @@ export class InMemoryMeetingRepository implements MeetingRepository {
     return true;
   }
 
+  async purgeUser(userId: string): Promise<void> {
+    for (const [id, m] of this.byId) if (m.userId === userId) this.byId.delete(id);
+  }
+
   async dueForNudge(userId: string, fromIso: string, toIso: string): Promise<MeetingRecord[]> {
     return [...this.byId.values()].filter(
       (m) =>

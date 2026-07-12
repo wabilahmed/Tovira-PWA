@@ -64,6 +64,7 @@ import type { SubscriptionRepository, TrialGrantRepository, WebhookEventReposito
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from './adapters/billing/in-memory.js';
 import { PgSubscriptionRepository, PgTrialGrantRepository, PgWebhookEventRepository } from './adapters/billing/pg.js';
 import { StubStripeGateway } from './adapters/billing/stub-stripe.js';
+import { AccountService } from './services/account/account-service.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -284,6 +285,11 @@ export function createBillingService(config: AppConfig, pool?: Pool): BillingSer
   }
   // Real Stripe SDK wired at deploy (TEST MODE); stub locally.
   return new BillingService(subs, trials, events, new StubStripeGateway(config.stripeWebhookSecret), config.trialDays);
+}
+
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository): AccountService {
+  // On Postgres, deleting the user cascades all data (FKs) — no explicit purge list.
+  return new AccountService(auth, clients, notes, facts, meetings, []);
 }
 
 export function scanConfigFrom(config: AppConfig): ScanConfig {

@@ -27,6 +27,14 @@ export class InMemoryUserRepository implements UserRepository {
     return record;
   }
 
+  async delete(id: string): Promise<void> {
+    const rec = this.byId.get(id);
+    if (rec) {
+      this.byId.delete(id);
+      this.byEmail.delete(rec.email);
+    }
+  }
+
   count(): number {
     return this.byId.size;
   }
