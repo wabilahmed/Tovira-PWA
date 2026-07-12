@@ -6,6 +6,7 @@ import type { NoteRepository } from './ports/note-repository.js';
 import type { Storage } from './ports/storage.js';
 import type { TranscriptionService } from './services/transcription/transcription-service.js';
 import type { ExtractionService } from './services/extraction/extraction-service.js';
+import type { FollowUpService } from './services/followup/follow-up-service.js';
 import type { FactsRepository } from './ports/facts-repository.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
 import type { BriefService } from './services/brief/brief-service.js';
@@ -33,6 +34,7 @@ export interface ApiDeps {
   storage: Storage;
   transcription: TranscriptionService;
   extraction: ExtractionService;
+  followUp: FollowUpService;
   facts: FactsRepository;
   corrections: CorrectionRepository;
   brief: BriefService;
@@ -87,6 +89,7 @@ export function createApiServer(deps: ApiDeps): Server {
           storage: deps.storage,
           transcription: deps.transcription,
           extraction: deps.extraction,
+          followUp: deps.followUp,
         })
       )
         return;

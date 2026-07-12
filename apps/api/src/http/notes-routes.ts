@@ -6,6 +6,7 @@ import type { NoteRepository } from '../ports/note-repository.js';
 import type { Storage } from '../ports/storage.js';
 import type { TranscriptionService } from '../services/transcription/transcription-service.js';
 import type { ExtractionService } from '../services/extraction/extraction-service.js';
+import type { FollowUpService } from '../services/followup/follow-up-service.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 
 const MAX_PASTE_CHARS = 100_000;
@@ -21,6 +22,7 @@ export interface NoteRouteDeps {
   storage: Storage;
   transcription: TranscriptionService;
   extraction: ExtractionService;
+  followUp: FollowUpService;
 }
 
 const VOICE_RE = /^\/clients\/([^/]+)\/notes\/voice$/;
@@ -29,6 +31,7 @@ const LIST_RE = /^\/clients\/([^/]+)\/notes$/;
 const AUDIO_RE = /^\/notes\/([^/]+)\/audio$/;
 const TRANSCRIBE_RE = /^\/notes\/([^/]+)\/transcribe$/;
 const EXTRACT_RE = /^\/notes\/([^/]+)\/extract$/;
+const FOLLOWUP_RE = /^\/notes\/([^/]+)\/follow-up$/;
 
 /** Handle /clients/:id/notes* and /notes/:id/audio. Returns true if handled. */
 export async function handleNoteRoute(
@@ -45,7 +48,8 @@ export async function handleNoteRoute(
   const audioMatch = method === 'GET' ? AUDIO_RE.exec(path) : null;
   const transcribeMatch = method === 'POST' ? TRANSCRIBE_RE.exec(path) : null;
   const extractMatch = method === 'POST' ? EXTRACT_RE.exec(path) : null;
-  if (!voiceMatch && !pasteMatch && !listMatch && !audioMatch && !transcribeMatch && !extractMatch) return false;
+  const followUpMatch = method === 'POST' ? FOLLOWUP_RE.exec(path) : null;
+  if (!voiceMatch && !pasteMatch && !listMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -144,6 +148,17 @@ export async function handleNoteRoute(
       const outcome = await deps.extraction.extractNote(userId, noteId, todayIso());
       const updated = await deps.notes.findByIdForUser(userId, noteId);
       sendJson(res, 200, { note: updated, ...outcome });
+      return true;
+    }
+
+    if (followUpMatch) {
+      // Draft only — never sends. Returns editable text for the rep.
+      const result = await deps.followUp.draft(userId, decodeURIComponent(followUpMatch[1]!));
+      if (!result) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      sendJson(res, 200, result);
       return true;
     }
 

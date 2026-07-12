@@ -15,6 +15,7 @@ import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extr
 import { StubEmbedder } from '../adapters/embedding/stub.js';
 import { ExtractionService } from '../services/extraction/extraction-service.js';
 import { BriefService } from '../services/brief/brief-service.js';
+import { FollowUpService } from '../services/followup/follow-up-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
 import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
 import { MeetingParser } from '../services/meetings/meeting-parser.js';
@@ -57,6 +58,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     'stub',
   );
   const brief = new BriefService(clients, notes, facts, embedder);
+  const followUp = new FollowUpService(new StubModelClient(), notes);
   const corrections = new InMemoryCorrectionRepository();
   const meetings = new InMemoryMeetingRepository();
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
@@ -70,6 +72,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     storage,
     transcription,
     extraction,
+    followUp,
     facts,
     corrections,
     brief,

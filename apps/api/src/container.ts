@@ -37,6 +37,7 @@ import type { ExtractionLogRepository } from './ports/extraction-log-repository.
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
 import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-repository.js';
 import { BriefService } from './services/brief/brief-service.js';
+import { FollowUpService } from './services/followup/follow-up-service.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
 import { InMemoryCorrectionRepository } from './adapters/corrections/in-memory-correction-repository.js';
 import { PgCorrectionRepository } from './adapters/corrections/pg-correction-repository.js';
@@ -244,6 +245,11 @@ export function scanConfigFrom(config: AppConfig): ScanConfig {
     nudgeLeadMs: config.nudgeLeadHours * 60 * 60 * 1000,
     reminderWindowDays: config.reminderWindowDays,
   };
+}
+
+/** Follow-up draft service (grounded on the note's real commitments). */
+export function createFollowUpService(config: AppConfig, notes: NoteRepository): FollowUpService {
+  return new FollowUpService(createModelClient(config), notes);
 }
 
 /** The pre-meeting brief service (spine + JSONB + semantic search). */

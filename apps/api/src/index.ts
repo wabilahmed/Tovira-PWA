@@ -12,6 +12,7 @@ import {
   createTranscriptionService,
   createFactsRepository,
   createExtractionService,
+  createFollowUpService,
   createExtractionLogRepository,
   createBriefService,
   createCorrectionRepository,
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
   const facts = createFactsRepository(config, appPool);
   const extractionLogs = createExtractionLogRepository(config, appPool);
   const extraction = createExtractionService(config, clients, notes, facts, extractionLogs);
+  const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(clients, notes, facts);
   const corrections = createCorrectionRepository(config, appPool);
   const meetings = createMeetingRepository(config, appPool);
@@ -72,6 +74,7 @@ async function main(): Promise<void> {
     storage,
     transcription,
     extraction,
+    followUp,
     facts,
     corrections,
     brief,

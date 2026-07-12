@@ -187,6 +187,33 @@ describe('voice note upload', () => {
     expect(res.status).toBe(404);
   });
 
+  // [P4-4] follow-up draft — drafts only, never sends
+  it('drafts a follow-up from a note and returns it (nothing sent)', async () => {
+    const token = await signup('followup@example.com');
+    const clientId = await createClient(token, 'Follow Corp');
+    const note = (await (await fetch(`${base}/clients/${clientId}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'good meeting, will send the deck tomorrow' }),
+    })).json()) as { id: string };
+    const res = await fetch(`${base}/notes/${note.id}/follow-up`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(200);
+    expect(typeof ((await res.json()) as { draft: string }).draft).toBe('string');
+  });
+
+  it('rejects drafting a follow-up for another rep\'s note (404)', async () => {
+    const a = await signup('a-fu@example.com');
+    const b = await signup('b-fu@example.com');
+    const clientA = await createClient(a, 'A FU');
+    const note = (await (await fetch(`${base}/clients/${clientA}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${a}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'hello there' }),
+    })).json()) as { id: string };
+    const res = await fetch(`${base}/notes/${note.id}/follow-up`, { method: 'POST', headers: { authorization: `Bearer ${b}` } });
+    expect(res.status).toBe(404);
+  });
+
   // [P1-4] paste a message
   it('stores a pasted message verbatim (emojis + line breaks preserved), queued for extraction', async () => {
     const token = await signup('paste@example.com');
