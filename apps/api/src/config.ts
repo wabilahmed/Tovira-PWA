@@ -43,6 +43,10 @@ export interface AppConfig {
   reminderWindowDays: number;
   heroMinClients: number;
   heroMinNotes: number;
+  // --- billing (P5) ---
+  trialDays: number;
+  stripeWebhookSecret: string;
+  stripeSecretKey: string | undefined;
 }
 
 type Env = Record<string, string | undefined>;
@@ -87,6 +91,9 @@ export function loadConfig(env: Env = process.env): AppConfig {
     reminderWindowDays: parsePositive(env.REMINDER_WINDOW_DAYS, 7, 'REMINDER_WINDOW_DAYS'),
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
+    trialDays: parsePositive(env.TRIAL_DAYS, 7, 'TRIAL_DAYS'),
+    stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET?.trim() || 'whsec_test',
+    stripeSecretKey: isBlank(env.STRIPE_SECRET_KEY) ? undefined : env.STRIPE_SECRET_KEY!.trim(),
   };
 }
 

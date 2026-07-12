@@ -59,6 +59,11 @@ import type { ImageRepository } from './ports/image-repository.js';
 import { InMemoryImageRepository } from './adapters/images/in-memory-image-repository.js';
 import { PgImageRepository } from './adapters/images/pg-image-repository.js';
 import { HeroService } from './services/hero/hero-service.js';
+import { BillingService } from './services/billing/billing-service.js';
+import type { SubscriptionRepository, TrialGrantRepository, WebhookEventRepository } from './ports/billing.js';
+import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from './adapters/billing/in-memory.js';
+import { PgSubscriptionRepository, PgTrialGrantRepository, PgWebhookEventRepository } from './adapters/billing/pg.js';
+import { StubStripeGateway } from './adapters/billing/stub-stripe.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -261,6 +266,24 @@ export function createImageRepository(config: AppConfig, pool?: Pool): ImageRepo
 
 export function createHeroService(config: AppConfig, clients: ClientRepository, facts: FactsRepository, meetings: MeetingRepository, notes: NoteRepository): HeroService {
   return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays);
+}
+
+export function createBillingService(config: AppConfig, pool?: Pool): BillingService {
+  let subs: SubscriptionRepository;
+  let trials: TrialGrantRepository;
+  let events: WebhookEventRepository;
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    subs = new PgSubscriptionRepository(pool);
+    trials = new PgTrialGrantRepository(pool);
+    events = new PgWebhookEventRepository(pool);
+  } else {
+    subs = new InMemorySubscriptionRepository();
+    trials = new InMemoryTrialGrantRepository();
+    events = new InMemoryWebhookEventRepository();
+  }
+  // Real Stripe SDK wired at deploy (TEST MODE); stub locally.
+  return new BillingService(subs, trials, events, new StubStripeGateway(config.stripeWebhookSecret), config.trialDays);
 }
 
 export function scanConfigFrom(config: AppConfig): ScanConfig {

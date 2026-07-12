@@ -18,6 +18,7 @@ import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import type { CardScanner } from './ports/card-scanner.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
+import type { BillingService } from './services/billing/billing-service.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
@@ -30,6 +31,7 @@ import { handleInsightsRoute } from './http/insights-routes.js';
 import { handleCardRoute } from './http/cards-routes.js';
 import { handleImageRoute } from './http/images-routes.js';
 import { handleHeroRoute } from './http/hero-routes.js';
+import { handleBillingRoute } from './http/billing-routes.js';
 import { sendJson } from './http/helpers.js';
 
 export interface ApiDeps {
@@ -54,6 +56,7 @@ export interface ApiDeps {
   cardScanner: CardScanner;
   images: ImageRepository;
   hero: HeroService;
+  billing: BillingService;
   cookieSecure?: boolean;
 }
 
@@ -87,7 +90,7 @@ export function createApiServer(deps: ApiDeps): Server {
         return;
       }
 
-      if (await handleAuthRoute(request, response, deps.auth, { cookieSecure })) return;
+      if (await handleAuthRoute(request, response, deps.auth, { cookieSecure, onSignup: (userId, email) => deps.billing.onSignup(userId, email, Date.now()) })) return;
       // Notes routes are matched before the generic client routes so
       // /clients/:id/notes/* isn't misread as /clients/:id.
       if (
@@ -118,7 +121,7 @@ export function createApiServer(deps: ApiDeps): Server {
         })
       )
         return;
-      if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief })) return;
+      if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing })) return;
       if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes })) return;
       if (await handleCardRoute(request, response, { auth: deps.auth, scanner: deps.cardScanner })) return;
       if (
@@ -142,6 +145,7 @@ export function createApiServer(deps: ApiDeps): Server {
         return;
       if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
       if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero })) return;
+      if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
 
       if (request.method === 'GET' && url === '/') {

@@ -23,6 +23,8 @@ function readCredentials(body: unknown): Credentials {
 
 export interface AuthRouteOptions {
   cookieSecure: boolean;
+  /** Called after a successful signup (starts the trial). */
+  onSignup?: (userId: string, email: string) => Promise<void>;
 }
 
 /** Handle an /auth/* or /me request. Returns true if it handled the request. */
@@ -37,8 +39,15 @@ export async function handleAuthRoute(
 
   try {
     if (method === 'POST' && url === '/auth/signup') {
-      const { email, password } = readCredentials(await readJsonBody(req));
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      // [P5-4] consent: explicit refusal blocks sensitive storage/processing.
+      if (body.consent === false) {
+        sendJson(res, 400, { error: 'consent_required', message: 'Please accept the terms to continue.' });
+        return true;
+      }
+      const { email, password } = readCredentials(body);
       const result = await auth.signup(email, password);
+      await opts.onSignup?.(result.user.id, result.user.email);
       sendJson(res, 201, result, {
         'set-cookie': sessionCookie(result.token, auth.sessionTtlSeconds, opts.cookieSecure),
       });

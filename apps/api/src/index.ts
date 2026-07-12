@@ -26,6 +26,7 @@ import {
   createCardScanner,
   createImageRepository,
   createHeroService,
+  createBillingService,
 } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -72,6 +73,7 @@ async function main(): Promise<void> {
   const cardScanner = createCardScanner();
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes);
+  const billing = createBillingService(config, appPool);
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -94,6 +96,7 @@ async function main(): Promise<void> {
     cardScanner,
     images,
     hero,
+    billing,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {
