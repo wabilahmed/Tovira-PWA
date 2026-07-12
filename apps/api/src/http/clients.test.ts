@@ -7,6 +7,8 @@ import { ScryptHasher } from '../services/auth/password.js';
 import { InMemoryUserRepository } from '../adapters/auth/in-memory-user-repository.js';
 import { InMemorySessionRepository } from '../adapters/auth/in-memory-session-repository.js';
 import { InMemoryClientRepository } from '../adapters/clients/in-memory-client-repository.js';
+import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-repository.js';
+import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 
 const stubPool = { query: async () => ({ rows: [] }) } as unknown as import('pg').Pool;
 
@@ -20,7 +22,13 @@ beforeAll(async () => {
     hasher: new ScryptHasher(),
     sessionTtlMs: 60 * 60 * 1000,
   });
-  server = createApiServer({ pool: stubPool, auth, clients: new InMemoryClientRepository() });
+  server = createApiServer({
+    pool: stubPool,
+    auth,
+    clients: new InMemoryClientRepository(),
+    notes: new InMemoryNoteRepository(),
+    storage: new InMemoryStorage(),
+  });
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });

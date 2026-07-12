@@ -27,6 +27,18 @@ export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
+/** Read the raw request body as bytes (for binary uploads like audio). */
+export async function readRawBody(req: IncomingMessage, limit = 30_000_000): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > limit) throw new BadJsonError('body too large');
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
 export function parseCookies(header: string | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   if (!header) return out;

@@ -1,0 +1,96 @@
+import { randomUUID } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { AuthService } from '../services/auth/auth-service.js';
+import type { ClientRepository } from '../ports/client-repository.js';
+import type { NoteRepository } from '../ports/note-repository.js';
+import type { Storage } from '../ports/storage.js';
+import { BadJsonError, extractToken, readRawBody, sendJson } from './helpers.js';
+
+export interface NoteRouteDeps {
+  auth: AuthService;
+  clients: ClientRepository;
+  notes: NoteRepository;
+  storage: Storage;
+}
+
+const VOICE_RE = /^\/clients\/([^/]+)\/notes\/voice$/;
+const LIST_RE = /^\/clients\/([^/]+)\/notes$/;
+const AUDIO_RE = /^\/notes\/([^/]+)\/audio$/;
+
+/** Handle /clients/:id/notes* and /notes/:id/audio. Returns true if handled. */
+export async function handleNoteRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: NoteRouteDeps,
+): Promise<boolean> {
+  const method = req.method ?? 'GET';
+  const path = (req.url ?? '/').split('?')[0]!;
+
+  const voiceMatch = method === 'POST' ? VOICE_RE.exec(path) : null;
+  const listMatch = method === 'GET' ? LIST_RE.exec(path) : null;
+  const audioMatch = method === 'GET' ? AUDIO_RE.exec(path) : null;
+  if (!voiceMatch && !listMatch && !audioMatch) return false;
+
+  const identity = await deps.auth.authenticate(extractToken(req));
+  if (!identity) {
+    sendJson(res, 401, { error: 'unauthorized' });
+    return true;
+  }
+  const userId = identity.userId;
+
+  try {
+    if (voiceMatch) {
+      const clientId = decodeURIComponent(voiceMatch[1]!);
+      // The client must belong to the caller (guards IDOR + attribution).
+      const client = await deps.clients.findByIdForUser(userId, clientId);
+      if (!client) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      const audio = await readRawBody(req);
+      if (audio.length === 0) {
+        sendJson(res, 400, { error: 'validation', message: 'No audio was uploaded.' });
+        return true;
+      }
+      const audioKey = `audio/${userId}/${randomUUID()}.webm`;
+      await deps.storage.put(audioKey, new Uint8Array(audio));
+      const note = await deps.notes.create(userId, {
+        clientId,
+        source: 'voice',
+        rawText: null,
+        audioKey,
+        status: 'pending_transcription',
+      });
+      await deps.clients.touch(userId, clientId); // bump recency
+      sendJson(res, 201, note);
+      return true;
+    }
+
+    if (listMatch) {
+      const clientId = decodeURIComponent(listMatch[1]!);
+      sendJson(res, 200, { notes: await deps.notes.listByClient(userId, clientId) });
+      return true;
+    }
+
+    if (audioMatch) {
+      const noteId = decodeURIComponent(audioMatch[1]!);
+      const note = await deps.notes.findByIdForUser(userId, noteId);
+      if (!note || !note.audioKey || !(await deps.storage.exists(note.audioKey))) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      const bytes = await deps.storage.get(note.audioKey);
+      res.writeHead(200, { 'content-type': 'audio/webm', 'content-length': String(bytes.byteLength) });
+      res.end(Buffer.from(bytes));
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    if (err instanceof BadJsonError) {
+      sendJson(res, 400, { error: 'bad_request', message: 'Invalid request body.' });
+      return true;
+    }
+    throw err;
+  }
+}

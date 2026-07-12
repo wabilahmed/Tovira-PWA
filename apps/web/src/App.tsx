@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
-import { ClientsClient, type ClientSummary } from './clients/clientsClient.js';
+import { ClientsClient, type ClientSummary, type NoteSummary } from './clients/clientsClient.js';
+import { Outbox, type PendingRecording } from './capture/outbox.js';
+import { IdbRecordingStore } from './capture/idbRecordingStore.js';
+import { HttpUploader } from './capture/uploader.js';
+import { requestMicrophone } from './capture/microphone.js';
+import { startRecording, type ActiveRecording } from './capture/recorder.js';
 
 const auth = new AuthClient();
 const clientsApi = new ClientsClient();
+const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader());
+
+function randomId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Math.random());
+}
 
 export function App(): JSX.Element {
   const [loading, setLoading] = useState(true);
@@ -29,11 +39,14 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<ClientSummary | null>(null);
 
   // Reload (with the current search) whenever the query changes — recents first.
   useEffect(() => {
     void clientsApi.list(query.trim() || undefined).then(setClients);
   }, [query]);
+
+  if (open) return <ClientDetail client={open} onBack={() => setOpen(null)} />;
 
   async function addClient(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -87,8 +100,76 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {clients.map((c) => (
-            <li key={c.id} style={{ padding: '0.75rem 0', borderBottom: '1px solid #eee' }}>
-              {c.name}
+            <li key={c.id} style={{ borderBottom: '1px solid #eee' }}>
+              <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 0', color: 'inherit' }}>
+                {c.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
+  );
+}
+
+function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () => void }): JSX.Element {
+  const [notes, setNotes] = useState<NoteSummary[]>([]);
+  const [pending, setPending] = useState<PendingRecording[]>([]);
+  const [active, setActive] = useState<ActiveRecording | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const refresh = (): void => {
+    void clientsApi.listNotes(client.id).then(setNotes);
+    void outbox.pending().then(setPending);
+  };
+  useEffect(() => {
+    void outbox.flush().then(refresh);
+  }, []);
+
+  async function startRec(): Promise<void> {
+    setStatus(null);
+    const mic = await requestMicrophone();
+    if (!mic.granted || !mic.stream) {
+      setStatus(mic.guidance ?? 'Microphone unavailable.');
+      return;
+    }
+    setActive(startRecording(mic.stream));
+  }
+
+  async function stopRec(): Promise<void> {
+    if (!active) return;
+    const blob = await active.stop();
+    setActive(null);
+    await outbox.enqueue({ id: randomId(), clientId: client.id, blob, createdAt: Date.now() });
+    refresh();
+  }
+
+  return (
+    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
+      <button onClick={onBack} style={linkButton}>← Clients</button>
+      <h1>{client.name}</h1>
+
+      {active ? (
+        <button onClick={() => void stopRec()}>■ Stop &amp; save</button>
+      ) : (
+        <button onClick={() => void startRec()}>● Record voice note</button>
+      )}
+      {status && <p style={{ color: 'crimson' }}>{status}</p>}
+      {pending.length > 0 && (
+        <p style={{ color: '#a15c00' }}>
+          {pending.length} recording(s) pending upload — they’re saved and will retry automatically.
+        </p>
+      )}
+
+      <h2 style={{ fontSize: '1rem', marginTop: '1.5rem' }}>Notes</h2>
+      {notes.length === 0 ? (
+        <p style={{ color: '#666' }}>No notes yet.</p>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {notes.map((n) => (
+            <li key={n.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid #eee' }}>
+              <small style={{ color: '#888' }}>{n.source} · {n.status}</small>
+              <div>{n.rawText ?? <em>(transcription pending)</em>}</div>
             </li>
           ))}
         </ul>

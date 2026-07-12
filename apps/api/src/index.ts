@@ -4,7 +4,7 @@ import { loadConfig } from './config.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
-import { createAuthService, createClientRepository } from './container.js';
+import { createAuthService, createClientRepository, createNoteRepository, createStorage } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -32,7 +32,16 @@ async function main(): Promise<void> {
   const appPool = createPool(config.appDatabaseUrl);
   const auth = createAuthService(config, appPool);
   const clients = createClientRepository(config, appPool);
-  const server = createApiServer({ pool: appPool, auth, clients, cookieSecure: config.nodeEnv === 'production' });
+  const notes = createNoteRepository(config, appPool);
+  const storage = createStorage(config);
+  const server = createApiServer({
+    pool: appPool,
+    auth,
+    clients,
+    notes,
+    storage,
+    cookieSecure: config.nodeEnv === 'production',
+  });
   server.listen(config.port, () => {
     console.log(`[api] listening on http://0.0.0.0:${config.port} (${config.nodeEnv})`);
   });

@@ -1,0 +1,39 @@
+/**
+ * Port: captured notes (the "messy pile"). Tenant-scoped; the Postgres impl
+ * enforces isolation at the DB via RLS.
+ */
+
+export type NoteSource = 'voice' | 'paste';
+
+export interface NoteRecord {
+  id: string;
+  userId: string;
+  clientId: string;
+  source: NoteSource;
+  rawText: string | null;
+  audioKey: string | null;
+  status: string;
+  extracted: unknown | null;
+  createdAt: number;
+}
+
+export interface NewNote {
+  clientId: string;
+  source: NoteSource;
+  rawText: string | null;
+  audioKey: string | null;
+  status: string;
+}
+
+export interface NotePatch {
+  rawText?: string | null;
+  status?: string;
+  extracted?: unknown | null;
+}
+
+export interface NoteRepository {
+  create(userId: string, note: NewNote): Promise<NoteRecord>;
+  listByClient(userId: string, clientId: string): Promise<NoteRecord[]>;
+  findByIdForUser(userId: string, id: string): Promise<NoteRecord | null>;
+  update(userId: string, id: string, patch: NotePatch): Promise<void>;
+}

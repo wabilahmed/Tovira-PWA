@@ -4,6 +4,14 @@ export interface ClientSummary {
   createdAt: number;
 }
 
+export interface NoteSummary {
+  id: string;
+  source: 'voice' | 'paste';
+  rawText: string | null;
+  status: string;
+  createdAt: number;
+}
+
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
 export class ClientsClient {
   constructor(private readonly baseUrl: string = '') {}
@@ -42,5 +50,15 @@ export class ClientsClient {
     const res = await fetch(this.url(`/clients/${id}`), { credentials: 'include' });
     if (res.status !== 200) return null;
     return (await res.json()) as ClientSummary;
+  }
+
+  async listNotes(clientId: string): Promise<NoteSummary[]> {
+    try {
+      const res = await fetch(this.url(`/clients/${clientId}/notes`), { credentials: 'include' });
+      if (res.status !== 200) return [];
+      return ((await res.json()) as { notes: NoteSummary[] }).notes;
+    } catch {
+      return [];
+    }
   }
 }

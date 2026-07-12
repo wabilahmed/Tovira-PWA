@@ -2,14 +2,19 @@ import { createServer, type Server } from 'node:http';
 import type { Pool } from 'pg';
 import type { AuthService } from './services/auth/auth-service.js';
 import type { ClientRepository } from './ports/client-repository.js';
+import type { NoteRepository } from './ports/note-repository.js';
+import type { Storage } from './ports/storage.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
+import { handleNoteRoute } from './http/notes-routes.js';
 import { sendJson } from './http/helpers.js';
 
 export interface ApiDeps {
   pool: Pool;
   auth: AuthService;
   clients: ClientRepository;
+  notes: NoteRepository;
+  storage: Storage;
   cookieSecure?: boolean;
 }
 
@@ -44,6 +49,17 @@ export function createApiServer(deps: ApiDeps): Server {
       }
 
       if (await handleAuthRoute(request, response, deps.auth, { cookieSecure })) return;
+      // Notes routes are matched before the generic client routes so
+      // /clients/:id/notes/* isn't misread as /clients/:id.
+      if (
+        await handleNoteRoute(request, response, {
+          auth: deps.auth,
+          clients: deps.clients,
+          notes: deps.notes,
+          storage: deps.storage,
+        })
+      )
+        return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
 
       if (request.method === 'GET' && url === '/') {
