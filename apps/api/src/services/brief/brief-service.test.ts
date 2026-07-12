@@ -79,6 +79,43 @@ describe('BriefService', () => {
     expect(brief.needsConfirmation).toHaveLength(1);
   });
 
+  // [P2-4] No guesses as facts.
+  it('never lets an unconfirmed uncertain item into open promises, across a mixed set', async () => {
+    const { clients, notes, facts, client } = await seed();
+    const note = await notes.create('user-A', { clientId: client.id, source: 'paste', rawText: 'x', audioKey: null, status: 'extracted' });
+    await facts.saveExtraction('user-A', {
+      noteId: note.id,
+      clientId: client.id,
+      promises: [
+        { text: 'send the quote', owner: 'rep', due_date: '2026-07-10', due_raw: 'Friday', confidence: 'high' },
+        { text: 'maybe follow up', owner: 'rep', due_date: null, due_raw: 'soon', confidence: 'low' },
+        { text: 'circle back', owner: 'client', due_date: null, due_raw: 'after holidays', confidence: 'high' },
+      ],
+    });
+    const brief = (await new BriefService(clients, notes, facts, fakeEmbedder({})).buildBrief('user-A', client.id))!;
+    // Only the high-confidence, resolved promise is a settled fact.
+    expect(brief.openPromises.map((p) => p.text)).toEqual(['send the quote']);
+    // The low-confidence one AND the unresolved-date one are held for confirmation.
+    expect(brief.needsConfirmation.map((p) => p.text).sort()).toEqual(['circle back', 'maybe follow up']);
+  });
+
+  it('never shows a made-up date: a confirmed null-date promise keeps due_date null', async () => {
+    const { clients, notes, facts, client } = await seed();
+    const note = await notes.create('user-A', { clientId: client.id, source: 'paste', rawText: 'x', audioKey: null, status: 'extracted' });
+    await facts.saveExtraction('user-A', {
+      noteId: note.id,
+      clientId: client.id,
+      promises: [{ text: 'circle back', owner: 'client', due_date: null, due_raw: 'after the holidays', confidence: 'high' }],
+    });
+    // Confirm it so it becomes a settled fact — but its date was never resolved.
+    const [p] = await facts.listPromisesByUser('user-A');
+    await facts.confirmPromise('user-A', p!.id);
+    const brief = (await new BriefService(clients, notes, facts, fakeEmbedder({})).buildBrief('user-A', client.id))!;
+    const settled = brief.openPromises[0]!;
+    expect(settled.dueDate).toBeNull(); // no fabricated date
+    expect(settled.dueRaw).toBe('after the holidays'); // the phrase is preserved instead
+  });
+
   it('surfaces a semantically related past note and omits unrelated ones', async () => {
     const { clients, notes, facts, client } = await seed();
     // focus note (most-relevant), a similar past note, and an unrelated one.
