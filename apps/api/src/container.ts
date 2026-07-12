@@ -53,6 +53,8 @@ import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import { StubPushSender } from './adapters/push/stub-sender.js';
 import { InMemoryPushSubscriptionRepository } from './adapters/push/in-memory-push-subscription-repository.js';
 import { PgPushSubscriptionRepository } from './adapters/push/pg-push-subscription-repository.js';
+import type { CardScanner } from './ports/card-scanner.js';
+import { StubCardScanner } from './adapters/vision/stub-card-scanner.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -237,6 +239,11 @@ export function createPushSubscriptionRepository(config: AppConfig, pool?: Pool)
 /** Push delivery: stub locally; real VAPID/web-push wired at deploy (P6-3). */
 export function createPushSender(): PushSender {
   return new StubPushSender();
+}
+
+/** Business-card vision scan: stub locally; real vision model at deploy. */
+export function createCardScanner(): CardScanner {
+  return new StubCardScanner();
 }
 
 export function scanConfigFrom(config: AppConfig): ScanConfig {

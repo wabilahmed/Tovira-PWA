@@ -23,6 +23,7 @@ import {
   scanConfigFrom,
   createPushSubscriptionRepository,
   createPushSender,
+  createCardScanner,
 } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -66,6 +67,7 @@ async function main(): Promise<void> {
   const scan = createScanService(clients, meetings, facts, notifications);
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender();
+  const cardScanner = createCardScanner();
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -85,6 +87,7 @@ async function main(): Promise<void> {
     scanConfig: scanConfigFrom(config),
     pushSubscriptions,
     pushSender,
+    cardScanner,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {

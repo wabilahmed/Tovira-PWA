@@ -23,6 +23,7 @@ import { InMemoryNotificationRepository } from '../adapters/notifications/in-mem
 import { ScanService } from '../services/scan/scan-service.js';
 import { InMemoryPushSubscriptionRepository } from '../adapters/push/in-memory-push-subscription-repository.js';
 import { StubPushSender } from '../adapters/push/stub-sender.js';
+import { StubCardScanner } from '../adapters/vision/stub-card-scanner.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -83,6 +84,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     scanConfig: { coldThresholdDays: 30, nudgeLeadMs: 24 * 60 * 60 * 1000, reminderWindowDays: 7 },
     pushSubscriptions: new InMemoryPushSubscriptionRepository(),
     pushSender: new StubPushSender(),
+    cardScanner: new StubCardScanner(),
     ...overrides,
   } as TestDeps;
 }

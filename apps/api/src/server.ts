@@ -15,6 +15,7 @@ import type { MeetingParser } from './services/meetings/meeting-parser.js';
 import type { NotificationRepository } from './ports/notification-repository.js';
 import type { ScanService, ScanConfig } from './services/scan/scan-service.js';
 import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
+import type { CardScanner } from './ports/card-scanner.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
@@ -24,6 +25,7 @@ import { handleFactsRoute } from './http/facts-routes.js';
 import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
 import { handleInsightsRoute } from './http/insights-routes.js';
+import { handleCardRoute } from './http/cards-routes.js';
 import { sendJson } from './http/helpers.js';
 
 export interface ApiDeps {
@@ -45,6 +47,7 @@ export interface ApiDeps {
   scanConfig: ScanConfig;
   pushSubscriptions: PushSubscriptionRepository;
   pushSender: PushSender;
+  cardScanner: CardScanner;
   cookieSecure?: boolean;
 }
 
@@ -111,6 +114,7 @@ export function createApiServer(deps: ApiDeps): Server {
         return;
       if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief })) return;
       if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes })) return;
+      if (await handleCardRoute(request, response, { auth: deps.auth, scanner: deps.cardScanner })) return;
       if (
         await handleMeetingRoute(request, response, {
           auth: deps.auth,
