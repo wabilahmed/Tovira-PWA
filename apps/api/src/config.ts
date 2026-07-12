@@ -41,6 +41,8 @@ export interface AppConfig {
   coldThresholdDays: number;
   nudgeLeadHours: number;
   reminderWindowDays: number;
+  heroMinClients: number;
+  heroMinNotes: number;
 }
 
 type Env = Record<string, string | undefined>;
@@ -83,6 +85,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     coldThresholdDays: parsePositive(env.COLD_THRESHOLD_DAYS, 30, 'COLD_THRESHOLD_DAYS'),
     nudgeLeadHours: parsePositive(env.NUDGE_LEAD_HOURS, 24, 'NUDGE_LEAD_HOURS'),
     reminderWindowDays: parsePositive(env.REMINDER_WINDOW_DAYS, 7, 'REMINDER_WINDOW_DAYS'),
+    heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
+    heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
   };
 }
 

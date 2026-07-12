@@ -21,6 +21,7 @@ import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meetin
 import { MeetingParser } from '../services/meetings/meeting-parser.js';
 import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
 import { ScanService } from '../services/scan/scan-service.js';
+import { HeroService } from '../services/hero/hero-service.js';
 import { InMemoryPushSubscriptionRepository } from '../adapters/push/in-memory-push-subscription-repository.js';
 import { StubPushSender } from '../adapters/push/stub-sender.js';
 import { StubCardScanner } from '../adapters/vision/stub-card-scanner.js';
@@ -87,6 +88,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     pushSender: new StubPushSender(),
     cardScanner: new StubCardScanner(),
     images: new InMemoryImageRepository(),
+    hero: new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30),
     ...overrides,
   } as TestDeps;
 }

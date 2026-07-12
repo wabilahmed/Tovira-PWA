@@ -25,6 +25,7 @@ import {
   createPushSender,
   createCardScanner,
   createImageRepository,
+  createHeroService,
 } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   const pushSender = createPushSender();
   const cardScanner = createCardScanner();
   const images = createImageRepository(config, appPool);
+  const hero = createHeroService(config, clients, facts, meetings, notes);
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -91,6 +93,7 @@ async function main(): Promise<void> {
     pushSender,
     cardScanner,
     images,
+    hero,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {

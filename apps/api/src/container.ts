@@ -58,6 +58,7 @@ import { StubCardScanner } from './adapters/vision/stub-card-scanner.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import { InMemoryImageRepository } from './adapters/images/in-memory-image-repository.js';
 import { PgImageRepository } from './adapters/images/pg-image-repository.js';
+import { HeroService } from './services/hero/hero-service.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -256,6 +257,10 @@ export function createImageRepository(config: AppConfig, pool?: Pool): ImageRepo
     return new PgImageRepository(pool);
   }
   return new InMemoryImageRepository();
+}
+
+export function createHeroService(config: AppConfig, clients: ClientRepository, facts: FactsRepository, meetings: MeetingRepository, notes: NoteRepository): HeroService {
+  return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays);
 }
 
 export function scanConfigFrom(config: AppConfig): ScanConfig {
