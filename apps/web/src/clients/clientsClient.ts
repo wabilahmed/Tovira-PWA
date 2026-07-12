@@ -52,6 +52,20 @@ export class ClientsClient {
     return (await res.json()) as ClientSummary;
   }
 
+  async createPasteNote(clientId: string, text: string): Promise<NoteSummary> {
+    const res = await fetch(this.url(`/clients/${clientId}/notes/paste`), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      throw new Error(body.message ?? 'Could not save the message.');
+    }
+    return (await res.json()) as NoteSummary;
+  }
+
   async listNotes(clientId: string): Promise<NoteSummary[]> {
     try {
       const res = await fetch(this.url(`/clients/${clientId}/notes`), { credentials: 'include' });

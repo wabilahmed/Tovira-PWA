@@ -4,7 +4,9 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import type { NoteRepository } from '../ports/note-repository.js';
 import type { Storage } from '../ports/storage.js';
-import { BadJsonError, extractToken, readRawBody, sendJson } from './helpers.js';
+import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
+
+const MAX_PASTE_CHARS = 100_000;
 
 export interface NoteRouteDeps {
   auth: AuthService;
@@ -14,6 +16,7 @@ export interface NoteRouteDeps {
 }
 
 const VOICE_RE = /^\/clients\/([^/]+)\/notes\/voice$/;
+const PASTE_RE = /^\/clients\/([^/]+)\/notes\/paste$/;
 const LIST_RE = /^\/clients\/([^/]+)\/notes$/;
 const AUDIO_RE = /^\/notes\/([^/]+)\/audio$/;
 
@@ -27,9 +30,10 @@ export async function handleNoteRoute(
   const path = (req.url ?? '/').split('?')[0]!;
 
   const voiceMatch = method === 'POST' ? VOICE_RE.exec(path) : null;
+  const pasteMatch = method === 'POST' ? PASTE_RE.exec(path) : null;
   const listMatch = method === 'GET' ? LIST_RE.exec(path) : null;
   const audioMatch = method === 'GET' ? AUDIO_RE.exec(path) : null;
-  if (!voiceMatch && !listMatch && !audioMatch) return false;
+  if (!voiceMatch && !pasteMatch && !listMatch && !audioMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -62,6 +66,39 @@ export async function handleNoteRoute(
         status: 'pending_transcription',
       });
       await deps.clients.touch(userId, clientId); // bump recency
+      sendJson(res, 201, note);
+      return true;
+    }
+
+    if (pasteMatch) {
+      const clientId = decodeURIComponent(pasteMatch[1]!);
+      const client = await deps.clients.findByIdForUser(userId, clientId);
+      if (!client) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      const body = (await readJsonBody(req)) as { text?: unknown };
+      const text = typeof body.text === 'string' ? body.text : '';
+      if (!text.trim()) {
+        sendJson(res, 400, { error: 'validation', message: 'A message is required.' });
+        return true;
+      }
+      if (text.length > MAX_PASTE_CHARS) {
+        sendJson(res, 413, {
+          error: 'too_large',
+          message: `Message is too long (max ${MAX_PASTE_CHARS.toLocaleString()} characters). Split it into smaller notes.`,
+        });
+        return true;
+      }
+      // Stored verbatim — emojis and line breaks preserved. Queued for extraction.
+      const note = await deps.notes.create(userId, {
+        clientId,
+        source: 'paste',
+        rawText: text,
+        audioKey: null,
+        status: 'pending_extraction',
+      });
+      await deps.clients.touch(userId, clientId);
       sendJson(res, 201, note);
       return true;
     }

@@ -117,6 +117,7 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [paste, setPaste] = useState('');
 
   const refresh = (): void => {
     void clientsApi.listNotes(client.id).then(setNotes);
@@ -144,6 +145,19 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
     refresh();
   }
 
+  async function savePaste(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    if (!paste.trim()) return;
+    setStatus(null);
+    try {
+      await clientsApi.createPasteNote(client.id, paste);
+      setPaste('');
+      refresh();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Could not save the message.');
+    }
+  }
+
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
       <button onClick={onBack} style={linkButton}>← Clients</button>
@@ -154,6 +168,19 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       ) : (
         <button onClick={() => void startRec()}>● Record voice note</button>
       )}
+
+      <form onSubmit={savePaste} style={{ marginTop: '1rem' }}>
+        <textarea
+          value={paste}
+          onChange={(e) => setPaste(e.target.value)}
+          placeholder="Paste a message (WhatsApp, email…)"
+          aria-label="Paste a message"
+          rows={3}
+          style={{ width: '100%' }}
+        />
+        <button type="submit" disabled={!paste.trim()}>Save message</button>
+      </form>
+
       {status && <p style={{ color: 'crimson' }}>{status}</p>}
       {pending.length > 0 && (
         <p style={{ color: '#a15c00' }}>

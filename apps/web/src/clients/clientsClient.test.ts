@@ -29,6 +29,22 @@ describe('ClientsClient', () => {
     expect((init as RequestInit).credentials).toBe('include');
   });
 
+  it('creates a pasted note under a client', async () => {
+    fetchMock.mockResolvedValueOnce(json(201, { id: 'n1', source: 'paste', rawText: 'hi', status: 'pending_extraction', createdAt: 1 }));
+    const client = new ClientsClient('http://api.test');
+    const note = await client.createPasteNote('c1', 'hi');
+    expect(note.source).toBe('paste');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('http://api.test/clients/c1/notes/paste');
+    expect((init as RequestInit).method).toBe('POST');
+  });
+
+  it('throws when a paste is rejected', async () => {
+    fetchMock.mockResolvedValueOnce(json(400, { error: 'validation', message: 'A message is required.' }));
+    const client = new ClientsClient('http://api.test');
+    await expect(client.createPasteNote('c1', '')).rejects.toThrow(/required/i);
+  });
+
   it('passes a search query to the server', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { clients: [] }));
     const client = new ClientsClient('http://api.test');

@@ -95,6 +95,74 @@ describe('voice note upload', () => {
     expect([...body]).toEqual([...audio]);
   });
 
+  // [P1-4] paste a message
+  it('stores a pasted message verbatim (emojis + line breaks preserved), queued for extraction', async () => {
+    const token = await signup('paste@example.com');
+    const clientId = await createClient(token, 'Northwind');
+    const text = 'hey 👋 thanks for the samples!\nthe team liked them\n— pricing is still high 💸';
+    const res = await fetch(`${base}/clients/${clientId}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    expect(res.status).toBe(201);
+    const note = (await res.json()) as { source: string; rawText: string; status: string };
+    expect(note.source).toBe('paste');
+    expect(note.rawText).toBe(text); // verbatim
+    expect(note.status).toBe('pending_extraction'); // queued for extraction
+  });
+
+  it('rejects an empty / whitespace-only paste, storing nothing', async () => {
+    const token = await signup('emptypaste@example.com');
+    const clientId = await createClient(token, 'Empty Paste');
+    for (const text of ['', '   \n\t ']) {
+      const res = await fetch(`${base}/clients/${clientId}/notes/paste`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      expect(res.status).toBe(400);
+    }
+    const list = (await (await fetch(`${base}/clients/${clientId}/notes`, {
+      headers: { authorization: `Bearer ${token}` },
+    })).json()) as { notes: unknown[] };
+    expect(list.notes).toEqual([]); // nothing stored
+  });
+
+  it('accepts a long paste up to the limit and rejects beyond it with a clear message (no silent truncation)', async () => {
+    const token = await signup('longpaste@example.com');
+    const clientId = await createClient(token, 'Long Paste');
+    const ok = 'x'.repeat(50_000);
+    const okRes = await fetch(`${base}/clients/${clientId}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: ok }),
+    });
+    expect(okRes.status).toBe(201);
+    expect(((await okRes.json()) as { rawText: string }).rawText.length).toBe(50_000);
+
+    const tooLong = 'x'.repeat(200_000);
+    const bigRes = await fetch(`${base}/clients/${clientId}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: tooLong }),
+    });
+    expect(bigRes.status).toBe(413);
+    expect(((await bigRes.json()) as { message?: string }).message).toBeTruthy();
+  });
+
+  it('does not let a rep paste under another rep\'s client (404)', async () => {
+    const tokenA = await signup('a-paste@example.com');
+    const tokenB = await signup('b-paste@example.com');
+    const clientA = await createClient(tokenA, 'A Paste Corp');
+    const res = await fetch(`${base}/clients/${clientA}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tokenB}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'sneaky' }),
+    });
+    expect(res.status).toBe(404);
+  });
+
   // NEGATIVE
   it('rejects an unauthenticated upload with 401', async () => {
     const res = await fetch(`${base}/clients/whatever/notes/voice`, {
