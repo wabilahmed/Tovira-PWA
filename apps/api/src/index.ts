@@ -64,14 +64,14 @@ async function main(): Promise<void> {
   const extractionLogs = createExtractionLogRepository(config, appPool);
   const extraction = createExtractionService(config, clients, notes, facts, extractionLogs);
   const followUp = createFollowUpService(config, notes);
-  const brief = createBriefService(clients, notes, facts);
+  const brief = createBriefService(config, clients, notes, facts);
   const corrections = createCorrectionRepository(config, appPool);
   const meetings = createMeetingRepository(config, appPool);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
   const scan = createScanService(clients, meetings, facts, notifications);
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
-  const pushSender = createPushSender();
+  const pushSender = createPushSender(config);
   const cardScanner = createCardScanner();
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes);

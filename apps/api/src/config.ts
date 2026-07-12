@@ -12,10 +12,14 @@ export class ConfigError extends Error {
 export type ModelProvider = 'stub' | 'anthropic';
 export type AuthStore = 'memory' | 'postgres';
 export type TranscriberProvider = 'stub' | 'groq';
+export type EmbedderProvider = 'stub' | 'bedrock';
+export type PushProvider = 'stub' | 'webpush';
 
 const MODEL_PROVIDERS: readonly ModelProvider[] = ['stub', 'anthropic'];
 const AUTH_STORES: readonly AuthStore[] = ['memory', 'postgres'];
 const TRANSCRIBER_PROVIDERS: readonly TranscriberProvider[] = ['stub', 'groq'];
+const EMBEDDER_PROVIDERS: readonly EmbedderProvider[] = ['stub', 'bedrock'];
+const PUSH_PROVIDERS: readonly PushProvider[] = ['stub', 'webpush'];
 
 export interface AppConfig {
   databaseUrl: string;
@@ -47,6 +51,17 @@ export interface AppConfig {
   trialDays: number;
   stripeWebhookSecret: string;
   stripeSecretKey: string | undefined;
+  stripePriceId: string;
+  stripeSuccessUrl: string;
+  stripeCancelUrl: string;
+  // --- cloud adapters (P6-2) ---
+  embedderProvider: EmbedderProvider;
+  bedrockRegion: string;
+  embedModel: string;
+  pushProvider: PushProvider;
+  vapidPublicKey: string;
+  vapidPrivateKey: string;
+  vapidSubject: string;
 }
 
 type Env = Record<string, string | undefined>;
@@ -94,7 +109,24 @@ export function loadConfig(env: Env = process.env): AppConfig {
     trialDays: parsePositive(env.TRIAL_DAYS, 7, 'TRIAL_DAYS'),
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET?.trim() || 'whsec_test',
     stripeSecretKey: isBlank(env.STRIPE_SECRET_KEY) ? undefined : env.STRIPE_SECRET_KEY!.trim(),
+    stripePriceId: env.STRIPE_PRICE_ID?.trim() || 'price_test',
+    stripeSuccessUrl: env.STRIPE_SUCCESS_URL?.trim() || 'http://localhost:5173/billing/success',
+    stripeCancelUrl: env.STRIPE_CANCEL_URL?.trim() || 'http://localhost:5173/billing/cancel',
+    embedderProvider: parseEnum(env.EMBEDDER, EMBEDDER_PROVIDERS, 'stub', 'EMBEDDER'),
+    bedrockRegion: env.BEDROCK_REGION?.trim() || 'us-east-1',
+    embedModel: env.EMBED_MODEL?.trim() || 'amazon.titan-embed-text-v2:0',
+    pushProvider: parseEnum(env.PUSH_SENDER, PUSH_PROVIDERS, 'stub', 'PUSH_SENDER'),
+    vapidPublicKey: env.VAPID_PUBLIC_KEY?.trim() || '',
+    vapidPrivateKey: env.VAPID_PRIVATE_KEY?.trim() || '',
+    vapidSubject: env.VAPID_SUBJECT?.trim() || 'mailto:ops@tovira.local',
   };
+}
+
+function parseEnum<T extends string>(raw: string | undefined, allowed: readonly T[], fallback: T, name: string): T {
+  if (isBlank(raw)) return fallback;
+  const value = raw!.trim() as T;
+  if (!allowed.includes(value)) throw new ConfigError(`Invalid ${name}: "${value}". Expected one of: ${allowed.join(', ')}.`);
+  return value;
 }
 
 function parsePositive(raw: string | undefined, fallback: number, name: string): number {

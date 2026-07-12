@@ -32,6 +32,7 @@ import { InMemoryFactsRepository } from './adapters/facts/in-memory-facts-reposi
 import { PgFactsRepository } from './adapters/facts/pg-facts-repository.js';
 import type { Embedder } from './ports/embedder.js';
 import { StubEmbedder } from './adapters/embedding/stub.js';
+import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
@@ -51,6 +52,7 @@ import { PgNotificationRepository } from './adapters/notifications/pg-notificati
 import { ScanService, type ScanConfig } from './services/scan/scan-service.js';
 import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import { StubPushSender } from './adapters/push/stub-sender.js';
+import { WebPushSender } from './adapters/push/webpush-sender.js';
 import { InMemoryPushSubscriptionRepository } from './adapters/push/in-memory-push-subscription-repository.js';
 import { PgPushSubscriptionRepository } from './adapters/push/pg-push-subscription-repository.js';
 import type { CardScanner } from './ports/card-scanner.js';
@@ -64,6 +66,8 @@ import type { SubscriptionRepository, TrialGrantRepository, WebhookEventReposito
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from './adapters/billing/in-memory.js';
 import { PgSubscriptionRepository, PgTrialGrantRepository, PgWebhookEventRepository } from './adapters/billing/pg.js';
 import { StubStripeGateway } from './adapters/billing/stub-stripe.js';
+import { StripeGatewayImpl } from './adapters/billing/stripe-gateway.js';
+import type { StripeGateway } from './ports/billing.js';
 import { AccountService } from './services/account/account-service.js';
 import { ActivationService } from './services/analytics/activation-service.js';
 import { PgActivationRepository, LogAnalytics } from './adapters/analytics/pg.js';
@@ -174,8 +178,11 @@ export function createFactsRepository(config: AppConfig, pool?: Pool): FactsRepo
   return new InMemoryFactsRepository();
 }
 
-/** Text embeddings (stub locally, Bedrock in prod). */
-export function createEmbedder(): Embedder {
+/** Text embeddings: stub locally, Bedrock (Titan v2) when configured. */
+export function createEmbedder(config: AppConfig): Embedder {
+  if (config.embedderProvider === 'bedrock') {
+    return new BedrockEmbedder({ region: config.bedrockRegion, modelId: config.embedModel, dimension: 1024 });
+  }
   return new StubEmbedder(1024);
 }
 
@@ -196,7 +203,7 @@ export function createExtractionService(
   logs: ExtractionLogRepository,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(), logs, modelId);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId);
 }
 
 /** The rep-corrections training log (P2-3), RLS-backed on pg. */
@@ -249,8 +256,11 @@ export function createPushSubscriptionRepository(config: AppConfig, pool?: Pool)
   return new InMemoryPushSubscriptionRepository();
 }
 
-/** Push delivery: stub locally; real VAPID/web-push wired at deploy (P6-3). */
-export function createPushSender(): PushSender {
+/** Push delivery: stub locally; real VAPID/web-push when configured. */
+export function createPushSender(config: AppConfig): PushSender {
+  if (config.pushProvider === 'webpush') {
+    return new WebPushSender({ publicKey: config.vapidPublicKey, privateKey: config.vapidPrivateKey, subject: config.vapidSubject });
+  }
   return new StubPushSender();
 }
 
@@ -286,8 +296,10 @@ export function createBillingService(config: AppConfig, pool?: Pool): BillingSer
     trials = new InMemoryTrialGrantRepository();
     events = new InMemoryWebhookEventRepository();
   }
-  // Real Stripe SDK wired at deploy (TEST MODE); stub locally.
-  return new BillingService(subs, trials, events, new StubStripeGateway(config.stripeWebhookSecret), config.trialDays);
+  const stripe: StripeGateway = config.stripeSecretKey
+    ? new StripeGatewayImpl({ secretKey: config.stripeSecretKey, webhookSecret: config.stripeWebhookSecret, priceId: config.stripePriceId, successUrl: config.stripeSuccessUrl, cancelUrl: config.stripeCancelUrl })
+    : new StubStripeGateway(config.stripeWebhookSecret);
+  return new BillingService(subs, trials, events, stripe, config.trialDays);
 }
 
 export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository): AccountService {
@@ -318,9 +330,10 @@ export function createFollowUpService(config: AppConfig, notes: NoteRepository):
 
 /** The pre-meeting brief service (spine + JSONB + semantic search). */
 export function createBriefService(
+  config: AppConfig,
   clients: ClientRepository,
   notes: NoteRepository,
   facts: FactsRepository,
 ): BriefService {
-  return new BriefService(clients, notes, facts, createEmbedder());
+  return new BriefService(clients, notes, facts, createEmbedder(config));
 }
