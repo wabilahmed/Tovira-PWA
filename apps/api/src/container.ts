@@ -36,6 +36,7 @@ import { ExtractionService } from './services/extraction/extraction-service.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
 import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-repository.js';
+import { BriefService } from './services/brief/brief-service.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -165,4 +166,13 @@ export function createExtractionService(
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
   return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(), logs, modelId);
+}
+
+/** The pre-meeting brief service (spine + JSONB + semantic search). */
+export function createBriefService(
+  clients: ClientRepository,
+  notes: NoteRepository,
+  facts: FactsRepository,
+): BriefService {
+  return new BriefService(clients, notes, facts, createEmbedder());
 }

@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { NewNote, NotePatch, NoteRecord, NoteRepository, NoteSource } from '../../ports/note-repository.js';
+import type { NewNote, NotePatch, NoteRecord, NoteRepository, NoteSource, SimilarNote } from '../../ports/note-repository.js';
 import { withTenant } from '../../db/tenant.js';
 
 interface NoteRow {
@@ -60,6 +60,29 @@ export class PgNoteRepository implements NoteRepository {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(`SELECT ${COLUMNS} FROM notes WHERE id = $1`, [id]);
       return rows[0] ? toRecord(rows[0] as unknown as NoteRow) : null;
+    });
+  }
+
+  async searchSimilar(
+    userId: string,
+    clientId: string,
+    queryEmbedding: number[],
+    limit: number,
+  ): Promise<SimilarNote[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const vec = `[${queryEmbedding.join(',')}]`;
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS}, 1 - (embedding <=> $1::vector) AS similarity
+         FROM notes
+         WHERE client_id = $2 AND embedding IS NOT NULL
+         ORDER BY embedding <=> $1::vector
+         LIMIT $3`,
+        [vec, clientId, limit],
+      );
+      return (rows as unknown as Array<NoteRow & { similarity: number }>).map((row) => ({
+        note: toRecord(row),
+        similarity: Number(row.similarity),
+      }));
     });
   }
 

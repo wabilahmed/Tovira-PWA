@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
-import { ClientsClient, type ClientSummary, type NoteSummary } from './clients/clientsClient.js';
+import { ClientsClient, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
 import { HttpUploader } from './capture/uploader.js';
@@ -118,6 +118,7 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
   const [active, setActive] = useState<ActiveRecording | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [paste, setPaste] = useState('');
+  const [brief, setBrief] = useState<Brief | null>(null);
 
   const refresh = (): void => {
     void clientsApi.listNotes(client.id).then(async (list) => {
@@ -174,6 +175,9 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
       <button onClick={onBack} style={linkButton}>← Clients</button>
       <h1>{client.name}</h1>
+
+      <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)}>Pre-meeting brief</button>
+      {brief && <BriefPanel brief={brief} />}
 
       {active ? (
         <button onClick={() => void stopRec()}>■ Stop &amp; save</button>
@@ -276,6 +280,53 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
     </Centered>
   );
 }
+
+function BriefPanel({ brief }: { brief: Brief }): JSX.Element {
+  if (brief.empty) {
+    return (
+      <section style={briefBox}>
+        <p style={{ color: '#666', margin: 0 }}>Nothing logged yet for {brief.clientName}. Capture a note to build a brief.</p>
+      </section>
+    );
+  }
+  return (
+    <section style={briefBox}>
+      <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Brief</h2>
+      {brief.openPromises.length > 0 && (
+        <div>
+          <strong>Open promises</strong>
+          <ul>{brief.openPromises.map((p) => <li key={p.id}>{p.text}{p.dueDate ? ` (due ${p.dueDate})` : p.dueRaw ? ` (${p.dueRaw})` : ''}</li>)}</ul>
+        </div>
+      )}
+      {brief.needsConfirmation.length > 0 && (
+        <div>
+          <strong style={{ color: '#a15c00' }}>To confirm (not yet facts)</strong>
+          <ul>{brief.needsConfirmation.map((p) => <li key={p.id}>{p.text}</li>)}</ul>
+        </div>
+      )}
+      {brief.keyPeople.length > 0 && (
+        <div>
+          <strong>Key people</strong>
+          <ul>{brief.keyPeople.map((p, i) => <li key={i}>{p.name}{p.role ? `, ${p.role}` : ''} — {p.decision_role.replace('_', ' ')}</li>)}</ul>
+        </div>
+      )}
+      {brief.concerns.length > 0 && (
+        <div><strong>Concerns</strong><ul>{brief.concerns.map((c, i) => <li key={i}>{c}</li>)}</ul></div>
+      )}
+      {brief.personalNotes.length > 0 && (
+        <div><strong>Personal notes</strong><ul>{brief.personalNotes.map((f, i) => <li key={i}>{f.subject}: {f.fact}</li>)}</ul></div>
+      )}
+    </section>
+  );
+}
+
+const briefBox: React.CSSProperties = {
+  border: '1px solid #e5e7eb',
+  borderRadius: 8,
+  padding: '1rem',
+  margin: '1rem 0',
+  background: '#fafafa',
+};
 
 function Centered({ children }: { children: React.ReactNode }): JSX.Element {
   return (

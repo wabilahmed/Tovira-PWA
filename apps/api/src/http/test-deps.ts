@@ -14,6 +14,7 @@ import { InMemoryFactsRepository } from '../adapters/facts/in-memory-facts-repos
 import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
 import { StubEmbedder } from '../adapters/embedding/stub.js';
 import { ExtractionService } from '../services/extraction/extraction-service.js';
+import { BriefService } from '../services/brief/brief-service.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -38,15 +39,17 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   const clients = new InMemoryClientRepository();
   const facts = new InMemoryFactsRepository();
   const transcription = new TranscriptionService(new StubTranscriber('clear transcript'), notes, storage);
+  const embedder = new StubEmbedder(8);
   const extraction = new ExtractionService(
     new StubModelClient(),
     clients,
     notes,
     facts,
-    new StubEmbedder(8),
+    embedder,
     new InMemoryExtractionLogRepository(),
     'stub',
   );
+  const brief = new BriefService(clients, notes, facts, embedder);
   return {
     pool: stubPool,
     auth,
@@ -56,6 +59,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     transcription,
     extraction,
     facts,
+    brief,
     ...overrides,
   } as TestDeps;
 }

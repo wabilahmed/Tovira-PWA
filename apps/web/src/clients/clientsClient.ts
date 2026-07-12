@@ -12,6 +12,17 @@ export interface NoteSummary {
   createdAt: number;
 }
 
+export interface Brief {
+  clientName: string;
+  empty: boolean;
+  openPromises: Array<{ id: string; text: string; dueDate: string | null; dueRaw: string | null }>;
+  needsConfirmation: Array<{ id: string; text: string }>;
+  keyPeople: Array<{ name: string | null; role: string | null; decision_role: string }>;
+  personalNotes: Array<{ subject: string; fact: string }>;
+  concerns: string[];
+  relatedNotes: Array<{ noteId: string; snippet: string }>;
+}
+
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
 export class ClientsClient {
   constructor(private readonly baseUrl: string = '') {}
@@ -82,5 +93,11 @@ export class ClientsClient {
 
   async extractNote(noteId: string): Promise<void> {
     await fetch(this.url(`/notes/${noteId}/extract`), { method: 'POST', credentials: 'include' });
+  }
+
+  async getBrief(clientId: string): Promise<Brief | null> {
+    const res = await fetch(this.url(`/clients/${clientId}/brief`), { credentials: 'include' });
+    if (res.status !== 200) return null;
+    return (await res.json()) as Brief;
   }
 }
