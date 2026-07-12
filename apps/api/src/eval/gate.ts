@@ -1,6 +1,7 @@
 import type { ModelClient } from '../ports/model.js';
 import { EXTRACTION_SYSTEM_PROMPT, buildUserMessage } from '../services/extraction/prompt.js';
 import { asExtraction } from '../services/extraction/validate.js';
+import { extractJsonObject } from '../services/extraction/parse.js';
 import type { Extraction } from '../services/extraction/types.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { aggregate, scoreNote, type AggregateMetrics } from './score.js';
@@ -34,8 +35,10 @@ export async function extractForEval(model: ModelClient, note: EvalNote): Promis
   } catch {
     return null;
   }
+  const parsed = extractJsonObject(text);
+  if (parsed === null) return null;
   try {
-    return asExtraction(JSON.parse(text));
+    return asExtraction(parsed);
   } catch {
     return null;
   }

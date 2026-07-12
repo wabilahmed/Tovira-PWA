@@ -93,7 +93,11 @@ export function loadConfig(env: Env = process.env): AppConfig {
     modelProvider: parseModelProvider(env.MODEL_PROVIDER),
     anthropicApiKey: isBlank(env.ANTHROPIC_API_KEY) ? undefined : env.ANTHROPIC_API_KEY!.trim(),
     anthropicBaseUrl: env.ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com',
-    anthropicModel: env.ANTHROPIC_MODEL?.trim() || 'claude-haiku-4-5-20251001',
+    // P1-9 gate decision (run against real models 2026-07-12): Haiku 4.5 hit
+    // full recall but GUESSED a date that should have been null — it fails the
+    // "never guess a date" trust rule. Sonnet 5 passed clean (0 fabricated,
+    // 0 guessed). Extraction defaults to Sonnet; override with ANTHROPIC_MODEL.
+    anthropicModel: env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5',
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
     authStore: parseAuthStore(env.AUTH_STORE),
     sessionTtlHours: parseSessionTtlHours(env.SESSION_TTL_HOURS),

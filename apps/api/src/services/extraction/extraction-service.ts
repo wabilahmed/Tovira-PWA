@@ -6,6 +6,7 @@ import type { Embedder } from '../../ports/embedder.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
 import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './prompt.js';
 import { asExtraction } from './validate.js';
+import { extractJsonObject } from './parse.js';
 import type { Extraction } from './types.js';
 
 export interface ExtractOutcome {
@@ -109,12 +110,7 @@ export class ExtractionService {
     } catch {
       return { parsed: null, raw: null, inputTokens, outputTokens };
     }
-    let parsed: unknown | null;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      parsed = null;
-    }
+    const parsed = extractJsonObject(raw);
     return { parsed, raw, inputTokens, outputTokens };
   }
 }
