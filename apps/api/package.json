@@ -8,6 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "seed": "tsx src/seed/index.ts",
+    "gate": "tsx src/eval/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

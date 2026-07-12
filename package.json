@@ -18,6 +18,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "seed": "npm run seed -w apps/api",
+    "gate": "npm run gate -w apps/api",
     "typecheck": "tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint ."
   },
