@@ -28,6 +28,7 @@ import {
   createHeroService,
   createBillingService,
   createAccountService,
+  createActivationService,
 } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -76,6 +77,7 @@ async function main(): Promise<void> {
   const hero = createHeroService(config, clients, facts, meetings, notes);
   const billing = createBillingService(config, appPool);
   const account = createAccountService(auth, clients, notes, facts, meetings);
+  const activation = createActivationService(config, appPool);
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -100,6 +102,7 @@ async function main(): Promise<void> {
     hero,
     billing,
     account,
+    activation,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {

@@ -26,6 +26,8 @@ import { BillingService } from '../services/billing/billing-service.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../adapters/billing/in-memory.js';
 import { StubStripeGateway } from '../adapters/billing/stub-stripe.js';
 import { AccountService } from '../services/account/account-service.js';
+import { ActivationService } from '../services/analytics/activation-service.js';
+import { InMemoryActivationRepository, InMemoryAnalytics } from '../adapters/analytics/in-memory.js';
 import { InMemoryPushSubscriptionRepository } from '../adapters/push/in-memory-push-subscription-repository.js';
 import { StubPushSender } from '../adapters/push/stub-sender.js';
 import { StubCardScanner } from '../adapters/vision/stub-card-scanner.js';
@@ -95,6 +97,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     hero: new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30),
     billing: new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7),
     account: new AccountService(auth, clients, notes, facts, meetings, [clients, notes, facts, meetings]),
+    activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     ...overrides,
   } as TestDeps;
 }

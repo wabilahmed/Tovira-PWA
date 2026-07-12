@@ -2,12 +2,14 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { BriefService } from '../services/brief/brief-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
+import type { ActivationService } from '../services/analytics/activation-service.js';
 import { extractToken, sendJson } from './helpers.js';
 
 export interface BriefRouteDeps {
   auth: AuthService;
   brief: BriefService;
   billing: BillingService;
+  activation: ActivationService;
 }
 
 const BRIEF_RE = /^\/clients\/([^/]+)\/brief$/;
@@ -38,6 +40,8 @@ export async function handleBriefRoute(
     sendJson(res, 404, { error: 'not_found' });
     return true;
   }
+  // [P7-3] the "aha": first useful brief viewed → activation (fires once).
+  if (!brief.empty) await deps.activation.onBriefViewed(identity.userId, Date.now());
   sendJson(res, 200, brief);
   return true;
 }

@@ -65,6 +65,9 @@ import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryW
 import { PgSubscriptionRepository, PgTrialGrantRepository, PgWebhookEventRepository } from './adapters/billing/pg.js';
 import { StubStripeGateway } from './adapters/billing/stub-stripe.js';
 import { AccountService } from './services/account/account-service.js';
+import { ActivationService } from './services/analytics/activation-service.js';
+import { PgActivationRepository, LogAnalytics } from './adapters/analytics/pg.js';
+import { InMemoryActivationRepository, InMemoryAnalytics } from './adapters/analytics/in-memory.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -290,6 +293,14 @@ export function createBillingService(config: AppConfig, pool?: Pool): BillingSer
 export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository): AccountService {
   // On Postgres, deleting the user cascades all data (FKs) — no explicit purge list.
   return new AccountService(auth, clients, notes, facts, meetings, []);
+}
+
+export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new ActivationService(new PgActivationRepository(pool), new LogAnalytics());
+  }
+  return new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics());
 }
 
 export function scanConfigFrom(config: AppConfig): ScanConfig {

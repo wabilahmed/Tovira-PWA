@@ -20,6 +20,7 @@ import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
 import type { BillingService } from './services/billing/billing-service.js';
 import type { AccountService } from './services/account/account-service.js';
+import type { ActivationService } from './services/analytics/activation-service.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
@@ -61,6 +62,7 @@ export interface ApiDeps {
   hero: HeroService;
   billing: BillingService;
   account: AccountService;
+  activation: ActivationService;
   cookieSecure?: boolean;
 }
 
@@ -125,7 +127,7 @@ export function createApiServer(deps: ApiDeps): Server {
         })
       )
         return;
-      if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing })) return;
+      if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing, activation: deps.activation })) return;
       if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes })) return;
       if (await handleCardRoute(request, response, { auth: deps.auth, scanner: deps.cardScanner })) return;
       if (
