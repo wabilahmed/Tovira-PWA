@@ -23,6 +23,10 @@ import { PgClientRepository } from './adapters/clients/pg-client-repository.js';
 import type { NoteRepository } from './ports/note-repository.js';
 import { InMemoryNoteRepository } from './adapters/notes/in-memory-note-repository.js';
 import { PgNoteRepository } from './adapters/notes/pg-note-repository.js';
+import type { Transcriber } from './ports/transcriber.js';
+import { StubTranscriber } from './adapters/transcription/stub.js';
+import { GroqTranscriber } from './adapters/transcription/groq.js';
+import { TranscriptionService } from './services/transcription/transcription-service.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -98,4 +102,24 @@ export function createNoteRepository(config: AppConfig, pool?: Pool): NoteReposi
 /** Blob storage for audio + images (filesystem locally, S3 in prod). */
 export function createStorage(config: AppConfig): Storage {
   return new FsStorage(config.storageDir);
+}
+
+/** Speech-to-text: stub locally, Groq/Whisper when configured. */
+export function createTranscriber(config: AppConfig): Transcriber {
+  if (config.transcriberProvider === 'groq') {
+    return new GroqTranscriber({
+      apiKey: config.groqApiKey ?? '',
+      baseUrl: config.groqBaseUrl,
+      model: config.groqModel,
+    });
+  }
+  return new StubTranscriber();
+}
+
+export function createTranscriptionService(
+  config: AppConfig,
+  notes: NoteRepository,
+  storage: Storage,
+): TranscriptionService {
+  return new TranscriptionService(createTranscriber(config), notes, storage);
 }

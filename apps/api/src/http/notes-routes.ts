@@ -4,6 +4,7 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import type { NoteRepository } from '../ports/note-repository.js';
 import type { Storage } from '../ports/storage.js';
+import type { TranscriptionService } from '../services/transcription/transcription-service.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 
 const MAX_PASTE_CHARS = 100_000;
@@ -13,12 +14,14 @@ export interface NoteRouteDeps {
   clients: ClientRepository;
   notes: NoteRepository;
   storage: Storage;
+  transcription: TranscriptionService;
 }
 
 const VOICE_RE = /^\/clients\/([^/]+)\/notes\/voice$/;
 const PASTE_RE = /^\/clients\/([^/]+)\/notes\/paste$/;
 const LIST_RE = /^\/clients\/([^/]+)\/notes$/;
 const AUDIO_RE = /^\/notes\/([^/]+)\/audio$/;
+const TRANSCRIBE_RE = /^\/notes\/([^/]+)\/transcribe$/;
 
 /** Handle /clients/:id/notes* and /notes/:id/audio. Returns true if handled. */
 export async function handleNoteRoute(
@@ -33,7 +36,8 @@ export async function handleNoteRoute(
   const pasteMatch = method === 'POST' ? PASTE_RE.exec(path) : null;
   const listMatch = method === 'GET' ? LIST_RE.exec(path) : null;
   const audioMatch = method === 'GET' ? AUDIO_RE.exec(path) : null;
-  if (!voiceMatch && !pasteMatch && !listMatch && !audioMatch) return false;
+  const transcribeMatch = method === 'POST' ? TRANSCRIBE_RE.exec(path) : null;
+  if (!voiceMatch && !pasteMatch && !listMatch && !audioMatch && !transcribeMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -106,6 +110,19 @@ export async function handleNoteRoute(
     if (listMatch) {
       const clientId = decodeURIComponent(listMatch[1]!);
       sendJson(res, 200, { notes: await deps.notes.listByClient(userId, clientId) });
+      return true;
+    }
+
+    if (transcribeMatch) {
+      const noteId = decodeURIComponent(transcribeMatch[1]!);
+      const note = await deps.notes.findByIdForUser(userId, noteId);
+      if (!note) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      const outcome = await deps.transcription.transcribeNote(userId, noteId);
+      const updated = await deps.notes.findByIdForUser(userId, noteId);
+      sendJson(res, 200, { note: updated, ...outcome });
       return true;
     }
 

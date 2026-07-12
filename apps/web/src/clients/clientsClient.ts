@@ -75,4 +75,8 @@ export class ClientsClient {
       return [];
     }
   }
+
+  async transcribeNote(noteId: string): Promise<void> {
+    await fetch(this.url(`/notes/${noteId}/transcribe`), { method: 'POST', credentials: 'include' });
+  }
 }

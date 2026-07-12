@@ -2,35 +2,17 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
-import { AuthService } from '../services/auth/auth-service.js';
-import { ScryptHasher } from '../services/auth/password.js';
-import { InMemoryUserRepository } from '../adapters/auth/in-memory-user-repository.js';
-import { InMemorySessionRepository } from '../adapters/auth/in-memory-session-repository.js';
-import { InMemoryClientRepository } from '../adapters/clients/in-memory-client-repository.js';
-import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-repository.js';
+import { buildInMemoryDeps } from './test-deps.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
-
-const stubPool = { query: async () => ({ rows: [] }) } as unknown as import('pg').Pool;
 
 let server: Server;
 let base: string;
 let storage: InMemoryStorage;
 
 beforeAll(async () => {
-  const auth = new AuthService({
-    users: new InMemoryUserRepository(),
-    sessions: new InMemorySessionRepository(),
-    hasher: new ScryptHasher(),
-    sessionTtlMs: 60 * 60 * 1000,
-  });
-  storage = new InMemoryStorage();
-  server = createApiServer({
-    pool: stubPool,
-    auth,
-    clients: new InMemoryClientRepository(),
-    notes: new InMemoryNoteRepository(),
-    storage,
-  });
+  const deps = buildInMemoryDeps();
+  storage = deps.storage;
+  server = createApiServer(deps);
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -93,6 +75,33 @@ describe('voice note upload', () => {
     expect(res.status).toBe(200);
     const body = new Uint8Array(await res.arrayBuffer());
     expect([...body]).toEqual([...audio]);
+  });
+
+  // [P1-5] transcribe a voice note (stub transcriber returns "clear transcript")
+  it('transcribes a voice note and stores the transcript', async () => {
+    const token = await signup('transcribe@example.com');
+    const clientId = await createClient(token, 'Transcribe Corp');
+    const note = (await (await uploadVoice(token, clientId, audio)).json()) as { id: string };
+    const res = await fetch(`${base}/notes/${note.id}/transcribe`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { note: { rawText: string; status: string } };
+    expect(body.note.rawText).toBe('clear transcript');
+    expect(body.note.status).toBe('pending_extraction');
+  });
+
+  it('rejects transcribing another rep\'s note (404)', async () => {
+    const tokenA = await signup('a-tr@example.com');
+    const tokenB = await signup('b-tr@example.com');
+    const clientA = await createClient(tokenA, 'A TR');
+    const note = (await (await uploadVoice(tokenA, clientA, audio)).json()) as { id: string };
+    const res = await fetch(`${base}/notes/${note.id}/transcribe`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tokenB}` },
+    });
+    expect(res.status).toBe(404);
   });
 
   // [P1-4] paste a message

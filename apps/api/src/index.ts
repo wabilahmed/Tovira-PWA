@@ -4,7 +4,13 @@ import { loadConfig } from './config.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
-import { createAuthService, createClientRepository, createNoteRepository, createStorage } from './container.js';
+import {
+  createAuthService,
+  createClientRepository,
+  createNoteRepository,
+  createStorage,
+  createTranscriptionService,
+} from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -34,12 +40,14 @@ async function main(): Promise<void> {
   const clients = createClientRepository(config, appPool);
   const notes = createNoteRepository(config, appPool);
   const storage = createStorage(config);
+  const transcription = createTranscriptionService(config, notes, storage);
   const server = createApiServer({
     pool: appPool,
     auth,
     clients,
     notes,
     storage,
+    transcription,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {

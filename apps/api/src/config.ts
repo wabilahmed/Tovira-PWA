@@ -11,9 +11,11 @@ export class ConfigError extends Error {
 
 export type ModelProvider = 'stub' | 'anthropic';
 export type AuthStore = 'memory' | 'postgres';
+export type TranscriberProvider = 'stub' | 'groq';
 
 const MODEL_PROVIDERS: readonly ModelProvider[] = ['stub', 'anthropic'];
 const AUTH_STORES: readonly AuthStore[] = ['memory', 'postgres'];
+const TRANSCRIBER_PROVIDERS: readonly TranscriberProvider[] = ['stub', 'groq'];
 
 export interface AppConfig {
   databaseUrl: string;
@@ -30,6 +32,11 @@ export interface AppConfig {
   // --- auth (P0-3) ---
   authStore: AuthStore;
   sessionTtlHours: number;
+  // --- transcription (P1-5) ---
+  transcriberProvider: TranscriberProvider;
+  groqApiKey: string | undefined;
+  groqBaseUrl: string;
+  groqModel: string;
 }
 
 type Env = Record<string, string | undefined>;
@@ -65,7 +72,20 @@ export function loadConfig(env: Env = process.env): AppConfig {
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
     authStore: parseAuthStore(env.AUTH_STORE),
     sessionTtlHours: parseSessionTtlHours(env.SESSION_TTL_HOURS),
+    transcriberProvider: parseTranscriberProvider(env.TRANSCRIBER),
+    groqApiKey: isBlank(env.GROQ_API_KEY) ? undefined : env.GROQ_API_KEY!.trim(),
+    groqBaseUrl: env.GROQ_BASE_URL?.trim() || 'https://api.groq.com',
+    groqModel: env.GROQ_MODEL?.trim() || 'whisper-large-v3',
   };
+}
+
+function parseTranscriberProvider(raw: string | undefined): TranscriberProvider {
+  if (isBlank(raw)) return 'stub';
+  const value = raw!.trim();
+  if (!TRANSCRIBER_PROVIDERS.includes(value as TranscriberProvider)) {
+    throw new ConfigError(`Invalid TRANSCRIBER: "${value}". Expected one of: ${TRANSCRIBER_PROVIDERS.join(', ')}.`);
+  }
+  return value as TranscriberProvider;
 }
 
 function parseAuthStore(raw: string | undefined): AuthStore {

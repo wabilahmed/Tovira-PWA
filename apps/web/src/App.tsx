@@ -120,7 +120,15 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
   const [paste, setPaste] = useState('');
 
   const refresh = (): void => {
-    void clientsApi.listNotes(client.id).then(setNotes);
+    void clientsApi.listNotes(client.id).then(async (list) => {
+      setNotes(list);
+      // Kick off transcription for any voice notes still awaiting it.
+      const pendingTranscription = list.filter((n) => n.status === 'pending_transcription');
+      if (pendingTranscription.length > 0) {
+        await Promise.all(pendingTranscription.map((n) => clientsApi.transcribeNote(n.id)));
+        setNotes(await clientsApi.listNotes(client.id));
+      }
+    });
     void outbox.pending().then(setPending);
   };
   useEffect(() => {
