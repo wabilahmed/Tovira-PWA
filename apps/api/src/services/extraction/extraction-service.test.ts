@@ -3,6 +3,7 @@ import { ExtractionService } from './extraction-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
+import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { StubEmbedder } from '../../adapters/embedding/stub.js';
 import type { ModelClient } from '../../ports/model.js';
 
@@ -34,8 +35,9 @@ async function setup(m: ModelClient) {
     audioKey: null,
     status: 'pending_extraction',
   });
-  const service = new ExtractionService(m, clients, notes, facts, new StubEmbedder(8));
-  return { service, notes, facts, note };
+  const logs = new InMemoryExtractionLogRepository();
+  const service = new ExtractionService(m, clients, notes, facts, new StubEmbedder(8), logs, 'stub');
+  return { service, notes, facts, note, logs };
 }
 
 describe('ExtractionService', () => {
@@ -84,5 +86,34 @@ describe('ExtractionService', () => {
     await service.extractNote('user-A', note.id, '2026-07-09');
     await service.extractNote('user-A', note.id, '2026-07-09');
     expect(await facts.listPromisesByNote('user-A', note.id)).toHaveLength(1);
+  });
+
+  // [P1-8] logging
+  it('writes exactly one log row per extraction with model, version, input and output', async () => {
+    const { service, logs, note } = await setup(model(VALID));
+    await service.extractNote('user-A', note.id, '2026-07-09');
+    const rows = await logs.listByUser('user-A');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.model).toBe('stub');
+    expect(rows[0]!.promptVersion).toBe('tovira-extract-v0.1');
+    expect(rows[0]!.status).toBe('extracted');
+    expect(rows[0]!.input).toContain('revised quote');
+    expect(rows[0]!.rawOutput).toBe(VALID);
+  });
+
+  it('logs exactly one row even when a retry happens', async () => {
+    const { service, logs, note } = await setup(model('bad', VALID));
+    await service.extractNote('user-A', note.id, '2026-07-09');
+    expect(await logs.listByUser('user-A')).toHaveLength(1);
+  });
+
+  // NEGATIVE: a failed extraction still writes a log row recording the failure.
+  it('logs the failure (one row) when extraction is flagged', async () => {
+    const { service, logs, note } = await setup(model('garbage', 'still garbage'));
+    await service.extractNote('user-A', note.id, '2026-07-09');
+    const rows = await logs.listByUser('user-A');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.status).toBe('needs_review');
+    expect(rows[0]!.rawOutput).toBe('still garbage'); // the failed output is captured
   });
 });

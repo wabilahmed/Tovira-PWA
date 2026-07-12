@@ -33,6 +33,9 @@ import { PgFactsRepository } from './adapters/facts/pg-facts-repository.js';
 import type { Embedder } from './ports/embedder.js';
 import { StubEmbedder } from './adapters/embedding/stub.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
+import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
+import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
+import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-repository.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -144,11 +147,22 @@ export function createEmbedder(): Embedder {
   return new StubEmbedder(1024);
 }
 
+/** The extraction training log (P1-8), RLS-backed on pg. */
+export function createExtractionLogRepository(config: AppConfig, pool?: Pool): ExtractionLogRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgExtractionLogRepository(pool);
+  }
+  return new InMemoryExtractionLogRepository();
+}
+
 export function createExtractionService(
   config: AppConfig,
   clients: ClientRepository,
   notes: NoteRepository,
   facts: FactsRepository,
+  logs: ExtractionLogRepository,
 ): ExtractionService {
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder());
+  const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(), logs, modelId);
 }

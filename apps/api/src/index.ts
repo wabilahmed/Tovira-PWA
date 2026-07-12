@@ -12,6 +12,7 @@ import {
   createTranscriptionService,
   createFactsRepository,
   createExtractionService,
+  createExtractionLogRepository,
 } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -44,7 +45,8 @@ async function main(): Promise<void> {
   const storage = createStorage(config);
   const transcription = createTranscriptionService(config, notes, storage);
   const facts = createFactsRepository(config, appPool);
-  const extraction = createExtractionService(config, clients, notes, facts);
+  const extractionLogs = createExtractionLogRepository(config, appPool);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs);
   const server = createApiServer({
     pool: appPool,
     auth,
