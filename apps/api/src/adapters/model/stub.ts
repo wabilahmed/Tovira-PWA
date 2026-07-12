@@ -7,13 +7,14 @@ import type { ModelClient, ModelCompletionResponse } from '../../ports/model.js'
 export class StubModelClient implements ModelClient {
   constructor(
     private readonly cannedText: string = JSON.stringify({
+      summary: '',
       promises: [],
       people: [],
       personal_facts: [],
+      key_dates: [],
       concerns: [],
-      meeting: null,
       next_steps: [],
-      summary: '',
+      meeting: null,
     }),
   ) {}
 

@@ -5,9 +5,14 @@ import type { ClientRepository } from '../ports/client-repository.js';
 import type { NoteRepository } from '../ports/note-repository.js';
 import type { Storage } from '../ports/storage.js';
 import type { TranscriptionService } from '../services/transcription/transcription-service.js';
+import type { ExtractionService } from '../services/extraction/extraction-service.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 
 const MAX_PASTE_CHARS = 100_000;
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export interface NoteRouteDeps {
   auth: AuthService;
@@ -15,6 +20,7 @@ export interface NoteRouteDeps {
   notes: NoteRepository;
   storage: Storage;
   transcription: TranscriptionService;
+  extraction: ExtractionService;
 }
 
 const VOICE_RE = /^\/clients\/([^/]+)\/notes\/voice$/;
@@ -22,6 +28,7 @@ const PASTE_RE = /^\/clients\/([^/]+)\/notes\/paste$/;
 const LIST_RE = /^\/clients\/([^/]+)\/notes$/;
 const AUDIO_RE = /^\/notes\/([^/]+)\/audio$/;
 const TRANSCRIBE_RE = /^\/notes\/([^/]+)\/transcribe$/;
+const EXTRACT_RE = /^\/notes\/([^/]+)\/extract$/;
 
 /** Handle /clients/:id/notes* and /notes/:id/audio. Returns true if handled. */
 export async function handleNoteRoute(
@@ -37,7 +44,8 @@ export async function handleNoteRoute(
   const listMatch = method === 'GET' ? LIST_RE.exec(path) : null;
   const audioMatch = method === 'GET' ? AUDIO_RE.exec(path) : null;
   const transcribeMatch = method === 'POST' ? TRANSCRIBE_RE.exec(path) : null;
-  if (!voiceMatch && !pasteMatch && !listMatch && !audioMatch && !transcribeMatch) return false;
+  const extractMatch = method === 'POST' ? EXTRACT_RE.exec(path) : null;
+  if (!voiceMatch && !pasteMatch && !listMatch && !audioMatch && !transcribeMatch && !extractMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -121,6 +129,19 @@ export async function handleNoteRoute(
         return true;
       }
       const outcome = await deps.transcription.transcribeNote(userId, noteId);
+      const updated = await deps.notes.findByIdForUser(userId, noteId);
+      sendJson(res, 200, { note: updated, ...outcome });
+      return true;
+    }
+
+    if (extractMatch) {
+      const noteId = decodeURIComponent(extractMatch[1]!);
+      const note = await deps.notes.findByIdForUser(userId, noteId);
+      if (!note) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      const outcome = await deps.extraction.extractNote(userId, noteId, todayIso());
       const updated = await deps.notes.findByIdForUser(userId, noteId);
       sendJson(res, 200, { note: updated, ...outcome });
       return true;

@@ -27,6 +27,12 @@ import type { Transcriber } from './ports/transcriber.js';
 import { StubTranscriber } from './adapters/transcription/stub.js';
 import { GroqTranscriber } from './adapters/transcription/groq.js';
 import { TranscriptionService } from './services/transcription/transcription-service.js';
+import type { FactsRepository } from './ports/facts-repository.js';
+import { InMemoryFactsRepository } from './adapters/facts/in-memory-facts-repository.js';
+import { PgFactsRepository } from './adapters/facts/pg-facts-repository.js';
+import type { Embedder } from './ports/embedder.js';
+import { StubEmbedder } from './adapters/embedding/stub.js';
+import { ExtractionService } from './services/extraction/extraction-service.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -122,4 +128,27 @@ export function createTranscriptionService(
   storage: Storage,
 ): TranscriptionService {
   return new TranscriptionService(createTranscriber(config), notes, storage);
+}
+
+/** The extracted spine store (promises), RLS-backed on pg. */
+export function createFactsRepository(config: AppConfig, pool?: Pool): FactsRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgFactsRepository(pool);
+  }
+  return new InMemoryFactsRepository();
+}
+
+/** Text embeddings (stub locally, Bedrock in prod). */
+export function createEmbedder(): Embedder {
+  return new StubEmbedder(1024);
+}
+
+export function createExtractionService(
+  config: AppConfig,
+  clients: ClientRepository,
+  notes: NoteRepository,
+  facts: FactsRepository,
+): ExtractionService {
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder());
 }

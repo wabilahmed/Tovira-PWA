@@ -79,6 +79,10 @@ export class PgNoteRepository implements NoteRepository {
         params.push(JSON.stringify(patch.extracted));
         sets.push(`extracted = $${params.length}::jsonb`);
       }
+      if (patch.embedding !== undefined) {
+        params.push(patch.embedding === null ? null : `[${patch.embedding.join(',')}]`);
+        sets.push(`embedding = $${params.length}::vector`);
+      }
       if (sets.length === 0) return;
       params.push(id);
       await c.query(`UPDATE notes SET ${sets.join(', ')} WHERE id = $${params.length}`, params);

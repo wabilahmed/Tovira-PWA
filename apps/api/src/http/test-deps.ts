@@ -9,6 +9,10 @@ import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-reposit
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { StubTranscriber } from '../adapters/transcription/stub.js';
 import { TranscriptionService } from '../services/transcription/transcription-service.js';
+import { StubModelClient } from '../adapters/model/stub.js';
+import { InMemoryFactsRepository } from '../adapters/facts/in-memory-facts-repository.js';
+import { StubEmbedder } from '../adapters/embedding/stub.js';
+import { ExtractionService } from '../services/extraction/extraction-service.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -30,14 +34,23 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   });
   const notes = new InMemoryNoteRepository();
   const storage = new InMemoryStorage();
+  const clients = new InMemoryClientRepository();
   const transcription = new TranscriptionService(new StubTranscriber('clear transcript'), notes, storage);
+  const extraction = new ExtractionService(
+    new StubModelClient(),
+    clients,
+    notes,
+    new InMemoryFactsRepository(),
+    new StubEmbedder(8),
+  );
   return {
     pool: stubPool,
     auth,
-    clients: new InMemoryClientRepository(),
+    clients,
     notes,
     storage,
     transcription,
+    extraction,
     ...overrides,
   } as TestDeps;
 }

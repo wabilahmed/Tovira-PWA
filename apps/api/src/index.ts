@@ -10,6 +10,8 @@ import {
   createNoteRepository,
   createStorage,
   createTranscriptionService,
+  createFactsRepository,
+  createExtractionService,
 } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -41,6 +43,8 @@ async function main(): Promise<void> {
   const notes = createNoteRepository(config, appPool);
   const storage = createStorage(config);
   const transcription = createTranscriptionService(config, notes, storage);
+  const facts = createFactsRepository(config, appPool);
+  const extraction = createExtractionService(config, clients, notes, facts);
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -48,6 +52,7 @@ async function main(): Promise<void> {
     notes,
     storage,
     transcription,
+    extraction,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {

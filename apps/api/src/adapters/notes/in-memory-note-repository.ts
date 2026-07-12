@@ -39,5 +39,6 @@ export class InMemoryNoteRepository implements NoteRepository {
     if (patch.rawText !== undefined) note.rawText = patch.rawText;
     if (patch.status !== undefined) note.status = patch.status;
     if (patch.extracted !== undefined) note.extracted = patch.extracted;
+    // embedding is stored (semantic-search substrate); not surfaced on the record.
   }
 }

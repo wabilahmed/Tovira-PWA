@@ -29,6 +29,7 @@ export interface NotePatch {
   rawText?: string | null;
   status?: string;
   extracted?: unknown | null;
+  embedding?: number[] | null;
 }
 
 export interface NoteRepository {

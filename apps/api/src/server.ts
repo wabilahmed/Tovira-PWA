@@ -5,6 +5,7 @@ import type { ClientRepository } from './ports/client-repository.js';
 import type { NoteRepository } from './ports/note-repository.js';
 import type { Storage } from './ports/storage.js';
 import type { TranscriptionService } from './services/transcription/transcription-service.js';
+import type { ExtractionService } from './services/extraction/extraction-service.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
@@ -17,6 +18,7 @@ export interface ApiDeps {
   notes: NoteRepository;
   storage: Storage;
   transcription: TranscriptionService;
+  extraction: ExtractionService;
   cookieSecure?: boolean;
 }
 
@@ -60,6 +62,7 @@ export function createApiServer(deps: ApiDeps): Server {
           notes: deps.notes,
           storage: deps.storage,
           transcription: deps.transcription,
+          extraction: deps.extraction,
         })
       )
         return;

@@ -122,10 +122,14 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
   const refresh = (): void => {
     void clientsApi.listNotes(client.id).then(async (list) => {
       setNotes(list);
-      // Kick off transcription for any voice notes still awaiting it.
-      const pendingTranscription = list.filter((n) => n.status === 'pending_transcription');
-      if (pendingTranscription.length > 0) {
-        await Promise.all(pendingTranscription.map((n) => clientsApi.transcribeNote(n.id)));
+      // Advance any notes through the pipeline: transcribe, then extract.
+      const toTranscribe = list.filter((n) => n.status === 'pending_transcription');
+      const toExtract = list.filter((n) => n.status === 'pending_extraction');
+      if (toTranscribe.length > 0 || toExtract.length > 0) {
+        await Promise.all([
+          ...toTranscribe.map((n) => clientsApi.transcribeNote(n.id)),
+          ...toExtract.map((n) => clientsApi.extractNote(n.id)),
+        ]);
         setNotes(await clientsApi.listNotes(client.id));
       }
     });

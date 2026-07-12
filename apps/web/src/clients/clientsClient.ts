@@ -79,4 +79,8 @@ export class ClientsClient {
   async transcribeNote(noteId: string): Promise<void> {
     await fetch(this.url(`/notes/${noteId}/transcribe`), { method: 'POST', credentials: 'include' });
   }
+
+  async extractNote(noteId: string): Promise<void> {
+    await fetch(this.url(`/notes/${noteId}/extract`), { method: 'POST', credentials: 'include' });
+  }
 }

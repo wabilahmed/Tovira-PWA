@@ -104,6 +104,42 @@ describe('voice note upload', () => {
     expect(res.status).toBe(404);
   });
 
+  // [P1-6] extract structured facts from a note (stub model → valid empty facts)
+  it('extracts a note and marks it extracted', async () => {
+    const token = await signup('extract@example.com');
+    const clientId = await createClient(token, 'Extract Corp');
+    const noteRes = await fetch(`${base}/clients/${clientId}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'quick catch-up, nothing to action' }),
+    });
+    const note = (await noteRes.json()) as { id: string };
+    const res = await fetch(`${base}/notes/${note.id}/extract`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { note: { status: string; extracted: unknown } };
+    expect(body.note.status).toBe('extracted');
+    expect(body.note.extracted).not.toBeNull();
+  });
+
+  it('rejects extracting another rep\'s note (404)', async () => {
+    const tokenA = await signup('a-ex@example.com');
+    const tokenB = await signup('b-ex@example.com');
+    const clientA = await createClient(tokenA, 'A EX');
+    const note = (await (await fetch(`${base}/clients/${clientA}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tokenA}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'hello there' }),
+    })).json()) as { id: string };
+    const res = await fetch(`${base}/notes/${note.id}/extract`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tokenB}` },
+    });
+    expect(res.status).toBe(404);
+  });
+
   // [P1-4] paste a message
   it('stores a pasted message verbatim (emojis + line breaks preserved), queued for extraction', async () => {
     const token = await signup('paste@example.com');
