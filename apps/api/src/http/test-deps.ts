@@ -20,6 +20,8 @@ import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meetin
 import { MeetingParser } from '../services/meetings/meeting-parser.js';
 import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
 import { ScanService } from '../services/scan/scan-service.js';
+import { InMemoryPushSubscriptionRepository } from '../adapters/push/in-memory-push-subscription-repository.js';
+import { StubPushSender } from '../adapters/push/stub-sender.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -76,6 +78,8 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     notifications,
     scan,
     scanConfig: { coldThresholdDays: 30, nudgeLeadMs: 24 * 60 * 60 * 1000, reminderWindowDays: 7 },
+    pushSubscriptions: new InMemoryPushSubscriptionRepository(),
+    pushSender: new StubPushSender(),
     ...overrides,
   } as TestDeps;
 }

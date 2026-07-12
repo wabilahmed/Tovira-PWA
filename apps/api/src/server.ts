@@ -13,8 +13,10 @@ import type { MeetingRepository } from './ports/meeting-repository.js';
 import type { MeetingParser } from './services/meetings/meeting-parser.js';
 import type { NotificationRepository } from './ports/notification-repository.js';
 import type { ScanService, ScanConfig } from './services/scan/scan-service.js';
+import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
+import { handlePushRoute } from './http/push-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
 import { handleFactsRoute } from './http/facts-routes.js';
@@ -38,6 +40,8 @@ export interface ApiDeps {
   notifications: NotificationRepository;
   scan: ScanService;
   scanConfig: ScanConfig;
+  pushSubscriptions: PushSubscriptionRepository;
+  pushSender: PushSender;
   cookieSecure?: boolean;
 }
 
@@ -82,6 +86,14 @@ export function createApiServer(deps: ApiDeps): Server {
           storage: deps.storage,
           transcription: deps.transcription,
           extraction: deps.extraction,
+        })
+      )
+        return;
+      if (
+        await handlePushRoute(request, response, {
+          auth: deps.auth,
+          subscriptions: deps.pushSubscriptions,
+          sender: deps.pushSender,
         })
       )
         return;

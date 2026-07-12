@@ -48,6 +48,10 @@ import type { NotificationRepository } from './ports/notification-repository.js'
 import { InMemoryNotificationRepository } from './adapters/notifications/in-memory-notification-repository.js';
 import { PgNotificationRepository } from './adapters/notifications/pg-notification-repository.js';
 import { ScanService, type ScanConfig } from './services/scan/scan-service.js';
+import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
+import { StubPushSender } from './adapters/push/stub-sender.js';
+import { InMemoryPushSubscriptionRepository } from './adapters/push/in-memory-push-subscription-repository.js';
+import { PgPushSubscriptionRepository } from './adapters/push/pg-push-subscription-repository.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -218,6 +222,20 @@ export function createScanService(
   notifications: NotificationRepository,
 ): ScanService {
   return new ScanService(clients, meetings, facts, notifications);
+}
+
+/** Web Push subscriptions (P3-6), RLS-backed on pg. */
+export function createPushSubscriptionRepository(config: AppConfig, pool?: Pool): PushSubscriptionRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgPushSubscriptionRepository(pool);
+  }
+  return new InMemoryPushSubscriptionRepository();
+}
+
+/** Push delivery: stub locally; real VAPID/web-push wired at deploy (P6-3). */
+export function createPushSender(): PushSender {
+  return new StubPushSender();
 }
 
 export function scanConfigFrom(config: AppConfig): ScanConfig {

@@ -20,6 +20,8 @@ import {
   createNotificationRepository,
   createScanService,
   scanConfigFrom,
+  createPushSubscriptionRepository,
+  createPushSender,
 } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -60,6 +62,8 @@ async function main(): Promise<void> {
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
   const scan = createScanService(clients, meetings, facts, notifications);
+  const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
+  const pushSender = createPushSender();
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -76,6 +80,8 @@ async function main(): Promise<void> {
     notifications,
     scan,
     scanConfig: scanConfigFrom(config),
+    pushSubscriptions,
+    pushSender,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {
