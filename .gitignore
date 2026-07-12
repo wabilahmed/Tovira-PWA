@@ -12,3 +12,9 @@ coverage/
 test-results/
 playwright-report/
 apps/web/dev-dist/
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+infra/terraform/.build/
+crash.log
