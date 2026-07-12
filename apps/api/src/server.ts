@@ -22,6 +22,7 @@ import { handleNoteRoute } from './http/notes-routes.js';
 import { handleFactsRoute } from './http/facts-routes.js';
 import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
+import { handleInsightsRoute } from './http/insights-routes.js';
 import { sendJson } from './http/helpers.js';
 
 export interface ApiDeps {
@@ -106,6 +107,7 @@ export function createApiServer(deps: ApiDeps): Server {
       )
         return;
       if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief })) return;
+      if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes })) return;
       if (
         await handleMeetingRoute(request, response, {
           auth: deps.auth,
