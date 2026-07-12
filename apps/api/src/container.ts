@@ -55,6 +55,9 @@ import { InMemoryPushSubscriptionRepository } from './adapters/push/in-memory-pu
 import { PgPushSubscriptionRepository } from './adapters/push/pg-push-subscription-repository.js';
 import type { CardScanner } from './ports/card-scanner.js';
 import { StubCardScanner } from './adapters/vision/stub-card-scanner.js';
+import type { ImageRepository } from './ports/image-repository.js';
+import { InMemoryImageRepository } from './adapters/images/in-memory-image-repository.js';
+import { PgImageRepository } from './adapters/images/pg-image-repository.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -244,6 +247,15 @@ export function createPushSender(): PushSender {
 /** Business-card vision scan: stub locally; real vision model at deploy. */
 export function createCardScanner(): CardScanner {
   return new StubCardScanner();
+}
+
+/** Per-client gallery images (P4-6), RLS-backed on pg. */
+export function createImageRepository(config: AppConfig, pool?: Pool): ImageRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgImageRepository(pool);
+  }
+  return new InMemoryImageRepository();
 }
 
 export function scanConfigFrom(config: AppConfig): ScanConfig {

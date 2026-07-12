@@ -16,6 +16,7 @@ import type { NotificationRepository } from './ports/notification-repository.js'
 import type { ScanService, ScanConfig } from './services/scan/scan-service.js';
 import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import type { CardScanner } from './ports/card-scanner.js';
+import type { ImageRepository } from './ports/image-repository.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
@@ -26,6 +27,7 @@ import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
 import { handleInsightsRoute } from './http/insights-routes.js';
 import { handleCardRoute } from './http/cards-routes.js';
+import { handleImageRoute } from './http/images-routes.js';
 import { sendJson } from './http/helpers.js';
 
 export interface ApiDeps {
@@ -48,6 +50,7 @@ export interface ApiDeps {
   pushSubscriptions: PushSubscriptionRepository;
   pushSender: PushSender;
   cardScanner: CardScanner;
+  images: ImageRepository;
   cookieSecure?: boolean;
 }
 
@@ -134,6 +137,7 @@ export function createApiServer(deps: ApiDeps): Server {
         })
       )
         return;
+      if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
 
       if (request.method === 'GET' && url === '/') {

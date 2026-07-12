@@ -24,6 +24,7 @@ import { ScanService } from '../services/scan/scan-service.js';
 import { InMemoryPushSubscriptionRepository } from '../adapters/push/in-memory-push-subscription-repository.js';
 import { StubPushSender } from '../adapters/push/stub-sender.js';
 import { StubCardScanner } from '../adapters/vision/stub-card-scanner.js';
+import { InMemoryImageRepository } from '../adapters/images/in-memory-image-repository.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -85,6 +86,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     pushSubscriptions: new InMemoryPushSubscriptionRepository(),
     pushSender: new StubPushSender(),
     cardScanner: new StubCardScanner(),
+    images: new InMemoryImageRepository(),
     ...overrides,
   } as TestDeps;
 }
