@@ -72,6 +72,7 @@ export class ExtractionService {
         noteId,
         clientId: note.clientId,
         promises: extraction.promises,
+        keyDates: extraction.key_dates,
       });
       status = 'extracted';
     }

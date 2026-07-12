@@ -44,4 +44,8 @@ export class InMemoryClientRepository implements ClientRepository {
     const client = this.byId.get(id);
     if (client && client.userId === userId) client.lastTouchedAt = this.tick();
   }
+
+  async listGoingCold(userId: string, cutoffMs: number): Promise<ClientRecord[]> {
+    return this.ownedByUser(userId).filter((c) => c.lastTouchedAt < cutoffMs);
+  }
 }

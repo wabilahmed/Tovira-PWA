@@ -18,6 +18,8 @@ import { BriefService } from '../services/brief/brief-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
 import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
 import { MeetingParser } from '../services/meetings/meeting-parser.js';
+import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
+import { ScanService } from '../services/scan/scan-service.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -56,6 +58,8 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   const corrections = new InMemoryCorrectionRepository();
   const meetings = new InMemoryMeetingRepository();
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
+  const notifications = new InMemoryNotificationRepository();
+  const scan = new ScanService(clients, meetings, facts, notifications);
   return {
     pool: stubPool,
     auth,
@@ -69,6 +73,9 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     brief,
     meetings,
     meetingParser,
+    notifications,
+    scan,
+    scanConfig: { coldThresholdDays: 30, nudgeLeadMs: 24 * 60 * 60 * 1000, reminderWindowDays: 7 },
     ...overrides,
   } as TestDeps;
 }

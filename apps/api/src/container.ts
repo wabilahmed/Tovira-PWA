@@ -44,6 +44,10 @@ import type { MeetingRepository } from './ports/meeting-repository.js';
 import { InMemoryMeetingRepository } from './adapters/meetings/in-memory-meeting-repository.js';
 import { PgMeetingRepository } from './adapters/meetings/pg-meeting-repository.js';
 import { MeetingParser } from './services/meetings/meeting-parser.js';
+import type { NotificationRepository } from './ports/notification-repository.js';
+import { InMemoryNotificationRepository } from './adapters/notifications/in-memory-notification-repository.js';
+import { PgNotificationRepository } from './adapters/notifications/pg-notification-repository.js';
+import { ScanService, type ScanConfig } from './services/scan/scan-service.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -196,6 +200,32 @@ export function createMeetingRepository(config: AppConfig, pool?: Pool): Meeting
 /** Natural-language meeting parser (uses the model + client search). */
 export function createMeetingParser(config: AppConfig, clients: ClientRepository): MeetingParser {
   return new MeetingParser(createModelClient(config), clients);
+}
+
+/** Generated notifications store (P3), RLS-backed on pg. */
+export function createNotificationRepository(config: AppConfig, pool?: Pool): NotificationRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgNotificationRepository(pool);
+  }
+  return new InMemoryNotificationRepository();
+}
+
+export function createScanService(
+  clients: ClientRepository,
+  meetings: MeetingRepository,
+  facts: FactsRepository,
+  notifications: NotificationRepository,
+): ScanService {
+  return new ScanService(clients, meetings, facts, notifications);
+}
+
+export function scanConfigFrom(config: AppConfig): ScanConfig {
+  return {
+    coldThresholdDays: config.coldThresholdDays,
+    nudgeLeadMs: config.nudgeLeadHours * 60 * 60 * 1000,
+    reminderWindowDays: config.reminderWindowDays,
+  };
 }
 
 /** The pre-meeting brief service (spine + JSONB + semantic search). */

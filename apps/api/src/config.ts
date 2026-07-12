@@ -37,6 +37,10 @@ export interface AppConfig {
   groqApiKey: string | undefined;
   groqBaseUrl: string;
   groqModel: string;
+  // --- proactive scan (P3) ---
+  coldThresholdDays: number;
+  nudgeLeadHours: number;
+  reminderWindowDays: number;
 }
 
 type Env = Record<string, string | undefined>;
@@ -76,7 +80,17 @@ export function loadConfig(env: Env = process.env): AppConfig {
     groqApiKey: isBlank(env.GROQ_API_KEY) ? undefined : env.GROQ_API_KEY!.trim(),
     groqBaseUrl: env.GROQ_BASE_URL?.trim() || 'https://api.groq.com',
     groqModel: env.GROQ_MODEL?.trim() || 'whisper-large-v3',
+    coldThresholdDays: parsePositive(env.COLD_THRESHOLD_DAYS, 30, 'COLD_THRESHOLD_DAYS'),
+    nudgeLeadHours: parsePositive(env.NUDGE_LEAD_HOURS, 24, 'NUDGE_LEAD_HOURS'),
+    reminderWindowDays: parsePositive(env.REMINDER_WINDOW_DAYS, 7, 'REMINDER_WINDOW_DAYS'),
   };
+}
+
+function parsePositive(raw: string | undefined, fallback: number, name: string): number {
+  if (isBlank(raw)) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) throw new ConfigError(`Invalid ${name}: "${raw}". Expected a positive number.`);
+  return n;
 }
 
 function parseTranscriberProvider(raw: string | undefined): TranscriberProvider {

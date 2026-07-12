@@ -22,4 +22,6 @@ export interface ClientRepository {
   findByIdForUser(userId: string, id: string): Promise<ClientRecord | null>;
   /** Bump a client's recency (e.g. when a note is filed under it). */
   touch(userId: string, id: string): Promise<void>;
+  /** Clients not touched since `cutoffMs` — the going-cold list. */
+  listGoingCold(userId: string, cutoffMs: number): Promise<ClientRecord[]>;
 }

@@ -1,13 +1,34 @@
 import { randomUUID } from 'node:crypto';
-import type { FactsRepository, PromiseRecord, PromisePatch, SaveExtractionInput } from '../../ports/facts-repository.js';
+import type {
+  FactsRepository,
+  PromiseRecord,
+  PromisePatch,
+  KeyDateRecord,
+  SaveExtractionInput,
+} from '../../ports/facts-repository.js';
 
 /** In-memory spine store mirroring the RLS isolation contract, for tests. */
 export class InMemoryFactsRepository implements FactsRepository {
   private promises: PromiseRecord[] = [];
+  private keyDates: KeyDateRecord[] = [];
 
   async saveExtraction(userId: string, input: SaveExtractionInput): Promise<void> {
-    // Idempotent per note: drop this note's existing promises, then insert.
+    // Idempotent per note: drop this note's existing spine rows, then insert.
     this.promises = this.promises.filter((p) => !(p.userId === userId && p.noteId === input.noteId));
+    this.keyDates = this.keyDates.filter((d) => !(d.userId === userId && d.noteId === input.noteId));
+    for (const kd of input.keyDates ?? []) {
+      this.keyDates.push({
+        id: randomUUID(),
+        userId,
+        noteId: input.noteId,
+        clientId: input.clientId,
+        description: kd.description,
+        date: kd.date,
+        dateRaw: kd.date_raw,
+        type: kd.type,
+        createdAt: Date.now(),
+      });
+    }
     for (const promise of input.promises) {
       this.promises.push({
         id: randomUUID(),
@@ -53,6 +74,10 @@ export class InMemoryFactsRepository implements FactsRepository {
     const before = this.promises.length;
     this.promises = this.promises.filter((x) => !(x.userId === userId && x.id === id));
     return this.promises.length < before;
+  }
+
+  async listKeyDatesByUser(userId: string): Promise<KeyDateRecord[]> {
+    return this.keyDates.filter((d) => d.userId === userId);
   }
 
   async listPromisesByUser(userId: string): Promise<PromiseRecord[]> {

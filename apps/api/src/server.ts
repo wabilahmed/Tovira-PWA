@@ -11,7 +11,10 @@ import type { CorrectionRepository } from './ports/correction-repository.js';
 import type { BriefService } from './services/brief/brief-service.js';
 import type { MeetingRepository } from './ports/meeting-repository.js';
 import type { MeetingParser } from './services/meetings/meeting-parser.js';
+import type { NotificationRepository } from './ports/notification-repository.js';
+import type { ScanService, ScanConfig } from './services/scan/scan-service.js';
 import { handleAuthRoute } from './http/auth-routes.js';
+import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
 import { handleFactsRoute } from './http/facts-routes.js';
@@ -32,6 +35,9 @@ export interface ApiDeps {
   brief: BriefService;
   meetings: MeetingRepository;
   meetingParser: MeetingParser;
+  notifications: NotificationRepository;
+  scan: ScanService;
+  scanConfig: ScanConfig;
   cookieSecure?: boolean;
 }
 
@@ -94,6 +100,16 @@ export function createApiServer(deps: ApiDeps): Server {
           clients: deps.clients,
           meetings: deps.meetings,
           parser: deps.meetingParser,
+        })
+      )
+        return;
+      if (
+        await handleProactiveRoute(request, response, {
+          auth: deps.auth,
+          clients: deps.clients,
+          notifications: deps.notifications,
+          scan: deps.scan,
+          scanConfig: deps.scanConfig,
         })
       )
         return;

@@ -1,4 +1,4 @@
-import type { ExtractedPromise } from '../services/extraction/types.js';
+import type { ExtractedPromise, KeyDate } from '../services/extraction/types.js';
 
 /**
  * Port: the extracted "spine" — for now the promises table that drives the open
@@ -21,10 +21,23 @@ export interface PromiseRecord {
   createdAt: number;
 }
 
+export interface KeyDateRecord {
+  id: string;
+  userId: string;
+  noteId: string;
+  clientId: string;
+  description: string;
+  date: string | null; // resolved YYYY-MM-DD, or null if unresolved
+  dateRaw: string | null;
+  type: string; // birthday | anniversary | launch | deadline | other
+  createdAt: number;
+}
+
 export interface SaveExtractionInput {
   noteId: string;
   clientId: string;
   promises: ExtractedPromise[];
+  keyDates?: KeyDate[];
 }
 
 export interface FactsRepository {
@@ -37,6 +50,7 @@ export interface FactsRepository {
   getPromise(userId: string, id: string): Promise<PromiseRecord | null>;
   updatePromise(userId: string, id: string, patch: PromisePatch): Promise<boolean>;
   deletePromise(userId: string, id: string): Promise<boolean>;
+  listKeyDatesByUser(userId: string): Promise<KeyDateRecord[]>;
 }
 
 export interface PromisePatch {

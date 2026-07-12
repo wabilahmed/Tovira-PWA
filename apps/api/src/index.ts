@@ -17,6 +17,9 @@ import {
   createCorrectionRepository,
   createMeetingRepository,
   createMeetingParser,
+  createNotificationRepository,
+  createScanService,
+  scanConfigFrom,
 } from './container.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -55,6 +58,8 @@ async function main(): Promise<void> {
   const corrections = createCorrectionRepository(config, appPool);
   const meetings = createMeetingRepository(config, appPool);
   const meetingParser = createMeetingParser(config, clients);
+  const notifications = createNotificationRepository(config, appPool);
+  const scan = createScanService(clients, meetings, facts, notifications);
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -68,6 +73,9 @@ async function main(): Promise<void> {
     brief,
     meetings,
     meetingParser,
+    notifications,
+    scan,
+    scanConfig: scanConfigFrom(config),
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {
