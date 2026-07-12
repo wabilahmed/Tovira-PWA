@@ -16,6 +16,8 @@ export interface PromiseRecord {
   dueRaw: string | null;
   confidence: string;
   done: boolean;
+  /** Whether the rep has confirmed this (uncertain items start unconfirmed). */
+  confirmed: boolean;
   createdAt: number;
 }
 
@@ -30,4 +32,6 @@ export interface FactsRepository {
   saveExtraction(userId: string, input: SaveExtractionInput): Promise<void>;
   listPromisesByUser(userId: string): Promise<PromiseRecord[]>;
   listPromisesByNote(userId: string, noteId: string): Promise<PromiseRecord[]>;
+  /** Mark a promise confirmed by the rep. Returns false if not found/owned. */
+  confirmPromise(userId: string, id: string): Promise<boolean>;
 }

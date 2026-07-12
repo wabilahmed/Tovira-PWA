@@ -53,6 +53,7 @@ async function main(): Promise<void> {
     storage,
     transcription,
     extraction,
+    facts,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {

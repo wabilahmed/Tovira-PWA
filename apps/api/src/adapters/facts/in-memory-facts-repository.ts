@@ -20,9 +20,17 @@ export class InMemoryFactsRepository implements FactsRepository {
         dueRaw: promise.due_raw,
         confidence: promise.confidence,
         done: false,
+        confirmed: false,
         createdAt: Date.now(),
       });
     }
+  }
+
+  async confirmPromise(userId: string, id: string): Promise<boolean> {
+    const p = this.promises.find((x) => x.userId === userId && x.id === id);
+    if (!p) return false;
+    p.confirmed = true;
+    return true;
   }
 
   async listPromisesByUser(userId: string): Promise<PromiseRecord[]> {

@@ -6,9 +6,11 @@ import type { NoteRepository } from './ports/note-repository.js';
 import type { Storage } from './ports/storage.js';
 import type { TranscriptionService } from './services/transcription/transcription-service.js';
 import type { ExtractionService } from './services/extraction/extraction-service.js';
+import type { FactsRepository } from './ports/facts-repository.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
+import { handleFactsRoute } from './http/facts-routes.js';
 import { sendJson } from './http/helpers.js';
 
 export interface ApiDeps {
@@ -19,6 +21,7 @@ export interface ApiDeps {
   storage: Storage;
   transcription: TranscriptionService;
   extraction: ExtractionService;
+  facts: FactsRepository;
   cookieSecure?: boolean;
 }
 
@@ -66,6 +69,7 @@ export function createApiServer(deps: ApiDeps): Server {
         })
       )
         return;
+      if (await handleFactsRoute(request, response, { auth: deps.auth, facts: deps.facts })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
 
       if (request.method === 'GET' && url === '/') {

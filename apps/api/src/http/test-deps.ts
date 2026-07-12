@@ -35,14 +35,9 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   const notes = new InMemoryNoteRepository();
   const storage = new InMemoryStorage();
   const clients = new InMemoryClientRepository();
+  const facts = new InMemoryFactsRepository();
   const transcription = new TranscriptionService(new StubTranscriber('clear transcript'), notes, storage);
-  const extraction = new ExtractionService(
-    new StubModelClient(),
-    clients,
-    notes,
-    new InMemoryFactsRepository(),
-    new StubEmbedder(8),
-  );
+  const extraction = new ExtractionService(new StubModelClient(), clients, notes, facts, new StubEmbedder(8));
   return {
     pool: stubPool,
     auth,
@@ -51,6 +46,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     storage,
     transcription,
     extraction,
+    facts,
     ...overrides,
   } as TestDeps;
 }

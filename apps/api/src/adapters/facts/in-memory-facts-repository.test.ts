@@ -29,4 +29,14 @@ describe('InMemoryFactsRepository', () => {
     await repo.saveExtraction('user-A', { noteId: 'n1', clientId: 'c1', promises: [promise('a')] });
     expect(await repo.listPromisesByUser('user-B')).toEqual([]);
   });
+
+  it('confirms a promise (and rejects confirming another user\'s promise)', async () => {
+    const repo = new InMemoryFactsRepository();
+    await repo.saveExtraction('user-A', { noteId: 'n1', clientId: 'c1', promises: [promise('a')] });
+    const [p] = await repo.listPromisesByUser('user-A');
+    expect(p!.confirmed).toBe(false);
+    expect(await repo.confirmPromise('user-B', p!.id)).toBe(false); // isolation
+    expect(await repo.confirmPromise('user-A', p!.id)).toBe(true);
+    expect((await repo.listPromisesByUser('user-A'))[0]!.confirmed).toBe(true);
+  });
 });
