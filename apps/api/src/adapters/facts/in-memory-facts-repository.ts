@@ -41,6 +41,7 @@ export class InMemoryFactsRepository implements FactsRepository {
         dueRaw: promise.due_raw,
         confidence: promise.confidence,
         done: false,
+        doneAt: null,
         confirmed: false,
         createdAt: Date.now(),
       });
@@ -74,6 +75,14 @@ export class InMemoryFactsRepository implements FactsRepository {
     const before = this.promises.length;
     this.promises = this.promises.filter((x) => !(x.userId === userId && x.id === id));
     return this.promises.length < before;
+  }
+
+  async markPromiseDone(userId: string, id: string): Promise<boolean> {
+    const p = this.promises.find((x) => x.userId === userId && x.id === id);
+    if (!p) return false;
+    p.done = true;
+    p.doneAt = Date.now();
+    return true;
   }
 
   async listKeyDatesByUser(userId: string): Promise<KeyDateRecord[]> {

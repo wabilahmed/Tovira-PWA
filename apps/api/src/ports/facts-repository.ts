@@ -16,6 +16,7 @@ export interface PromiseRecord {
   dueRaw: string | null;
   confidence: string;
   done: boolean;
+  doneAt: number | null;
   /** Whether the rep has confirmed this (uncertain items start unconfirmed). */
   confirmed: boolean;
   createdAt: number;
@@ -50,6 +51,8 @@ export interface FactsRepository {
   getPromise(userId: string, id: string): Promise<PromiseRecord | null>;
   updatePromise(userId: string, id: string, patch: PromisePatch): Promise<boolean>;
   deletePromise(userId: string, id: string): Promise<boolean>;
+  /** Mark a promise done (timestamped). Returns false if not found/owned. */
+  markPromiseDone(userId: string, id: string): Promise<boolean>;
   listKeyDatesByUser(userId: string): Promise<KeyDateRecord[]>;
 }
 

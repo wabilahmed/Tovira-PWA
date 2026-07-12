@@ -12,7 +12,15 @@ export interface FactsRouteDeps {
 }
 
 const CONFIRM_RE = /^\/promises\/([^/]+)\/confirm$/;
+const DONE_RE = /^\/promises\/([^/]+)\/done$/;
 const PROMISE_RE = /^\/promises\/([^/]+)$/;
+
+function byDueDate(a: { dueDate: string | null }, b: { dueDate: string | null }): number {
+  if (a.dueDate === null && b.dueDate === null) return 0;
+  if (a.dueDate === null) return 1; // no-date items sort last, not as if due today
+  if (b.dueDate === null) return -1;
+  return a.dueDate.localeCompare(b.dueDate);
+}
 
 /** Handle /confirmations and /promises/:id[/confirm]. Returns true if handled. */
 export async function handleFactsRoute(
@@ -24,9 +32,11 @@ export async function handleFactsRoute(
   const path = (req.url ?? '/').split('?')[0]!;
 
   const isConfirmations = method === 'GET' && path === '/confirmations';
+  const isTracker = method === 'GET' && path === '/promises';
   const confirmMatch = method === 'POST' ? CONFIRM_RE.exec(path) : null;
+  const doneMatch = method === 'POST' ? DONE_RE.exec(path) : null;
   const promiseMatch = method === 'PATCH' || method === 'DELETE' ? PROMISE_RE.exec(path) : null;
-  if (!isConfirmations && !confirmMatch && !promiseMatch) return false;
+  if (!isConfirmations && !isTracker && !confirmMatch && !doneMatch && !promiseMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -41,8 +51,22 @@ export async function handleFactsRoute(
     return true;
   }
 
+  if (isTracker) {
+    // Open promises across ALL clients, sorted by due date (no-date last).
+    const open = (await deps.facts.listPromisesByUser(userId)).filter((p) => !p.done);
+    open.sort(byDueDate);
+    sendJson(res, 200, { promises: open });
+    return true;
+  }
+
   if (confirmMatch) {
     const ok = await deps.facts.confirmPromise(userId, decodeURIComponent(confirmMatch[1]!));
+    sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
+    return true;
+  }
+
+  if (doneMatch) {
+    const ok = await deps.facts.markPromiseDone(userId, decodeURIComponent(doneMatch[1]!));
     sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
     return true;
   }

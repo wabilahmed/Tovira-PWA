@@ -31,6 +31,7 @@ interface PromiseRow {
   due_raw: string | null;
   confidence: string;
   done: boolean;
+  done_at: Date | null;
   confirmed: boolean;
   created_at: Date;
 }
@@ -47,13 +48,14 @@ function toRecord(row: PromiseRow): PromiseRecord {
     dueRaw: row.due_raw,
     confidence: row.confidence,
     done: row.done,
+    doneAt: row.done_at ? row.done_at.getTime() : null,
     confirmed: row.confirmed,
     createdAt: row.created_at.getTime(),
   };
 }
 
 const COLUMNS =
-  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, confirmed, created_at';
+  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, done_at, confirmed, created_at';
 
 /** Postgres-backed spine store; every method runs in a tenant tx (RLS enforced). */
 export class PgFactsRepository implements FactsRepository {
@@ -78,6 +80,16 @@ export class PgFactsRepository implements FactsRepository {
           [userId, input.noteId, input.clientId, d.description, d.date, d.date_raw, d.type],
         );
       }
+    });
+  }
+
+  async markPromiseDone(userId: string, id: string): Promise<boolean> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        'UPDATE promises SET done = true, done_at = now() WHERE id = $1 RETURNING id',
+        [id],
+      );
+      return rows.length > 0;
     });
   }
 

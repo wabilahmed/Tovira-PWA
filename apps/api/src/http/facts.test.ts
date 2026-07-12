@@ -84,6 +84,54 @@ async function seedPromise(userId: string): Promise<string> {
   return p!.id;
 }
 
+const promiseWith = (text: string, due: string | null) => ({
+  text, owner: 'rep' as const, due_date: due, due_raw: due ? 'date' : 'someday', confidence: 'high' as const,
+});
+
+describe('[P4-1] open promises tracker', () => {
+  it('aggregates open promises across clients, sorted by due date with no-date last', async () => {
+    const { token, userId } = await signup('tracker@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n1', clientId: 'c1', promises: [promiseWith('later', '2026-08-01')] });
+    await deps.facts.saveExtraction(userId, { noteId: 'n2', clientId: 'c2', promises: [promiseWith('soon', '2026-07-10')] });
+    await deps.facts.saveExtraction(userId, { noteId: 'n3', clientId: 'c3', promises: [promiseWith('no date', null)] });
+    const res = await fetch(`${base}/promises`, { headers: { authorization: `Bearer ${token}` } });
+    const body = (await res.json()) as { promises: Array<{ text: string; dueDate: string | null }> };
+    expect(body.promises.map((p) => p.text)).toEqual(['soon', 'later', 'no date']); // date asc, null last
+  });
+
+  it('marks a promise done (timestamped) and removes it from the open list', async () => {
+    const { token, userId } = await signup('done@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n', clientId: 'c', promises: [promiseWith('do it', '2026-07-10')] });
+    const [p] = await deps.facts.listPromisesByUser(userId);
+    const done = await fetch(`${base}/promises/${p!.id}/done`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    expect(done.status).toBe(200);
+    const list = (await (await fetch(`${base}/promises`, { headers: { authorization: `Bearer ${token}` } })).json()) as { promises: unknown[] };
+    expect(list.promises).toEqual([]);
+    expect((await deps.facts.listPromisesByUser(userId))[0]!.doneAt).not.toBeNull();
+  });
+
+  it('a deleted promise never appears in the tracker', async () => {
+    const { token, userId } = await signup('deleted@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n', clientId: 'c', promises: [promiseWith('gone', '2026-07-10')] });
+    const [p] = await deps.facts.listPromisesByUser(userId);
+    await deps.facts.deletePromise(userId, p!.id);
+    const list = (await (await fetch(`${base}/promises`, { headers: { authorization: `Bearer ${token}` } })).json()) as { promises: unknown[] };
+    expect(list.promises).toEqual([]);
+  });
+
+  it('never shows another rep\'s promises', async () => {
+    const a = await signup('a-track@example.com');
+    const b = await signup('b-track@example.com');
+    await deps.facts.saveExtraction(a.userId, { noteId: 'n', clientId: 'c', promises: [promiseWith('a private', '2026-07-10')] });
+    const list = (await (await fetch(`${base}/promises`, { headers: { authorization: `Bearer ${b.token}` } })).json()) as { promises: unknown[] };
+    expect(list.promises).toEqual([]);
+  });
+
+  it('requires auth (401)', async () => {
+    expect((await fetch(`${base}/promises`)).status).toBe(401);
+  });
+});
+
 describe('[P2-3] confirm & correct', () => {
   it('edits a promise and records a before/after correction (training data)', async () => {
     const { token, userId } = await signup('edit@example.com');
