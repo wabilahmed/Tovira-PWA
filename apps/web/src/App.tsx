@@ -26,12 +26,14 @@ export function App(): JSX.Element {
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [name, setName] = useState('');
+  const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Reload (with the current search) whenever the query changes — recents first.
   useEffect(() => {
-    void clientsApi.list().then(setClients);
-  }, []);
+    void clientsApi.list(query.trim() || undefined).then(setClients);
+  }, [query]);
 
   async function addClient(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -69,8 +71,19 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       </form>
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search clients…"
+        aria-label="Search clients"
+        style={{ width: '100%', marginBottom: '1rem' }}
+      />
+
       {clients.length === 0 ? (
-        <p style={{ color: '#666' }}>No clients yet. Add your first one above.</p>
+        <p style={{ color: '#666' }}>
+          {query.trim() ? `No clients match “${query.trim()}”.` : 'No clients yet. Add your first one above.'}
+        </p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {clients.map((c) => (

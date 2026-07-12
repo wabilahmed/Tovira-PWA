@@ -12,9 +12,10 @@ export class ClientsClient {
     return `${this.baseUrl}${path}`;
   }
 
-  async list(): Promise<ClientSummary[]> {
+  async list(query?: string): Promise<ClientSummary[]> {
+    const path = query ? `/clients?q=${encodeURIComponent(query)}` : '/clients';
     try {
-      const res = await fetch(this.url('/clients'), { credentials: 'include' });
+      const res = await fetch(this.url(path), { credentials: 'include' });
       if (res.status !== 200) return [];
       const data = (await res.json()) as { clients: ClientSummary[] };
       return data.clients;

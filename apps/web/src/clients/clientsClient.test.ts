@@ -29,6 +29,13 @@ describe('ClientsClient', () => {
     expect((init as RequestInit).credentials).toBe('include');
   });
 
+  it('passes a search query to the server', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { clients: [] }));
+    const client = new ClientsClient('http://api.test');
+    await client.list('meri');
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('q=meri');
+  });
+
   // NEGATIVE: a rejected create surfaces the server's validation message.
   it('throws with the server message when create is rejected (empty name)', async () => {
     fetchMock.mockResolvedValueOnce(json(400, { error: 'validation', message: 'A client name is required.' }));

@@ -60,6 +60,51 @@ describe('clients HTTP endpoints (tenant-scoped)', () => {
     expect(clients.clients.map((c) => c.id)).toContain(client.id);
   });
 
+  // [P1-2] search + recents-first ordering.
+  it('filters clients by a partial name query', async () => {
+    const token = await signup('search@example.com');
+    const create = async (name: string) =>
+      fetch(`${base}/clients`, authed(token, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }));
+    await create('Meridian Corp');
+    await create('Northwind Trading');
+    const res = await fetch(`${base}/clients?q=north`, authed(token));
+    const body = (await res.json()) as { clients: Array<{ name: string }> };
+    expect(body.clients.map((c) => c.name)).toEqual(['Northwind Trading']);
+  });
+
+  it('returns an empty list (clear no-results) when the query matches nothing', async () => {
+    const token = await signup('noresults@example.com');
+    await fetch(`${base}/clients`, authed(token, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Meridian Corp' }),
+    }));
+    const res = await fetch(`${base}/clients?q=zzzz`, authed(token));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { clients: unknown[] };
+    expect(body.clients).toEqual([]);
+  });
+
+  it('lists the most recently created client first (recents default)', async () => {
+    const token = await signup('recents@example.com');
+    const create = async (name: string) =>
+      (await (await fetch(`${base}/clients`, authed(token, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }))).json()) as { id: string };
+    await create('Older');
+    const newer = await create('Newer');
+    const list = (await (await fetch(`${base}/clients`, authed(token))).json()) as {
+      clients: Array<{ id: string }>;
+    };
+    expect(list.clients[0]!.id).toBe(newer.id);
+  });
+
   it('lets the owner fetch their client by id', async () => {
     const token = await signup('owner@example.com');
     const created = (await (await fetch(`${base}/clients`, authed(token, {

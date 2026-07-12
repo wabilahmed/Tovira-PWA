@@ -34,7 +34,9 @@ export async function handleClientRoute(
     }
 
     if (method === 'GET' && path === '/clients') {
-      sendJson(res, 200, { clients: await clients.listByUser(userId) });
+      const query = new URL(req.url ?? '/', 'http://localhost').searchParams.get('q')?.trim();
+      const list = query ? await clients.search(userId, query) : await clients.listByUser(userId);
+      sendJson(res, 200, { clients: list });
       return true;
     }
 
