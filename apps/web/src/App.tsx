@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
+import { ClientsClient, type ClientSummary } from './clients/clientsClient.js';
 
 const auth = new AuthClient();
+const clientsApi = new ClientsClient();
 
 export function App(): JSX.Element {
   const [loading, setLoading] = useState(true);
@@ -18,20 +20,78 @@ export function App(): JSX.Element {
   if (loading) return <Centered>Loading…</Centered>;
   if (!session) return <LoginScreen onAuthed={setSession} />;
 
+  return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
+}
+
+function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
+  const [clients, setClients] = useState<ClientSummary[]>([]);
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void clientsApi.list().then(setClients);
+  }, []);
+
+  async function addClient(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const created = await clientsApi.create(name);
+      setClients((prev) => [created, ...prev]);
+      setName('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create client.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-      <h1>Tovira</h1>
-      <p>Signed in as {session.user.email}.</p>
-      <button
-        onClick={() => {
-          void auth.logout().then(() => setSession(null));
-        }}
-      >
-        Log out
-      </button>
+    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <h1 style={{ margin: 0 }}>Tovira</h1>
+        <small>
+          {session.user.email} · <button onClick={onLogout} style={linkButton}>Log out</button>
+        </small>
+      </header>
+
+      <form onSubmit={addClient} style={{ display: 'flex', gap: '0.5rem', margin: '1.5rem 0' }}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="New client name"
+          aria-label="New client name"
+          style={{ flex: 1 }}
+        />
+        <button type="submit" disabled={busy}>Add client</button>
+      </form>
+      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+
+      {clients.length === 0 ? (
+        <p style={{ color: '#666' }}>No clients yet. Add your first one above.</p>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {clients.map((c) => (
+            <li key={c.id} style={{ padding: '0.75rem 0', borderBottom: '1px solid #eee' }}>
+              {c.name}
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }
+
+const linkButton: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: '#2563eb',
+  cursor: 'pointer',
+  padding: 0,
+  font: 'inherit',
+};
 
 function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Element {
   const [mode, setMode] = useState<'login' | 'signup'>('login');

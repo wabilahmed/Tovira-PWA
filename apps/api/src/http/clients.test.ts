@@ -71,6 +71,37 @@ describe('clients HTTP endpoints (tenant-scoped)', () => {
     expect(got.status).toBe(200);
   });
 
+  // [P1-1] two clients with the same name are both allowed and distinguishable.
+  it('allows two clients with the same name (distinct ids)', async () => {
+    const token = await signup('same@example.com');
+    const mk = async () =>
+      (await (await fetch(`${base}/clients`, authed(token, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Meridian Corp' }),
+      }))).json()) as { id: string; name: string };
+    const a = await mk();
+    const b = await mk();
+    expect(a.name).toBe('Meridian Corp');
+    expect(b.name).toBe('Meridian Corp');
+    expect(a.id).not.toBe(b.id);
+  });
+
+  // [P1-1] NEGATIVE: empty / whitespace name is rejected with a validation message.
+  it('rejects an empty or whitespace-only client name with 400', async () => {
+    const token = await signup('empty@example.com');
+    for (const name of ['', '   ']) {
+      const res = await fetch(`${base}/clients`, authed(token, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }));
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { message?: string };
+      expect(body.message).toBeTruthy();
+    }
+  });
+
   // NEGATIVE — the isolation trust rules
   it('rejects unauthenticated create and list with 401', async () => {
     const create = await fetch(`${base}/clients`, {
