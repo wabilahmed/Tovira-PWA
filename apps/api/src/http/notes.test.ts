@@ -104,6 +104,53 @@ describe('voice note upload', () => {
     expect(res.status).toBe(404);
   });
 
+  // [P2-2] client timeline
+  it('lists notes newest-first with date and source', async () => {
+    const token = await signup('timeline@example.com');
+    const clientId = await createClient(token, 'Timeline Corp');
+    const paste = (text: string) =>
+      fetch(`${base}/clients/${clientId}/notes/paste`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+    await paste('older message here');
+    await paste('newer message here');
+    const list = (await (await fetch(`${base}/clients/${clientId}/notes`, {
+      headers: { authorization: `Bearer ${token}` },
+    })).json()) as { notes: Array<{ rawText: string; source: string; createdAt: number }> };
+    expect(list.notes[0]!.rawText).toContain('newer'); // newest first
+    expect(list.notes[1]!.rawText).toContain('older');
+    expect(list.notes[0]!.source).toBe('paste');
+    expect(typeof list.notes[0]!.createdAt).toBe('number');
+  });
+
+  it('shows a voice note in a processing state before transcription', async () => {
+    const token = await signup('processing@example.com');
+    const clientId = await createClient(token, 'Processing Corp');
+    await uploadVoice(token, clientId, audio);
+    const list = (await (await fetch(`${base}/clients/${clientId}/notes`, {
+      headers: { authorization: `Bearer ${token}` },
+    })).json()) as { notes: Array<{ status: string }> };
+    expect(list.notes[0]!.status).toBe('pending_transcription');
+  });
+
+  it('never shows another rep\'s notes in a client timeline', async () => {
+    const tokenA = await signup('a-tl@example.com');
+    const tokenB = await signup('b-tl@example.com');
+    const clientA = await createClient(tokenA, 'A Timeline');
+    await fetch(`${base}/clients/${clientA}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tokenA}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'A private note' }),
+    });
+    // B asks for A's client timeline → sees nothing (isolation).
+    const list = (await (await fetch(`${base}/clients/${clientA}/notes`, {
+      headers: { authorization: `Bearer ${tokenB}` },
+    })).json()) as { notes: unknown[] };
+    expect(list.notes).toEqual([]);
+  });
+
   // [P1-6] extract structured facts from a note (stub model → valid empty facts)
   it('extracts a note and marks it extracted', async () => {
     const token = await signup('extract@example.com');

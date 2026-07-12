@@ -211,7 +211,10 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {notes.map((n) => (
             <li key={n.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid #eee' }}>
-              <small style={{ color: '#888' }}>{n.source} · {n.status}</small>
+              <small style={{ color: '#888' }}>
+                {new Date(n.createdAt).toLocaleString()} · {n.source}
+                {isProcessing(n.status) && <em style={{ color: '#a15c00' }}> · {processingLabel(n.status)}</em>}
+              </small>
               <div>{n.rawText ?? <em>(transcription pending)</em>}</div>
             </li>
           ))}
@@ -318,6 +321,13 @@ function BriefPanel({ brief }: { brief: Brief }): JSX.Element {
       )}
     </section>
   );
+}
+
+function isProcessing(status: string): boolean {
+  return status === 'pending_transcription' || status === 'pending_extraction';
+}
+function processingLabel(status: string): string {
+  return status === 'pending_transcription' ? 'transcribing…' : 'analysing…';
 }
 
 const briefBox: React.CSSProperties = {
