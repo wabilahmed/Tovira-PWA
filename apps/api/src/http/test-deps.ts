@@ -16,6 +16,8 @@ import { StubEmbedder } from '../adapters/embedding/stub.js';
 import { ExtractionService } from '../services/extraction/extraction-service.js';
 import { BriefService } from '../services/brief/brief-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
+import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
+import { MeetingParser } from '../services/meetings/meeting-parser.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -52,6 +54,8 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   );
   const brief = new BriefService(clients, notes, facts, embedder);
   const corrections = new InMemoryCorrectionRepository();
+  const meetings = new InMemoryMeetingRepository();
+  const meetingParser = new MeetingParser(new StubModelClient(), clients);
   return {
     pool: stubPool,
     auth,
@@ -63,6 +67,8 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     facts,
     corrections,
     brief,
+    meetings,
+    meetingParser,
     ...overrides,
   } as TestDeps;
 }

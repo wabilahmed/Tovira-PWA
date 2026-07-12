@@ -9,11 +9,14 @@ import type { ExtractionService } from './services/extraction/extraction-service
 import type { FactsRepository } from './ports/facts-repository.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
 import type { BriefService } from './services/brief/brief-service.js';
+import type { MeetingRepository } from './ports/meeting-repository.js';
+import type { MeetingParser } from './services/meetings/meeting-parser.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
 import { handleFactsRoute } from './http/facts-routes.js';
 import { handleBriefRoute } from './http/brief-routes.js';
+import { handleMeetingRoute } from './http/meetings-routes.js';
 import { sendJson } from './http/helpers.js';
 
 export interface ApiDeps {
@@ -27,6 +30,8 @@ export interface ApiDeps {
   facts: FactsRepository;
   corrections: CorrectionRepository;
   brief: BriefService;
+  meetings: MeetingRepository;
+  meetingParser: MeetingParser;
   cookieSecure?: boolean;
 }
 
@@ -83,6 +88,15 @@ export function createApiServer(deps: ApiDeps): Server {
       )
         return;
       if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief })) return;
+      if (
+        await handleMeetingRoute(request, response, {
+          auth: deps.auth,
+          clients: deps.clients,
+          meetings: deps.meetings,
+          parser: deps.meetingParser,
+        })
+      )
+        return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
 
       if (request.method === 'GET' && url === '/') {

@@ -40,6 +40,10 @@ import { BriefService } from './services/brief/brief-service.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
 import { InMemoryCorrectionRepository } from './adapters/corrections/in-memory-correction-repository.js';
 import { PgCorrectionRepository } from './adapters/corrections/pg-correction-repository.js';
+import type { MeetingRepository } from './ports/meeting-repository.js';
+import { InMemoryMeetingRepository } from './adapters/meetings/in-memory-meeting-repository.js';
+import { PgMeetingRepository } from './adapters/meetings/pg-meeting-repository.js';
+import { MeetingParser } from './services/meetings/meeting-parser.js';
 
 /**
  * Composition root. The ONLY place that names concrete adapters — it maps config
@@ -178,6 +182,20 @@ export function createCorrectionRepository(config: AppConfig, pool?: Pool): Corr
     return new PgCorrectionRepository(pool);
   }
   return new InMemoryCorrectionRepository();
+}
+
+/** The rep's calendar store (P3-1), RLS-backed on pg. */
+export function createMeetingRepository(config: AppConfig, pool?: Pool): MeetingRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgMeetingRepository(pool);
+  }
+  return new InMemoryMeetingRepository();
+}
+
+/** Natural-language meeting parser (uses the model + client search). */
+export function createMeetingParser(config: AppConfig, clients: ClientRepository): MeetingParser {
+  return new MeetingParser(createModelClient(config), clients);
 }
 
 /** The pre-meeting brief service (spine + JSONB + semantic search). */
