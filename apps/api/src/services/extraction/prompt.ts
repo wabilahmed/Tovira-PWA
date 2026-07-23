@@ -15,7 +15,7 @@ export const PROMPT_VERSION = 'tovira-extract-v0.1';
 export interface ExtractionPromptInput {
   today: string; // YYYY-MM-DD
   clientName: string;
-  source: 'voice' | 'paste';
+  source: 'voice' | 'paste' | 'whatsapp_export';
   text: string;
 }
 
@@ -215,10 +215,16 @@ Note: the promise is owned by the client (Bianca), not the rep. Owner matters - 
 
 Follow these rules and the shape of these examples exactly. Output only the JSON object.`;
 
+const SOURCE_LABEL: Record<ExtractionPromptInput['source'], string> = {
+  voice: 'voice_note',
+  paste: 'pasted_message',
+  whatsapp_export: 'whatsapp_chat_export',
+};
+
 export function buildUserMessage(input: ExtractionPromptInput): string {
   return `TODAY'S DATE: ${input.today}
 CLIENT: ${input.clientName}
-SOURCE: ${input.source === 'voice' ? 'voice_note' : 'pasted_message'}
+SOURCE: ${SOURCE_LABEL[input.source]}
 
 NOTE:
 ${input.text}`;

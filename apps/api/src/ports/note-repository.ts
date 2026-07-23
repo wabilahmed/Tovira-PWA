@@ -3,7 +3,15 @@
  * enforces isolation at the DB via RLS.
  */
 
-export type NoteSource = 'voice' | 'paste';
+export type NoteSource = 'voice' | 'paste' | 'whatsapp_export';
+
+/** One speaker-attributed message from an imported chat export (P1-4b). */
+export interface ImportedMessage {
+  sentAt: string | null;
+  sender: string;
+  body: string;
+  media: boolean;
+}
 
 export interface NoteRecord {
   id: string;
@@ -14,6 +22,7 @@ export interface NoteRecord {
   audioKey: string | null;
   status: string;
   extracted: unknown | null;
+  messages: ImportedMessage[] | null;
   createdAt: number;
 }
 
@@ -23,6 +32,7 @@ export interface NewNote {
   rawText: string | null;
   audioKey: string | null;
   status: string;
+  messages?: ImportedMessage[] | null;
 }
 
 export interface NotePatch {
@@ -30,6 +40,7 @@ export interface NotePatch {
   status?: string;
   extracted?: unknown | null;
   embedding?: number[] | null;
+  messages?: ImportedMessage[] | null;
 }
 
 export interface SimilarNote {

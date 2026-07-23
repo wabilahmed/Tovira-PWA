@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { NewNote, NotePatch, NoteRecord, NoteRepository, NoteSource, SimilarNote } from '../../ports/note-repository.js';
+import type { ImportedMessage, NewNote, NotePatch, NoteRecord, NoteRepository, NoteSource, SimilarNote } from '../../ports/note-repository.js';
 import { withTenant } from '../../db/tenant.js';
 
 interface NoteRow {
@@ -11,6 +11,7 @@ interface NoteRow {
   audio_key: string | null;
   status: string;
   extracted: unknown | null;
+  messages: ImportedMessage[] | null;
   created_at: Date;
 }
 
@@ -24,11 +25,12 @@ function toRecord(row: NoteRow): NoteRecord {
     audioKey: row.audio_key,
     status: row.status,
     extracted: row.extracted,
+    messages: row.messages,
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, extracted, created_at';
+const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, extracted, messages, created_at';
 
 /** Postgres-backed note store; every method runs in a tenant tx (RLS enforced). */
 export class PgNoteRepository implements NoteRepository {
@@ -37,10 +39,18 @@ export class PgNoteRepository implements NoteRepository {
   async create(userId: string, note: NewNote): Promise<NoteRecord> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO notes (user_id, client_id, source, raw_text, audio_key, status)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO notes (user_id, client_id, source, raw_text, audio_key, status, messages)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
          RETURNING ${COLUMNS}`,
-        [userId, note.clientId, note.source, note.rawText, note.audioKey, note.status],
+        [
+          userId,
+          note.clientId,
+          note.source,
+          note.rawText,
+          note.audioKey,
+          note.status,
+          note.messages == null ? null : JSON.stringify(note.messages),
+        ],
       );
       return toRecord(rows[0] as unknown as NoteRow);
     });
@@ -105,6 +115,10 @@ export class PgNoteRepository implements NoteRepository {
       if (patch.embedding !== undefined) {
         params.push(patch.embedding === null ? null : `[${patch.embedding.join(',')}]`);
         sets.push(`embedding = $${params.length}::vector`);
+      }
+      if (patch.messages !== undefined) {
+        params.push(patch.messages === null ? null : JSON.stringify(patch.messages));
+        sets.push(`messages = $${params.length}::jsonb`);
       }
       if (sets.length === 0) return;
       params.push(id);

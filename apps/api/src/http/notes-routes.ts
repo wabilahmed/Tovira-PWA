@@ -7,9 +7,11 @@ import type { Storage } from '../ports/storage.js';
 import type { TranscriptionService } from '../services/transcription/transcription-service.js';
 import type { ExtractionService } from '../services/extraction/extraction-service.js';
 import type { FollowUpService } from '../services/followup/follow-up-service.js';
+import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 
 const MAX_PASTE_CHARS = 100_000;
+const MAX_IMPORT_CHARS = 5_000_000; // a full multi-year chat export
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -27,6 +29,7 @@ export interface NoteRouteDeps {
 
 const VOICE_RE = /^\/clients\/([^/]+)\/notes\/voice$/;
 const PASTE_RE = /^\/clients\/([^/]+)\/notes\/paste$/;
+const IMPORT_RE = /^\/clients\/([^/]+)\/notes\/import$/;
 const LIST_RE = /^\/clients\/([^/]+)\/notes$/;
 const AUDIO_RE = /^\/notes\/([^/]+)\/audio$/;
 const TRANSCRIBE_RE = /^\/notes\/([^/]+)\/transcribe$/;
@@ -44,12 +47,13 @@ export async function handleNoteRoute(
 
   const voiceMatch = method === 'POST' ? VOICE_RE.exec(path) : null;
   const pasteMatch = method === 'POST' ? PASTE_RE.exec(path) : null;
+  const importMatch = method === 'POST' ? IMPORT_RE.exec(path) : null;
   const listMatch = method === 'GET' ? LIST_RE.exec(path) : null;
   const audioMatch = method === 'GET' ? AUDIO_RE.exec(path) : null;
   const transcribeMatch = method === 'POST' ? TRANSCRIBE_RE.exec(path) : null;
   const extractMatch = method === 'POST' ? EXTRACT_RE.exec(path) : null;
   const followUpMatch = method === 'POST' ? FOLLOWUP_RE.exec(path) : null;
-  if (!voiceMatch && !pasteMatch && !listMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch) return false;
+  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -116,6 +120,66 @@ export async function handleNoteRoute(
       });
       await deps.clients.touch(userId, clientId);
       sendJson(res, 201, note);
+      return true;
+    }
+
+    if (importMatch) {
+      const clientId = decodeURIComponent(importMatch[1]!);
+      const client = await deps.clients.findByIdForUser(userId, clientId);
+      if (!client) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      const body = (await readJsonBody(req)) as { content?: unknown; consent?: unknown };
+      // A full export contains everything in the chat — require explicit consent.
+      if (body.consent !== true) {
+        sendJson(res, 400, {
+          error: 'consent_required',
+          message: 'A WhatsApp export contains the entire chat. Confirm consent before importing.',
+        });
+        return true;
+      }
+      const content = typeof body.content === 'string' ? body.content : '';
+      if (!content.trim()) {
+        sendJson(res, 400, { error: 'validation', message: 'The export file is empty.' });
+        return true;
+      }
+      if (content.length > MAX_IMPORT_CHARS) {
+        sendJson(res, 413, {
+          error: 'too_large',
+          message: `Export is too large (max ${MAX_IMPORT_CHARS.toLocaleString()} characters).`,
+        });
+        return true;
+      }
+      // Persist the raw file FIRST, then parse. A parse failure flags this note;
+      // messages are written only on a WHOLE success — never a half-import.
+      const note = await deps.notes.create(userId, {
+        clientId,
+        source: 'whatsapp_export',
+        rawText: content,
+        audioKey: null,
+        status: 'importing',
+      });
+      let parsed;
+      try {
+        parsed = parseWhatsAppExport(content);
+      } catch {
+        parsed = { ok: false as const, reason: 'The export could not be parsed.' };
+      }
+      if (!parsed.ok) {
+        await deps.notes.update(userId, note.id, { status: 'import_failed' });
+        sendJson(res, 422, { error: 'import_failed', reason: parsed.reason });
+        return true;
+      }
+      await deps.notes.update(userId, note.id, {
+        messages: parsed.messages,
+        status: 'pending_extraction',
+      });
+      await deps.clients.touch(userId, clientId);
+      // Batch-extract the imported thread, exactly like any other captured input.
+      await deps.extraction.extractNote(userId, note.id, todayIso());
+      const updated = await deps.notes.findByIdForUser(userId, note.id);
+      sendJson(res, 201, { note: updated, imported: parsed.messages.length });
       return true;
     }
 
