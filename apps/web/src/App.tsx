@@ -18,6 +18,10 @@ import { BillingClient } from './billing/billingClient.js';
 import { Billing } from './billing/Billing.js';
 import { AccountClient } from './account/accountClient.js';
 import { AccountControls } from './account/AccountControls.js';
+import { CardsClient } from './cards/cardsClient.js';
+import { CardScan } from './cards/CardScan.js';
+import { ImagesClient } from './gallery/imagesClient.js';
+import { Gallery } from './gallery/Gallery.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
 import { HttpUploader } from './capture/uploader.js';
@@ -34,6 +38,8 @@ const proactiveApi = new ProactiveClient();
 const meetingsApi = new MeetingsClient();
 const billingApi = new BillingClient();
 const accountApi = new AccountClient();
+const cardsApi = new CardsClient();
+const imagesApi = new ImagesClient();
 const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader());
 
 function randomId(): string {
@@ -169,6 +175,15 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             <button type="submit" disabled={busy}>Add client</button>
           </form>
           {error && <p style={{ color: 'crimson' }}>{error}</p>}
+
+          <CardScan
+            api={cardsApi}
+            onCreateClient={async (n) => {
+              const created = await clientsApi.create(n);
+              setClients((prev) => [created, ...prev]);
+              return created;
+            }}
+          />
 
           <input
             type="search"
@@ -310,6 +325,8 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
           {pending.length} recording(s) pending upload — they’re saved and will retry automatically.
         </p>
       )}
+
+      <Gallery clientId={client.id} api={imagesApi} />
 
       <h2 style={{ fontSize: '1rem', marginTop: '1.5rem' }}>Notes</h2>
       {notes.length === 0 ? (
