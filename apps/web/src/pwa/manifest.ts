@@ -17,4 +17,16 @@ export const manifest = {
     { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
     { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
   ],
+  // Android: let WhatsApp "Export chat" share the .txt straight into Tovira
+  // (P5-3). iOS PWAs can't be share targets — that path is Files→upload instead.
+  share_target: {
+    action: '/share-target',
+    method: 'POST',
+    enctype: 'multipart/form-data',
+    params: {
+      title: 'title',
+      text: 'text',
+      files: [{ name: 'file', accept: ['text/plain', '.txt'] }],
+    },
+  },
 } as const;

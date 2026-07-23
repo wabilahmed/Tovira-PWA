@@ -18,7 +18,17 @@ export default defineConfig({
       injectRegister: null, // we register manually (registerServiceWorker.ts)
       filename: 'sw.js',
       // Clone to a mutable shape (the source is `as const` for literal types).
-      manifest: { ...manifest, icons: manifest.icons.map((icon) => ({ ...icon })) },
+      manifest: {
+        ...manifest,
+        icons: manifest.icons.map((icon) => ({ ...icon })),
+        share_target: {
+          ...manifest.share_target,
+          params: {
+            ...manifest.share_target.params,
+            files: manifest.share_target.params.files.map((f) => ({ ...f, accept: [...f.accept] })),
+          },
+        },
+      },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
         navigateFallback: '/index.html',

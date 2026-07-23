@@ -28,4 +28,11 @@ describe('PWA manifest', () => {
     expect(manifest.theme_color).toBeTruthy();
     expect(manifest.background_color).toBeTruthy();
   });
+
+  // [P5-3] Android share target: WhatsApp "Export chat" can share the .txt in.
+  it('declares a share target that accepts a text file', () => {
+    expect(manifest.share_target.method).toBe('POST');
+    const accept = manifest.share_target.params.files.flatMap((f) => f.accept);
+    expect(accept).toContain('text/plain');
+  });
 });
