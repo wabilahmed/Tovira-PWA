@@ -14,6 +14,10 @@ import { ProactiveClient } from './proactive/proactiveClient.js';
 import { Alerts } from './proactive/Alerts.js';
 import { MeetingsClient } from './meetings/meetingsClient.js';
 import { Meetings } from './meetings/Meetings.js';
+import { BillingClient } from './billing/billingClient.js';
+import { Billing } from './billing/Billing.js';
+import { AccountClient } from './account/accountClient.js';
+import { AccountControls } from './account/AccountControls.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
 import { HttpUploader } from './capture/uploader.js';
@@ -28,6 +32,8 @@ const promisesApi = new PromisesClient();
 const heroApi = new HeroClient();
 const proactiveApi = new ProactiveClient();
 const meetingsApi = new MeetingsClient();
+const billingApi = new BillingClient();
+const accountApi = new AccountClient();
 const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader());
 
 function randomId(): string {
@@ -52,7 +58,7 @@ export function App(): JSX.Element {
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
-type View = 'clients' | 'today' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'getstarted';
+type View = 'clients' | 'today' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'getstarted' | 'settings';
 
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -107,6 +113,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <button onClick={() => setView('meetings')} style={view === 'meetings' ? navActive : linkButton}>Meetings</button>
         <button onClick={() => setView('alerts')} style={view === 'alerts' ? navActive : linkButton}>Alerts</button>
         <button onClick={() => setView('bookscan')} style={view === 'bookscan' ? navActive : linkButton}>Book Scan</button>
+        <button onClick={() => setView('settings')} style={view === 'settings' ? navActive : linkButton}>Settings</button>
         {needsSeeding && (
           <button onClick={() => setView('getstarted')} style={view === 'getstarted' ? navActive : linkButton}>
             Get started ✨
@@ -141,6 +148,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'alerts' && <Alerts api={proactiveApi} />}
 
       {view === 'bookscan' && <BookScan api={bookScanApi} />}
+
+      {view === 'settings' && (
+        <>
+          <Billing api={billingApi} />
+          <AccountControls api={accountApi} onDeleted={onLogout} />
+        </>
+      )}
 
       {view === 'clients' && (
         <>

@@ -109,6 +109,20 @@ describe('<App> integration', () => {
     expect(await screen.findByText(/kickoff with acme/i)).toBeInTheDocument();
   });
 
+  it('navigates to Settings and renders the plan status (API integration)', async () => {
+    routeFetch([
+      ['/billing/status', () => json(200, { entitled: true, status: 'active', trialEndsAt: 0 })],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /settings/i }));
+    expect(await screen.findByText(/you're subscribed/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /delete my account/i })).toBeInTheDocument();
+  });
+
   it('navigates to the Book Scan and renders its findings (API integration)', async () => {
     routeFetch([
       ['book-scan', () => json(200, SCAN)],
