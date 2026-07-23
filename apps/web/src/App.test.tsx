@@ -82,6 +82,33 @@ describe('<App> integration', () => {
     expect(await screen.findByText(/nudge meridian/i)).toBeInTheDocument();
   });
 
+  it('navigates to Alerts and renders notifications + cold list (API integration)', async () => {
+    routeFetch([
+      ['/notifications', () => json(200, { notifications: [{ id: 'n1', type: 'going_cold', clientId: 'c1', title: 'Meridian has gone quiet', body: 'No contact in 30 days.', read: false, createdAt: 1 }] })],
+      ['/cold', () => json(200, { clients: [{ id: 'c1', name: 'Meridian', createdAt: 1, lastTouchedAt: 1 }] })],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /alerts/i }));
+    expect(await screen.findByText(/meridian has gone quiet/i)).toBeInTheDocument();
+  });
+
+  it('navigates to Meetings and lists them (API integration)', async () => {
+    routeFetch([
+      ['/meetings', () => json(200, { meetings: [{ id: 'm1', clientId: 'c1', datetime: '2026-08-01T15:00', datetimeRaw: 'Tue 3pm', title: 'Kickoff', confirmed: true, createdAt: 1 }] })],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [{ id: 'c1', name: 'Acme', createdAt: 1 }] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /meetings/i }));
+    expect(await screen.findByText(/kickoff with acme/i)).toBeInTheDocument();
+  });
+
   it('navigates to the Book Scan and renders its findings (API integration)', async () => {
     routeFetch([
       ['book-scan', () => json(200, SCAN)],

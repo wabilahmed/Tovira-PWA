@@ -10,6 +10,10 @@ import { PromisesClient } from './promises/promisesClient.js';
 import { PromisesTracker } from './promises/PromisesTracker.js';
 import { HeroClient } from './hero/heroClient.js';
 import { HeroInsights } from './hero/HeroInsights.js';
+import { ProactiveClient } from './proactive/proactiveClient.js';
+import { Alerts } from './proactive/Alerts.js';
+import { MeetingsClient } from './meetings/meetingsClient.js';
+import { Meetings } from './meetings/Meetings.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
 import { HttpUploader } from './capture/uploader.js';
@@ -22,6 +26,8 @@ const onboardingApi = new OnboardingClient();
 const bookScanApi = new BookScanClient();
 const promisesApi = new PromisesClient();
 const heroApi = new HeroClient();
+const proactiveApi = new ProactiveClient();
+const meetingsApi = new MeetingsClient();
 const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader());
 
 function randomId(): string {
@@ -46,7 +52,7 @@ export function App(): JSX.Element {
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
-type View = 'clients' | 'today' | 'promises' | 'bookscan' | 'getstarted';
+type View = 'clients' | 'today' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'getstarted';
 
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -98,6 +104,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <button onClick={() => setView('clients')} style={view === 'clients' ? navActive : linkButton}>Clients</button>
         <button onClick={() => setView('today')} style={view === 'today' ? navActive : linkButton}>Today</button>
         <button onClick={() => setView('promises')} style={view === 'promises' ? navActive : linkButton}>Promises</button>
+        <button onClick={() => setView('meetings')} style={view === 'meetings' ? navActive : linkButton}>Meetings</button>
+        <button onClick={() => setView('alerts')} style={view === 'alerts' ? navActive : linkButton}>Alerts</button>
         <button onClick={() => setView('bookscan')} style={view === 'bookscan' ? navActive : linkButton}>Book Scan</button>
         {needsSeeding && (
           <button onClick={() => setView('getstarted')} style={view === 'getstarted' ? navActive : linkButton}>
@@ -127,6 +135,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'today' && <HeroInsights api={heroApi} />}
 
       {view === 'promises' && <PromisesTracker api={promisesApi} />}
+
+      {view === 'meetings' && <Meetings api={meetingsApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
+
+      {view === 'alerts' && <Alerts api={proactiveApi} />}
 
       {view === 'bookscan' && <BookScan api={bookScanApi} />}
 
