@@ -7,6 +7,7 @@ import type { ExtractionLogRepository } from '../../ports/extraction-log-reposit
 import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './prompt.js';
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
+import { detectUnansweredQuestions } from '../import/unanswered.js';
 import type { Extraction } from './types.js';
 
 export interface ExtractOutcome {
@@ -67,6 +68,9 @@ export class ExtractionService {
       await this.notes.update(userId, noteId, { status: 'needs_review' });
       status = 'needs_review';
     } else {
+      // Chat imports carry speaker-attributed messages → detect client questions
+      // the rep never answered (P1-6). Deterministic; never fabricated.
+      extraction.unanswered_questions = note.messages ? detectUnansweredQuestions(note.messages) : [];
       const embedding = await this.embedder.embed(note.rawText);
       await this.notes.update(userId, noteId, { extracted: extraction, status: 'extracted', embedding });
       await this.facts.saveExtraction(userId, {

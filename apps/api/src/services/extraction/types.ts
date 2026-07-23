@@ -1,4 +1,5 @@
 /** The v0.1 extraction schema (see docs/tovira-extraction-prompt.md). */
+import type { UnansweredQuestion } from '../import/unanswered.js';
 
 export type PromiseOwner = 'rep' | 'client';
 export type Confidence = 'high' | 'low';
@@ -48,4 +49,8 @@ export interface Extraction {
   concerns: string[];
   next_steps: string[];
   meeting: Meeting | null;
+  // Deterministic post-extraction field (P1-6). NOT produced by the model — the
+  // extraction service computes it from a chat export's speaker-attributed
+  // messages. Optional: absent/[] for non-chat notes; populated for chat imports.
+  unanswered_questions?: UnansweredQuestion[];
 }

@@ -57,7 +57,12 @@ export function validateExtraction(value: unknown): ValidationResult {
   return { ok: errors.length === 0, errors };
 }
 
-/** Narrowing helper: returns the value typed as Extraction if it validates. */
+/** Narrowing helper: returns the value typed as Extraction if it validates.
+ *  unanswered_questions is not part of the model's v0.1 output — default it to
+ *  [] so the field is always present; the extraction service fills it for chat
+ *  imports (P1-6). */
 export function asExtraction(value: unknown): Extraction | null {
-  return validateExtraction(value).ok ? (value as Extraction) : null;
+  if (!validateExtraction(value).ok) return null;
+  const v = value as Extraction;
+  return { ...v, unanswered_questions: v.unanswered_questions ?? [] };
 }

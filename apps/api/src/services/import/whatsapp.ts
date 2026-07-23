@@ -19,6 +19,8 @@ export interface ParsedMessage {
   body: string;
   /** True when the message was a media placeholder (<Media omitted>, etc.). */
   media: boolean;
+  /** Speaker role, resolved after parsing (P1-6). Parser emits 'unknown'. */
+  role: 'client' | 'rep' | 'unknown';
 }
 
 export type WhatsAppParseResult =
@@ -70,6 +72,7 @@ export function parseWhatsAppExport(text: string): WhatsAppParseResult {
         sender: (m.groups.sender ?? '').trim(),
         body,
         media: MEDIA_RE.test(body),
+        role: 'unknown',
       });
     } else if (messages.length > 0) {
       // Continuation of the previous message (multi-line body).

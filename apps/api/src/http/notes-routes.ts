@@ -8,6 +8,7 @@ import type { TranscriptionService } from '../services/transcription/transcripti
 import type { ExtractionService } from '../services/extraction/extraction-service.js';
 import type { FollowUpService } from '../services/followup/follow-up-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
+import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 
 const MAX_PASTE_CHARS = 100_000;
@@ -171,8 +172,11 @@ export async function handleNoteRoute(
         sendJson(res, 422, { error: 'import_failed', reason: parsed.reason });
         return true;
       }
+      // Tag each speaker as client/rep by matching the client name, so the
+      // extractor can detect unanswered client questions (P1-6).
+      const messages = assignSpeakerRoles(parsed.messages, client.name);
       await deps.notes.update(userId, note.id, {
-        messages: parsed.messages,
+        messages,
         status: 'pending_extraction',
       });
       await deps.clients.touch(userId, clientId);

@@ -11,6 +11,8 @@ export interface ImportedMessage {
   sender: string;
   body: string;
   media: boolean;
+  /** Resolved speaker role (P1-6). 'unknown' when we can't identify the client. */
+  role: 'client' | 'rep' | 'unknown';
 }
 
 export interface NoteRecord {

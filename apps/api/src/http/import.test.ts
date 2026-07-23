@@ -108,6 +108,39 @@ describe('[P1-4b] import a WhatsApp chat export', () => {
     expect(notes.notes.some((n) => n.status === 'import_failed')).toBe(true);
   });
 
+  // P1-6: an unanswered client question in the imported thread is flagged.
+  async function importedExtract(token: string, cid: string): Promise<{ unanswered_questions: Array<{ question: string }> }> {
+    const notes = (await (await fetch(`${base}/clients/${cid}/notes`, {
+      headers: { authorization: `Bearer ${token}` },
+    })).json()) as { notes: Array<{ source: string; extracted: { unanswered_questions: Array<{ question: string }> } }> };
+    return notes.notes.find((n) => n.source === 'whatsapp_export')!.extracted;
+  }
+
+  it('flags a client question the thread went dead on (P1-6)', async () => {
+    const { token } = await signup('unans@example.com');
+    const cid = await createClient(token, 'Sara Lee'); // client name matches the speaker
+    const chat = [
+      '[2026-01-15, 09:00:00] Alex: Sending the quote.',
+      '[2026-01-16, 10:00:00] Sara Lee: Can you do bulk pricing?',
+    ].join('\n');
+    await importChat(token, cid, { content: chat, consent: true });
+    const extracted = await importedExtract(token, cid);
+    expect(extracted.unanswered_questions).toHaveLength(1);
+    expect(extracted.unanswered_questions[0]!.question).toContain('bulk pricing');
+  });
+
+  it('does not flag a question the rep answered after (P1-6 negative)', async () => {
+    const { token } = await signup('answered@example.com');
+    const cid = await createClient(token, 'Sara Lee');
+    const chat = [
+      '[2026-01-15, 09:00:00] Sara Lee: Can you do bulk pricing?',
+      '[2026-01-15, 09:05:00] Alex: Yes — 10% above 500 units.',
+    ].join('\n');
+    await importChat(token, cid, { content: chat, consent: true });
+    const extracted = await importedExtract(token, cid);
+    expect(extracted.unanswered_questions).toEqual([]);
+  });
+
   // NEGATIVE: a rep can never import into, or read, another rep's client.
   it('does not let a rep import into another rep\'s client', async () => {
     const a = await signup('a-import@example.com');
