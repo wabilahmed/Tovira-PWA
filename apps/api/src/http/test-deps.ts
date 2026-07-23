@@ -22,6 +22,7 @@ import { MeetingParser } from '../services/meetings/meeting-parser.js';
 import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
 import { ScanService } from '../services/scan/scan-service.js';
 import { HeroService } from '../services/hero/hero-service.js';
+import { BookScanService } from '../services/book-scan/book-scan-service.js';
 import { BillingService } from '../services/billing/billing-service.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../adapters/billing/in-memory.js';
 import { StubStripeGateway } from '../adapters/billing/stub-stripe.js';
@@ -100,6 +101,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     billing: new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7),
     account: new AccountService(auth, clients, notes, facts, meetings, [clients, notes, facts, meetings]),
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
+    bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
     ...overrides,
   } as TestDeps;
 }

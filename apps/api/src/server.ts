@@ -34,6 +34,8 @@ import { handleInsightsRoute } from './http/insights-routes.js';
 import { handleCardRoute } from './http/cards-routes.js';
 import { handleImageRoute } from './http/images-routes.js';
 import { handleHeroRoute } from './http/hero-routes.js';
+import { handleBookScanRoute } from './http/book-scan-routes.js';
+import type { BookScanService } from './services/book-scan/book-scan-service.js';
 import { handleBillingRoute } from './http/billing-routes.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
@@ -65,6 +67,7 @@ export interface ApiDeps {
   billing: BillingService;
   account: AccountService;
   activation: ActivationService;
+  bookScan: BookScanService;
   cookieSecure?: boolean;
 }
 
@@ -154,6 +157,7 @@ export function createApiServer(deps: ApiDeps): Server {
         return;
       if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
       if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero })) return;
+      if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;

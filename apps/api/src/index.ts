@@ -4,6 +4,7 @@ import { loadConfig } from './config.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
+import { BookScanService } from './services/book-scan/book-scan-service.js';
 import {
   createAuthService,
   createClientRepository,
@@ -78,6 +79,10 @@ async function main(): Promise<void> {
   const billing = createBillingService(config, appPool);
   const account = createAccountService(auth, clients, notes, facts, meetings);
   const activation = createActivationService(config, appPool);
+  const bookScan = new BookScanService(
+    { clients, notes, facts },
+    { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30 },
+  );
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -104,6 +109,7 @@ async function main(): Promise<void> {
     billing,
     account,
     activation,
+    bookScan,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {
