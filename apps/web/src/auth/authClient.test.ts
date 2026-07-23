@@ -56,6 +56,19 @@ describe('AuthClient', () => {
   it('surfaces a failed signup as an error (duplicate email)', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(409, { error: 'email_in_use', message: 'That email is already registered.' }));
     const client = new AuthClient('http://api.test');
-    await expect(client.signup('dup@example.com', 'password123')).rejects.toThrow();
+    await expect(client.signup('dup@example.com', 'password123')).rejects.toThrow(/already registered/i);
+  });
+
+  // POSITIVE: a successful signup returns the new session and POSTs to /auth/signup.
+  it('signs up and returns the session, sending cookies', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, { user: { id: 'u9', email: 'new@example.com' } }));
+    const client = new AuthClient('http://api.test');
+    const session = await client.signup('new@example.com', 'password123');
+    expect(session.user.email).toBe('new@example.com');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('http://api.test/auth/signup');
+    expect((init as RequestInit).method).toBe('POST');
+    expect((init as RequestInit).credentials).toBe('include');
+    expect((init as RequestInit).body).toBe(JSON.stringify({ email: 'new@example.com', password: 'password123' }));
   });
 });

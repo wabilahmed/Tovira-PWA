@@ -40,6 +40,58 @@ describe('<App> integration', () => {
     expect(await screen.findByRole('button', { name: /log in/i })).toBeInTheDocument();
   });
 
+  // POSITIVE: filling the form and logging in reaches the authed shell.
+  it('logs in and enters the app (API integration)', async () => {
+    routeFetch([
+      ['/auth/login', () => json(200, SESSION)],
+      ['/me', () => json(401, {})],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(await screen.findByLabelText(/email/i), 'rep@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /log in/i }));
+    expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
+  });
+
+  // POSITIVE: the Sign up toggle switches mode and creates an account.
+  it('toggles to Sign up, creates an account, and enters the app (API integration)', async () => {
+    let signupCalled = false;
+    routeFetch([
+      ['/auth/signup', () => { signupCalled = true; return json(201, SESSION); }],
+      ['/me', () => json(401, {})],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /need an account\? sign up/i }));
+    expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/email/i), 'new@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /create account/i }));
+    expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
+    expect(signupCalled).toBe(true);
+  });
+
+  // NEGATIVE: a rejected signup shows the server's message and stays on the form.
+  it('shows an error when signup is rejected (duplicate email)', async () => {
+    routeFetch([
+      ['/auth/signup', () => json(409, { error: 'email_in_use', message: 'That email is already registered.' })],
+      ['/me', () => json(401, {})],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /need an account\? sign up/i }));
+    await user.type(screen.getByLabelText(/email/i), 'dup@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /create account/i }));
+    expect(await screen.findByText(/already registered/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument(); // still on the form
+  });
+
   it('renders the authed shell with a Get started nav when not yet seeded', async () => {
     routeFetch([
       ['book-scan', () => json(200, SCAN)],
