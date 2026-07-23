@@ -121,4 +121,30 @@ describe('ClientsClient', () => {
     fetchMock.mockResolvedValueOnce(json(500, {}));
     expect(await new ClientsClient('http://api.test').listNotes('c1')).toEqual([]);
   });
+
+  // --- follow-up draft (P4-4) ---
+  it('drafts a follow-up (POST) and returns the text', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { draft: 'Hi Sara, great chatting — I\'ll send the quote Friday.' }));
+    const draft = await new ClientsClient('http://api.test').draftFollowUp('n1');
+    expect(draft).toMatch(/great chatting/);
+    expect(String(fetchMock.mock.calls[0]![0])).toBe('http://api.test/notes/n1/follow-up');
+    expect((fetchMock.mock.calls[0]![1] as RequestInit).method).toBe('POST');
+  });
+
+  it('returns null draft on a non-200 or throw', async () => {
+    fetchMock.mockResolvedValueOnce(json(404, {}));
+    expect(await new ClientsClient().draftFollowUp('n1')).toBeNull();
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    expect(await new ClientsClient().draftFollowUp('n1')).toBeNull();
+  });
+
+  // --- stakeholders (P4-2) ---
+  it('returns the stakeholder map on 200 and [] otherwise', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { people: [{ name: 'Jordan', role: 'VP', reports_to: null, decision_role: 'decision_maker', notes: null }] }));
+    const people = await new ClientsClient('http://api.test').getStakeholders('c1');
+    expect(people).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[0]![0])).toBe('http://api.test/clients/c1/stakeholders');
+    fetchMock.mockResolvedValueOnce(json(500, {}));
+    expect(await new ClientsClient().getStakeholders('c1')).toEqual([]);
+  });
 });

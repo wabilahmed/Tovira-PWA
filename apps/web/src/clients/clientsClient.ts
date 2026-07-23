@@ -23,6 +23,14 @@ export interface Brief {
   relatedNotes: Array<{ noteId: string; snippet: string }>;
 }
 
+export interface Stakeholder {
+  name: string | null;
+  role: string | null;
+  reports_to: string | null;
+  decision_role: string;
+  notes: string | null;
+}
+
 export type ImportResult =
   | { ok: true; imported: number }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
@@ -131,6 +139,28 @@ export class ClientsClient {
     const res = await fetch(this.url(`/clients/${clientId}/brief`), { credentials: 'include' });
     if (res.status !== 200) return null;
     return (await res.json()) as Brief;
+  }
+
+  /** Draft an editable follow-up message from a note (P4-4). Never sends. */
+  async draftFollowUp(noteId: string): Promise<string | null> {
+    try {
+      const res = await fetch(this.url(`/notes/${noteId}/follow-up`), { method: 'POST', credentials: 'include' });
+      if (res.status !== 200) return null;
+      return ((await res.json()) as { draft: string }).draft;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The stakeholder map for a client — who's who in the deal (P4-2). */
+  async getStakeholders(clientId: string): Promise<Stakeholder[]> {
+    try {
+      const res = await fetch(this.url(`/clients/${clientId}/stakeholders`), { credentials: 'include' });
+      if (res.status !== 200) return [];
+      return ((await res.json()) as { people: Stakeholder[] }).people;
+    } catch {
+      return [];
+    }
   }
 
   async confirmPromise(id: string): Promise<void> {

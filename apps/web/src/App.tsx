@@ -22,6 +22,12 @@ import { CardsClient } from './cards/cardsClient.js';
 import { CardScan } from './cards/CardScan.js';
 import { ImagesClient } from './gallery/imagesClient.js';
 import { Gallery } from './gallery/Gallery.js';
+import { FollowUpDraft } from './followup/FollowUpDraft.js';
+import { StakeholderMap } from './stakeholders/StakeholderMap.js';
+import { PushClient } from './push/pushClient.js';
+import { enablePush } from './push/enablePush.js';
+import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
+import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
 import { HttpUploader } from './capture/uploader.js';
@@ -40,6 +46,37 @@ const billingApi = new BillingClient();
 const accountApi = new AccountClient();
 const cardsApi = new CardsClient();
 const imagesApi = new ImagesClient();
+const pushClient = new PushClient();
+
+// Read the current push capability/permission, guarding for non-browser/jsdom.
+function readPushState(): OnboardingState {
+  const permission =
+    typeof Notification !== 'undefined' ? Notification.permission : 'default';
+  const pushSupported =
+    typeof navigator !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    typeof window !== 'undefined' &&
+    'PushManager' in window;
+  const standalone =
+    typeof window !== 'undefined'
+      ? detectStandalone(window as unknown as Parameters<typeof detectStandalone>[0])
+      : false;
+  return { standalone, notificationPermission: permission, pushSupported };
+}
+
+const notificationApi: NotificationApi = {
+  enable: () =>
+    enablePush({
+      vapidPublicKey: (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? '',
+      requestPermission: () => Notification.requestPermission(),
+      getRegistration: () =>
+        navigator.serviceWorker
+          ? (navigator.serviceWorker.ready as unknown as Promise<import('./push/enablePush.js').PushRegistrationLike>)
+          : Promise.resolve(null),
+      saveSubscription: (s) => pushClient.saveSubscription(s),
+    }),
+  sendTest: () => pushClient.sendTest(),
+};
 const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader());
 
 function randomId(): string {
@@ -158,6 +195,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'settings' && (
         <>
           <Billing api={billingApi} />
+          <NotificationSetup state={readPushState()} api={notificationApi} />
           <AccountControls api={accountApi} onDeleted={onLogout} />
         </>
       )}
@@ -283,6 +321,11 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)}>Pre-meeting brief</button>
       {brief && <BriefPanel brief={brief} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />}
 
+      <details style={{ margin: '1rem 0' }}>
+        <summary style={{ cursor: 'pointer' }}>Stakeholder map</summary>
+        <StakeholderMap clientId={client.id} api={clientsApi} />
+      </details>
+
       {active ? (
         <button onClick={() => void stopRec()}>■ Stop &amp; save</button>
       ) : (
@@ -340,6 +383,7 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
                 {isProcessing(n.status) && <em style={{ color: '#a15c00' }}> · {processingLabel(n.status)}</em>}
               </small>
               <div>{n.rawText ?? <em>(transcription pending)</em>}</div>
+              {n.rawText && <FollowUpDraft noteId={n.id} api={clientsApi} />}
             </li>
           ))}
         </ul>
