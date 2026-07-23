@@ -66,6 +66,22 @@ describe('<App> integration', () => {
     expect(await screen.findByText(/send the revised quote/i)).toBeInTheDocument();
   });
 
+  it('navigates to Today and renders the ranked actions (API integration)', async () => {
+    routeFetch([
+      ['/hero/status', () => json(200, { unlocked: false, counts: { clients: 1, notes: 1 }, needed: { clients: 4, notes: 19 }, message: 'warming up' })],
+      ['/hero/patterns', () => json(200, { patterns: [] })],
+      ['/hero/risk', () => json(200, { atRisk: [] })],
+      ['/today', () => json(200, { actions: [{ kind: 'cold', priority: 1, text: 'Nudge Meridian — quiet 3 weeks', clientId: 'c1' }] })],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /today/i }));
+    expect(await screen.findByText(/nudge meridian/i)).toBeInTheDocument();
+  });
+
   it('navigates to the Book Scan and renders its findings (API integration)', async () => {
     routeFetch([
       ['book-scan', () => json(200, SCAN)],
