@@ -52,6 +52,20 @@ describe('<App> integration', () => {
     expect(await screen.findByRole('button', { name: /get started/i })).toBeInTheDocument();
   });
 
+  it('navigates to the Promises tracker and renders open promises (API integration)', async () => {
+    routeFetch([
+      ['/confirmations', () => json(200, { promises: [] })],
+      ['/promises', () => json(200, { promises: [{ id: 'p1', clientId: 'c1', text: 'send the revised quote', owner: 'rep', dueDate: '2026-08-01', dueRaw: null, confidence: 'high', done: false, confirmed: true }] })],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /promises/i }));
+    expect(await screen.findByText(/send the revised quote/i)).toBeInTheDocument();
+  });
+
   it('navigates to the Book Scan and renders its findings (API integration)', async () => {
     routeFetch([
       ['book-scan', () => json(200, SCAN)],

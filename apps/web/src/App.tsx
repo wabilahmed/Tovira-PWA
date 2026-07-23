@@ -6,6 +6,8 @@ import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
 import { BookScan } from './bookscan/BookScan.js';
 import { ImportChat } from './import/ImportChat.js';
+import { PromisesClient } from './promises/promisesClient.js';
+import { PromisesTracker } from './promises/PromisesTracker.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
 import { HttpUploader } from './capture/uploader.js';
@@ -16,6 +18,7 @@ const auth = new AuthClient();
 const clientsApi = new ClientsClient();
 const onboardingApi = new OnboardingClient();
 const bookScanApi = new BookScanClient();
+const promisesApi = new PromisesClient();
 const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader());
 
 function randomId(): string {
@@ -40,7 +43,7 @@ export function App(): JSX.Element {
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
-type View = 'clients' | 'bookscan' | 'getstarted';
+type View = 'clients' | 'promises' | 'bookscan' | 'getstarted';
 
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -90,6 +93,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       <nav style={{ display: 'flex', gap: '1rem', margin: '1rem 0' }} aria-label="Sections">
         <button onClick={() => setView('clients')} style={view === 'clients' ? navActive : linkButton}>Clients</button>
+        <button onClick={() => setView('promises')} style={view === 'promises' ? navActive : linkButton}>Promises</button>
         <button onClick={() => setView('bookscan')} style={view === 'bookscan' ? navActive : linkButton}>Book Scan</button>
         {needsSeeding && (
           <button onClick={() => setView('getstarted')} style={view === 'getstarted' ? navActive : linkButton}>
@@ -115,6 +119,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           onFallback={() => setView('clients')}
         />
       )}
+
+      {view === 'promises' && <PromisesTracker api={promisesApi} />}
 
       {view === 'bookscan' && <BookScan api={bookScanApi} />}
 
