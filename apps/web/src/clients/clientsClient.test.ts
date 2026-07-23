@@ -58,4 +58,67 @@ describe('ClientsClient', () => {
     const client = new ClientsClient('http://api.test');
     await expect(client.create('')).rejects.toThrow(/name is required/i);
   });
+
+  // --- WhatsApp import (P1-4b) ---
+  it('imports a WhatsApp export: POSTs content + consent, returns the imported count', async () => {
+    fetchMock.mockResolvedValueOnce(json(201, { imported: 4, note: {} }));
+    const client = new ClientsClient('http://api.test');
+    const r = await client.importWhatsApp('c1', 'chat', true);
+    expect(r).toEqual({ ok: true, imported: 4 });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('http://api.test/clients/c1/notes/import');
+    expect((init as RequestInit).method).toBe('POST');
+    expect((init as RequestInit).body).toBe(JSON.stringify({ content: 'chat', consent: true }));
+  });
+
+  it('maps 400 → consent error', async () => {
+    fetchMock.mockResolvedValueOnce(json(400, { error: 'consent_required' }));
+    const r = await new ClientsClient('http://api.test').importWhatsApp('c1', 'chat', false);
+    expect(r).toMatchObject({ ok: false, error: 'consent' });
+  });
+
+  it('maps 422 → not_whatsapp, carrying the server reason', async () => {
+    fetchMock.mockResolvedValueOnce(json(422, { reason: "This doesn't look like a WhatsApp export." }));
+    const r = await new ClientsClient('http://api.test').importWhatsApp('c1', 'junk', true);
+    expect(r).toMatchObject({ ok: false, error: 'not_whatsapp' });
+    if (!r.ok) expect(r.message).toMatch(/whatsapp/i);
+  });
+
+  it('maps 413 → too_large and 404 → not_found', async () => {
+    fetchMock.mockResolvedValueOnce(json(413, {}));
+    expect(await new ClientsClient('http://api.test').importWhatsApp('c1', 'x', true)).toMatchObject({ ok: false, error: 'too_large' });
+    fetchMock.mockResolvedValueOnce(json(404, {}));
+    expect(await new ClientsClient('http://api.test').importWhatsApp('c1', 'x', true)).toMatchObject({ ok: false, error: 'not_found' });
+  });
+
+  it('maps a network error → generic failure', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    expect(await new ClientsClient('http://api.test').importWhatsApp('c1', 'x', true)).toMatchObject({ ok: false, error: 'other' });
+  });
+
+  // --- brief + promise actions ---
+  it('returns the brief on 200 and null on a non-200', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { clientName: 'Acme', empty: true }));
+    expect(await new ClientsClient('http://api.test').getBrief('c1')).toMatchObject({ clientName: 'Acme' });
+    fetchMock.mockResolvedValueOnce(json(404, {}));
+    expect(await new ClientsClient('http://api.test').getBrief('c1')).toBeNull();
+  });
+
+  it('confirms a promise (POST) and rejects a promise (DELETE)', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true }));
+    await new ClientsClient('http://api.test').confirmPromise('p1');
+    expect(String(fetchMock.mock.calls[0]![0])).toBe('http://api.test/promises/p1/confirm');
+    expect((fetchMock.mock.calls[0]![1] as RequestInit).method).toBe('POST');
+
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true }));
+    await new ClientsClient('http://api.test').rejectPromise('p1');
+    expect((fetchMock.mock.calls[1]![1] as RequestInit).method).toBe('DELETE');
+  });
+
+  it('lists notes on 200 and returns [] on failure', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { notes: [{ id: 'n1', source: 'paste', rawText: 'hi', status: 'extracted', createdAt: 1 }] }));
+    expect(await new ClientsClient('http://api.test').listNotes('c1')).toHaveLength(1);
+    fetchMock.mockResolvedValueOnce(json(500, {}));
+    expect(await new ClientsClient('http://api.test').listNotes('c1')).toEqual([]);
+  });
 });

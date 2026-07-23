@@ -1,0 +1,68 @@
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { App } from './App.js';
+
+function json(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+}
+
+/** Route fetch by URL substring; first match wins. */
+function routeFetch(routes: Array<[string, () => Response]>): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      for (const [pattern, make] of routes) if (url.includes(pattern)) return make();
+      return json(404, {});
+    }),
+  );
+}
+
+const SESSION = { user: { id: 'u1', email: 'rep@example.com' } };
+const NOT_SEEDED = {
+  hasClient: false, hasNote: false, briefReachable: false, seeded: false, bookScanReady: false,
+  nextStep: 'Export a chat.',
+  seeding: { primary: 'whatsapp_export', requiresPasteEntry: false, steps: { android: ['share'], ios: ['files'] } },
+  fallbacks: [{ kind: 'voice_note', label: 'Record a note' }],
+};
+const SCAN = {
+  isEmpty: false, message: null, invitation: 'Export your next chat.',
+  items: [{ kind: 'unanswered_question', clientId: 'c1', clientName: 'Sara Lee', headline: 'Sara Lee asked something', receipt: { quote: 'Can you do bulk pricing?', date: '2026-01-16' }, framing: 'worth_checking' }],
+};
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('<App> integration', () => {
+  it('shows the login screen when unauthenticated (401 from /me)', async () => {
+    routeFetch([['/me', () => json(401, { error: 'unauthorized' })]]);
+    render(<App />);
+    expect(await screen.findByRole('button', { name: /log in/i })).toBeInTheDocument();
+  });
+
+  it('renders the authed shell with a Get started nav when not yet seeded', async () => {
+    routeFetch([
+      ['book-scan', () => json(200, SCAN)],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    render(<App />);
+    expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /get started/i })).toBeInTheDocument();
+  });
+
+  it('navigates to the Book Scan and renders its findings (API integration)', async () => {
+    routeFetch([
+      ['book-scan', () => json(200, SCAN)],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /book scan/i }));
+    expect(await screen.findByText(/asked something/i)).toBeInTheDocument();
+    expect(screen.getByText(/bulk pricing/i)).toBeInTheDocument();
+  });
+});

@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
 import { ClientsClient, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
+import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
+import { BookScanClient } from './bookscan/bookScanClient.js';
+import { GetStarted } from './onboarding/GetStarted.js';
+import { BookScan } from './bookscan/BookScan.js';
+import { ImportChat } from './import/ImportChat.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
 import { HttpUploader } from './capture/uploader.js';
@@ -9,6 +14,8 @@ import { startRecording, type ActiveRecording } from './capture/recorder.js';
 
 const auth = new AuthClient();
 const clientsApi = new ClientsClient();
+const onboardingApi = new OnboardingClient();
+const bookScanApi = new BookScanClient();
 const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader());
 
 function randomId(): string {
@@ -33,6 +40,8 @@ export function App(): JSX.Element {
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
+type View = 'clients' | 'bookscan' | 'getstarted';
+
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [name, setName] = useState('');
@@ -40,6 +49,11 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ClientSummary | null>(null);
+  const [view, setView] = useState<View>('clients');
+  const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
+
+  const loadSeeding = (): void => void onboardingApi.status().then(setSeeding);
+  useEffect(loadSeeding, []);
 
   // Reload (with the current search) whenever the query changes — recents first.
   useEffect(() => {
@@ -63,6 +77,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     }
   }
 
+  const needsSeeding = seeding !== null && !seeding.seeded;
+
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -72,41 +88,75 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </small>
       </header>
 
-      <form onSubmit={addClient} style={{ display: 'flex', gap: '0.5rem', margin: '1.5rem 0' }}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="New client name"
-          aria-label="New client name"
-          style={{ flex: 1 }}
+      <nav style={{ display: 'flex', gap: '1rem', margin: '1rem 0' }} aria-label="Sections">
+        <button onClick={() => setView('clients')} style={view === 'clients' ? navActive : linkButton}>Clients</button>
+        <button onClick={() => setView('bookscan')} style={view === 'bookscan' ? navActive : linkButton}>Book Scan</button>
+        {needsSeeding && (
+          <button onClick={() => setView('getstarted')} style={view === 'getstarted' ? navActive : linkButton}>
+            Get started ✨
+          </button>
+        )}
+      </nav>
+
+      {view === 'getstarted' && seeding && (
+        <GetStarted
+          seeding={seeding}
+          clients={clients}
+          onCreateClient={async (n) => {
+            const created = await clientsApi.create(n);
+            setClients((prev) => [created, ...prev]);
+            return created;
+          }}
+          importApi={clientsApi}
+          onSeeded={() => {
+            loadSeeding();
+            setView('bookscan');
+          }}
+          onFallback={() => setView('clients')}
         />
-        <button type="submit" disabled={busy}>Add client</button>
-      </form>
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      )}
 
-      <input
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search clients…"
-        aria-label="Search clients"
-        style={{ width: '100%', marginBottom: '1rem' }}
-      />
+      {view === 'bookscan' && <BookScan api={bookScanApi} />}
 
-      {clients.length === 0 ? (
-        <p style={{ color: '#666' }}>
-          {query.trim() ? `No clients match “${query.trim()}”.` : 'No clients yet. Add your first one above.'}
-        </p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {clients.map((c) => (
-            <li key={c.id} style={{ borderBottom: '1px solid #eee' }}>
-              <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 0', color: 'inherit' }}>
-                {c.name}
-              </button>
-            </li>
-          ))}
-        </ul>
+      {view === 'clients' && (
+        <>
+          <form onSubmit={addClient} style={{ display: 'flex', gap: '0.5rem', margin: '1.5rem 0' }}>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="New client name"
+              aria-label="New client name"
+              style={{ flex: 1 }}
+            />
+            <button type="submit" disabled={busy}>Add client</button>
+          </form>
+          {error && <p style={{ color: 'crimson' }}>{error}</p>}
+
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search clients…"
+            aria-label="Search clients"
+            style={{ width: '100%', marginBottom: '1rem' }}
+          />
+
+          {clients.length === 0 ? (
+            <p style={{ color: '#666' }}>
+              {query.trim() ? `No clients match “${query.trim()}”.` : 'No clients yet. Add your first one above.'}
+            </p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              {clients.map((c) => (
+                <li key={c.id} style={{ borderBottom: '1px solid #eee' }}>
+                  <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 0', color: 'inherit' }}>
+                    {c.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </main>
   );
@@ -119,6 +169,7 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
   const [status, setStatus] = useState<string | null>(null);
   const [paste, setPaste] = useState('');
   const [brief, setBrief] = useState<Brief | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const refresh = (): void => {
     void clientsApi.listNotes(client.id).then(async (list) => {
@@ -197,6 +248,24 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
         <button type="submit" disabled={!paste.trim()}>Save message</button>
       </form>
 
+      <div style={{ marginTop: '1rem' }}>
+        <button onClick={() => setShowImport((s) => !s)} style={linkButton}>
+          {showImport ? 'Hide chat import' : 'Import a WhatsApp chat export'}
+        </button>
+        {showImport && (
+          <div style={{ marginTop: '0.75rem' }}>
+            <ImportChat
+              clientId={client.id}
+              api={clientsApi}
+              onImported={() => {
+                setShowImport(false);
+                refresh();
+              }}
+            />
+          </div>
+        )}
+      </div>
+
       {status && <p style={{ color: 'crimson' }}>{status}</p>}
       {pending.length > 0 && (
         <p style={{ color: '#a15c00' }}>
@@ -230,7 +299,15 @@ const linkButton: React.CSSProperties = {
   color: '#2563eb',
   cursor: 'pointer',
   padding: 0,
-  font: 'inherit',
+  fontFamily: 'inherit',
+  fontSize: 'inherit',
+};
+
+const navActive: React.CSSProperties = {
+  ...linkButton,
+  color: '#111',
+  fontWeight: 600,
+  textDecoration: 'underline',
 };
 
 function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Element {

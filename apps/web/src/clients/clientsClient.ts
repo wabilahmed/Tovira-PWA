@@ -23,6 +23,10 @@ export interface Brief {
   relatedNotes: Array<{ noteId: string; snippet: string }>;
 }
 
+export type ImportResult =
+  | { ok: true; imported: number }
+  | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
+
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
 export class ClientsClient {
   constructor(private readonly baseUrl: string = '') {}
@@ -75,6 +79,34 @@ export class ClientsClient {
       throw new Error(body.message ?? 'Could not save the message.');
     }
     return (await res.json()) as NoteSummary;
+  }
+
+  /** Import a WhatsApp chat export (.txt content) under a client (P1-4b). */
+  async importWhatsApp(clientId: string, content: string, consent: boolean): Promise<ImportResult> {
+    let res: Response;
+    try {
+      res = await fetch(this.url(`/clients/${clientId}/notes/import`), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content, consent }),
+      });
+    } catch {
+      return { ok: false, error: 'other', message: 'Network error — please try again.' };
+    }
+    if (res.status === 201) {
+      const body = (await res.json()) as { imported: number };
+      return { ok: true, imported: body.imported };
+    }
+    if (res.status === 400) return { ok: false, error: 'consent', message: 'Please confirm consent to import.' };
+    if (res.status === 413) return { ok: false, error: 'too_large', message: 'That export is too large to import.' };
+    if (res.status === 422) {
+      const body = (await res.json().catch(() => ({}))) as { reason?: string };
+      return { ok: false, error: 'not_whatsapp', message: body.reason ?? "That doesn't look like a WhatsApp export." };
+    }
+    if (res.status === 404) return { ok: false, error: 'not_found', message: 'Client not found.' };
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    return { ok: false, error: 'other', message: body.message ?? 'Import failed.' };
   }
 
   async listNotes(clientId: string): Promise<NoteSummary[]> {
