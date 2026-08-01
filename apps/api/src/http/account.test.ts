@@ -49,9 +49,14 @@ describe('[P5-4] data trust & control', () => {
     const token = await signup('export@example.com');
     const c = await client(token, 'Export Corp');
     await paste(token, c, 'exported note content');
-    const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as { clients: unknown[]; notes: Array<{ rawText: string }> };
+    const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as { clients: unknown[]; notes: Array<{ rawText: string }>; images: unknown[]; promises: unknown[]; keyDates: unknown[]; meetings: unknown[] };
     expect(data.clients).toHaveLength(1);
     expect(data.notes.some((n) => n.rawText.includes('exported note'))).toBe(true);
+    // P5-4 full corpus: the export carries every section, including images.
+    expect(Array.isArray(data.images)).toBe(true);
+    expect(Array.isArray(data.promises)).toBe(true);
+    expect(Array.isArray(data.keyDates)).toBe(true);
+    expect(Array.isArray(data.meetings)).toBe(true);
   });
 
   // NEGATIVE: after delete, the data does not reappear.

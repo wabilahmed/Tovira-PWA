@@ -82,7 +82,7 @@ async function main(): Promise<void> {
   const cardScanner = createCardScanner();
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes);
-  const account = createAccountService(auth, clients, notes, facts, meetings);
+  const account = createAccountService(auth, clients, notes, facts, meetings, images);
   const activation = createActivationService(config, appPool);
   const recall = createRecallService(config, notes);
   const corpus = new CorpusStatsService(clients, notes);

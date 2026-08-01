@@ -331,9 +331,9 @@ export function createBillingService(config: AppConfig, pool?: Pool): BillingSer
   return new BillingService(subs, trials, events, stripe, config.trialDays);
 }
 
-export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository): AccountService {
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository): AccountService {
   // On Postgres, deleting the user cascades all data (FKs) — no explicit purge list.
-  return new AccountService(auth, clients, notes, facts, meetings, []);
+  return new AccountService(auth, clients, notes, facts, meetings, images, []);
 }
 
 export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {

@@ -78,6 +78,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
   const notifications = new InMemoryNotificationRepository();
   const scan = new ScanService(clients, meetings, facts, notifications, notes);
+  const images = new InMemoryImageRepository();
   return {
     pool: stubPool,
     auth,
@@ -99,10 +100,10 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     pushSubscriptions: new InMemoryPushSubscriptionRepository(),
     pushSender: new StubPushSender(),
     cardScanner: new StubCardScanner(),
-    images: new InMemoryImageRepository(),
+    images,
     hero: new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30),
     billing: new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7),
-    account: new AccountService(auth, clients, notes, facts, meetings, [clients, notes, facts, meetings]),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, [clients, notes, facts, meetings]),
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1 }),
