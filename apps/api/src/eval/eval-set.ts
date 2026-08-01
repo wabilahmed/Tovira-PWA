@@ -13,6 +13,8 @@ export interface EvalNote {
   source: 'voice' | 'paste';
   note: string;
   expected: Extraction;
+  /** Code-switched Arabic/Hindi/Urdu ↔ English — a locked P1-9 requirement. */
+  multilingual?: boolean;
 }
 
 const empty = {
@@ -106,6 +108,54 @@ export const EVAL_NOTES: EvalNote[] = [
       summary: 'Vertex proposed a call and is launching a product on March 3rd.',
       key_dates: [{ description: 'Vertex product launch', date: null, date_raw: 'march 3rd', type: 'launch' }],
       meeting: { datetime: null, datetime_raw: 'thursday 3pm', confirmed: false },
+    },
+  },
+
+  // ---- Code-switched multilingual notes (P1-9, locked requirement) ----
+  // Gulf sales conversations mix Arabic/Hindi/Urdu with English mid-sentence.
+  // Facts must be extracted regardless of the language mix; dates still resolve,
+  // and an unresolvable date still stays null (no guessing across languages).
+  {
+    id: 'arabic-english-resolvable',
+    today: '2026-08-01',
+    clientName: 'Gulf Real Estate',
+    source: 'voice',
+    multilingual: true,
+    note: 'اجتمعت مع Ahmed من Gulf Real Estate اليوم. He said الميزانية approved for the villas project, wa promised him I will arsel the revised quote bukra.',
+    expected: {
+      ...empty,
+      summary: 'Met Ahmed at Gulf Real Estate; budget approved for the villas project; promised the revised quote tomorrow.',
+      promises: [{ text: 'Send the revised quote', owner: 'rep', due_date: '2026-08-02', due_raw: 'bukra', confidence: 'high' }],
+      people: [{ name: 'Ahmed', role: null, reports_to: null, decision_role: 'unknown', notes: 'Gulf Real Estate' }],
+    },
+  },
+  {
+    id: 'hindi-english-resolvable',
+    today: '2026-08-01',
+    clientName: 'Rajesh Textiles',
+    source: 'paste',
+    multilingual: true,
+    note: 'Rajesh ne message kiya — unhe pricing thoda zyada lag raha hai लेकिन he is still interested. Maine kaha main revised proposal bhej dunga day after tomorrow.',
+    expected: {
+      ...empty,
+      summary: 'Rajesh finds the pricing a bit high but is still interested; promised a revised proposal.',
+      promises: [{ text: 'Send the revised proposal', owner: 'rep', due_date: '2026-08-03', due_raw: 'day after tomorrow', confidence: 'high' }],
+      people: [{ name: 'Rajesh', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+      concerns: ['pricing seems a bit high'],
+    },
+  },
+  {
+    id: 'urdu-english-unresolvable-date',
+    today: '2026-08-01',
+    clientName: 'Al Habib Group',
+    source: 'voice',
+    multilingual: true,
+    note: 'کلائنٹ نے کہا budget abhi confirm nahi hua hai. I promised to send the brochure لیکن koi fixed date nahi — jab budget confirm ho jaye tab.',
+    expected: {
+      ...empty,
+      summary: 'Budget not yet confirmed; promised to send the brochure once the budget is confirmed, no fixed date.',
+      promises: [{ text: 'Send the brochure', owner: 'rep', due_date: null, due_raw: 'when budget is confirmed', confidence: 'low' }],
+      concerns: ['budget not yet confirmed'],
     },
   },
 ];
