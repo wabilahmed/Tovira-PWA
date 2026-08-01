@@ -7,6 +7,8 @@ import type { Storage } from '../ports/storage.js';
 import type { TranscriptionService } from '../services/transcription/transcription-service.js';
 import type { ExtractionService } from '../services/extraction/extraction-service.js';
 import type { FollowUpService } from '../services/followup/follow-up-service.js';
+import type { NotificationRepository } from '../ports/notification-repository.js';
+import type { LedgerService } from '../services/ledger/ledger-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
@@ -27,6 +29,20 @@ export interface NoteRouteDeps {
   transcription: TranscriptionService;
   extraction: ExtractionService;
   followUp: FollowUpService;
+  notifications?: NotificationRepository;
+  ledger?: LedgerService;
+}
+
+/** Ledger (P4-11): capturing a note for a client that a scan flagged (going cold
+ *  or chat-refresh) is a real "thread reopened" value-touch — once per flag. */
+async function recordReopenIfFlagged(deps: NoteRouteDeps, userId: string, clientId: string): Promise<void> {
+  if (!deps.ledger || !deps.notifications) return;
+  const flag = (await deps.notifications.listByUser(userId)).find(
+    (n) => n.clientId === clientId && (n.type === 'going_cold' || n.type === 'chat_refresh'),
+  );
+  if (flag) {
+    await deps.ledger.record(userId, { type: 'thread_reopened', clientId, sourceId: flag.id, dedupeKey: `reopen:${flag.id}`, occurredAt: Date.now() });
+  }
 }
 
 const VOICE_RE = /^\/clients\/([^/]+)\/notes\/voice$/;
@@ -88,6 +104,7 @@ export async function handleNoteRoute(
         status: 'pending_transcription',
       });
       await deps.clients.touch(userId, clientId); // bump recency
+      await recordReopenIfFlagged(deps, userId, clientId);
       sendJson(res, 201, note);
       return true;
     }
@@ -121,6 +138,7 @@ export async function handleNoteRoute(
         status: 'pending_extraction',
       });
       await deps.clients.touch(userId, clientId);
+      await recordReopenIfFlagged(deps, userId, clientId);
       sendJson(res, 201, note);
       return true;
     }

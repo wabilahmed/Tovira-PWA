@@ -3,6 +3,8 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { BriefService } from '../services/brief/brief-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import type { ActivationService } from '../services/analytics/activation-service.js';
+import type { MeetingRepository } from '../ports/meeting-repository.js';
+import type { LedgerService } from '../services/ledger/ledger-service.js';
 import { extractToken, sendJson } from './helpers.js';
 
 export interface BriefRouteDeps {
@@ -10,6 +12,8 @@ export interface BriefRouteDeps {
   brief: BriefService;
   billing: BillingService;
   activation: ActivationService;
+  meetings?: MeetingRepository;
+  ledger?: LedgerService;
 }
 
 const BRIEF_RE = /^\/clients\/([^/]+)\/brief$/;
@@ -42,6 +46,17 @@ export async function handleBriefRoute(
   }
   // [P7-3] the "aha": first useful brief viewed → activation (fires once).
   if (!brief.empty) await deps.activation.onBriefViewed(identity.userId, Date.now());
+  // [P4-11] a brief viewed before a logged meeting is a real value-touch.
+  if (deps.ledger && deps.meetings) {
+    const clientId = decodeURIComponent(match[1]!);
+    const now = Date.now();
+    const upcoming = (await deps.meetings.listByUser(identity.userId)).find(
+      (m) => m.clientId === clientId && m.datetime && Date.parse(m.datetime) >= now,
+    );
+    if (upcoming) {
+      await deps.ledger.record(identity.userId, { type: 'brief_before_meeting', clientId, sourceId: upcoming.id, dedupeKey: `brief:${upcoming.id}`, occurredAt: now });
+    }
+  }
   sendJson(res, 200, brief);
   return true;
 }

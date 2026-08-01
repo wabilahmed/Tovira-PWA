@@ -35,6 +35,9 @@ import { StubEmbedder } from './adapters/embedding/stub.js';
 import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
 import { RecallService } from './services/recall/recall-service.js';
+import { LedgerService } from './services/ledger/ledger-service.js';
+import { InMemoryLedgerRepository } from './adapters/ledger/in-memory-ledger-repository.js';
+import { PgLedgerRepository } from './adapters/ledger/pg-ledger-repository.js';
 import { BillingModelRouter, type ModelRouter } from './services/extraction/model-router.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
@@ -86,6 +89,15 @@ export interface Services {
   auth: AuthProvider;
   storage: Storage;
   scheduler: Scheduler;
+}
+
+/** Recovered Value Ledger (P4-11). */
+export function createLedgerService(config: AppConfig, pool?: Pool): LedgerService {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new LedgerService(new PgLedgerRepository(pool));
+  }
+  return new LedgerService(new InMemoryLedgerRepository());
 }
 
 /** Conversational recall (P4-8): embed + retrieve top-k + grounded answer. */

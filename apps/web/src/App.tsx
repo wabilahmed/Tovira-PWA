@@ -30,6 +30,8 @@ import { CorpusClient } from './corpus/corpusClient.js';
 import { CorpusBadge } from './corpus/CorpusBadge.js';
 import { MondayClient } from './monday/mondayClient.js';
 import { MondayDigest } from './monday/MondayDigest.js';
+import { LedgerClient } from './ledger/ledgerClient.js';
+import { Ledger } from './ledger/Ledger.js';
 import { PushClient } from './push/pushClient.js';
 import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
@@ -55,6 +57,7 @@ const imagesApi = new ImagesClient();
 const recallApi = new RecallClient();
 const corpusApi = new CorpusClient();
 const mondayApi = new MondayClient();
+const ledgerApi = new LedgerClient();
 const pushClient = new PushClient();
 
 // Optional voice input for recall: use the browser's SpeechRecognition when the
@@ -128,7 +131,7 @@ export function App(): JSX.Element {
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
-type View = 'clients' | 'today' | 'week' | 'ask' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'getstarted' | 'settings';
+type View = 'clients' | 'today' | 'week' | 'ask' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'ledger' | 'getstarted' | 'settings';
 
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -188,6 +191,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <button onClick={() => setView('meetings')} style={view === 'meetings' ? navActive : linkButton}>Meetings</button>
         <button onClick={() => setView('alerts')} style={view === 'alerts' ? navActive : linkButton}>Alerts</button>
         <button onClick={() => setView('bookscan')} style={view === 'bookscan' ? navActive : linkButton}>Book Scan</button>
+        <button onClick={() => setView('ledger')} style={view === 'ledger' ? navActive : linkButton}>Value</button>
         <button onClick={() => setView('settings')} style={view === 'settings' ? navActive : linkButton}>Settings</button>
         {needsSeeding && (
           <button onClick={() => setView('getstarted')} style={view === 'getstarted' ? navActive : linkButton}>
@@ -227,6 +231,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'alerts' && <Alerts api={proactiveApi} />}
 
       {view === 'bookscan' && <BookScan api={bookScanApi} />}
+
+      {view === 'ledger' && <Ledger api={ledgerApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
 
       {view === 'settings' && (
         <>

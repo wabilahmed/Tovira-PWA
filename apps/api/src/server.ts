@@ -42,6 +42,8 @@ import { handleCorpusRoute } from './http/corpus-routes.js';
 import type { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { handleMondayRoute } from './http/monday-routes.js';
 import type { MondayDigestService } from './services/monday/monday-service.js';
+import { handleLedgerRoute } from './http/ledger-routes.js';
+import type { LedgerService } from './services/ledger/ledger-service.js';
 import { handleBillingRoute } from './http/billing-routes.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
@@ -77,6 +79,7 @@ export interface ApiDeps {
   recall: RecallService;
   corpus: CorpusStatsService;
   monday: MondayDigestService;
+  ledger: LedgerService;
   cookieSecure?: boolean;
 }
 
@@ -122,6 +125,8 @@ export function createApiServer(deps: ApiDeps): Server {
           transcription: deps.transcription,
           extraction: deps.extraction,
           followUp: deps.followUp,
+          notifications: deps.notifications,
+          ledger: deps.ledger,
         })
       )
         return;
@@ -139,10 +144,11 @@ export function createApiServer(deps: ApiDeps): Server {
           facts: deps.facts,
           corrections: deps.corrections,
           extractionLog: deps.extractionLog,
+          ledger: deps.ledger,
         })
       )
         return;
-      if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing, activation: deps.activation })) return;
+      if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing, activation: deps.activation, meetings: deps.meetings, ledger: deps.ledger })) return;
       if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes })) return;
       if (await handleCardRoute(request, response, { auth: deps.auth, scanner: deps.cardScanner })) return;
       if (
@@ -170,6 +176,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleRecallRoute(request, response, { auth: deps.auth, recall: deps.recall })) return;
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
       if (await handleMondayRoute(request, response, { auth: deps.auth, monday: deps.monday })) return;
+      if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;

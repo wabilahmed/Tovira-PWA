@@ -3,6 +3,7 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { FactsRepository, PromisePatch } from '../ports/facts-repository.js';
 import type { CorrectionRepository } from '../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../ports/extraction-log-repository.js';
+import type { LedgerService } from '../services/ledger/ledger-service.js';
 import { pendingConfirmations } from '../services/facts/confirmation.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
@@ -11,6 +12,7 @@ export interface FactsRouteDeps {
   facts: FactsRepository;
   corrections: CorrectionRepository;
   extractionLog: ExtractionLogRepository;
+  ledger?: LedgerService;
 }
 
 const CONFIRM_RE = /^\/promises\/([^/]+)\/confirm$/;
@@ -68,7 +70,17 @@ export async function handleFactsRoute(
   }
 
   if (doneMatch) {
-    const ok = await deps.facts.markPromiseDone(userId, decodeURIComponent(doneMatch[1]!));
+    const promiseId = decodeURIComponent(doneMatch[1]!);
+    const promise = await deps.facts.getPromise(userId, promiseId);
+    const ok = await deps.facts.markPromiseDone(userId, promiseId);
+    // Ledger (P4-11): a promise KEPT ON TIME is a real value-touch. Only when it
+    // was done on/before its due date — flagging or lateness is never "value".
+    if (ok && deps.ledger && promise?.dueDate) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (today <= promise.dueDate) {
+        await deps.ledger.record(userId, { type: 'promise_kept', clientId: promise.clientId, sourceId: promiseId, dedupeKey: `kept:${promiseId}`, occurredAt: Date.now() });
+      }
+    }
     sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
     return true;
   }
@@ -79,6 +91,8 @@ export async function handleFactsRoute(
   if (method === 'DELETE') {
     // Reject: remove the item so it never surfaces again for that note.
     const ok = await deps.facts.deletePromise(userId, id);
+    // No orphaned value claims: dropping the promise removes any ledger entry (P4-11).
+    if (ok && deps.ledger) await deps.ledger.removeBySource(userId, id);
     sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
     return true;
   }

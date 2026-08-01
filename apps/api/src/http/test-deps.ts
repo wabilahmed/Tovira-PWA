@@ -26,6 +26,8 @@ import { BookScanService } from '../services/book-scan/book-scan-service.js';
 import { RecallService } from '../services/recall/recall-service.js';
 import { CorpusStatsService } from '../services/corpus/corpus-service.js';
 import { MondayDigestService } from '../services/monday/monday-service.js';
+import { LedgerService } from '../services/ledger/ledger-service.js';
+import { InMemoryLedgerRepository } from '../adapters/ledger/in-memory-ledger-repository.js';
 import { BillingService } from '../services/billing/billing-service.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../adapters/billing/in-memory.js';
 import { StubStripeGateway } from '../adapters/billing/stub-stripe.js';
@@ -110,6 +112,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1 }),
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30),
+    ledger: new LedgerService(new InMemoryLedgerRepository()),
     ...overrides,
   } as TestDeps;
 }

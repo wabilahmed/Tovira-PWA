@@ -17,6 +17,7 @@ import {
   createExtractionService,
   createExtractionModelRouter,
   createRecallService,
+  createLedgerService,
   createFollowUpService,
   createExtractionLogRepository,
   createBriefService,
@@ -88,6 +89,7 @@ async function main(): Promise<void> {
   const recall = createRecallService(config, notes);
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays);
+  const ledger = createLedgerService(config, appPool);
   const bookScan = new BookScanService(
     { clients, notes, facts },
     { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30 },
@@ -122,6 +124,7 @@ async function main(): Promise<void> {
     recall,
     corpus,
     monday,
+    ledger,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {
