@@ -12,7 +12,7 @@ describe('eval set — multilingual coverage (P1-9)', () => {
   });
 
   it('the code-switched notes actually mix scripts (contain non-Latin characters)', () => {
-    const nonLatin = /[؀-ۿऀ-ॿ]/; // Arabic/Urdu + Devanagari
+    const nonLatin = /\p{Script=Arabic}|\p{Script=Devanagari}/u; // Arabic/Urdu + Hindi
     for (const n of multilingual) {
       expect(n.note).toMatch(nonLatin);
       expect(n.note).toMatch(/[a-zA-Z]/); // and Latin — i.e. genuinely code-switched
