@@ -46,4 +46,32 @@ describe('<FollowUpDraft>', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByLabelText(/follow-up draft/i)).toBeNull();
   });
+
+  // P4-7 POSITIVE: opens WhatsApp pre-filled with the EDITED draft, targeting the phone.
+  it('opens WhatsApp with the edited draft pre-filled', async () => {
+    const user = userEvent.setup();
+    const openLink = vi.fn();
+    render(<FollowUpDraft noteId="n1" api={makeApi('original draft')} phone="+971 50 123 4567" openLink={openLink} />);
+    await user.click(screen.getByRole('button', { name: /draft follow-up/i }));
+    const box = await screen.findByLabelText(/follow-up draft/i);
+    await user.clear(box);
+    await user.type(box, 'edited message');
+    await user.click(screen.getByRole('button', { name: /send via whatsapp/i }));
+    expect(openLink).toHaveBeenCalledWith('https://wa.me/971501234567?text=edited%20message');
+  });
+
+  // P4-7 NEGATIVE (by design): Tovira has no send path — the API is never called
+  // to send; the button only opens a link the rep must confirm in WhatsApp.
+  it('never sends — only opens a link (no send API exists)', async () => {
+    const user = userEvent.setup();
+    const openLink = vi.fn();
+    const api = makeApi('hello');
+    render(<FollowUpDraft noteId="n1" api={api} openLink={openLink} />);
+    await user.click(screen.getByRole('button', { name: /draft follow-up/i }));
+    await screen.findByLabelText(/follow-up draft/i);
+    await user.click(screen.getByRole('button', { name: /send via whatsapp/i }));
+    // The only API the component has is draftFollowUp — called once, for drafting.
+    expect(api.draftFollowUp).toHaveBeenCalledTimes(1);
+    expect(openLink).toHaveBeenCalledTimes(1); // opening a link ≠ sending
+  });
 });

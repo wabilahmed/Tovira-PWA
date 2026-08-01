@@ -1,12 +1,24 @@
 import { useState } from 'react';
+import { whatsappLink } from '../whatsapp/waLink.js';
 
 export interface FollowUpApi {
   draftFollowUp(noteId: string): Promise<string | null>;
 }
 
-/** Draft an editable follow-up from a note (P4-4). Drafts only — never sends;
- *  the rep reviews, edits, and copies. */
-export function FollowUpDraft({ noteId, api }: { noteId: string; api: FollowUpApi }): JSX.Element {
+/** Draft an editable follow-up from a note (P4-4) and, with one tap, open
+ *  WhatsApp with it pre-filled (P4-7). Tovira NEVER sends — the rep reviews,
+ *  edits, and taps send inside WhatsApp. */
+export function FollowUpDraft({
+  noteId,
+  api,
+  phone,
+  openLink = (url) => window.open(url, '_blank', 'noopener'),
+}: {
+  noteId: string;
+  api: FollowUpApi;
+  phone?: string;
+  openLink?: (url: string) => void;
+}): JSX.Element {
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +61,8 @@ export function FollowUpDraft({ noteId, api }: { noteId: string; api: FollowUpAp
             rows={5}
             style={{ width: '100%' }}
           />
-          <button onClick={() => void copy()}>{copied ? 'Copied ✓' : 'Copy'}</button>
+          <button onClick={() => void copy()}>{copied ? 'Copied ✓' : 'Copy'}</button>{' '}
+          <button onClick={() => openLink(whatsappLink(draft, phone))}>Send via WhatsApp</button>
         </div>
       )}
     </div>
