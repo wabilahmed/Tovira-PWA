@@ -5,6 +5,7 @@ import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
 import { BookScanService } from './services/book-scan/book-scan-service.js';
+import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
 import {
@@ -72,7 +73,12 @@ async function main(): Promise<void> {
   // Billing is created early so the extraction router can read trial status (P5-7).
   const billing = createBillingService(config, appPool);
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter);
+  const extractionLimiter = new TrialExtractionLimiter(
+    (uid, now) => billing.entitlement(uid, now).then((e) => e.status),
+    (uid) => extractionLogs.listByUser(uid).then((rows) => rows.length),
+    config.trialExtractionCeiling,
+  );
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter);
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
   const meetings = createMeetingRepository(config, appPool);

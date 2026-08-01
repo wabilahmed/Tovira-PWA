@@ -39,6 +39,7 @@ import { LedgerService } from './services/ledger/ledger-service.js';
 import { InMemoryLedgerRepository } from './adapters/ledger/in-memory-ledger-repository.js';
 import { PgLedgerRepository } from './adapters/ledger/pg-ledger-repository.js';
 import { BillingModelRouter, type ModelRouter } from './services/extraction/model-router.js';
+import type { ExtractionLimiter } from './services/extraction/limiter.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
 import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-repository.js';
@@ -222,9 +223,10 @@ export function createExtractionService(
   logs: ExtractionLogRepository,
   corrections?: CorrectionRepository,
   router?: ModelRouter,
+  limiter?: ExtractionLimiter,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter);
 }
 
 /**

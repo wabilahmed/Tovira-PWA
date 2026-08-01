@@ -7,6 +7,7 @@ import type { ExtractionLogRepository } from '../../ports/extraction-log-reposit
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
 import { buildGlossary } from './glossary.js';
 import type { ModelRouter } from './model-router.js';
+import type { ExtractionLimiter } from './limiter.js';
 import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './prompt.js';
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
@@ -47,12 +48,20 @@ export class ExtractionService {
     private readonly corrections?: CorrectionRepository,
     /** Per-account model routing (P5-7). Optional — falls back to model/modelId. */
     private readonly router?: ModelRouter,
+    /** Trial extraction ceiling (P5-1). Optional — unlimited when absent. */
+    private readonly limiter?: ExtractionLimiter,
   ) {}
 
   async extractNote(userId: string, noteId: string, today: string): Promise<ExtractOutcome> {
     const note = await this.notes.findByIdForUser(userId, noteId);
     if (!note) return { status: 'not_found' };
     if (!note.rawText || !note.rawText.trim()) return { status: note.status };
+
+    // Trial seeding bound (P5-1): stop before spending on a model call. Nothing
+    // breaks — the note stays pending and the route explains the ceiling.
+    if (this.limiter && !(await this.limiter.allow(userId))) {
+      return { status: 'trial_limit', flagged: true };
+    }
 
     const client = await this.clients.findByIdForUser(userId, note.clientId);
     // Per-rep glossary from THIS user's corrections (P4-9). Tenant-scoped, so it

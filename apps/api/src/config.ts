@@ -50,6 +50,7 @@ export interface AppConfig {
   heroMinNotes: number;
   // --- billing (P5) ---
   trialDays: number;
+  trialExtractionCeiling: number;
   stripeWebhookSecret: string;
   stripeSecretKey: string | undefined;
   stripePriceId: string;
@@ -113,6 +114,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
     trialDays: parsePositive(env.TRIAL_DAYS, 7, 'TRIAL_DAYS'),
+    trialExtractionCeiling: parsePositive(env.TRIAL_EXTRACTION_CEILING, 200, 'TRIAL_EXTRACTION_CEILING'),
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET?.trim() || 'whsec_test',
     stripeSecretKey: isBlank(env.STRIPE_SECRET_KEY) ? undefined : env.STRIPE_SECRET_KEY!.trim(),
     stripePriceId: env.STRIPE_PRICE_ID?.trim() || 'price_test',

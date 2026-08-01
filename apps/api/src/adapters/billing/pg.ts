@@ -17,14 +17,17 @@ interface SubRow {
   user_id: string;
   status: string;
   trial_ends_at: Date;
+  trial_extended: boolean;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
 }
+const SUB_COLS = 'user_id, status, trial_ends_at, trial_extended, stripe_customer_id, stripe_subscription_id';
 function toSub(r: SubRow): SubscriptionRecord {
   return {
     userId: r.user_id,
     status: r.status as SubscriptionStatus,
     trialEndsAt: r.trial_ends_at.getTime(),
+    trialExtended: r.trial_extended,
     stripeCustomerId: r.stripe_customer_id,
     stripeSubscriptionId: r.stripe_subscription_id,
   };
@@ -38,44 +41,33 @@ export class PgSubscriptionRepository implements SubscriptionRepository {
       `INSERT INTO subscriptions (user_id, status, trial_ends_at)
        VALUES ($1, 'trialing', to_timestamp($2 / 1000.0))
        ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
-       RETURNING user_id, status, trial_ends_at, stripe_customer_id, stripe_subscription_id`,
+       RETURNING ${SUB_COLS}`,
       [userId, trialEndsAt],
     );
     return toSub(rows[0]!);
   }
 
   async get(userId: string): Promise<SubscriptionRecord | null> {
-    const { rows } = await this.pool.query<SubRow>(
-      'SELECT user_id, status, trial_ends_at, stripe_customer_id, stripe_subscription_id FROM subscriptions WHERE user_id = $1',
-      [userId],
-    );
+    const { rows } = await this.pool.query<SubRow>(`SELECT ${SUB_COLS} FROM subscriptions WHERE user_id = $1`, [userId]);
     return rows[0] ? toSub(rows[0]) : null;
   }
 
   async update(userId: string, patch: SubscriptionPatch): Promise<void> {
-    const cols: Record<string, unknown> = {
-      status: patch.status,
-      stripe_customer_id: patch.stripeCustomerId,
-      stripe_subscription_id: patch.stripeSubscriptionId,
-    };
     const sets: string[] = [];
     const params: unknown[] = [];
-    for (const [col, val] of Object.entries(cols)) {
-      if (val !== undefined) {
-        params.push(val);
-        sets.push(`${col} = $${params.length}`);
-      }
-    }
+    const push = (frag: string, val: unknown) => { params.push(val); sets.push(frag.replace('$?', `$${params.length}`)); };
+    if (patch.status !== undefined) push('status = $?', patch.status);
+    if (patch.stripeCustomerId !== undefined) push('stripe_customer_id = $?', patch.stripeCustomerId);
+    if (patch.stripeSubscriptionId !== undefined) push('stripe_subscription_id = $?', patch.stripeSubscriptionId);
+    if (patch.trialEndsAt !== undefined) push('trial_ends_at = to_timestamp($? / 1000.0)', patch.trialEndsAt);
+    if (patch.trialExtended !== undefined) push('trial_extended = $?', patch.trialExtended);
     if (sets.length === 0) return;
     params.push(userId);
     await this.pool.query(`UPDATE subscriptions SET ${sets.join(', ')} WHERE user_id = $${params.length}`, params);
   }
 
   async findByCustomerId(customerId: string): Promise<SubscriptionRecord | null> {
-    const { rows } = await this.pool.query<SubRow>(
-      'SELECT user_id, status, trial_ends_at, stripe_customer_id, stripe_subscription_id FROM subscriptions WHERE stripe_customer_id = $1',
-      [customerId],
-    );
+    const { rows } = await this.pool.query<SubRow>(`SELECT ${SUB_COLS} FROM subscriptions WHERE stripe_customer_id = $1`, [customerId]);
     return rows[0] ? toSub(rows[0]) : null;
   }
 }

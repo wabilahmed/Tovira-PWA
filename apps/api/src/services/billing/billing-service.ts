@@ -34,6 +34,19 @@ export class BillingService {
     await this.subs.create(userId, grantedAt + this.trialDays * DAY_MS);
   }
 
+  /**
+   * Activity-gated trial extension (P5-1): capturing notes on 3+ DISTINCT clients
+   * unlocks +7 days, ONCE, server-side. Re-qualifying does nothing; a paid/expired
+   * account never extends. Returns true only when it actually extended.
+   */
+  async extendTrialForActivity(userId: string, distinctClientsWithNotes: number, extensionDays = 7): Promise<boolean> {
+    const s = await this.subs.get(userId);
+    if (!s || s.status !== 'trialing' || s.trialExtended) return false;
+    if (distinctClientsWithNotes < 3) return false;
+    await this.subs.update(userId, { trialEndsAt: s.trialEndsAt + extensionDays * DAY_MS, trialExtended: true });
+    return true;
+  }
+
   async entitlement(userId: string, nowMs: number): Promise<Entitlement> {
     const s = await this.subs.get(userId);
     if (!s) return { entitled: false, status: 'none', trialEndsAt: 0 };

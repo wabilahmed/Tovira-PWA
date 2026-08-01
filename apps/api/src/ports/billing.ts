@@ -10,12 +10,16 @@ export interface SubscriptionRecord {
   userId: string;
   status: SubscriptionStatus;
   trialEndsAt: number;
+  /** Whether the one-time activity-gated trial extension was already granted (P5-1). */
+  trialExtended: boolean;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
 }
 
 export interface SubscriptionPatch {
   status?: SubscriptionStatus;
+  trialEndsAt?: number;
+  trialExtended?: boolean;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
 }

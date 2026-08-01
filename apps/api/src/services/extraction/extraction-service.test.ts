@@ -116,4 +116,25 @@ describe('ExtractionService', () => {
     expect(rows[0]!.status).toBe('needs_review');
     expect(rows[0]!.rawOutput).toBe('still garbage'); // the failed output is captured
   });
+
+  // P5-1: a trial account over the extraction ceiling is stopped before the model
+  // call — nothing breaks, the note is left pending, no model spend.
+  it('stops extraction when the trial limiter denies it', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const client = await clients.create('u', 'Acme');
+    const note = await notes.create('u', { clientId: client.id, source: 'paste', rawText: 'hi', audioKey: null, status: 'pending_extraction' });
+    let called = 0;
+    const svc = new ExtractionService(
+      { complete: async () => { called += 1; return { text: '{}' }; } },
+      clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined,
+      { allow: async () => false }, // over the ceiling
+    );
+    const out = await svc.extractNote('u', note.id, '2026-07-09');
+    expect(out.status).toBe('trial_limit');
+    expect(called).toBe(0); // never called the model
+    expect((await notes.findByIdForUser('u', note.id))!.status).toBe('pending_extraction'); // note untouched
+  });
 });

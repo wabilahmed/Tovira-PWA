@@ -84,3 +84,34 @@ describe('[P5-2] billing via webhooks (source of truth)', () => {
     expect((await billing.entitlement('u', NOW)).status).toBe('canceled');
   });
 });
+
+describe('[P5-1] activity-gated trial extension', () => {
+  it('extends the trial by 7 days once when notes span 3+ distinct clients', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    const before = (await billing.entitlement('u', NOW)).trialEndsAt;
+    expect(await billing.extendTrialForActivity('u', 3)).toBe(true);
+    const after = (await billing.entitlement('u', NOW)).trialEndsAt;
+    expect(after - before).toBe(7 * DAY);
+  });
+
+  it('cannot be earned twice (re-qualifying does nothing)', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    expect(await billing.extendTrialForActivity('u', 5)).toBe(true);
+    expect(await billing.extendTrialForActivity('u', 5)).toBe(false); // already extended
+  });
+
+  it('does not extend for fewer than 3 distinct clients', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    expect(await billing.extendTrialForActivity('u', 2)).toBe(false);
+  });
+
+  it('does not extend a non-trial (paid/expired) account', async () => {
+    const { billing, subs } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await subs.update('u', { status: 'active' });
+    expect(await billing.extendTrialForActivity('u', 5)).toBe(false);
+  });
+});

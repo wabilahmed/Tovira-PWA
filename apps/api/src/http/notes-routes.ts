@@ -9,6 +9,7 @@ import type { ExtractionService } from '../services/extraction/extraction-servic
 import type { FollowUpService } from '../services/followup/follow-up-service.js';
 import type { NotificationRepository } from '../ports/notification-repository.js';
 import type { LedgerService } from '../services/ledger/ledger-service.js';
+import type { BillingService } from '../services/billing/billing-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
@@ -31,6 +32,7 @@ export interface NoteRouteDeps {
   followUp: FollowUpService;
   notifications?: NotificationRepository;
   ledger?: LedgerService;
+  billing?: BillingService;
 }
 
 /** Ledger (P4-11): capturing a note for a client that a scan flagged (going cold
@@ -43,6 +45,17 @@ async function recordReopenIfFlagged(deps: NoteRouteDeps, userId: string, client
   if (flag) {
     await deps.ledger.record(userId, { type: 'thread_reopened', clientId, sourceId: flag.id, dedupeKey: `reopen:${flag.id}`, occurredAt: Date.now() });
   }
+}
+
+/** Activity-gated trial extension (P5-1): notes on 3+ distinct clients → +7 days
+ *  once. Enforced server-side, on the capture path — never client-triggerable. */
+async function maybeExtendTrial(deps: NoteRouteDeps, userId: string): Promise<void> {
+  if (!deps.billing) return;
+  let distinct = 0;
+  for (const c of await deps.clients.listByUser(userId)) {
+    if ((await deps.notes.listByClient(userId, c.id)).length > 0) distinct += 1;
+  }
+  await deps.billing.extendTrialForActivity(userId, distinct);
 }
 
 const VOICE_RE = /^\/clients\/([^/]+)\/notes\/voice$/;
@@ -105,6 +118,7 @@ export async function handleNoteRoute(
       });
       await deps.clients.touch(userId, clientId); // bump recency
       await recordReopenIfFlagged(deps, userId, clientId);
+      await maybeExtendTrial(deps, userId);
       sendJson(res, 201, note);
       return true;
     }
@@ -139,6 +153,7 @@ export async function handleNoteRoute(
       });
       await deps.clients.touch(userId, clientId);
       await recordReopenIfFlagged(deps, userId, clientId);
+      await maybeExtendTrial(deps, userId);
       sendJson(res, 201, note);
       return true;
     }

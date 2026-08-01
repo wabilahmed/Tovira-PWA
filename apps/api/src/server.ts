@@ -127,6 +127,7 @@ export function createApiServer(deps: ApiDeps): Server {
           followUp: deps.followUp,
           notifications: deps.notifications,
           ledger: deps.ledger,
+          billing: deps.billing,
         })
       )
         return;
