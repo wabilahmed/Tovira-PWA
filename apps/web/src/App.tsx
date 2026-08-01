@@ -28,6 +28,8 @@ import { RecallClient } from './recall/recallClient.js';
 import { Ask } from './recall/Ask.js';
 import { CorpusClient } from './corpus/corpusClient.js';
 import { CorpusBadge } from './corpus/CorpusBadge.js';
+import { MondayClient } from './monday/mondayClient.js';
+import { MondayDigest } from './monday/MondayDigest.js';
 import { PushClient } from './push/pushClient.js';
 import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
@@ -52,6 +54,7 @@ const cardsApi = new CardsClient();
 const imagesApi = new ImagesClient();
 const recallApi = new RecallClient();
 const corpusApi = new CorpusClient();
+const mondayApi = new MondayClient();
 const pushClient = new PushClient();
 
 // Optional voice input for recall: use the browser's SpeechRecognition when the
@@ -125,7 +128,7 @@ export function App(): JSX.Element {
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
-type View = 'clients' | 'today' | 'ask' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'getstarted' | 'settings';
+type View = 'clients' | 'today' | 'week' | 'ask' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'getstarted' | 'settings';
 
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -179,6 +182,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       <nav style={{ display: 'flex', gap: '1rem', margin: '1rem 0' }} aria-label="Sections">
         <button onClick={() => setView('clients')} style={view === 'clients' ? navActive : linkButton}>Clients</button>
         <button onClick={() => setView('today')} style={view === 'today' ? navActive : linkButton}>Today</button>
+        <button onClick={() => setView('week')} style={view === 'week' ? navActive : linkButton}>Week</button>
         <button onClick={() => setView('ask')} style={view === 'ask' ? navActive : linkButton}>Ask</button>
         <button onClick={() => setView('promises')} style={view === 'promises' ? navActive : linkButton}>Promises</button>
         <button onClick={() => setView('meetings')} style={view === 'meetings' ? navActive : linkButton}>Meetings</button>
@@ -211,6 +215,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       )}
 
       {view === 'today' && <HeroInsights api={heroApi} />}
+
+      {view === 'week' && <MondayDigest api={mondayApi} />}
 
       {view === 'ask' && <Ask api={recallApi} listen={speechListen} />}
 

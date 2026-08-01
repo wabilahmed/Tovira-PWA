@@ -6,6 +6,7 @@ import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
 import { BookScanService } from './services/book-scan/book-scan-service.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
+import { MondayDigestService } from './services/monday/monday-service.js';
 import {
   createAuthService,
   createClientRepository,
@@ -86,6 +87,7 @@ async function main(): Promise<void> {
   const activation = createActivationService(config, appPool);
   const recall = createRecallService(config, notes);
   const corpus = new CorpusStatsService(clients, notes);
+  const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays);
   const bookScan = new BookScanService(
     { clients, notes, facts },
     { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30 },
@@ -119,6 +121,7 @@ async function main(): Promise<void> {
     bookScan,
     recall,
     corpus,
+    monday,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {
