@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import type { StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
+import type { Plan, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
 
 /** Minimal Stripe surface we use — lets tests inject a fake (no live calls/keys). */
 export interface StripeLike {
@@ -11,6 +11,8 @@ export interface StripeGatewayOptions {
   secretKey: string;
   webhookSecret: string;
   priceId: string;
+  /** Annual SKU (P5-5). Falls back to the monthly price if unset. */
+  annualPriceId?: string;
   successUrl: string;
   cancelUrl: string;
   stripe?: StripeLike;
@@ -28,10 +30,11 @@ export class StripeGatewayImpl implements StripeGateway {
     this.stripe = opts.stripe ?? (new Stripe(opts.secretKey) as unknown as StripeLike);
   }
 
-  async createCheckoutSession(userId: string, email: string): Promise<StripeCheckout> {
+  async createCheckoutSession(userId: string, email: string, plan: Plan = 'monthly'): Promise<StripeCheckout> {
+    const price = plan === 'annual' ? this.opts.annualPriceId ?? this.opts.priceId : this.opts.priceId;
     const session = await this.stripe.checkout.sessions.create({
       mode: 'subscription',
-      line_items: [{ price: this.opts.priceId, quantity: 1 }],
+      line_items: [{ price, quantity: 1 }],
       customer_email: email || undefined,
       client_reference_id: userId,
       success_url: this.opts.successUrl,

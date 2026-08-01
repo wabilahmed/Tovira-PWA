@@ -3,7 +3,7 @@ import type { Entitlement } from './billingClient.js';
 
 export interface BillingApi {
   status(): Promise<Entitlement | null>;
-  checkout(): Promise<string | null>;
+  checkout(plan: 'monthly' | 'annual'): Promise<string | null>;
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -38,10 +38,10 @@ export function Billing({
     };
   }, [api]);
 
-  async function subscribe(): Promise<void> {
+  async function subscribe(plan: 'monthly' | 'annual'): Promise<void> {
     setBusy(true);
     setError(null);
-    const url = await api.checkout();
+    const url = await api.checkout(plan);
     setBusy(false);
     if (url) onRedirect(url);
     else setError('Could not start checkout — please try again.');
@@ -68,9 +68,14 @@ export function Billing({
       {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
 
       {status !== 'active' && (
-        <button onClick={() => void subscribe()} disabled={busy}>
-          {busy ? 'Starting…' : 'Subscribe'}
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button onClick={() => void subscribe('monthly')} disabled={busy}>
+            {busy ? 'Starting…' : 'Subscribe monthly — AED 299/mo'}
+          </button>
+          <button onClick={() => void subscribe('annual')} disabled={busy}>
+            {busy ? 'Starting…' : 'Subscribe annually — AED 2,990/yr (2 months free)'}
+          </button>
+        </div>
       )}
     </section>
   );

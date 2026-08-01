@@ -20,10 +20,15 @@ export class BillingClient {
     }
   }
 
-  /** Start Stripe Checkout; returns the URL to send the rep to. */
-  async checkout(): Promise<string | null> {
+  /** Start Stripe Checkout for the chosen plan; returns the URL to send the rep to. */
+  async checkout(plan: 'monthly' | 'annual' = 'monthly'): Promise<string | null> {
     try {
-      const res = await fetch(`${this.baseUrl}/billing/checkout`, { method: 'POST', credentials: 'include' });
+      const res = await fetch(`${this.baseUrl}/billing/checkout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
       if (res.status !== 200) return null;
       return ((await res.json()) as { url: string }).url;
     } catch {

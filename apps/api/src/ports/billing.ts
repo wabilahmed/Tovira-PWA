@@ -55,8 +55,10 @@ export interface StripeWebhookEvent {
   subscriptionId?: string;
 }
 
+export type Plan = 'monthly' | 'annual';
+
 export interface StripeGateway {
-  createCheckoutSession(userId: string, email: string): Promise<StripeCheckout>;
+  createCheckoutSession(userId: string, email: string, plan: Plan): Promise<StripeCheckout>;
   /** Verify + parse a webhook; returns null if the signature is invalid. */
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null;
 }

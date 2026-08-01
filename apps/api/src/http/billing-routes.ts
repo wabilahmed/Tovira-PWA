@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
-import { extractToken, readRawBody, sendJson } from './helpers.js';
+import { extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 
 export interface BillingRouteDeps {
   auth: AuthService;
@@ -41,6 +41,8 @@ export async function handleBillingRoute(
   }
 
   const user = await deps.auth.getPublicUser(userId);
-  sendJson(res, 200, await deps.billing.checkout(userId, user?.email ?? ''));
+  const body = (await readJsonBody(req).catch(() => ({}))) as { plan?: unknown };
+  const plan = body.plan === 'annual' ? 'annual' : 'monthly';
+  sendJson(res, 200, await deps.billing.checkout(userId, user?.email ?? '', plan));
   return true;
 }

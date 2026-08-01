@@ -1,4 +1,4 @@
-import type { StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
+import type { Plan, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
 
 /**
  * Local stand-in for Stripe (test mode). Checkout returns a fake URL; webhook
@@ -8,8 +8,8 @@ import type { StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../po
 export class StubStripeGateway implements StripeGateway {
   constructor(private readonly webhookSecret = 'whsec_test') {}
 
-  async createCheckoutSession(userId: string): Promise<StripeCheckout> {
-    return { url: `https://checkout.stripe.test/session?ref=${userId}`, sessionId: `cs_test_${userId}` };
+  async createCheckoutSession(userId: string, _email: string, plan: Plan = 'monthly'): Promise<StripeCheckout> {
+    return { url: `https://checkout.stripe.test/session?ref=${userId}&plan=${plan}`, sessionId: `cs_test_${userId}` };
   }
 
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null {

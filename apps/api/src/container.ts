@@ -340,7 +340,7 @@ export function createBillingService(config: AppConfig, pool?: Pool): BillingSer
     events = new InMemoryWebhookEventRepository();
   }
   const stripe: StripeGateway = config.stripeSecretKey
-    ? new StripeGatewayImpl({ secretKey: config.stripeSecretKey, webhookSecret: config.stripeWebhookSecret, priceId: config.stripePriceId, successUrl: config.stripeSuccessUrl, cancelUrl: config.stripeCancelUrl })
+    ? new StripeGatewayImpl({ secretKey: config.stripeSecretKey, webhookSecret: config.stripeWebhookSecret, priceId: config.stripePriceId, annualPriceId: config.stripeAnnualPriceId, successUrl: config.stripeSuccessUrl, cancelUrl: config.stripeCancelUrl })
     : new StubStripeGateway(config.stripeWebhookSecret);
   return new BillingService(subs, trials, events, stripe, config.trialDays);
 }

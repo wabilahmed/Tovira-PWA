@@ -1,4 +1,5 @@
 import type {
+  Plan,
   StripeGateway,
   SubscriptionRepository,
   TrialGrantRepository,
@@ -56,8 +57,8 @@ export class BillingService {
     return { entitled: false, status, trialEndsAt: s.trialEndsAt };
   }
 
-  async checkout(userId: string, email: string): Promise<{ url: string }> {
-    const session = await this.stripe.createCheckoutSession(userId, email);
+  async checkout(userId: string, email: string, plan: Plan = 'monthly'): Promise<{ url: string }> {
+    const session = await this.stripe.createCheckoutSession(userId, email, plan);
     return { url: session.url };
   }
 

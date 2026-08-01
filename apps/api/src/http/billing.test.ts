@@ -76,6 +76,16 @@ describe('[P5-1/P5-2] trial + billing over HTTP', () => {
     expect((await fetch(`${base}/billing/status`)).status).toBe(401);
   });
 
+  // [P5-5] annual plan flows through checkout; monthly is the default.
+  it('starts an annual checkout when plan=annual, monthly by default', async () => {
+    const { token } = await signup('annual@example.com');
+    const auth = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const annual = (await (await fetch(`${base}/billing/checkout`, { method: 'POST', headers: auth, body: JSON.stringify({ plan: 'annual' }) })).json()) as { url: string };
+    expect(annual.url).toContain('plan=annual');
+    const monthly = (await (await fetch(`${base}/billing/checkout`, { method: 'POST', headers: auth, body: JSON.stringify({}) })).json()) as { url: string };
+    expect(monthly.url).toContain('plan=monthly');
+  });
+
   // [P5-4] consent
   it('rejects signup when consent is explicitly refused', async () => {
     const res = await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'noconsent@example.com', password: 'password123', consent: false }) });

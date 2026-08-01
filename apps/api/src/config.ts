@@ -54,6 +54,7 @@ export interface AppConfig {
   stripeWebhookSecret: string;
   stripeSecretKey: string | undefined;
   stripePriceId: string;
+  stripeAnnualPriceId: string;
   stripeSuccessUrl: string;
   stripeCancelUrl: string;
   // --- cloud adapters (P6-2) ---
@@ -118,6 +119,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET?.trim() || 'whsec_test',
     stripeSecretKey: isBlank(env.STRIPE_SECRET_KEY) ? undefined : env.STRIPE_SECRET_KEY!.trim(),
     stripePriceId: env.STRIPE_PRICE_ID?.trim() || 'price_test',
+    stripeAnnualPriceId: env.STRIPE_ANNUAL_PRICE_ID?.trim() || 'price_test_annual',
     stripeSuccessUrl: env.STRIPE_SUCCESS_URL?.trim() || 'http://localhost:5173/billing/success',
     stripeCancelUrl: env.STRIPE_CANCEL_URL?.trim() || 'http://localhost:5173/billing/cancel',
     embedderProvider: parseEnum(env.EMBEDDER, EMBEDDER_PROVIDERS, 'stub', 'EMBEDDER'),
