@@ -74,7 +74,7 @@ async function main(): Promise<void> {
   const meetings = createMeetingRepository(config, appPool);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
-  const scan = createScanService(clients, meetings, facts, notifications);
+  const scan = createScanService(clients, meetings, facts, notifications, notes);
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
   const cardScanner = createCardScanner();

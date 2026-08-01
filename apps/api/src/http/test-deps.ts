@@ -75,7 +75,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   const meetings = new InMemoryMeetingRepository();
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
   const notifications = new InMemoryNotificationRepository();
-  const scan = new ScanService(clients, meetings, facts, notifications);
+  const scan = new ScanService(clients, meetings, facts, notifications, notes);
   return {
     pool: stubPool,
     auth,
@@ -93,7 +93,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     meetingParser,
     notifications,
     scan,
-    scanConfig: { coldThresholdDays: 30, nudgeLeadMs: 24 * 60 * 60 * 1000, reminderWindowDays: 7 },
+    scanConfig: { coldThresholdDays: 30, nudgeLeadMs: 24 * 60 * 60 * 1000, reminderWindowDays: 7, chatRefreshStaleDays: 21 },
     pushSubscriptions: new InMemoryPushSubscriptionRepository(),
     pushSender: new StubPushSender(),
     cardScanner: new StubCardScanner(),

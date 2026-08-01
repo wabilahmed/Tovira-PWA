@@ -141,6 +141,31 @@ describe('[P1-4b] import a WhatsApp chat export', () => {
     expect(extracted.unanswered_questions).toEqual([]);
   });
 
+  // P3-7: re-import dedupes — overlapping messages stored once, only the new tail.
+  it('deduplicates a re-import and extracts only the new tail', async () => {
+    const { token } = await signup('reimport@example.com');
+    const cid = await createClient(token, 'Sara Lee');
+    const first = ['[2026-01-15, 09:00:00] Sara Lee: hi', '[2026-01-16, 10:00:00] Alex: hello'].join('\n');
+    const r1 = await importChat(token, cid, { content: first, consent: true });
+    expect(((await r1.json()) as { imported: number }).imported).toBe(2);
+
+    const second = [first, '[2026-02-01, 11:00:00] Sara Lee: can you do bulk pricing?'].join('\n');
+    const r2 = await importChat(token, cid, { content: second, consent: true });
+    expect(((await r2.json()) as { imported: number }).imported).toBe(1); // only the new message
+  });
+
+  // P3-7: re-importing the identical file is a no-op (idempotent).
+  it('adds nothing when the identical file is re-imported', async () => {
+    const { token } = await signup('idem@example.com');
+    const cid = await createClient(token, 'Sara Lee');
+    const chat = '[2026-01-15, 09:00:00] Sara Lee: hi';
+    await importChat(token, cid, { content: chat, consent: true });
+    const r2 = await importChat(token, cid, { content: chat, consent: true });
+    const body = (await r2.json()) as { imported: number; duplicate?: boolean };
+    expect(body.imported).toBe(0);
+    expect(body.duplicate).toBe(true);
+  });
+
   // NEGATIVE: a rep can never import into, or read, another rep's client.
   it('does not let a rep import into another rep\'s client', async () => {
     const a = await signup('a-import@example.com');

@@ -265,8 +265,9 @@ export function createScanService(
   meetings: MeetingRepository,
   facts: FactsRepository,
   notifications: NotificationRepository,
+  notes: NoteRepository,
 ): ScanService {
-  return new ScanService(clients, meetings, facts, notifications);
+  return new ScanService(clients, meetings, facts, notifications, notes);
 }
 
 /** Web Push subscriptions (P3-6), RLS-backed on pg. */
@@ -342,6 +343,7 @@ export function scanConfigFrom(config: AppConfig): ScanConfig {
     coldThresholdDays: config.coldThresholdDays,
     nudgeLeadMs: config.nudgeLeadHours * 60 * 60 * 1000,
     reminderWindowDays: config.reminderWindowDays,
+    chatRefreshStaleDays: config.chatRefreshStaleDays,
   };
 }
 

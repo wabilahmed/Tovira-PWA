@@ -9,6 +9,7 @@ import type { ExtractionService } from '../services/extraction/extraction-servic
 import type { FollowUpService } from '../services/followup/follow-up-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
+import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 
 const MAX_PASTE_CHARS = 100_000;
@@ -152,15 +153,6 @@ export async function handleNoteRoute(
         });
         return true;
       }
-      // Persist the raw file FIRST, then parse. A parse failure flags this note;
-      // messages are written only on a WHOLE success — never a half-import.
-      const note = await deps.notes.create(userId, {
-        clientId,
-        source: 'whatsapp_export',
-        rawText: content,
-        audioKey: null,
-        status: 'importing',
-      });
       let parsed;
       try {
         parsed = parseWhatsAppExport(content);
@@ -168,22 +160,36 @@ export async function handleNoteRoute(
         parsed = { ok: false as const, reason: 'The export could not be parsed.' };
       }
       if (!parsed.ok) {
-        await deps.notes.update(userId, note.id, { status: 'import_failed' });
+        // Preserve the raw file, flagged — a parse failure is never a half-import.
+        await deps.notes.create(userId, { clientId, source: 'whatsapp_export', rawText: content, audioKey: null, status: 'import_failed' });
         sendJson(res, 422, { error: 'import_failed', reason: parsed.reason });
         return true;
       }
-      // Tag each speaker as client/rep by matching the client name, so the
-      // extractor can detect unanswered client questions (P1-6).
-      const messages = assignSpeakerRoles(parsed.messages, client.name);
-      await deps.notes.update(userId, note.id, {
-        messages,
+      // Dedupe against everything already imported for this client (P3-7): a
+      // re-export overlaps the last one, so store overlapping messages once and
+      // extract only the new tail. An identical re-import adds nothing.
+      const priorNotes = await deps.notes.listByClient(userId, clientId);
+      const existing = priorNotes.flatMap((n) => n.messages ?? []);
+      const fresh = dedupeMessages(existing, parsed.messages);
+      if (fresh.length === 0) {
+        sendJson(res, 200, { note: null, imported: 0, duplicate: true });
+        return true;
+      }
+      // Tag each speaker as client/rep so the extractor can flag unanswered
+      // client questions (P1-6). Store + extract ONLY the new slice.
+      const messages = assignSpeakerRoles(fresh, client.name);
+      const note = await deps.notes.create(userId, {
+        clientId,
+        source: 'whatsapp_export',
+        rawText: renderThread(messages),
+        audioKey: null,
         status: 'pending_extraction',
+        messages,
       });
       await deps.clients.touch(userId, clientId);
-      // Batch-extract the imported thread, exactly like any other captured input.
       await deps.extraction.extractNote(userId, note.id, todayIso());
       const updated = await deps.notes.findByIdForUser(userId, note.id);
-      sendJson(res, 201, { note: updated, imported: parsed.messages.length });
+      sendJson(res, 201, { note: updated, imported: fresh.length });
       return true;
     }
 

@@ -2,6 +2,7 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { FactsRepository, KeyDateRecord } from '../../ports/facts-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
+import type { NoteRepository } from '../../ports/note-repository.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECURRING_TYPES = new Set(['birthday', 'anniversary']);
@@ -10,12 +11,14 @@ export interface ScanConfig {
   coldThresholdDays: number;
   nudgeLeadMs: number;
   reminderWindowDays: number;
+  chatRefreshStaleDays: number;
 }
 
 export interface ScanSummary {
   nudges: number;
   goingCold: number;
   dateReminders: number;
+  chatRefresh: number;
 }
 
 function startOfDayUtc(ms: number): number {
@@ -57,6 +60,7 @@ export class ScanService {
     private readonly meetings: MeetingRepository,
     private readonly facts: FactsRepository,
     private readonly notifications: NotificationRepository,
+    private readonly notes: NoteRepository,
   ) {}
 
   async nudges(userId: string, nowMs: number, leadMs: number): Promise<number> {
@@ -112,11 +116,39 @@ export class ScanService {
     return created;
   }
 
+  /**
+   * Chat-refresh nudges (P3-7): when a client's last WhatsApp import has gone
+   * stale, suggest the 3-tap re-export. Idempotent and non-nagging — the dedupe
+   * key is tied to the specific stale import, so it fires once; a re-import
+   * (a new note) only re-nudges after that in turn goes stale.
+   */
+  async chatRefreshNudges(userId: string, nowMs: number, staleDays: number): Promise<number> {
+    const cutoff = nowMs - staleDays * DAY_MS;
+    const clients = await this.clients.listByUser(userId);
+    let created = 0;
+    for (const c of clients) {
+      const imports = (await this.notes.listByClient(userId, c.id)).filter((n) => n.source === 'whatsapp_export');
+      if (imports.length === 0) continue; // never imported → onboarding's job, not refresh
+      const latest = imports.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
+      if (latest.createdAt >= cutoff) continue; // recently refreshed → no nudge
+      const ok = await this.notifications.createIfAbsent(userId, {
+        type: 'chat_refresh',
+        dedupeKey: `refresh:${c.id}:${latest.id}`,
+        clientId: c.id,
+        title: 'Refresh this chat',
+        body: `It's been a while — re-export ${c.name}'s WhatsApp chat (3 taps) to keep Tovira current.`,
+      });
+      if (ok) created += 1;
+    }
+    return created;
+  }
+
   async runAll(userId: string, nowMs: number, cfg: ScanConfig): Promise<ScanSummary> {
     return {
       nudges: await this.nudges(userId, nowMs, cfg.nudgeLeadMs),
       goingCold: await this.goingCold(userId, nowMs, cfg.coldThresholdDays),
       dateReminders: await this.dateReminders(userId, nowMs, cfg.reminderWindowDays),
+      chatRefresh: await this.chatRefreshNudges(userId, nowMs, cfg.chatRefreshStaleDays),
     };
   }
 }

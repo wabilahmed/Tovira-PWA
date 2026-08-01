@@ -4,6 +4,7 @@ import { InMemoryClientRepository } from '../../adapters/clients/in-memory-clien
 import { InMemoryMeetingRepository } from '../../adapters/meetings/in-memory-meeting-repository.js';
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryNotificationRepository } from '../../adapters/notifications/in-memory-notification-repository.js';
+import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import type { KeyDateRecord } from '../../ports/facts-repository.js';
 
 function make() {
@@ -11,8 +12,9 @@ function make() {
   const meetings = new InMemoryMeetingRepository();
   const facts = new InMemoryFactsRepository();
   const notifications = new InMemoryNotificationRepository();
-  const scan = new ScanService(clients, meetings, facts, notifications);
-  return { clients, meetings, facts, notifications, scan };
+  const notes = new InMemoryNoteRepository();
+  const scan = new ScanService(clients, meetings, facts, notifications, notes);
+  return { clients, meetings, facts, notifications, notes, scan };
 }
 
 const NOW = Date.parse('2026-07-09T09:00:00Z');
@@ -96,5 +98,50 @@ describe('[P3-4] date reminders', () => {
     expect(await scan.dateReminders('u', NOW, 3)).toBe(1);
     expect(await scan.dateReminders('u', NOW, 3)).toBe(0);
     expect(await notifications.listByUser('u')).toHaveLength(1);
+  });
+});
+
+const DAY = 24 * 60 * 60 * 1000;
+
+describe('chatRefreshNudges (P3-7)', () => {
+  async function seedImport(userId: string) {
+    const { clients, notes, notifications, scan } = make();
+    const c = await clients.create(userId, 'Sara Lee');
+    await notes.create(userId, { clientId: c.id, source: 'whatsapp_export', rawText: 't', audioKey: null, status: 'extracted', messages: [] });
+    return { clients, notes, notifications, scan, clientId: c.id };
+  }
+
+  it('nudges a client whose last import has gone stale, naming the client', async () => {
+    const { scan, notifications } = await seedImport('u');
+    const future = Date.now() + 100 * DAY; // well past the 21-day staleness gap
+    expect(await scan.chatRefreshNudges('u', future, 21)).toBe(1);
+    const [n] = await notifications.listByUser('u');
+    expect(n!.type).toBe('chat_refresh');
+    expect(n!.body).toMatch(/sara lee/i);
+  });
+
+  it('does not nudge a recently-imported client (respects the gap)', async () => {
+    const { scan } = await seedImport('u');
+    expect(await scan.chatRefreshNudges('u', Date.now() + 1 * DAY, 21)).toBe(0);
+  });
+
+  it('is idempotent — does not re-fire daily for the same stale import', async () => {
+    const { scan, notifications } = await seedImport('u');
+    const future = Date.now() + 100 * DAY;
+    expect(await scan.chatRefreshNudges('u', future, 21)).toBe(1);
+    expect(await scan.chatRefreshNudges('u', future + DAY, 21)).toBe(0); // next day → no new nudge
+    expect(await notifications.listByUser('u')).toHaveLength(1);
+  });
+
+  it('never nudges a client that was never imported', async () => {
+    const { clients, scan } = make();
+    await clients.create('u', 'No Import Co');
+    expect(await scan.chatRefreshNudges('u', Date.now() + 100 * DAY, 21)).toBe(0);
+  });
+
+  it('does not leak refresh nudges across tenants', async () => {
+    const { scan, notifications } = await seedImport('a');
+    await scan.chatRefreshNudges('a', Date.now() + 100 * DAY, 21);
+    expect(await notifications.listByUser('b')).toEqual([]);
   });
 });

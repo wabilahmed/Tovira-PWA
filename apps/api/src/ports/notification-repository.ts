@@ -2,7 +2,7 @@
  * Port: generated alerts/reminders (P3-2/3/4). Stored so they're idempotent
  * (deduped by key) and reachable in-app even when push fails/is off (P3-5).
  */
-export type NotificationType = 'pre_meeting_nudge' | 'going_cold' | 'date_reminder';
+export type NotificationType = 'pre_meeting_nudge' | 'going_cold' | 'date_reminder' | 'chat_refresh';
 
 export interface NotificationEntry {
   type: NotificationType;
