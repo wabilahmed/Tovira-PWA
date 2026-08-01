@@ -44,6 +44,8 @@ import { handleMondayRoute } from './http/monday-routes.js';
 import type { MondayDigestService } from './services/monday/monday-service.js';
 import { handleLedgerRoute } from './http/ledger-routes.js';
 import type { LedgerService } from './services/ledger/ledger-service.js';
+import { handleShareCardRoute } from './http/share-card-routes.js';
+import type { ReferralService } from './services/referral/referral-service.js';
 import { handleBillingRoute } from './http/billing-routes.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
@@ -80,6 +82,7 @@ export interface ApiDeps {
   corpus: CorpusStatsService;
   monday: MondayDigestService;
   ledger: LedgerService;
+  referral: ReferralService;
   cookieSecure?: boolean;
 }
 
@@ -113,7 +116,11 @@ export function createApiServer(deps: ApiDeps): Server {
         return;
       }
 
-      if (await handleAuthRoute(request, response, deps.auth, { cookieSecure, onSignup: (userId, email) => deps.billing.onSignup(userId, email, Date.now()) })) return;
+      if (await handleAuthRoute(request, response, deps.auth, {
+        cookieSecure,
+        onSignup: (userId, email) => deps.billing.onSignup(userId, email, Date.now()),
+        onReferral: (code, userId, email) => deps.referral.apply(code, userId, email).then(() => undefined),
+      })) return;
       // Notes routes are matched before the generic client routes so
       // /clients/:id/notes/* isn't misread as /clients/:id.
       if (
@@ -178,6 +185,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
       if (await handleMondayRoute(request, response, { auth: deps.auth, monday: deps.monday })) return;
       if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger })) return;
+      if (await handleShareCardRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;

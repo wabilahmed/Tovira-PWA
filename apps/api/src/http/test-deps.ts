@@ -28,6 +28,8 @@ import { CorpusStatsService } from '../services/corpus/corpus-service.js';
 import { MondayDigestService } from '../services/monday/monday-service.js';
 import { LedgerService } from '../services/ledger/ledger-service.js';
 import { InMemoryLedgerRepository } from '../adapters/ledger/in-memory-ledger-repository.js';
+import { ReferralService } from '../services/referral/referral-service.js';
+import { InMemoryReferralRepository } from '../adapters/referral/in-memory-referral-repository.js';
 import { BillingService } from '../services/billing/billing-service.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../adapters/billing/in-memory.js';
 import { StubStripeGateway } from '../adapters/billing/stub-stripe.js';
@@ -82,6 +84,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   const notifications = new InMemoryNotificationRepository();
   const scan = new ScanService(clients, meetings, facts, notifications, notes);
   const images = new InMemoryImageRepository();
+  const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
   return {
     pool: stubPool,
     auth,
@@ -105,7 +108,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     cardScanner: new StubCardScanner(),
     images,
     hero: new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30),
-    billing: new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7),
+    billing,
     account: new AccountService(auth, clients, notes, facts, meetings, images, [clients, notes, facts, meetings]),
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
@@ -113,6 +116,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30),
     ledger: new LedgerService(new InMemoryLedgerRepository()),
+    referral: new ReferralService(new InMemoryReferralRepository(), billing),
     ...overrides,
   } as TestDeps;
 }

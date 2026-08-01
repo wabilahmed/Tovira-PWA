@@ -8,6 +8,9 @@ import { BookScanService } from './services/book-scan/book-scan-service.js';
 import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
+import { ReferralService } from './services/referral/referral-service.js';
+import { InMemoryReferralRepository } from './adapters/referral/in-memory-referral-repository.js';
+import { PgReferralRepository } from './adapters/referral/pg-referral-repository.js';
 import {
   createAuthService,
   createClientRepository,
@@ -96,6 +99,10 @@ async function main(): Promise<void> {
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays);
   const ledger = createLedgerService(config, appPool);
+  const referral = new ReferralService(
+    config.authStore === 'postgres' ? new PgReferralRepository(appPool) : new InMemoryReferralRepository(),
+    billing,
+  );
   const bookScan = new BookScanService(
     { clients, notes, facts },
     { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30 },
@@ -131,6 +138,7 @@ async function main(): Promise<void> {
     corpus,
     monday,
     ledger,
+    referral,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {

@@ -14,8 +14,8 @@ export class AuthClient {
     return `${this.baseUrl}${path}`;
   }
 
-  async signup(email: string, password: string): Promise<Session> {
-    return this.authPost('/auth/signup', email, password);
+  async signup(email: string, password: string, ref?: string): Promise<Session> {
+    return this.authPost('/auth/signup', email, password, ref);
   }
 
   async login(email: string, password: string): Promise<Session> {
@@ -39,12 +39,12 @@ export class AuthClient {
     }
   }
 
-  private async authPost(path: string, email: string, password: string): Promise<Session> {
+  private async authPost(path: string, email: string, password: string, ref?: string): Promise<Session> {
     const res = await fetch(this.url(path), {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(ref ? { email, password, ref } : { email, password }),
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };

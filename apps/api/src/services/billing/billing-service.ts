@@ -48,6 +48,16 @@ export class BillingService {
     return true;
   }
 
+  /** Grant one free month (P5-6 referral) by pushing the trial end out 30 days.
+   *  Returns false if the account doesn't exist — so an invalid referrer credits
+   *  no one. */
+  async grantReferralMonth(userId: string): Promise<boolean> {
+    const s = await this.subs.get(userId);
+    if (!s) return false;
+    await this.subs.update(userId, { trialEndsAt: s.trialEndsAt + 30 * DAY_MS });
+    return true;
+  }
+
   async entitlement(userId: string, nowMs: number): Promise<Entitlement> {
     const s = await this.subs.get(userId);
     if (!s) return { entitled: false, status: 'none', trialEndsAt: 0 };

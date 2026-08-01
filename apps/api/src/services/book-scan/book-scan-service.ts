@@ -67,6 +67,22 @@ export class BookScanService {
     private readonly config: BookScanConfig,
   ) {}
 
+  /**
+   * A shareable Book Scan card (P5-6): COUNTS ONLY. Never a client name, quote,
+   * company, or any identifier — privacy is the whole game with a shared card.
+   */
+  async shareCard(userId: string, nowMs: number): Promise<{ openPromises: number; unansweredQuestions: number; goingCold: number; upcomingDates: number; total: number }> {
+    const report = await this.scan(userId, nowMs);
+    const count = (k: BookScanKind): number => report.items.filter((i) => i.kind === k).length;
+    return {
+      openPromises: count('open_promise'),
+      unansweredQuestions: count('unanswered_question'),
+      goingCold: count('going_cold'),
+      upcomingDates: count('upcoming_date'),
+      total: report.items.length,
+    };
+  }
+
   async scan(userId: string, nowMs: number): Promise<BookScanReport> {
     const items: BookScanItem[] = [];
     const clients = await this.repos.clients.listByUser(userId);

@@ -25,6 +25,8 @@ export interface AuthRouteOptions {
   cookieSecure: boolean;
   /** Called after a successful signup (starts the trial). */
   onSignup?: (userId: string, email: string) => Promise<void>;
+  /** Called after signup when a referral code was supplied (P5-6). */
+  onReferral?: (referrerCode: string, userId: string, email: string) => Promise<void>;
 }
 
 /** Handle an /auth/* or /me request. Returns true if it handled the request. */
@@ -48,6 +50,8 @@ export async function handleAuthRoute(
       const { email, password } = readCredentials(body);
       const result = await auth.signup(email, password);
       await opts.onSignup?.(result.user.id, result.user.email);
+      const ref = typeof body.ref === 'string' ? body.ref.trim() : '';
+      if (ref) await opts.onReferral?.(ref, result.user.id, result.user.email);
       sendJson(res, 201, result, {
         'set-cookie': sessionCookie(result.token, auth.sessionTtlSeconds, opts.cookieSecure),
       });

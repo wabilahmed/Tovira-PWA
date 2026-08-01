@@ -32,6 +32,8 @@ import { MondayClient } from './monday/mondayClient.js';
 import { MondayDigest } from './monday/MondayDigest.js';
 import { LedgerClient } from './ledger/ledgerClient.js';
 import { Ledger } from './ledger/Ledger.js';
+import { ShareCardClient } from './share/shareCardClient.js';
+import { ShareCard } from './share/ShareCard.js';
 import { PushClient } from './push/pushClient.js';
 import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
@@ -58,6 +60,7 @@ const recallApi = new RecallClient();
 const corpusApi = new CorpusClient();
 const mondayApi = new MondayClient();
 const ledgerApi = new LedgerClient();
+const shareCardApi = new ShareCardClient();
 const pushClient = new PushClient();
 
 // Optional voice input for recall: use the browser's SpeechRecognition when the
@@ -230,7 +233,12 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'alerts' && <Alerts api={proactiveApi} />}
 
-      {view === 'bookscan' && <BookScan api={bookScanApi} />}
+      {view === 'bookscan' && (
+        <>
+          <BookScan api={bookScanApi} />
+          <ShareCard api={shareCardApi} referralCode={session.user.id} />
+        </>
+      )}
 
       {view === 'ledger' && <Ledger api={ledgerApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
 
@@ -463,7 +471,8 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
     setBusy(true);
     setError(null);
     try {
-      const session = mode === 'login' ? await auth.login(email, password) : await auth.signup(email, password);
+      const ref = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') ?? undefined : undefined;
+      const session = mode === 'login' ? await auth.login(email, password) : await auth.signup(email, password, ref);
       onAuthed(session);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
