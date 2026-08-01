@@ -26,6 +26,8 @@ import { FollowUpDraft } from './followup/FollowUpDraft.js';
 import { StakeholderMap } from './stakeholders/StakeholderMap.js';
 import { RecallClient } from './recall/recallClient.js';
 import { Ask } from './recall/Ask.js';
+import { CorpusClient } from './corpus/corpusClient.js';
+import { CorpusBadge } from './corpus/CorpusBadge.js';
 import { PushClient } from './push/pushClient.js';
 import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
@@ -49,6 +51,7 @@ const accountApi = new AccountClient();
 const cardsApi = new CardsClient();
 const imagesApi = new ImagesClient();
 const recallApi = new RecallClient();
+const corpusApi = new CorpusClient();
 const pushClient = new PushClient();
 
 // Optional voice input for recall: use the browser's SpeechRecognition when the
@@ -164,7 +167,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h1 style={{ margin: 0 }}>Tovira</h1>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
+          <h1 style={{ margin: 0 }}>Tovira</h1>
+          <CorpusBadge api={corpusApi} />
+        </span>
         <small>
           {session.user.email} · <button onClick={onLogout} style={linkButton}>Log out</button>
         </small>

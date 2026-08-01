@@ -38,6 +38,8 @@ import { handleBookScanRoute } from './http/book-scan-routes.js';
 import type { BookScanService } from './services/book-scan/book-scan-service.js';
 import { handleRecallRoute } from './http/recall-routes.js';
 import type { RecallService } from './services/recall/recall-service.js';
+import { handleCorpusRoute } from './http/corpus-routes.js';
+import type { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { handleBillingRoute } from './http/billing-routes.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
@@ -71,6 +73,7 @@ export interface ApiDeps {
   activation: ActivationService;
   bookScan: BookScanService;
   recall: RecallService;
+  corpus: CorpusStatsService;
   cookieSecure?: boolean;
 }
 
@@ -162,6 +165,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero })) return;
       if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleRecallRoute(request, response, { auth: deps.auth, recall: deps.recall })) return;
+      if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
