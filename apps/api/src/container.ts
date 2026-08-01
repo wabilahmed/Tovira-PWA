@@ -34,6 +34,7 @@ import type { Embedder } from './ports/embedder.js';
 import { StubEmbedder } from './adapters/embedding/stub.js';
 import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
+import { BillingModelRouter, type ModelRouter } from './services/extraction/model-router.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
 import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-repository.js';
@@ -202,9 +203,29 @@ export function createExtractionService(
   facts: FactsRepository,
   logs: ExtractionLogRepository,
   corrections?: CorrectionRepository,
+  router?: ModelRouter,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router);
+}
+
+/**
+ * Per-account extraction model router (P5-7): trial → Sonnet, paid → the
+ * P1-9-selected production model. Only meaningful for the real (anthropic)
+ * provider; the local stub path routes nowhere (returns undefined).
+ */
+export function createExtractionModelRouter(
+  config: AppConfig,
+  statusOf: (userId: string, nowMs: number) => Promise<string>,
+): ModelRouter | undefined {
+  if (config.modelProvider !== 'anthropic') return undefined;
+  const make = (model: string) =>
+    new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model });
+  return new BillingModelRouter(
+    statusOf,
+    { model: make(config.anthropicModel), modelId: config.anthropicModel },
+    { model: make('claude-sonnet-5'), modelId: 'claude-sonnet-5' },
+  );
 }
 
 /** The rep-corrections training log (P2-3), RLS-backed on pg. */

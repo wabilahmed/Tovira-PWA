@@ -13,6 +13,7 @@ import {
   createTranscriptionService,
   createFactsRepository,
   createExtractionService,
+  createExtractionModelRouter,
   createFollowUpService,
   createExtractionLogRepository,
   createBriefService,
@@ -64,7 +65,10 @@ async function main(): Promise<void> {
   const facts = createFactsRepository(config, appPool);
   const extractionLogs = createExtractionLogRepository(config, appPool);
   const corrections = createCorrectionRepository(config, appPool);
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections);
+  // Billing is created early so the extraction router can read trial status (P5-7).
+  const billing = createBillingService(config, appPool);
+  const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter);
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
   const meetings = createMeetingRepository(config, appPool);
@@ -76,7 +80,6 @@ async function main(): Promise<void> {
   const cardScanner = createCardScanner();
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes);
-  const billing = createBillingService(config, appPool);
   const account = createAccountService(auth, clients, notes, facts, meetings);
   const activation = createActivationService(config, appPool);
   const bookScan = new BookScanService(

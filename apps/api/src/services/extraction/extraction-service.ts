@@ -6,6 +6,7 @@ import type { Embedder } from '../../ports/embedder.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
 import { buildGlossary } from './glossary.js';
+import type { ModelRouter } from './model-router.js';
 import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './prompt.js';
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
@@ -44,6 +45,8 @@ export class ExtractionService {
     private readonly modelId: string = 'stub',
     /** Corrections drive the per-rep glossary (P4-9). Optional. */
     private readonly corrections?: CorrectionRepository,
+    /** Per-account model routing (P5-7). Optional — falls back to model/modelId. */
+    private readonly router?: ModelRouter,
   ) {}
 
   async extractNote(userId: string, noteId: string, today: string): Promise<ExtractOutcome> {
@@ -63,11 +66,15 @@ export class ExtractionService {
       glossary,
     });
 
+    // Resolve the model ONCE (P5-7): a retry must use the same model as the
+    // original — never mixed mid-sequence.
+    const route = this.router ? await this.router.resolve(userId) : { model: this.model, modelId: this.modelId };
+
     const start = this.now();
     let last: Attempt = { parsed: null, raw: null, inputTokens: 0, outputTokens: 0 };
     let extraction: Extraction | null = null;
     for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
-      last = await this.call(userMessage);
+      last = await this.call(route.model, userMessage);
       extraction = last.parsed ? asExtraction(last.parsed) : null;
     }
 
@@ -94,7 +101,7 @@ export class ExtractionService {
     await this.logs.log(userId, {
       noteId,
       promptVersion: PROMPT_VERSION,
-      model: this.modelId,
+      model: route.modelId,
       input: userMessage,
       rawOutput: last.raw,
       status,
@@ -106,12 +113,12 @@ export class ExtractionService {
     return extraction ? { status } : { status, flagged: true };
   }
 
-  private async call(userMessage: string): Promise<Attempt> {
+  private async call(model: ModelClient, userMessage: string): Promise<Attempt> {
     let raw: string | null = null;
     let inputTokens = 0;
     let outputTokens = 0;
     try {
-      const res = await this.model.complete({
+      const res = await model.complete({
         system: EXTRACTION_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
         maxTokens: 2048,
