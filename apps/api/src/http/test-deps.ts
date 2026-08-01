@@ -59,6 +59,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   const transcription = new TranscriptionService(new StubTranscriber('clear transcript'), notes, storage);
   const embedder = new StubEmbedder(8);
   const extractionLog = new InMemoryExtractionLogRepository();
+  const corrections = new InMemoryCorrectionRepository();
   const extraction = new ExtractionService(
     new StubModelClient(),
     clients,
@@ -67,10 +68,10 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     embedder,
     extractionLog,
     'stub',
+    corrections,
   );
   const brief = new BriefService(clients, notes, facts, embedder);
   const followUp = new FollowUpService(new StubModelClient(), notes);
-  const corrections = new InMemoryCorrectionRepository();
   const meetings = new InMemoryMeetingRepository();
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
   const notifications = new InMemoryNotificationRepository();

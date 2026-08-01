@@ -10,6 +10,8 @@
  * cache every single day.
  */
 
+import { renderGlossary, type GlossaryEntry } from './glossary.js';
+
 export const PROMPT_VERSION = 'tovira-extract-v0.1';
 
 export interface ExtractionPromptInput {
@@ -17,6 +19,9 @@ export interface ExtractionPromptInput {
   clientName: string;
   source: 'voice' | 'paste' | 'whatsapp_export';
   text: string;
+  /** Per-rep glossary (P4-9). Injected here in the VARIABLE section — NEVER the
+   *  cached prefix — so caching stays intact. Optional; omitted → no block. */
+  glossary?: GlossaryEntry[];
 }
 
 export const EXTRACTION_SYSTEM_PROMPT = `You are Tovira's extraction engine for salespeople. You read a single note (a transcribed voice memo or a pasted message) about one client and pull out the facts that matter for future sales conversations. You return structured JSON and nothing else.
@@ -222,10 +227,11 @@ const SOURCE_LABEL: Record<ExtractionPromptInput['source'], string> = {
 };
 
 export function buildUserMessage(input: ExtractionPromptInput): string {
+  const glossaryBlock = input.glossary && input.glossary.length > 0 ? `\n${renderGlossary(input.glossary)}\n` : '';
   return `TODAY'S DATE: ${input.today}
 CLIENT: ${input.clientName}
 SOURCE: ${SOURCE_LABEL[input.source]}
-
+${glossaryBlock}
 NOTE:
 ${input.text}`;
 }

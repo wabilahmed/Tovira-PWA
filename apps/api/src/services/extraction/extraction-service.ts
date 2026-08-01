@@ -4,6 +4,8 @@ import type { NoteRepository } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
+import type { CorrectionRepository } from '../../ports/correction-repository.js';
+import { buildGlossary } from './glossary.js';
 import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './prompt.js';
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
@@ -40,6 +42,8 @@ export class ExtractionService {
     private readonly logs: ExtractionLogRepository,
     /** Model id recorded in the log (e.g. 'stub' or 'claude-haiku-4-5-…'). */
     private readonly modelId: string = 'stub',
+    /** Corrections drive the per-rep glossary (P4-9). Optional. */
+    private readonly corrections?: CorrectionRepository,
   ) {}
 
   async extractNote(userId: string, noteId: string, today: string): Promise<ExtractOutcome> {
@@ -48,11 +52,15 @@ export class ExtractionService {
     if (!note.rawText || !note.rawText.trim()) return { status: note.status };
 
     const client = await this.clients.findByIdForUser(userId, note.clientId);
+    // Per-rep glossary from THIS user's corrections (P4-9). Tenant-scoped, so it
+    // can never influence another rep; injected into the variable message only.
+    const glossary = this.corrections ? buildGlossary(await this.corrections.listByUser(userId)) : [];
     const userMessage = buildUserMessage({
       today,
       clientName: client?.name ?? 'Unknown',
       source: note.source,
       text: note.rawText,
+      glossary,
     });
 
     const start = this.now();

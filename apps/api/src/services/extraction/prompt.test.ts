@@ -49,4 +49,18 @@ describe('extraction prompt', () => {
   it('exposes a prompt version for logging', () => {
     expect(PROMPT_VERSION).toBe('tovira-extract-v0.1');
   });
+
+  // P4-9: the glossary goes in the VARIABLE message only — the cached prefix
+  // (the system prompt) must stay byte-identical regardless of the glossary.
+  it('injects the glossary into the variable message, never the cached prefix', () => {
+    const glossary = [{ wrong: 'Meridiun', right: 'Meridian' }];
+    const withG = buildUserMessage({ today: '2026-07-09', clientName: 'C', source: 'paste', text: 'call Meridiun', glossary });
+    const withoutG = buildUserMessage({ today: '2026-07-09', clientName: 'C', source: 'paste', text: 'call Meridiun' });
+    expect(withG).toContain('Meridiun');
+    expect(withG).toMatch(/GLOSSARY/);
+    expect(withoutG).not.toMatch(/GLOSSARY/); // no block when there's no glossary
+    // The cacheable prefix does not depend on the glossary at all.
+    expect(EXTRACTION_SYSTEM_PROMPT).not.toMatch(/GLOSSARY/);
+    expect(EXTRACTION_SYSTEM_PROMPT).not.toContain('Meridiun');
+  });
 });

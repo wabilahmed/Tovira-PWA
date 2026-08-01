@@ -201,9 +201,10 @@ export function createExtractionService(
   notes: NoteRepository,
   facts: FactsRepository,
   logs: ExtractionLogRepository,
+  corrections?: CorrectionRepository,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections);
 }
 
 /** The rep-corrections training log (P2-3), RLS-backed on pg. */

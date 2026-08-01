@@ -63,10 +63,10 @@ async function main(): Promise<void> {
   const transcription = createTranscriptionService(config, notes, storage);
   const facts = createFactsRepository(config, appPool);
   const extractionLogs = createExtractionLogRepository(config, appPool);
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs);
+  const corrections = createCorrectionRepository(config, appPool);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections);
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
-  const corrections = createCorrectionRepository(config, appPool);
   const meetings = createMeetingRepository(config, appPool);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
