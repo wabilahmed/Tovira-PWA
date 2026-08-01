@@ -24,6 +24,8 @@ import { ImagesClient } from './gallery/imagesClient.js';
 import { Gallery } from './gallery/Gallery.js';
 import { FollowUpDraft } from './followup/FollowUpDraft.js';
 import { StakeholderMap } from './stakeholders/StakeholderMap.js';
+import { RecallClient } from './recall/recallClient.js';
+import { Ask } from './recall/Ask.js';
 import { PushClient } from './push/pushClient.js';
 import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
@@ -46,7 +48,26 @@ const billingApi = new BillingClient();
 const accountApi = new AccountClient();
 const cardsApi = new CardsClient();
 const imagesApi = new ImagesClient();
+const recallApi = new RecallClient();
 const pushClient = new PushClient();
+
+// Optional voice input for recall: use the browser's SpeechRecognition when the
+// engine exists, otherwise recall stays text-only (no dead button).
+function makeSpeechListener(): (() => Promise<string>) | undefined {
+  const w = globalThis as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown };
+  const Recognition = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+  if (!Recognition) return undefined;
+  return () =>
+    new Promise<string>((resolve) => {
+      const rec = new Recognition() as { start(): void; onresult: (e: { results: Array<Array<{ transcript: string }>> }) => void; onerror: () => void; onend: () => void };
+      let heard = '';
+      rec.onresult = (e) => { heard = e.results[0]?.[0]?.transcript ?? ''; };
+      rec.onerror = () => resolve('');
+      rec.onend = () => resolve(heard);
+      rec.start();
+    });
+}
+const speechListen = makeSpeechListener();
 
 // Read the current push capability/permission, guarding for non-browser/jsdom.
 function readPushState(): OnboardingState {
@@ -101,7 +122,7 @@ export function App(): JSX.Element {
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
-type View = 'clients' | 'today' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'getstarted' | 'settings';
+type View = 'clients' | 'today' | 'ask' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'getstarted' | 'settings';
 
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -152,6 +173,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       <nav style={{ display: 'flex', gap: '1rem', margin: '1rem 0' }} aria-label="Sections">
         <button onClick={() => setView('clients')} style={view === 'clients' ? navActive : linkButton}>Clients</button>
         <button onClick={() => setView('today')} style={view === 'today' ? navActive : linkButton}>Today</button>
+        <button onClick={() => setView('ask')} style={view === 'ask' ? navActive : linkButton}>Ask</button>
         <button onClick={() => setView('promises')} style={view === 'promises' ? navActive : linkButton}>Promises</button>
         <button onClick={() => setView('meetings')} style={view === 'meetings' ? navActive : linkButton}>Meetings</button>
         <button onClick={() => setView('alerts')} style={view === 'alerts' ? navActive : linkButton}>Alerts</button>
@@ -183,6 +205,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       )}
 
       {view === 'today' && <HeroInsights api={heroApi} />}
+
+      {view === 'ask' && <Ask api={recallApi} listen={speechListen} />}
 
       {view === 'promises' && <PromisesTracker api={promisesApi} />}
 

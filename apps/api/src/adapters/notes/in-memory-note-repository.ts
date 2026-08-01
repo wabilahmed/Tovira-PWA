@@ -77,4 +77,12 @@ export class InMemoryNoteRepository implements NoteRepository {
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit);
   }
+
+  async searchSimilarByUser(userId: string, queryEmbedding: number[], limit: number): Promise<SimilarNote[]> {
+    return [...this.byId.values()]
+      .filter((n) => n.userId === userId && this.embeddings.has(n.id))
+      .map((note) => ({ note, similarity: cosine(queryEmbedding, this.embeddings.get(note.id)!) }))
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
+  }
 }

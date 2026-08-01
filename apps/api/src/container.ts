@@ -34,6 +34,7 @@ import type { Embedder } from './ports/embedder.js';
 import { StubEmbedder } from './adapters/embedding/stub.js';
 import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
+import { RecallService } from './services/recall/recall-service.js';
 import { BillingModelRouter, type ModelRouter } from './services/extraction/model-router.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
@@ -85,6 +86,11 @@ export interface Services {
   auth: AuthProvider;
   storage: Storage;
   scheduler: Scheduler;
+}
+
+/** Conversational recall (P4-8): embed + retrieve top-k + grounded answer. */
+export function createRecallService(config: AppConfig, notes: NoteRepository): RecallService {
+  return new RecallService(createEmbedder(config), notes, createModelClient(config));
 }
 
 export function createModelClient(config: AppConfig): ModelClient {

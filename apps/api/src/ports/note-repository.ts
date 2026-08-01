@@ -57,4 +57,6 @@ export interface NoteRepository {
   update(userId: string, id: string, patch: NotePatch): Promise<void>;
   /** Semantic search over a client's notes by embedding similarity. */
   searchSimilar(userId: string, clientId: string, queryEmbedding: number[], limit: number): Promise<SimilarNote[]>;
+  /** Semantic search across ALL of the rep's notes — powers conversational recall (P4-8). */
+  searchSimilarByUser(userId: string, queryEmbedding: number[], limit: number): Promise<SimilarNote[]>;
 }

@@ -14,6 +14,7 @@ import {
   createFactsRepository,
   createExtractionService,
   createExtractionModelRouter,
+  createRecallService,
   createFollowUpService,
   createExtractionLogRepository,
   createBriefService,
@@ -82,6 +83,7 @@ async function main(): Promise<void> {
   const hero = createHeroService(config, clients, facts, meetings, notes);
   const account = createAccountService(auth, clients, notes, facts, meetings);
   const activation = createActivationService(config, appPool);
+  const recall = createRecallService(config, notes);
   const bookScan = new BookScanService(
     { clients, notes, facts },
     { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30 },
@@ -113,6 +115,7 @@ async function main(): Promise<void> {
     account,
     activation,
     bookScan,
+    recall,
     cookieSecure: config.nodeEnv === 'production',
   });
   server.listen(config.port, () => {

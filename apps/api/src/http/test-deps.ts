@@ -23,6 +23,7 @@ import { InMemoryNotificationRepository } from '../adapters/notifications/in-mem
 import { ScanService } from '../services/scan/scan-service.js';
 import { HeroService } from '../services/hero/hero-service.js';
 import { BookScanService } from '../services/book-scan/book-scan-service.js';
+import { RecallService } from '../services/recall/recall-service.js';
 import { BillingService } from '../services/billing/billing-service.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../adapters/billing/in-memory.js';
 import { StubStripeGateway } from '../adapters/billing/stub-stripe.js';
@@ -103,6 +104,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     account: new AccountService(auth, clients, notes, facts, meetings, [clients, notes, facts, meetings]),
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
+    recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1 }),
     ...overrides,
   } as TestDeps;
 }

@@ -96,6 +96,24 @@ export class PgNoteRepository implements NoteRepository {
     });
   }
 
+  async searchSimilarByUser(userId: string, queryEmbedding: number[], limit: number): Promise<SimilarNote[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const vec = `[${queryEmbedding.join(',')}]`;
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS}, 1 - (embedding <=> $1::vector) AS similarity
+         FROM notes
+         WHERE embedding IS NOT NULL
+         ORDER BY embedding <=> $1::vector
+         LIMIT $2`,
+        [vec, limit],
+      );
+      return (rows as unknown as Array<NoteRow & { similarity: number }>).map((row) => ({
+        note: toRecord(row),
+        similarity: Number(row.similarity),
+      }));
+    });
+  }
+
   async update(userId: string, id: string, patch: NotePatch): Promise<void> {
     await withTenant(this.pool, userId, async (c) => {
       const sets: string[] = [];

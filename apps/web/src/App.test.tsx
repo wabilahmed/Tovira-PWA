@@ -175,6 +175,22 @@ describe('<App> integration', () => {
     expect(screen.getByRole('button', { name: /delete my account/i })).toBeInTheDocument();
   });
 
+  it('navigates to Ask and answers with receipts (API integration)', async () => {
+    routeFetch([
+      ['/recall', () => json(200, { answer: 'Ahmed felt pricing was high.', receipts: [{ quote: 'pricing is too high', date: '2026-01-16', clientId: 'c1', noteId: 'n1' }] })],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /^ask$/i })); // nav (only one yet)
+    await user.type(await screen.findByLabelText(/your question/i), 'What did Ahmed say?');
+    const askButtons = screen.getAllByRole('button', { name: /^ask$/i }); // nav + form submit
+    await user.click(askButtons[askButtons.length - 1]!);
+    expect(await screen.findByTestId('answer')).toHaveTextContent(/pricing was high/i);
+  });
+
   it('navigates to the Book Scan and renders its findings (API integration)', async () => {
     routeFetch([
       ['book-scan', () => json(200, SCAN)],
