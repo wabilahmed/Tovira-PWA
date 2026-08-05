@@ -12,9 +12,10 @@ export function CardScan({
   onCreateClient,
 }: {
   api: CardsApi;
-  onCreateClient: (name: string) => Promise<unknown>;
+  onCreateClient: (name: string, phone?: string) => Promise<unknown>;
 }): JSX.Element {
   const [contact, setContact] = useState<ScannedContact | null>(null);
+  const [phone, setPhone] = useState('');
   const [state, setState] = useState<'idle' | 'scanning' | 'not_card' | 'error' | 'ready' | 'saved'>('idle');
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
@@ -26,14 +27,19 @@ export function CardScan({
     if (!result) return setState('error');
     if (!result.isCard || !result.contact) return setState('not_card');
     setContact(result.contact);
+    setPhone(result.contact.phone ?? ''); // offer the scanned phone to confirm/edit
     setState('ready');
   }
 
   async function save(): Promise<void> {
     if (!contact?.name) return;
-    await onCreateClient(contact.name);
+    const trimmed = phone.trim();
+    // Preserve the single-arg contract when there's no phone (never save a blank).
+    if (trimmed) await onCreateClient(contact.name, trimmed);
+    else await onCreateClient(contact.name);
     setState('saved');
     setContact(null);
+    setPhone('');
   }
 
   return (
@@ -53,7 +59,17 @@ export function CardScan({
           <p style={{ margin: 0 }}><strong>{contact.name ?? '(no name found)'}</strong></p>
           {contact.title && <div>{contact.title}</div>}
           {contact.email && <div>{contact.email}</div>}
-          {contact.phone && <div>{contact.phone}</div>}
+          <label style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginTop: '0.35rem' }}>
+            Phone
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+971 50 123 4567"
+              aria-label="Contact phone"
+              style={{ minWidth: 180 }}
+            />
+          </label>
           <button onClick={() => void save()} disabled={!contact.name} style={{ marginTop: '0.5rem' }}>
             Create client from card
           </button>

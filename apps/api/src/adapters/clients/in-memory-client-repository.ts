@@ -12,11 +12,16 @@ export class InMemoryClientRepository implements ClientRepository {
     return this.clock;
   }
 
-  async create(userId: string, name: string): Promise<ClientRecord> {
+  async create(userId: string, name: string, phone: string | null = null): Promise<ClientRecord> {
     const now = this.tick();
-    const record: ClientRecord = { id: randomUUID(), userId, name, createdAt: now, lastTouchedAt: now };
+    const record: ClientRecord = { id: randomUUID(), userId, name, phone, createdAt: now, lastTouchedAt: now };
     this.byId.set(record.id, record);
     return record;
+  }
+
+  async setPhone(userId: string, id: string, phone: string | null): Promise<void> {
+    const client = this.byId.get(id);
+    if (client && client.userId === userId) client.phone = phone;
   }
 
   private ownedByUser(userId: string): ClientRecord[] {

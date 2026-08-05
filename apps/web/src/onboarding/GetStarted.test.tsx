@@ -27,7 +27,7 @@ describe('<GetStarted>', () => {
     render(
       <GetStarted
         seeding={seeding}
-        clients={[{ id: 'c1', name: 'Acme', createdAt: 1 }]}
+        clients={[{ id: 'c1', name: 'Acme', phone: null, createdAt: 1 }]}
         onCreateClient={vi.fn()}
         importApi={okImport}
         onSeeded={vi.fn()}
@@ -68,7 +68,7 @@ describe('<GetStarted>', () => {
     render(
       <GetStarted
         seeding={seeding}
-        clients={[{ id: 'c1', name: 'Acme', createdAt: 1 }]}
+        clients={[{ id: 'c1', name: 'Acme', phone: null, createdAt: 1 }]}
         onCreateClient={vi.fn()}
         importApi={okImport}
         onSeeded={onSeeded}

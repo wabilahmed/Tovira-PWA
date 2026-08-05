@@ -18,4 +18,22 @@ describe('whatsappLink (P4-7)', () => {
     expect(whatsappLink('hi')).toBe('https://wa.me/?text=hi');
     expect(whatsappLink('hi', '')).toBe('https://wa.me/?text=hi');
   });
+
+  // We never GUESS a country code. A bare local number could belong to any
+  // country, so without an explicit country code we open the picker instead of
+  // dialling the wrong person.
+  it('opens the picker for a local number with no country code (never guesses)', () => {
+    expect(whatsappLink('hi', '050 123 4567')).toBe('https://wa.me/?text=hi');
+    expect(whatsappLink('hi', '0501234567')).toBe('https://wa.me/?text=hi');
+  });
+
+  it('accepts an international 00-prefixed number as a country code', () => {
+    expect(whatsappLink('hi', '0097150 123 4567')).toBe('https://wa.me/971501234567?text=hi');
+  });
+
+  // Malformed input (letters, or implausibly short) → picker, never a broken link.
+  it('opens the picker for malformed input', () => {
+    expect(whatsappLink('hi', 'call me maybe')).toBe('https://wa.me/?text=hi');
+    expect(whatsappLink('hi', '+12')).toBe('https://wa.me/?text=hi'); // too short to be a real number
+  });
 });

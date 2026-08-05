@@ -1,6 +1,7 @@
 export interface ClientSummary {
   id: string;
   name: string;
+  phone: string | null;
   createdAt: number;
 }
 
@@ -55,18 +56,36 @@ export class ClientsClient {
     }
   }
 
-  async create(name: string): Promise<ClientSummary> {
+  async create(name: string, phone?: string): Promise<ClientSummary> {
     const res = await fetch(this.url('/clients'), {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name }),
+      // Send phone only when present — keeps the common create body { name }.
+      body: JSON.stringify(phone ? { name, phone } : { name }),
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       throw new Error(body.message ?? 'Could not create client.');
     }
     return (await res.json()) as ClientSummary;
+  }
+
+  /** Set (or clear) a client's phone (P4-7). Returns the updated record, or null
+   *  on failure (e.g. not the owner). */
+  async setPhone(id: string, phone: string | null): Promise<ClientSummary | null> {
+    try {
+      const res = await fetch(this.url(`/clients/${id}`), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as ClientSummary;
+    } catch {
+      return null;
+    }
   }
 
   async get(id: string): Promise<ClientSummary | null> {

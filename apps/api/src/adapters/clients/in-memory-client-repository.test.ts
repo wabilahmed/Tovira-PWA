@@ -26,6 +26,30 @@ describe('InMemoryClientRepository', () => {
     expect(await repo.findByIdForUser('user-B', a.id)).toBeNull();
   });
 
+  // [P4-7] optional phone: stored as-is at create, editable later, tenant-scoped.
+  it('stores an optional phone at create and defaults it to null', async () => {
+    const repo = new InMemoryClientRepository();
+    const withPhone = await repo.create('user-A', 'A Corp', '+971 50 123 4567');
+    expect(withPhone.phone).toBe('+971 50 123 4567');
+    const without = await repo.create('user-A', 'B Corp');
+    expect(without.phone).toBeNull();
+  });
+
+  it('sets a client phone later, scoped to the owner', async () => {
+    const repo = new InMemoryClientRepository();
+    const a = await repo.create('user-A', 'A Corp');
+    await repo.setPhone('user-A', a.id, '+971501234567');
+    expect((await repo.findByIdForUser('user-A', a.id))!.phone).toBe('+971501234567');
+  });
+
+  it('never lets another rep set or read a client phone (isolation)', async () => {
+    const repo = new InMemoryClientRepository();
+    const a = await repo.create('user-A', 'A Corp', '+971501234567');
+    await repo.setPhone('user-B', a.id, '+10000000000'); // wrong owner → no-op
+    expect((await repo.findByIdForUser('user-A', a.id))!.phone).toBe('+971501234567');
+    expect(await repo.findByIdForUser('user-B', a.id)).toBeNull();
+  });
+
   // [P1-2] recents-first ordering and search.
   it('lists most-recently-touched clients first', async () => {
     const repo = new InMemoryClientRepository();

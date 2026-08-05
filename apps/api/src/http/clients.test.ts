@@ -48,6 +48,48 @@ describe('clients HTTP endpoints (tenant-scoped)', () => {
     expect(clients.clients.map((c) => c.id)).toContain(client.id);
   });
 
+  // [P4-7] optional phone: set at create, editable via PATCH, tenant-scoped.
+  it('creates a client with an optional phone and returns it', async () => {
+    const token = await signup('phone-create@example.com');
+    const create = await fetch(`${base}/clients`, authed(token, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Acme', phone: '+971 50 123 4567' }),
+    }));
+    expect(create.status).toBe(201);
+    expect(((await create.json()) as { phone: string }).phone).toBe('+971 50 123 4567');
+  });
+
+  it('sets a client phone via PATCH and reads it back', async () => {
+    const token = await signup('phone-patch@example.com');
+    const id = ((await (await fetch(`${base}/clients`, authed(token, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Acme' }),
+    }))).json()) as { id: string }).id;
+
+    const patch = await fetch(`${base}/clients/${id}`, authed(token, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phone: '+971501234567' }),
+    }));
+    expect(patch.status).toBe(200);
+    const got = (await (await fetch(`${base}/clients/${id}`, authed(token))).json()) as { phone: string };
+    expect(got.phone).toBe('+971501234567');
+  });
+
+  it('never lets a rep set the phone on another rep\'s client (404)', async () => {
+    const owner = await signup('phone-owner@example.com');
+    const other = await signup('phone-other@example.com');
+    const id = ((await (await fetch(`${base}/clients`, authed(owner, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Acme' }),
+    }))).json()) as { id: string }).id;
+
+    const patch = await fetch(`${base}/clients/${id}`, authed(other, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phone: '+10000000000' }),
+    }));
+    expect(patch.status).toBe(404);
+    // The owner's client is untouched.
+    const got = (await (await fetch(`${base}/clients/${id}`, authed(owner))).json()) as { phone: string | null };
+    expect(got.phone).toBeNull();
+  });
+
   // [P1-2] search + recents-first ordering.
   it('filters clients by a partial name query', async () => {
     const token = await signup('search@example.com');

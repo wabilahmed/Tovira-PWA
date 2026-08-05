@@ -29,6 +29,36 @@ describe('ClientsClient', () => {
     expect((init as RequestInit).credentials).toBe('include');
   });
 
+  // [P4-7] optional phone travels with create and can be set later.
+  it('sends an optional phone with create and returns it', async () => {
+    fetchMock.mockResolvedValueOnce(json(201, { id: '2', name: 'Acme', phone: '+971501234567', createdAt: 2 }));
+    const created = await new ClientsClient('http://api.test').create('Acme', '+971501234567');
+    expect(created.phone).toBe('+971501234567');
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect((init as RequestInit).body).toBe(JSON.stringify({ name: 'Acme', phone: '+971501234567' }));
+  });
+
+  it('omits phone from the create body when none is given', async () => {
+    fetchMock.mockResolvedValueOnce(json(201, { id: '2', name: 'Acme', phone: null, createdAt: 2 }));
+    await new ClientsClient('http://api.test').create('Acme');
+    expect((fetchMock.mock.calls[0]![1] as RequestInit).body).toBe(JSON.stringify({ name: 'Acme' }));
+  });
+
+  it('setPhone PATCHes the client and returns the updated record', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { id: 'c1', name: 'Acme', phone: '+971501234567', createdAt: 1 }));
+    const r = await new ClientsClient('http://api.test').setPhone('c1', '+971501234567');
+    expect(r?.phone).toBe('+971501234567');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('http://api.test/clients/c1');
+    expect((init as RequestInit).method).toBe('PATCH');
+    expect((init as RequestInit).body).toBe(JSON.stringify({ phone: '+971501234567' }));
+  });
+
+  it('setPhone returns null on failure', async () => {
+    fetchMock.mockResolvedValueOnce(json(404, {}));
+    expect(await new ClientsClient('http://api.test').setPhone('c1', 'x')).toBeNull();
+  });
+
   it('creates a pasted note under a client', async () => {
     fetchMock.mockResolvedValueOnce(json(201, { id: 'n1', source: 'paste', rawText: 'hi', status: 'pending_extraction', createdAt: 1 }));
     const client = new ClientsClient('http://api.test');

@@ -8,13 +8,18 @@ export interface ClientRecord {
   id: string;
   userId: string;
   name: string;
+  /** Optional contact phone (P4-7), stored as the rep entered it — we never
+   *  rewrite it or guess a country code. Null when unknown. */
+  phone: string | null;
   createdAt: number;
   /** Recency signal for fast selection — bumped on create and on activity. */
   lastTouchedAt: number;
 }
 
 export interface ClientRepository {
-  create(userId: string, name: string): Promise<ClientRecord>;
+  create(userId: string, name: string, phone?: string | null): Promise<ClientRecord>;
+  /** Set (or clear) a client's phone. Scoped to the owner; a no-op otherwise. */
+  setPhone(userId: string, id: string, phone: string | null): Promise<void>;
   /** Most-recently-touched first. */
   listByUser(userId: string): Promise<ClientRecord[]>;
   /** Case-insensitive name search, most-recently-touched first. */

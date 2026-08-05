@@ -23,13 +23,31 @@ export async function handleClientRoute(
 
   try {
     if (method === 'POST' && path === '/clients') {
-      const body = (await readJsonBody(req)) as { name?: unknown };
+      const body = (await readJsonBody(req)) as { name?: unknown; phone?: unknown };
       const name = typeof body.name === 'string' ? body.name.trim() : '';
       if (!name) {
         sendJson(res, 400, { error: 'validation', message: 'A client name is required.' });
         return true;
       }
-      sendJson(res, 201, await clients.create(userId, name));
+      // Stored as entered (P4-7) — we never rewrite it or guess a country code.
+      const phone = typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null;
+      sendJson(res, 201, await clients.create(userId, name, phone));
+      return true;
+    }
+
+    // [P4-7] Set (or clear) a client's phone. RLS/ownership scopes the row: a
+    // rep can never edit another rep's client, so a miss is a 404.
+    if (method === 'PATCH' && path.startsWith('/clients/') && !path.slice('/clients/'.length).includes('/')) {
+      const id = decodeURIComponent(path.slice('/clients/'.length));
+      const existing = await clients.findByIdForUser(userId, id);
+      if (!existing) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      const body = (await readJsonBody(req)) as { phone?: unknown };
+      const phone = typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null;
+      await clients.setPhone(userId, id, phone);
+      sendJson(res, 200, await clients.findByIdForUser(userId, id));
       return true;
     }
 

@@ -25,6 +25,7 @@ import { ImagesClient } from './gallery/imagesClient.js';
 import { Gallery } from './gallery/Gallery.js';
 import { FollowUpDraft } from './followup/FollowUpDraft.js';
 import { NotesTimeline } from './clients/NotesTimeline.js';
+import { ClientPhoneField } from './clients/ClientPhoneField.js';
 import { StakeholderMap } from './stakeholders/StakeholderMap.js';
 import { RecallClient } from './recall/recallClient.js';
 import { Ask } from './recall/Ask.js';
@@ -269,8 +270,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
           <CardScan
             api={cardsApi}
-            onCreateClient={async (n) => {
-              const created = await clientsApi.create(n);
+            onCreateClient={async (n, phone) => {
+              const created = await clientsApi.create(n, phone);
               setClients((prev) => [created, ...prev]);
               return created;
             }}
@@ -314,6 +315,7 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
   const [paste, setPaste] = useState('');
   const [brief, setBrief] = useState<Brief | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [phone, setPhone] = useState<string | null>(client.phone);
   // Notes the server refused to extract because of the trial seeding ceiling. We
   // stop retrying them and show the non-scary ceiling state (no client-side math).
   const [ceilingNoteIds, setCeilingNoteIds] = useState<Set<string>>(new Set());
@@ -381,6 +383,14 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       <button onClick={onBack} style={linkButton}>← Clients</button>
       <h1>{client.name}</h1>
 
+      <ClientPhoneField
+        phone={phone}
+        onSave={async (p) => {
+          const updated = await clientsApi.setPhone(client.id, p);
+          setPhone(updated ? updated.phone : p);
+        }}
+      />
+
       <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)}>Pre-meeting brief</button>
       {brief && <BriefPanel brief={brief} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />}
 
@@ -438,7 +448,7 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       <NotesTimeline
         notes={notes}
         ceilingNoteIds={ceilingNoteIds}
-        renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} />}
+        renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} />}
       />
     </main>
   );

@@ -27,6 +27,31 @@ describe('<CardScan>', () => {
     expect(await screen.findByText(/contact created/i)).toBeInTheDocument();
   });
 
+  // [P4-7] the scanned phone is offered to confirm (editable) and saved with the
+  // client — never saved silently.
+  it('offers the scanned phone to confirm and saves it with the client', async () => {
+    const user = userEvent.setup();
+    const onCreateClient = vi.fn().mockResolvedValue({ id: 'c1', name: 'Sara Lee' });
+    render(<CardScan api={makeApi({ isCard: true, contact: { name: 'Sara Lee', title: null, phone: '+971 50 123 4567', email: null } })} onCreateClient={onCreateClient} />);
+    await user.upload(screen.getByLabelText(/business card photo/i), file());
+    const phoneInput = await screen.findByLabelText(/phone/i);
+    expect(phoneInput).toHaveValue('+971 50 123 4567'); // pre-filled from the scan
+    await user.click(screen.getByRole('button', { name: /create client from card/i }));
+    await waitFor(() => expect(onCreateClient).toHaveBeenCalledWith('Sara Lee', '+971 50 123 4567'));
+  });
+
+  it('lets the rep correct the scanned phone before saving', async () => {
+    const user = userEvent.setup();
+    const onCreateClient = vi.fn().mockResolvedValue({ id: 'c1', name: 'Sara Lee' });
+    render(<CardScan api={makeApi({ isCard: true, contact: { name: 'Sara Lee', title: null, phone: '971 (bad)', email: null } })} onCreateClient={onCreateClient} />);
+    await user.upload(screen.getByLabelText(/business card photo/i), file());
+    const phoneInput = await screen.findByLabelText(/phone/i);
+    await user.clear(phoneInput);
+    await user.type(phoneInput, '+971509999999');
+    await user.click(screen.getByRole('button', { name: /create client from card/i }));
+    await waitFor(() => expect(onCreateClient).toHaveBeenCalledWith('Sara Lee', '+971509999999'));
+  });
+
   // NEGATIVE: no name detected → cannot create silently.
   it('disables create when no name was detected', async () => {
     const user = userEvent.setup();
