@@ -78,3 +78,12 @@ Three levers applied everywhere: **Graviton (ARM)** instances (~20% cheaper, sam
 ## One-paragraph summary
 
 Static frontend on S3/CloudFront, one small Graviton container for the API, a single-AZ `t4g.micro` Postgres with pgvector, Cognito (free at your scale), and Lambda for the daily scan — with AI (Bedrock + Groq) as the only cost that grows with use. Dodge the NAT Gateway and Multi-AZ traps, run everything on ARM, and the whole thing sits around **$25–30/mo fixed** plus usage. Scale each piece only when the metrics demand it.
+
+
+---
+
+## Go-live budget (supersedes the early-phase estimate above for launch planning)
+
+The ~$25–30/mo figure above is the pre-launch skeleton. The **go-live** platform bill, itemized (USD/mo): RDS prod t4g.small + 50GB + backups (~$38), RDS staging (~$12), prod compute (~$22), staging compute (~$6), S3+CloudFront (~$6), Route53/domain/SES (~$4), CloudWatch/Secrets/WAF (~$14), Sentry (~$26), CI/CD (~$8) ≈ **$136/mo ≈ AED 500/mo**, counted **inside COGS** (allocated per paying user) in `tovira-cogs-model.xlsx` (GO-LIVE AED tab).
+
+Unit economics at go-live (AED 299/mo single price): COGS ≈ AED 43/user (Haiku, sane-heavy Jarvis usage, full Stripe stack incl. Billing 0.7%), profit ≈ AED 245/user, **~164 users → AED 40K profit/month**. The four cost-guard architecture rules in the spec (§5e) are what keep this true.

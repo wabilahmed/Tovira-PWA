@@ -1,4 +1,4 @@
-# Tovira — Extraction Prompt (v0.1)
+# Tovira — Extraction Prompt (v0.2)
 
 *The core engine. Takes a transcribed voice note or pasted message about one client and returns structured JSON. This same output feeds the pre-meeting brief, promises tracker, stakeholder map, personal-facts memory, and date reminders. Draft to benchmark (Haiku 4.5 vs Sonnet 5) and refine — not final.*
 
@@ -79,6 +79,14 @@ Return a single JSON object with exactly these fields. Use an empty array `[]` w
     "an action item that is not a firm promise (softer 'should probably…' items)"
   ],
 
+  "unanswered_questions": [
+    {
+      "question": "the client's question, verbatim or near-verbatim",
+      "asked_on": "YYYY-MM-DD | null",   // from message timestamp when available
+      "context": "one short line of surrounding context | null"
+    }
+  ],
+
   "meeting": {
     "datetime": "YYYY-MM-DDTHH:MM | null",
     "datetime_raw": "original phrase",
@@ -89,13 +97,16 @@ Return a single JSON object with exactly these fields. Use an empty array `[]` w
 
 ### Rules (follow strictly)
 
+0. **Multilingual input is normal.** Notes may code-switch Arabic–English–Hindi–Urdu mid-sentence. Extract facts regardless of language mix; output field values in the language the fact was stated in (or English if mixed). If a segment is genuinely unparseable, flag the affected item low-confidence — never silently drop it.
+
 1. **Only extract what is explicitly stated or unambiguously implied.** Never invent, embellish, or infer beyond the words. When in doubt, leave it out.
 2. **Dates:** resolve relative dates ("next Tuesday", "in two weeks", "end of month") using TODAY'S DATE given in the message below. If you cannot resolve a date with confidence, set the date field to `null` and keep the original wording in the `_raw` field. **Never guess a specific date.**
 3. **Confidence & ambiguity:** mark anything uncertain as `"confidence": "low"` so the app can ask the rep to confirm instead of acting silently. Prefer flagging over guessing.
 4. **Promises vs next steps:** a *promise* is a clear commitment ("I'll send the revised quote Friday"). A *next step* is softer ("we should probably loop in their finance team"). When unsure, treat it as a next step, not a promise.
 5. **People:** use names exactly as stated. Do not merge two mentions into one person unless clearly the same. Do not assume a decision role that wasn't indicated — use `"unknown"`.
 6. **The note is about the client named in the message below.** Attribute facts to the right person; the main contact may be that client, but notes can mention others.
-7. **Output only valid JSON** matching the schema. No prose, no explanation, no markdown, no code fences. Nothing before or after the JSON object.
+7. **Unanswered questions — chat exports only.** Flag a client question as unanswered ONLY in speaker-attributed multi-message content (WhatsApp exports) where the question is followed by no substantive rep reply (thread ends, or the rep replies about something else). Never flag from a single pasted message or a voice note — there is no way to know the rep didn't answer elsewhere. When in doubt, do not flag.
+8. **Output only valid JSON** matching the schema. No prose, no explanation, no markdown, no code fences. Nothing before or after the JSON object.
 
 ### Examples
 
@@ -125,6 +136,7 @@ Output:
   "next_steps": [
     "Get Meridian's IT lead on the next call"
   ],
+  "unanswered_questions": [],
   "meeting": null
 }
 ```
@@ -150,6 +162,7 @@ Output:
     "Enterprise-tier pricing is higher than their budget"
   ],
   "next_steps": [],
+  "unanswered_questions": [],
   "meeting": {
     "datetime": null,
     "datetime_raw": "thursday 3pm",
@@ -183,10 +196,10 @@ The model uses `TODAY'S DATE` to turn "next Tuesday" into a real date. Because t
 - **Parsing:** parse the response as JSON. If parsing fails, don't write partial data — retry once, then flag the note for manual review rather than guessing.
 - **Where each field lands in Postgres:**
   - `promises`, `key_dates`, `meeting`, `people` (links) → the **spine** columns (these drive the tracker, reminders, stakeholder map, calendar).
-  - `personal_facts`, `concerns`, `next_steps`, `summary` → **JSONB** flexible notes (varied, industry-specific).
+  - `personal_facts`, `concerns`, `next_steps`, `summary`, `unanswered_questions` → **JSONB** flexible notes (unanswered questions additionally link back to the source message so the Book Scan / Monday digest can show the receipt).
   - The raw transcript/message → the **messy pile** (text + pgvector embedding) — stored separately, not the model's job.
 - **Confirmation UX:** anything with `"confidence": "low"`, a `null` resolved date with a `_raw` phrase, or a `meeting` should surface a quick "is this right?" tap before Tovira acts on it. This is where "show what I understood" from the spec lives.
 - **Logging:** every call writes input + this JSON output + prompt version + rep corrections to the training table (per the distillation plan). Bump the version string below whenever you edit the prompt.
 - **More examples help twice:** each additional worked example improves accuracy AND adds tokens toward the 4,096 cache floor. Add real (anonymized) rambles as you collect them.
 
-**Prompt version:** `tovira-extract-v0.1`
+**Prompt version:** `tovira-extract-v0.2` *(v0.2: added multilingual Rule 0 + `unanswered_questions` schema field with chat-export-only detection rule)*
