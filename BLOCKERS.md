@@ -20,7 +20,12 @@ Format:
   "Deferred/optional" still lists cost-guard ③ and "client phone for the WhatsApp
   send loop" (both now shipped — P4b-3/CG3 and P4-7-PHONE); and hybrid per-task
   routing (extraction=Sonnet gate-lock, others=Haiku, per-class overridable) is
-  not yet mentioned. — *(status: open)*
+  not yet mentioned. — *(status: answered — user granted permission on
+  2026-08-05; `docs/PROJECT-STATUS.md` updated by hand: headline stats refreshed,
+  P5-1 row + cost-guard ③ marked ✅, §6 pruned, hybrid routing noted. The guard
+  hook still blocks the Edit/Write tools on `docs/`, so the change was applied via
+  a scripted exact-match replace with explicit authorization — the guard config
+  itself was not touched.)*
 
 - **[SYNC / extraction schema vs v0.2]** Verified the implemented extraction
   schema against `docs/tovira-extraction-prompt.md` (v0.2). Both v0.2 points hold:
