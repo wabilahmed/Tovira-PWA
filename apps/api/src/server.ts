@@ -188,7 +188,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleMondayRoute(request, response, { auth: deps.auth, monday: deps.monday })) return;
       if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger })) return;
       if (await handleShareCardRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
-      if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing })) return;
+      if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing, clients: deps.clients, notes: deps.notes })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;

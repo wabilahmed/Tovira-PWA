@@ -8,9 +8,29 @@ import type {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** The activity bar for the +7-day trial extension (P5-1): notes on 3 DISTINCT clients. */
+export const TRIAL_EXTENSION_MIN_CLIENTS = 3;
+export const TRIAL_EXTENSION_DAYS = 7;
+
 export interface Entitlement {
   entitled: boolean;
   status: string;
+  trialEndsAt: number;
+}
+
+/**
+ * Server-computed state of the trial-extension incentive (P5-1-UI). The client
+ * renders this verbatim and NEVER computes eligibility itself.
+ *  - `progress`: trialing, not yet extended → show how close they are.
+ *  - `earned`:   extended and still trialing → confirm the new trial end.
+ *  - `hidden`:   converted to paid, expired, or no trial → render nothing.
+ */
+export interface ExtensionIncentive {
+  state: 'progress' | 'earned' | 'hidden';
+  distinctClients: number;
+  needed: number;
+  remaining: number;
+  extensionDays: number;
   trialEndsAt: number;
 }
 
@@ -40,12 +60,34 @@ export class BillingService {
    * unlocks +7 days, ONCE, server-side. Re-qualifying does nothing; a paid/expired
    * account never extends. Returns true only when it actually extended.
    */
-  async extendTrialForActivity(userId: string, distinctClientsWithNotes: number, extensionDays = 7): Promise<boolean> {
+  async extendTrialForActivity(userId: string, distinctClientsWithNotes: number, extensionDays = TRIAL_EXTENSION_DAYS): Promise<boolean> {
     const s = await this.subs.get(userId);
     if (!s || s.status !== 'trialing' || s.trialExtended) return false;
-    if (distinctClientsWithNotes < 3) return false;
+    if (distinctClientsWithNotes < TRIAL_EXTENSION_MIN_CLIENTS) return false;
     await this.subs.update(userId, { trialEndsAt: s.trialEndsAt + extensionDays * DAY_MS, trialExtended: true });
     return true;
+  }
+
+  /**
+   * The server-owned incentive state (P5-1-UI). Read-only: it never extends —
+   * that stays on the capture path in {@link extendTrialForActivity}. The count
+   * of distinct clients-with-notes is passed in (computed the same way as the
+   * extension trigger) so the progress the rep sees can never disagree with what
+   * actually earns the extension.
+   */
+  async extensionIncentive(userId: string, distinctClientsWithNotes: number, nowMs: number): Promise<ExtensionIncentive> {
+    const needed = TRIAL_EXTENSION_MIN_CLIENTS;
+    const base = { distinctClients: distinctClientsWithNotes, needed, extensionDays: TRIAL_EXTENSION_DAYS };
+    const s = await this.subs.get(userId);
+    const trialingNow = !!s && s.status === 'trialing' && nowMs < s.trialEndsAt;
+    // Converted to paid, expired, or no trial → nothing to nudge.
+    if (!s || !trialingNow) {
+      return { state: 'hidden', ...base, remaining: Math.max(0, needed - distinctClientsWithNotes), trialEndsAt: s?.trialEndsAt ?? 0 };
+    }
+    if (s.trialExtended) {
+      return { state: 'earned', ...base, remaining: 0, trialEndsAt: s.trialEndsAt };
+    }
+    return { state: 'progress', ...base, remaining: Math.max(0, needed - distinctClientsWithNotes), trialEndsAt: s.trialEndsAt };
   }
 
   /** Grant one free month (P5-6 referral) by pushing the trial end out 30 days.
