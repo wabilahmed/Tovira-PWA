@@ -25,6 +25,11 @@ interface AnthropicResponseBody {
 export class AnthropicModelClient implements ModelClient {
   constructor(private readonly opts: AnthropicModelClientOptions) {}
 
+  /** The model id this client sends to the API — exposed for routing assertions. */
+  get modelId(): string {
+    return this.opts.model;
+  }
+
   async complete(request: ModelCompletionRequest): Promise<ModelCompletionResponse> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.opts.timeoutMs ?? 30_000);

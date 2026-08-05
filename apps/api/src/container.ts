@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { AppConfig } from './config.js';
+import type { AppConfig, AiTaskClass } from './config.js';
 import type { ModelClient } from './ports/model.js';
 import type { AuthProvider } from './ports/auth.js';
 import type { Storage } from './ports/storage.js';
@@ -115,15 +115,21 @@ export function createLedgerService(config: AppConfig, pool?: Pool): LedgerServi
 
 /** Conversational recall (P4-8): embed + retrieve top-k + grounded answer. */
 export function createRecallService(config: AppConfig, notes: NoteRepository): RecallService {
-  return new RecallService(createEmbedder(config), notes, createModelClient(config));
+  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'));
 }
 
-export function createModelClient(config: AppConfig): ModelClient {
+/**
+ * Build a model client for a given AI task class (P1-9 hybrid routing). The
+ * class only selects the MODEL id — it never touches the system prompt, so the
+ * extraction cacheable prefix stays byte-identical and Haiku/Sonnet keep
+ * separate caches. Defaults to `extraction` (Sonnet) for backward compatibility.
+ */
+export function createModelClient(config: AppConfig, taskClass: AiTaskClass = 'extraction'): ModelClient {
   if (config.modelProvider === 'anthropic') {
     return new AnthropicModelClient({
       apiKey: config.anthropicApiKey ?? '',
       baseUrl: config.anthropicBaseUrl,
-      model: config.anthropicModel,
+      model: config.models[taskClass],
     });
   }
   return new StubModelClient();
@@ -381,7 +387,7 @@ export function scanConfigFrom(config: AppConfig): ScanConfig {
 
 /** Follow-up draft service (grounded on the note's real commitments). */
 export function createFollowUpService(config: AppConfig, notes: NoteRepository): FollowUpService {
-  return new FollowUpService(createModelClient(config), notes);
+  return new FollowUpService(createModelClient(config, 'drafts'), notes);
 }
 
 /** The pre-meeting brief service (spine + JSONB + semantic search). */

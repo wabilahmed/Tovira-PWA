@@ -15,6 +15,24 @@ export type TranscriberProvider = 'stub' | 'groq';
 export type EmbedderProvider = 'stub' | 'bedrock';
 export type PushProvider = 'stub' | 'webpush';
 
+/**
+ * The AI task classes (P1-9 hybrid routing). Each has its own model setting,
+ * config-overridable per class with no code change. Extraction is gate-locked to
+ * Sonnet; every other class defaults to Haiku (cheaper, and non-extraction work
+ * does not carry the "never guess a date" trust burden that pinned extraction).
+ */
+export const AI_TASK_CLASSES = [
+  'extraction',
+  'recall',
+  'brief',
+  'priorities',
+  'summaries',
+  'patterns',
+  'drafts',
+  'card_scan',
+] as const;
+export type AiTaskClass = (typeof AI_TASK_CLASSES)[number];
+
 const MODEL_PROVIDERS: readonly ModelProvider[] = ['stub', 'anthropic'];
 const AUTH_STORES: readonly AuthStore[] = ['memory', 'postgres'];
 const TRANSCRIBER_PROVIDERS: readonly TranscriberProvider[] = ['stub', 'groq'];
@@ -32,6 +50,11 @@ export interface AppConfig {
   anthropicApiKey: string | undefined;
   anthropicBaseUrl: string;
   anthropicModel: string;
+  /**
+   * Per-task-class model routing (P1-9 hybrid). extraction=Sonnet (gate-locked),
+   * all other classes=Haiku by default; each overridable via MODEL_<CLASS>.
+   */
+  models: Record<AiTaskClass, string>;
   storageDir: string;
   // --- auth (P0-3) ---
   authStore: AuthStore;
@@ -101,6 +124,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     // "never guess a date" trust rule. Sonnet 5 passed clean (0 fabricated,
     // 0 guessed). Extraction defaults to Sonnet; override with ANTHROPIC_MODEL.
     anthropicModel: env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5',
+    models: resolveModels(env),
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
     authStore: parseAuthStore(env.AUTH_STORE),
     sessionTtlHours: parseSessionTtlHours(env.SESSION_TTL_HOURS),
@@ -130,6 +154,24 @@ export function loadConfig(env: Env = process.env): AppConfig {
     vapidPrivateKey: env.VAPID_PRIVATE_KEY?.trim() || '',
     vapidSubject: env.VAPID_SUBJECT?.trim() || 'mailto:ops@tovira.local',
   };
+}
+
+/**
+ * Resolve the per-class model map. Extraction inherits ANTHROPIC_MODEL (Sonnet by
+ * default — the P1-9 gate lock); every other class inherits HAIKU_MODEL (Haiku
+ * 4.5 by default). A `MODEL_<CLASS>` var (e.g. MODEL_RECALL, MODEL_CARD_SCAN)
+ * overrides a single class with no code change and beats the family default.
+ */
+function resolveModels(env: Env): Record<AiTaskClass, string> {
+  const extractionModel = env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5';
+  const haikuModel = env.HAIKU_MODEL?.trim() || 'claude-haiku-4-5-20251001';
+  const out = {} as Record<AiTaskClass, string>;
+  for (const cls of AI_TASK_CLASSES) {
+    const family = cls === 'extraction' ? extractionModel : haikuModel;
+    const override = env[`MODEL_${cls.toUpperCase()}`]?.trim();
+    out[cls] = override || family;
+  }
+  return out;
 }
 
 function parseEnum<T extends string>(raw: string | undefined, allowed: readonly T[], fallback: T, name: string): T {

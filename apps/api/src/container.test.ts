@@ -29,4 +29,13 @@ describe('container (composition root)', () => {
     );
     expect(model).toBeInstanceOf(AnthropicModelClient);
   });
+
+  // [TASK ROUTING] Per-class model routing through the composition root.
+  it('routes each task class to its configured model', () => {
+    const config = loadConfig({ DATABASE_URL: 'x', MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-test' });
+    expect((createModelClient(config, 'extraction') as AnthropicModelClient).modelId).toBe('claude-sonnet-5');
+    expect((createModelClient(config, 'recall') as AnthropicModelClient).modelId).toBe('claude-haiku-4-5-20251001');
+    // No class given → the extraction default (backward compatible).
+    expect((createModelClient(config) as AnthropicModelClient).modelId).toBe('claude-sonnet-5');
+  });
 });

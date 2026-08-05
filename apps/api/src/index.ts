@@ -99,7 +99,7 @@ async function main(): Promise<void> {
   const hero = createHeroService(config, clients, facts, meetings, notes);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
   // (cost-guard #3, P4b-3). Uses the priorities-class model (see routing).
-  const priorities = new PrioritiesService(hero, createModelClient(config), createPrioritiesRepository(config, appPool));
+  const priorities = new PrioritiesService(hero, createModelClient(config, 'priorities'), createPrioritiesRepository(config, appPool));
   const scheduler = new LocalScheduler();
   scheduler.register({
     name: 'priorities-nightly',
