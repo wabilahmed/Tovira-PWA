@@ -71,6 +71,19 @@ describe('ClientsClient', () => {
     expect((init as RequestInit).body).toBe(JSON.stringify({ content: 'chat', consent: true }));
   });
 
+  // [P5-1-CEILING-UI] the server signals when the trial ceiling stopped extraction.
+  it('surfaces ceilingReached from the server (the processed portion is still ok)', async () => {
+    fetchMock.mockResolvedValueOnce(json(201, { imported: 4, ceilingReached: true, note: {} }));
+    const r = await new ClientsClient('http://api.test').importWhatsApp('c1', 'chat', true);
+    expect(r).toEqual({ ok: true, imported: 4, ceilingReached: true });
+  });
+
+  it('extractNote returns the server-reported status (e.g. trial_limit)', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { note: {}, status: 'trial_limit' }));
+    const r = await new ClientsClient('http://api.test').extractNote('n1');
+    expect(r).toEqual({ status: 'trial_limit' });
+  });
+
   it('maps 400 → consent error', async () => {
     fetchMock.mockResolvedValueOnce(json(400, { error: 'consent_required' }));
     const r = await new ClientsClient('http://api.test').importWhatsApp('c1', 'chat', false);

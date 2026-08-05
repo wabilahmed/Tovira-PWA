@@ -32,7 +32,7 @@ export interface Stakeholder {
 }
 
 export type ImportResult =
-  | { ok: true; imported: number }
+  | { ok: true; imported: number; ceilingReached?: boolean }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
 
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
@@ -103,8 +103,10 @@ export class ClientsClient {
       return { ok: false, error: 'other', message: 'Network error — please try again.' };
     }
     if (res.status === 201) {
-      const body = (await res.json()) as { imported: number };
-      return { ok: true, imported: body.imported };
+      const body = (await res.json()) as { imported: number; ceilingReached?: boolean };
+      // Only attach the flag when the ceiling was actually hit — keeps the common
+      // success shape { ok, imported } clean.
+      return body.ceilingReached ? { ok: true, imported: body.imported, ceilingReached: true } : { ok: true, imported: body.imported };
     }
     if (res.status === 400) return { ok: false, error: 'consent', message: 'Please confirm consent to import.' };
     if (res.status === 413) return { ok: false, error: 'too_large', message: 'That export is too large to import.' };
@@ -131,8 +133,17 @@ export class ClientsClient {
     await fetch(this.url(`/notes/${noteId}/transcribe`), { method: 'POST', credentials: 'include' });
   }
 
-  async extractNote(noteId: string): Promise<void> {
-    await fetch(this.url(`/notes/${noteId}/extract`), { method: 'POST', credentials: 'include' });
+  /** Kick extraction for a note. Returns the server-reported status so the caller
+   *  can react to a ceiling stop (`trial_limit`) without any client-side math. */
+  async extractNote(noteId: string): Promise<{ status?: string }> {
+    try {
+      const res = await fetch(this.url(`/notes/${noteId}/extract`), { method: 'POST', credentials: 'include' });
+      if (res.status !== 200) return {};
+      const body = (await res.json()) as { status?: string };
+      return { status: body.status };
+    } catch {
+      return {};
+    }
   }
 
   async getBrief(clientId: string): Promise<Brief | null> {

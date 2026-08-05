@@ -47,14 +47,25 @@ async function recordReopenIfFlagged(deps: NoteRouteDeps, userId: string, client
   }
 }
 
+/** Count the rep's clients that have at least one note — the exact signal that
+ *  earns the P5-1 extension, shared with the incentive display so the two agree. */
+export async function countDistinctClientsWithNotes(
+  clients: ClientRepository,
+  notes: NoteRepository,
+  userId: string,
+): Promise<number> {
+  let distinct = 0;
+  for (const c of await clients.listByUser(userId)) {
+    if ((await notes.listByClient(userId, c.id)).length > 0) distinct += 1;
+  }
+  return distinct;
+}
+
 /** Activity-gated trial extension (P5-1): notes on 3+ distinct clients → +7 days
  *  once. Enforced server-side, on the capture path — never client-triggerable. */
 async function maybeExtendTrial(deps: NoteRouteDeps, userId: string): Promise<void> {
   if (!deps.billing) return;
-  let distinct = 0;
-  for (const c of await deps.clients.listByUser(userId)) {
-    if ((await deps.notes.listByClient(userId, c.id)).length > 0) distinct += 1;
-  }
+  const distinct = await countDistinctClientsWithNotes(deps.clients, deps.notes, userId);
   await deps.billing.extendTrialForActivity(userId, distinct);
 }
 
@@ -220,9 +231,12 @@ export async function handleNoteRoute(
         messages,
       });
       await deps.clients.touch(userId, clientId);
-      await deps.extraction.extractNote(userId, note.id, todayIso());
+      // The chat is already stored; extraction may be refused by the trial
+      // seeding ceiling (cost guard #4). If so, the note is SAFE and pending —
+      // we signal it so the UI can explain the ceiling (never client-side math).
+      const outcome = await deps.extraction.extractNote(userId, note.id, todayIso());
       const updated = await deps.notes.findByIdForUser(userId, note.id);
-      sendJson(res, 201, { note: updated, imported: fresh.length });
+      sendJson(res, 201, { note: updated, imported: fresh.length, ceilingReached: outcome.status === 'trial_limit' });
       return true;
     }
 

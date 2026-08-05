@@ -16,6 +16,7 @@ import { MeetingsClient } from './meetings/meetingsClient.js';
 import { Meetings } from './meetings/Meetings.js';
 import { BillingClient } from './billing/billingClient.js';
 import { Billing } from './billing/Billing.js';
+import { TrialIncentive } from './billing/TrialIncentive.js';
 import { AccountClient } from './account/accountClient.js';
 import { AccountControls } from './account/AccountControls.js';
 import { CardsClient } from './cards/cardsClient.js';
@@ -23,6 +24,7 @@ import { CardScan } from './cards/CardScan.js';
 import { ImagesClient } from './gallery/imagesClient.js';
 import { Gallery } from './gallery/Gallery.js';
 import { FollowUpDraft } from './followup/FollowUpDraft.js';
+import { NotesTimeline } from './clients/NotesTimeline.js';
 import { StakeholderMap } from './stakeholders/StakeholderMap.js';
 import { RecallClient } from './recall/recallClient.js';
 import { Ask } from './recall/Ask.js';
@@ -244,6 +246,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'settings' && (
         <>
+          <TrialIncentive api={billingApi} />
           <Billing api={billingApi} />
           <NotificationSetup state={readPushState()} api={notificationApi} />
           <AccountControls api={accountApi} onDeleted={onLogout} />
@@ -311,18 +314,28 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
   const [paste, setPaste] = useState('');
   const [brief, setBrief] = useState<Brief | null>(null);
   const [showImport, setShowImport] = useState(false);
+  // Notes the server refused to extract because of the trial seeding ceiling. We
+  // stop retrying them and show the non-scary ceiling state (no client-side math).
+  const [ceilingNoteIds, setCeilingNoteIds] = useState<Set<string>>(new Set());
 
   const refresh = (): void => {
     void clientsApi.listNotes(client.id).then(async (list) => {
       setNotes(list);
-      // Advance any notes through the pipeline: transcribe, then extract.
+      // Advance any notes through the pipeline: transcribe, then extract. Skip
+      // notes already blocked by the ceiling — retrying just hits it again.
       const toTranscribe = list.filter((n) => n.status === 'pending_transcription');
-      const toExtract = list.filter((n) => n.status === 'pending_extraction');
+      const toExtract = list.filter((n) => n.status === 'pending_extraction' && !ceilingNoteIds.has(n.id));
       if (toTranscribe.length > 0 || toExtract.length > 0) {
+        const extractResults: Array<{ id: string; status?: string }> = [];
         await Promise.all([
           ...toTranscribe.map((n) => clientsApi.transcribeNote(n.id)),
-          ...toExtract.map((n) => clientsApi.extractNote(n.id)),
+          ...toExtract.map(async (n) => {
+            const r = await clientsApi.extractNote(n.id);
+            extractResults.push({ id: n.id, status: r.status });
+          }),
         ]);
+        const blocked = extractResults.filter((r) => r.status === 'trial_limit').map((r) => r.id);
+        if (blocked.length > 0) setCeilingNoteIds((prev) => new Set([...prev, ...blocked]));
         setNotes(await clientsApi.listNotes(client.id));
       }
     });
@@ -422,22 +435,11 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       <Gallery clientId={client.id} api={imagesApi} />
 
       <h2 style={{ fontSize: '1rem', marginTop: '1.5rem' }}>Notes</h2>
-      {notes.length === 0 ? (
-        <p style={{ color: '#666' }}>No notes yet.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {notes.map((n) => (
-            <li key={n.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid #eee' }}>
-              <small style={{ color: '#888' }}>
-                {new Date(n.createdAt).toLocaleString()} · {n.source}
-                {isProcessing(n.status) && <em style={{ color: '#a15c00' }}> · {processingLabel(n.status)}</em>}
-              </small>
-              <div>{n.rawText ?? <em>(transcription pending)</em>}</div>
-              {n.rawText && <FollowUpDraft noteId={n.id} api={clientsApi} />}
-            </li>
-          ))}
-        </ul>
-      )}
+      <NotesTimeline
+        notes={notes}
+        ceilingNoteIds={ceilingNoteIds}
+        renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} />}
+      />
     </main>
   );
 }
@@ -556,13 +558,6 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
       )}
     </section>
   );
-}
-
-function isProcessing(status: string): boolean {
-  return status === 'pending_transcription' || status === 'pending_extraction';
-}
-function processingLabel(status: string): string {
-  return status === 'pending_transcription' ? 'transcribing…' : 'analysing…';
 }
 
 const briefBox: React.CSSProperties = {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ImportResult } from '../clients/clientsClient.js';
+import { CeilingNotice } from './CeilingNotice.js';
 
 export interface ImportApi {
   importWhatsApp(clientId: string, content: string, consent: boolean): Promise<ImportResult>;
@@ -23,6 +24,7 @@ export function ImportChat({
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ceilingCount, setCeilingCount] = useState<number | null>(null);
 
   const canSubmit = content.trim().length > 0 && consent && !busy;
 
@@ -39,11 +41,16 @@ export function ImportChat({
     if (!canSubmit) return;
     setBusy(true);
     setError(null);
+    setCeilingCount(null);
     const result = await api.importWhatsApp(clientId, content, consent);
     setBusy(false);
     if (result.ok) {
       setContent('');
       setConsent(false);
+      // The import succeeded and the chat is saved. If the trial ceiling stopped
+      // the scan, show the reassuring notice here too (the timeline shows it per
+      // note). Either way the timeline refreshes via onImported.
+      if (result.ceilingReached) setCeilingCount(result.imported);
       onImported(result.imported);
     } else {
       setError(result.message);
@@ -83,6 +90,7 @@ export function ImportChat({
       </label>
 
       {error && <p role="alert" style={{ color: 'crimson', margin: 0 }}>{error}</p>}
+      {ceilingCount !== null && <CeilingNotice imported={ceilingCount} />}
 
       <button type="submit" disabled={!canSubmit}>
         {busy ? 'Importing…' : 'Import chat'}

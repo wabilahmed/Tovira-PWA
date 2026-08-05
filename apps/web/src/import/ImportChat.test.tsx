@@ -48,6 +48,23 @@ describe('<ImportChat>', () => {
     expect(api.importWhatsApp).toHaveBeenCalledWith('c1', 'Sara: hi there', true);
   });
 
+  // [P5-1-CEILING-UI] a ceiling-limited import still succeeds (data saved) and
+  // shows the non-scary ceiling notice with the processed count.
+  it('shows the ceiling notice (not an error) when the trial ceiling was hit', async () => {
+    const user = userEvent.setup();
+    const api = makeApi({ ok: true, imported: 8, ceilingReached: true });
+    const onImported = vi.fn();
+    render(<ImportChat clientId="c1" api={api} onImported={onImported} />);
+
+    await user.type(screen.getByLabelText(/pasted chat export/i), 'Sara: hi there');
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /import chat/i }));
+
+    expect(await screen.findByTestId('ceiling-notice')).toHaveTextContent(/8/);
+    expect(screen.queryByRole('alert')).toBeNull(); // not an error
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith(8));
+  });
+
   // NEGATIVE: a rejected import surfaces the error and does NOT call onImported.
   it('shows the server error and does not report success on failure', async () => {
     const user = userEvent.setup();

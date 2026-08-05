@@ -14,6 +14,7 @@ import { InMemoryFactsRepository } from '../adapters/facts/in-memory-facts-repos
 import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
 import { StubEmbedder } from '../adapters/embedding/stub.js';
 import { ExtractionService } from '../services/extraction/extraction-service.js';
+import type { ExtractionLimiter } from '../services/extraction/limiter.js';
 import { BriefService } from '../services/brief/brief-service.js';
 import { FollowUpService } from '../services/followup/follow-up-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
@@ -53,7 +54,10 @@ export interface TestDeps extends ApiDeps {
  * Build a full in-memory ApiDeps for HTTP tests. Central so adding a dependency
  * touches one place, not every test file.
  */
-export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
+export function buildInMemoryDeps(
+  overrides: Partial<ApiDeps> = {},
+  opts: { extractionLimiter?: ExtractionLimiter } = {},
+): TestDeps {
   const stubPool = { query: async () => ({ rows: [] }) } as unknown as Pool;
   const auth = new AuthService({
     users: new InMemoryUserRepository(),
@@ -78,6 +82,8 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     extractionLog,
     'stub',
     corrections,
+    undefined,
+    opts.extractionLimiter,
   );
   const brief = new BriefService(clients, notes, facts, embedder);
   const followUp = new FollowUpService(new StubModelClient(), notes);
