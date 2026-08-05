@@ -48,4 +48,20 @@ describe('HeroClient', () => {
     expect(String(fetchMock.mock.calls[1]![0])).toBe('http://api.test/hero/risk');
     expect(String(fetchMock.mock.calls[2]![0])).toBe('http://api.test/today');
   });
+
+  it('refreshToday POSTs and returns actions + remaining', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { actions: [{ kind: 'promise', priority: 1, text: 'x', clientId: 'c' }], refreshesRemaining: 1 }));
+    const r = await new HeroClient('http://api.test').refreshToday();
+    expect(r).toMatchObject({ refreshesRemaining: 1 });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('http://api.test/today/refresh');
+    expect((init as RequestInit).method).toBe('POST');
+  });
+
+  it('refreshToday returns "rate_limited" on 429 and null on other errors', async () => {
+    fetchMock.mockResolvedValueOnce(json(429, {}));
+    expect(await new HeroClient().refreshToday()).toBe('rate_limited');
+    fetchMock.mockResolvedValueOnce(json(500, {}));
+    expect(await new HeroClient().refreshToday()).toBeNull();
+  });
 });

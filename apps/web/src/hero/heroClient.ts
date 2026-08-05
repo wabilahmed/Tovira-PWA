@@ -53,4 +53,16 @@ export class HeroClient {
   today(): Promise<TodayAction[]> {
     return this.get('/today', (b) => (b as { actions: TodayAction[] }).actions, []);
   }
+
+  /** Manual refresh of today's priorities (rate-limited server-side). */
+  async refreshToday(): Promise<{ actions: TodayAction[]; refreshesRemaining: number } | 'rate_limited' | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/today/refresh`, { method: 'POST', credentials: 'include' });
+      if (res.status === 429) return 'rate_limited';
+      if (res.status !== 200) return null;
+      return (await res.json()) as { actions: TodayAction[]; refreshesRemaining: number };
+    } catch {
+      return null;
+    }
+  }
 }

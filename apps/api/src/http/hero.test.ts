@@ -54,4 +54,25 @@ describe('[P4b] hero endpoints', () => {
     expect((await fetch(`${base}/hero/status`)).status).toBe(401);
     expect((await fetch(`${base}/today`)).status).toBe(401);
   });
+
+  // [P4b-3 / cost-guard #3] /today serves a cached result; refresh is rate-limited.
+  it('reports remaining refreshes and rate-limits manual refresh server-side', async () => {
+    const { token } = await signup('refresh-today@example.com');
+    const auth = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const first = (await (await fetch(`${base}/today`, { headers: auth })).json()) as { actions: unknown[]; refreshesRemaining: number };
+    expect(first.refreshesRemaining).toBe(2);
+
+    // Two manual refreshes allowed…
+    expect((await fetch(`${base}/today/refresh`, { method: 'POST', headers: auth })).status).toBe(200);
+    const second = await fetch(`${base}/today/refresh`, { method: 'POST', headers: auth });
+    expect(second.status).toBe(200);
+    expect(((await second.json()) as { refreshesRemaining: number }).refreshesRemaining).toBe(0);
+    // …the third is blocked server-side.
+    const third = await fetch(`${base}/today/refresh`, { method: 'POST', headers: auth });
+    expect(third.status).toBe(429);
+  });
+
+  it('refresh requires auth', async () => {
+    expect((await fetch(`${base}/today/refresh`, { method: 'POST' })).status).toBe(401);
+  });
 });

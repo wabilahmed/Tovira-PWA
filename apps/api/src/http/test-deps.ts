@@ -22,6 +22,8 @@ import { MeetingParser } from '../services/meetings/meeting-parser.js';
 import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
 import { ScanService } from '../services/scan/scan-service.js';
 import { HeroService } from '../services/hero/hero-service.js';
+import { PrioritiesService } from '../services/hero/priorities-service.js';
+import { InMemoryPrioritiesRepository } from '../adapters/priorities/in-memory-priorities-repository.js';
 import { BookScanService } from '../services/book-scan/book-scan-service.js';
 import { RecallService } from '../services/recall/recall-service.js';
 import { CorpusStatsService } from '../services/corpus/corpus-service.js';
@@ -84,6 +86,7 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   const notifications = new InMemoryNotificationRepository();
   const scan = new ScanService(clients, meetings, facts, notifications, notes);
   const images = new InMemoryImageRepository();
+  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
   return {
     pool: stubPool,
@@ -107,7 +110,8 @@ export function buildInMemoryDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
     pushSender: new StubPushSender(),
     cardScanner: new StubCardScanner(),
     images,
-    hero: new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30),
+    hero,
+    priorities: new PrioritiesService(hero, new StubModelClient(), new InMemoryPrioritiesRepository()),
     billing,
     account: new AccountService(auth, clients, notes, facts, meetings, images, [clients, notes, facts, meetings]),
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),

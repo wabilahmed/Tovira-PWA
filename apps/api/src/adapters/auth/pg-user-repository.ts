@@ -51,4 +51,9 @@ export class PgUserRepository implements UserRepository {
     // FK ON DELETE CASCADE removes every tenant table + training log for this user.
     await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
   }
+
+  async listAllIds(): Promise<string[]> {
+    const { rows } = await this.pool.query<{ id: string }>('SELECT id FROM users');
+    return rows.map((r) => r.id);
+  }
 }

@@ -6,6 +6,7 @@ export interface HeroApi {
   patterns(): Promise<Pattern[]>;
   risk(): Promise<RiskItem[]>;
   today(): Promise<TodayAction[]>;
+  refreshToday(): Promise<{ actions: TodayAction[]; refreshesRemaining: number } | 'rate_limited' | null>;
 }
 
 /**
@@ -19,6 +20,9 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [risk, setRisk] = useState<RiskItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+  const [rateLimited, setRateLimited] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -35,11 +39,31 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
     };
   }, [api]);
 
+  async function refresh(): Promise<void> {
+    setRefreshing(true);
+    const r = await api.refreshToday();
+    setRefreshing(false);
+    if (r === 'rate_limited') {
+      setRateLimited(true);
+      setRefreshMsg('Daily refresh limit reached — your list updates again tomorrow.');
+    } else if (r) {
+      setActions(r.actions);
+      setRateLimited(r.refreshesRemaining === 0);
+      setRefreshMsg(r.refreshesRemaining === 0 ? 'No more refreshes today.' : `${r.refreshesRemaining} refresh${r.refreshesRemaining === 1 ? '' : 'es'} left today.`);
+    }
+  }
+
   if (loading) return <p>Working out your day…</p>;
 
   return (
     <section aria-label="Insights">
-      <h2 style={{ marginTop: 0 }}>What to do today</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <h2 style={{ marginTop: 0 }}>What to do today</h2>
+        <button onClick={() => void refresh()} disabled={refreshing || rateLimited}>
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+      {refreshMsg && <p data-testid="refresh-msg" style={{ color: rateLimited ? '#92400e' : '#666', fontSize: '0.85rem' }}>{refreshMsg}</p>}
       {actions.length === 0 ? (
         <p style={{ color: '#666' }}>Nothing urgent right now.</p>
       ) : (

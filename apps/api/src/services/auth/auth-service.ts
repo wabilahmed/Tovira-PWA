@@ -106,6 +106,11 @@ export class AuthService {
     await this.deps.users.delete(userId);
   }
 
+  /** All user ids — drives the nightly priorities precompute (P4b-3). */
+  async allUserIds(): Promise<string[]> {
+    return this.deps.users.listAllIds();
+  }
+
   async getPublicUser(userId: string): Promise<PublicUser | null> {
     const user = await this.deps.users.findById(userId);
     return user ? { id: user.id, email: user.email } : null;

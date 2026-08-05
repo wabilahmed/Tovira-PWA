@@ -35,6 +35,10 @@ export class InMemoryUserRepository implements UserRepository {
     }
   }
 
+  async listAllIds(): Promise<string[]> {
+    return [...this.byId.keys()];
+  }
+
   count(): number {
     return this.byId.size;
   }

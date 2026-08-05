@@ -21,4 +21,6 @@ export interface UserRepository {
   create(input: CreateUserInput): Promise<UserRecord>;
   /** Delete the user (and, on Postgres, cascade all their data). */
   delete(id: string): Promise<void>;
+  /** All user ids — used by the nightly priorities precompute job (P4b-3). */
+  listAllIds(): Promise<string[]>;
 }

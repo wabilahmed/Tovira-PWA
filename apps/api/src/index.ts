@@ -7,6 +7,8 @@ import { createApiServer } from './server.js';
 import { BookScanService } from './services/book-scan/book-scan-service.js';
 import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
+import { PrioritiesService } from './services/hero/priorities-service.js';
+import { LocalScheduler } from './adapters/scheduler/local.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
 import { ReferralService } from './services/referral/referral-service.js';
 import { InMemoryReferralRepository } from './adapters/referral/in-memory-referral-repository.js';
@@ -36,6 +38,8 @@ import {
   createCardScanner,
   createImageRepository,
   createHeroService,
+  createModelClient,
+  createPrioritiesRepository,
   createBillingService,
   createAccountService,
   createActivationService,
@@ -93,6 +97,14 @@ async function main(): Promise<void> {
   const cardScanner = createCardScanner();
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes);
+  // Daily priorities: precomputed nightly, cached; app-opens serve the cache
+  // (cost-guard #3, P4b-3). Uses the priorities-class model (see routing).
+  const priorities = new PrioritiesService(hero, createModelClient(config), createPrioritiesRepository(config, appPool));
+  const scheduler = new LocalScheduler();
+  scheduler.register({
+    name: 'priorities-nightly',
+    run: async () => { await priorities.precomputeAll(await auth.allUserIds(), Date.now()); },
+  });
   const account = createAccountService(auth, clients, notes, facts, meetings, images);
   const activation = createActivationService(config, appPool);
   const recall = createRecallService(config, notes);
@@ -130,6 +142,7 @@ async function main(): Promise<void> {
     cardScanner,
     images,
     hero,
+    priorities,
     billing,
     account,
     activation,

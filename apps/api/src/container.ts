@@ -36,6 +36,9 @@ import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
 import { RecallService } from './services/recall/recall-service.js';
 import { LedgerService } from './services/ledger/ledger-service.js';
+import type { PrioritiesRepository } from './ports/priorities-repository.js';
+import { InMemoryPrioritiesRepository } from './adapters/priorities/in-memory-priorities-repository.js';
+import { PgPrioritiesRepository } from './adapters/priorities/pg-priorities-repository.js';
 import { InMemoryLedgerRepository } from './adapters/ledger/in-memory-ledger-repository.js';
 import { PgLedgerRepository } from './adapters/ledger/pg-ledger-repository.js';
 import { BillingModelRouter, type ModelRouter } from './services/extraction/model-router.js';
@@ -90,6 +93,15 @@ export interface Services {
   auth: AuthProvider;
   storage: Storage;
   scheduler: Scheduler;
+}
+
+/** Precomputed daily-priorities cache (cost-guard #3, P4b-3). */
+export function createPrioritiesRepository(config: AppConfig, pool?: Pool): PrioritiesRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgPrioritiesRepository(pool);
+  }
+  return new InMemoryPrioritiesRepository();
 }
 
 /** Recovered Value Ledger (P4-11). */

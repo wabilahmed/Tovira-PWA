@@ -19,6 +19,7 @@ import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import type { CardScanner } from './ports/card-scanner.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
+import type { PrioritiesService } from './services/hero/priorities-service.js';
 import type { BillingService } from './services/billing/billing-service.js';
 import type { AccountService } from './services/account/account-service.js';
 import type { ActivationService } from './services/analytics/activation-service.js';
@@ -74,6 +75,7 @@ export interface ApiDeps {
   cardScanner: CardScanner;
   images: ImageRepository;
   hero: HeroService;
+  priorities: PrioritiesService;
   billing: BillingService;
   account: AccountService;
   activation: ActivationService;
@@ -179,7 +181,7 @@ export function createApiServer(deps: ApiDeps): Server {
       )
         return;
       if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
-      if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero })) return;
+      if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero, priorities: deps.priorities })) return;
       if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleRecallRoute(request, response, { auth: deps.auth, recall: deps.recall })) return;
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
