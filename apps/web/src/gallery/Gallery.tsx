@@ -46,7 +46,7 @@ export function Gallery({ clientId, api }: { clientId: string; api: ImagesApi })
       ) : (
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
           {images.map((img) => (
-            <img key={img.id} src={api.url(img.id)} alt="Client photo" width={96} height={96} style={{ objectFit: 'cover', borderRadius: 6 }} />
+            <img key={img.id} src={api.url(img.id)} alt="Client photo" width={96} height={96} style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid var(--hairline)' }} />
           ))}
         </div>
       )}

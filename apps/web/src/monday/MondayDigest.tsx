@@ -45,9 +45,11 @@ export function MondayDigest({ api }: { api: MondayApi }): JSX.Element {
 function Group({ title, testid, items }: { title: string; testid: string; items: string[] }): JSX.Element | null {
   if (items.length === 0) return null;
   return (
-    <div data-testid={testid} style={{ marginBottom: '1rem' }}>
-      <strong>{title}</strong>
-      <ul>{items.map((t, i) => <li key={i}>{t}</li>)}</ul>
+    <div data-testid={testid} style={{ margin: '1.25rem 0', paddingBottom: '0.75rem', borderBottom: '1px solid var(--hairline)' }}>
+      <div className="tov-stamp" style={{ marginBottom: 8 }}>{title}</div>
+      <ul style={{ margin: 0, display: 'grid', gap: '0.35rem' }}>
+        {items.map((t, i) => <li key={i}>{t}</li>)}
+      </ul>
     </div>
   );
 }

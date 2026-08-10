@@ -402,9 +402,9 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       </details>
 
       {active ? (
-        <button onClick={() => void stopRec()}>■ Stop &amp; save</button>
+        <button onClick={() => void stopRec()} style={{ background: 'var(--claret-surface)', borderColor: 'var(--claret)', color: 'var(--claret)', fontWeight: 600 }}>■ Stop &amp; save</button>
       ) : (
-        <button onClick={() => void startRec()}>● Record voice note</button>
+        <button className="tov-primary" onClick={() => void startRec()}>● Record voice note</button>
       )}
 
       <form onSubmit={savePaste} style={{ marginTop: '1rem' }}>
@@ -503,8 +503,9 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
 
   return (
     <Centered>
-      <form onSubmit={submit} style={{ display: 'grid', gap: '0.75rem', width: 280 }}>
-        <h1 style={{ margin: 0 }}>Tovira</h1>
+      <form onSubmit={submit} style={{ display: 'grid', gap: '0.75rem', width: 300, background: 'var(--surface-raised)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: '1.75rem' }}>
+        <h1 style={{ margin: 0, letterSpacing: '-0.02em' }}>Tovira</h1>
+        <p style={{ margin: '-0.4rem 0 0.4rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Your client book, kept.</p>
         <label>
           Email
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />

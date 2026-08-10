@@ -31,12 +31,12 @@ export function NotesTimeline({
       {notes.map((n) => {
         const ceiling = ceilingNoteIds.has(n.id);
         return (
-          <li key={n.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid var(--hairline)' }}>
-            <small style={{ color: 'var(--text-tertiary)' }}>
+          <li key={n.id} style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--hairline)' }}>
+            <small className="tov-stamp">
               {new Date(n.createdAt).toLocaleString()} · {n.source}
-              {!ceiling && isProcessing(n.status) && <em style={{ color: 'var(--amber)' }}> · {processingLabel(n.status)}</em>}
+              {!ceiling && isProcessing(n.status) && <em style={{ color: 'var(--amber)', fontStyle: 'normal' }}> · {processingLabel(n.status)}</em>}
             </small>
-            <div>{n.rawText ?? <em>(transcription pending)</em>}</div>
+            <div style={{ marginTop: 4 }}>{n.rawText ?? <em>(transcription pending)</em>}</div>
             {ceiling && <CeilingNotice />}
             {!ceiling && n.rawText && renderFollowUp?.(n.id)}
           </li>

@@ -105,9 +105,9 @@ export function Meetings({ api, clients }: { api: MeetingsApi; clients: ClientOp
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {meetings.map((m) => (
-            <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', justifyContent: 'space-between' }}>
+            <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem' }}>
               <span>
-                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small style={{ color: 'var(--text-tertiary)' }}>{m.datetime ?? m.datetimeRaw}</small>
+                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small className="tov-stamp">{m.datetime ?? m.datetimeRaw}</small>
               </span>
               <button onClick={() => void remove(m.id)}>Remove</button>
             </li>

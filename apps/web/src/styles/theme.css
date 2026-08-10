@@ -38,7 +38,7 @@
   --radius-chip: 4px;
   --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.35);
 
-  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-display: 'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif;
   --font-sans: 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 

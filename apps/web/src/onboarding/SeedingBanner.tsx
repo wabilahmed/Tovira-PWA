@@ -24,7 +24,7 @@ export function SeedingBanner({
         <Steps title="On iPhone" steps={status.seeding.steps.ios} />
       </div>
 
-      <button onClick={onStartImport} style={{ marginTop: '1rem' }}>Import a chat</button>
+      <button className="tov-primary" onClick={onStartImport} style={{ marginTop: '1rem' }}>Import a chat</button>
 
       <p style={{ marginTop: '1.5rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Not ready? You can also:</p>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

@@ -38,14 +38,14 @@ export function StakeholderMap({ clientId, api }: { clientId: string; api: Stake
         const inGroup = people.filter((p) => (p.decision_role || 'unknown') === g.role);
         if (inGroup.length === 0) return null;
         return (
-          <div key={g.role} data-testid={`group-${g.role}`}>
-            <strong>{g.label}</strong>
-            <ul>
+          <div key={g.role} data-testid={`group-${g.role}`} style={{ margin: '0.75rem 0' }}>
+            <div className="tov-stamp" style={{ marginBottom: 4 }}>{g.label}</div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {inGroup.map((p, i) => (
-                <li key={i}>
+                <li key={i} style={{ padding: '4px 0', borderBottom: '1px solid var(--hairline)' }}>
                   {p.name ?? 'Unknown'}
                   {p.role ? `, ${p.role}` : ''}
-                  {p.reports_to ? <small style={{ color: 'var(--text-tertiary)' }}> · reports to {p.reports_to}</small> : null}
+                  {p.reports_to ? <small className="tov-stamp"> · reports to {p.reports_to}</small> : null}
                 </li>
               ))}
             </ul>

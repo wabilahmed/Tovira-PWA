@@ -54,7 +54,7 @@ export function PromisesTracker({ api }: { api: PromisesApi }): JSX.Element {
           {open.map((p) => (
             <li key={p.id} data-testid="open-promise" style={row}>
               <span>
-                {p.text} <small style={{ color: 'var(--text-tertiary)' }}>{due(p)}</small>
+                {p.text} <small className="tov-stamp">{due(p)}</small>
               </span>
               <button onClick={() => void done(p.id)}>Done</button>
             </li>
@@ -68,7 +68,10 @@ export function PromisesTracker({ api }: { api: PromisesApi }): JSX.Element {
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {pending.map((p) => (
               <li key={p.id} data-testid="pending-promise" style={row}>
-                <span>{p.text}</span>
+                <span style={{ display: 'flex', gap: '0.6rem', alignItems: 'baseline' }}>
+                  <span className="tov-dot tov-dot--amber" aria-hidden="true" />
+                  {p.text}
+                </span>
                 <span style={{ display: 'flex', gap: '0.5rem' }}>
                   <button onClick={() => void confirm(p.id)}>Confirm</button>
                   <button onClick={() => void reject(p.id)}>Reject</button>

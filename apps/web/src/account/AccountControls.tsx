@@ -51,10 +51,10 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
       {!confirming ? (
         <button onClick={() => setConfirming(true)} style={{ color: 'var(--claret)' }}>Delete my account</button>
       ) : (
-        <div data-testid="delete-confirm">
+        <div data-testid="delete-confirm" style={{ borderInlineStart: '2px solid var(--claret)', background: 'var(--claret-surface)', borderRadius: 'var(--radius-card)', padding: '0.75rem 1rem' }}>
           <strong>Are you sure? This is permanent.</strong>
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-            <button onClick={() => void doDelete()} disabled={busy} style={{ color: 'var(--claret)' }}>
+            <button onClick={() => void doDelete()} disabled={busy} style={{ background: 'var(--claret)', borderColor: 'var(--claret)', color: 'var(--surface-base)', fontWeight: 600 }}>
               {busy ? 'Deleting…' : 'Yes, delete everything'}
             </button>
             <button onClick={() => setConfirming(false)}>Cancel</button>

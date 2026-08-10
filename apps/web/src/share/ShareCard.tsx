@@ -45,15 +45,17 @@ export function ShareCard({
   return (
     <section aria-label="Share card" style={box}>
       <strong>My Tovira Book Scan found:</strong>
-      <ul data-testid="share-stats">
+      <ul data-testid="share-stats" style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0', display: 'grid', gap: '0.35rem' }}>
         {rows.filter(([, n]) => n > 0).map(([label, n]) => (
-          <li key={label}>{n} {label}</li>
+          <li key={label} style={{ display: 'flex', gap: '0.6rem', alignItems: 'baseline' }}>
+            <span className="tov-mono" style={{ color: 'var(--brass)' }}>{n}</span> {label}
+          </li>
         ))}
       </ul>
       {referralCode && (
         <div>
           <p style={{ margin: '0.5rem 0', color: 'var(--text-secondary)' }}>Share Tovira — you both get a free month:</p>
-          <code data-testid="referral-link">{referralUrl}</code>{' '}
+          <code data-testid="referral-link" className="tov-mono" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{referralUrl}</code>{' '}
           <button onClick={() => { onShare(referralUrl); setShared(true); }}>{shared ? 'Copied ✓' : 'Copy link'}</button>
         </div>
       )}
