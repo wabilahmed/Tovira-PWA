@@ -52,7 +52,7 @@ export function ShareCard({
       </ul>
       {referralCode && (
         <div>
-          <p style={{ margin: '0.5rem 0', color: '#666' }}>Share Tovira — you both get a free month:</p>
+          <p style={{ margin: '0.5rem 0', color: 'var(--text-secondary)' }}>Share Tovira — you both get a free month:</p>
           <code data-testid="referral-link">{referralUrl}</code>{' '}
           <button onClick={() => { onShare(referralUrl); setShared(true); }}>{shared ? 'Copied ✓' : 'Copy link'}</button>
         </div>
@@ -61,4 +61,4 @@ export function ShareCard({
   );
 }
 
-const box: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', background: '#f8fafc', margin: '1rem 0' };
+const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '1rem', background: 'var(--surface-raised)', margin: '1rem 0' };

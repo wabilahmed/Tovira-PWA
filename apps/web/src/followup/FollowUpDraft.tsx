@@ -51,7 +51,7 @@ export function FollowUpDraft({
       <button onClick={() => void makeDraft()} disabled={busy}>
         {busy ? 'Drafting…' : 'Draft follow-up'}
       </button>
-      {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
       {draft != null && (
         <div style={{ marginTop: '0.5rem' }}>
           <textarea

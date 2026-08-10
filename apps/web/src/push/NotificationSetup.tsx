@@ -8,7 +8,7 @@ export interface NotificationApi {
 }
 
 const RESULT_MESSAGE: Record<PushResult, string> = {
-  enabled: 'Notifications are on. 🎉',
+  enabled: 'Notifications are on.',
   denied: 'Notifications are blocked — enable them in your browser settings, or rely on the in-app cold list.',
   unsupported: 'Notifications aren’t available here yet. On iPhone, add Tovira to your home screen first.',
   error: 'Something went wrong turning on notifications. Please try again.',
@@ -37,7 +37,7 @@ export function NotificationSetup({ state, api }: { state: OnboardingState; api:
   return (
     <section aria-label="Notifications">
       <h2 style={{ marginTop: 0 }}>Notifications</h2>
-      <p style={{ color: '#444' }}>{step.message}</p>
+      <p style={{ color: 'var(--text-secondary)' }}>{step.message}</p>
 
       {step.stage === 'enable' && !isOn && (
         <button onClick={() => void enable()} disabled={busy}>
@@ -45,11 +45,11 @@ export function NotificationSetup({ state, api }: { state: OnboardingState; api:
         </button>
       )}
 
-      {result && result !== 'enabled' && <p role="alert" style={{ color: '#92400e' }}>{RESULT_MESSAGE[result]}</p>}
+      {result && result !== 'enabled' && <p role="alert" style={{ color: 'var(--amber)' }}>{RESULT_MESSAGE[result]}</p>}
 
       {isOn && (
         <div>
-          <p style={{ color: 'green' }}>{RESULT_MESSAGE.enabled}</p>
+          <p style={{ color: 'var(--green)' }}>{RESULT_MESSAGE.enabled}</p>
           <button onClick={() => void test()}>Send a test notification</button>
           {sent !== null && <p data-testid="sent">Sent to {sent} device{sent === 1 ? '' : 's'}.</p>}
         </div>

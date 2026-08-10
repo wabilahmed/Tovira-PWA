@@ -59,7 +59,7 @@ export function ImportChat({
 
   return (
     <form onSubmit={submit} aria-label="Import WhatsApp chat" style={{ display: 'grid', gap: '0.75rem' }}>
-      <p style={{ margin: 0, color: '#444' }}>
+      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
         In WhatsApp: open the chat → Export Chat → <strong>Without Media</strong> → share it here (or upload the .txt).
       </p>
 
@@ -89,7 +89,7 @@ export function ImportChat({
         <span>I understand this export contains the whole conversation, and I have consent to store it.</span>
       </label>
 
-      {error && <p role="alert" style={{ color: 'crimson', margin: 0 }}>{error}</p>}
+      {error && <p role="alert" style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
       {ceilingCount !== null && <CeilingNotice imported={ceilingCount} />}
 
       <button type="submit" disabled={!canSubmit}>

@@ -26,7 +26,7 @@ export function MondayDigest({ api }: { api: MondayApi }): JSX.Element {
     return (
       <section aria-label="Monday scan">
         <h2 style={{ marginTop: 0 }}>Your week</h2>
-        <p data-testid="clear-week" style={{ color: '#666' }}>A clear week — nothing due, no one cooling. Nice.</p>
+        <p data-testid="clear-week" style={{ color: 'var(--text-secondary)' }}>A clear week — nothing due, no one cooling. Nice.</p>
       </section>
     );
   }

@@ -57,10 +57,10 @@ export function TrialIncentive({ api }: { api: IncentiveApi }): JSX.Element | nu
   if (inc.state === 'earned' && !dismissed) {
     const newEnd = new Date(inc.trialEndsAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     return (
-      <section data-testid="incentive-earned" aria-label="Trial extended" style={{ ...box, borderColor: '#86efac', background: '#f0fdf4' }}>
+      <section data-testid="incentive-earned" aria-label="Trial extended" style={{ ...box, borderColor: 'var(--green-line)', background: 'var(--green-surface)' }}>
         {probe}
-        <strong>🎉 You earned +{inc.extensionDays} days!</strong>
-        <p style={{ margin: '0.25rem 0' }}>Your trial now runs to {newEnd}.</p>
+        <strong>You earned +<span className="tov-mono">{inc.extensionDays}</span> more trial days</strong>
+        <p style={{ margin: '0.25rem 0' }}>Your trial now runs to <span className="tov-mono">{newEnd}</span>.</p>
         <button
           onClick={() => {
             try {
@@ -81,4 +81,4 @@ export function TrialIncentive({ api }: { api: IncentiveApi }): JSX.Element | nu
   return probe;
 }
 
-const box: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.75rem 0' };
+const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.75rem 0' };

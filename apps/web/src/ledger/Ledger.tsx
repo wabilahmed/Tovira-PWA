@@ -46,18 +46,25 @@ export function Ledger({ api, clients }: { api: LedgerApi; clients: Array<{ id: 
       <h2 style={{ marginTop: 0 }}>Value Tovira touched</h2>
 
       {summary.totalTouched === 0 ? (
-        <p style={{ color: '#666' }}>Nothing yet — as you act on flags and keep promises, they’ll show here.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Nothing yet — as you act on flags and keep promises, they’ll show here.</p>
       ) : (
         <>
-          <p data-testid="headline">
-            Tovira touched <strong>{summary.totalTouched}</strong> opportunit{summary.totalTouched === 1 ? 'y' : 'ies'}
-            {summary.aed !== null && <> · <strong>AED {summary.aed.toLocaleString()}</strong> of your pipeline</>}.
+          <p data-testid="headline" className="tov-statement" style={{ paddingTop: 8 }}>
+            Tovira touched <strong className="tov-mono">{summary.totalTouched}</strong> opportunit{summary.totalTouched === 1 ? 'y' : 'ies'}
+            {summary.aed !== null && <> · <strong className="tov-mono">AED {summary.aed.toLocaleString()}</strong> of your pipeline</>}.
           </p>
-          <ul>
+          <ul style={{ listStyle: 'none', padding: 0, margin: '0.75rem 0' }}>
             {(Object.keys(summary.byType) as LedgerEventType[])
               .filter((t) => summary.byType[t] > 0)
               .map((t) => (
-                <li key={t} data-testid={`type-${t}`}>{summary.byType[t]} × {LABEL[t]}</li>
+                <li
+                  key={t}
+                  data-testid={`type-${t}`}
+                  style={{ display: 'flex', gap: '0.75rem', alignItems: 'baseline', padding: '8px 0', borderBottom: '1px solid var(--hairline)' }}
+                >
+                  <span className="tov-mono" style={{ color: 'var(--brass)' }}>{summary.byType[t]} ×</span>{' '}
+                  <span>{LABEL[t]}</span>
+                </li>
               ))}
           </ul>
         </>

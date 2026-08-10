@@ -63,14 +63,21 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
-      {refreshMsg && <p data-testid="refresh-msg" style={{ color: rateLimited ? '#92400e' : '#666', fontSize: '0.85rem' }}>{refreshMsg}</p>}
+      {refreshMsg && <p data-testid="refresh-msg" style={{ color: rateLimited ? 'var(--amber)' : 'var(--text-secondary)', fontSize: '0.85rem' }}>{refreshMsg}</p>}
       {actions.length === 0 ? (
-        <p style={{ color: '#666' }}>Nothing urgent right now.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Nothing urgent right now.</p>
       ) : (
-        <ol data-testid="today-list">
-          {actions.map((a, i) => (
-            <li key={i}>{a.text}</li>
-          ))}
+        <ol data-testid="today-list" className="tov-register">
+          {actions.map((a, i) => {
+            const act = a.kind === 'risk' || a.kind === 'cold'; // overdue/cooling → claret
+            return (
+              <li key={i}>
+                <span className="tov-register__idx">{String(i + 1).padStart(2, '0')}</span>
+                {act && <span className="tov-dot tov-dot--claret" aria-hidden="true" style={{ alignSelf: 'center' }} />}
+                <span>{a.text}</span>
+              </li>
+            );
+          })}
         </ol>
       )}
 
@@ -78,7 +85,7 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
       {status && !status.unlocked ? (
         <div role="status" style={warmBox}>
           <p style={{ margin: 0 }}>{status.message}</p>
-          <small style={{ color: '#666' }}>
+          <small style={{ color: 'var(--text-secondary)' }}>
             {status.needed.clients > 0 && `${status.needed.clients} more client(s)`}
             {status.needed.clients > 0 && status.needed.notes > 0 && ' · '}
             {status.needed.notes > 0 && `${status.needed.notes} more note(s)`}
@@ -87,18 +94,18 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
         </div>
       ) : (
         <>
-          {patterns.length === 0 && risk.length === 0 && <p style={{ color: '#666' }}>No patterns or risks surfaced yet.</p>}
+          {patterns.length === 0 && risk.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>No patterns or risks surfaced yet.</p>}
           {patterns.map((p) => (
             <div key={p.id} data-testid="pattern" style={card}>
               <strong>{p.title}</strong> <span style={badge}>{p.confidence}</span>
               <p style={{ margin: '0.25rem 0' }}>{p.description}</p>
               {p.evidence.length > 0 && (
-                <small style={{ color: '#888' }}>Evidence: {p.evidence.map((e) => e.name).join(', ')}</small>
+                <small style={{ color: 'var(--text-tertiary)' }}>Evidence: {p.evidence.map((e) => e.name).join(', ')}</small>
               )}
             </div>
           ))}
           {risk.map((r) => (
-            <div key={r.clientId} data-testid="risk" style={{ ...card, borderColor: '#fca5a5' }}>
+            <div key={r.clientId} data-testid="risk" style={{ ...card, borderColor: 'var(--claret-line)' }}>
               <strong>{r.name} — at risk</strong>
               <ul style={{ margin: '0.25rem 0 0' }}>
                 {r.reasons.map((reason, i) => (
@@ -113,6 +120,6 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
   );
 }
 
-const warmBox: React.CSSProperties = { border: '1px dashed #cbd5e1', borderRadius: 8, padding: '0.75rem 1rem', background: '#f8fafc' };
-const card: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.5rem 0' };
-const badge: React.CSSProperties = { fontSize: '0.7rem', background: '#e0e7ff', color: '#3730a3', borderRadius: 999, padding: '0.1rem 0.5rem' };
+const warmBox: React.CSSProperties = { border: '1px dashed var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', background: 'var(--surface-raised)' };
+const card: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.5rem 0' };
+const badge: React.CSSProperties = { fontSize: '0.7rem', background: 'var(--brass-surface)', color: 'var(--brass)', borderRadius: 999, padding: '0.1rem 0.5rem' };

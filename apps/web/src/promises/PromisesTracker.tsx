@@ -46,15 +46,15 @@ export function PromisesTracker({ api }: { api: PromisesApi }): JSX.Element {
   return (
     <section aria-label="Promises">
       <h2 style={{ marginTop: 0 }}>Open promises</h2>
-      {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
       {open.length === 0 ? (
-        <p style={{ color: '#666' }}>No open promises — you're all caught up.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>No open promises — you're all caught up.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {open.map((p) => (
             <li key={p.id} data-testid="open-promise" style={row}>
               <span>
-                {p.text} <small style={{ color: '#888' }}>{due(p)}</small>
+                {p.text} <small style={{ color: 'var(--text-tertiary)' }}>{due(p)}</small>
               </span>
               <button onClick={() => void done(p.id)}>Done</button>
             </li>
@@ -64,7 +64,7 @@ export function PromisesTracker({ api }: { api: PromisesApi }): JSX.Element {
 
       {pending.length > 0 && (
         <>
-          <h2 style={{ color: '#92400e' }}>To confirm (not yet facts)</h2>
+          <h2 style={{ color: 'var(--amber)' }}>To confirm (not yet facts)</h2>
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {pending.map((p) => (
               <li key={p.id} data-testid="pending-promise" style={row}>
@@ -94,5 +94,5 @@ const row: React.CSSProperties = {
   alignItems: 'center',
   gap: '0.5rem',
   padding: '0.5rem 0',
-  borderBottom: '1px solid #eee',
+  borderBottom: '1px solid var(--hairline)',
 };

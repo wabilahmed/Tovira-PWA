@@ -20,9 +20,9 @@ export function CeilingNotice({ imported }: { imported?: number }): JSX.Element 
 }
 
 const box: React.CSSProperties = {
-  border: '1px solid #fcd34d',
-  background: '#fffbeb',
-  color: '#78350f',
+  border: '1px solid var(--amber-line)',
+  background: 'var(--amber-surface)',
+  color: 'var(--amber)',
   borderRadius: 8,
   padding: '0.75rem 1rem',
   margin: '0.5rem 0',

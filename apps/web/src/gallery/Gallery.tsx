@@ -37,12 +37,12 @@ export function Gallery({ clientId, api }: { clientId: string; api: ImagesApi })
         Add a photo
         <input type="file" accept="image/*" aria-label="Add a photo" onChange={onFile} />
       </label>
-      {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
 
       {loading ? (
         <p>Loading photos…</p>
       ) : images.length === 0 ? (
-        <p style={{ color: '#666' }}>No photos yet.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>No photos yet.</p>
       ) : (
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
           {images.map((img) => (

@@ -26,7 +26,7 @@ export function SeedingBanner({
 
       <button onClick={onStartImport} style={{ marginTop: '1rem' }}>Import a chat</button>
 
-      <p style={{ marginTop: '1.5rem', marginBottom: '0.25rem', color: '#666' }}>Not ready? You can also:</p>
+      <p style={{ marginTop: '1.5rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Not ready? You can also:</p>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         {status.fallbacks.map((f) => (
           <button key={f.kind} onClick={() => onFallback(f.kind)}>{f.label}</button>
@@ -50,9 +50,9 @@ function Steps({ title, steps }: { title: string; steps: string[] }): JSX.Elemen
 }
 
 const box: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--hairline)',
   borderRadius: 8,
   padding: '1rem 1.25rem',
-  background: '#f8fafc',
+  background: 'var(--surface-raised)',
   margin: '1rem 0',
 };

@@ -40,6 +40,7 @@ import { ShareCard } from './share/ShareCard.js';
 import { PushClient } from './push/pushClient.js';
 import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
+import { ThemeToggle } from './settings/ThemeToggle.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
@@ -177,7 +178,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const needsSeeding = seeding !== null && !seeding.seeded;
 
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
+    <main style={{ fontFamily: 'var(--font-sans)', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <span style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
           <h1 style={{ margin: 0 }}>Tovira</h1>
@@ -189,19 +190,19 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       </header>
 
       <nav style={{ display: 'flex', gap: '1rem', margin: '1rem 0' }} aria-label="Sections">
-        <button onClick={() => setView('clients')} style={view === 'clients' ? navActive : linkButton}>Clients</button>
-        <button onClick={() => setView('today')} style={view === 'today' ? navActive : linkButton}>Today</button>
-        <button onClick={() => setView('week')} style={view === 'week' ? navActive : linkButton}>Week</button>
-        <button onClick={() => setView('ask')} style={view === 'ask' ? navActive : linkButton}>Ask</button>
-        <button onClick={() => setView('promises')} style={view === 'promises' ? navActive : linkButton}>Promises</button>
-        <button onClick={() => setView('meetings')} style={view === 'meetings' ? navActive : linkButton}>Meetings</button>
-        <button onClick={() => setView('alerts')} style={view === 'alerts' ? navActive : linkButton}>Alerts</button>
-        <button onClick={() => setView('bookscan')} style={view === 'bookscan' ? navActive : linkButton}>Book Scan</button>
-        <button onClick={() => setView('ledger')} style={view === 'ledger' ? navActive : linkButton}>Value</button>
-        <button onClick={() => setView('settings')} style={view === 'settings' ? navActive : linkButton}>Settings</button>
+        <button onClick={() => setView('clients')} style={view === 'clients' ? navActive : navItem}>Clients</button>
+        <button onClick={() => setView('today')} style={view === 'today' ? navActive : navItem}>Today</button>
+        <button onClick={() => setView('week')} style={view === 'week' ? navActive : navItem}>Week</button>
+        <button onClick={() => setView('ask')} style={view === 'ask' ? navActive : navItem}>Ask</button>
+        <button onClick={() => setView('promises')} style={view === 'promises' ? navActive : navItem}>Promises</button>
+        <button onClick={() => setView('meetings')} style={view === 'meetings' ? navActive : navItem}>Meetings</button>
+        <button onClick={() => setView('alerts')} style={view === 'alerts' ? navActive : navItem}>Alerts</button>
+        <button onClick={() => setView('bookscan')} style={view === 'bookscan' ? navActive : navItem}>Book Scan</button>
+        <button onClick={() => setView('ledger')} style={view === 'ledger' ? navActive : navItem}>Value</button>
+        <button onClick={() => setView('settings')} style={view === 'settings' ? navActive : navItem}>Settings</button>
         {needsSeeding && (
-          <button onClick={() => setView('getstarted')} style={view === 'getstarted' ? navActive : linkButton}>
-            Get started ✨
+          <button onClick={() => setView('getstarted')} style={view === 'getstarted' ? navActive : navItem}>
+            Get started
           </button>
         )}
       </nav>
@@ -249,6 +250,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <>
           <TrialIncentive api={billingApi} />
           <Billing api={billingApi} />
+          <ThemeToggle />
           <NotificationSetup state={readPushState()} api={notificationApi} />
           <AccountControls api={accountApi} onDeleted={onLogout} />
         </>
@@ -266,7 +268,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             />
             <button type="submit" disabled={busy}>Add client</button>
           </form>
-          {error && <p style={{ color: 'crimson' }}>{error}</p>}
+          {error && <p style={{ color: 'var(--claret)' }}>{error}</p>}
 
           <CardScan
             api={cardsApi}
@@ -287,13 +289,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           />
 
           {clients.length === 0 ? (
-            <p style={{ color: '#666' }}>
+            <p style={{ color: 'var(--text-secondary)' }}>
               {query.trim() ? `No clients match “${query.trim()}”.` : 'No clients yet. Add your first one above.'}
             </p>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {clients.map((c) => (
-                <li key={c.id} style={{ borderBottom: '1px solid #eee' }}>
+                <li key={c.id} style={{ borderBottom: '1px solid var(--hairline)' }}>
                   <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 0', color: 'inherit' }}>
                     {c.name}
                   </button>
@@ -379,7 +381,7 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
   }
 
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
+    <main style={{ fontFamily: 'var(--font-sans)', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
       <button onClick={onBack} style={linkButton}>← Clients</button>
       <h1>{client.name}</h1>
 
@@ -435,9 +437,9 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
         )}
       </div>
 
-      {status && <p style={{ color: 'crimson' }}>{status}</p>}
+      {status && <p style={{ color: 'var(--claret)' }}>{status}</p>}
       {pending.length > 0 && (
-        <p style={{ color: '#a15c00' }}>
+        <p style={{ color: 'var(--amber)' }}>
           {pending.length} recording(s) pending upload — they’re saved and will retry automatically.
         </p>
       )}
@@ -457,18 +459,24 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
 const linkButton: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: '#2563eb',
+  color: 'var(--brass)',
   cursor: 'pointer',
+  minHeight: 'auto',
   padding: 0,
   fontFamily: 'inherit',
   fontSize: 'inherit',
 };
 
+// Nav tabs read as a quiet ledger index: inactive tabs stay muted, and only the
+// active one earns the brass (brand: brass is earned, never on every element).
+const navItem: React.CSSProperties = { ...linkButton, color: 'var(--text-secondary)' };
+
 const navActive: React.CSSProperties = {
   ...linkButton,
-  color: '#111',
+  color: 'var(--brass)',
   fontWeight: 600,
   textDecoration: 'underline',
+  textUnderlineOffset: 4,
 };
 
 function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Element {
@@ -511,11 +519,11 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </label>
-        {error && <p style={{ color: 'crimson', margin: 0 }}>{error}</p>}
+        {error && <p style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
         <button type="submit" disabled={busy}>
           {mode === 'login' ? 'Log in' : 'Create account'}
         </button>
-        <button type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer' }}>
+        <button type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} style={{ background: 'none', border: 'none', color: 'var(--brass)', cursor: 'pointer' }}>
           {mode === 'login' ? 'Need an account? Sign up' : 'Have an account? Log in'}
         </button>
       </form>
@@ -527,7 +535,7 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
   if (brief.empty) {
     return (
       <section style={briefBox}>
-        <p style={{ color: '#666', margin: 0 }}>Nothing logged yet for {brief.clientName}. Capture a note to build a brief.</p>
+        <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Nothing logged yet for {brief.clientName}. Capture a note to build a brief.</p>
       </section>
     );
   }
@@ -542,7 +550,7 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
       )}
       {brief.needsConfirmation.length > 0 && (
         <div>
-          <strong style={{ color: '#a15c00' }}>To confirm (not yet facts)</strong>
+          <strong style={{ color: 'var(--amber)' }}>To confirm (not yet facts)</strong>
           <ul>
             {brief.needsConfirmation.map((p) => (
               <li key={p.id}>
@@ -571,16 +579,16 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
 }
 
 const briefBox: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
+  border: '1px solid var(--hairline)',
   borderRadius: 8,
   padding: '1rem',
   margin: '1rem 0',
-  background: '#fafafa',
+  background: 'var(--surface-raised)',
 };
 
 function Centered({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
+    <div style={{ fontFamily: 'var(--font-sans)', display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
       {children}
     </div>
   );

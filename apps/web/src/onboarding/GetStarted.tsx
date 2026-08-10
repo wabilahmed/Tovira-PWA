@@ -61,7 +61,7 @@ export function GetStarted({
           />
           <button type="submit" disabled={busy || !newName.trim()}>Continue</button>
         </form>
-        {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
+        {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
       </section>
     );
   }

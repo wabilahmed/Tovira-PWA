@@ -44,49 +44,40 @@ export function BookScan({ api }: { api: BookScanApi }): JSX.Element {
       <h2 style={{ marginTop: 0 }}>Your Relationship X-Ray</h2>
 
       {report.isEmpty ? (
-        <p style={{ color: '#666' }}>{report.message}</p>
+        <p style={{ color: 'var(--text-secondary)' }}>{report.message}</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, display: 'grid', gap: '0.75rem' }}>
           {report.items.map((item, i) => (
-            <li key={i} data-testid="scan-item" style={card}>
+            // The one orchestrated moment: findings deal out like an audit
+            // delivered across a desk (§4). Staggered; reduced-motion respected.
+            <li key={i} data-testid="scan-item" className="tov-card tov-deal" style={{ animationDelay: `${i * 60}ms` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
                 <strong>{item.headline}</strong>
                 {item.framing === 'worth_checking' && <span style={badge}>worth checking</span>}
               </div>
-              <small style={{ color: '#888' }}>
-                {KIND_LABEL[item.kind]} · {item.clientName}
-              </small>
-              <blockquote data-testid="receipt" style={receipt}>
-                “{item.receipt.quote}”{item.receipt.date ? <span style={{ color: '#888' }}> — {item.receipt.date}</span> : null}
-              </blockquote>
+              <div data-testid="receipt" className="tov-receipt">
+                <div style={{ color: 'var(--text-primary)' }}>“{item.receipt.quote}”</div>
+                <div className="tov-stamp" style={{ marginTop: 6 }}>
+                  {KIND_LABEL[item.kind]} · {item.clientName}
+                  {item.receipt.date ? <> · {item.receipt.date}</> : null}
+                </div>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      <p style={{ marginTop: '1.5rem', color: '#2563eb' }}>{report.invitation}</p>
+      <p style={{ marginTop: '1.5rem', color: 'var(--brass)' }}>{report.invitation}</p>
     </section>
   );
 }
 
-const card: React.CSSProperties = {
-  border: '1px solid #e5e7eb',
-  borderRadius: 8,
-  padding: '0.75rem 1rem',
-  background: '#fff',
-};
 const badge: React.CSSProperties = {
   fontSize: '0.7rem',
-  background: '#fef3c7',
-  color: '#92400e',
+  background: 'var(--amber-surface)',
+  color: 'var(--amber)',
   borderRadius: 999,
   padding: '0.1rem 0.5rem',
   whiteSpace: 'nowrap',
   alignSelf: 'center',
-};
-const receipt: React.CSSProperties = {
-  margin: '0.5rem 0 0',
-  paddingLeft: '0.75rem',
-  borderLeft: '3px solid #e5e7eb',
-  color: '#333',
 };

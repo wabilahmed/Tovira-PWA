@@ -47,14 +47,14 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
 
       <hr />
 
-      <p style={{ color: '#666' }}>Deleting removes your account and all client data. This can't be undone.</p>
+      <p style={{ color: 'var(--text-secondary)' }}>Deleting removes your account and all client data. This can't be undone.</p>
       {!confirming ? (
-        <button onClick={() => setConfirming(true)} style={{ color: 'crimson' }}>Delete my account</button>
+        <button onClick={() => setConfirming(true)} style={{ color: 'var(--claret)' }}>Delete my account</button>
       ) : (
         <div data-testid="delete-confirm">
           <strong>Are you sure? This is permanent.</strong>
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-            <button onClick={() => void doDelete()} disabled={busy} style={{ color: 'crimson' }}>
+            <button onClick={() => void doDelete()} disabled={busy} style={{ color: 'var(--claret)' }}>
               {busy ? 'Deleting…' : 'Yes, delete everything'}
             </button>
             <button onClick={() => setConfirming(false)}>Cancel</button>
@@ -62,7 +62,7 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
         </div>
       )}
 
-      {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
     </section>
   );
 }

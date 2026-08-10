@@ -24,17 +24,17 @@ export function NotesTimeline({
   ceilingNoteIds: Set<string>;
   renderFollowUp?: (noteId: string) => ReactNode;
 }): JSX.Element {
-  if (notes.length === 0) return <p style={{ color: '#666' }}>No notes yet.</p>;
+  if (notes.length === 0) return <p style={{ color: 'var(--text-secondary)' }}>No notes yet.</p>;
 
   return (
     <ul style={{ listStyle: 'none', padding: 0 }}>
       {notes.map((n) => {
         const ceiling = ceilingNoteIds.has(n.id);
         return (
-          <li key={n.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid #eee' }}>
-            <small style={{ color: '#888' }}>
+          <li key={n.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid var(--hairline)' }}>
+            <small style={{ color: 'var(--text-tertiary)' }}>
               {new Date(n.createdAt).toLocaleString()} · {n.source}
-              {!ceiling && isProcessing(n.status) && <em style={{ color: '#a15c00' }}> · {processingLabel(n.status)}</em>}
+              {!ceiling && isProcessing(n.status) && <em style={{ color: 'var(--amber)' }}> · {processingLabel(n.status)}</em>}
             </small>
             <div>{n.rawText ?? <em>(transcription pending)</em>}</div>
             {ceiling && <CeilingNotice />}

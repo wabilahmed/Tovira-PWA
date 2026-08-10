@@ -48,11 +48,11 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
           aria-label="Your question"
           style={{ flex: 1 }}
         />
-        {listen && <button type="button" onClick={() => void speak()} aria-label="Ask by voice">🎤</button>}
+        {listen && <button type="button" onClick={() => void speak()} aria-label="Ask by voice">Voice</button>}
         <button type="submit" disabled={busy || !question.trim()}>{busy ? 'Thinking…' : 'Ask'}</button>
       </form>
 
-      {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
 
       {result && (
         <div style={{ marginTop: '1rem' }}>
@@ -62,8 +62,9 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
               <strong>Receipts</strong>
               <ul style={{ listStyle: 'none', padding: 0 }}>
                 {result.receipts.map((r, i) => (
-                  <li key={i} data-testid="receipt" style={receipt}>
-                    “{r.quote}” <small style={{ color: '#888' }}>— {r.date}</small>
+                  <li key={i} data-testid="receipt" className="tov-receipt">
+                    <div style={{ color: 'var(--text-primary)' }}>“{r.quote}”</div>
+                    <div className="tov-stamp" style={{ marginTop: 6 }}>{r.date}</div>
                   </li>
                 ))}
               </ul>
@@ -74,5 +75,3 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
     </section>
   );
 }
-
-const receipt: React.CSSProperties = { padding: '0.5rem 0.75rem', borderLeft: '3px solid #e5e7eb', margin: '0.5rem 0' };

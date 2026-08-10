@@ -2,6 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import { registerServiceWorker } from './pwa/registerServiceWorker.js';
+import './styles/theme.css';
+import { initTheme } from './styles/theme.js';
+
+initTheme();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root element not found');

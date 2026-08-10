@@ -50,9 +50,9 @@ export function CardScan({
       </label>
 
       {state === 'scanning' && <p>Reading the card…</p>}
-      {state === 'error' && <p role="alert" style={{ color: 'crimson' }}>Couldn't read that image — try again.</p>}
+      {state === 'error' && <p role="alert" style={{ color: 'var(--claret)' }}>Couldn't read that image — try again.</p>}
       {state === 'not_card' && <p role="alert">That doesn't look like a business card.</p>}
-      {state === 'saved' && <p style={{ color: 'green' }}>Contact created.</p>}
+      {state === 'saved' && <p style={{ color: 'var(--green)' }}>Contact created.</p>}
 
       {state === 'ready' && contact && (
         <div data-testid="card-preview" style={box}>
@@ -73,11 +73,11 @@ export function CardScan({
           <button onClick={() => void save()} disabled={!contact.name} style={{ marginTop: '0.5rem' }}>
             Create client from card
           </button>
-          {!contact.name && <p style={{ color: '#92400e' }}>No name detected — add it manually instead.</p>}
+          {!contact.name && <p style={{ color: 'var(--amber)' }}>No name detected — add it manually instead.</p>}
         </div>
       )}
     </section>
   );
 }
 
-const box: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.75rem 0' };
+const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.75rem 0' };

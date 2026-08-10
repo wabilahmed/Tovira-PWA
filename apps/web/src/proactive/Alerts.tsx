@@ -48,13 +48,13 @@ export function Alerts({ api }: { api: ProactiveApi }): JSX.Element {
       </div>
 
       {notifications.length === 0 ? (
-        <p style={{ color: '#666' }}>No alerts right now.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>No alerts right now.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {notifications.map((n) => (
             <li key={n.id} data-testid="alert" style={item}>
               <strong>{n.title}</strong>
-              <div style={{ color: '#555' }}>{n.body}</div>
+              <div style={{ color: 'var(--text-secondary)' }}>{n.body}</div>
             </li>
           ))}
         </ul>
@@ -62,12 +62,12 @@ export function Alerts({ api }: { api: ProactiveApi }): JSX.Element {
 
       <h2>Going quiet</h2>
       {cold.length === 0 ? (
-        <p style={{ color: '#666' }}>No clients have gone cold.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>No clients have gone cold.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {cold.map((c) => (
             <li key={c.id} data-testid="cold-client" style={item}>
-              {c.name} <small style={{ color: '#888' }}>· last contact {new Date(c.lastTouchedAt).toLocaleDateString()}</small>
+              {c.name} <small style={{ color: 'var(--text-tertiary)' }}>· last contact {new Date(c.lastTouchedAt).toLocaleDateString()}</small>
             </li>
           ))}
         </ul>
@@ -76,4 +76,4 @@ export function Alerts({ api }: { api: ProactiveApi }): JSX.Element {
   );
 }
 
-const item: React.CSSProperties = { padding: '0.5rem 0', borderBottom: '1px solid #eee' };
+const item: React.CSSProperties = { padding: '0.5rem 0', borderBottom: '1px solid var(--hairline)' };

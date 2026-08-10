@@ -75,7 +75,7 @@ export function Meetings({ api, clients }: { api: MeetingsApi; clients: ClientOp
         />
         <button type="submit" disabled={!text.trim()}>Parse</button>
       </form>
-      {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
+      {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
 
       {preview && (
         <div data-testid="meeting-preview" style={box}>
@@ -101,13 +101,13 @@ export function Meetings({ api, clients }: { api: MeetingsApi; clients: ClientOp
       {loading ? (
         <p>Loading meetings…</p>
       ) : meetings.length === 0 ? (
-        <p style={{ color: '#666' }}>No meetings scheduled.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>No meetings scheduled.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {meetings.map((m) => (
             <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', justifyContent: 'space-between' }}>
               <span>
-                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small style={{ color: '#888' }}>{m.datetime ?? m.datetimeRaw}</small>
+                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small style={{ color: 'var(--text-tertiary)' }}>{m.datetime ?? m.datetimeRaw}</small>
               </span>
               <button onClick={() => void remove(m.id)}>Remove</button>
             </li>
@@ -118,4 +118,4 @@ export function Meetings({ api, clients }: { api: MeetingsApi; clients: ClientOp
   );
 }
 
-const box: React.CSSProperties = { border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.75rem 0' };
+const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.75rem 0' };

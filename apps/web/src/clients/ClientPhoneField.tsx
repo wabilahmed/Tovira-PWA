@@ -38,7 +38,7 @@ export function ClientPhoneField({
         />
       </label>
       <button onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
-      {saved && <small style={{ color: 'green' }}>Saved ✓</small>}
+      {saved && <small style={{ color: 'var(--green)' }}>Saved ✓</small>}
     </div>
   );
 }

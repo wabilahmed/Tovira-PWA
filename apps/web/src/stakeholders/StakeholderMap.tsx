@@ -30,7 +30,7 @@ export function StakeholderMap({ clientId, api }: { clientId: string; api: Stake
   }, [api, clientId]);
 
   if (loading) return <p>Loading stakeholders…</p>;
-  if (people.length === 0) return <p style={{ color: '#666' }}>No stakeholders captured yet.</p>;
+  if (people.length === 0) return <p style={{ color: 'var(--text-secondary)' }}>No stakeholders captured yet.</p>;
 
   return (
     <section aria-label="Stakeholders">
@@ -45,7 +45,7 @@ export function StakeholderMap({ clientId, api }: { clientId: string; api: Stake
                 <li key={i}>
                   {p.name ?? 'Unknown'}
                   {p.role ? `, ${p.role}` : ''}
-                  {p.reports_to ? <small style={{ color: '#888' }}> · reports to {p.reports_to}</small> : null}
+                  {p.reports_to ? <small style={{ color: 'var(--text-tertiary)' }}> · reports to {p.reports_to}</small> : null}
                 </li>
               ))}
             </ul>
