@@ -61,7 +61,7 @@ export function FollowUpDraft({
             rows={5}
             style={{ width: '100%' }}
           />
-          <button onClick={() => void copy()}>{copied ? 'Copied ✓' : 'Copy'}</button>{' '}
+          <button onClick={() => void copy()}>{copied ? 'Copied' : 'Copy'}</button>{' '}
           <button className="tov-primary" onClick={() => openLink(whatsappLink(draft, phone))}>Send via WhatsApp</button>
         </div>
       )}

@@ -8,7 +8,7 @@
 export function CeilingNotice({ imported }: { imported?: number }): JSX.Element {
   return (
     <div data-testid="ceiling-notice" role="status" style={box}>
-      <strong>Your chats are saved. ✓</strong>
+      <strong>Your chats are saved.</strong>
       <p style={{ margin: '0.25rem 0 0' }}>
         {typeof imported === 'number' && imported > 0
           ? `We scanned ${imported} message${imported === 1 ? '' : 's'} and reached your free-trial scanning limit. `

@@ -19,14 +19,14 @@ export function MondayDigest({ api }: { api: MondayApi }): JSX.Element {
     return () => { live = false; };
   }, [api]);
 
-  if (state === 'loading') return <p>Building your Monday scan…</p>;
-  if (state === 'error' || !digest) return <p role="alert">Couldn’t load your Monday scan.</p>;
+  if (state === 'loading') return <p>Building the Monday Statement…</p>;
+  if (state === 'error' || !digest) return <p role="alert">The Monday Statement could not be loaded. Try again in a moment.</p>;
 
   if (digest.isLight) {
     return (
       <section aria-label="The Monday Statement">
         <h2 style={{ marginTop: 0 }}>The Monday Statement</h2>
-        <p data-testid="clear-week" style={{ color: 'var(--text-secondary)' }}>A clear week — nothing due, no one cooling. Nice.</p>
+        <p data-testid="clear-week" style={{ color: 'var(--text-secondary)' }}>A clear week — nothing due, no one cooling.</p>
       </section>
     );
   }
