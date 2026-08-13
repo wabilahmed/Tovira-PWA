@@ -122,6 +122,8 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* §10 finish: tabular numerals everywhere a number appears. */
+  font-variant-numeric: tabular-nums;
 }
 
 /* A single, barely-there vault vignette (≤4% luminance shift) — nothing more. */
