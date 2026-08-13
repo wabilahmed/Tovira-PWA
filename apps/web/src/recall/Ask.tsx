@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { RecallAnswer } from './recallClient.js';
+import { Receipt } from '../components/Receipt.js';
 
 export interface RecallApi {
   ask(question: string): Promise<RecallAnswer | null>;
@@ -60,14 +61,11 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
           {result.receipts.length > 0 && (
             <div>
               <strong>Receipts</strong>
-              <ul style={{ listStyle: 'none', padding: 0 }}>
+              <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
                 {result.receipts.map((r, i) => (
-                  <li key={i} data-testid="receipt" className="tov-receipt">
-                    <div style={{ color: 'var(--text-primary)' }}>“{r.quote}”</div>
-                    <div className="tov-stamp" style={{ marginTop: 6 }}>{r.date}</div>
-                  </li>
+                  <Receipt key={i} quote={r.quote} date={r.date} />
                 ))}
-              </ul>
+              </div>
             </div>
           )}
         </div>

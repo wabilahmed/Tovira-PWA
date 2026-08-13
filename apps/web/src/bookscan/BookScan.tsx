@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { BookScanReport, BookScanItem } from './bookScanClient.js';
+import { Receipt } from '../components/Receipt.js';
 
 export interface BookScanApi {
   scan(): Promise<BookScanReport | null>;
@@ -55,13 +56,7 @@ export function BookScan({ api }: { api: BookScanApi }): JSX.Element {
                 <strong>{item.headline}</strong>
                 {item.framing === 'worth_checking' && <span style={badge}>worth checking</span>}
               </div>
-              <div data-testid="receipt" className="tov-receipt">
-                <div style={{ color: 'var(--text-primary)' }}>“{item.receipt.quote}”</div>
-                <div className="tov-stamp" style={{ marginTop: 6 }}>
-                  {KIND_LABEL[item.kind]} · {item.clientName}
-                  {item.receipt.date ? <> · {item.receipt.date}</> : null}
-                </div>
-              </div>
+              <Receipt quote={item.receipt.quote} source={`${KIND_LABEL[item.kind]} · ${item.clientName}`} date={item.receipt.date} />
             </li>
           ))}
         </ul>

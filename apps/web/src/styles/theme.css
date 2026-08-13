@@ -221,6 +221,16 @@ ul, ol { padding-inline-start: 1.25rem; }
   inset-inline: 10px;
   border-top: 1px dotted var(--hairline);
 }
+/* Tappable receipt: strip the default button chrome, keep the chit look. */
+.tov-receipt--tap {
+  display: block;
+  width: 100%;
+  min-height: auto;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
 .tov-stamp {
   font-family: var(--font-mono);
   font-size: 0.72rem;
