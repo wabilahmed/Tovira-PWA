@@ -41,6 +41,11 @@ export function formatBody(input: DateInput): string {
   return p ? `${p.d} ${MONTHS[p.m]} ${p.y}` : '';
 }
 
+/** Whole days elapsed between two epoch-ms instants, floored, never negative. */
+export function daysSince(fromMs: number, nowMs: number): number {
+  return Math.max(0, Math.floor((nowMs - fromMs) / 86_400_000));
+}
+
 /** Just the month + year, for possession lines: `MAR 2026`. */
 export function formatMonthYear(input: DateInput): string {
   const p = parts(input);

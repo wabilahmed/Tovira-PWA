@@ -22,7 +22,7 @@ describe('<PromisesTracker>', () => {
   it('lists open promises with their due dates', async () => {
     render(<PromisesTracker api={makeApi([p('p1', 'send quote'), p('p2', 'call back', { dueDate: null, dueRaw: 'next week' })])} />);
     expect(await screen.findByText('send quote')).toBeInTheDocument();
-    expect(screen.getByText(/due 2026-08-01/)).toBeInTheDocument();
+    expect(screen.getByText(/due 1 Aug 2026/)).toBeInTheDocument();
     expect(screen.getByText(/next week/)).toBeInTheDocument();
     expect(screen.getAllByTestId('open-promise')).toHaveLength(2);
   });

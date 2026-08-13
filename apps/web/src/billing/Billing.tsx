@@ -70,10 +70,10 @@ export function Billing({
       {status !== 'active' && (
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button className="tov-primary" onClick={() => void subscribe('monthly')} disabled={busy}>
-            {busy ? 'Starting…' : <>Subscribe monthly — <span className="tov-mono">AED 299/mo</span></>}
+            {busy ? 'Starting…' : <>Subscribe monthly — <span className="tov-mono">AED 299 / month</span></>}
           </button>
           <button className="tov-link" onClick={() => void subscribe('annual')} disabled={busy}>
-            {busy ? 'Starting…' : <>Subscribe annually — <span className="tov-mono">AED 2,990/yr</span> (2 months free)</>}
+            {busy ? 'Starting…' : <>Subscribe annually — <span className="tov-mono">AED 2,990 / year</span> (2 months free)</>}
           </button>
         </div>
       )}

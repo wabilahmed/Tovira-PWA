@@ -46,7 +46,10 @@ function Group({ title, testid, items }: { title: string; testid: string; items:
   if (items.length === 0) return null;
   return (
     <div data-testid={testid} style={{ margin: '1.25rem 0', paddingBottom: '0.75rem', borderBottom: '1px solid var(--hairline)' }}>
-      <div className="tov-stamp" style={{ marginBottom: 8 }}>{title}</div>
+      <div className="tov-stamp" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+        <span>{title}</span>
+        <span>{items.length}</span>
+      </div>
       <ul style={{ margin: 0, display: 'grid', gap: '0.35rem' }}>
         {items.map((t, i) => <li key={i}>{t}</li>)}
       </ul>

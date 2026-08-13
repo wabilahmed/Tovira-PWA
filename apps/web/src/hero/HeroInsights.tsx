@@ -120,6 +120,6 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
   );
 }
 
-const warmBox: React.CSSProperties = { border: '1px dashed var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', background: 'var(--surface-raised)' };
+const warmBox: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: '0.75rem 1rem', background: 'var(--surface-raised)' };
 const card: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.5rem 0' };
 const badge: React.CSSProperties = { fontSize: '0.7rem', background: 'var(--brass-surface)', color: 'var(--brass)', borderRadius: 999, padding: '0.1rem 0.5rem' };

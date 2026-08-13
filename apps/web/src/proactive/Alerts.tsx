@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ColdClient, Notification } from './proactiveClient.js';
+import { daysSince } from '../format/dates.js';
 
 export interface ProactiveApi {
   listCold(): Promise<ColdClient[]>;
@@ -8,7 +9,7 @@ export interface ProactiveApi {
 }
 
 /** In-app alerts + going-cold list — value even when push fails/is off (P3-5). */
-export function Alerts({ api }: { api: ProactiveApi }): JSX.Element {
+export function Alerts({ api, now = Date.now() }: { api: ProactiveApi; now?: number }): JSX.Element {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [cold, setCold] = useState<ColdClient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,12 +69,16 @@ export function Alerts({ api }: { api: ProactiveApi }): JSX.Element {
         <p style={{ color: 'var(--text-secondary)' }}>No clients have gone cold.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
-          {cold.map((c) => (
-            <li key={c.id} data-testid="cold-client" style={{ ...item, justifyContent: 'space-between' }}>
-              <span>{c.name}</span>
-              <small className="tov-stamp">last contact · {new Date(c.lastTouchedAt).toLocaleDateString()}</small>
-            </li>
-          ))}
+          {cold.map((c) => {
+            const days = daysSince(c.lastTouchedAt, now);
+            return (
+              <li key={c.id} data-testid="cold-client" style={{ ...item, justifyContent: 'space-between' }}>
+                <span>{c.name}</span>{' '}
+                {/* Elapsed silence is a fact — the one place claret may dominate a row (§10). */}
+                <span className="tov-mono" style={{ color: 'var(--claret)', fontSize: '0.85rem' }}>· silent {days} day{days === 1 ? '' : 's'}</span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

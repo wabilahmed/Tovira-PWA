@@ -23,8 +23,8 @@ describe('<Billing>', () => {
   it('shows the annual price as yearly, never as a monthly charge', async () => {
     render(<Billing api={makeApi({ entitled: false, status: 'none', trialEndsAt: 0 })} now={NOW} />);
     const annual = await screen.findByRole('button', { name: /subscribe annually/i });
-    expect(annual).toHaveTextContent(/AED 2,990\/yr/);
-    expect(annual).not.toHaveTextContent(/2,990\/mo/);
+    expect(annual).toHaveTextContent(/AED 2,990 \/ year/);
+    expect(annual).not.toHaveTextContent(/2,990 \/ month/);
   });
 
   it('shows the subscribed state and hides Subscribe when active', async () => {

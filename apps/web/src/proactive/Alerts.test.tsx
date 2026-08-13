@@ -23,6 +23,14 @@ describe('<Alerts>', () => {
     expect(screen.getByTestId('cold-client')).toHaveTextContent(/meridian/i);
   });
 
+  // [SCREENS §10] cooling entries carry the silent-days counter — a fact, in
+  // claret mono, computed client-side from the last-contact date.
+  it('shows the silent-days counter for a cooling client', async () => {
+    const now = Date.parse('2026-06-22'); // 21 days after 2026-06-01
+    render(<Alerts now={now} api={makeApi([], [coldC('c1', 'Falcon Group')])} />);
+    expect(await screen.findByTestId('cold-client')).toHaveTextContent(/falcon group · silent 21 days/i);
+  });
+
   it('shows empty states for both sections', async () => {
     render(<Alerts api={makeApi([], [])} />);
     expect(await screen.findByText(/no alerts right now/i)).toBeInTheDocument();

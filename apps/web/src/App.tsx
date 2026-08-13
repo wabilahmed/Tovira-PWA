@@ -41,6 +41,7 @@ import { PushClient } from './push/pushClient.js';
 import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
 import { ThemeToggle } from './settings/ThemeToggle.js';
+import { formatMonthYear, formatBody } from './format/dates.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
@@ -383,7 +384,9 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
   return (
     <main style={{ fontFamily: 'var(--font-sans)', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
       <button onClick={onBack} style={linkButton}>← Clients</button>
-      <h1>{client.name}</h1>
+      <h1 style={{ marginBottom: '0.15rem' }}>{client.name}</h1>
+      {/* Possession language (§10): the client is a holding, on file since a date. */}
+      <p className="tov-stamp" style={{ margin: '0 0 0.75rem' }}>on file since {formatMonthYear(client.createdAt)}</p>
 
       <ClientPhoneField
         phone={phone}
@@ -541,17 +544,19 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
     );
   }
   return (
+    // A prepared memo (§6): the client name in Fraunces, sections ruled by hairlines.
     <section style={briefBox}>
-      <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Brief</h2>
+      <h2 style={{ marginTop: 0, marginBottom: '0.25rem' }}>{brief.clientName}</h2>
+      <p className="tov-stamp" style={{ margin: '0 0 0.5rem' }}>Pre-meeting brief</p>
       {brief.openPromises.length > 0 && (
-        <div>
-          <strong>Open promises</strong>
-          <ul>{brief.openPromises.map((p) => <li key={p.id}>{p.text}{p.dueDate ? ` (due ${p.dueDate})` : p.dueRaw ? ` (${p.dueRaw})` : ''}</li>)}</ul>
+        <div style={briefSection}>
+          <div className="tov-stamp">Open promises</div>
+          <ul>{brief.openPromises.map((p) => <li key={p.id}>{p.text}{p.dueDate ? ` (due ${formatBody(p.dueDate)})` : p.dueRaw ? ` (${p.dueRaw})` : ''}</li>)}</ul>
         </div>
       )}
       {brief.needsConfirmation.length > 0 && (
-        <div>
-          <strong style={{ color: 'var(--amber)' }}>To confirm (not yet facts)</strong>
+        <div style={briefSection}>
+          <div className="tov-stamp" style={{ color: 'var(--amber)' }}>To confirm (not yet facts)</div>
           <ul>
             {brief.needsConfirmation.map((p) => (
               <li key={p.id}>
@@ -564,16 +569,16 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
         </div>
       )}
       {brief.keyPeople.length > 0 && (
-        <div>
-          <strong>Key people</strong>
+        <div style={briefSection}>
+          <div className="tov-stamp">Key people</div>
           <ul>{brief.keyPeople.map((p, i) => <li key={i}>{p.name}{p.role ? `, ${p.role}` : ''} — {p.decision_role.replace('_', ' ')}</li>)}</ul>
         </div>
       )}
       {brief.concerns.length > 0 && (
-        <div><strong>Concerns</strong><ul>{brief.concerns.map((c, i) => <li key={i}>{c}</li>)}</ul></div>
+        <div style={briefSection}><div className="tov-stamp">Concerns</div><ul>{brief.concerns.map((c, i) => <li key={i}>{c}</li>)}</ul></div>
       )}
       {brief.personalNotes.length > 0 && (
-        <div><strong>Personal notes</strong><ul>{brief.personalNotes.map((f, i) => <li key={i}>{f.subject}: {f.fact}</li>)}</ul></div>
+        <div style={briefSection}><div className="tov-stamp">Personal notes</div><ul>{brief.personalNotes.map((f, i) => <li key={i}>{f.subject}: {f.fact}</li>)}</ul></div>
       )}
     </section>
   );
@@ -581,11 +586,12 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
 
 const briefBox: React.CSSProperties = {
   border: '1px solid var(--hairline)',
-  borderRadius: 8,
-  padding: '1rem',
+  borderRadius: 'var(--radius-card)',
+  padding: '1rem 1.25rem',
   margin: '1rem 0',
   background: 'var(--surface-raised)',
 };
+const briefSection: React.CSSProperties = { borderTop: '1px solid var(--hairline)', paddingTop: '0.6rem', marginTop: '0.6rem' };
 
 function Centered({ children }: { children: React.ReactNode }): JSX.Element {
   return (

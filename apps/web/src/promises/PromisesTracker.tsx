@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { OpenPromise } from './promisesClient.js';
+import { formatBody } from '../format/dates.js';
 
 export interface PromisesApi {
   listOpen(): Promise<OpenPromise[]>;
@@ -10,7 +11,7 @@ export interface PromisesApi {
 }
 
 /** The open-promises tracker + confirmation queue (P4-1 / P1-7 / P2-3). */
-export function PromisesTracker({ api }: { api: PromisesApi }): JSX.Element {
+export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; now?: number }): JSX.Element {
   const [open, setOpen] = useState<OpenPromise[]>([]);
   const [pending, setPending] = useState<OpenPromise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,8 +54,11 @@ export function PromisesTracker({ api }: { api: PromisesApi }): JSX.Element {
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {open.map((p) => (
             <li key={p.id} data-testid="open-promise" style={row}>
-              <span>
-                {p.text} <small className="tov-stamp">{due(p)}</small>
+              <span style={{ display: 'flex', gap: '0.6rem', alignItems: 'baseline' }}>
+                {overdue(p, now) && <span className="tov-dot tov-dot--claret" aria-hidden="true" />}
+                <span>
+                  {p.text} <small className="tov-stamp" style={overdue(p, now) ? { color: 'var(--claret)' } : undefined}>{due(p)}</small>
+                </span>
               </span>
               <button onClick={() => void done(p.id)}>Done</button>
             </li>
@@ -86,9 +90,17 @@ export function PromisesTracker({ api }: { api: PromisesApi }): JSX.Element {
 }
 
 function due(p: OpenPromise): string {
-  if (p.dueDate) return `· due ${p.dueDate}`;
+  if (p.dueDate) return `· due ${formatBody(p.dueDate)}`;
   if (p.dueRaw) return `· ${p.dueRaw}`;
   return '· no date';
+}
+
+/** A promise is overdue when its resolved due date is in the past. Elapsed time
+ *  is a fact, so claret here passes the honesty rules (§10). */
+function overdue(p: OpenPromise, now: number): boolean {
+  if (!p.dueDate) return false;
+  const t = Date.parse(p.dueDate);
+  return Number.isFinite(t) && t < now;
 }
 
 const row: React.CSSProperties = {
