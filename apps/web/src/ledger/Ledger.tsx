@@ -42,8 +42,8 @@ export function Ledger({ api, clients }: { api: LedgerApi; clients: Array<{ id: 
   if (state === 'error' || !summary) return <p role="alert">Couldn’t load your ledger.</p>;
 
   return (
-    <section aria-label="Recovered value">
-      <h2 style={{ marginTop: 0 }}>Value Tovira touched</h2>
+    <section aria-label="The Ledger">
+      <h2 style={{ marginTop: 0 }}>The Ledger</h2>
 
       {summary.totalTouched === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>Nothing yet — as you act on flags and keep promises, they’ll show here.</p>

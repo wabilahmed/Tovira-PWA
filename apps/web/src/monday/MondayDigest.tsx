@@ -24,16 +24,16 @@ export function MondayDigest({ api }: { api: MondayApi }): JSX.Element {
 
   if (digest.isLight) {
     return (
-      <section aria-label="Monday scan">
-        <h2 style={{ marginTop: 0 }}>Your week</h2>
+      <section aria-label="The Monday Statement">
+        <h2 style={{ marginTop: 0 }}>The Monday Statement</h2>
         <p data-testid="clear-week" style={{ color: 'var(--text-secondary)' }}>A clear week — nothing due, no one cooling. Nice.</p>
       </section>
     );
   }
 
   return (
-    <section aria-label="Monday scan">
-      <h2 style={{ marginTop: 0 }}>Your week</h2>
+    <section aria-label="The Monday Statement">
+      <h2 style={{ marginTop: 0 }}>The Monday Statement</h2>
       <Group title="Promises due this week" testid="due" items={digest.promisesDue.map((p) => `${p.text}${p.dueDate ? ` — ${p.dueDate}` : ''}`)} />
       <Group title="Cooling clients" testid="cooling" items={digest.coolingClients.map((c) => c.name)} />
       <Group title="Unanswered questions" testid="questions" items={digest.unansweredQuestions.map((q) => `“${q.question}”`)} />

@@ -189,16 +189,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </small>
       </header>
 
-      <nav style={{ display: 'flex', gap: '1rem', margin: '1rem 0' }} aria-label="Sections">
+      <nav style={{ display: 'flex', gap: '1rem', rowGap: '0.5rem', flexWrap: 'wrap', margin: '1rem 0' }} aria-label="Sections">
         <button onClick={() => setView('clients')} style={view === 'clients' ? navActive : navItem}>Clients</button>
-        <button onClick={() => setView('today')} style={view === 'today' ? navActive : navItem}>Today</button>
-        <button onClick={() => setView('week')} style={view === 'week' ? navActive : navItem}>Week</button>
+        <button onClick={() => setView('today')} style={view === 'today' ? navActive : navItem}>Today&rsquo;s register</button>
+        <button onClick={() => setView('week')} style={view === 'week' ? navActive : navItem}>The Monday Statement</button>
         <button onClick={() => setView('ask')} style={view === 'ask' ? navActive : navItem}>Ask</button>
         <button onClick={() => setView('promises')} style={view === 'promises' ? navActive : navItem}>Promises</button>
         <button onClick={() => setView('meetings')} style={view === 'meetings' ? navActive : navItem}>Meetings</button>
         <button onClick={() => setView('alerts')} style={view === 'alerts' ? navActive : navItem}>Alerts</button>
         <button onClick={() => setView('bookscan')} style={view === 'bookscan' ? navActive : navItem}>Book Scan</button>
-        <button onClick={() => setView('ledger')} style={view === 'ledger' ? navActive : navItem}>Value</button>
+        <button onClick={() => setView('ledger')} style={view === 'ledger' ? navActive : navItem}>The Ledger</button>
         <button onClick={() => setView('settings')} style={view === 'settings' ? navActive : navItem}>Settings</button>
         {needsSeeding && (
           <button onClick={() => setView('getstarted')} style={view === 'getstarted' ? navActive : navItem}>

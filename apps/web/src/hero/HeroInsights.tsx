@@ -56,9 +56,9 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
   if (loading) return <p>Working out your day…</p>;
 
   return (
-    <section aria-label="Insights">
+    <section aria-label="Today's register">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h2 style={{ marginTop: 0 }}>What to do today</h2>
+        <h2 style={{ marginTop: 0 }}>Today&rsquo;s register</h2>
         <button onClick={() => void refresh()} disabled={refreshing || rateLimited}>
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
