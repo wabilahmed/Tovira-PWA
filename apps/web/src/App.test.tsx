@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App.js';
 
@@ -114,6 +114,7 @@ describe('<App> integration', () => {
     ]);
     const user = userEvent.setup();
     render(<App />);
+    await user.click(await screen.findByRole('button', { name: /^more$/i })); // overflow section
     await user.click(await screen.findByRole('button', { name: /promises/i }));
     expect(await screen.findByText(/send the revised quote/i)).toBeInTheDocument();
   });
@@ -144,6 +145,7 @@ describe('<App> integration', () => {
     ]);
     const user = userEvent.setup();
     render(<App />);
+    await user.click(await screen.findByRole('button', { name: /^more$/i })); // overflow section
     await user.click(await screen.findByRole('button', { name: /alerts/i }));
     expect(await screen.findByText(/meridian has gone quiet/i)).toBeInTheDocument();
   });
@@ -157,6 +159,7 @@ describe('<App> integration', () => {
     ]);
     const user = userEvent.setup();
     render(<App />);
+    await user.click(await screen.findByRole('button', { name: /^more$/i })); // overflow section
     await user.click(await screen.findByRole('button', { name: /meetings/i }));
     expect(await screen.findByText(/kickoff with acme/i)).toBeInTheDocument();
   });
@@ -170,6 +173,7 @@ describe('<App> integration', () => {
     ]);
     const user = userEvent.setup();
     render(<App />);
+    await user.click(await screen.findByRole('button', { name: /^more$/i })); // overflow section
     await user.click(await screen.findByRole('button', { name: /settings/i }));
     expect(await screen.findByText(/you're subscribed/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /delete my account/i })).toBeInTheDocument();
@@ -184,10 +188,11 @@ describe('<App> integration', () => {
     ]);
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: /^ask$/i })); // nav (only one yet)
+    await user.click(await screen.findByRole('button', { name: /^ask$/i })); // nav tab
     await user.type(await screen.findByLabelText(/your question/i), 'What did Ahmed say?');
-    const askButtons = screen.getAllByRole('button', { name: /^ask$/i }); // nav + form submit
-    await user.click(askButtons[askButtons.length - 1]!);
+    // The form submit lives inside the Ask region (the nav tab shares its name).
+    const region = await screen.findByRole('region', { name: /ask your memory/i });
+    await user.click(within(region).getByRole('button', { name: /^ask$/i }));
     expect(await screen.findByTestId('answer')).toHaveTextContent(/pricing was high/i);
   });
 

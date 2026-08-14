@@ -42,6 +42,8 @@ import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
 import { ThemeToggle } from './settings/ThemeToggle.js';
 import { formatMonthYear, formatBody } from './format/dates.js';
+import { AppShell } from './shell/AppShell.js';
+import type { View } from './shell/nav.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
@@ -139,8 +141,6 @@ export function App(): JSX.Element {
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
-type View = 'clients' | 'today' | 'week' | 'ask' | 'promises' | 'meetings' | 'alerts' | 'bookscan' | 'ledger' | 'getstarted' | 'settings';
-
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [name, setName] = useState('');
@@ -179,35 +179,18 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const needsSeeding = seeding !== null && !seeding.seeded;
 
   return (
-    <main style={{ fontFamily: 'var(--font-sans)', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
-          <h1 style={{ margin: 0 }}>Tovira</h1>
-          <CorpusBadge api={corpusApi} />
+    <AppShell
+      view={view}
+      onNavigate={setView}
+      needsSeeding={needsSeeding}
+      sidebarFooter={
+        <span>
+          {session.user.email}
+          <br />
+          <button onClick={onLogout} style={linkButton}>Log out</button>
         </span>
-        <small>
-          {session.user.email} · <button onClick={onLogout} style={linkButton}>Log out</button>
-        </small>
-      </header>
-
-      <nav style={{ display: 'flex', gap: '1rem', rowGap: '0.5rem', flexWrap: 'wrap', margin: '1rem 0' }} aria-label="Sections">
-        <button onClick={() => setView('clients')} style={view === 'clients' ? navActive : navItem}>Clients</button>
-        <button onClick={() => setView('today')} style={view === 'today' ? navActive : navItem}>Today&rsquo;s register</button>
-        <button onClick={() => setView('week')} style={view === 'week' ? navActive : navItem}>The Monday Statement</button>
-        <button onClick={() => setView('ask')} style={view === 'ask' ? navActive : navItem}>Ask</button>
-        <button onClick={() => setView('promises')} style={view === 'promises' ? navActive : navItem}>Promises</button>
-        <button onClick={() => setView('meetings')} style={view === 'meetings' ? navActive : navItem}>Meetings</button>
-        <button onClick={() => setView('alerts')} style={view === 'alerts' ? navActive : navItem}>Alerts</button>
-        <button onClick={() => setView('bookscan')} style={view === 'bookscan' ? navActive : navItem}>Book Scan</button>
-        <button onClick={() => setView('ledger')} style={view === 'ledger' ? navActive : navItem}>The Ledger</button>
-        <button onClick={() => setView('settings')} style={view === 'settings' ? navActive : navItem}>Settings</button>
-        {needsSeeding && (
-          <button onClick={() => setView('getstarted')} style={view === 'getstarted' ? navActive : navItem}>
-            Get started
-          </button>
-        )}
-      </nav>
-
+      }
+    >
       {view === 'getstarted' && seeding && (
         <GetStarted
           seeding={seeding}
@@ -259,6 +242,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'clients' && (
         <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <CorpusBadge api={corpusApi} />
+            <small style={{ color: 'var(--text-secondary)' }}>
+              {session.user.email} · <button onClick={onLogout} style={linkButton}>Log out</button>
+            </small>
+          </div>
+          <h2 style={{ marginTop: 0 }}>Clients</h2>
           <form onSubmit={addClient} style={{ display: 'flex', gap: '0.5rem', margin: '1.5rem 0' }}>
             <input
               value={name}
@@ -306,7 +296,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           )}
         </>
       )}
-    </main>
+    </AppShell>
   );
 }
 
@@ -470,17 +460,6 @@ const linkButton: React.CSSProperties = {
   fontSize: 'inherit',
 };
 
-// Nav tabs read as a quiet ledger index: inactive tabs stay muted, and only the
-// active one earns the brass (brand: brass is earned, never on every element).
-const navItem: React.CSSProperties = { ...linkButton, color: 'var(--text-secondary)' };
-
-const navActive: React.CSSProperties = {
-  ...linkButton,
-  color: 'var(--brass)',
-  fontWeight: 600,
-  textDecoration: 'underline',
-  textUnderlineOffset: 4,
-};
 
 function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Element {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
