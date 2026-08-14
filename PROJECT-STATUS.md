@@ -1,18 +1,21 @@
 # Tovira — Project Status & Handover
 
 **As of this build.** Everything a coding agent can implement — backend, frontend,
-and cloud infrastructure-as-code — is **built, tested, committed, and pushed to
-`main`**. What remains is exclusively deploy / device / real-user work that
-requires you.
+and cloud infrastructure-as-code — is **built, tested, and committed to `main`**
+(the latest batch — engine v0.5 certification + five features — is committed
+locally, **push pending your review**). What remains is exclusively deploy /
+device / real-user work that requires you.
 
-- **Unit + component tests:** 729 passing (131 test files) · **Integration:** 10
-  (real Postgres, migrations 0001–0025) · **E2E:** 3 (Playwright PWA shell)
-- **Typecheck + lint:** clean · **Commits:** 68 on `main`
-- **DB migrations:** 25 · **Backend services:** 25 dirs · **Frontend feature
-  modules:** 21 dirs
-- **Model routing:** hybrid per-task-class — extraction on Sonnet 5 (P1-9 gate
-  lock), all other AI classes default to Haiku 4.5, each config-overridable via
-  `MODEL_<CLASS>` (no code change).
+- **Unit + component tests:** 807 passing (141 test files) · **Integration:** 10
+  (real Postgres, migrations 0001–0027) · **E2E:** 3 (Playwright PWA shell)
+- **Typecheck + lint:** clean · **Commits:** 96 on `main`
+- **DB migrations:** 27 · **Backend services:** 22 dirs · **Frontend feature
+  modules:** 36 dirs
+- **Extraction engine:** `tovira-extract-v0.5`, **human-certified** on
+  claude-sonnet-5 (see §3a — the gate is the asset). Model routing is hybrid
+  per-task-class — extraction on Sonnet 5 (P1-9 gate lock), all other AI classes
+  default to Haiku 4.5, each config-overridable via `MODEL_<CLASS>` (no code
+  change).
 
 ---
 
@@ -64,13 +67,16 @@ apps/api/            Node API
   src/http/          route handlers + test-deps (in-memory dep builder)
   src/container.ts   composition root (real vs stub by config)
   src/index.ts       server bootstrap (migrate on boot, wire everything)
-  migrations/        0001–0023 (.sql, run in order on boot)
+  migrations/        0001–0027 (.sql, run in order on boot)
+  src/eval/          the P1-9 gate — eval-set (guarded ground truth), scorer, runner
 apps/web/            React PWA (see FRONTEND-PAGES.md for every screen)
 infra/terraform/     AWS infra-as-code (authored, NOT applied)
-docs/                spec, user stories, acceptance tests, prompt, infra design
+docs/                HUMAN-OWNED CONTRACTS — spec, user stories, acceptance tests,
+                     brand, extraction prompt, infra design (guard-protected)
 docker-compose.yml               local stack (stub AI)
 docker-compose.real-ai.yml       opt-in override → real Claude/Groq/Stripe
-FRONTEND-PAGES.md    per-page frontend documentation
+PROJECT-STATUS.md    this build report (agent-owned, repo root — not a contract)
+FRONTEND-PAGES.md    per-page frontend documentation (agent-owned, repo root)
 ```
 
 ---
@@ -95,10 +101,10 @@ Legend: ✅ done & tested · ⚠️ partial/deferred · 🔒 needs you (deploy/d
 | P1-1..P1-4 client, selection, voice, paste | ✅ | offline outbox for voice |
 | P1-4b WhatsApp chat import | ✅ | parser, consent, batch extract |
 | P1-5 transcription | ✅ | Groq/Whisper adapter + stub |
-| P1-6 structured extraction | ✅ | v0.1 schema + unanswered-question detection |
-| P1-7 flag uncertainty | ✅ | confirmation queue |
+| P1-6 structured extraction | ✅ | `tovira-extract-v0.5` schema + unanswered-question detection (deterministic in code) |
+| P1-7 flag uncertainty | ✅ | confirmation queue — surfaced inline as amber chits on Today/Alerts/Monday (§3b) |
 | P1-8 log every extraction | ✅ | training log w/ prompt version |
-| **P1-9 ★ quality gate** | ✅ | **run against real Sonnet 5 (passes, 0 guessed dates)**; eval set includes code-switched Arabic/Hindi/Urdu notes |
+| **P1-9 ★ quality gate** | ✅ | **CERTIFIED on claude-sonnet-5 under the two-tier standard — see §3a for the actual numbers.** Eval set: code-switched Arabic/Hindi/Urdu + role-only notes |
 
 ### Phase 2 — Pre-meeting brief
 | P2-1 brief · P2-2 timeline · P2-3 confirm & correct · P2-4 no guesses as facts | ✅ |
@@ -113,7 +119,8 @@ Legend: ✅ done & tested · ⚠️ partial/deferred · 🔒 needs you (deploy/d
 ### Phase 4 — Feature completion + hero + new loop
 | Story | Status |
 |---|---|
-| P4-1 promises tracker · P4-2 stakeholder map · P4-3 personal facts · P4-4 follow-up draft · P4-5 card scan · P4-6 gallery | ✅ |
+| P4-1 promises tracker · P4-2 stakeholder map · P4-3 personal facts · P4-4 follow-up draft · P4-5 card scan (**real Claude-vision adapter** — blurry fields stay null, non-cards rejected, nothing saved unconfirmed) · P4-6 gallery | ✅ |
+| P4-SILENCE push silence budget (max 2/rep/day, ranked; suppressed still in-app) | ✅ |
 | P4-7 WhatsApp send loop (`wa.me`, never auto-sends) | ✅ |
 | P4-8 conversational recall (RAG w/ receipts, "I don't have that") | ✅ |
 | P4-9 personalized extraction (per-rep glossary from corrections) | ✅ |
@@ -125,7 +132,7 @@ Legend: ✅ done & tested · ⚠️ partial/deferred · 🔒 needs you (deploy/d
 | Story | Status |
 |---|---|
 | P5-1 free trial + **extraction ceiling** + **activity-gated +7 extension** (+ server-computed extension-incentive UI, non-scary ceiling state) | ✅ |
-| P5-2 subscribe & manage (Stripe, webhooks = source of truth) | ✅ |
+| P5-2 subscribe & manage (Stripe, webhooks = source of truth) + **renewal date** ("Renews 14 SEP 2026" from `current_period_end`; null → no line, never inferred) | ✅ |
 | P5-3 day-one seeding via WhatsApp export | ✅ |
 | P5-3b ★ Day-One Book Scan (trial wow) | ✅ |
 | P5-4 data trust & control (full export incl. images, delete) | ✅ |
@@ -153,6 +160,88 @@ conversational recall capped top-k — ✅; ③ daily priorities precomputed nig
 ✅ (nightly `priorities-nightly` job → `daily_priorities` cache; `/today` serves
 the stored result with zero model calls on read; manual refresh rate-limited
 2/rep/day); ④ bounded trial seeding — ✅ (extraction ceiling).
+
+---
+
+## 3a. ★ The extraction engine — the asset (P1-9, `tovira-extract-v0.5`)
+
+This is the thing competitors can't shortcut: a **documented, human-certified,
+repeatable gate** proving the extraction doesn't fabricate promises, doesn't
+guess dates, doesn't merge people — and holds up on code-switched Gulf sales
+conversations. Everything else (the 807 tests, the branded frontend) is
+replaceable; this is not. **Keep the gate green as a permanent requirement — the
+day someone "optimizes" the prompt and skips the gate is the day Tovira starts
+lying quietly.**
+
+**The two-tier certification standard.** `temperature` is *deprecated* for
+claude-sonnet-5 (the API 400s on it), so determinism can't be pinned — it's
+certified by **repeated runs** instead:
+
+| Tier | Scope | Bars |
+|---|---|---|
+| **HARD** | per-run, **every subset**, zero tolerance | 0 guessed dates · 0 fabricated promises · 0 merged people |
+| **SOFT** | aggregated over **3 runs** | promises recall ≥ 0.90 · people precision ≥ 0.85 · people recall ≥ 0.80 |
+
+**Certification result — `tovira-extract-v0.5` on claude-sonnet-5 (2026-08-14):**
+
+| | promises p / r | people p / r | guessed · fabricated · merged |
+|---|---|---|---|
+| Run 1 — full set | 1.00 / 1.00 | 0.94 / 1.00 | 0 · 0 · 0 |
+| Run 1 — multilingual | 1.00 / 1.00 | 1.00 / 1.00 | 0 · 0 · 0 |
+| Runs 2 & 3 — both subsets | 1.00 / 1.00 | 1.00 / 1.00 | 0 · 0 · 0 |
+| **3-run aggregate (soft)** | **1.00 / 1.00** | **0.98 / 1.00** | **0 · 0 · 0** |
+
+**Verdict: PASS** — hard rules held on both subsets across all three runs; soft
+bars cleared on the aggregate. The lone Run-1 people-precision dip (0.94) was one
+null-named `(buyer)` over-extraction on the *pre-existing* Northwind note, not the
+purpose-built role-only notes; it did not recur and is soft-only.
+
+**Eval-set composition** (human-owned ground truth; each expected field traces to
+explicit note text, `_raw` verbatim in the stated language):
+- **10 named-people** instances across the code-switched subset (people count
+  varied 1 / 2 / 3 per note), plus the base English notes.
+- **Code-switched** Arabic/Hindi/Urdu ↔ English notes, including one with a
+  year-less date (`مارس` → null) exercising the no-guessed-date rule in a
+  non-English note.
+- **3 role-only** notes (unnamed "the buyer", "their CFO") expecting empty
+  `people` — the v0.5 no-null-named-person regression.
+- A `mustNotMerge` pair (Sarah / Sara) scored for the 0-merged-people rule.
+
+**v0.5 added two trust rules over v0.4:** a *year-less date* clause (a date with
+no year → null, phrase kept in `_raw`) and a *no-null-named-person* clause (a role
+with no name is never a person; the fact goes to concerns/next_steps).
+
+**Governance.** The eval fixture (`apps/api/src/eval/eval-set.ts`) is
+human-certified ground truth, guarded like the acceptance tests — the agent
+*proposes* annotated changes, a human *certifies*, then they're applied. An
+examinee can't edit its own answer key. Run it:
+`set -a; . ./.env; set +a; npx tsx apps/api/src/eval/index.ts` (real key =
+authorized spend; `.env` is never committed). Full write-up:
+`docs/ENGINE-AND-GAPS-REPORT.md`.
+
+---
+
+## 3b. Shipped since the last status (this batch)
+
+1. **Engine v0.5 certified** (§3a) — the two trust rules + the two-tier standard,
+   3× clean.
+2. **P5-2 renewal date** — `current_period_end` stored from the webhook, shown as
+   "Renews 14 SEP 2026"; null → no line (never inferred).
+3. **P4-SILENCE push silence budget** — max 2 pushes/rep/day, ranked *overdue
+   promise > cooling > meeting > date > refresh*; over-budget alerts are
+   suppressed from push only and still land in the in-app Alerts list; the cap is
+   enforced at the single send path and counts alerts, not device fan-out. Added
+   an overdue-promise generator (migration `0027_push_budget`).
+4. **P4-5 real card-scan vision** — a Claude-vision adapter behind the CardScanner
+   port; unreadable fields stay null, non-cards are reported, garbage yields a
+   non-card (never a fabricated contact). The route still saves nothing — it
+   returns a proposal the rep confirms.
+5. **P6-CHITS confirm chits** — the §6 confirmation queue surfaced inline as amber
+   "worth checking" chits on Today, Alerts, and the Monday Statement; the tick
+   turns brass once confirmed, Confirm / Not right are quiet outlines (rejecting a
+   guess isn't destructive), RTL for Arabic.
+6. **P7-HAPTIC** — one short haptic on promise-kept and note-saved; feature-
+   detected, so iOS PWAs (no Vibration API) silently get nothing.
 
 ---
 
@@ -234,12 +323,17 @@ Test suites: `npm test` · `npm run test:integration` · `npm run test:e2e` ·
 
 ---
 
-## 6. Deferred / optional (built to work, could be optimized)
+## 6. Deferred → the deploy batch (parked on purpose)
 
-- **Book Scan / patterns precompute** — same theme as the priorities nightly
-  precompute (now shipped, cost-guard ③): move the Book Scan / cross-client
-  pattern computation onto a scheduled precompute + cache for prod cost control.
-  A perf optimization, not a feature gap.
+These two are coupled and land with the cloud deploy, not before — the scheduler
+is what drives the precompute:
+
+- **#8 Book Scan / patterns precompute** — same theme as the priorities nightly
+  precompute (shipped, cost-guard ③): move the Book Scan / cross-client pattern
+  computation onto a scheduled precompute + cache for prod cost control. Works
+  today; this is a perf/cost optimization, not a feature gap.
+- **#2 EventBridge scheduler** — the cloud trigger (Terraform) that fires the
+  nightly scan + precompute jobs. It's infra, so it applies with P6-1.
 
 *Shipped since the previous status: cost-guard ③ nightly-precomputed priorities
 (CG3), client phone for the WhatsApp send loop (P4-7 — stored per client, targets
@@ -274,7 +368,12 @@ incentive UI (P5-1-UI), and the non-scary seeding-ceiling state (P5-1-CEILING-UI
   no Meta integration.
 - The extraction model default is **Sonnet 5** (the P1-9 gate rejected Haiku for
   guessing dates). Any cheaper model must pass the gate (0 guessed dates, 0
-  fabricated promises) before switching.
+  fabricated promises, 0 merged people) before switching.
+- **The P1-9 gate is a permanent requirement, not a one-time ceremony.** Any
+  change to the prompt, the model, or the extraction path must re-certify (§3a)
+  before it ships — wire the gate into CI as a required check once a key is
+  available in the CI secret store (it costs a small spend per run). A prompt
+  "optimization" that skips the gate is how Tovira would start lying quietly.
 - Deleting a rep's account cascades all data (incl. the training log); a delete
   must never let data reappear in briefs, search, or training.
 
@@ -282,7 +381,10 @@ incentive UI (P5-1-UI), and the non-scary seeding-ceiling state (P5-1-CEILING-UI
 
 ## 9. Bottom line
 
-**Build complete.** Backend + frontend are feature-for-feature with the (updated)
-docs; 651 unit / 10 integration / 3 e2e green; validated cloud infra is one
-`terraform apply` away. The only remaining work is **deploy → verify on device →
-run a beta**, all of which is yours because it needs the physical/cloud world.
+**Build complete.** Backend + frontend are feature-for-feature with the docs;
+807 unit+component / 10 integration / 3 e2e green; typecheck + lint clean;
+validated cloud infra is one `terraform apply` away. The extraction engine is
+**human-certified** (§3a) — the asset the whole trust doctrine rests on. The only
+remaining code work is the deferred deploy-batch pair (#8 patterns precompute +
+#2 EventBridge scheduler, §6); everything else is **deploy → verify on device →
+run a beta**, which needs the physical/cloud world and is yours.

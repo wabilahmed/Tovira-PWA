@@ -144,6 +144,22 @@ Legend: **AC** = acceptance criteria · **✓** = positive test · **✗** = neg
 - Paste empty/whitespace → rejected, nothing stored.
 - Paste an extremely long thread → handled (chunked or accepted up to a stated limit), no truncation-without-warning.
 
+### [P1-4b] Import a WhatsApp chat export
+**AC**
+- Accepts WhatsApp Export Chat .txt; parses `[date] Name: message` lines into per-message, speaker-attributed records under the selected client; raw file persisted before parsing; explicit consent shown at upload.
+
+**✓ Positive**
+- Upload a real-format export with two speakers over 3 months → messages stored with correct sender + timestamp, in order, under the right client.
+- Multi-line messages (a message containing line breaks) → kept as one message, not split.
+- After import → batch extraction runs and facts appear like any other input.
+
+**✗ Negative**
+- A non-WhatsApp .txt (random text) → rejected with a clear "doesn't look like a WhatsApp export," nothing stored as messages.
+- An export "with media" (media placeholders present) → placeholders handled gracefully, not stored as garbage facts.
+- Upload without confirming consent → import does not proceed.
+- A parse failure mid-file → no partial client history written; the file is flagged, not half-imported.
+- Another rep can never access the uploaded file or its messages (isolation).
+
 ### [P1-5] Transcribe voice
 **AC**
 - Audio → Groq/Whisper → transcript stored; typical 30–60s notes handled.
@@ -180,6 +196,11 @@ Legend: **AC** = acceptance criteria · **✓** = positive test · **✗** = neg
 - Model returns invalid JSON → system retries once; on second failure writes **no** structured rows and flags the note (no partial data).
 - Put today's date into the cached prefix (fault injection) → the next call is a cache miss (regression guard: date must stay variable).
 - "Sarah" and "Sara" mentioned without clear identity → **not** silently merged into one person.
+- (Multilingual ✓) A voice note switching Arabic→English mid-sentence with a promise stated across the switch → the promise is extracted correctly.
+- (Multilingual ✓) A pasted Hindi–English WhatsApp thread with a date in one language and the commitment in another → both captured and linked.
+- (Multilingual ✗) Code-switched input never causes silent field-dropping — if the model can't parse a segment, the item is flagged low-confidence, not omitted without trace.
+- (Unanswered questions, chat input) Client asks "can you do bulk pricing?" and the thread ends → flagged as an unanswered client question, quoting the message.
+- (Unanswered questions) Client asks and the rep replies substantively after → **not** flagged (no false accusations).
 - A prompt/example block under 4,096 tokens → test asserts caching does not silently no-op (build warns).
 
 ### [P1-7] Flag uncertainty
@@ -208,7 +229,7 @@ Legend: **AC** = acceptance criteria · **✓** = positive test · **✗** = neg
 
 ### [P1-9] ★ Extraction quality gate
 **AC**
-- A curated eval set of real, messy notes exists with a known "correct" extraction.
+- A curated eval set of real, messy notes exists with a known "correct" extraction, **including code-switched Arabic–English–Hindi–Urdu notes** (multilingual is a locked requirement — proven here, not assumed).
 - Precision/recall on promises, dates, and people is measured; a pass threshold is defined; the model decision is recorded. Phase 2 does not start until it passes.
 
 **✓ Positive**
@@ -329,6 +350,30 @@ Legend: **AC** = acceptance criteria · **✓** = positive test · **✗** = neg
 **✗ Negative**
 - Push delivery failure → value is still reachable via the in-app list (not push-dependent).
 
+### [P3-7] Chat refresh nudges
+**AC**
+- After a configurable staleness gap, a refresh nudge fires for that client; re-import dedupes; only new content is extracted; Book Scan re-runs on the fresh slice.
+
+**✓ Positive**
+- Client whose last import exceeds the gap → one nudge generated, naming the client.
+- Re-import an export overlapping the previous one → overlapping messages stored once; only the new tail is extracted; scan reveals only new findings.
+**✗ Negative**
+- Re-importing the identical file twice → zero duplicate messages, zero duplicate extracted facts (idempotent).
+- A recently refreshed client → no nudge (respects the gap).
+- The nudge is not re-fired daily for the same staleness (no nagging).
+
+### [P3-8] Monday Morning Scan
+**AC**
+- Runs weekly (Mondays); digests promises due this week, cooling clients, unanswered questions, upcoming dates; idempotent; in-app fallback.
+
+**✓ Positive**
+- A rep with 2 promises due and 1 cooling client → Monday digest lists exactly those, with links into each item.
+- Digest is viewable in-app even with push disabled.
+**✗ Negative**
+- Re-running the Monday job the same day → no second digest (idempotent).
+- A week with nothing due → an honest light digest ("clear week"), never padded with stale or fabricated items.
+- Digest items never include another rep's data.
+
 ### [P3-6] Enable notifications in onboarding
 **AC**
 - Onboarding walks the rep through home-screen install and enabling notifications (critical on iOS).
@@ -406,6 +451,64 @@ Legend: **AC** = acceptance criteria · **✓** = positive test · **✗** = neg
 - Another rep can't access the image via its URL/ID (authorised access only).
 - Upload failure → clear error; no broken thumbnail left behind.
 
+### [P4-7] WhatsApp send loop
+**AC**
+- One tap on a draft opens WhatsApp via wa.me deep link with the message pre-filled; Tovira never sends anything itself.
+
+**✓ Positive**
+- Tap "send via WhatsApp" on a draft → WhatsApp opens with the exact draft text pre-filled (correct URL-encoding of emojis, line breaks, Arabic text).
+**✗ Negative**
+- No message is ever sent without the rep tapping send inside WhatsApp (Tovira has no send path — asserted by design/test).
+- Editing the draft then tapping → the edited text is what's pre-filled, not a stale version.
+
+### [P4-8] Conversational recall
+**AC**
+- Voice/text questions answered from retrieval (capped top-k); every answer cites receipts; empty retrieval → honest "I don't have that."
+
+**✓ Positive**
+- "What did Ahmed say about pricing?" with a matching note → answer quotes the actual message with its date.
+- Asked by voice → transcribed, answered the same as text.
+**✗ Negative** *(the trust rules under interrogation)*
+- A question about something never discussed → "I don't have that on record" — no fabricated answer (asserted against a fixture set).
+- The answer never cites a receipt that doesn't exist (every cited quote must match a stored message verbatim).
+- Retrieval never crosses tenants; asking about another rep's client returns nothing.
+- Retrieval is capped (top-k) — a question over a huge book doesn't trigger an unbounded-context call (cost guard).
+
+### [P4-9] Personalized extraction
+**AC**
+- Per-rep glossary built from corrections; injected into the VARIABLE prompt section only; improves that rep's extraction.
+
+**✓ Positive**
+- Rep corrects "Meridian" twice from a mis-transcription → the glossary carries it, and the next note containing the garbled form extracts the right client name.
+**✗ Negative**
+- The cached prefix remains byte-identical after glossary injection (cache-hit regression test — the glossary must never break caching).
+- One rep's glossary never influences another rep's extraction (isolation).
+- A glossary entry never overrides an explicit statement in the note (the note wins over the profile).
+
+### [P4-11] Recovered Value Ledger ★
+**AC**
+- Records only real value-touch events; monthly + renew-moment summary; "touched" language; AED only from rep-entered deal values; every entry links to its event.
+
+**✓ Positive**
+- Scan flags a dead thread → rep sends a message to that client afterwards → a "thread reopened" ledger entry appears, linked to the thread.
+- Rep marks a promise done before its due date → "promise kept" entry.
+- Rep enters a deal value for a client → AED totals include it from then on.
+**✗ Negative** *(honesty rules — the ledger must never oversell)*
+- A flagged thread the rep never re-engaged → NO ledger entry (flagging alone is not value).
+- No client deal values entered → the summary shows event counts only; NO AED figure anywhere (never estimated).
+- Ledger copy never uses "closed," "won," or causal claims — asserted over rendered output.
+- Deleting the underlying event removes the ledger entry (no orphaned value claims).
+- The renew-moment summary never inflates: totals recompute from stored events, not a cached counter.
+
+### [P4-10] Corpus-value visibility
+**AC**
+- An accurate "X months, Y moments" stat, updating as the bank grows.
+
+**✓ Positive**
+- After importing 3 months of history + 10 notes → the stat reflects the true span and count.
+**✗ Negative**
+- The stat never inflates (deleted content decrements it; failed imports don't count).
+
 ---
 
 ## Phase 4b — Hero features (the hook) ★
@@ -444,12 +547,16 @@ Legend: **AC** = acceptance criteria · **✓** = positive test · **✗** = neg
 ### [P4b-3] What should I do today?
 **AC**
 - Always on; ranks highest-leverage actions across all clients; degrades gracefully with thin data.
+- **Precomputed nightly; app-opens serve the cached result** (cost guard #3).
 
 **✓ Positive**
 - Brand-new rep with a few promises and one meeting → still gets a sensible ranked list (basics only).
 - Rep with rich history → list incorporates pattern-derived priorities.
+- The nightly job computes the list once; a later app-open renders it with **zero new model calls** (asserted via call-count instrumentation).
 
-**✗ Negative**
+**✗ Negative** *(cost guards — these protect the margin)*
+- Opening the app 10 times in a day → still exactly ONE priorities computation for that day (call-count asserted).
+- Manual refresh is rate-limited — hammering refresh cannot trigger unbounded model calls.
 - With zero data → shows an honest empty/onboarding state, not fabricated tasks.
 - Completed items don't reappear the next day.
 - Never surfaces another rep's actions.
@@ -472,19 +579,24 @@ Legend: **AC** = acceptance criteria · **✓** = positive test · **✗** = neg
 
 ### [P5-1] Free trial
 **AC**
-- 7-day trial starts at signup with full access; at day 7 it converts to paid or locks.
+- 7-day trial starts at signup with full access; at day 7 it converts to paid (**AED 299/mo**) or locks.
+- **Trial seeding is bounded** (cost guard #4): a per-trial extraction ceiling, generous enough for the Book Scan on several chats.
 
 **✓ Positive**
 - New signup → full feature access; trial end date = signup + 7 days.
-- Add a card during trial → converts to paid at day 7 seamlessly.
+- Add a card during trial → converts to paid at AED 299/mo at day 7 seamlessly.
+- A trial user imports 3 chats and gets full Book Scans — comfortably inside the ceiling.
+- Capturing notes on 3 distinct clients → trial end date extends by exactly 7 days, once, with a clear in-app confirmation.
 
 **✗ Negative**
 - Day 8 with no payment → access is locked (or restricted to the agreed state); the rep can't keep using paid features free.
 - Deleting/recreating an account doesn't grant a fresh trial (no trial farming) — tied to a durable identifier.
+- A trial account attempting to import an extreme volume (e.g. 50 chats) hits the ceiling with a clear message — extraction stops, nothing breaks, and the ceiling is enforced **server-side**.
+- The +7 extension cannot be earned twice (re-qualifying does nothing), cannot be triggered client-side, and 3 notes on ONE client do not qualify (3 distinct clients required).
 
 ### [P5-2] Subscribe & manage billing
 **AC**
-- Stripe Checkout for subscribe; subscription state driven by webhooks as source of truth; failed payments handled.
+- Stripe Checkout charges **AED 299/mo in AED** (never USD — charging in AED avoids the 1% FX fee); subscription state driven by webhooks as source of truth; failed payments handled; Stripe Billing (0.7%) is part of the fee model.
 
 **✓ Positive**
 - Complete Checkout → `checkout.session.completed` webhook flips the account to active.
@@ -495,26 +607,76 @@ Legend: **AC** = acceptance criteria · **✓** = positive test · **✗** = neg
 - Failed renewal payment → account moves to past-due/locked per policy; access isn't left open indefinitely.
 - Replayed/duplicate webhook → processed idempotently (no double-provisioning); invalid signature → rejected.
 
-### [P5-3] Day-one seeding onboarding
+### [P5-3] Day-one seeding via WhatsApp export
 **AC**
-- Guided setup lets a new rep add clients and paste history fast; a first useful brief is reachable within the trial.
+- Onboarding walks the rep through exporting ONE chat and uploading it; the Book Scan fires on it in the first session; fallbacks exist for reps who skip.
 
 **✓ Positive**
-- New rep completes onboarding → has ≥1 client with pasted history and can generate a real brief in the first session.
+- New rep follows onboarding with one exported chat → client created, history imported, Book Scan shown, all within the first session.
+- On Android → Tovira appears as a share target for the export; on iOS → the Files-then-upload path is guided step-by-step.
 **✗ Negative**
-- A rep who skips seeding isn't left with an empty, useless app and no guidance — they're nudged toward the first value moment.
+- A rep who skips the export isn't left with an empty app — they're offered the voice-note micro-wow or the sample book.
+- Onboarding never demands paste-based bulk data entry (the thing reps won't do).
+
+### [P5-3b] Day-One Book Scan ★
+**AC**
+- Scans seeded history; reveals open promises, unanswered client questions, going-cold gaps, upcoming dates; every item carries its receipt; ends by inviting the next export.
+
+**✓ Positive**
+- Seeded history containing a clear unfulfilled promise → scan shows it with the quoted message and date.
+- A client question with no reply → shown as an unanswered thread, quoting the question.
+- Scan screen ends with the "export your next chat" invitation.
+**✗ Negative** *(the trust rules, at the most fragile moment — first impressions)*
+- No scan item is ever shown without its receipt (quote + date) — asserted as a test over every rendered item.
+- A promise the rep plausibly fulfilled off-channel is framed "worth checking," never "you never did this."
+- An empty/thin seed → an honest "not much here yet — export more chats," never fabricated findings.
+- Scan findings never leak across tenants; the scan never fires on another rep's data.
 
 ### [P5-4] Data trust & control
 **AC**
 - Consent captured at signup; retention policy stated; export and delete paths exist.
 
 **✓ Positive**
-- Request export → rep receives their data.
+- Request export → rep receives their COMPLETE corpus: raw notes, transcripts, extracted facts, and images, in a usable format (verified against a seeded account's full contents).
 - Request delete → the rep's data (and their clients' personal data) is removed within the stated window, including from the training log per policy.
 
 **✗ Negative**
 - No consent → sensitive storage/processing doesn't proceed silently.
 - After a delete request, the data does not reappear in briefs, search, or the training log.
+
+### [P5-7] Trial-grade extraction
+**AC**
+- Trial accounts route extraction to Sonnet; paid accounts use the P1-9-selected model; seeding cap unaffected.
+
+**✓ Positive**
+- A trial account's extraction calls carry the Sonnet model id (asserted in the extraction log).
+- On conversion to paid → subsequent calls carry the production model id.
+**✗ Negative**
+- The trial's Sonnet routing does NOT bypass the seeding ceiling (cost guard holds regardless of model).
+- Model routing never mixes within one note's retry sequence (a retry uses the same model as the original — cache + training-log consistency).
+
+### [P5-5] Annual plan
+**AC**
+- AED 2,990/yr SKU alongside monthly; switching handled via Stripe Billing.
+
+**✓ Positive**
+- Subscribe annually → charged AED 2,990 once; access for 12 months; webhook-driven state.
+- Switch monthly→annual mid-cycle → prorated correctly by Stripe; no double charge.
+**✗ Negative**
+- Annual cancellation mid-term follows the stated policy — no silent auto-refund logic invented by the app.
+- Annual price is never displayed as a monthly charge (no misleading billing copy).
+
+### [P5-6] Book-Scan share card + referral
+**AC**
+- Share card = counts only; referral grants tracked through signup.
+
+**✓ Positive**
+- Generate a share card → shows stats ("7 open promises found") with zero client-identifying content.
+- Referred signup converts → both accounts receive one free month, exactly once.
+**✗ Negative** *(privacy is the whole game here)*
+- The share card NEVER contains a client name, quote, company, or any extractable identifier — asserted over the full rendered output.
+- Referral credits cannot be farmed (self-referral, repeat referral of the same person → no credit).
+- A share card cannot be generated from another rep's scan.
 
 ---
 

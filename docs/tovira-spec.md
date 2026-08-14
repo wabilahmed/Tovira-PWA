@@ -36,7 +36,7 @@ Every design decision serves one of these four stages.
 ## 4. Locked decisions
 
 ### Capture
-- **Input methods, in priority order:** (1) voice notes, (2) pasted messages from social apps (e.g. WhatsApp), (3) gallery images, (4) typing — last resort only.
+- **Input methods, in priority order:** (1) voice notes, (2) **WhatsApp chat export** (.txt file via WhatsApp's built-in Export Chat — months of history in 3 taps), (3) pasted messages, (4) gallery images, (5) typing — last resort only.
 - **Everything is captured *inside a client's tab*.** The rep opens the specific client first, then records / pastes / uploads. This is how Tovira knows which client a memory belongs to (no guessing).
 - Voice notes go through client tabs too — consistency over raw capture speed.
 
@@ -160,19 +160,101 @@ Rules:
 - Above threshold: state patterns with **honest confidence language** and show the supporting evidence (which deals, which signals) so the rep can judge for themselves. Never assert a pattern as fact without the receipts.
 - Never let a low-confidence or thin-sample pattern drive an alert.
 
+### 4. Day-One Book Scan ("Relationship X-Ray") ★ THE TRIAL WOW — *not volume-gated*
+The hero features above cannot fire inside a 7-day trial (volume gate). The Book Scan is the trial-sized wow: on seeding a client's **WhatsApp chat export**, Tovira runs the extraction engine retroactively over the whole history and presents one reveal — *"here's what your book has been hiding"*:
+- Open promises never closed ("You told Sarah you'd send the revised quote May 12 — no sign you did")
+- **Client questions never answered** (thread went dead after they asked)
+- Relationships going cold (contact gap vs. their historic cadence)
+- Upcoming dates worth acting on
+
+Why it's allowed to fire day one when patterns aren't: these are **extracted facts with receipts** (quotes + dates from the rep's own conversation), not statistics on a thin sample. The trust doctrine holds: every claim shows its evidence; anything uncertain is framed as "worth checking," never asserted. Frame as *opportunity recovered*, not guilt.
+
+**The scan is the seeding incentive.** Export one chat → scan fires in minutes → "that was one client; export the next to scan your whole book." Each export earns another X-ray, so seeding becomes self-rewarding instead of homework.
+
+**New capability required:** *unanswered-question detection* — a small extraction-schema extension (chat exports carry who-said-what, so flag a client question with no rep reply after it).
+
+**Trial → retention arc:** Book Scan converts the trial → brief + promises retain the month → pattern intelligence deepens the year. Each aha arrives exactly when the data can support it.
+
 **Build position:** Phase 4+ in the dev plan. These sit *on top of* good extraction — they cannot rescue a weak spine, and building them early on shaky extraction would produce confidently wrong insights (the worst possible outcome). Ship the core loop first.
 
 ---
+
+## 5c. Core-loop strengtheners — LOCKED
+
+Five features that deepen the core loop. Highest leverage per unit of build effort; none require new architecture.
+
+### WhatsApp send loop (memory → action)
+The follow-up draft gains one button: **open WhatsApp with the message pre-filled** via a `wa.me` deep link. The flow becomes *meet → voice note → draft → sent* in under a minute. Memory tools get admired; action tools get used daily. Rules: Tovira **never auto-sends** — the rep always taps send inside WhatsApp; the link only pre-fills.
+
+### Conversational recall ("talk to your memory")
+The rep asks by voice or text: *"what did Ahmed say about pricing?" / "when did I last promise Sarah something?"* Same retrieval that powers the brief, exposed as conversation. Trust rules apply in full: every answer cites its receipts (quote + date), and when nothing is found the answer is "I don't have that" — never a fabrication. Cost control: capped retrieval (top-k) + Haiku.
+
+### Multilingual extraction (the home-market edge)
+Gulf sales conversations code-switch Arabic–English–Hindi–Urdu mid-sentence; US-built tools choke on this, Whisper handles it natively. Requirement: transcription + extraction must handle code-switched input, extracting facts regardless of language mix. **The P1-9 gate eval set MUST include code-switched voice notes** — this is tested at the gate, not assumed.
+
+### Chat refresh nudges (keep the bank fed)
+The export seeds history once, then goes stale. After a configurable gap: *"it's been 3 weeks — refresh Sarah's chat (3 taps)"*. Re-import **deduplicates** against already-imported messages, extracts only what's new, and re-runs the Book Scan on the fresh slice — the same self-rewarding loop, ongoing. Delivered via the existing proactive layer.
+
+### Personalized extraction (learns THIS rep)
+The correction log becomes a per-rep glossary: client names, jargon, industry shorthand. Injected into the extraction call's **variable section** (NEVER the cached prefix — the cache must stay byte-identical). Month three feels noticeably smarter than day one *for that rep specifically* — a switching cost no competitor can copy, because it's built from their own corrections.
+
+## 5d. The moat: make leaving expensive — LOCKED
+
+Tovira's lock-in is not features — it's that **leaving means abandoning your memory**. Two commitments:
+
+- **Corpus-value visibility.** The app states, accurately, what it holds: *"Tovira remembers 14 months and 2,300 moments across your book."* The vault's weight should be felt.
+- **Full data export.** Paradoxically, the moat requires the exit door: reps storing client conversations must trust the vault; trust drives deposits, and deposits are the moat. Export delivers everything — raw notes, extracted facts, files — in a usable format. (Extends P5-4.)
+
+## 5e. Business model & unit economics — LOCKED
+
+**Price: AED 299/month, one price worldwide, charged in AED.** 7-day free trial. UAE sales are VAT-inclusive (net kept ≈ AED 284.76); non-UAE sales are zero-rated exports (full AED 299 kept, +1.5% foreign-card fee). No WhatsApp API connection anywhere in the product — the chat *export* (.txt file) is user-driven and involves no Meta integration.
+
+**Goal: AED 40,000 profit/month → ~164 paying users** (Haiku, "sane-heavy" Jarvis usage; ~202 if everything escalates to Sonnet). At 25% trial conversion that is ~650 trials, i.e. ~650 WhatsApp chat exports delivered. Full live model: `tovira-cogs-model.xlsx` (GO-LIVE AED tab).
+
+**Go-live per-user COGS (AED/mo, Haiku sane-heavy, infra included):** AI ~18.8 · trial burn ~4.9 · transcription+storage ~1.5 · Stripe full stack ~14.5 (2.9% + AED 1 processing, **+0.7% Stripe Billing on all recurring volume**, +1.5% intl-card share, disputes buffer) · infra share ~3.2 → **total ~43 → profit ~245/user (85% margin)**. Production infra is itemized (~$136/mo: prod + staging RDS/compute, monitoring, Sentry, CI/CD) and counted inside COGS.
+
+**Growth levers (locked direction, post-MVP build):** annual plan at **AED 2,990/yr** (~2 months free; collapses 12 Stripe fixed fees into 1); Book-Scan share card (stats only, zero client names) + give-a-month/get-a-month referral; vertical landing pages + extraction templates (UAE real estate, insurance); concierge onboarding for the first 50 users.
+
+### Cost-guard architecture rules — NON-NEGOTIABLE (each one is a tested requirement)
+The margin survives Jarvis-grade usage only if these hold. They are product requirements with acceptance tests, not optimizations:
+1. **Pattern runs read ~500-token client summaries, never the raw book.** Naive whole-book reads are the difference between 85% margin and losing AED 700+/user.
+2. **Conversational recall context is capped** (top-k retrieval, trimmed turn history). Unbounded conversation memory roughly doubles the biggest AI line.
+3. **Daily priorities are precomputed nightly; app-opens serve the cached result.** Regenerating per open turns 30 runs/month into 150–300.
+4. **Trial seeding is bounded** (cap extraction volume per trial or take a card up front). At 10% conversion, unbounded trial burn is the second-largest cost line.
+
+## 5f. Trial-conversion system — LOCKED
+
+The teardown finding: economics are sound, *belief* is not — the rep can't see Tovira paying for itself at the moment of decision. These five mechanisms fix attribution, habit, and trust-timing. (A money-back guarantee was considered and **rejected**.)
+
+### Recovered Value Ledger ★ (fix attribution)
+A running, per-rep record of value Tovira touched: dead threads reopened after a scan flagged them, promises kept on time, briefs viewed before logged meetings. Surfaced monthly and at the renew/cancel moment: *"This month Tovira touched N opportunities / AED X of your pipeline."*
+Honesty rules (non-negotiable): **"touched," never "closed"** — no causal claims; an AED figure appears **only** when the rep has entered deal values (never estimated); every ledger entry links to the real underlying event. An inflated ledger would destroy the exact trust it exists to build.
+
+### Monday Morning Scan (fix the one-shot problem)
+The Book Scan repackaged as a weekly ritual: every Monday — promises due this week, clients cooling, unanswered questions, dates coming up. Same components, new rhythm. Audits earn gratitude; rituals earn subscriptions.
+
+### Activity-gated trial extension (fix the habit window)
+7-day trial stays; capturing notes on 3+ clients unlocks 7 more days. Buys habit-formation time only for reps actually forming the habit; the unlock is itself a micro-commitment. Enforced server-side; granted once.
+
+### Trial-grade extraction (fix trust-timing)
+**Trial accounts route extraction to Sonnet regardless of unit cost** — first impressions get the premium brain; the seeding cap bounds the burn. Downgrade to Haiku happens only after conversion (and only if Haiku passed the P1-9 gate).
+
+### ICP: high-ticket verticals as core targeting (fix the segment)
+AED 299 is trivial where one commission is 10–100x the annual price. Launch ICP = UAE real estate, insurance/brokerage, wealth management. Low-ticket reps are not the launch market. Price stays at 299 — cutting it doubles the user mountain without fixing belief.
+
+**Positioning note:** answer "why not ChatGPT?" by name on the pricing page: a chat window waits to be asked; Tovira taps your shoulder — no promise ledger, no cold alerts, no Monday scan, no vault.
+
+**GTM ops (not product):** founder day-6 personal check-in on every serious trial until ~164 users. The 25% conversion assumption is earned, not ambient.
 
 ## 6. Open questions (not yet decided)
 
 **Must decide before the product is usable end-to-end (implementation blockers):**
 - *(All previously-listed blockers now resolved — see Tech stack & infrastructure. Remaining item below.)*
-- **Pricing model detail.** Stripe locked, 7-day trial locked. Still open: flat per-seat monthly vs usage-based.
+- *(Pricing now fully resolved — see §5e Business model.)*
 
 **Can decide during build (not blockers):**
 - **Hero-feature volume threshold.** The exact numbers that activate pattern intelligence + deal-risk radar (min clients / interactions / closed outcomes). Tune on real beta data — too low produces confidently-wrong patterns, too high delays the wow.
-- **Day-one onboarding / seeding (trial watch-item).** 7-day trial is locked, but Tovira's value *compounds* (empty on day 1), so the trial may end before the rep hits the "aha" (an insight resurfaced before a meeting). Mitigate with aggressive day-one seeding (paste old threads/notes so it's useful immediately), or an event-based trial ("until first resurfaced insight"). Design during build.
+- **Day-one onboarding / seeding (RESOLVED in design, build during Phase 5).** Reps won't do paste-based data entry (that's the CRM disease Tovira exists to kill). Seeding = **WhatsApp chat export**: "pick your most important client, export that one chat (3 taps), give us 60 seconds" → the **Day-One Book Scan** fires on it → the reveal itself motivates the next export. Fallback ladder: first voice note as micro-wow → sample-book demo → concierge seeding for early beta. iOS caveat: PWAs can't register as share targets, so iOS = export to Files → upload in Tovira (one extra step; verify in Phase 6). Consent must be explicit — a full chat export contains everything.
 - **The payoff moment:** exact format of the pre-meeting brief when it lands in front of the rep. (Extraction v0.1 now defines its *inputs* — see `tovira-extraction-prompt.md`.)
 - **Gallery: how smart, beyond cards?** Card-scanning locked. Open: whether Tovira also *reads* other images (whiteboards, sites) or just stores them. Needs a vision/OCR step if yes.
 - **Going-cold threshold:** how many days of no contact = "cold."
@@ -210,4 +292,9 @@ Rules:
 - **2026-07-09** — Locked 7-day free trial. Flagged the compounding-value risk (trial may end before the "aha") and mitigations (day-one seeding / event-based trial).
 - **2026-07-09** — Locked tech stack & infra (AWS, thousands-of-users scale): React PWA on S3+CloudFront; TypeScript container backend on App Runner/Fargate; RDS Postgres + pgvector with Row-Level Security; Cognito auth; EventBridge+Lambda scheduled jobs; Web Push notifications; embeddings + Haiku extraction via Bedrock (caching confirmed on Bedrock); S3 for images. Resolved the embeddings/notifications/auth/tech-stack blockers.
 - **2026-07-09** — Produced cost-optimized AWS infra design (separate artifact `tovira-aws-infra.md`). ~$25–30/mo fixed floor, <$100/mo all-in at thousands of users. Key tactics: Graviton/ARM everywhere, single-AZ RDS early, Cognito Lite free tier, and avoiding the NAT Gateway / Multi-AZ / RDS Proxy money pits.
+- **2026-08-05** — Alignment audit vs the repo: extraction prompt bumped to **v0.2** — added the missing `unanswered_questions` schema field (tests/stories required it; the schema never defined it) with a chat-export-only detection rule (never flag from single messages or voice notes), plus the multilingual Rule 0 already in canon. Repo copies of the extraction prompt and AWS infra doc were stale; replaced with canonical versions. Frontend gaps flagged: trial-extension incentive has no UI surface; seeding-ceiling message missing from import flow; voice recall via browser SpeechRecognition is degraded on iOS.
+- **2026-07-27** — Locked the **trial-conversion system** (§5f) after a brutal-teardown review: Recovered Value Ledger (touched-not-closed honesty rules), Monday Morning Scan ritual, activity-gated trial extension (+7 days for 3 seeded clients), Sonnet-grade extraction for all trials, high-ticket verticals as core ICP, ChatGPT answered by name in positioning, founder day-6 check-ins to 164 users. **Refund guarantee considered and rejected.**
+- **2026-07-25** — Locked **business model** (§5e): single worldwide price AED 299/mo (VAT-inclusive UAE, zero-rated exports), goal = AED 40K profit ≈ 164 users, go-live COGS ~AED 43/user incl. itemized infra and full Stripe stack (incl. Billing 0.7%). Locked the four **cost-guard architecture rules** as tested requirements (summarised patterns, capped recall, precomputed priorities, bounded trial seeding). Locked growth levers (annual AED 2,990, share card + referral, verticals, concierge-50). Confirmed **no WhatsApp API connection ever** — chat export is file-based only. Resolved the last pricing open question.
+- **2026-07-16** — Locked **core-loop strengtheners** (§5c): WhatsApp send loop (wa.me deep link, never auto-send), conversational recall (receipts required, "I don't have that" over fabrication), multilingual/code-switched extraction (tested at the P1-9 gate), chat refresh nudges (dedup on re-import), personalized extraction (per-rep glossary in the VARIABLE prompt section only). Locked **the moat** (§5d): corpus-value visibility + full data export.
+- **2026-07-13** — Locked the **Day-One Book Scan** as the trial wow (fires on seeded history — facts with receipts, so no volume gate needed) and **WhatsApp chat export (.txt)** as the primary seeding input, replacing paste-based seeding (reps won't do data-entry homework). Added unanswered-question detection to the extraction scope. Trial→retention arc: Book Scan converts, brief+promises retain, patterns deepen.
 - **2026-07-09** — Locked the **hero feature tier** (§5b): cross-client pattern intelligence (★ the hook), deal-risk radar, and "what should I do today?". Features 1 & 2 are **volume-gated** (patterns on thin data are noise; a wrong pattern is worse than a missed fact); feature 3 is always on and degrades gracefully. Positioned as Phase 4+ — they sit on top of good extraction and can't rescue a weak spine. Exact volume threshold left as an open question to tune on beta data.

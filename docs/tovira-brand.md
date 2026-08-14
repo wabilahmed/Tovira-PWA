@@ -1,4 +1,4 @@
-# Tovira — Brand Guideline (v1.0)
+# Tovira — Brand Guideline (v1.1)
 
 **Direction: The Private Vault.** Tovira is the discreet professional's asset —
 the register of a private bank. It guards a salesperson's most valuable
@@ -14,6 +14,8 @@ never edits it.
 ## 1. Brand idea
 
 **One line:** *Your client book is an asset. Tovira is where it's kept.*
+
+**The behavioral pitch:** *Tovira speaks rarely. When it speaks, act.*
 
 **Personality (in order):** discreet · precise · assured · warm-in-private.
 Never: playful, loud, salesy, apologetic, cute.
@@ -197,5 +199,63 @@ urgency-marketing patterns (timers, fake discounts) · icon soup · any
 
 ---
 
-*v1.0 — direction locked: The Private Vault. Tokens above are the contract;
-propose changes here first, then implement.*
+## 10. Premium & necessity codex (v1.1)
+
+Premium is subtraction and finish, not added luxury. Necessity is stakes and
+ritual, not urgency banners. These rules are as binding as the tokens.
+
+### Finish rules (precision you can feel)
+- **Tabular numerals everywhere numbers appear**; AED columns decimal-aligned.
+- Real typographic punctuation: `·` separators, en-dashes for ranges, proper
+  Arabic punctuation — never straight-quote approximations.
+- Mono stamps baseline-aligned with their body text; hairlines render at a true
+  1px on every device density.
+- Dates in one format app-wide: `14 MAR 2026` (mono, caps) in stamps;
+  `14 Mar 2026` in body copy. No "3/14/26" anywhere, ever.
+
+### The silence budget (premium behavior, not just premium looks)
+- **Maximum 2 push notifications per rep per day**, ranked server-side.
+  Everything else waits for the Statement or the app open.
+- No notification ever asks for engagement ("come back!", "we miss you") —
+  only states a fact that warrants action.
+- One haptic in the whole app: a single soft confirm tick on promise-kept /
+  note-saved. No sounds, ever.
+
+### Product naming register (internal story name → in-product name)
+| Internal (docs/stories) | In-product |
+|---|---|
+| Monday Morning Scan (P3-8) | **The Monday Statement** |
+| "What should I do today?" (P4b-3) | **Today's register** |
+| Recovered Value Ledger (P4-11) | **The Ledger** |
+| Corpus counter (P4-10) | **Statement of holdings** |
+| Book Scan (P5-3b) | **The Book Scan** (unchanged — already in-world) |
+Docs and story IDs keep internal names; UI copy uses in-product names. This
+table is the mapping — no other renames are implied.
+
+### Stakes made visible (necessity)
+- **Silent-days counter:** cooling clients show elapsed silence as a claret
+  mono counter — `Falcon Group · silent 21 days` — ticking until acted on.
+  Elapsed time is a fact, so this passes the honesty rules; it is the one
+  place claret is allowed to dominate a row.
+- **Possession language everywhere:** "your book", "your vault holds…",
+  "on file since MAR 2026" (small mono line in the client header). The corpus
+  is a holding, not a stat.
+- **Onboarding is account-opening:** deliberate pace, few words, and the vault
+  visually opens on first import — folded into the Book Scan reveal (the one
+  animated moment; no second animation added).
+- **The share card is a statement excerpt:** counts-only (per P5-6 tests),
+  styled as a redacted register clipping — never a social badge.
+
+### Refusals (absence as positioning — banned by name)
+- No streaks, badges, confetti, progress-bars-for-their-own-sake, or
+  "you're on fire" copy. Tovira does not gamify a professional's client book.
+- No urgency marketing anywhere: no countdown timers, no fake discounts, no
+  "only today" — including notifications and email.
+- **No emoji in product UI** (restating §7 because it was violated once:
+  the corpus badge's 🧠 must go — the Statement of holdings is typography,
+  not a brain emoji).
+
+---
+
+*v1.1 — direction locked: The Private Vault. Tokens and codex above are the
+contract; propose changes here first, then implement.*

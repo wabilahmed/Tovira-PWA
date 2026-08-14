@@ -19,14 +19,22 @@ t() {
 }
 
 echo "Protected files (2 = blocked, 0 = allowed)"
+# Human-owned CONTRACTS — the exam and the requirements — must stay READ-ONLY.
 t "BLOCK  edit acceptance tests" '{"tool_input":{"file_path":"docs/tovira-acceptance-tests.md"}}' guard-protected-files.sh 2
 t "BLOCK  edit spec"             '{"tool_input":{"file_path":"docs/tovira-spec.md"}}'             guard-protected-files.sh 2
+t "BLOCK  edit user stories"     '{"tool_input":{"file_path":"docs/tovira-user-stories.md"}}'     guard-protected-files.sh 2
+t "BLOCK  edit brand"            '{"tool_input":{"file_path":"docs/tovira-brand.md"}}'            guard-protected-files.sh 2
+t "BLOCK  edit extraction prompt" '{"tool_input":{"file_path":"docs/tovira-extraction-prompt.md"}}' guard-protected-files.sh 2
+t "BLOCK  edit eval fixture"     '{"tool_input":{"file_path":"apps/api/src/eval/eval-set.ts"}}'   guard-protected-files.sh 2
 t "BLOCK  write .env"            '{"tool_input":{"file_path":".env"}}'                            guard-protected-files.sh 2
 t "BLOCK  write private.key"     '{"tool_input":{"file_path":"certs/private.key"}}'               guard-protected-files.sh 2
 t "ALLOW  .env.example"          '{"tool_input":{"file_path":".env.example"}}'                    guard-protected-files.sh 0
 t "ALLOW  source file"           '{"tool_input":{"file_path":"src/extract.ts"}}'                  guard-protected-files.sh 0
 t "ALLOW  test file"             '{"tool_input":{"file_path":"tests/extract.test.ts"}}'           guard-protected-files.sh 0
 t "ALLOW  BLOCKERS.md"           '{"tool_input":{"file_path":"BLOCKERS.md"}}'                     guard-protected-files.sh 0
+# Build REPORTS are agent-owned and live at the repo root — freely maintainable.
+t "ALLOW  PROJECT-STATUS.md"     '{"tool_input":{"file_path":"PROJECT-STATUS.md"}}'               guard-protected-files.sh 0
+t "ALLOW  FRONTEND-PAGES.md"     '{"tool_input":{"file_path":"FRONTEND-PAGES.md"}}'               guard-protected-files.sh 0
 
 echo "Bash guard"
 t "BLOCK  aws cli"               '{"tool_input":{"command":"aws s3 ls"}}'                          guard-bash.sh 2

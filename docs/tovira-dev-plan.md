@@ -49,13 +49,14 @@ Companion docs: `tovira-spec.md` (decisions), `tovira-extraction-prompt.md` (the
 **▸ Phase principle:** *tune on the messiest real voice notes you can gather, not clean text — and hold the line on precision (a fabricated promise is worse than a missed one). Build a small eval set; never judge the prompt on three examples.*
 
 - **Client tabs:** create/list clients; **fast client selection** (recents, search, default to last-touched) — protect this; capture friction lives here.
-- **Capture:** in-browser voice recording + upload; paste-text input; persist raw immediately.
+- **Capture:** in-browser voice recording + upload; paste-text input; **WhatsApp chat-export (.txt) upload + parser** (timestamped `[date] Name: message` format → who-said-what, split into per-message records, batch-extracted); persist raw immediately.
+- **Extraction schema extension:** *unanswered-question detection* — flag client questions with no rep reply (chat exports make speaker attribution reliable).
 - **Transcription:** Groq/Whisper (real API call from local dev).
 - **Extraction:** wire the v0.1 prompt (Anthropic API / Bedrock-with-creds); cacheable prefix + variable message (today's date in the variable part); confirm the prefix clears the 4,096-token cache floor.
 - **Storage — three layers:** raw text + **pgvector embeddings** → messy pile; `personal_facts`/`concerns`/`summary` → JSONB; `promises`/`dates`/`people`/`meeting` → spine columns.
 - **Logging table:** input + output + model/version + prompt version + (later) rep corrections.
 
-**★ GATE — extraction quality (done locally, cheap & fast):** benchmark **Haiku vs Sonnet 5** on real, messy voice notes. Does it reliably catch promises, dates, people — without inventing them? If not, tune / escalate *before* moving on. This is the single biggest de-risking moment, and local-first lets you reach it for free.
+**★ GATE — extraction quality (done locally, cheap & fast):** benchmark **Haiku vs Sonnet 5** on real, messy voice notes — **the eval set must include code-switched Arabic–English–Hindi–Urdu notes** (multilingual extraction is a locked requirement and the home-market edge, so it's proven here, not assumed). Does it reliably catch promises, dates, people — without inventing them? If not, tune / escalate *before* moving on. This is the single biggest de-risking moment, and local-first lets you reach it for free.
 **Effort:** L · **Depends on:** Phase 0.
 
 ---
@@ -87,6 +88,8 @@ Companion docs: `tovira-spec.md` (decisions), `tovira-extraction-prompt.md` (the
 - **Scheduled brain:** a **local cron/script** running the daily going-cold / upcoming-meeting / date-reminder scan (stands in for EventBridge + Lambda).
 - **Web Push (VAPID):** build locally (localhost is a secure context). ⚠️ **Real iOS install + delivery can't be fully proven locally** — it needs a deployed HTTPS URL and a real device. Build it here; *verify it in the deploy phase* (see cloud-parity checklist).
 - **Fallback:** in-app "clients going cold" list so value isn't push-only.
+- **Chat refresh nudges:** after a configurable gap, nudge "refresh Sarah's chat (3 taps)". Re-import DEDUPLICATES against already-imported messages, extracts only new content, and re-runs the Book Scan on the fresh slice.
+- **Monday Morning Scan:** weekly ritual digest (promises due, clients cooling, unanswered questions, upcoming dates) — Book Scan components on a Monday schedule; idempotent like every scheduled job.
 
 **Done when:** the cold-client and pre-meeting logic fire locally, with a non-push fallback in place.
 **Effort:** M · **Depends on:** Phase 1; parallelizable with Phase 2.
@@ -105,6 +108,11 @@ Companion docs: `tovira-spec.md` (decisions), `tovira-extraction-prompt.md` (the
 - **Follow-up draft** generator (note → ready-to-send message in the rep's tone).
 - **Business-card scan** (vision model → structured contact).
 - **Gallery** (images stored locally now, → S3 at deploy).
+- **WhatsApp send loop:** follow-up draft → wa.me deep link with the message pre-filled. NEVER auto-sends; the rep taps send in WhatsApp.
+- **Conversational recall:** ask the memory by voice/text ("what did Ahmed say about pricing?"). Same retrieval as the brief; capped top-k + Haiku; every answer carries receipts; "I don't have that" when retrieval is empty.
+- **Personalized extraction:** build a per-rep glossary (names, jargon) from the corrections log; inject into the VARIABLE section of the extraction call — never the cached prefix (cache must stay byte-identical).
+- **Corpus-value visibility:** accurate "Tovira remembers X months, Y moments" stat surfaced in-app (the moat made visible).
+- **Recovered Value Ledger:** log real value-touch events (thread reopened after a scan flag, promise kept, brief viewed before a meeting); monthly + renew-moment summary. "Touched" never "closed"; AED figures only from rep-entered deal values; every entry links to its underlying event. Event instrumentation starts in Phase 2 (brief views) — the ledger UI lands here.
 
 **Done when:** all eight locked features work locally.
 **Effort:** M–L · **Depends on:** Phase 1; individually parallelizable.
@@ -119,7 +127,7 @@ Companion docs: `tovira-spec.md` (decisions), `tovira-extraction-prompt.md` (the
 
 - **Cross-client pattern intelligence** ★ — patterns across the rep's whole book (stall points, what correlates with closing, what precedes going dark). **Volume-gated.**
 - **Deal-risk radar** — live "this deal is slipping" signal from the same patterns. **Volume-gated.**
-- **"What should I do today?"** — ranked highest-leverage actions across all clients. **Always on**; degrades gracefully (ranks on promises/meetings/cold clients when data is thin, gets smarter as patterns emerge).
+- **"What should I do today?"** — ranked highest-leverage actions across all clients. **Always on**; degrades gracefully (ranks on promises/meetings/cold clients when data is thin, gets smarter as patterns emerge). **Cost guard #3: precomputed NIGHTLY; app-opens serve the cached result** — regenerating per open multiplies the cost 5–10x.
 - **Volume gate + locked state:** explicit activation threshold; below it, a motivating "warming up — here's what unlocks it" state that doubles as a seeding incentive.
 - **Evidence UI:** every pattern shows the supporting deals/signals and honest confidence language.
 
@@ -134,9 +142,14 @@ Companion docs: `tovira-spec.md` (decisions), `tovira-extraction-prompt.md` (the
 
 **▸ Phase principle:** *design consent and retention before you store another byte, and treat Stripe webhooks — never the client — as the source of truth for who's paying.*
 
-- **Stripe:** subscription + **7-day trial** in **test mode**; webhooks via the Stripe CLI to localhost.
-- **Day-one seeding onboarding:** get a new rep to paste old threads / seed clients fast, so the compounding-value product feels useful before the 7-day trial ends.
+- **Stripe:** subscription at **AED 299/mo (single worldwide price, charged in AED)** + **7-day trial** in **test mode**; webhooks via the Stripe CLI to localhost. Account is UAE Stripe; budget the full stack (processing 2.9% + AED 1, **Billing 0.7% of recurring volume**, intl-card 1.5%, disputes). Annual plan **AED 2,990/yr** as a Phase 5 or fast-follow SKU.
+- **Trial seeding bound (cost guard #4):** cap extraction volume per trial account (or require a card up front) — unbounded trial burn is the second-largest COGS line at low conversion.
+- **Activity-gated trial extension:** +7 days on capturing notes for 3+ clients; server-side, granted once.
+- **Trial-grade extraction:** trial accounts route to Sonnet (first impressions get the premium brain; the seeding cap bounds the cost); paid accounts use the P1-9-chosen model.
+- **Day-one seeding onboarding — the WhatsApp export flow:** "pick your most important client, export that chat (3 taps), give us 60 seconds." No paste-based homework — reps won't do it.
+- **Day-One Book Scan (the trial wow):** on seeded history, run backfill extraction and present the reveal — open promises with receipts, unanswered client questions, going-cold gaps, upcoming dates. Every claim shows its quote+date; uncertain items say "worth checking." The scan screen ends by inviting the next export (seeding becomes self-rewarding). Fallbacks: first-voice-note micro-wow, sample-book demo, concierge seeding for beta.
 - **Privacy & retention:** consent + retention policy for the memory store and the training-log table.
+- **Full data export (the moat's exit door):** everything — raw notes, transcripts, extracted facts, images — in a usable format. Trust drives deposits; deposits are the moat.
 - **Hardening (logic-level, local):** RLS review, error handling, input validation.
 
 **Done when:** the full paid flow works in Stripe test mode and the app is logically hardened.
@@ -156,6 +169,7 @@ Companion docs: `tovira-spec.md` (decisions), `tovira-extraction-prompt.md` (the
 
 **★ Cloud-parity checklist — verify what localhost can't:**
 - **iOS PWA install + push delivery on a real device over HTTPS** (the big one — core to the proactive half).
+- **WhatsApp export → Tovira flow on a real iPhone** (PWAs can't be iOS share targets, so verify the export-to-Files-then-upload path is smooth; on Android verify direct share-target registration).
 - Cognito hosted sign-up / log-in / MFA flows.
 - CloudFront + service-worker caching behavior on the real domain.
 - RLS isolation under realistic access; IAM permissions actually least-privilege.

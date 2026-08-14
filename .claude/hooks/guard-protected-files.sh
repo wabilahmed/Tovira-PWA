@@ -46,9 +46,16 @@ if [[ "$FILE" == *"/eval/eval-set.ts" || "$FILE" == *"/eval/eval-set.test.ts" ]]
 fi
 
 # --- 2. Product decisions belong to humans -----------------------------------
+# docs/ holds HUMAN-OWNED CONTRACTS: the spec, user stories, acceptance tests,
+# brand, extraction prompt, infra design. The examinee never edits the exam or
+# the requirements. (Build REPORTS — PROJECT-STATUS.md, FRONTEND-PAGES.md — are a
+# different artifact: a description of what the agent did, authored and kept
+# current by the agent. They live at the repo ROOT, not docs/, precisely so they
+# are freely maintainable — blocking a report just makes it go stale.)
 if [[ "$FILE" == *"/docs/"* || "$FILE" == docs/* ]]; then
-  echo "[guard] BLOCKED: docs/ holds locked product decisions (spec, plan, stories, infra)." >&2
+  echo "[guard] BLOCKED: docs/ holds locked product decisions (spec, plan, stories, brand, prompt, infra)." >&2
   echo "[guard] Do not invent or amend product decisions. Use BLOCKERS.md." >&2
+  echo "[guard] (Build reports live at the repo root — PROJECT-STATUS.md, FRONTEND-PAGES.md — and are agent-owned.)" >&2
   exit 2
 fi
 

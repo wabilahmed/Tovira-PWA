@@ -47,11 +47,17 @@ Roles: **Rep** (the salesperson, primary user) · **New/Prospective rep** (signu
 **[P1-4] Paste a message** — *As a rep, I want to paste a message (e.g. WhatsApp) under a client, so that I can capture their exact words.*
 - Pasted text stored raw under the selected client.
 
+**[P1-4b] Import a WhatsApp chat export** — *As a rep, I want to upload a WhatsApp chat export (.txt) for a client, so that months of history land in Tovira in three taps instead of endless pasting.*
+- Accepts WhatsApp's Export Chat .txt (without media); parses timestamps + speakers into per-message records under the client.
+- Batch-extracted like any other input; raw file content persisted first.
+- Explicit consent language at upload (a full export contains everything).
+
 **[P1-5] Transcribe voice** — *As a rep, I want my voice note turned into text, so that it becomes usable and searchable.*
 - Audio → Groq/Whisper → transcript stored; handles typical 30–60s notes.
 
 **[P1-6] Extract structured facts** — *As the system, I want to pull promises, dates, people, personal facts, concerns, and meetings out of each note, so that features can act on them.*
-- Extraction returns valid JSON per the v0.1 schema.
+- Extraction handles **code-switched multilingual input** (Arabic–English–Hindi–Urdu mixed mid-sentence) — facts extracted regardless of language mix; proven at the P1-9 gate.
+- Extraction returns valid JSON per the v0.1 schema (extended with **unanswered client questions** — a question from the client with no rep reply after it, detectable in speaker-attributed chat exports).
 - Spine fields → columns; personal facts/concerns/summary → JSONB; raw text → pgvector embedding.
 - Cacheable prefix ≥4,096 tokens; today's date passed in the variable part.
 - Malformed JSON is retried once, then flagged for review — never partially written.
@@ -98,6 +104,13 @@ Roles: **Rep** (the salesperson, primary user) · **New/Prospective rep** (signu
 
 **[P3-5] In-app cold list (fallback)** — *As a rep, I want an in-app list of cold clients, so that I get value even when a push notification fails.*
 
+**[P3-7] Chat refresh nudges** — *As a rep, I want Tovira to remind me to refresh a client's chat export when it's gone stale, so that my memory bank stays current without me thinking about it.*
+- After a configurable gap since last import, a nudge suggests the 3-tap re-export.
+- Re-import deduplicates against already-imported messages; only new content is extracted; the Book Scan re-runs on the fresh slice.
+
+**[P3-8] Monday Morning Scan** — *As a rep, I want a Monday digest of promises due, cooling clients, and unanswered questions, so that Tovira sets up my week.*
+- Weekly schedule; reuses Book Scan components; idempotent (never double-sent); in-app view exists even if push fails.
+
 **[P3-6] Enable notifications in onboarding** — *As a new rep, I want to install and enable notifications during setup, so that nudges actually reach me* (critical on iOS).
 
 ---
@@ -119,6 +132,26 @@ Roles: **Rep** (the salesperson, primary user) · **New/Prospective rep** (signu
 
 **[P4-6] Client gallery** — *As a rep, I want an image gallery per client, so that I can store relevant photos.*
 
+**[P4-7] WhatsApp send loop** — *As a rep, I want one tap from a follow-up draft to WhatsApp with the message pre-filled, so that meet → note → sent takes under a minute.*
+- Draft opens a wa.me deep link to the right contact with the text pre-filled.
+- Tovira NEVER auto-sends — the rep always taps send inside WhatsApp.
+
+**[P4-8] Conversational recall** — *As a rep, I want to ask my memory questions by voice or text ("what did Ahmed say about pricing?"), so that any fact from any conversation is seconds away.*
+- Answers are grounded in retrieval (top-k, capped) and cite receipts (quote + date).
+- When nothing relevant exists, the answer is "I don't have that" — never a fabrication.
+
+**[P4-9] Personalized extraction** — *As a rep, I want Tovira to learn my client names, jargon, and shorthand from my corrections, so that it gets noticeably smarter for me over time.*
+- A per-rep glossary is built from the corrections log and injected into the extraction call's VARIABLE section (never the cached prefix).
+- Glossary entries improve recognition of that rep's names/terms without degrading anything else.
+
+**[P4-11] Recovered Value Ledger ★** — *As a rep, I want a record of the opportunities Tovira helped me touch, so that I can see it paying for itself.*
+- Logs real events only: a flagged dead thread the rep then re-engaged, a promise marked kept, a brief viewed before a logged meeting.
+- Monthly summary + shown at the renew/cancel moment.
+- Language is "touched," never "closed"; AED totals appear only when the rep has entered deal values; every entry links to its underlying event.
+
+**[P4-10] Corpus-value visibility** — *As a rep, I want to see how much Tovira remembers for me ("14 months, 2,300 moments"), so that I feel the value of what I've built.*
+- The stat is accurate and updates as the bank grows.
+
 ---
 
 ## Phase 4b — Hero features (the hook)  *(rep)* ★ DIFFERENTIATOR
@@ -135,6 +168,7 @@ Roles: **Rep** (the salesperson, primary user) · **New/Prospective rep** (signu
 
 **[P4b-3] What should I do today?** — *As a rep, I want a ranked list of my highest-leverage actions, so that I know where to spend my day.*
 - Always on. With thin data, ranks on basics (open promises, upcoming meetings, cold clients); gets smarter as patterns emerge.
+- **Precomputed nightly (cost guard):** opening the app serves the cached result; a manual refresh is allowed but rate-limited.
 
 **[P4b-4] Volume gate & warming-up state** — *As a new rep, I want to see what unlocks pattern insights, so that I'm motivated to feed Tovira rather than confused by a missing feature.*
 - Below threshold: clear "warming up" state explaining exactly what unlocks it (doubles as a seeding incentive).
@@ -145,16 +179,36 @@ Roles: **Rep** (the salesperson, primary user) · **New/Prospective rep** (signu
 ## Phase 5 — Monetization & launch readiness  *(new rep + rep)*
 
 **[P5-1] Free trial** — *As a prospective rep, I want a 7-day free trial, so that I can experience the value before paying.*
-- Trial starts at signup; full access; converts to paid or locks at day 7.
+- Trial starts at signup; full access; converts to paid (**AED 299/mo**) or locks at day 7.
+- **Trial seeding bound (cost guard):** extraction volume per trial account is capped (generous enough for the Book Scan on several chats; a hard ceiling against unbounded burn).
+- **Activity-gated extension:** capturing notes on 3+ clients unlocks +7 days, once, enforced server-side.
+
+**[P5-7] Trial-grade extraction** — *As a trial user, I want the most accurate extraction from day one, so that my first impression of Tovira is its best.*
+- Trial accounts route extraction to Sonnet regardless of unit cost; paid accounts use the P1-9-selected model; the trial seeding cap still applies.
 
 **[P5-2] Subscribe & manage billing** — *As a rep, I want to subscribe and manage my plan, so that I can keep using Tovira.*
-- Stripe Checkout; subscription state driven by **webhooks (source of truth)**; failed-payment handling.
+- Stripe Checkout in **AED at 299/mo**; subscription state driven by **webhooks (source of truth)**; failed-payment handling; Stripe Billing fees (0.7%) budgeted.
 
-**[P5-3] Day-one seeding onboarding** — *As a new rep, I want guided setup that lets me paste old threads and add clients fast, so that Tovira is useful before my trial ends.*
-- Onboarding prompts to add first clients + paste history; a first useful brief is reachable within the trial.
+**[P5-5] Annual plan** — *As a rep, I want to pay AED 2,990/year (~2 months free), so that I save money and stop thinking about billing.*
+- Annual SKU alongside monthly; proration/switching handled by Stripe Billing.
+
+**[P5-6] Book-Scan share card + referral** — *As a rep, I want to share my Book Scan results (stats only) and earn a free month for referrals, so that showing off Tovira rewards me.*
+- Share card contains counts only — NEVER client names, quotes, or any identifying content.
+- Give-a-month/get-a-month referral tracked through signup.
+
+**[P5-3] Day-one seeding via WhatsApp export** — *As a new rep, I want to seed Tovira by exporting one WhatsApp chat in three taps, so that it becomes useful in my first session without data-entry homework.*
+- Onboarding walks through: pick your most important client → WhatsApp Export Chat → upload to Tovira (share-target on Android; Files→upload on iOS).
+- The Book Scan (P5-3b) fires on the seeded history within the first session.
+- Fallbacks offered: record a first voice note (micro-wow), or explore a sample book.
+
+**[P5-3b] Day-One Book Scan ★ (the trial wow)** — *As a new rep, I want Tovira to scan my seeded history and show me what I've missed, so that I see undeniable value in my first ten minutes.*
+- Reveal covers: open promises never closed, client questions never answered, going-cold gaps, upcoming dates.
+- Every item shows its receipt (quote + date from the rep's own conversation); uncertain items framed as "worth checking."
+- Framed as opportunity recovered, not guilt; ends by inviting the next chat export.
 
 **[P5-4] Data trust & control** — *As a rep, I want clarity and control over my (and my clients') data, so that I feel safe storing it.*
 - Consent at signup; stated retention policy; export/delete path.
+- **Full export**: raw notes, transcripts, extracted facts, and images in a usable format — the complete corpus, not a partial dump. (Trust drives deposits; deposits are the moat.)
 
 ---
 
