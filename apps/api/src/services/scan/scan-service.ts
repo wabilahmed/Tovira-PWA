@@ -3,6 +3,7 @@ import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { FactsRepository, KeyDateRecord } from '../../ports/facts-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
+import type { PushableAlert } from '../push/push-dispatch-service.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECURRING_TYPES = new Set(['birthday', 'anniversary']);
@@ -15,10 +16,14 @@ export interface ScanConfig {
 }
 
 export interface ScanSummary {
+  overduePromises: number;
   nudges: number;
   goingCold: number;
   dateReminders: number;
   chatRefresh: number;
+  /** The alerts created this run that are eligible for a push — the silence
+   *  budget picks the loudest few of these to actually send. */
+  pushables: PushableAlert[];
 }
 
 function startOfDayUtc(ms: number): number {
@@ -63,55 +68,83 @@ export class ScanService {
     private readonly notes: NoteRepository,
   ) {}
 
-  async nudges(userId: string, nowMs: number, leadMs: number): Promise<number> {
+  /**
+   * Overdue promises (the LOUDEST alert): a commitment the rep owns, not yet
+   * done, whose resolved due date is strictly before today. Fires once per
+   * promise (deduped by id); unresolved/no-date promises never fire.
+   */
+  async overduePromises(userId: string, nowMs: number, sink?: PushableAlert[]): Promise<number> {
+    const todayIso = new Date(nowMs).toISOString().slice(0, 10);
+    const promises = await this.facts.listPromisesByUser(userId);
+    let created = 0;
+    for (const p of promises) {
+      if (p.owner !== 'rep' || p.done || !p.dueDate) continue;
+      if (p.dueDate >= todayIso) continue; // due today or later → not overdue
+      const entry = {
+        type: 'overdue_promise' as const,
+        dedupeKey: `promise:${p.id}`,
+        clientId: p.clientId,
+        title: 'Overdue promise',
+        body: `Overdue — ${p.text}`,
+      };
+      const ok = await this.notifications.createIfAbsent(userId, entry);
+      if (ok) { created += 1; sink?.push(entry); }
+    }
+    return created;
+  }
+
+  async nudges(userId: string, nowMs: number, leadMs: number, sink?: PushableAlert[]): Promise<number> {
     const from = new Date(nowMs).toISOString();
     const to = new Date(nowMs + leadMs).toISOString();
     const due = await this.meetings.dueForNudge(userId, from, to);
     let created = 0;
     for (const m of due) {
-      const ok = await this.notifications.createIfAbsent(userId, {
-        type: 'pre_meeting_nudge',
+      const entry = {
+        type: 'pre_meeting_nudge' as const,
         dedupeKey: `nudge:${m.id}`,
         clientId: m.clientId,
         title: 'Upcoming meeting',
         body: `Meeting soon — ${m.datetimeRaw}`,
-      });
+      };
+      const ok = await this.notifications.createIfAbsent(userId, entry);
       await this.meetings.markNudged(userId, m.id, nowMs);
-      if (ok) created += 1;
+      if (ok) { created += 1; sink?.push(entry); }
     }
     return created;
   }
 
-  async goingCold(userId: string, nowMs: number, thresholdDays: number): Promise<number> {
+  async goingCold(userId: string, nowMs: number, thresholdDays: number, sink?: PushableAlert[]): Promise<number> {
     const cold = await this.clients.listGoingCold(userId, nowMs - thresholdDays * DAY_MS);
     let created = 0;
     for (const c of cold) {
-      const ok = await this.notifications.createIfAbsent(userId, {
-        type: 'going_cold',
+      const entry = {
+        type: 'going_cold' as const,
         dedupeKey: `cold:${c.id}`,
         clientId: c.id,
         title: 'Client going cold',
         body: `${c.name} hasn’t been touched in a while.`,
-      });
-      if (ok) created += 1;
+      };
+      const ok = await this.notifications.createIfAbsent(userId, entry);
+      if (ok) { created += 1; sink?.push(entry); }
     }
     return created;
   }
 
-  async dateReminders(userId: string, nowMs: number, windowDays: number): Promise<number> {
+  async dateReminders(userId: string, nowMs: number, windowDays: number, sink?: PushableAlert[]): Promise<number> {
     const dates = await this.facts.listKeyDatesByUser(userId);
     let created = 0;
     for (const d of dates) {
       const due = nextReminderDate(d, nowMs, windowDays);
       if (!due) continue;
-      const ok = await this.notifications.createIfAbsent(userId, {
-        type: 'date_reminder',
+      const entry = {
+        type: 'date_reminder' as const,
         dedupeKey: `date:${d.id}:${due}`,
         clientId: d.clientId,
         title: 'Upcoming date',
         body: `${d.description} — ${due}`,
-      });
-      if (ok) created += 1;
+      };
+      const ok = await this.notifications.createIfAbsent(userId, entry);
+      if (ok) { created += 1; sink?.push(entry); }
     }
     return created;
   }
@@ -122,7 +155,7 @@ export class ScanService {
    * key is tied to the specific stale import, so it fires once; a re-import
    * (a new note) only re-nudges after that in turn goes stale.
    */
-  async chatRefreshNudges(userId: string, nowMs: number, staleDays: number): Promise<number> {
+  async chatRefreshNudges(userId: string, nowMs: number, staleDays: number, sink?: PushableAlert[]): Promise<number> {
     const cutoff = nowMs - staleDays * DAY_MS;
     const clients = await this.clients.listByUser(userId);
     let created = 0;
@@ -131,24 +164,28 @@ export class ScanService {
       if (imports.length === 0) continue; // never imported → onboarding's job, not refresh
       const latest = imports.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
       if (latest.createdAt >= cutoff) continue; // recently refreshed → no nudge
-      const ok = await this.notifications.createIfAbsent(userId, {
-        type: 'chat_refresh',
+      const entry = {
+        type: 'chat_refresh' as const,
         dedupeKey: `refresh:${c.id}:${latest.id}`,
         clientId: c.id,
         title: 'Refresh this chat',
         body: `It's been a while — re-export ${c.name}'s WhatsApp chat (3 taps) to keep Tovira current.`,
-      });
-      if (ok) created += 1;
+      };
+      const ok = await this.notifications.createIfAbsent(userId, entry);
+      if (ok) { created += 1; sink?.push(entry); }
     }
     return created;
   }
 
   async runAll(userId: string, nowMs: number, cfg: ScanConfig): Promise<ScanSummary> {
+    const pushables: PushableAlert[] = [];
     return {
-      nudges: await this.nudges(userId, nowMs, cfg.nudgeLeadMs),
-      goingCold: await this.goingCold(userId, nowMs, cfg.coldThresholdDays),
-      dateReminders: await this.dateReminders(userId, nowMs, cfg.reminderWindowDays),
-      chatRefresh: await this.chatRefreshNudges(userId, nowMs, cfg.chatRefreshStaleDays),
+      overduePromises: await this.overduePromises(userId, nowMs, pushables),
+      nudges: await this.nudges(userId, nowMs, cfg.nudgeLeadMs, pushables),
+      goingCold: await this.goingCold(userId, nowMs, cfg.coldThresholdDays, pushables),
+      dateReminders: await this.dateReminders(userId, nowMs, cfg.reminderWindowDays, pushables),
+      chatRefresh: await this.chatRefreshNudges(userId, nowMs, cfg.chatRefreshStaleDays, pushables),
+      pushables,
     };
   }
 }

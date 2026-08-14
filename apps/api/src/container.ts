@@ -59,7 +59,10 @@ import type { NotificationRepository } from './ports/notification-repository.js'
 import { InMemoryNotificationRepository } from './adapters/notifications/in-memory-notification-repository.js';
 import { PgNotificationRepository } from './adapters/notifications/pg-notification-repository.js';
 import { ScanService, type ScanConfig } from './services/scan/scan-service.js';
-import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
+import type { PushSender, PushSubscriptionRepository, PushBudgetRepository } from './ports/push.js';
+import { PushDispatchService } from './services/push/push-dispatch-service.js';
+import { InMemoryPushBudgetRepository } from './adapters/push/in-memory-push-budget-repository.js';
+import { PgPushBudgetRepository } from './adapters/push/pg-push-budget-repository.js';
 import { StubPushSender } from './adapters/push/stub-sender.js';
 import { WebPushSender } from './adapters/push/webpush-sender.js';
 import { InMemoryPushSubscriptionRepository } from './adapters/push/in-memory-push-subscription-repository.js';
@@ -323,6 +326,25 @@ export function createPushSender(config: AppConfig): PushSender {
     return new WebPushSender({ publicKey: config.vapidPublicKey, privateKey: config.vapidPrivateKey, subject: config.vapidSubject });
   }
   return new StubPushSender();
+}
+
+/** The silence-budget ledger (max 2 pushes/rep/day), RLS-free system table on pg. */
+export function createPushBudgetRepository(config: AppConfig, pool?: Pool): PushBudgetRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgPushBudgetRepository(pool);
+  }
+  return new InMemoryPushBudgetRepository();
+}
+
+/** The push send path: records every alert in-app, pushes only the loudest few. */
+export function createPushDispatchService(
+  sender: PushSender,
+  subs: PushSubscriptionRepository,
+  notifications: NotificationRepository,
+  budget: PushBudgetRepository,
+): PushDispatchService {
+  return new PushDispatchService(sender, subs, notifications, budget);
 }
 
 /** Business-card vision scan: stub locally; real vision model at deploy. */

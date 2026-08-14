@@ -6,6 +6,7 @@ import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-re
 import { InMemoryNotificationRepository } from '../../adapters/notifications/in-memory-notification-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import type { KeyDateRecord } from '../../ports/facts-repository.js';
+import type { ExtractedPromise } from '../extraction/types.js';
 
 function make() {
   const clients = new InMemoryClientRepository();
@@ -19,6 +20,33 @@ function make() {
 
 const NOW = Date.parse('2026-07-09T09:00:00Z');
 const HOUR = 60 * 60 * 1000;
+
+describe('[P4-SILENCE] overdue-promise alerts', () => {
+  const prom = (over: Partial<ExtractedPromise>): ExtractedPromise => ({ text: 'Send the quote', owner: 'rep', due_date: null, due_raw: null, confidence: 'high', ...over });
+
+  it('alerts once for a rep promise past its due date, and is idempotent', async () => {
+    const { facts, scan, notifications } = make();
+    await facts.saveExtraction('u', { noteId: 'n1', clientId: 'c1', promises: [prom({ due_date: '2026-07-01' })] });
+    expect(await scan.overduePromises('u', NOW)).toBe(1);
+    expect(await scan.overduePromises('u', NOW)).toBe(0); // deduped
+    const n = (await notifications.listByUser('u')).find((x) => x.type === 'overdue_promise');
+    expect(n).toBeTruthy();
+  });
+
+  it('does not alert for a promise due today or in the future', async () => {
+    const { facts, scan } = make();
+    await facts.saveExtraction('u', { noteId: 'n1', clientId: 'c1', promises: [prom({ due_date: '2026-07-09' })] }); // today
+    await facts.saveExtraction('u', { noteId: 'n2', clientId: 'c1', promises: [prom({ due_date: '2026-07-20' })] }); // future
+    expect(await scan.overduePromises('u', NOW)).toBe(0);
+  });
+
+  it('does not alert for a client-owned promise or one with no resolved date', async () => {
+    const { facts, scan } = make();
+    await facts.saveExtraction('u', { noteId: 'n1', clientId: 'c1', promises: [prom({ owner: 'client', due_date: '2026-07-01' })] });
+    await facts.saveExtraction('u', { noteId: 'n2', clientId: 'c1', promises: [prom({ due_date: null, due_raw: 'after the holidays' })] });
+    expect(await scan.overduePromises('u', NOW)).toBe(0);
+  });
+});
 
 describe('[P3-2] pre-meeting nudge', () => {
   it('generates a nudge once for a meeting in the lead window', async () => {

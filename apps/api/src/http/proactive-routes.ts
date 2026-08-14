@@ -3,6 +3,7 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import type { NotificationRepository } from '../ports/notification-repository.js';
 import type { ScanService, ScanConfig } from '../services/scan/scan-service.js';
+import type { PushDispatchService } from '../services/push/push-dispatch-service.js';
 import { extractToken, sendJson } from './helpers.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -13,6 +14,7 @@ export interface ProactiveRouteDeps {
   notifications: NotificationRepository;
   scan: ScanService;
   scanConfig: ScanConfig;
+  pushDispatch: PushDispatchService;
 }
 
 /** Handle /cold, /notifications and /scan. Returns true if handled. */
@@ -53,6 +55,19 @@ export async function handleProactiveRoute(
   }
 
   // POST /scan — run the daily brain now (prod triggers this via the scheduler).
-  sendJson(res, 200, await deps.scan.runAll(userId, Date.now(), deps.scanConfig));
+  // Every alert is recorded in-app; the silence budget then pushes only the
+  // loudest few (max 2/rep/day). Suppressed alerts still show in-app.
+  const now = Date.now();
+  const summary = await deps.scan.runAll(userId, now, deps.scanConfig);
+  const { sent, suppressed } = await deps.pushDispatch.dispatch(userId, summary.pushables, now);
+  sendJson(res, 200, {
+    overduePromises: summary.overduePromises,
+    nudges: summary.nudges,
+    goingCold: summary.goingCold,
+    dateReminders: summary.dateReminders,
+    chatRefresh: summary.chatRefresh,
+    pushed: sent.length,
+    suppressed: suppressed.length,
+  });
   return true;
 }

@@ -35,6 +35,8 @@ import {
   scanConfigFrom,
   createPushSubscriptionRepository,
   createPushSender,
+  createPushBudgetRepository,
+  createPushDispatchService,
   createCardScanner,
   createImageRepository,
   createHeroService,
@@ -94,6 +96,7 @@ async function main(): Promise<void> {
   const scan = createScanService(clients, meetings, facts, notifications, notes);
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
+  const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications, createPushBudgetRepository(config, appPool));
   const cardScanner = createCardScanner();
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes);
@@ -139,6 +142,7 @@ async function main(): Promise<void> {
     scanConfig: scanConfigFrom(config),
     pushSubscriptions,
     pushSender,
+    pushDispatch,
     cardScanner,
     images,
     hero,

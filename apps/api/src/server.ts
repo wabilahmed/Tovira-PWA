@@ -16,6 +16,7 @@ import type { MeetingParser } from './services/meetings/meeting-parser.js';
 import type { NotificationRepository } from './ports/notification-repository.js';
 import type { ScanService, ScanConfig } from './services/scan/scan-service.js';
 import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
+import type { PushDispatchService } from './services/push/push-dispatch-service.js';
 import type { CardScanner } from './ports/card-scanner.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
@@ -72,6 +73,7 @@ export interface ApiDeps {
   scanConfig: ScanConfig;
   pushSubscriptions: PushSubscriptionRepository;
   pushSender: PushSender;
+  pushDispatch: PushDispatchService;
   cardScanner: CardScanner;
   images: ImageRepository;
   hero: HeroService;
@@ -177,6 +179,7 @@ export function createApiServer(deps: ApiDeps): Server {
           notifications: deps.notifications,
           scan: deps.scan,
           scanConfig: deps.scanConfig,
+          pushDispatch: deps.pushDispatch,
         })
       )
         return;

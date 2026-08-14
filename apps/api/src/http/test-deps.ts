@@ -40,7 +40,9 @@ import { AccountService } from '../services/account/account-service.js';
 import { ActivationService } from '../services/analytics/activation-service.js';
 import { InMemoryActivationRepository, InMemoryAnalytics } from '../adapters/analytics/in-memory.js';
 import { InMemoryPushSubscriptionRepository } from '../adapters/push/in-memory-push-subscription-repository.js';
+import { InMemoryPushBudgetRepository } from '../adapters/push/in-memory-push-budget-repository.js';
 import { StubPushSender } from '../adapters/push/stub-sender.js';
+import { PushDispatchService } from '../services/push/push-dispatch-service.js';
 import { StubCardScanner } from '../adapters/vision/stub-card-scanner.js';
 import { InMemoryImageRepository } from '../adapters/images/in-memory-image-repository.js';
 
@@ -91,6 +93,9 @@ export function buildInMemoryDeps(
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
   const notifications = new InMemoryNotificationRepository();
   const scan = new ScanService(clients, meetings, facts, notifications, notes);
+  const pushSubscriptions = new InMemoryPushSubscriptionRepository();
+  const pushSender = new StubPushSender();
+  const pushDispatch = new PushDispatchService(pushSender, pushSubscriptions, notifications, new InMemoryPushBudgetRepository());
   const images = new InMemoryImageRepository();
   const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
@@ -112,8 +117,9 @@ export function buildInMemoryDeps(
     notifications,
     scan,
     scanConfig: { coldThresholdDays: 30, nudgeLeadMs: 24 * 60 * 60 * 1000, reminderWindowDays: 7, chatRefreshStaleDays: 21 },
-    pushSubscriptions: new InMemoryPushSubscriptionRepository(),
-    pushSender: new StubPushSender(),
+    pushSubscriptions,
+    pushSender,
+    pushDispatch,
     cardScanner: new StubCardScanner(),
     images,
     hero,
