@@ -111,6 +111,18 @@ describe('[P4b-3] what should I do today', () => {
     expect(actions.some((a) => a.text.includes('done thing'))).toBe(false); // completed excluded
   });
 
+  it('attaches a dated fact sub-line to each action (P4b-3 register)', async () => {
+    const ctx = make(5, 20);
+    const c = await ctx.clients.create('u', 'C');
+    await ctx.facts.saveExtraction('u', { noteId: 'n', clientId: c.id, promises: [
+      { text: 'overdue thing', owner: 'rep', due_date: '2026-07-01', due_raw: '', confidence: 'high' },
+    ] });
+    await coldClientNoDM(ctx, 'u', 'Quiet Co');
+    const actions = await ctx.hero.today('u', NOW);
+    expect(actions.find((a) => a.kind === 'promise')!.subline).toBe('overdue since 1 Jul 2026');
+    expect(actions.find((a) => a.kind === 'cold')!.subline).toMatch(/^silent \d+ days$/);
+  });
+
   it('is always on regardless of the volume gate', async () => {
     const ctx = make(999, 999); // gate very locked
     const c = await ctx.clients.create('u', 'C');

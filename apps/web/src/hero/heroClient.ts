@@ -26,6 +26,8 @@ export interface TodayAction {
   priority: number;
   text: string;
   clientId: string | null;
+  /** A dated fact — the reason this is on the register (server-computed). */
+  subline?: string;
 }
 
 export class HeroClient {

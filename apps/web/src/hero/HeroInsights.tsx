@@ -81,8 +81,11 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
             return (
               <li key={i}>
                 <span className="tov-register__idx">{String(i + 1).padStart(2, '0')}</span>
-                {act && <span className="tov-dot tov-dot--claret" aria-hidden="true" style={{ alignSelf: 'center' }} />}
-                <span>{a.text}</span>
+                {act && <span className="tov-dot tov-dot--claret" aria-hidden="true" style={{ marginTop: 6 }} />}
+                <span>
+                  <div>{a.text}</div>
+                  {a.subline && <div className="tov-stamp" style={{ color: act ? 'var(--claret)' : 'var(--text-secondary)', marginTop: 2 }}>{a.subline}</div>}
+                </span>
               </li>
             );
           })}

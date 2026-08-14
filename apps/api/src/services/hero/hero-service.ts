@@ -8,6 +8,14 @@ import { evaluateGate, type GateState, type VolumeGateConfig } from './volume-ga
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_PATTERN_SAMPLE = 2; // a pattern needs >= 2 supporting deals (thin-sample guard)
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Body date form for register sub-lines (§10): `1 Jul 2026`. Reads a leading
+ *  YYYY-MM-DD positionally so no timezone shifts the day. */
+function bodyDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : iso;
+}
+
 export interface ClientSignals {
   clientId: string;
   name: string;
@@ -36,6 +44,9 @@ export interface TodayAction {
   kind: 'promise' | 'meeting' | 'cold' | 'risk';
   priority: number;
   text: string;
+  /** A one-line fact with a date/elapsed count — the reason this is on the
+   *  register (§10 body date form). e.g. "overdue since 1 Jul 2026", "silent 21 days". */
+  subline?: string;
   clientId: string | null;
 }
 
@@ -149,17 +160,23 @@ export class HeroService {
     for (const p of promises.filter((p) => !p.done)) {
       if (p.dueDate && p.dueDate <= soonDate) {
         const overdue = p.dueDate < todayDate;
-        actions.push({ kind: 'promise', priority: overdue ? 4 : 3, text: `${overdue ? 'Overdue' : 'Due soon'}: ${p.text}`, clientId: p.clientId });
+        actions.push({
+          kind: 'promise',
+          priority: overdue ? 4 : 3,
+          text: `${overdue ? 'Overdue' : 'Due soon'}: ${p.text}`,
+          clientId: p.clientId,
+          subline: `${overdue ? 'overdue since' : 'due'} ${bodyDate(p.dueDate)}`,
+        });
       }
     }
     for (const m of meetings) {
       if (m.datetime && m.datetime >= nowIso && m.datetime <= soonIso) {
-        actions.push({ kind: 'meeting', priority: 3, text: `Prep for meeting (${m.datetimeRaw})`, clientId: m.clientId });
+        actions.push({ kind: 'meeting', priority: 3, text: `Prep for meeting (${m.datetimeRaw})`, clientId: m.clientId, subline: `meeting ${m.datetimeRaw}` });
       }
     }
     for (const s of sig) {
       if (s.silentDays > this.coldThresholdDays) {
-        actions.push({ kind: 'cold', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId });
+        actions.push({ kind: 'cold', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days` });
       }
     }
     return actions.sort((a, b) => b.priority - a.priority).slice(0, 10);
