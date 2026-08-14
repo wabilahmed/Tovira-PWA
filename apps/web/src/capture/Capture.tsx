@@ -4,6 +4,7 @@ import { requestMicrophone } from './microphone.js';
 import { startRecording, type ActiveRecording } from './recorder.js';
 import type { Outbox } from './outbox.js';
 import { ImportChat, type ImportApi } from '../import/ImportChat.js';
+import { hapticTick } from '../haptics.js';
 
 function mmss(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -63,6 +64,7 @@ export function Capture({
     const blob = await active.stop();
     setActive(null);
     await outbox.enqueue({ id: randomId(), clientId, blob, createdAt: Date.now() });
+    hapticTick(); // note saved — kept on the device, never lost
     refreshPending();
     onCaptured?.();
   }

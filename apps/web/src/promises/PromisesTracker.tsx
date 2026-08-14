@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { OpenPromise } from './promisesClient.js';
 import { formatBody } from '../format/dates.js';
+import { hapticTick } from '../haptics.js';
 
 export interface PromisesApi {
   listOpen(): Promise<OpenPromise[]>;
@@ -32,8 +33,10 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
 
   async function done(id: string): Promise<void> {
     setError(null);
-    if (await api.markDone(id)) setOpen((prev) => prev.filter((p) => p.id !== id));
-    else setError('Could not mark that done — please try again.');
+    if (await api.markDone(id)) {
+      hapticTick(); // promise kept
+      setOpen((prev) => prev.filter((p) => p.id !== id));
+    } else setError('Could not mark that done — please try again.');
   }
   async function confirm(id: string): Promise<void> {
     if (await api.confirm(id)) setPending((prev) => prev.filter((p) => p.id !== id));
