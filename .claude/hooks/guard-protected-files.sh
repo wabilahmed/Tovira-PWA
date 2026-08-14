@@ -3,6 +3,7 @@
 #
 # Blocks the agent from editing files it must never touch:
 #   1. The acceptance tests  → the agent must NEVER rewrite its own exam.
+#   1b. The P1-9 eval fixture → human-certified ground truth (the answer key).
 #   2. The spec/docs         → product decisions are made by humans.
 #   3. Secrets               → .env and friends.
 #
@@ -31,6 +32,16 @@ if [[ "$FILE" == *"tovira-acceptance-tests.md"* ]]; then
   echo "[guard] BLOCKED: tovira-acceptance-tests.md is the verification gate — READ-ONLY." >&2
   echo "[guard] You may not modify a test to make your code pass." >&2
   echo "[guard] If a test is genuinely wrong, STOP and write it to BLOCKERS.md." >&2
+  exit 2
+fi
+
+# --- 1b. The answer key: the P1-9 eval fixture is human-certified ground truth -
+# An examinee that can quietly edit its own answer key isn't being tested. The
+# agent PROPOSES fixture changes; a human certifies them (same as the docs flow).
+if [[ "$FILE" == *"/eval/eval-set.ts" || "$FILE" == *"/eval/eval-set.test.ts" ]]; then
+  echo "[guard] BLOCKED: the P1-9 eval fixture is human-certified ground truth — READ-ONLY." >&2
+  echo "[guard] Propose changes for human certification; do not self-edit the answer key." >&2
+  echo "[guard] Certified changes are applied via the reviewed script route, like docs/." >&2
   exit 2
 fi
 
