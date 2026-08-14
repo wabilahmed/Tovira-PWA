@@ -72,3 +72,14 @@ variable "alarm_email" {
   type        = string
   default     = ""
 }
+
+# ── Marketing site (apps/site) ───────────────────────────────────────────────
+variable "marketing_domain" {
+  description = "Apex domain for the marketing site (e.g. tovira.com). Empty = default CloudFront domain, no aliases."
+  default     = ""
+}
+
+variable "marketing_acm_certificate_arn" {
+  description = "ACM cert ARN in us-east-1 covering the apex + www for the marketing CloudFront. Empty = default cert."
+  default     = ""
+}

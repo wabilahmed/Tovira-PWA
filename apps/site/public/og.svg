@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Tovira — the Book Scan in the Vault theme">
+  <defs>
+    <radialGradient id="vault" cx="50%" cy="-10%" r="90%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Vault material -->
+  <rect width="1200" height="630" fill="#16130f"/>
+  <rect width="1200" height="630" fill="url(#vault)"/>
+
+  <!-- Wordmark only (no other text overlay, per brand) -->
+  <text x="90" y="150" font-family="Georgia, 'Times New Roman', serif" font-size="76" font-weight="600" fill="#efeae0" letter-spacing="-1">Tovira</text>
+
+  <!-- The product shown as itself: three receipt-chits (schematic, no claims) -->
+  <g transform="translate(90,230)">
+    <!-- chit 1 -->
+    <rect x="0" y="0" width="1020" height="96" rx="6" fill="#1e1a15" stroke="#3a342b"/>
+    <rect x="0" y="0" width="3" height="96" fill="#b3893f"/>
+    <line x1="20" y1="10" x2="1000" y2="10" stroke="#3a342b" stroke-dasharray="2 4"/>
+    <rect x="24" y="34" width="640" height="12" rx="3" fill="#b9b2a2"/>
+    <rect x="24" y="62" width="300" height="9" rx="3" fill="#8c846f"/>
+    <!-- chit 2 -->
+    <g transform="translate(0,116)">
+      <rect x="0" y="0" width="1020" height="96" rx="6" fill="#1e1a15" stroke="#3a342b"/>
+      <rect x="0" y="0" width="3" height="96" fill="#b3893f"/>
+      <line x1="20" y1="10" x2="1000" y2="10" stroke="#3a342b" stroke-dasharray="2 4"/>
+      <rect x="24" y="34" width="520" height="12" rx="3" fill="#b9b2a2"/>
+      <rect x="24" y="62" width="300" height="9" rx="3" fill="#8c846f"/>
+    </g>
+    <!-- chit 3 — a client gone quiet (claret dot) -->
+    <g transform="translate(0,232)">
+      <rect x="0" y="0" width="1020" height="96" rx="6" fill="#1e1a15" stroke="#3a342b"/>
+      <rect x="0" y="0" width="3" height="96" fill="#b3893f"/>
+      <circle cx="34" cy="48" r="7" fill="#d2726a"/>
+      <rect x="56" y="42" width="420" height="12" rx="3" fill="#b9b2a2"/>
+    </g>
+  </g>
+</svg>

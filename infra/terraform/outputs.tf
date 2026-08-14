@@ -38,3 +38,13 @@ output "runtime_config_secret_arn" {
   description = "Fill GROQ/STRIPE/VAPID here after apply."
   value       = aws_secretsmanager_secret.app.arn
 }
+
+output "marketing_bucket" {
+  description = "S3 bucket for the marketing site build (apps/site/dist)."
+  value       = aws_s3_bucket.marketing.bucket
+}
+
+output "marketing_url" {
+  description = "Marketing site URL (CloudFront default domain until the apex is wired)."
+  value       = "https://${aws_cloudfront_distribution.marketing.domain_name}"
+}
