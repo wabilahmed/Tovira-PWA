@@ -82,21 +82,29 @@ phrase) stays LTR; the mono stamp always stays LTR/left.
   `refresh` → `rescan`.
 No `data-testid` or behavioural assertion was weakened.
 
-## Payload gaps (rendered gracefully, no server change)
-The board shows a few facts the current API payloads don't carry; these are omitted
-rather than faked, and are candidate future server fields:
-- **Book Scan** meta "N chats read" (only findings + clients are derivable).
-- **Today's register** per-row sub-lines ("overdue since…", "silent N days", "unanswered
-  N days") — `/today` returns action text only.
-- **The Monday Statement** cooling-client silent-days — `coolingClients` carries only
-  `{id, name}` (no `lastTouchedAt`).
-- **Billing** active-plan renewal date — `entitlement` returns status + trialEndsAt only.
+## Full-stack follow-up (server + API modified to feed the screens)
+A later batch built the remaining screen and closed the data gaps by enriching the
+server/API — real facts only, no fabrication:
+- **Capture screen** — now a first-class view (`capture`, in More / the sidebar): client
+  picker → voice note (live mono timer, claret "Tap to stop", the "never lost" guarantee)
+  or chat import (reuses `ImportChat`); pending uploads shown. All 10 board screens exist.
+- **Today's register sub-lines** — `HeroService.today()` attaches a real `subline` per
+  action ("overdue since 1 Jul 2026", "due …", "meeting …", "silent N days"), rendered
+  in mono under each register row.
+- **Book Scan "N chats read"** — `BookScanReport.chatsRead` tallies WhatsApp exports
+  during the scan; the third meta figure.
+- **Monday cooling silent-days** — `MondayDigest.coolingClients` now carries
+  `lastTouchedAt`, so each cooling row shows "silent N days" (claret mono); the week range
+  uses the server's `weekOf`.
 
-## Partially addressed (flagged)
-- **Capture** is not a top-level screen in the app (recording is per-client in the client
-  detail, import via ImportChat); both already carry the v1.1 tokens (claret Stop, etc.).
-  A dedicated board-style Capture screen was not introduced, as it would change the
-  information architecture beyond a restyle.
+## Still flagged (honest gaps)
+- **Billing active-plan renewal date** — a true "Renews DD MON YYYY" needs Stripe's
+  `current_period_end`, which the local/stub flow doesn't carry; not shown rather than
+  faked. (Trialing already shows the trial end.)
+- **The three inline "uncertain" confirm chits** (Today "awaiting your word", Alerts "not
+  counted as cold", Monday "read as a maybe") are the amber confirmation-queue pattern; the
+  app **centralises** that flow in Promises and the Brief rather than duplicate the widget
+  on three more screens.
 - **Promises** shows the full "due DATE" (claret when overdue) rather than the board's
   dense "overdue 4d" abbreviation, to keep the existing date assertion; the claret dot +
   claret stamp still signal overdue.
