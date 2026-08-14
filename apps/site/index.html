@@ -9,15 +9,233 @@
     <script type="module" src="/src/ref.ts"></script>
   </head>
   <body>
-    <!-- SITE-1 scaffold. Full page (sections 1–12) lands in SITE-2. -->
+    <header class="section" style="padding-block: 1.25rem; border: none;">
+      <div class="site" style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="wordmark">Tovira</span>
+        <a class="langswitch" href="/ar" hreflang="ar" data-langswitch>العربية</a>
+      </div>
+    </header>
+
     <main class="site">
-      <section class="section">
+      <!-- SECTION 1 — Hero -->
+      <section class="section" aria-labelledby="hero-h">
         <div class="site">
-          <p class="eyebrow">FOR FIELD SALES · UAE</p>
-          <h1>Export one WhatsApp chat.<br />See what your book has been hiding.</h1>
-          <a class="cta" data-cta href="https://app.tovira.com/">Start a 7-day trial</a>
+          <div class="hero">
+            <div>
+              <p class="eyebrow">FOR FIELD SALES · UAE</p>
+              <h1 id="hero-h">Export one WhatsApp chat.<br />See what your book has been hiding.</h1>
+              <p class="lede">Tovira reads the conversations you already have and tells you what you've forgotten — the promise you never kept, the question you never answered, the client who went quiet three weeks ago.</p>
+              <div class="hero__actions">
+                <a class="cta" data-cta href="https://app.tovira.com/">Start a 7-day trial</a>
+                <a class="cta-secondary" href="#scan">See what a scan finds ↓</a>
+              </div>
+              <p class="trust">AED 299 / month · No card for the first 7 days</p>
+            </div>
+            <!-- The product shown as itself: a phone holding real receipts. -->
+            <div class="phone" role="img" aria-label="The Book Scan on a phone: an open promise, an unanswered question, and a client gone quiet, each with the message and date it came from.">
+              <div class="phone__head">Tovira · Book Scan</div>
+              <div class="tov-receipt">
+                <div style="color: var(--text-primary)">“I'll send the revised quote by Thursday”</div>
+                <div class="tov-stamp" style="margin-top: 6px">WHATSAPP · 14 MAR 2026</div>
+              </div>
+              <div class="tov-receipt">
+                <div style="color: var(--text-primary)">“can you do better on the bulk price?”</div>
+                <div class="tov-stamp" style="margin-top: 6px">WHATSAPP · 02 APR 2026</div>
+              </div>
+              <div class="tov-receipt">
+                <div><span class="tov-dot tov-dot--claret"></span> Falcon Group · <span class="scan__silent">silent 21 days</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 2 — The Book Scan (the proof) -->
+      <section class="section" id="scan" aria-labelledby="scan-h">
+        <div class="site">
+          <h2 id="scan-h">Your first scan takes about a minute.</h2>
+          <p class="lede">Open a client's chat in WhatsApp. Export it. Send it to Tovira. That is the whole setup — no forms, no CRM homework, no typing up your week.</p>
+          <div class="scan">
+            <div class="tov-receipt fade">
+              <div class="scan__label">Open promise</div>
+              <div style="color: var(--text-primary); margin-top: 4px">“I'll send the revised quote by Thursday”</div>
+              <div class="tov-stamp" style="margin-top: 6px">WHATSAPP · 14 MAR 2026</div>
+              <p class="scan__note">Marked worth checking. No sign it was sent.</p>
+            </div>
+            <div class="tov-receipt fade">
+              <div class="scan__label">Unanswered question</div>
+              <div style="color: var(--text-primary); margin-top: 4px">“can you do better on the bulk price?”</div>
+              <div class="tov-stamp" style="margin-top: 6px">WHATSAPP · 02 APR 2026</div>
+              <p class="scan__note">The thread ended here.</p>
+            </div>
+            <div class="tov-receipt fade">
+              <div class="scan__label">Going quiet</div>
+              <div style="margin-top: 4px"><span class="tov-dot tov-dot--claret"></span> Falcon Group · <span class="scan__silent">silent 21 days</span></div>
+              <p class="scan__note">Before that, you spoke weekly.</p>
+            </div>
+            <div class="tov-receipt fade">
+              <div class="scan__label">Date ahead</div>
+              <div style="margin-top: 4px">Their exhibition · March</div>
+              <div style="margin-top: 6px"><span class="scan__confirm">NO YEAR STATED — confirm</span></div>
+            </div>
+          </div>
+          <p class="tov-stamp" style="text-transform: none; letter-spacing: 0.02em;">Every line shows the message it came from. Tovira never tells you something it cannot show you.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 3 — The problem -->
+      <section class="section" aria-labelledby="prob-h">
+        <div class="site">
+          <h2 id="prob-h">Forgetting is silent.</h2>
+          <p>You never feel the deal you lost to a forgotten promise. There is no moment where it goes wrong — just a client who stops replying, and a reason you never learn. Twenty relationships is already more than memory holds. Forty is not close.</p>
+          <p>Your chat history has all of it. Nobody has time to scroll back through it.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 4 — How it works -->
+      <section class="section" aria-labelledby="how-h">
+        <div class="site">
+          <h2 id="how-h">How it works</h2>
+          <div class="steps">
+            <div>
+              <p class="step__n">01 — Capture</p>
+              <p>Talk. Thirty seconds in the car after a meeting is enough. Or paste a message, or export a chat.</p>
+            </div>
+            <div>
+              <p class="step__n">02 — Tovira reads it</p>
+              <p>Promises, people, dates, concerns, personal details — pulled out and filed against the right client. Arabic, English, Hindi, Urdu — including all four in one sentence.</p>
+            </div>
+            <div>
+              <p class="step__n">03 — It comes back when you need it</p>
+              <p>A brief before the meeting. A statement on Monday. A note when a client goes quiet. Tovira speaks rarely. When it speaks, act.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 5 — What it holds -->
+      <section class="section" aria-labelledby="holds-h">
+        <div class="site">
+          <h2 id="holds-h">What it holds</h2>
+          <dl class="cols">
+            <div><dt>Open promises</dt><dd>everything you committed to, with dates, across every client</dd></div>
+            <div><dt>The people</dt><dd>who decides, who blocks, who reports to whom</dd></div>
+            <div><dt>The personal</dt><dd>the daughter at university, the knee surgery, the football club</dd></div>
+            <div><dt>The concerns</dt><dd>every objection raised, in their words</dd></div>
+            <div><dt>The dates</dt><dd>launches, renewals, anniversaries</dd></div>
+            <div><dt>Everything said</dt><dd>searchable by asking a question out loud</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <!-- SECTION 6 — Ask it anything -->
+      <section class="section" aria-labelledby="ask-h">
+        <div class="site">
+          <h2 id="ask-h">A memory you can talk to.</h2>
+          <p class="ask__q"><strong>You:</strong> What did Ahmed say about pricing?</p>
+          <p class="ask__a"><strong>Tovira:</strong> He raised it twice. In March he asked for a better bulk price; in April he said the enterprise tier was above their budget.</p>
+          <p class="ask__label">On record</p>
+          <div class="tov-receipt">
+            <div style="color: var(--text-primary)">“can you do better on the bulk price?”</div>
+            <div class="tov-stamp" style="margin-top: 6px">WHATSAPP · 12 MAR 2026</div>
+          </div>
+          <div class="tov-receipt">
+            <div style="color: var(--text-primary)">“the enterprise tier is above our budget”</div>
+            <div class="tov-stamp" style="margin-top: 6px">WHATSAPP · 03 APR 2026</div>
+          </div>
+          <p>When Tovira has nothing on record, it says so. It does not fill the gap with something plausible.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 7 — Built for how business is done here -->
+      <section class="section" aria-labelledby="lang-h">
+        <div class="site">
+          <h2 id="lang-h">Your conversations switch languages. So does Tovira.</h2>
+          <p>Half a sentence in Arabic, a number in English, a name in Urdu — the tools built in San Francisco lose the thread. Tovira was tested on code-switched Gulf sales conversations before it was released, and the accuracy standard it had to pass is published below.</p>
+          <div class="tov-receipt" style="border-inline-start-color: var(--hairline);">
+            <div class="scan__label">The standard</div>
+            <p style="margin: 6px 0 0;">zero invented commitments. Zero guessed dates. Verified across repeated runs on real conversations, in four languages.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 8 — Why not just ChatGPT -->
+      <section class="section" aria-labelledby="gpt-h">
+        <div class="site">
+          <h2 id="gpt-h">ChatGPT waits to be asked.</h2>
+          <p>You can paste a thread into a chat window and get a decent answer. You cannot paste forty clients into it every morning, and it will never tap you on the shoulder on a Tuesday to say that Falcon Group has gone quiet.</p>
+          <p>Tovira is not a place you go to think. It is the record that keeps itself, and speaks up when something needs you.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 9 — Your data -->
+      <section class="section" aria-labelledby="data-h">
+        <div class="site">
+          <h2 id="data-h">It is your book. It stays yours.</h2>
+          <ul>
+            <li>Nothing is sent anywhere on your behalf. Follow-up messages open in WhatsApp with the text ready — you press send.</li>
+            <li>No connection to your WhatsApp account. You export a file; that is all.</li>
+            <li>Export everything, any time, in one file.</li>
+            <li>Delete your account and it is gone — including from our training records.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- SECTION 10 — Price -->
+      <section class="section" aria-labelledby="price-h">
+        <div class="site">
+          <h2 id="price-h">One price. Everything included.</h2>
+          <p class="price-figure">AED 299 / month</p>
+          <p class="lede">Or AED 2,990 / year — two months free.</p>
+          <ul>
+            <li>7-day trial. No card to start.</li>
+            <li>Every feature, from day one. No tiers, no add-ons, no seats to count.</li>
+            <li>Cancel from Settings in one click.</li>
+          </ul>
+          <p><a class="cta" data-cta href="https://app.tovira.com/">Start a 7-day trial</a></p>
+          <p class="trust">One recovered deal covers a year.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 11 — Questions -->
+      <section class="section" aria-labelledby="faq-h">
+        <div class="site">
+          <h2 id="faq-h">Questions</h2>
+          <dl class="faq">
+            <dt>Do I have to connect my WhatsApp?</dt>
+            <dd>No. WhatsApp has an Export Chat button — you send Tovira the file it produces. Tovira never connects to your account and cannot send messages as you.</dd>
+            <dt>What if I stop paying?</dt>
+            <dd>Export your entire book first. Nothing is held hostage.</dd>
+            <dt>Does it work in Arabic?</dt>
+            <dd>Yes — including mixed with English, Hindi, and Urdu in the same sentence. That is what it was built for.</dd>
+            <dt>Is it a CRM?</dt>
+            <dd>No. A CRM is a form you fill in for your manager. Tovira is a memory that fills itself in for you. If you have a CRM, keep it.</dd>
+            <dt>Who is it not for?</dt>
+            <dd>Inside sales teams running recorded video calls — those tools already exist and they are good. Tovira is for people who sell in person.</dd>
+          </dl>
+        </div>
+      </section>
+
+      <!-- SECTION 12 — Close -->
+      <section class="section" aria-labelledby="close-h">
+        <div class="site">
+          <h2 id="close-h" style="font-size: clamp(1.7rem, 5vw, 2.6rem);">Your client book is an asset.<br />This is where it's kept.</h2>
+          <p><a class="cta" data-cta href="https://app.tovira.com/">Start a 7-day trial</a></p>
+          <p class="trust">AED 299 / month · 7 days free · No card to start</p>
         </div>
       </section>
     </main>
+
+    <footer class="section">
+      <div class="site">
+        <p>Tovira · Dubai, UAE</p>
+        <nav aria-label="Footer">
+          <a href="/privacy">Privacy</a> ·
+          <a href="/terms">Terms</a> ·
+          <a href="/contact">Contact</a> ·
+          <a href="/ar" hreflang="ar" data-langswitch>العربية</a>
+        </nav>
+      </div>
+    </footer>
   </body>
 </html>
