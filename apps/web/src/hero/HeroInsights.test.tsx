@@ -22,7 +22,7 @@ describe('<HeroInsights>', () => {
 
   it('shows an empty today state when there is nothing urgent', async () => {
     render(<HeroInsights api={makeApi({ today: [] })} />);
-    expect(await screen.findByText(/nothing urgent/i)).toBeInTheDocument();
+    expect(await screen.findByText(/nothing on the register/i)).toBeInTheDocument();
   });
 
   // Volume-gated: below threshold, an honest warming-up state that says what unlocks.
@@ -69,7 +69,7 @@ describe('<HeroInsights>', () => {
     const user = userEvent.setup();
     const refreshToday = vi.fn().mockResolvedValue({ actions: [{ kind: 'promise', priority: 1, text: 'Fresh action', clientId: 'c1' }], refreshesRemaining: 1 });
     render(<HeroInsights api={makeApi({ today: [], refreshToday })} />);
-    await screen.findByText(/nothing urgent/i);
+    await screen.findByText(/nothing on the register/i);
     await user.click(screen.getByRole('button', { name: /^refresh$/i }));
     expect(await screen.findByText(/fresh action/i)).toBeInTheDocument();
     expect(screen.getByTestId('refresh-msg')).toHaveTextContent(/1 refresh left today/i);

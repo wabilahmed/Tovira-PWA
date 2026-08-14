@@ -41,6 +41,15 @@ export function formatBody(input: DateInput): string {
   return p ? `${p.d} ${MONTHS[p.m]} ${p.y}` : '';
 }
 
+/** A date range in body form with a real en-dash: `16 Mar – 22 Mar 2026`. */
+export function formatRange(start: DateInput, end: DateInput): string {
+  const a = parts(start);
+  const b = parts(end);
+  if (!a || !b) return '';
+  const left = a.y === b.y ? `${a.d} ${MONTHS[a.m]}` : `${a.d} ${MONTHS[a.m]} ${a.y}`;
+  return `${left} – ${b.d} ${MONTHS[b.m]} ${b.y}`;
+}
+
 /** Whole days elapsed between two epoch-ms instants, floored, never negative. */
 export function daysSince(fromMs: number, nowMs: number): number {
   return Math.max(0, Math.floor((nowMs - fromMs) / 86_400_000));

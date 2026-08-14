@@ -55,17 +55,25 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
 
   if (loading) return <p>Working out your day…</p>;
 
+  const needActing = actions.filter((a) => a.kind === 'cold' || a.kind === 'risk').length;
+
   return (
     <section aria-label="Today's register">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h2 style={{ marginTop: 0 }}>Today&rsquo;s register</h2>
+      <header className="tov-screenhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
+        <div>
+          <h2 style={{ marginTop: 0 }}>Today&rsquo;s register</h2>
+          <div className="tov-screenmeta">
+            {actions.length} entr{actions.length === 1 ? 'y' : 'ies'}
+            {needActing > 0 && <> · {needActing} need acting on</>}
+          </div>
+        </div>
         <button onClick={() => void refresh()} disabled={refreshing || rateLimited}>
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
-      </div>
+      </header>
       {refreshMsg && <p data-testid="refresh-msg" style={{ color: rateLimited ? 'var(--amber)' : 'var(--text-secondary)', fontSize: '0.85rem' }}>{refreshMsg}</p>}
       {actions.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Nothing urgent right now.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Nothing on the register today. Capture a note after your next conversation and tomorrow&rsquo;s will write itself.</p>
       ) : (
         <ol data-testid="today-list" className="tov-register">
           {actions.map((a, i) => {
@@ -84,12 +92,13 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
       <h2>Patterns &amp; risk</h2>
       {status && !status.unlocked ? (
         <div role="status" style={warmBox}>
-          <p style={{ margin: 0 }}>{status.message}</p>
+          <p style={{ margin: '0 0 0.6rem' }}>{status.message}</p>
+          <div className="tov-mono" style={gateRow}><span>Clients on file</span><span>{pad(status.counts.clients)} / {pad(status.counts.clients + status.needed.clients)}</span></div>
+          <div className="tov-mono" style={gateRow}><span>Notes captured</span><span>{pad(status.counts.notes)} / {pad(status.counts.notes + status.needed.notes)}</span></div>
           <small style={{ color: 'var(--text-secondary)' }}>
-            {status.needed.clients > 0 && `${status.needed.clients} more client(s)`}
-            {status.needed.clients > 0 && status.needed.notes > 0 && ' · '}
-            {status.needed.notes > 0 && `${status.needed.notes} more note(s)`}
-            {' to unlock.'}
+            {status.needed.clients > 0 && `${status.needed.clients} more clients`}
+            {status.needed.clients > 0 && status.needed.notes > 0 && ' and '}
+            {status.needed.notes > 0 && `${status.needed.notes} more notes`}.
           </small>
         </div>
       ) : (
@@ -120,6 +129,8 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
   );
 }
 
+const pad = (n: number): string => String(n).padStart(2, '0');
 const warmBox: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: '0.75rem 1rem', background: 'var(--surface-raised)' };
+const gateRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', padding: '2px 0' };
 const card: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.5rem 0' };
 const badge: React.CSSProperties = { fontSize: '0.7rem', background: 'var(--brass-surface)', color: 'var(--brass)', borderRadius: 999, padding: '0.1rem 0.5rem' };

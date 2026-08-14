@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatStamp, formatBody } from './dates.js';
+import { formatStamp, formatBody, formatRange, daysSince } from './dates.js';
 
 // [TOKENS §10 finish rules] One date format app-wide: `14 MAR 2026` in mono
 // stamps, `14 Mar 2026` in body copy. No "3/14/26" anywhere, ever.
@@ -37,5 +37,19 @@ describe('date formatter', () => {
   it('returns an empty string for an unparseable value', () => {
     expect(formatStamp('not a date')).toBe('');
     expect(formatBody('')).toBe('');
+  });
+
+  it('formats a same-year week range with an en-dash and one year', () => {
+    expect(formatRange('2026-03-16', '2026-03-22')).toBe('16 Mar – 22 Mar 2026');
+  });
+
+  it('spells both years across a year boundary', () => {
+    expect(formatRange('2025-12-29', '2026-01-04')).toBe('29 Dec 2025 – 4 Jan 2026');
+  });
+
+  it('counts whole elapsed days, floored and never negative', () => {
+    const day = 86_400_000;
+    expect(daysSince(Date.parse('2026-06-01T00:00:00'), Date.parse('2026-06-01T00:00:00') + 21 * day)).toBe(21);
+    expect(daysSince(Date.now() + day, Date.now())).toBe(0);
   });
 });

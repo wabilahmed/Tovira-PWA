@@ -44,6 +44,7 @@ import { ThemeToggle } from './settings/ThemeToggle.js';
 import { formatMonthYear, formatBody } from './format/dates.js';
 import { AppShell } from './shell/AppShell.js';
 import type { View } from './shell/nav.js';
+import { Receipt } from './components/Receipt.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
@@ -376,7 +377,9 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       <button onClick={onBack} style={linkButton}>← Clients</button>
       <h1 style={{ marginBottom: '0.15rem' }}>{client.name}</h1>
       {/* Possession language (§10): the client is a holding, on file since a date. */}
-      <p className="tov-stamp" style={{ margin: '0 0 0.75rem' }}>on file since {formatMonthYear(client.createdAt)}</p>
+      <p className="tov-stamp" style={{ margin: '0 0 0.75rem' }}>
+        on file since {formatMonthYear(client.createdAt)} · {notes.length} moment{notes.length === 1 ? '' : 's'}
+      </p>
 
       <ClientPhoneField
         phone={phone}
@@ -549,8 +552,19 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
       )}
       {brief.keyPeople.length > 0 && (
         <div style={briefSection}>
-          <div className="tov-stamp">Key people</div>
-          <ul>{brief.keyPeople.map((p, i) => <li key={i}>{p.name}{p.role ? `, ${p.role}` : ''} — {p.decision_role.replace('_', ' ')}</li>)}</ul>
+          <div className="tov-stamp">People</div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {brief.keyPeople.map((p, i) => {
+              const word = ROLE_WORD[p.decision_role] ?? '';
+              const blocks = p.decision_role === 'blocker';
+              return (
+                <li key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', padding: '4px 0' }}>
+                  <span>{p.name ?? 'Unknown'}{p.role ? `, ${p.role}` : ''}</span>
+                  {word && <span className="tov-stamp" style={blocks ? { color: 'var(--claret)' } : undefined}>{word}</span>}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
       {brief.concerns.length > 0 && (
@@ -559,9 +573,25 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
       {brief.personalNotes.length > 0 && (
         <div style={briefSection}><div className="tov-stamp">Personal notes</div><ul>{brief.personalNotes.map((f, i) => <li key={i}>{f.subject}: {f.fact}</li>)}</ul></div>
       )}
+      {brief.relatedNotes.length > 0 && (
+        <div style={briefSection}>
+          <div className="tov-stamp">Recent context</div>
+          <div style={{ display: 'grid', gap: '0.5rem', marginTop: 6 }}>
+            {brief.relatedNotes.map((n) => <Receipt key={n.noteId} quote={n.snippet} />)}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
+
+/** Decision-role → the memo's verb (brand: "blocks" is the one claret role). */
+const ROLE_WORD: Record<string, string> = {
+  decision_maker: 'decides',
+  influencer: 'influences',
+  blocker: 'blocks',
+  unknown: '',
+};
 
 const briefBox: React.CSSProperties = {
   border: '1px solid var(--hairline)',

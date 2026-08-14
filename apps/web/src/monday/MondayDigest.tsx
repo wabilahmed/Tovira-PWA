@@ -1,12 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { MondayDigest as Digest } from './mondayClient.js';
+import { Receipt } from '../components/Receipt.js';
+import { formatBody, formatRange } from '../format/dates.js';
 
 export interface MondayApi {
   get(): Promise<Digest | null>;
 }
 
-/** The Monday Morning Scan (P3-8): the week ahead at a glance, in-app. */
-export function MondayDigest({ api }: { api: MondayApi }): JSX.Element {
+/**
+ * The Monday Statement (P3-8): a statement of the week ahead. A Fraunces headline
+ * over a mono week-range meta line; four ruled sections, each a mono stamp label
+ * with a right-hand mono count and a right-aligned mono date/figure column; the
+ * one thing to do earns the single brass verb. Empty sections are hidden, never
+ * padded.
+ */
+export function MondayDigest({ api, now = Date.now() }: { api: MondayApi; now?: number }): JSX.Element {
   const [digest, setDigest] = useState<Digest | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
 
@@ -22,37 +30,81 @@ export function MondayDigest({ api }: { api: MondayApi }): JSX.Element {
   if (state === 'loading') return <p>Building the Monday Statement…</p>;
   if (state === 'error' || !digest) return <p role="alert">The Monday Statement could not be loaded. Try again in a moment.</p>;
 
+  // Monday → Sunday of the current week, computed from `now`.
+  const d = new Date(now);
+  const offset = (d.getDay() + 6) % 7; // 0 = Monday
+  const monday = now - offset * 86_400_000;
+  const week = formatRange(monday, monday + 6 * 86_400_000);
+
   if (digest.isLight) {
     return (
       <section aria-label="The Monday Statement">
-        <h2 style={{ marginTop: 0 }}>The Monday Statement</h2>
+        <header className="tov-screenhead">
+          <h2>The Monday Statement</h2>
+          <div className="tov-screenmeta">Week of {week} · 0 entries</div>
+        </header>
         <p data-testid="clear-week" style={{ color: 'var(--text-secondary)' }}>A clear week — nothing due, no one cooling.</p>
       </section>
     );
   }
 
+  const entries =
+    digest.promisesDue.length + digest.coolingClients.length + digest.unansweredQuestions.length + digest.upcomingDates.length;
+
   return (
     <section aria-label="The Monday Statement">
-      <h2 style={{ marginTop: 0 }}>The Monday Statement</h2>
-      <Group title="Promises due this week" testid="due" items={digest.promisesDue.map((p) => `${p.text}${p.dueDate ? ` — ${p.dueDate}` : ''}`)} />
-      <Group title="Cooling clients" testid="cooling" items={digest.coolingClients.map((c) => c.name)} />
-      <Group title="Unanswered questions" testid="questions" items={digest.unansweredQuestions.map((q) => `“${q.question}”`)} />
-      <Group title="Upcoming dates" testid="dates" items={digest.upcomingDates.map((d) => `${d.description} — ${d.date}`)} />
+      <header className="tov-screenhead">
+        <h2>The Monday Statement</h2>
+        <div className="tov-screenmeta">Week of {week} · {entries} entr{entries === 1 ? 'y' : 'ies'}</div>
+      </header>
+
+      <Section testid="due" label="Promises due" count={digest.promisesDue.length}>
+        {digest.promisesDue.map((p) => (
+          <Row key={p.id} left={p.text} right={p.dueDate ? formatBody(p.dueDate) : 'no date'} />
+        ))}
+      </Section>
+
+      <Section testid="cooling" label="Cooling clients" count={digest.coolingClients.length}>
+        {digest.coolingClients.map((c) => (
+          <Row key={c.id} left={c.name} right="" />
+        ))}
+      </Section>
+
+      <Section testid="questions" label="Unanswered questions" count={digest.unansweredQuestions.length}>
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
+          {digest.unansweredQuestions.map((q, i) => (
+            <Receipt key={i} quote={q.question} date={q.date} />
+          ))}
+        </div>
+      </Section>
+
+      <Section testid="dates" label="Dates ahead" count={digest.upcomingDates.length}>
+        {digest.upcomingDates.map((d2, i) => (
+          <Row key={i} left={d2.description} right={formatBody(d2.date)} />
+        ))}
+      </Section>
     </section>
   );
 }
 
-function Group({ title, testid, items }: { title: string; testid: string; items: string[] }): JSX.Element | null {
-  if (items.length === 0) return null;
+function Section({ testid, label, count, children }: { testid: string; label: string; count: number; children: ReactNode }): JSX.Element | null {
+  if (count === 0) return null;
   return (
     <div data-testid={testid} style={{ margin: '1.25rem 0', paddingBottom: '0.75rem', borderBottom: '1px solid var(--hairline)' }}>
       <div className="tov-stamp" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
-        <span>{title}</span>
-        <span>{items.length}</span>
+        <span>{label}</span>
+        <span>{String(count).padStart(2, '0')}</span>
       </div>
-      <ul style={{ margin: 0, display: 'grid', gap: '0.35rem' }}>
-        {items.map((t, i) => <li key={i}>{t}</li>)}
-      </ul>
+      {children}
+    </div>
+  );
+}
+
+function Row({ left, right }: { left: string; right: string }): JSX.Element {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'baseline', padding: '3px 0' }}>
+      <span>{left}</span>
+      {right && <span className="tov-mono" style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{right}</span>}
     </div>
   );
 }
