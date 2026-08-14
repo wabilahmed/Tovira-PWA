@@ -16,7 +16,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface MondayDigest {
   weekOf: string;
   promisesDue: Array<{ id: string; text: string; dueDate: string | null; clientId: string }>;
-  coolingClients: Array<{ id: string; name: string }>;
+  coolingClients: Array<{ id: string; name: string; lastTouchedAt: number }>;
   unansweredQuestions: Array<{ clientId: string; question: string; date: string | null }>;
   upcomingDates: Array<{ clientId: string; description: string; date: string }>;
   isLight: boolean;
@@ -50,7 +50,7 @@ export class MondayDigestService {
       .filter((p) => !p.done && p.dueDate && p.dueDate >= today && p.dueDate <= weekEnd)
       .map((p) => ({ id: p.id, text: p.text, dueDate: p.dueDate, clientId: p.clientId }));
 
-    const coolingClients = (await this.clients.listGoingCold(userId, nowMs - this.coldThresholdDays * DAY_MS)).map((c) => ({ id: c.id, name: c.name }));
+    const coolingClients = (await this.clients.listGoingCold(userId, nowMs - this.coldThresholdDays * DAY_MS)).map((c) => ({ id: c.id, name: c.name, lastTouchedAt: c.lastTouchedAt }));
 
     const upcomingDates = (await this.facts.listKeyDatesByUser(userId))
       .filter((d) => d.date && d.date >= today && d.date <= weekEnd)

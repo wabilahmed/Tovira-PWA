@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { MondayDigest as Digest } from './mondayClient.js';
 import { Receipt } from '../components/Receipt.js';
-import { formatBody, formatRange } from '../format/dates.js';
+import { formatBody, formatRange, daysSince } from '../format/dates.js';
 
 export interface MondayApi {
   get(): Promise<Digest | null>;
@@ -30,11 +30,9 @@ export function MondayDigest({ api, now = Date.now() }: { api: MondayApi; now?: 
   if (state === 'loading') return <p>Building the Monday Statement…</p>;
   if (state === 'error' || !digest) return <p role="alert">The Monday Statement could not be loaded. Try again in a moment.</p>;
 
-  // Monday → Sunday of the current week, computed from `now`.
-  const d = new Date(now);
-  const offset = (d.getDay() + 6) % 7; // 0 = Monday
-  const monday = now - offset * 86_400_000;
-  const week = formatRange(monday, monday + 6 * 86_400_000);
+  // The server's Monday is authoritative; fall back to computing from `now`.
+  const mondayMs = digest.weekOf ? Date.parse(digest.weekOf) : now - (((new Date(now).getDay() + 6) % 7) * 86_400_000);
+  const week = formatRange(mondayMs, mondayMs + 6 * 86_400_000);
 
   if (digest.isLight) {
     return (
@@ -66,7 +64,7 @@ export function MondayDigest({ api, now = Date.now() }: { api: MondayApi; now?: 
 
       <Section testid="cooling" label="Cooling clients" count={digest.coolingClients.length}>
         {digest.coolingClients.map((c) => (
-          <Row key={c.id} left={c.name} right="" />
+          <Row key={c.id} left={c.name} right={c.lastTouchedAt ? `silent ${daysSince(c.lastTouchedAt, now)} days` : ''} claretRight />
         ))}
       </Section>
 
@@ -100,11 +98,11 @@ function Section({ testid, label, count, children }: { testid: string; label: st
   );
 }
 
-function Row({ left, right }: { left: string; right: string }): JSX.Element {
+function Row({ left, right, claretRight }: { left: string; right: string; claretRight?: boolean }): JSX.Element {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'baseline', padding: '3px 0' }}>
       <span>{left}</span>
-      {right && <span className="tov-mono" style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{right}</span>}
+      {right && <span className="tov-mono" style={{ color: claretRight ? 'var(--claret)' : 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{right}</span>}
     </div>
   );
 }

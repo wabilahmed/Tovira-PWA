@@ -3,7 +3,7 @@
 export interface MondayDigest {
   weekOf: string;
   promisesDue: Array<{ id: string; text: string; dueDate: string | null; clientId: string }>;
-  coolingClients: Array<{ id: string; name: string }>;
+  coolingClients: Array<{ id: string; name: string; lastTouchedAt?: number }>;
   unansweredQuestions: Array<{ clientId: string; question: string; date: string | null }>;
   upcomingDates: Array<{ clientId: string; description: string; date: string }>;
   isLight: boolean;

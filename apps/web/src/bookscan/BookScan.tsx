@@ -59,6 +59,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
         <h2>What your book has been hiding</h2>
         <div className="tov-screenmeta">
           {report.items.length} finding{report.items.length === 1 ? '' : 's'} · {clients} client{clients === 1 ? '' : 's'}
+          {typeof report.chatsRead === 'number' && <> · {report.chatsRead} chat{report.chatsRead === 1 ? '' : 's'} read</>}
         </div>
       </header>
 

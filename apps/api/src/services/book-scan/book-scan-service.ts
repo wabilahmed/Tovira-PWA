@@ -42,6 +42,8 @@ export interface BookScanReport {
   isEmpty: boolean;
   message: string | null;
   invitation: string;
+  /** How many WhatsApp chat exports the book has read — the scan's third meta figure. */
+  chatsRead: number;
 }
 
 export interface BookScanConfig {
@@ -104,8 +106,10 @@ export class BookScanService {
 
     // 2. Unanswered client questions + 3. going-cold — one pass over each client's notes.
     const coldCutoff = nowMs - this.config.coldThresholdDays * DAY_MS;
+    let chatsRead = 0;
     for (const c of clients) {
       const clientNotes = await this.repos.notes.listByClient(userId, c.id); // most-recent first
+      chatsRead += clientNotes.filter((n) => n.source === 'whatsapp_export').length;
       for (const n of clientNotes) {
         const ex = n.extracted as { unanswered_questions?: UnansweredQuestion[] } | null;
         for (const q of ex?.unanswered_questions ?? []) {
@@ -166,6 +170,7 @@ export class BookScanService {
         ? "Not much here yet — export another chat and I'll scan it too."
         : null,
       invitation: INVITATION,
+      chatsRead,
     };
   }
 }

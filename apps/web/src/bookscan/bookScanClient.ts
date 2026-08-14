@@ -16,6 +16,7 @@ export interface BookScanReport {
   isEmpty: boolean;
   message: string | null;
   invitation: string;
+  chatsRead?: number;
 }
 
 export class BookScanClient {
