@@ -20,8 +20,9 @@ interface SubRow {
   trial_extended: boolean;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  current_period_end: Date | null;
 }
-const SUB_COLS = 'user_id, status, trial_ends_at, trial_extended, stripe_customer_id, stripe_subscription_id';
+const SUB_COLS = 'user_id, status, trial_ends_at, trial_extended, stripe_customer_id, stripe_subscription_id, current_period_end';
 function toSub(r: SubRow): SubscriptionRecord {
   return {
     userId: r.user_id,
@@ -30,6 +31,7 @@ function toSub(r: SubRow): SubscriptionRecord {
     trialExtended: r.trial_extended,
     stripeCustomerId: r.stripe_customer_id,
     stripeSubscriptionId: r.stripe_subscription_id,
+    currentPeriodEnd: r.current_period_end ? r.current_period_end.getTime() : null,
   };
 }
 
@@ -61,6 +63,10 @@ export class PgSubscriptionRepository implements SubscriptionRepository {
     if (patch.stripeSubscriptionId !== undefined) push('stripe_subscription_id = $?', patch.stripeSubscriptionId);
     if (patch.trialEndsAt !== undefined) push('trial_ends_at = to_timestamp($? / 1000.0)', patch.trialEndsAt);
     if (patch.trialExtended !== undefined) push('trial_extended = $?', patch.trialExtended);
+    if (patch.currentPeriodEnd !== undefined) {
+      if (patch.currentPeriodEnd === null) push('current_period_end = $?', null);
+      else push('current_period_end = to_timestamp($? / 1000.0)', patch.currentPeriodEnd);
+    }
     if (sets.length === 0) return;
     params.push(userId);
     await this.pool.query(`UPDATE subscriptions SET ${sets.join(', ')} WHERE user_id = $${params.length}`, params);

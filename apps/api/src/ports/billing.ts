@@ -14,6 +14,9 @@ export interface SubscriptionRecord {
   trialExtended: boolean;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+  /** End of the current paid period, epoch ms — the renewal date. Null until a
+   *  webhook carrying it arrives; never inferred locally (P5-2). */
+  currentPeriodEnd: number | null;
 }
 
 export interface SubscriptionPatch {
@@ -22,6 +25,7 @@ export interface SubscriptionPatch {
   trialExtended?: boolean;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
+  currentPeriodEnd?: number | null;
 }
 
 export interface SubscriptionRepository {
@@ -53,6 +57,9 @@ export interface StripeWebhookEvent {
   userId?: string;
   customerId?: string;
   subscriptionId?: string;
+  /** current_period_end from the subscription/invoice, epoch ms (the gateway
+   *  converts Stripe's seconds). Absent when the event doesn't carry one. */
+  currentPeriodEnd?: number;
 }
 
 export type Plan = 'monthly' | 'annual';

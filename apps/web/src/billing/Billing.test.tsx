@@ -33,6 +33,20 @@ describe('<Billing>', () => {
     expect(screen.queryByRole('button', { name: /subscribe/i })).toBeNull();
   });
 
+  // [P5-2] the renewal date comes from the webhook and renders as a mono stamp.
+  it('shows the renewal date when active and a period end is known', async () => {
+    const renewsAt = Date.parse('2026-09-14T00:00:00Z');
+    render(<Billing api={makeApi({ entitled: true, status: 'active', trialEndsAt: 0, renewsAt })} now={NOW} />);
+    expect(await screen.findByTestId('renews-at')).toHaveTextContent(/Renews\s+14 SEP 2026/i);
+  });
+
+  // NEGATIVE: no period end → no invented renewal line.
+  it('shows no renewal line when the period end is unknown', async () => {
+    render(<Billing api={makeApi({ entitled: true, status: 'active', trialEndsAt: 0, renewsAt: null })} now={NOW} />);
+    await screen.findByText(/you're subscribed/i);
+    expect(screen.queryByTestId('renews-at')).toBeNull();
+  });
+
   it('shows an expired state when the trial has ended', async () => {
     render(<Billing api={makeApi({ entitled: false, status: 'none', trialEndsAt: NOW - DAY })} now={NOW} />);
     expect(await screen.findByTestId('expired')).toBeInTheDocument();

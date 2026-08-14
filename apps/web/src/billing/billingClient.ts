@@ -5,6 +5,8 @@ export interface Entitlement {
   entitled: boolean;
   status: string; // 'none' | 'trialing' | 'active' | 'past_due' | 'canceled'
   trialEndsAt: number;
+  /** Next renewal date (epoch ms) from the webhook, or null when unknown (P5-2). */
+  renewsAt?: number | null;
 }
 
 /** Server-computed +7-day extension incentive (P5-1-UI). The client renders this

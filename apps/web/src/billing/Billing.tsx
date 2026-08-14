@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Entitlement } from './billingClient.js';
+import { formatStamp } from '../format/dates.js';
 
 export interface BillingApi {
   status(): Promise<Entitlement | null>;
@@ -56,7 +57,12 @@ export function Billing({
     <section aria-label="Billing">
       <h2 style={{ marginTop: 0 }}>Your plan</h2>
       {status === 'active' ? (
-        <p>You're subscribed. Thank you for keeping your book with Tovira.</p>
+        <>
+          <p>You're subscribed. Thank you for keeping your book with Tovira.</p>
+          {ent?.renewsAt != null && (
+            <p data-testid="renews-at">Renews <span className="tov-mono">{formatStamp(ent.renewsAt)}</span></p>
+          )}
+        </>
       ) : status === 'trialing' ? (
         <p data-testid="trial-status">Free trial — <span className="tov-mono">{daysLeft}</span> day{daysLeft === 1 ? '' : 's'} left.</p>
       ) : status === 'past_due' ? (

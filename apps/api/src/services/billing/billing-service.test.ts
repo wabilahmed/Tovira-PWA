@@ -85,6 +85,35 @@ describe('[P5-2] billing via webhooks (source of truth)', () => {
   });
 });
 
+describe('[P5-2] renewal date (from the webhook, source of truth)', () => {
+  const RENEW = Date.parse('2026-09-14T00:00:00Z');
+  it('stores current_period_end from the activation webhook and exposes it as renewsAt', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodEnd: RENEW }), 'whsec_test');
+    expect((await billing.entitlement('u', NOW)).renewsAt).toBe(RENEW);
+  });
+
+  it('advances renewsAt on a renewal invoice (the webhook is the source of truth)', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodEnd: RENEW }), 'whsec_test');
+    const next = RENEW + 30 * DAY;
+    await billing.handleWebhook(evt({ id: 'e2', type: 'invoice.payment_succeeded', customerId: 'cus_1', currentPeriodEnd: next }), 'whsec_test');
+    const ent = await billing.entitlement('u', NOW);
+    expect(ent.status).toBe('active'); // a successful renewal keeps access
+    expect(ent.renewsAt).toBe(next);
+  });
+
+  // NEGATIVE: no period end in the event → renewsAt stays null. Never guess a date.
+  it('leaves renewsAt null when the webhook carries no period end', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1' }), 'whsec_test');
+    expect((await billing.entitlement('u', NOW)).renewsAt).toBeNull();
+  });
+});
+
 describe('[P5-1] activity-gated trial extension', () => {
   it('extends the trial by 7 days once when notes span 3+ distinct clients', async () => {
     const { billing } = make();

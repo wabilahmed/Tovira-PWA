@@ -51,12 +51,17 @@ export class StripeGatewayImpl implements StripeGateway {
       return null; // invalid/forged signature
     }
     const obj = event.data.object as unknown as Record<string, unknown>;
+    // Stripe sends period ends in SECONDS. Subscriptions expose current_period_end;
+    // invoices expose period_end. Convert to epoch ms; leave undefined otherwise.
+    const periodEndSec = typeof obj.current_period_end === 'number' ? obj.current_period_end
+      : typeof obj.period_end === 'number' ? obj.period_end : undefined;
     return {
       id: event.id,
       type: event.type,
       userId: typeof obj.client_reference_id === 'string' ? obj.client_reference_id : undefined,
       customerId: typeof obj.customer === 'string' ? obj.customer : undefined,
       subscriptionId: typeof obj.subscription === 'string' ? obj.subscription : undefined,
+      ...(periodEndSec !== undefined ? { currentPeriodEnd: periodEndSec * 1000 } : {}),
     };
   }
 }
