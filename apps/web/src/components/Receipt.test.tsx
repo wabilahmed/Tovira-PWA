@@ -39,4 +39,26 @@ describe('<Receipt>', () => {
     render(<Receipt quote="q" date="2026-03-14" />);
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  // [§3 bidi] A fully-Arabic quote reads RTL in Arabic guillemets « ».
+  it('renders an Arabic quote right-to-left with guillemets', () => {
+    render(<Receipt quote="التقرير وصلني، بس أبوي يبي يشوف المخطط" source="whatsapp" date="2026-03-11" />);
+    const el = screen.getByTestId('receipt');
+    const q = el.querySelector('[dir="rtl"]');
+    expect(q).not.toBeNull();
+    expect(q).toHaveAttribute('lang', 'ar');
+    expect(q!.textContent).toMatch(/^«.*»$/);
+    // The mono stamp stays LTR/left — still WHATSAPP · 11 MAR 2026.
+    expect(el.querySelector('.tov-stamp')).toHaveTextContent(/11 MAR 2026/);
+    expect(el.querySelector('.tov-stamp')).not.toHaveAttribute('dir', 'rtl');
+  });
+
+  // An English quote with an inline Arabic phrase stays LTR (dir=auto), curly quotes.
+  it('keeps a mostly-English quote left-to-right even with an inline Arabic phrase', () => {
+    render(<Receipt quote="Let's meet after صلاة الجمعة if that works" date="2026-03-13" />);
+    const q = screen.getByTestId('receipt').querySelector('div');
+    expect(q).toHaveAttribute('dir', 'auto');
+    expect(q).not.toHaveAttribute('dir', 'rtl');
+    expect(q!.textContent).toMatch(/^“.*”$/);
+  });
 });

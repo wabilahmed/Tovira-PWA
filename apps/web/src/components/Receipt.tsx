@@ -1,5 +1,14 @@
 import { formatStamp } from '../format/dates.js';
 
+/** Predominant script of a quote — Arabic if it outweighs the Latin letters. A
+ *  fully-Arabic quote renders RTL; an English quote with an inline Arabic phrase
+ *  stays LTR (the Arabic glyphs fall back to the companion font in var(--font-sans)). */
+function isArabicQuote(s: string): boolean {
+  const ar = (s.match(/[؀-ۿ]/g) ?? []).length;
+  const la = (s.match(/[A-Za-z]/g) ?? []).length;
+  return ar > la;
+}
+
 /**
  * The Receipt-chit (docs/tovira-brand.md §5) — the brand's visual signature.
  * A perforated slip with a brass left tick: the quote in body sans, and a mono
@@ -23,9 +32,23 @@ export function Receipt({
   const stampDate = date ? formatStamp(date) : '';
   const stamp = [source || null, stampDate || null].filter(Boolean).join(' · ');
 
+  // Arabic quotes read RTL in Arabic guillemets « »; Latin quotes use “ ” and
+  // dir="auto" so an inline Arabic phrase still lays out correctly (§3 bidi rule).
+  const rtl = isArabicQuote(quote);
+  const openQ = rtl ? '«' : '“';
+  const closeQ = rtl ? '»' : '”';
+
   const body = (
     <>
-      <div style={{ color: 'var(--text-primary)' }}>“{quote}”</div>
+      <div
+        dir={rtl ? 'rtl' : 'auto'}
+        lang={rtl ? 'ar' : undefined}
+        className={rtl ? 'tov-receipt__rtl' : undefined}
+        style={{ color: 'var(--text-primary)' }}
+      >
+        {openQ}{quote}{closeQ}
+      </div>
+      {/* The mono stamp stays LTR and left-aligned — the register reads the same down the column. */}
       {stamp && <div className="tov-stamp" style={{ marginTop: 6 }}>{stamp}</div>}
     </>
   );
