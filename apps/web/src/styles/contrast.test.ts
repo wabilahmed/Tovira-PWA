@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // [TOKENS §2] Body text meets AA on BOTH materials; every brass/claret accent
-// pairing is verified. We parse the real theme.css so the test can never drift
-// from the shipped tokens.
-const css = readFileSync(fileURLToPath(new URL('./theme.css', import.meta.url)), 'utf8');
+// pairing is verified. We parse the SHARED tokens file (the single source of
+// truth imported by both apps/web and apps/site) so the test can never drift
+// from the shipped tokens — and so it covers the marketing site's palette too.
+const css = readFileSync(fileURLToPath(new URL('../../../../packages/brand/tokens.css', import.meta.url)), 'utf8');
 
 function block(selector: string): Record<string, string> {
   // Grab the first `{ ... }` after the selector and pull `--name: #hex;` pairs.

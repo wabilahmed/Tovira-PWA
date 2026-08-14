@@ -1,0 +1,114 @@
+/*
+ * Tovira — The Private Vault: design TOKENS (single source of truth).
+ * Imported by BOTH apps/web (theme.css) and apps/site. Do not fork the palette
+ * — change a colour here and both the product and the marketing site move
+ * together. Two materials, one palette: Vault (dark, default) / Ledger (light).
+ * Contrast is verified by apps/web/src/styles/contrast.test.ts against THIS file.
+ */
+/* ---- Vault (dark) — the default identity ---------------------------------- */
+:root {
+  --surface-base: #16130f;      /* warm near-black, leather-leaning */
+  --surface-raised: #1e1a15;    /* cards */
+  --surface-elevated: #28231c;  /* sheets, modals */
+  --hairline: #3a342b;          /* borders */
+
+  --text-primary: #efeae0;      /* parchment-100 (AAA on base) */
+  --text-secondary: #b9b2a2;    /* parchment-400 */
+  --text-tertiary: #8c846f;
+
+  --brass: #b3893f;             /* THE accent — value & interactivity */
+  --brass-strong: #c99a4b;      /* hover/active */
+  --brass-ink: #16130f;         /* text on a brass fill */
+  --brass-surface: rgba(179, 137, 63, 0.15);
+
+  --claret: #d2726a;            /* banker's red — legible on dark */
+  --claret-line: #7a2e28;
+  --claret-surface: rgba(158, 59, 51, 0.18);
+
+  --green: #7fa389;             /* confirmed / kept / on-track (muted) */
+  --green-line: #3c5344;
+  --green-surface: rgba(79, 111, 88, 0.18);
+
+  --amber: #ce9a4e;             /* low-confidence / needs review */
+  --amber-line: #6e5326;
+  --amber-surface: rgba(176, 122, 42, 0.16);
+
+  --radius-card: 6px;
+  --radius-chip: 4px;
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.35);
+
+  --font-display: 'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-sans: 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* The Arabic companion (§3) with its own body leading (§10 token proposal):
+     Plex Sans Arabic needs ≈1.6 at the same size for ascender/descender clearance. */
+  --font-arabic: 'IBM Plex Sans Arabic', var(--font-sans);
+  --leading-arabic: 1.6;
+
+  color-scheme: dark;
+}
+
+/* ---- Ledger (light) — daylight paper -------------------------------------- */
+/* Auto-switch when the system prefers light AND the user hasn't forced Vault. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='vault']) {
+    --surface-base: #efeae0;
+    --surface-raised: #e5dfd2;
+    --surface-elevated: #f4f0e7;
+    --hairline: #cabfa9;
+
+    --text-primary: #1c1812;
+    --text-secondary: #5c5647;
+    --text-tertiary: #7c7566;
+
+    --brass: #8a6a2f;           /* brass-700 — darkened for contrast */
+    --brass-strong: #6e5325;
+    --brass-ink: #efeae0;
+    --brass-surface: rgba(138, 106, 47, 0.12);
+
+    --claret: #9e3b33;
+    --claret-line: #c99b96;
+    --claret-surface: rgba(158, 59, 51, 0.10);
+
+    --green: #4f6f58;
+    --green-line: #a9bbaf;
+    --green-surface: rgba(79, 111, 88, 0.10);
+
+    --amber: #8a5e20;
+    --amber-line: #d6c08a;
+    --amber-surface: rgba(176, 122, 42, 0.14);
+
+    color-scheme: light;
+  }
+}
+
+/* Manual override in Settings: force Ledger regardless of system pref. */
+:root[data-theme='ledger'] {
+  --surface-base: #efeae0;
+  --surface-raised: #e5dfd2;
+  --surface-elevated: #f4f0e7;
+  --hairline: #cabfa9;
+
+  --text-primary: #1c1812;
+  --text-secondary: #5c5647;
+  --text-tertiary: #7c7566;
+
+  --brass: #8a6a2f;
+  --brass-strong: #6e5325;
+  --brass-ink: #efeae0;
+  --brass-surface: rgba(138, 106, 47, 0.12);
+
+  --claret: #9e3b33;
+  --claret-line: #c99b96;
+  --claret-surface: rgba(158, 59, 51, 0.10);
+
+  --green: #4f6f58;
+  --green-line: #a9bbaf;
+  --green-surface: rgba(79, 111, 88, 0.10);
+
+  --amber: #8a5e20;
+  --amber-line: #d6c08a;
+  --amber-surface: rgba(176, 122, 42, 0.14);
+
+  color-scheme: light;
+}

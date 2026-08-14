@@ -1,0 +1,13 @@
+/* Tovira self-hosted typefaces (§ brand): Fraunces (display) + IBM Plex
+ * Sans/Arabic/Mono. Only the slices actually used are imported — the same
+ * subset as the product app. No CDN, no extra weights. */
+@import '@fontsource-variable/fraunces/standard.css';
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-400.css';
+@import '@fontsource/ibm-plex-sans-arabic/arabic-400.css';
+@import '@fontsource/ibm-plex-sans-arabic/arabic-500.css';
+@import '@fontsource/ibm-plex-sans-arabic/arabic-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';

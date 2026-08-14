@@ -6,12 +6,15 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   test: {
-    include: ['apps/api/src/**/*.test.ts', 'apps/web/src/**/*.test.{ts,tsx}', 'test/**/*.test.ts'],
+    include: ['apps/api/src/**/*.test.ts', 'apps/web/src/**/*.test.{ts,tsx}', 'apps/site/src/**/*.test.ts', 'test/**/*.test.ts'],
     exclude: ['**/node_modules/**', 'test/integration/**'],
-    // Node by default (API + web logic); web COMPONENT tests (.test.tsx) run in
-    // jsdom so React Testing Library has a DOM.
+    // Node by default (API + web logic); web COMPONENT tests (.test.tsx) and the
+    // marketing-site DOM tests (referral pass-through, RTL) run in jsdom.
     environment: 'node',
-    environmentMatchGlobs: [['apps/web/src/**/*.test.tsx', 'jsdom']],
+    environmentMatchGlobs: [
+      ['apps/web/src/**/*.test.tsx', 'jsdom'],
+      ['apps/site/src/**/*.test.ts', 'jsdom'],
+    ],
     setupFiles: ['apps/web/src/test-setup.ts'],
     // scrypt password hashing across many parallel signup tests is CPU-heavy;
     // give a generous ceiling so a cold, contended run doesn't flake.
