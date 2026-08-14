@@ -122,3 +122,28 @@ footer.section { color: var(--text-secondary); font-size: 0.9rem; }
 a:not(.cta) { color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--hairline); text-underline-offset: 2px; }
 a:not(.cta):hover { text-decoration-color: currentColor; }
 .cta-secondary { color: var(--text-secondary); text-decoration: underline; text-decoration-color: var(--hairline); }
+
+/* Arabic page (/ar): IBM Plex Sans Arabic throughout, native leading. The page
+ * is RTL via the html dir; logical properties above mean the layout mirrors
+ * with no per-side overrides. */
+html[lang='ar'] body { font-family: var(--font-arabic); line-height: var(--leading-arabic); }
+/* A TRANSLATION NEEDED marker + the English source beneath, for the copywriter.
+ * The source is pinned LTR/Latin so English reads correctly inside the RTL page. */
+.xlate {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border: 1px dashed var(--hairline);
+  padding: 2px 8px;
+  border-radius: var(--radius-chip);
+}
+.source {
+  border-inline-start: 2px solid var(--hairline);
+  margin: 0.6rem 0 0;
+  padding-inline-start: 0.8rem;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+}
