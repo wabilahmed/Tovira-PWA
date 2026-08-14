@@ -233,6 +233,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'settings' && (
         <>
+          <header className="tov-screenhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
+            <h2 style={{ marginTop: 0 }}>Settings</h2>
+            <CorpusBadge api={corpusApi} />
+          </header>
           <TrialIncentive api={billingApi} />
           <Billing api={billingApi} />
           <ThemeToggle />
@@ -288,8 +292,9 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {clients.map((c) => (
                 <li key={c.id} style={{ borderBottom: '1px solid var(--hairline)' }}>
-                  <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 0', color: 'inherit' }}>
-                    {c.name}
+                  <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', width: '100%', textAlign: 'left', padding: '0.6rem 0', color: 'inherit' }}>
+                    <div>{c.name}</div>
+                    <small className="tov-stamp">on file since {formatMonthYear(c.createdAt)}</small>
                   </button>
                 </li>
               ))}

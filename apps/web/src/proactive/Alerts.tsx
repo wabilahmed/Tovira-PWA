@@ -43,15 +43,21 @@ export function Alerts({ api, now = Date.now() }: { api: ProactiveApi; now?: num
 
   return (
     <section aria-label="Alerts">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0 }}>Alerts</h2>
-        <button onClick={() => void refresh()} disabled={scanning}>{scanning ? 'Checking…' : 'Refresh'}</button>
-      </div>
+      <header className="tov-screenhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Alerts</h2>
+          <div className="tov-screenmeta">{notifications.length} alert{notifications.length === 1 ? '' : 's'}</div>
+        </div>
+        <button onClick={() => void refresh()} disabled={scanning}>{scanning ? 'Rescanning…' : 'Rescan'}</button>
+      </header>
 
-      {notifications.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>No alerts right now.</p>
-      ) : (
+      {notifications.length === 0 && cold.length === 0 ? (
+        <p style={{ color: 'var(--text-secondary)' }}>Nothing needs you and no one has gone quiet. Tovira speaks rarely — this is what quiet looks like.</p>
+      ) : notifications.length === 0 ? null : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
+          <li className="tov-stamp" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', paddingBottom: 4 }}>
+            <span>Needs you</span><span>{String(notifications.length).padStart(2, '0')}</span>
+          </li>
           {notifications.map((n) => (
             <li key={n.id} data-testid="alert" style={item}>
               <span className="tov-dot tov-dot--claret" aria-hidden="true" style={{ marginTop: 8 }} />
@@ -64,11 +70,11 @@ export function Alerts({ api, now = Date.now() }: { api: ProactiveApi; now?: num
         </ul>
       )}
 
-      <h2>Going quiet</h2>
-      {cold.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>No clients have gone cold.</p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0 }}>
+      {cold.length > 0 && (
+        <ul style={{ listStyle: 'none', padding: 0, marginTop: '1.25rem' }}>
+          <li className="tov-stamp" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', paddingBottom: 4 }}>
+            <span>Going quiet</span><span>{String(cold.length).padStart(2, '0')}</span>
+          </li>
           {cold.map((c) => {
             const days = daysSince(c.lastTouchedAt, now);
             return (

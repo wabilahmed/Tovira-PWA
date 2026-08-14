@@ -45,7 +45,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder='e.g. "What did Ahmed say about pricing?"'
+          placeholder="Ask your book…"
           aria-label="Your question"
           style={{ flex: 1 }}
         />
@@ -57,6 +57,8 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
 
       {result && (
         <div style={{ marginTop: '1rem' }}>
+          {/* §7: the label states provenance ("on record"), not "answer". */}
+          {result.receipts.length > 0 && <div className="tov-stamp" style={{ marginBottom: 4 }}>On record</div>}
           <p data-testid="answer">{result.answer}</p>
           {result.receipts.length > 0 && (
             <div>

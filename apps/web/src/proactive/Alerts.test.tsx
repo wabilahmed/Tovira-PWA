@@ -31,10 +31,9 @@ describe('<Alerts>', () => {
     expect(await screen.findByTestId('cold-client')).toHaveTextContent(/falcon group · silent 21 days/i);
   });
 
-  it('shows empty states for both sections', async () => {
+  it('shows one honest quiet state when nothing needs the rep', async () => {
     render(<Alerts api={makeApi([], [])} />);
-    expect(await screen.findByText(/no alerts right now/i)).toBeInTheDocument();
-    expect(screen.getByText(/no clients have gone cold/i)).toBeInTheDocument();
+    expect(await screen.findByText(/nothing needs you and no one has gone quiet/i)).toBeInTheDocument();
   });
 
   // POSITIVE: refresh re-runs the scan and reloads.
@@ -42,8 +41,8 @@ describe('<Alerts>', () => {
     const user = userEvent.setup();
     const api = makeApi([], []);
     render(<Alerts api={api} />);
-    await screen.findByText(/no alerts right now/i);
-    await user.click(screen.getByRole('button', { name: /refresh/i }));
+    await screen.findByText(/nothing needs you/i);
+    await user.click(screen.getByRole('button', { name: /rescan/i }));
     await waitFor(() => expect(api.runScan).toHaveBeenCalled());
     expect((api.listNotifications as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);
   });

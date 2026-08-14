@@ -46,7 +46,14 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
 
   return (
     <section aria-label="Promises">
-      <h2 style={{ marginTop: 0 }}>Open promises</h2>
+      <header className="tov-screenhead">
+        <h2 style={{ marginTop: 0 }}>Promises</h2>
+        <div className="tov-screenmeta">
+          {open.length} open
+          {open.filter((p) => overdue(p, now)).length > 0 && <> · {open.filter((p) => overdue(p, now)).length} overdue</>}
+          {pending.length > 0 && <> · {pending.length} to confirm</>}
+        </div>
+      </header>
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
       {open.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>No open promises — you're all caught up.</p>
