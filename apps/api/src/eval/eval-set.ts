@@ -15,6 +15,9 @@ export interface EvalNote {
   expected: Extraction;
   /** Code-switched Arabic/Hindi/Urdu ↔ English — a locked P1-9 requirement. */
   multilingual?: boolean;
+  /** Name pairs that MUST stay as two distinct people (never merged) — the
+   *  hard "0 merged people" rule is scored against these. */
+  mustNotMerge?: Array<[string, string]>;
 }
 
 const empty = {
@@ -87,6 +90,7 @@ export const EVAL_NOTES: EvalNote[] = [
     today: '2026-07-09',
     clientName: 'Halcyon',
     source: 'voice',
+    mustNotMerge: [['Sarah', 'Sara']],
     note: "Met the team at Halcyon. Sarah walked us through requirements. Later a Sara from finance joined - not sure it's the same person.",
     expected: {
       ...empty,
@@ -126,7 +130,7 @@ export const EVAL_NOTES: EvalNote[] = [
       ...empty,
       summary: 'Met Ahmed at Gulf Real Estate; budget approved for the villas project; promised the revised quote tomorrow.',
       promises: [{ text: 'Send the revised quote', owner: 'rep', due_date: '2026-08-02', due_raw: 'bukra', confidence: 'high' }],
-      people: [{ name: 'Ahmed', role: null, reports_to: null, decision_role: 'unknown', notes: 'Gulf Real Estate' }],
+      people: [{ name: 'Ahmed', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
     },
   },
   {
@@ -156,6 +160,119 @@ export const EVAL_NOTES: EvalNote[] = [
       summary: 'Budget not yet confirmed; promised to send the brochure once the budget is confirmed, no fixed date.',
       promises: [{ text: 'Send the brochure', owner: 'rep', due_date: null, due_raw: 'when budget is confirmed', confidence: 'low' }],
       concerns: ['budget not yet confirmed'],
+    },
+  },
+
+  // ==== v0.5 EVAL EXPANSION — DRAFT v2, awaiting Wabil's certification ====
+  // today is PINNED per note (runner injects note.today; never the real clock).
+  // Every expected field traces to explicit note text — see the certification
+  // annotations in the report. Named-people count varies (1 / 2 / 3) on purpose.
+  //
+  // (a) multilingual, single person + an UNRESOLVABLE (year-less) date.
+  {
+    id: 'ml-arabic-one-person-unresolvable',
+    today: '2026-08-01',
+    clientName: 'Aldar',
+    source: 'voice',
+    multilingual: true,
+    note: 'كلمت Yusuf من Aldar اليوم. قال المعرض بتاعهم في مارس, و يبون العرض جاهز قبله.',
+    expected: {
+      ...empty,
+      summary: 'Spoke with Yusuf at Aldar; their exhibition is in March and they want the proposal ready before it.',
+      people: [{ name: 'Yusuf', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+      key_dates: [{ description: 'Their exhibition', date: null, date_raw: 'مارس', type: 'other' }],
+      next_steps: ['Have the proposal ready before their exhibition'],
+    },
+  },
+  // (b) multilingual, THREE people (one decision-maker stated, two unknown).
+  {
+    id: 'ml-hindi-three-people',
+    today: '2026-08-01',
+    clientName: 'Wipro',
+    source: 'paste',
+    multilingual: true,
+    note: 'Aditya, Meena aur Sanjay ke saath call hui Wipro mein. Aditya project lead hain, Meena finance dekhti hain, Sanjay technical side. फैसला Aditya करेंगे.',
+    expected: {
+      ...empty,
+      summary: 'Call with Aditya (project lead), Meena (finance) and Sanjay (technical) at Wipro; Aditya will decide.',
+      people: [
+        { name: 'Aditya', role: 'project lead', reports_to: null, decision_role: 'decision_maker', notes: 'Will decide' },
+        { name: 'Meena', role: 'finance', reports_to: null, decision_role: 'unknown', notes: null },
+        { name: 'Sanjay', role: 'technical', reports_to: null, decision_role: 'unknown', notes: null },
+      ],
+    },
+  },
+  // (c) multilingual, two people — no inferred reports_to, no inferred influence.
+  {
+    id: 'ml-urdu-two-people',
+    today: '2026-08-01',
+    clientName: 'Habib Bank',
+    source: 'voice',
+    multilingual: true,
+    note: 'Bilal sahib se baat hui Habib Bank mein. Woh procurement dekhte hain. Unhone kaha ke unki manager Fatima final approval دیں گی. بجٹ کنفرم ہے.',
+    expected: {
+      ...empty,
+      summary: 'Spoke with Bilal (procurement) at Habib Bank; a manager, Fatima, gives final approval; budget confirmed.',
+      people: [
+        { name: 'Bilal', role: 'procurement', reports_to: null, decision_role: 'unknown', notes: 'Handles procurement' },
+        { name: 'Fatima', role: 'manager', reports_to: null, decision_role: 'decision_maker', notes: 'Gives final approval' },
+      ],
+    },
+  },
+  // (d) multilingual, two people — role stated, decision authority NOT stated.
+  {
+    id: 'ml-arabic-two-people-visit',
+    today: '2026-08-01',
+    clientName: 'Dubai Hills',
+    source: 'voice',
+    multilingual: true,
+    note: 'Site visit مع Omar و Huda اليوم في Dubai Hills. Omar هو المالك و Huda مهندسة. اتفقنا نكمل بعدين.',
+    expected: {
+      ...empty,
+      summary: 'Site visit with Omar (owner) and Huda (engineer) at Dubai Hills; agreed to continue later.',
+      people: [
+        { name: 'Omar', role: 'owner', reports_to: null, decision_role: 'unknown', notes: null },
+        { name: 'Huda', role: 'engineer', reports_to: null, decision_role: 'unknown', notes: null },
+      ],
+      next_steps: ['Continue the discussion later'],
+    },
+  },
+  // (e) Role-only references (unnamed, INCIDENTAL — no "no names" tell). v0.5
+  //     regression: a role is not a person; never a null-named person.
+  {
+    id: 'role-only-buyer-cfo',
+    today: '2026-08-01',
+    clientName: 'Northwind',
+    source: 'paste',
+    note: 'Call with the buyer at Northwind. He wants the pricing in writing before their CFO signs off.',
+    expected: {
+      ...empty,
+      summary: 'The buyer at Northwind wants pricing in writing before their CFO signs off.',
+      next_steps: ['Provide the pricing in writing before their CFO signs off'],
+    },
+  },
+  {
+    id: 'role-only-procurement',
+    today: '2026-08-01',
+    clientName: 'Meridian',
+    source: 'voice',
+    note: 'Their procurement lead is holding things up — the CFO still has not approved the budget.',
+    expected: {
+      ...empty,
+      summary: 'Their procurement lead is holding things up; the CFO has not approved the budget.',
+      concerns: ['Their procurement lead is holding things up', 'Budget not yet approved by their CFO'],
+    },
+  },
+  {
+    id: 'role-only-finance-manager',
+    today: '2026-08-01',
+    clientName: 'Vertex',
+    source: 'paste',
+    note: 'Both the buyer and their finance manager need to sign before this moves.',
+    expected: {
+      ...empty,
+      summary: 'The buyer and their finance manager both need to sign before this moves forward.',
+      next_steps: ['Get the buyer and their finance manager to sign'],
     },
   },
 ];

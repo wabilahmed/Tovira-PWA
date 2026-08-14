@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runGate, runEval } from './gate.js';
+import { runGate, runEval, softGate, extractForEval } from './gate.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import type { Extraction } from '../services/extraction/types.js';
 import type { ModelClient } from '../ports/model.js';
@@ -61,11 +61,37 @@ describe('[P1-9] extraction quality gate', () => {
     expect(result.reasons.join(' ')).toMatch(/guessed/i);
   });
 
-  // Regression guard: dropping promises tanks recall and fails the gate.
-  it('FAILS when recall drops below the threshold', async () => {
-    const result = await runGate(dropping, 'dropping-stub');
+  // Recall is now a SOFT bar on the aggregate (not per-run hard): dropping
+  // promises tanks recall and fails the soft gate.
+  it('the soft gate flags low recall on the aggregate', async () => {
+    const metrics = await runEval(dropping, 'dropping-stub');
+    const result = softGate(metrics, 'dropping-stub');
     expect(result.passed).toBe(false);
     expect(result.reasons.join(' ')).toMatch(/recall/i);
+  });
+
+  // HARD: merging two people who must stay distinct fails the per-run gate.
+  it('FAILS (hard) when two distinct people are merged into one', async () => {
+    const merging = scriptedModel((n) => (n.mustNotMerge?.length ? { ...n.expected, people: n.expected.people.slice(0, 1) } : n.expected));
+    const result = await runGate(merging, 'merging-stub');
+    expect(result.passed).toBe(false);
+    expect(result.reasons.join(' ')).toMatch(/merged/i);
+    expect(result.metrics.mergedPeople).toBeGreaterThan(0);
+  });
+
+  // Date stability: the gate injects each note's PINNED today, never the real
+  // clock — so results never drift with the calendar.
+  it("injects the note's pinned today into the model message (never new Date())", async () => {
+    let seenToday = '';
+    const capture: ModelClient = {
+      complete: async (req) => {
+        seenToday = /today[^0-9]*(\d{4}-\d{2}-\d{2})/i.exec(req.messages[0]!.content)?.[1] ?? '';
+        return { text: '{}' };
+      },
+    };
+    const note = EVAL_NOTES.find((n) => n.today === '2026-08-01')!;
+    await extractForEval(capture, note);
+    expect(seenToday).toBe(note.today);
   });
 
   it('records the model decision (which model, pass/fail)', async () => {

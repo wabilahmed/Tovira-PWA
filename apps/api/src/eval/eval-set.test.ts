@@ -11,6 +11,27 @@ describe('eval set — multilingual coverage (P1-9)', () => {
     expect(multilingual.length).toBeGreaterThanOrEqual(3);
   });
 
+  // v0.5: people-recall needs enough named instances to be a signal, not a coin
+  // flip — the multilingual subset must carry ≥10 named-people expectations.
+  it('carries at least 10 named-people instances across code-switched notes', () => {
+    const named = multilingual.flatMap((n) => n.expected.people).filter((p) => (p.name ?? '').trim().length > 0);
+    expect(named.length).toBeGreaterThanOrEqual(10);
+  });
+
+  // v0.5: role-only regression — notes referencing an unnamed role expect NO
+  // person, so a null-named "person" can be caught.
+  it('includes role-only notes whose expected people list is empty', () => {
+    const roleOnly = EVAL_NOTES.filter((n) => n.id.startsWith('role-only-'));
+    expect(roleOnly.length).toBeGreaterThanOrEqual(2);
+    for (const n of roleOnly) expect(n.expected.people).toHaveLength(0);
+  });
+
+  // Every expected person carries a non-empty name — the eval never asserts a
+  // null-named person as ground truth (that is exactly what v0.5 forbids).
+  it('no expected person has a null or empty name', () => {
+    for (const n of EVAL_NOTES) for (const p of n.expected.people) expect((p.name ?? '').trim().length).toBeGreaterThan(0);
+  });
+
   it('the code-switched notes actually mix scripts (contain non-Latin characters)', () => {
     const nonLatin = /\p{Script=Arabic}|\p{Script=Devanagari}/u; // Arabic/Urdu + Hindi
     for (const n of multilingual) {

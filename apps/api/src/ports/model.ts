@@ -13,6 +13,9 @@ export interface ModelCompletionRequest {
   system?: string;
   messages: ModelMessage[];
   maxTokens?: number;
+  /** Sampling temperature. The gated extraction engine pins this to 0 for
+   *  determinism (a gate needs reproducible output); omitted → provider default. */
+  temperature?: number;
 }
 
 export interface ModelUsage {

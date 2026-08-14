@@ -1,5 +1,6 @@
 /**
- * The extraction prompt (v0.1), split on the caching boundary from the spec:
+ * The extraction prompt (v0.5 — v0.1 + Rule 0 multilingual + year-less dates + no null-named person), split on the
+ * caching boundary from the spec:
  *  - EXTRACTION_SYSTEM_PROMPT: the CACHEABLE prefix — role + schema + rules +
  *    examples. Byte-identical every call, ≥4,096 tokens (the Haiku cache floor).
  *    NOTHING variable here — no today's date, client name, or transcript.
@@ -12,7 +13,7 @@
 
 import { renderGlossary, type GlossaryEntry } from './glossary.js';
 
-export const PROMPT_VERSION = 'tovira-extract-v0.1';
+export const PROMPT_VERSION = 'tovira-extract-v0.5';
 
 export interface ExtractionPromptInput {
   today: string; // YYYY-MM-DD
@@ -82,11 +83,12 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
 
 ## Rules (follow strictly)
 
+0. Multilingual input is normal. Notes may code-switch between Arabic, Hindi, Urdu and English mid-sentence — this is the rep's home market, not an error. Extract the facts regardless of the language mix. Output each field value in the language the fact was stated in, or English when a fact is stated across a mix. Transliterated names stay as written. If a segment is genuinely unparseable, mark the affected item "confidence": "low" rather than dropping it — and never let a language you are less sure of tempt you into guessing a date or inventing a promise; Rules 1 and 2 hold in every language.
 1. Only extract what is explicitly stated or unambiguously implied. Never invent, embellish, or infer beyond the words. When in doubt, leave it out. Returning an empty array is always better than inventing an item.
-2. Dates: resolve relative dates ("next Tuesday", "in two weeks", "end of month") using TODAY'S DATE given in the message below. If you cannot resolve a date with confidence, set the date field to null and keep the original wording in the _raw field. Never guess a specific date. "Sometime after the holidays", "later this quarter", and similar vague phrases must resolve to null with the phrase preserved in _raw.
+2. Dates: resolve relative dates ("next Tuesday", "in two weeks", "end of month") using TODAY'S DATE given in the message below. If you cannot resolve a date with confidence, set the date field to null and keep the original wording in the _raw field. Never guess a specific date. "Sometime after the holidays", "later this quarter", and similar vague phrases must resolve to null with the phrase preserved in _raw. A date stated WITHOUT A YEAR — "March 3rd", "the 14th", "next March", "on the 20th" — must also resolve to null, with the phrase preserved in _raw; never infer or assume the year, not even the current or next one. Only resolve a date when the day, month, and year are all fixed by the note plus today's date (e.g. "this Friday", "in two weeks").
 3. Confidence and ambiguity: mark anything uncertain as "confidence": "low" so the app can ask the rep to confirm instead of acting silently. If you are not certain who owns a promise, or whether something is even a firm commitment, mark it low. Prefer flagging over guessing.
 4. Promises vs next steps: a promise is a clear commitment ("I'll send the revised quote Friday", "I'll get you the rollout plan by end of week"). A next step is softer ("we should probably loop in their finance team", "maybe get IT on the next call"). When unsure, treat it as a next step, not a promise. Words like "maybe", "we should", "probably", "at some point" signal a next step, not a promise.
-5. People: use names exactly as stated. Do not merge two mentions into one person unless clearly the same person. If a note mentions "Sarah" and "Sara" without making clear they are the same person, keep them as two separate people. Do not assume a decision role that wasn't indicated - use "unknown".
+5. People: use names exactly as stated. Do not merge two mentions into one person unless clearly the same person. If a note mentions "Sarah" and "Sara" without making clear they are the same person, keep them as two separate people. Do not assume a decision role that wasn't indicated - use "unknown". A person entry requires a stated name: a role with no name — "the buyer", "their CFO", "the procurement lead", "someone in finance" — is NOT a person and must NEVER be output as a person with a null or empty name. If an unnamed role carries a decision-relevant fact, keep it in concerns or next_steps, not in people.
 6. The note is about the client named in the message below. Attribute facts to the right person; the main contact may be that client, but notes can mention others.
 7. Output only valid JSON matching the schema. No prose, no explanation, no markdown, no code fences. Nothing before or after the JSON object.
 

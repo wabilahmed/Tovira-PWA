@@ -7,6 +7,7 @@ export interface NoteScore {
   dates: { resolvedExpected: number; expectedResolvable: number };
   fabricatedPromises: number; // predicted promises with no matching expected
   guessedDates: number; // predicted a specific date where the truth is null
+  mergedPeople: number; // two people who must stay distinct were collapsed into one
 }
 
 function tokens(s: string): Set<string> {
@@ -32,14 +33,20 @@ function personMatches(p: ExtractedPerson, e: ExtractedPerson): boolean {
   return !!e.name && (p.name ?? '').trim().toLowerCase() === e.name.trim().toLowerCase();
 }
 
-/** Score one predicted extraction against the known-correct expected. */
-export function scoreNote(expected: Extraction, actual: Extraction | null): NoteScore {
+/** Score one predicted extraction against the known-correct expected. `mustNotMerge`
+ *  lists name pairs that must appear as two DISTINCT people (never collapsed). */
+export function scoreNote(
+  expected: Extraction,
+  actual: Extraction | null,
+  mustNotMerge: Array<[string, string]> = [],
+): NoteScore {
   const score: NoteScore = {
     promises: { tp: 0, fp: 0, fn: 0 },
     people: { tp: 0, fp: 0, fn: 0 },
     dates: { resolvedExpected: 0, expectedResolvable: 0 },
     fabricatedPromises: 0,
     guessedDates: 0,
+    mergedPeople: 0,
   };
 
   const predicted = actual ?? {
@@ -97,6 +104,16 @@ export function scoreNote(expected: Extraction, actual: Extraction | null): Note
   }
   score.people.fn = expected.people.length - matchedPeople.size;
 
+  // Merges: each pair that must stay distinct is a violation unless BOTH names
+  // appear as separate predicted people (collapsing two mentions into one fails).
+  const hasName = (name: string): boolean => {
+    const n = name.trim().toLowerCase();
+    return predicted.people.some((p) => (p.name ?? '').trim().toLowerCase() === n);
+  };
+  for (const [a, b] of mustNotMerge) {
+    if (!(hasName(a) && hasName(b))) score.mergedPeople += 1;
+  }
+
   return score;
 }
 
@@ -116,6 +133,7 @@ export interface AggregateMetrics {
   people: FieldMetrics;
   fabricatedPromises: number;
   guessedDates: number;
+  mergedPeople: number;
   notes: number;
 }
 
@@ -126,6 +144,7 @@ export function aggregate(scores: NoteScore[]): AggregateMetrics {
     people: metrics(sum((s) => s.people.tp), sum((s) => s.people.fp), sum((s) => s.people.fn)),
     fabricatedPromises: sum((s) => s.fabricatedPromises),
     guessedDates: sum((s) => s.guessedDates),
+    mergedPeople: sum((s) => s.mergedPeople),
     notes: scores.length,
   };
 }

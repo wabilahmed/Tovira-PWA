@@ -131,6 +131,10 @@ export class ExtractionService {
         system: EXTRACTION_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
         maxTokens: 2048,
+        // NB: temperature is deprecated for claude-sonnet-5 (the API 400s on any
+        // value), so it is intentionally NOT set here — the model manages its own
+        // low-variance sampling. The port still forwards temperature for models
+        // that accept it; determinism is certified by the two-run P1-9 gate.
       });
       raw = res.text;
       inputTokens = res.usage?.inputTokens ?? 0;

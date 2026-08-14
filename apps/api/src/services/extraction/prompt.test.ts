@@ -47,7 +47,27 @@ describe('extraction prompt', () => {
   });
 
   it('exposes a prompt version for logging', () => {
-    expect(PROMPT_VERSION).toBe('tovira-extract-v0.1');
+    expect(PROMPT_VERSION).toBe('tovira-extract-v0.5');
+  });
+
+  // v0.3: Rule 0 — code-switched Arabic/Hindi/Urdu ↔ English is normal input.
+  it('instructs the model that multilingual, code-switched input is normal', () => {
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/code-switch/i);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/arabic/i);
+    // Rule 0 carries no dates and no glossary — the cache contract still holds.
+    expect(EXTRACTION_SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  // v0.4: a date with no year must stay null — never infer the year.
+  it('forbids inferring the year on a year-less date', () => {
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/without a year/i);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/never infer or assume the year/i);
+  });
+
+  // v0.5: a role with no name is not a person — never a null-named person.
+  it('forbids emitting a person with no name (role-only references)', () => {
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/requires a stated name/i);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/null or empty name/i);
   });
 
   // P4-9: the glossary goes in the VARIABLE message only — the cached prefix

@@ -48,6 +48,7 @@ export class AnthropicModelClient implements ModelClient {
           max_tokens: request.maxTokens ?? 1024,
           system: request.system,
           messages: request.messages,
+          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
         }),
         signal: controller.signal,
       });
