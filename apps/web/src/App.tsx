@@ -46,6 +46,7 @@ import { AppShell } from './shell/AppShell.js';
 import type { View } from './shell/nav.js';
 import { useIsDesktop } from './shell/useIsDesktop.js';
 import { Receipt } from './components/Receipt.js';
+import { Capture } from './capture/Capture.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
@@ -212,6 +213,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           }}
           onFallback={() => setView('clients')}
         />
+      )}
+
+      {view === 'capture' && (
+        <Capture clients={clients} importApi={clientsApi} outbox={outbox} onCaptured={() => void clientsApi.list(query.trim() || undefined).then(setClients)} />
       )}
 
       {view === 'today' && <HeroInsights api={heroApi} />}

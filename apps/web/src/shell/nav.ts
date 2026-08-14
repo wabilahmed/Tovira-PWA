@@ -9,6 +9,7 @@ export type View =
   | 'alerts'
   | 'bookscan'
   | 'ledger'
+  | 'capture'
   | 'getstarted'
   | 'settings';
 
@@ -27,6 +28,7 @@ export const PRIMARY: NavItem[] = [
 
 /** Reached through "More" on mobile; part of the full sidebar on desktop. */
 export const OVERFLOW: NavItem[] = [
+  { view: 'capture', label: 'Capture' },
   { view: 'week', label: 'The Monday Statement' },
   { view: 'promises', label: 'Promises' },
   { view: 'meetings', label: 'Meetings' },
@@ -38,6 +40,7 @@ export const OVERFLOW: NavItem[] = [
 /** The full ordered nav for the desktop sidebar. */
 export const SIDEBAR: NavItem[] = [
   { view: 'clients', label: 'Clients' },
+  { view: 'capture', label: 'Capture' },
   { view: 'today', label: 'Today’s register' },
   { view: 'week', label: 'The Monday Statement' },
   { view: 'ask', label: 'Ask' },
