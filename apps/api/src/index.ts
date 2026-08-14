@@ -97,7 +97,7 @@ async function main(): Promise<void> {
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
   const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications, createPushBudgetRepository(config, appPool));
-  const cardScanner = createCardScanner();
+  const cardScanner = createCardScanner(config);
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache

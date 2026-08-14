@@ -69,6 +69,7 @@ import { InMemoryPushSubscriptionRepository } from './adapters/push/in-memory-pu
 import { PgPushSubscriptionRepository } from './adapters/push/pg-push-subscription-repository.js';
 import type { CardScanner } from './ports/card-scanner.js';
 import { StubCardScanner } from './adapters/vision/stub-card-scanner.js';
+import { AnthropicCardScanner, AnthropicVisionClient } from './adapters/vision/anthropic-card-scanner.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import { InMemoryImageRepository } from './adapters/images/in-memory-image-repository.js';
 import { PgImageRepository } from './adapters/images/pg-image-repository.js';
@@ -347,8 +348,15 @@ export function createPushDispatchService(
   return new PushDispatchService(sender, subs, notifications, budget);
 }
 
-/** Business-card vision scan: stub locally; real vision model at deploy. */
-export function createCardScanner(): CardScanner {
+/** Business-card vision scan: a real Claude-vision scanner when the Anthropic
+ *  provider is configured (same key/base/model as extraction → Bedrock in prod),
+ *  the canned stub otherwise. */
+export function createCardScanner(config: AppConfig): CardScanner {
+  if (config.modelProvider === 'anthropic' && config.anthropicApiKey) {
+    return new AnthropicCardScanner(
+      new AnthropicVisionClient({ apiKey: config.anthropicApiKey, baseUrl: config.anthropicBaseUrl, model: config.models.extraction }),
+    );
+  }
   return new StubCardScanner();
 }
 
