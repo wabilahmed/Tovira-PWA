@@ -196,6 +196,25 @@ describe('<App> integration', () => {
     expect(await screen.findByTestId('answer')).toHaveTextContent(/pricing was high/i);
   });
 
+  // Responsive: at ≥1180px the shell is a sidebar, not the mobile tab bar.
+  it('renders the desktop sidebar layout at ≥1180px', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: true, media: q, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    }));
+    routeFetch([
+      ['book-scan', () => json(200, SCAN)],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    render(<App />);
+    expect(await screen.findByRole('complementary', { name: /sections/i })).toHaveTextContent('Tovira');
+    expect(screen.queryByRole('button', { name: /^more$/i })).toBeNull(); // no mobile tab bar
+    expect(screen.getByText(/select a client to open their book/i)).toBeInTheDocument(); // split placeholder
+  });
+
   it('navigates to the Book Scan and renders its findings (API integration)', async () => {
     routeFetch([
       ['book-scan', () => json(200, SCAN)],

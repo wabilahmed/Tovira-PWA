@@ -44,6 +44,7 @@ import { ThemeToggle } from './settings/ThemeToggle.js';
 import { formatMonthYear, formatBody } from './format/dates.js';
 import { AppShell } from './shell/AppShell.js';
 import type { View } from './shell/nav.js';
+import { useIsDesktop } from './shell/useIsDesktop.js';
 import { Receipt } from './components/Receipt.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
@@ -151,6 +152,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [open, setOpen] = useState<ClientSummary | null>(null);
   const [view, setView] = useState<View>('clients');
   const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
+  const isDesktop = useIsDesktop();
 
   const loadSeeding = (): void => void onboardingApi.status().then(setSeeding);
   useEffect(loadSeeding, []);
@@ -160,7 +162,9 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     void clientsApi.list(query.trim() || undefined).then(setClients);
   }, [query]);
 
-  if (open) return <ClientDetail client={open} onBack={() => setOpen(null)} />;
+  // Mobile pushes the client detail full-screen; desktop keeps it beside the
+  // list rail (the §8 split view), so the push only happens off desktop.
+  if (open && !isDesktop) return <ClientDetail client={open} onBack={() => setOpen(null)} />;
 
   async function addClient(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -246,7 +250,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       )}
 
       {view === 'clients' && (
-        <>
+        <div className={isDesktop ? 'tov-split' : undefined}>
+          <div className={isDesktop ? 'tov-split__rail' : undefined}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem', marginBottom: '0.5rem' }}>
             <CorpusBadge api={corpusApi} />
             <small style={{ color: 'var(--text-secondary)' }}>
@@ -300,7 +305,17 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               ))}
             </ul>
           )}
-        </>
+          </div>
+          {isDesktop && (
+            <div className="tov-split__detail">
+              {open ? (
+                <ClientDetail client={open} onBack={() => setOpen(null)} />
+              ) : (
+                <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </AppShell>
   );

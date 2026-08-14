@@ -403,7 +403,11 @@ ul, ol { padding-inline-start: 1.25rem; }
 .tov-sidebar__item:hover:not(:disabled) { border-color: transparent; border-inline-start-color: var(--hairline); color: var(--text-primary); }
 .tov-sidebar__item[data-active] { color: var(--brass); border-inline-start-color: var(--brass); font-weight: 600; }
 .tov-sidebar__footer { margin-top: auto; padding-inline: 12px; color: var(--text-tertiary); font-size: 0.8rem; }
-.tov-content { padding: 32px 44px 56px; max-width: 920px; }
+.tov-content { padding: 32px 44px 56px; max-width: 1100px; }
+
+/* Desktop split (§8): a list rail + a detail pane; rows keep mobile grammar. */
+.tov-split { display: grid; grid-template-columns: 320px 1fr; gap: 32px; align-items: start; }
+.tov-split__detail { border-inline-start: 1px solid var(--hairline); padding-inline-start: 32px; min-height: 60vh; }
 
 /* Screen header shared across the re-laid-out screens. */
 .tov-screenhead { margin: 0 0 1.25rem; }
