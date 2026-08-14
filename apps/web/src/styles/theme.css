@@ -424,3 +424,71 @@ ul, ol { padding-inline-start: 1.25rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* §6 confirmation-queue chit — an unconfirmed guess, shown as a guess. The amber
+   tick + "worth checking" carry the doubt; the tick turns brass once confirmed.
+   Both replies are quiet outlines (never claret) — rejecting a guess isn't
+   destructive. One component everywhere, RTL included. */
+.tov-confirm-chit {
+  border: 1px solid var(--amber-line);
+  background: var(--amber-surface);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+  margin: 0.5rem 0;
+}
+.tov-confirm-chit__head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.3rem;
+}
+.tov-confirm-chit__tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  color: var(--brass-ink);
+  background: var(--amber);
+}
+.tov-confirm-chit__tick[data-confirmed='true'] {
+  background: var(--brass);
+}
+.tov-confirm-chit__label {
+  color: var(--amber);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+.tov-confirm-chit__text {
+  margin: 0 0 0.55rem;
+  line-height: 1.5;
+}
+.tov-confirm-chit__text[dir='rtl'] {
+  font-family: var(--font-arabic);
+  line-height: var(--leading-arabic, 1.6);
+  text-align: right;
+}
+.tov-confirm-chit__value {
+  color: var(--amber);
+}
+.tov-confirm-chit__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.tov-chit-action {
+  background: transparent;
+  border: 1px solid var(--brass);
+  color: var(--brass);
+  border-radius: 6px;
+  padding: 0.32rem 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.tov-chit-action:hover {
+  background: var(--brass-surface);
+}
+.tov-confirm-queue {
+  margin-top: 1rem;
+}

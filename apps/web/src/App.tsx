@@ -8,6 +8,7 @@ import { BookScan } from './bookscan/BookScan.js';
 import { ImportChat } from './import/ImportChat.js';
 import { PromisesClient } from './promises/promisesClient.js';
 import { PromisesTracker } from './promises/PromisesTracker.js';
+import { ConfirmChitQueue } from './confirm/ConfirmChitQueue.js';
 import { HeroClient } from './hero/heroClient.js';
 import { HeroInsights } from './hero/HeroInsights.js';
 import { ProactiveClient } from './proactive/proactiveClient.js';
@@ -219,9 +220,19 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <Capture clients={clients} importApi={clientsApi} outbox={outbox} onCaptured={() => void clientsApi.list(query.trim() || undefined).then(setClients)} />
       )}
 
-      {view === 'today' && <HeroInsights api={heroApi} />}
+      {view === 'today' && (
+        <>
+          <HeroInsights api={heroApi} />
+          <ConfirmChitQueue api={promisesApi} />
+        </>
+      )}
 
-      {view === 'week' && <MondayDigest api={mondayApi} />}
+      {view === 'week' && (
+        <>
+          <MondayDigest api={mondayApi} />
+          <ConfirmChitQueue api={promisesApi} heading="Guesses to confirm" />
+        </>
+      )}
 
       {view === 'ask' && <Ask api={recallApi} listen={speechListen} />}
 
@@ -229,7 +240,12 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'meetings' && <Meetings api={meetingsApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
 
-      {view === 'alerts' && <Alerts api={proactiveApi} />}
+      {view === 'alerts' && (
+        <>
+          <Alerts api={proactiveApi} />
+          <ConfirmChitQueue api={promisesApi} />
+        </>
+      )}
 
       {view === 'bookscan' && (
         <>
