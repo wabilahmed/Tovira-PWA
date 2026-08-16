@@ -24,8 +24,9 @@ Three levers applied everywhere: **Graviton (ARM)** instances (~20% cheaper, sam
 | **Backend** | One small **Graviton container** — ECS Fargate (0.25 vCPU / 0.5 GB) *or* a `t4g.micro` EC2 running Docker | A single always-on task handles thousands of users. Persistent process = healthy DB connection pool (no RDS Proxy needed). | ~$6–12 |
 | **Database** | **RDS PostgreSQL `db.t4g.micro`, Single-AZ, Graviton**, pgvector enabled | Biggest fixed cost, so right-size hard. Single-AZ drops the paid standby (~half the cost). | ~$12–15 |
 | **Auth** | **Cognito, Lite tier** | Free tier covers 10,000 MAU — well above thousands. TOTP MFA is free. | $0 |
-| **Background jobs** | **EventBridge Scheduler → Lambda** (daily cold/reminder scan) | Comfortably inside Lambda's 1M free requests/mo. | ~$0 |
+| **Background jobs** | **EventBridge Scheduler → Lambda** — four scheduled jobs: the daily cold/reminder **scan** plus `priorities-nightly` (precompute), `notes-sweep` (advance stuck notes), and `trial-emails` (trial-ending ~2 days out + trial-ended) | Comfortably inside Lambda's 1M free requests/mo. Jobs are registered in-process (`LocalScheduler`); EventBridge rules invoke them in prod. | ~$0 |
 | **Notifications** | **Web Push (VAPID)** sent from the backend/Lambda | Open browser standard — no AWS service fee. | ~$0 |
+| **Transactional email** | **Amazon SES** — domain identity + Easy DKIM + a custom MAIL FROM subdomain, on the **shared IP pool** | Pay-per-message, no fixed cost. The one SES line item with a fixed monthly charge is a **dedicated IP** — avoided (a Terraform `check` block fails the plan if it's ever switched on). Sending goes out over the IGW (no NAT). | ~$0 + usage |
 | **Gallery images** | **S3** (served via CloudFront) | A few GB = cents. Add Intelligent-Tiering only once it grows. | ~$1–3 |
 | **AI: extraction + embeddings** | **Amazon Bedrock** (Haiku 4.5 + Titan/Cohere embeddings) | Variable, not fixed. Prompt caching cuts input up to ~90%; embeddings are ~pennies per million tokens. | ~$10–50 |
 | **Transcription** | **Groq (Whisper)** — external | ~$0.04/hr of audio. Negligible. | ~$5–20 |
@@ -45,6 +46,7 @@ Three levers applied everywhere: **Graviton (ARM)** instances (~20% cheaper, sam
 6. **Cross-AZ data transfer** — keep components in one AZ early to avoid inter-AZ transfer fees.
 7. **Forgotten dev/staging environments** left running 24/7. Shut them down off-hours.
 8. **SMS MFA in Cognito** — costs per message. Use free TOTP (authenticator app) instead.
+9. **SES dedicated IP** — the only SES resource with a fixed monthly charge (~$25/mo). Stay on the **shared pool** early; a Terraform `check` block (`ses_no_dedicated_ip`) fails the plan if it's flipped on without intent, mirroring the RDS single-AZ guard.
 
 ---
 

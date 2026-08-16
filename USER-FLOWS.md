@@ -587,7 +587,17 @@ Android share-target (`fix(FLOWS-1)`), #2 duplicate re-import (`fix(FLOWS-2)`),
 the silence budget `4fd8553`; opaque referral code `de214e6`; canceled copy
 `174f4f7`; the empty-audio "contradiction" is not one — an empty upload BODY is
 400 while SILENT audio is `needs_review`, two distinct cases; story-IDs listed
-for Wabil in `LAUNCH-BLOCKERS-REPORT.md`). Original descriptions kept for record:
+for Wabil in `LAUNCH-BLOCKERS-REPORT.md`). **#10 (consent unreachable from the
+UI) is also resolved** — `LoginScreen` now ticks "accept terms" and sends
+`consent:true`.
+
+**RESOLVED in the pre-launch close-out batch** (see `PRE-LAUNCH-REPORT.md`):
+lifecycle emails wired to their events + **soft email verification** (FLOW 3c);
+the embedded `<Locked>` state on the brief / follow-up / card surfaces on a 402
+(FLOWS 10/11/16). The extraction prompt is confirmed at **v0.5** in `docs/` — no
+version-label discrepancy remains.
+
+Original descriptions kept for record:
 
 1. **Android share-target has no handler.** `apps/web/src/pwa/manifest.ts` declares
    `share_target.action = '/share-target'`, but no server route and no

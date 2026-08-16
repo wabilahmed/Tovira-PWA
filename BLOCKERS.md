@@ -9,18 +9,21 @@ Format:
 
 ## Open — needs a human (not resolvable by a coding agent)
 
-- **[SYNC / extraction schema vs v0.2 — prompt-version LABEL]** The extraction
-  *behavior* matches `docs/tovira-extraction-prompt.md` v0.2 (unanswered-questions
-  present; chat-export-only rule enforced; computed deterministically in code,
-  which is arguably safer than a model-emitted field). The only open item is a
-  **labelling decision** in a **guard-protected `docs/` file**: the prompt file is
-  still labelled `tovira-extract-v0.1` and lacks the v0.2 "multilingual Rule 0"
-  text. This needs a human both because it is a conscious versioning call and
-  because `docs/` is edit-guarded. **No code change is warranted.** — *(status: open)*
+*None.*
 
 ---
 
 ## Resolved (kept for the audit trail)
+
+- **[SYNC / extraction prompt version]** RESOLVED-BY-SYNC. Earlier notes worried
+  the prompt was labelled v0.1/v0.2; the canonical doc superseded that. The repo
+  copy `docs/tovira-extraction-prompt.md` is already **v0.5** (title + version
+  string `tovira-extract-v0.5`), reflecting the ladder v0.2 (added
+  `unanswered_questions` to the model contract) → v0.3 (withdrew it — the
+  deterministic-in-code implementation was the better design, so the doc followed
+  the code) → v0.4 (year-less-date rule after the gate failure) → v0.5
+  (no-null-named-person rule). The certified engine (3 clean runs) is v0.5. No
+  labelling decision remains.
 
 Everything below was open at some point and is now **shipped + tested** — nothing
 here is still actionable by a coding agent.

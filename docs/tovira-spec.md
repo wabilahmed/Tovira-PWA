@@ -246,6 +246,33 @@ AED 299 is trivial where one commission is 10–100x the annual price. Launch IC
 
 **GTM ops (not product):** founder day-6 personal check-in on every serious trial until ~164 users. The 25% conversion assumption is earned, not ambient.
 
+## 5g. Account lifecycle & transactional email — LOCKED
+
+**Email verification is SOFT.** A rep has full access to every feature from the
+moment they sign up; verification is NEVER a gate. On signup the welcome email
+carries a single-use, hashed, 7-day confirmation link; until confirmed, a quiet
+dismissible in-app banner invites confirmation with a server-rate-limited resend
+(3 per user per UTC day). Rationale: deliverability of the commercially-critical
+lifecycle emails matters, but capture-friction at first value matters more — so we
+capture the address's validity without blocking the first chat. (Hard/gated
+verification was considered and **rejected**.)
+
+**Lifecycle-email matrix.** Every transactional email is idempotent per
+`(user, event)` (billing emails per Stripe **event id**) and a failing send never
+breaks the business action:
+
+| Email | Trigger | Idempotency |
+|---|---|---|
+| welcome (+ confirm link) | signup | per (user, welcome) |
+| email verification (resend) | in-app resend | rate-limited 3/user/UTC-day |
+| password reset | forgot-password | single-use, hashed, 1-hour token |
+| trial-ending (~2 days out) | scheduled job over trialing subs | per (user, trial_ending); extension-aware — at most one per trial |
+| trial-ended | scheduled job, lapsed unconverted | per (user, trial_ended) |
+| payment-failed | Stripe `invoice.payment_failed` | per Stripe event id |
+| subscription-confirmed | Stripe `checkout.session.completed` | per Stripe event id; renewal date only when the webhook supplies one |
+| subscription-canceled | Stripe `customer.subscription.deleted` | per Stripe event id |
+| account-deleted | delete account — sent **BEFORE** the purge | best-effort; never blocks the deletion |
+
 ## 6. Open questions (not yet decided)
 
 **Must decide before the product is usable end-to-end (implementation blockers):**
@@ -298,3 +325,5 @@ AED 299 is trivial where one commission is 10–100x the annual price. Launch IC
 - **2026-07-16** — Locked **core-loop strengtheners** (§5c): WhatsApp send loop (wa.me deep link, never auto-send), conversational recall (receipts required, "I don't have that" over fabrication), multilingual/code-switched extraction (tested at the P1-9 gate), chat refresh nudges (dedup on re-import), personalized extraction (per-rep glossary in the VARIABLE prompt section only). Locked **the moat** (§5d): corpus-value visibility + full data export.
 - **2026-07-13** — Locked the **Day-One Book Scan** as the trial wow (fires on seeded history — facts with receipts, so no volume gate needed) and **WhatsApp chat export (.txt)** as the primary seeding input, replacing paste-based seeding (reps won't do data-entry homework). Added unanswered-question detection to the extraction scope. Trial→retention arc: Book Scan converts, brief+promises retain, patterns deepen.
 - **2026-07-09** — Locked the **hero feature tier** (§5b): cross-client pattern intelligence (★ the hook), deal-risk radar, and "what should I do today?". Features 1 & 2 are **volume-gated** (patterns on thin data are noise; a wrong pattern is worse than a missed fact); feature 3 is always on and degrades gracefully. Positioned as Phase 4+ — they sit on top of good extraction and can't rescue a weak spine. Exact volume threshold left as an open question to tune on beta data.
+
+- **2026-08-16** — Locked **account lifecycle & transactional email** (§5g): email verification is **SOFT** (full access from signup, quiet dismissible banner + server-rate-limited resend; hard/gated verification considered and rejected); the full lifecycle-email matrix is wired to real events, idempotent per (user, event) / Stripe event id, with account-deleted sent BEFORE the purge. Reconciled the extraction-prompt version note: the repo copy is **v0.5** (ladder: v0.2 added `unanswered_questions` to the model contract → v0.3 withdrew it in favor of the deterministic-in-code implementation → v0.4 year-less-date rule → v0.5 no-null-named-person rule); the engine certified with three clean runs is v0.5.
