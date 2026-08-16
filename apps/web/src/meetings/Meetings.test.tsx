@@ -67,22 +67,30 @@ describe('<Meetings>', () => {
     await waitFor(() => expect(api.createForClient).toHaveBeenCalledWith('c2', expect.objectContaining({ datetimeRaw: 'Tue 3pm' })));
   });
 
-  it('says no client matches (no silent pick) when the name is unknown', async () => {
+  it('offers to create an unknown client (no silent pick), and creates on confirm', async () => {
     const user = userEvent.setup();
-    render(<Meetings api={makeApi({ parse: vi.fn().mockResolvedValue({ kind: 'no_client', name: 'Zeta Corp' }) })} clients={clients} />);
+    const onCreateClient = vi.fn().mockResolvedValue({ id: 'c9', name: 'Zeta Corp' });
+    render(<Meetings api={makeApi({ parse: vi.fn().mockResolvedValue({ kind: 'no_client', name: 'Zeta Corp' }) })} clients={clients} onCreateClient={onCreateClient} />);
     await user.type(screen.getByLabelText(/describe the meeting/i), 'meeting with Zeta Corp Tue 3pm');
     await user.click(screen.getByRole('button', { name: /parse/i }));
-    expect(await screen.findByText(/zeta corp/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no client matches/i)).toBeInTheDocument();
     expect(screen.queryByTestId('meeting-preview')).toBeNull(); // nothing saved silently
+    await user.click(screen.getByRole('button', { name: /create .*zeta corp/i }));
+    await waitFor(() => expect(onCreateClient).toHaveBeenCalledWith('Zeta Corp'));
   });
 
-  it('asks for a specific time when the time is vague', async () => {
+  // [FLOWS-8] a vague time is SAVEABLE — the raw phrase is kept, time unconfirmed.
+  it('keeps a vague time saveable with "(time unconfirmed)", never inventing one', async () => {
     const user = userEvent.setup();
-    render(<Meetings api={makeApi({ parse: vi.fn().mockResolvedValue({ kind: 'ambiguous_time', datetimeRaw: 'sometime soon' }) })} clients={clients} />);
+    const api = makeApi({ parse: vi.fn().mockResolvedValue({ kind: 'ambiguous_time', datetimeRaw: 'sometime soon' }) });
+    render(<Meetings api={api} clients={clients} />);
     await user.type(screen.getByLabelText(/describe the meeting/i), 'meeting with Acme sometime soon');
     await user.click(screen.getByRole('button', { name: /parse/i }));
-    expect(await screen.findByText(/specific time/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /save meeting/i })).toBeNull();
+    const preview = await screen.findByTestId('meeting-preview');
+    expect(preview).toHaveTextContent(/sometime soon/);
+    expect(preview).toHaveTextContent(/time unconfirmed/i);
+    await user.click(screen.getByRole('button', { name: /save meeting/i }));
+    await waitFor(() => expect(api.createForClient).toHaveBeenCalledWith('c1', expect.objectContaining({ datetime: null, datetimeRaw: 'sometime soon' })));
   });
 
   it('removes a meeting', async () => {

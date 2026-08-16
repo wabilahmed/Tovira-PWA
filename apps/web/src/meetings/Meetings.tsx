@@ -18,7 +18,7 @@ export interface ClientOption {
 }
 
 /** Meetings (P3-1): add via natural language, CONFIRMED before saving, plus list. */
-export function Meetings({ api, clients }: { api: MeetingsApi; clients: ClientOption[] }): JSX.Element {
+export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; clients: ClientOption[]; onCreateClient?: (name: string) => Promise<ClientOption> }): JSX.Element {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [text, setText] = useState('');
   const [result, setResult] = useState<ParseResult | null>(null);
@@ -45,11 +45,15 @@ export function Meetings({ api, clients }: { api: MeetingsApi; clients: ClientOp
       return;
     }
     setResult(parsed);
-    // A clear proposal goes straight to the confirm preview; an ambiguous name
-    // or time falls through to its own prompt (see the render) — never a silent pick.
+    // A clear proposal → confirm preview. A vague TIME is still saveable — the
+    // raw phrase is kept and the time shows "(time unconfirmed)", never invented.
+    // An ambiguous NAME asks which client; no match offers to create one.
     if (parsed.kind === 'proposal') {
       setProposal({ clientId: parsed.clientId, datetime: parsed.datetime, datetimeRaw: parsed.datetimeRaw });
       setClientId(parsed.clientId);
+    } else if (parsed.kind === 'ambiguous_time') {
+      setProposal({ clientId: clients[0]?.id ?? '', datetime: null, datetimeRaw: parsed.datetimeRaw });
+      setClientId(clients[0]?.id ?? '');
     }
   }
 
@@ -63,6 +67,14 @@ export function Meetings({ api, clients }: { api: MeetingsApi; clients: ClientOp
   function reset(): void {
     setResult(null);
     setProposal(null);
+  }
+
+  /** Create the unmatched client, then let the rep re-parse (the text is kept). */
+  async function createClient(name: string): Promise<void> {
+    if (!onCreateClient) return;
+    await onCreateClient(name);
+    setError(null);
+    reset();
   }
 
   async function confirm(): Promise<void> {
@@ -136,17 +148,14 @@ export function Meetings({ api, clients }: { api: MeetingsApi; clients: ClientOp
         </div>
       )}
 
-      {/* No match → say so; don't invent a client. */}
+      {/* No match → offer to create that client (don't invent one silently). */}
       {result?.kind === 'no_client' && (
         <div style={box}>
-          <p style={{ margin: 0 }}>No client matches “{result.name}”. Add them first, then schedule the meeting.</p>
-        </div>
-      )}
-
-      {/* Vague time → ask for a specific one; never invent a datetime. */}
-      {result?.kind === 'ambiguous_time' && (
-        <div style={box}>
-          <p style={{ margin: 0 }}>I couldn't pin a specific time from “{result.datetimeRaw}”. Try a specific time, e.g. “Tuesday 3pm”.</p>
+          <p style={{ margin: '0 0 0.5rem' }}>No client matches “{result.name}”.</p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {onCreateClient && <button onClick={() => void createClient(result.name)}>Create “{result.name}”</button>}
+            <button onClick={reset}>Cancel</button>
+          </div>
         </div>
       )}
 

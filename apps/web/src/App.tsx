@@ -289,7 +289,17 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'promises' && <PromisesTracker api={promisesApi} />}
 
-      {view === 'meetings' && <Meetings api={meetingsApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
+      {view === 'meetings' && (
+        <Meetings
+          api={meetingsApi}
+          clients={clients.map((c) => ({ id: c.id, name: c.name }))}
+          onCreateClient={async (name) => {
+            const created = await clientsApi.create(name);
+            setClients((prev) => [created, ...prev]);
+            return { id: created.id, name: created.name };
+          }}
+        />
+      )}
 
       {view === 'alerts' && (
         <>
