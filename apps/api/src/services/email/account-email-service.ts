@@ -43,10 +43,28 @@ export class AccountEmailService {
     return true;
   }
 
-  async sendWelcome(userId: string, to: string, trialEndsAt: number): Promise<boolean> {
+  async sendWelcome(userId: string, to: string, trialEndsAt: number, verifyUrl?: string): Promise<boolean> {
+    const confirm = verifyUrl
+      ? `\n\nWhen you have a moment, confirm your email so we can reach you about your trial:\n${verifyUrl}`
+      : '';
     return this.once(userId, 'welcome', to, 'Welcome to Tovira',
       `Your Tovira trial has started. It runs until ${stampDate(trialEndsAt)}.\n\n` +
-      `Export one WhatsApp chat to see what your book has been hiding — that is the whole setup.`);
+      `Export one WhatsApp chat to see what your book has been hiding — that is the whole setup.` +
+      confirm);
+  }
+
+  /** Re-send just the email-confirmation link (EMAIL-VERIFY resend). Not
+   *  idempotency-logged: a resend is a deliberate repeat, rate-limited upstream. */
+  async sendVerification(to: string, verifyUrl: string): Promise<void> {
+    await this.email.send({
+      to,
+      subject: 'Confirm your email for Tovira',
+      text:
+        `Confirm your email so we can reach you about your trial and account.\n\n` +
+        `Open this link within the next seven days:\n${verifyUrl}\n\n` +
+        `If you did not create a Tovira account, you can ignore this message.` +
+        SIGNOFF,
+    });
   }
 
   /** The conversion moment: two days before the trial ends. */

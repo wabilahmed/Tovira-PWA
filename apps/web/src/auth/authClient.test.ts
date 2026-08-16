@@ -59,6 +59,38 @@ describe('AuthClient', () => {
     await expect(client.signup('dup@example.com', 'password123')).rejects.toThrow(/already registered/i);
   });
 
+  // [EMAIL-VERIFY] confirming an email via the token in the link.
+  it('verifyEmail resolves ok on 200 and posts the token with credentials', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+    const client = new AuthClient('http://api.test');
+    expect(await client.verifyEmail('tok')).toEqual({ ok: true });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toContain('/auth/verify-email');
+    expect((init as RequestInit).credentials).toBe('include');
+    expect((init as RequestInit).body).toBe(JSON.stringify({ token: 'tok' }));
+  });
+
+  it('verifyEmail resolves {ok:false} with the message on a bad token (never throws)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(400, { message: 'This verification link is invalid or has expired. Request a new one.' }));
+    const client = new AuthClient('http://api.test');
+    const r = await client.verifyEmail('bad');
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/invalid or has expired/i);
+  });
+
+  it('resendVerification flags a 429 as rateLimited (server-enforced)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(429, { message: 'too many' }));
+    const client = new AuthClient('http://api.test');
+    const r = await client.resendVerification();
+    expect(r).toMatchObject({ ok: false, rateLimited: true });
+  });
+
+  it('resendVerification resolves ok on 200', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+    const client = new AuthClient('http://api.test');
+    expect(await client.resendVerification()).toEqual({ ok: true });
+  });
+
   // POSITIVE: a successful signup returns the new session and POSTs to /auth/signup.
   it('signs up and returns the session, sending cookies', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(201, { user: { id: 'u9', email: 'new@example.com' } }));

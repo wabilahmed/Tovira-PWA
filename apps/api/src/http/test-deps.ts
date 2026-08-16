@@ -5,6 +5,7 @@ import { ScryptHasher } from '../services/auth/password.js';
 import { InMemoryUserRepository } from '../adapters/auth/in-memory-user-repository.js';
 import { InMemorySessionRepository } from '../adapters/auth/in-memory-session-repository.js';
 import { InMemoryPasswordResetRepository } from '../adapters/auth/in-memory-password-reset-repository.js';
+import { InMemoryEmailVerificationRepository } from '../adapters/auth/in-memory-email-verification-repository.js';
 import { AccountEmailService } from '../services/email/account-email-service.js';
 import { StubEmailSender } from '../adapters/email/stub-email-sender.js';
 import { InMemoryEmailLogRepository } from '../adapters/email/in-memory-email-log-repository.js';
@@ -69,6 +70,7 @@ export function buildInMemoryDeps(
     users: new InMemoryUserRepository(),
     sessions: new InMemorySessionRepository(),
     passwordResets: new InMemoryPasswordResetRepository(),
+    emailVerifications: new InMemoryEmailVerificationRepository(),
     hasher: new ScryptHasher(),
     sessionTtlMs: 60 * 60 * 1000,
   });

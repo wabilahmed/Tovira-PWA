@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
 import { ForgotPassword, ResetPassword } from './auth/PasswordReset.js';
+import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
 import { BookScanClient } from './bookscan/bookScanClient.js';
@@ -140,6 +141,13 @@ export function App(): JSX.Element {
       ? new URLSearchParams(window.location.search).get('token')
       : null,
   );
+  // Reached via the emailed confirmation link (/verify-email?token=…). Works with
+  // or without a session — verification is soft and never gates access.
+  const [verifyToken, setVerifyToken] = useState<string | null>(() =>
+    typeof window !== 'undefined' && window.location.pathname === '/verify-email'
+      ? new URLSearchParams(window.location.search).get('token')
+      : null,
+  );
 
   useEffect(() => {
     // On load / refresh: ask the server who we are. Cookie → still logged in.
@@ -163,6 +171,22 @@ export function App(): JSX.Element {
       </Centered>
     );
   }
+  if (verifyToken) {
+    return (
+      <Centered>
+        <VerifyEmailPage
+          api={auth}
+          token={verifyToken}
+          onDone={() => {
+            if (typeof window !== 'undefined') window.history.replaceState({}, '', '/');
+            setVerifyToken(null);
+            // Re-read the session so a now-verified account drops the banner.
+            void auth.getSession().then(setSession);
+          }}
+        />
+      </Centered>
+    );
+  }
   if (loading) return <Centered>Loading…</Centered>;
   if (!session) return <LoginScreen onAuthed={setSession} />;
 
@@ -180,6 +204,9 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
   const [entitled, setEntitled] = useState(true); // default open; the server 402s regardless
   const [sharedContent, setSharedContent] = useState('');
+  // Quiet "confirm your email" nudge (EMAIL-VERIFY) — dismissible for the session,
+  // never blocks anything. Absent once the account is verified.
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const isDesktop = useIsDesktop();
 
   const loadSeeding = (): void => void onboardingApi.status().then(setSeeding);
@@ -247,6 +274,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </span>
       }
     >
+      {!session.user.emailVerified && !bannerDismissed && (
+        <VerifyBanner api={auth} onDismiss={() => setBannerDismissed(true)} />
+      )}
+
       {view === 'getstarted' && seeding && (
         <GetStarted
           seeding={seeding}
@@ -324,6 +355,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             <CorpusBadge api={corpusApi} />
           </header>
           <TrialIncentive api={billingApi} />
+          <p className="tov-setting-line">
+            Email: {session.user.email}
+            {' — '}
+            {session.user.emailVerified ? (
+              <span className="tov-verified">Confirmed</span>
+            ) : (
+              <span className="tov-unverified">Not confirmed yet</span>
+            )}
+          </p>
+          {!session.user.emailVerified && <VerifyBanner api={auth} />}
           <Billing api={billingApi} />
           <ThemeToggle />
           <NotificationSetup state={readPushState()} api={notificationApi} />

@@ -2,6 +2,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import type { UserRepository, UserRecord } from '../../ports/user-repository.js';
 import type { SessionRepository } from '../../ports/session-repository.js';
 import type { PasswordResetRepository } from '../../ports/password-reset-repository.js';
+import type { EmailVerificationRepository } from '../../ports/email-verification-repository.js';
 import type { PasswordHasher } from './password.js';
 
 export class AuthError extends Error {
@@ -36,6 +37,9 @@ export interface PublicUser {
   email: string;
   /** Opaque code for the share/referral link — never the raw user id (P5-6). */
   referralCode: string;
+  /** Soft email verification (EMAIL-VERIFY) — NEVER gates access; only drives the
+   *  quiet in-app "confirm your email" banner and the Settings verified state. */
+  emailVerified: boolean;
 }
 
 export interface AuthResult {
@@ -56,10 +60,26 @@ export class InvalidResetTokenError extends AuthError {
   }
 }
 
+export class InvalidVerificationTokenError extends AuthError {
+  override name = 'InvalidVerificationTokenError';
+  constructor() {
+    // Generic — expired / reused / another user's token all look identical.
+    super(400, 'This verification link is invalid or has expired. Request a new one.');
+  }
+}
+
+export class VerificationRateLimitError extends AuthError {
+  override name = 'VerificationRateLimitError';
+  constructor() {
+    super(429, "You've asked for too many verification emails today. Try again tomorrow.");
+  }
+}
+
 export interface AuthServiceDeps {
   users: UserRepository;
   sessions: SessionRepository;
   passwordResets: PasswordResetRepository;
+  emailVerifications: EmailVerificationRepository;
   hasher: PasswordHasher;
   sessionTtlMs: number;
   now?: () => number;
@@ -68,6 +88,11 @@ export interface AuthServiceDeps {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Password-reset tokens live for one hour. */
 export const RESET_TTL_MS = 60 * 60 * 1000;
+/** Email-verification tokens live for seven days (EMAIL-VERIFY). */
+export const VERIFY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** At most this many verification emails per user per calendar day (UTC) — the
+ *  server-enforced resend rate limit. Counts the signup token too. */
+export const VERIFY_RESEND_LIMIT = 3;
 /** The current Terms/Privacy version a signup agrees to (P5-4). Bump on change. */
 export const CONSENT_POLICY_VERSION = '2026-08-01';
 const hashToken = (raw: string): string => createHash('sha256').update(raw).digest('hex');
@@ -142,7 +167,7 @@ export class AuthService {
 
   async getPublicUser(userId: string): Promise<PublicUser | null> {
     const user = await this.deps.users.findById(userId);
-    return user ? { id: user.id, email: user.email, referralCode: user.referralCode } : null;
+    return user ? { id: user.id, email: user.email, referralCode: user.referralCode, emailVerified: user.emailVerified } : null;
   }
 
   /**
@@ -156,7 +181,7 @@ export class AuthService {
     if (!user) return null;
     const token = randomBytes(32).toString('base64url');
     await this.deps.passwordResets.create({ tokenHash: hashToken(token), userId: user.id, expiresAt: this.now() + RESET_TTL_MS });
-    return { user: { id: user.id, email: user.email, referralCode: user.referralCode }, token };
+    return { user: { id: user.id, email: user.email, referralCode: user.referralCode, emailVerified: user.emailVerified }, token };
   }
 
   /**
@@ -176,6 +201,49 @@ export class AuthService {
     await this.deps.passwordResets.deleteForUser(userId); // and any other outstanding tokens
   }
 
+  /**
+   * Issue a single-use email-verification token (EMAIL-VERIFY). Returns the RAW
+   * token — the caller puts it in the welcome/resend email link; only its hash is
+   * stored. Never gates anything; verification is soft.
+   */
+  async createEmailVerification(userId: string): Promise<string> {
+    const token = randomBytes(32).toString('base64url');
+    const now = this.now();
+    await this.deps.emailVerifications.create({
+      tokenHash: hashToken(token),
+      userId,
+      expiresAt: now + VERIFY_TTL_MS,
+      createdAt: now,
+    });
+    return token;
+  }
+
+  /**
+   * Consume a verification token and mark the user verified. Throws
+   * InvalidVerificationTokenError when the token is expired, already used, or
+   * unknown (another user's token consumes to their own id — it can never verify
+   * a different account).
+   */
+  async verifyEmail(rawToken: string): Promise<void> {
+    const userId = await this.deps.emailVerifications.consume(hashToken(rawToken), this.now());
+    if (!userId) throw new InvalidVerificationTokenError();
+    await this.deps.users.markEmailVerified(userId);
+  }
+
+  /**
+   * Re-issue a verification token, server-side rate-limited to
+   * VERIFY_RESEND_LIMIT per user per UTC day. Returns the raw token to email, or
+   * throws VerificationRateLimitError once the day's budget is spent.
+   */
+  async resendVerification(userId: string): Promise<string> {
+    const now = this.now();
+    const d = new Date(now);
+    const startOfDayUtc = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    const usedToday = await this.deps.emailVerifications.countCreatedSince(userId, startOfDayUtc);
+    if (usedToday >= VERIFY_RESEND_LIMIT) throw new VerificationRateLimitError();
+    return this.createEmailVerification(userId);
+  }
+
   /** Resolve an opaque referral code to its user id (P5-6), or null. */
   async findUserIdByReferralCode(code: string): Promise<string | null> {
     const user = await this.deps.users.findByReferralCode(code);
@@ -190,7 +258,7 @@ export class AuthService {
     const token = randomBytes(32).toString('base64url');
     const expiresAt = this.now() + this.deps.sessionTtlMs;
     await this.deps.sessions.create({ token, userId: user.id, expiresAt });
-    return { user: { id: user.id, email: user.email, referralCode: user.referralCode }, token, expiresAt };
+    return { user: { id: user.id, email: user.email, referralCode: user.referralCode, emailVerified: user.emailVerified }, token, expiresAt };
   }
 }
 

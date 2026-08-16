@@ -29,6 +29,7 @@ export class InMemoryUserRepository implements UserRepository {
       referralCode: input.referralCode,
       consentAt: input.consentAt ?? null,
       consentVersion: input.consentVersion ?? null,
+      emailVerified: false,
       createdAt: Date.now(),
     };
     this.byId.set(record.id, record);
@@ -40,6 +41,11 @@ export class InMemoryUserRepository implements UserRepository {
   async updatePassword(id: string, passwordHash: string): Promise<void> {
     const rec = this.byId.get(id);
     if (rec) rec.passwordHash = passwordHash;
+  }
+
+  async markEmailVerified(id: string): Promise<void> {
+    const rec = this.byId.get(id);
+    if (rec) rec.emailVerified = true;
   }
 
   async delete(id: string): Promise<void> {

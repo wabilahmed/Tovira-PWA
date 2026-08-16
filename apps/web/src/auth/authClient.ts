@@ -1,5 +1,5 @@
 export interface Session {
-  user: { id: string; email: string; referralCode: string };
+  user: { id: string; email: string; referralCode: string; emailVerified: boolean };
 }
 
 /**
@@ -52,6 +52,37 @@ export class AuthClient {
       if (res.ok) return { ok: true };
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, message: body.message ?? 'Could not reset your password.' };
+    } catch {
+      return { ok: false, message: 'Network error — please try again.' };
+    }
+  }
+
+  /** Confirm an email via the token in the verification link (EMAIL-VERIFY).
+   *  Resolves {ok:false, message} on a bad/expired/reused token — never throws. */
+  async verifyEmail(token: string): Promise<{ ok: boolean; message?: string }> {
+    try {
+      const res = await fetch(this.url('/auth/verify-email'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      if (res.ok) return { ok: true };
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, message: body.message ?? 'This verification link is invalid or has expired.' };
+    } catch {
+      return { ok: false, message: 'Network error — please try again.' };
+    }
+  }
+
+  /** Ask the server to re-send the confirmation email. `rateLimited` is true when
+   *  the day's budget is spent (server-enforced). Never throws. */
+  async resendVerification(): Promise<{ ok: boolean; rateLimited?: boolean; message?: string }> {
+    try {
+      const res = await fetch(this.url('/auth/resend-verification'), { method: 'POST', credentials: 'include' });
+      if (res.ok) return { ok: true };
+      if (res.status === 429) return { ok: false, rateLimited: true, message: 'Too many requests today. Try again tomorrow.' };
+      return { ok: false, message: 'Could not send the email. Please try again.' };
     } catch {
       return { ok: false, message: 'Network error — please try again.' };
     }

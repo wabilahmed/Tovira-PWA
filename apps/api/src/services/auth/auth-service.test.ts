@@ -1,23 +1,26 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { AuthService, EmailInUseError, InvalidCredentialsError, AuthValidationError, InvalidResetTokenError } from './auth-service.js';
+import { AuthService, EmailInUseError, InvalidCredentialsError, AuthValidationError, InvalidResetTokenError, InvalidVerificationTokenError, VerificationRateLimitError, VERIFY_TTL_MS, VERIFY_RESEND_LIMIT } from './auth-service.js';
 import { ScryptHasher } from './password.js';
 import { InMemoryUserRepository } from '../../adapters/auth/in-memory-user-repository.js';
 import { InMemorySessionRepository } from '../../adapters/auth/in-memory-session-repository.js';
 import { InMemoryPasswordResetRepository } from '../../adapters/auth/in-memory-password-reset-repository.js';
+import { InMemoryEmailVerificationRepository } from '../../adapters/auth/in-memory-email-verification-repository.js';
 
 function makeService(opts: { now?: () => number; sessionTtlMs?: number } = {}) {
   const users = new InMemoryUserRepository();
   const sessions = new InMemorySessionRepository();
   const passwordResets = new InMemoryPasswordResetRepository();
+  const emailVerifications = new InMemoryEmailVerificationRepository();
   const service = new AuthService({
     users,
     sessions,
     passwordResets,
+    emailVerifications,
     hasher: new ScryptHasher(),
     sessionTtlMs: opts.sessionTtlMs ?? 7 * 24 * 60 * 60 * 1000,
     now: opts.now,
   });
-  return { service, users, sessions, passwordResets };
+  return { service, users, sessions, passwordResets, emailVerifications };
 }
 
 describe('AuthService', () => {
@@ -163,5 +166,80 @@ describe('AuthService — password reset (TASK EMAIL)', () => {
     await expect(service.resetPassword('not-a-real-token', 'newpassword1')).rejects.toBeInstanceOf(InvalidResetTokenError);
     const reset = await service.createPasswordReset('rep@example.com');
     await expect(service.resetPassword(reset!.token, 'short')).rejects.toBeInstanceOf(AuthValidationError);
+  });
+});
+
+describe('[EMAIL-VERIFY] soft email verification', () => {
+  it('a fresh signup is unverified; verifying with the issued token flips it (banner disappears)', async () => {
+    const { service } = makeService();
+    const { user } = await service.signup('rep@example.com', 'password1');
+    expect(user.emailVerified).toBe(false);
+    const token = await service.createEmailVerification(user.id);
+    await service.verifyEmail(token);
+    const after = await service.getPublicUser(user.id);
+    expect(after!.emailVerified).toBe(true);
+  });
+
+  it('rejects an EXPIRED token', async () => {
+    let clock = 1_000_000;
+    const { service } = makeService({ now: () => clock });
+    const { user } = await service.signup('rep@example.com', 'password1');
+    const token = await service.createEmailVerification(user.id);
+    clock += VERIFY_TTL_MS + 1; // one ms past expiry
+    await expect(service.verifyEmail(token)).rejects.toBeInstanceOf(InvalidVerificationTokenError);
+    expect((await service.getPublicUser(user.id))!.emailVerified).toBe(false);
+  });
+
+  it('rejects a REUSED token (single-use)', async () => {
+    const { service } = makeService();
+    const { user } = await service.signup('rep@example.com', 'password1');
+    const token = await service.createEmailVerification(user.id);
+    await service.verifyEmail(token); // first use ok
+    await expect(service.verifyEmail(token)).rejects.toBeInstanceOf(InvalidVerificationTokenError);
+  });
+
+  it("another user's token can never verify a DIFFERENT account", async () => {
+    const { service } = makeService();
+    const a = (await service.signup('a@example.com', 'password1')).user;
+    const b = (await service.signup('b@example.com', 'password1')).user;
+    const tokenForA = await service.createEmailVerification(a.id);
+    // B presents A's token: it verifies A (the token's owner), NOT B.
+    await service.verifyEmail(tokenForA);
+    expect((await service.getPublicUser(a.id))!.emailVerified).toBe(true);
+    expect((await service.getPublicUser(b.id))!.emailVerified).toBe(false);
+  });
+
+  it('rejects an unknown/garbage token', async () => {
+    const { service } = makeService();
+    await expect(service.verifyEmail('not-a-real-token')).rejects.toBeInstanceOf(InvalidVerificationTokenError);
+  });
+
+  it('enforces the resend rate limit server-side (VERIFY_RESEND_LIMIT / UTC day)', async () => {
+    const clock = Date.parse('2026-08-16T12:00:00Z');
+    const { service } = makeService({ now: () => clock });
+    const { user } = await service.signup('rep@example.com', 'password1');
+    for (let i = 0; i < VERIFY_RESEND_LIMIT; i++) {
+      await expect(service.resendVerification(user.id)).resolves.toEqual(expect.any(String));
+    }
+    // Budget spent for the day → blocked.
+    await expect(service.resendVerification(user.id)).rejects.toBeInstanceOf(VerificationRateLimitError);
+  });
+
+  it('the daily resend budget resets the next UTC day', async () => {
+    let clock = Date.parse('2026-08-16T23:00:00Z');
+    const { service } = makeService({ now: () => clock });
+    const { user } = await service.signup('rep@example.com', 'password1');
+    for (let i = 0; i < VERIFY_RESEND_LIMIT; i++) await service.resendVerification(user.id);
+    await expect(service.resendVerification(user.id)).rejects.toBeInstanceOf(VerificationRateLimitError);
+    clock = Date.parse('2026-08-17T00:30:00Z'); // next UTC day
+    await expect(service.resendVerification(user.id)).resolves.toEqual(expect.any(String));
+  });
+
+  it('a resent token verifies the account', async () => {
+    const { service } = makeService();
+    const { user } = await service.signup('rep@example.com', 'password1');
+    const token = await service.resendVerification(user.id);
+    await service.verifyEmail(token);
+    expect((await service.getPublicUser(user.id))!.emailVerified).toBe(true);
   });
 });

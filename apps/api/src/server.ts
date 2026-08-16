@@ -130,14 +130,21 @@ export function createApiServer(deps: ApiDeps): Server {
           await deps.billing.onSignup(userId, email, Date.now());
           // Best-effort welcome — never on the signup critical path (an email
           // must not slow signup or make its wall-clock timing depend on the
-          // mailer). Idempotent, so a missed one can be re-sent.
-          void deps.billing
-            .entitlement(userId, Date.now())
-            .then((ent) => deps.accountEmail.sendWelcome(userId, email, ent.trialEndsAt))
-            .catch(() => undefined);
+          // mailer). Idempotent, so a missed one can be re-sent. Carries the
+          // email-confirmation link (EMAIL-VERIFY); a failed token mint just
+          // sends the welcome without it.
+          void (async () => {
+            const [ent, token] = await Promise.all([
+              deps.billing.entitlement(userId, Date.now()),
+              deps.auth.createEmailVerification(userId).catch(() => undefined),
+            ]);
+            const verifyUrl = token ? `${deps.appBaseUrl}/verify-email?token=${encodeURIComponent(token)}` : undefined;
+            await deps.accountEmail.sendWelcome(userId, email, ent.trialEndsAt, verifyUrl);
+          })().catch(() => undefined);
         },
         onReferral: (code, userId, email) => deps.referral.apply(code, userId, email).then(() => undefined),
         sendResetEmail: (to, resetUrl) => deps.accountEmail.sendPasswordReset(to, resetUrl),
+        sendVerifyEmail: (to, verifyUrl) => deps.accountEmail.sendVerification(to, verifyUrl),
       })) return;
       // Notes routes are matched before the generic client routes so
       // /clients/:id/notes/* isn't misread as /clients/:id.

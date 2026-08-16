@@ -19,7 +19,9 @@ function routeFetch(routes: Array<[string, () => Response]>): void {
   );
 }
 
-const SESSION = { user: { id: 'u1', email: 'rep@example.com' } };
+const SESSION = { user: { id: 'u1', email: 'rep@example.com', referralCode: 'r1', emailVerified: true } };
+// An unverified variant to exercise the soft-verification banner (EMAIL-VERIFY).
+const SESSION_UNVERIFIED = { user: { ...SESSION.user, emailVerified: false } };
 const NOT_SEEDED = {
   hasClient: false, hasNote: false, briefReachable: false, seeded: false, bookScanReady: false,
   nextStep: 'Export a chat.',
@@ -106,6 +108,24 @@ describe('<App> integration', () => {
     render(<App />);
     expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /get started/i })).toBeInTheDocument();
+  });
+
+  // [EMAIL-VERIFY] an unverified account gets the quiet, dismissible nudge — and
+  // still lands in the full app (verification never gates access).
+  it('shows the confirm-email banner for an unverified account and can dismiss it', async () => {
+    routeFetch([
+      ['book-scan', () => json(200, SCAN)],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION_UNVERIFIED)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByText(/confirm your email so we can reach you/i)).toBeInTheDocument();
+    // Full app is still reachable — the banner blocks nothing.
+    expect(screen.getByText(/rep@example.com/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /dismiss/i }));
+    expect(screen.queryByText(/confirm your email so we can reach you/i)).not.toBeInTheDocument();
   });
 
   it('navigates to the Promises tracker and renders open promises (API integration)', async () => {

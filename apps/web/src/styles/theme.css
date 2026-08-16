@@ -202,3 +202,24 @@
 .tov-confirm-queue {
   margin-top: 1rem;
 }
+
+/* Soft email-verification nudge (EMAIL-VERIFY): quiet, never alarming. It informs;
+   it does not block. Measured tone per the brand voice — no red, no urgency. */
+.tov-verify-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 0.85rem;
+  margin: 0 0 0.85rem;
+  border: 1px solid var(--rule, var(--amber-line));
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+.tov-verify-banner__actions { margin-inline-start: auto; display: inline-flex; gap: 0.85rem; }
+.tov-verify-banner__status { flex-basis: 100%; margin: 0.2rem 0 0; font-size: 0.85rem; color: var(--text-secondary); }
+.tov-setting-line { color: var(--text-secondary); font-size: 0.9rem; }
+.tov-verified { color: var(--brass); }
+.tov-unverified { color: var(--amber); }

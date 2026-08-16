@@ -12,6 +12,7 @@ export interface UserRecord {
   /** When the rep accepted the terms + which policy version (P5-4), or null. */
   consentAt: number | null;
   consentVersion: string | null;
+  emailVerified: boolean;
   createdAt: number;
 }
 
@@ -31,6 +32,8 @@ export interface UserRepository {
   create(input: CreateUserInput): Promise<UserRecord>;
   /** Set a new password hash (password reset). */
   updatePassword(id: string, passwordHash: string): Promise<void>;
+  /** Mark the email verified (soft verification). */
+  markEmailVerified(id: string): Promise<void>;
   /** Delete the user (and, on Postgres, cascade all their data). */
   delete(id: string): Promise<void>;
   /** All user ids — used by the nightly priorities precompute job (P4b-3). */

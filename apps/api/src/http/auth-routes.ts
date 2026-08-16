@@ -31,6 +31,12 @@ export interface AuthRouteOptions {
   onReferral?: (referrerCode: string, userId: string, email: string) => Promise<void>;
   /** Deliver a password-reset link (no-op locally without an email adapter). */
   sendResetEmail?: (to: string, resetUrl: string) => Promise<void>;
+  /** Deliver an email-verification link (EMAIL-VERIFY resend path). */
+  sendVerifyEmail?: (to: string, verifyUrl: string) => Promise<void>;
+}
+
+function verifyLink(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl}/verify-email?token=${encodeURIComponent(token)}`;
 }
 
 /** Handle an /auth/* or /me request. Returns true if it handled the request. */
@@ -99,6 +105,46 @@ export async function handleAuthRoute(
       const token = typeof body.token === 'string' ? body.token : '';
       const password = typeof body.password === 'string' ? body.password : '';
       await auth.resetPassword(token, password); // throws AuthError → handled below
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // Soft email verification (EMAIL-VERIFY). Consuming a valid token marks the
+    // account verified; access is NEVER gated on this. GET (link click) and POST
+    // (in-app) behave identically. A bad/expired/reused token → 400 (no oracle).
+    if ((method === 'POST' || method === 'GET') && url === '/auth/verify-email') {
+      let token = '';
+      if (method === 'POST') {
+        const body = (await readJsonBody(req).catch(() => ({}))) as Record<string, unknown>;
+        token = typeof body.token === 'string' ? body.token : '';
+      } else {
+        token = new URL(req.url ?? '/', 'http://localhost').searchParams.get('token') ?? '';
+      }
+      await auth.verifyEmail(token); // throws AuthError → handled below
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // Re-send the verification link to the signed-in rep. Server-enforced rate
+    // limit (throws VerificationRateLimitError → 429). Already-verified is a
+    // no-op success (nothing to send).
+    if (method === 'POST' && url === '/auth/resend-verification') {
+      const identity = await auth.authenticate(extractToken(req));
+      if (!identity) {
+        sendJson(res, 401, { error: 'unauthorized' });
+        return true;
+      }
+      const user = await auth.getPublicUser(identity.userId);
+      if (!user) {
+        sendJson(res, 401, { error: 'unauthorized' });
+        return true;
+      }
+      if (user.emailVerified) {
+        sendJson(res, 200, { ok: true, alreadyVerified: true });
+        return true;
+      }
+      const token = await auth.resendVerification(identity.userId); // throws on rate limit
+      if (opts.sendVerifyEmail) await opts.sendVerifyEmail(user.email, verifyLink(opts.appBaseUrl, token));
       sendJson(res, 200, { ok: true });
       return true;
     }

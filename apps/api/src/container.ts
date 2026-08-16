@@ -16,6 +16,9 @@ import { InMemorySessionRepository } from './adapters/auth/in-memory-session-rep
 import { InMemoryPasswordResetRepository } from './adapters/auth/in-memory-password-reset-repository.js';
 import { PgPasswordResetRepository } from './adapters/auth/pg-password-reset-repository.js';
 import type { PasswordResetRepository } from './ports/password-reset-repository.js';
+import { InMemoryEmailVerificationRepository } from './adapters/auth/in-memory-email-verification-repository.js';
+import { PgEmailVerificationRepository } from './adapters/auth/pg-email-verification-repository.js';
+import type { EmailVerificationRepository } from './ports/email-verification-repository.js';
 import type { EmailSender } from './ports/email.js';
 import { StubEmailSender } from './adapters/email/stub-email-sender.js';
 import { SesEmailSender } from './adapters/email/ses-email-sender.js';
@@ -164,20 +167,24 @@ export function createAuthService(config: AppConfig, pool?: Pool): AuthService {
   let users: UserRepository;
   let sessions: SessionRepository;
   let passwordResets: PasswordResetRepository;
+  let emailVerifications: EmailVerificationRepository;
   if (config.authStore === 'postgres') {
     if (!pool) throw new Error('authStore=postgres requires a database pool');
     users = new PgUserRepository(pool);
     sessions = new PgSessionRepository(pool);
     passwordResets = new PgPasswordResetRepository(pool);
+    emailVerifications = new PgEmailVerificationRepository(pool);
   } else {
     users = new InMemoryUserRepository();
     sessions = new InMemorySessionRepository();
     passwordResets = new InMemoryPasswordResetRepository();
+    emailVerifications = new InMemoryEmailVerificationRepository();
   }
   return new AuthService({
     users,
     sessions,
     passwordResets,
+    emailVerifications,
     hasher: new ScryptHasher(),
     sessionTtlMs: config.sessionTtlHours * 60 * 60 * 1000,
   });
