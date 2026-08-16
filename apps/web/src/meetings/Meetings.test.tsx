@@ -10,7 +10,7 @@ const meeting: Meeting = { id: 'm1', clientId: 'c1', datetime: '2026-08-01T15:00
 function makeApi(over: Partial<MeetingsApi> = {}): MeetingsApi {
   return {
     list: vi.fn().mockResolvedValue([]),
-    parse: vi.fn().mockResolvedValue({ clientId: 'c1', datetime: '2026-08-01T15:00', datetimeRaw: 'Tue 3pm', title: null }),
+    parse: vi.fn().mockResolvedValue({ kind: 'proposal', clientId: 'c1', clientName: 'Acme', datetime: '2026-08-01T15:00', datetimeRaw: 'Tue 3pm' }),
     createForClient: vi.fn().mockResolvedValue(meeting),
     remove: vi.fn().mockResolvedValue(true),
     ...over,
@@ -49,6 +49,40 @@ describe('<Meetings>', () => {
     await user.click(screen.getByRole('button', { name: /parse/i }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByTestId('meeting-preview')).toBeNull();
+  });
+
+  // [FLOWS-3] the parser's ambiguity kinds must ASK, not fail silently.
+  it('asks which client when the name is ambiguous, then saves the chosen one', async () => {
+    const user = userEvent.setup();
+    const api = makeApi({
+      parse: vi.fn().mockResolvedValue({ kind: 'ambiguous_client', candidates: [{ id: 'c1', name: 'Acme' }, { id: 'c2', name: 'Meridian' }], datetime: '2026-08-01T15:00', datetimeRaw: 'Tue 3pm' }),
+    });
+    render(<Meetings api={api} clients={clients} />);
+    await user.type(screen.getByLabelText(/describe the meeting/i), 'meeting Tue 3pm');
+    await user.click(screen.getByRole('button', { name: /parse/i }));
+    // It asks — showing the candidates — instead of silently picking one.
+    expect(await screen.findByText(/which client/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Meridian$/i }));
+    await user.click(await screen.findByRole('button', { name: /save meeting/i }));
+    await waitFor(() => expect(api.createForClient).toHaveBeenCalledWith('c2', expect.objectContaining({ datetimeRaw: 'Tue 3pm' })));
+  });
+
+  it('says no client matches (no silent pick) when the name is unknown', async () => {
+    const user = userEvent.setup();
+    render(<Meetings api={makeApi({ parse: vi.fn().mockResolvedValue({ kind: 'no_client', name: 'Zeta Corp' }) })} clients={clients} />);
+    await user.type(screen.getByLabelText(/describe the meeting/i), 'meeting with Zeta Corp Tue 3pm');
+    await user.click(screen.getByRole('button', { name: /parse/i }));
+    expect(await screen.findByText(/zeta corp/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-preview')).toBeNull(); // nothing saved silently
+  });
+
+  it('asks for a specific time when the time is vague', async () => {
+    const user = userEvent.setup();
+    render(<Meetings api={makeApi({ parse: vi.fn().mockResolvedValue({ kind: 'ambiguous_time', datetimeRaw: 'sometime soon' }) })} clients={clients} />);
+    await user.type(screen.getByLabelText(/describe the meeting/i), 'meeting with Acme sometime soon');
+    await user.click(screen.getByRole('button', { name: /parse/i }));
+    expect(await screen.findByText(/specific time/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save meeting/i })).toBeNull();
   });
 
   it('removes a meeting', async () => {

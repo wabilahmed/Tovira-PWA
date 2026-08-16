@@ -20,10 +20,10 @@ describe('MeetingsClient', () => {
     expect(await new MeetingsClient().list()).toEqual([]);
   });
 
-  it('parses natural language, returning a preview (200) or null (non-200)', async () => {
-    fetchMock.mockResolvedValueOnce(json(200, { clientId: 'c1', datetime: '2026-08-01T15:00', datetimeRaw: 'Tue 3pm', title: null }));
+  it('returns the discriminated parse result (200) or null (non-200)', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { kind: 'proposal', clientId: 'c1', clientName: 'Acme', datetime: '2026-08-01T15:00', datetimeRaw: 'Tue 3pm' }));
     const parsed = await new MeetingsClient('http://api.test').parse('meeting with Acme Tue 3pm');
-    expect(parsed).toMatchObject({ datetimeRaw: 'Tue 3pm' });
+    expect(parsed).toMatchObject({ kind: 'proposal', datetimeRaw: 'Tue 3pm' });
     expect((fetchMock.mock.calls[0]![1] as RequestInit).method).toBe('POST');
     fetchMock.mockResolvedValueOnce(json(422, {}));
     expect(await new MeetingsClient().parse('gibberish')).toBeNull();

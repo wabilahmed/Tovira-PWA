@@ -10,13 +10,13 @@ export interface Meeting {
   createdAt: number;
 }
 
-export interface ParsedMeeting {
-  clientId: string | null;
-  clientName?: string | null;
-  datetime: string | null;
-  datetimeRaw: string;
-  title: string | null;
-}
+/** The parser's discriminated result (mirrors the server) — the UI branches on
+ *  `kind` so an ambiguous name/time ASKS instead of silently picking (P3-1). */
+export type ParseResult =
+  | { kind: 'proposal'; clientId: string; clientName: string; datetime: string | null; datetimeRaw: string }
+  | { kind: 'ambiguous_time'; datetimeRaw: string }
+  | { kind: 'ambiguous_client'; candidates: Array<{ id: string; name: string }>; datetime: string; datetimeRaw: string }
+  | { kind: 'no_client'; name: string };
 
 export class MeetingsClient {
   constructor(private readonly baseUrl: string = '') {}
@@ -31,8 +31,10 @@ export class MeetingsClient {
     }
   }
 
-  /** Parse "meeting with X Tue 3pm" for a confirm-before-save preview. */
-  async parse(text: string): Promise<ParsedMeeting | null> {
+  /** Parse "meeting with X Tue 3pm" into the parser's discriminated result — the
+   *  UI decides whether to preview, ask which client, or ask for a time. null on
+   *  a transport failure only. */
+  async parse(text: string): Promise<ParseResult | null> {
     try {
       const res = await fetch(`${this.baseUrl}/meetings/parse`, {
         method: 'POST',
@@ -41,7 +43,7 @@ export class MeetingsClient {
         body: JSON.stringify({ text }),
       });
       if (res.status !== 200) return null;
-      return (await res.json()) as ParsedMeeting;
+      return (await res.json()) as ParseResult;
     } catch {
       return null;
     }
