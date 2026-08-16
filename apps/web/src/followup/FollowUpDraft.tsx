@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { whatsappLink } from '../whatsapp/waLink.js';
+import { Locked } from '../billing/Locked.js';
+import { LOCKED, type Locked as LockedResult } from '../billing/gated.js';
 
 export interface FollowUpApi {
-  draftFollowUp(noteId: string): Promise<string | null>;
+  draftFollowUp(noteId: string): Promise<string | LockedResult | null>;
 }
 
 /** Draft an editable follow-up from a note (P4-4) and, with one tap, open
@@ -12,17 +14,22 @@ export function FollowUpDraft({
   noteId,
   api,
   phone,
+  onSubscribe,
   openLink = (url) => window.open(url, '_blank', 'noopener'),
 }: {
   noteId: string;
   api: FollowUpApi;
   phone?: string;
+  /** Navigate to Billing — used by the embedded <Locked> state when the trial
+   *  has lapsed (LOCKED-EMBEDDED). */
+  onSubscribe?: () => void;
   openLink?: (url: string) => void;
 }): JSX.Element {
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   async function makeDraft(): Promise<void> {
     setBusy(true);
@@ -30,6 +37,10 @@ export function FollowUpDraft({
     setCopied(false);
     const text = await api.draftFollowUp(noteId);
     setBusy(false);
+    if (text === LOCKED) {
+      setLocked(true); // trial lapsed → the calm locked state, not an error
+      return;
+    }
     if (text == null) {
       setError('Could not draft a follow-up — try again.');
       return;
@@ -44,6 +55,14 @@ export function FollowUpDraft({
     } catch {
       /* clipboard unavailable — the rep can still select + copy manually */
     }
+  }
+
+  if (locked) {
+    return (
+      <div style={{ marginTop: '0.5rem' }}>
+        <Locked onSubscribe={() => onSubscribe?.()} />
+      </div>
+    );
   }
 
   return (

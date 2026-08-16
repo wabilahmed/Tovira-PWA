@@ -128,6 +128,29 @@ describe('<App> integration', () => {
     expect(screen.queryByText(/confirm your email so we can reach you/i)).not.toBeInTheDocument();
   });
 
+  // [LOCKED-EMBEDDED] the embedded brief surface shows the shared Locked state on
+  // a 402 (not empty/error), and Subscribe reaches Billing (Settings).
+  it('renders <Locked> on the brief surface when the trial has lapsed', async () => {
+    routeFetch([
+      ['/clients/c1/brief', () => json(402, { error: 'payment_required' })],
+      ['/clients/c1/notes', () => json(200, { notes: [] })],
+      ['/clients/c1/stakeholders', () => json(200, { people: [] })],
+      ['/clients/c1/images', () => json(200, { images: [] })],
+      ['book-scan', () => json(200, SCAN)],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION)],
+      ['/clients', () => json(200, { clients: [{ id: 'c1', name: 'Meridian', createdAt: 1 }] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /meridian/i })); // open the client
+    await user.click(await screen.findByRole('button', { name: /pre-meeting brief/i }));
+    expect(await screen.findByText(/your trial has ended/i)).toBeInTheDocument();
+    // Subscribe reaches Billing.
+    await user.click(screen.getByRole('button', { name: /subscribe/i }));
+    expect(await screen.findByRole('heading', { name: /settings/i })).toBeInTheDocument();
+  });
+
   it('navigates to the Promises tracker and renders open promises (API integration)', async () => {
     routeFetch([
       ['/confirmations', () => json(200, { promises: [] })],

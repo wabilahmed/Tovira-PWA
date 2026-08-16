@@ -14,6 +14,7 @@ import { PromisesClient } from './promises/promisesClient.js';
 import { PromisesTracker } from './promises/PromisesTracker.js';
 import { ConfirmChitQueue } from './confirm/ConfirmChitQueue.js';
 import { Locked } from './billing/Locked.js';
+import { LOCKED } from './billing/gated.js';
 import { HeroClient } from './hero/heroClient.js';
 import { HeroInsights } from './hero/HeroInsights.js';
 import { ProactiveClient } from './proactive/proactiveClient.js';
@@ -242,7 +243,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
   // Mobile pushes the client detail full-screen; desktop keeps it beside the
   // list rail (the §8 split view), so the push only happens off desktop.
-  if (open && !isDesktop) return <ClientDetail client={open} onBack={() => setOpen(null)} />;
+  if (open && !isDesktop) return <ClientDetail client={open} onBack={() => setOpen(null)} onSubscribe={() => { setOpen(null); setView('settings'); }} />;
 
   async function addClient(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -396,6 +397,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
           <CardScan
             api={cardsApi}
+            onSubscribe={() => setView('settings')}
             onCreateClient={async (n, phone, extras) => {
               // Persist the scanned title/email directly on the client record
               // (stored verbatim, never guessed) — nothing scanned is discarded.
@@ -434,7 +436,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} onBack={() => setOpen(null)} />
+                <ClientDetail client={open} onBack={() => setOpen(null)} onSubscribe={() => { setOpen(null); setView('settings'); }} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -446,13 +448,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () => void }): JSX.Element {
+function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; onBack: () => void; onSubscribe: () => void }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [paste, setPaste] = useState('');
-  const [brief, setBrief] = useState<Brief | null>(null);
+  const [brief, setBrief] = useState<Brief | typeof LOCKED | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [phone, setPhone] = useState<string | null>(client.phone);
   // Notes the server refused to extract because of the trial seeding ceiling. We
@@ -535,7 +537,11 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       />
 
       <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)}>Pre-meeting brief</button>
-      {brief && <BriefPanel brief={brief} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />}
+      {brief === LOCKED ? (
+        <Locked onSubscribe={onSubscribe} />
+      ) : (
+        brief && <BriefPanel brief={brief} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />
+      )}
 
       <details style={{ margin: '1rem 0' }}>
         <summary style={{ cursor: 'pointer' }}>Stakeholder map</summary>
@@ -591,7 +597,7 @@ function ClientDetail({ client, onBack }: { client: ClientSummary; onBack: () =>
       <NotesTimeline
         notes={notes}
         ceilingNoteIds={ceilingNoteIds}
-        renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} />}
+        renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} onSubscribe={onSubscribe} />}
       />
     </main>
   );

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import type { CardScanResult, ScannedContact } from './cardsClient.js';
+import { Locked } from '../billing/Locked.js';
+import { LOCKED } from '../billing/gated.js';
 
 export interface CardsApi {
-  scan(image: Blob): Promise<CardScanResult | null>;
+  scan(image: Blob): Promise<CardScanResult | typeof LOCKED | null>;
 }
 
 /** Business-card scan (P4-5): snap a card → structured contact → CONFIRM before
@@ -10,15 +12,18 @@ export interface CardsApi {
 export function CardScan({
   api,
   onCreateClient,
+  onSubscribe,
 }: {
   api: CardsApi;
   /** Extras carry the scanned title/email so they aren't discarded — the client
    *  record has no such fields, so the app preserves them elsewhere (a note). */
   onCreateClient: (name: string, phone?: string, extras?: { title: string | null; email: string | null }) => Promise<unknown>;
+  /** Navigate to Billing — used by the embedded <Locked> state (LOCKED-EMBEDDED). */
+  onSubscribe?: () => void;
 }): JSX.Element {
   const [contact, setContact] = useState<ScannedContact | null>(null);
   const [phone, setPhone] = useState('');
-  const [state, setState] = useState<'idle' | 'scanning' | 'not_card' | 'error' | 'ready' | 'saved'>('idle');
+  const [state, setState] = useState<'idle' | 'scanning' | 'not_card' | 'error' | 'ready' | 'saved' | 'locked'>('idle');
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = e.target.files?.[0];
@@ -26,6 +31,7 @@ export function CardScan({
     setState('scanning');
     setContact(null);
     const result = await api.scan(file);
+    if (result === LOCKED) return setState('locked'); // trial lapsed → <Locked>
     if (!result) return setState('error');
     if (!result.isCard || !result.contact) return setState('not_card');
     setContact(result.contact);
@@ -55,6 +61,7 @@ export function CardScan({
       </label>
 
       {state === 'scanning' && <p>Reading the card…</p>}
+      {state === 'locked' && <div style={{ marginTop: '0.75rem' }}><Locked onSubscribe={() => onSubscribe?.()} /></div>}
       {state === 'error' && <p role="alert" style={{ color: 'var(--claret)' }}>Couldn't read that image — try again.</p>}
       {state === 'not_card' && <p role="alert">That doesn't look like a business card.</p>}
       {state === 'saved' && <p style={{ color: 'var(--green)' }}>Contact created.</p>}

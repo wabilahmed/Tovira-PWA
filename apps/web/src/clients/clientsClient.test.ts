@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ClientsClient } from './clientsClient.js';
+import { LOCKED } from '../billing/gated.js';
 
 describe('ClientsClient', () => {
   const fetchMock = vi.fn();
@@ -165,6 +166,13 @@ describe('ClientsClient', () => {
     expect(await new ClientsClient('http://api.test').getBrief('c1')).toBeNull();
   });
 
+  // [LOCKED-EMBEDDED] a 402 is distinct from a genuine miss — it signals the
+  // shared Locked state, so the brief surface never shows empty/error on lapse.
+  it('returns LOCKED on a 402 for the brief', async () => {
+    fetchMock.mockResolvedValueOnce(json(402, { error: 'payment_required' }));
+    expect(await new ClientsClient('http://api.test').getBrief('c1')).toBe(LOCKED);
+  });
+
   it('confirms a promise (POST) and rejects a promise (DELETE)', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { ok: true }));
     await new ClientsClient('http://api.test').confirmPromise('p1');
@@ -197,6 +205,11 @@ describe('ClientsClient', () => {
     expect(await new ClientsClient().draftFollowUp('n1')).toBeNull();
     fetchMock.mockRejectedValueOnce(new Error('offline'));
     expect(await new ClientsClient().draftFollowUp('n1')).toBeNull();
+  });
+
+  it('returns LOCKED on a 402 for the follow-up draft', async () => {
+    fetchMock.mockResolvedValueOnce(json(402, { error: 'payment_required' }));
+    expect(await new ClientsClient('http://api.test').draftFollowUp('n1')).toBe(LOCKED);
   });
 
   // --- stakeholders (P4-2) ---

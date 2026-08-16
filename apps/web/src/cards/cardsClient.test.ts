@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CardsClient } from './cardsClient.js';
+import { LOCKED } from '../billing/gated.js';
 
 const fetchMock = vi.fn();
 beforeEach(() => {
@@ -24,5 +25,10 @@ describe('CardsClient.scan', () => {
     expect(await new CardsClient().scan(new Blob(['x']))).toBeNull();
     fetchMock.mockRejectedValueOnce(new Error('offline'));
     expect(await new CardsClient().scan(new Blob(['x']))).toBeNull();
+  });
+
+  it('returns LOCKED on a 402 (trial lapsed) instead of null', async () => {
+    fetchMock.mockResolvedValueOnce(json(402, { error: 'payment_required' }));
+    expect(await new CardsClient('http://api.test').scan(new Blob(['x']))).toBe(LOCKED);
   });
 });

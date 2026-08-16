@@ -52,15 +52,27 @@ export class Outbox {
     }
   }
 
-  /** Retry every queued recording (call on reconnect / app start). */
+  /** Retry every queued recording (call on reconnect / app start). A store that
+   *  can't be read (e.g. IndexedDB unavailable) must never crash startup. */
   async flush(): Promise<void> {
-    for (const rec of await this.store.list()) {
+    let queued: Awaited<ReturnType<RecordingStore['list']>>;
+    try {
+      queued = await this.store.list();
+    } catch {
+      return;
+    }
+    for (const rec of queued) {
       await this.tryUpload(rec.id);
     }
   }
 
-  /** Recordings still awaiting a confirmed upload (survives reloads). */
+  /** Recordings still awaiting a confirmed upload (survives reloads). An
+   *  unreadable store (e.g. IndexedDB unavailable) reports nothing pending. */
   async pending(): Promise<PendingRecording[]> {
-    return this.store.list();
+    try {
+      return await this.store.list();
+    } catch {
+      return [];
+    }
   }
 }

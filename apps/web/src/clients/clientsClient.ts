@@ -1,3 +1,5 @@
+import { LOCKED, type Locked } from '../billing/gated.js';
+
 export interface ClientSummary {
   id: string;
   name: string;
@@ -187,16 +189,18 @@ export class ClientsClient {
     }
   }
 
-  async getBrief(clientId: string): Promise<Brief | null> {
+  async getBrief(clientId: string): Promise<Brief | Locked | null> {
     const res = await fetch(this.url(`/clients/${clientId}/brief`), { credentials: 'include' });
+    if (res.status === 402) return LOCKED; // trial lapsed → the embedded surface shows <Locked>
     if (res.status !== 200) return null;
     return (await res.json()) as Brief;
   }
 
   /** Draft an editable follow-up message from a note (P4-4). Never sends. */
-  async draftFollowUp(noteId: string): Promise<string | null> {
+  async draftFollowUp(noteId: string): Promise<string | Locked | null> {
     try {
       const res = await fetch(this.url(`/notes/${noteId}/follow-up`), { method: 'POST', credentials: 'include' });
+      if (res.status === 402) return LOCKED;
       if (res.status !== 200) return null;
       return ((await res.json()) as { draft: string }).draft;
     } catch {

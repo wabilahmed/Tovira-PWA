@@ -2,12 +2,26 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FollowUpDraft, type FollowUpApi } from './FollowUpDraft.js';
+import { LOCKED } from '../billing/gated.js';
 
 const makeApi = (draft: string | null): FollowUpApi => ({ draftFollowUp: vi.fn().mockResolvedValue(draft) });
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('<FollowUpDraft>', () => {
+  // [LOCKED-EMBEDDED] a 402 (trial lapsed) shows the shared Locked state, not an
+  // error, and Subscribe reaches Billing. Entitled reps are unaffected (above).
+  it('renders <Locked> on a 402 and Subscribe reaches Billing', async () => {
+    const user = userEvent.setup();
+    const onSubscribe = vi.fn();
+    render(<FollowUpDraft noteId="n1" api={{ draftFollowUp: vi.fn().mockResolvedValue(LOCKED) }} onSubscribe={onSubscribe} />);
+    await user.click(screen.getByRole('button', { name: /draft follow-up/i }));
+    expect(await screen.findByText(/your trial has ended/i)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument(); // not an error
+    await user.click(screen.getByRole('button', { name: /subscribe/i }));
+    expect(onSubscribe).toHaveBeenCalled();
+  });
+
   it('drafts a follow-up and shows it in an editable box', async () => {
     const user = userEvent.setup();
     render(<FollowUpDraft noteId="n1" api={makeApi('Hi Sara, I\'ll send the quote Friday.')} />);
