@@ -12,7 +12,9 @@ export function CardScan({
   onCreateClient,
 }: {
   api: CardsApi;
-  onCreateClient: (name: string, phone?: string) => Promise<unknown>;
+  /** Extras carry the scanned title/email so they aren't discarded — the client
+   *  record has no such fields, so the app preserves them elsewhere (a note). */
+  onCreateClient: (name: string, phone?: string, extras?: { title: string | null; email: string | null }) => Promise<unknown>;
 }): JSX.Element {
   const [contact, setContact] = useState<ScannedContact | null>(null);
   const [phone, setPhone] = useState('');
@@ -34,8 +36,11 @@ export function CardScan({
   async function save(): Promise<void> {
     if (!contact?.name) return;
     const trimmed = phone.trim();
-    // Preserve the single-arg contract when there's no phone (never save a blank).
-    if (trimmed) await onCreateClient(contact.name, trimmed);
+    // Carry the scanned title/email through only when there's something to keep,
+    // so a name-only card stays on the simple (name[, phone]) contract.
+    const extras = contact.title || contact.email ? { title: contact.title ?? null, email: contact.email ?? null } : undefined;
+    if (extras) await onCreateClient(contact.name, trimmed || undefined, extras);
+    else if (trimmed) await onCreateClient(contact.name, trimmed);
     else await onCreateClient(contact.name);
     setState('saved');
     setContact(null);

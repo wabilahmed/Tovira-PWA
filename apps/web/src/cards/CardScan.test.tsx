@@ -52,6 +52,17 @@ describe('<CardScan>', () => {
     await waitFor(() => expect(onCreateClient).toHaveBeenCalledWith('Sara Lee', '+971509999999'));
   });
 
+  // [FLOWS-4] the scanned title + email must NOT be discarded on create — they
+  // flow through so the app can preserve them (as a note extraction files).
+  it('preserves the scanned title and email on create (does not discard them)', async () => {
+    const user = userEvent.setup();
+    const onCreateClient = vi.fn().mockResolvedValue({ id: 'c1', name: 'Sara Lee' });
+    render(<CardScan api={makeApi({ isCard: true, contact: { name: 'Sara Lee', title: 'Ops Lead', phone: '+971 50 111 2222', email: 's@acme.test' } })} onCreateClient={onCreateClient} />);
+    await user.upload(screen.getByLabelText(/business card photo/i), file());
+    await user.click(await screen.findByRole('button', { name: /create client from card/i }));
+    await waitFor(() => expect(onCreateClient).toHaveBeenCalledWith('Sara Lee', '+971 50 111 2222', { title: 'Ops Lead', email: 's@acme.test' }));
+  });
+
   // NEGATIVE: no name detected → cannot create silently.
   it('disables create when no name was detected', async () => {
     const user = userEvent.setup();

@@ -315,9 +315,17 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
           <CardScan
             api={cardsApi}
-            onCreateClient={async (n, phone) => {
+            onCreateClient={async (n, phone, extras) => {
               const created = await clientsApi.create(n, phone);
               setClients((prev) => [created, ...prev]);
+              // The client record has no title/email fields — preserve the scanned
+              // ones as a note so extraction files them (nothing scanned is lost).
+              if (extras && (extras.title || extras.email)) {
+                const lines = ['Business card:'];
+                if (extras.title) lines.push(`Title: ${extras.title}`);
+                if (extras.email) lines.push(`Email: ${extras.email}`);
+                await clientsApi.createPasteNote(created.id, lines.join('\n')).catch(() => undefined);
+              }
               return created;
             }}
           />
