@@ -11,6 +11,10 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         ar: fileURLToPath(new URL('./ar/index.html', import.meta.url)),
+        privacy: fileURLToPath(new URL('./privacy/index.html', import.meta.url)),
+        terms: fileURLToPath(new URL('./terms/index.html', import.meta.url)),
+        arPrivacy: fileURLToPath(new URL('./ar/privacy/index.html', import.meta.url)),
+        arTerms: fileURLToPath(new URL('./ar/terms/index.html', import.meta.url)),
       },
     },
   },
