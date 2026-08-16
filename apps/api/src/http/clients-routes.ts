@@ -23,7 +23,7 @@ export async function handleClientRoute(
 
   try {
     if (method === 'POST' && path === '/clients') {
-      const body = (await readJsonBody(req)) as { name?: unknown; phone?: unknown };
+      const body = (await readJsonBody(req)) as { name?: unknown; phone?: unknown; title?: unknown; email?: unknown };
       const name = typeof body.name === 'string' ? body.name.trim() : '';
       if (!name) {
         sendJson(res, 400, { error: 'validation', message: 'A client name is required.' });
@@ -31,7 +31,9 @@ export async function handleClientRoute(
       }
       // Stored as entered (P4-7) — we never rewrite it or guess a country code.
       const phone = typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null;
-      sendJson(res, 201, await clients.create(userId, name, phone));
+      const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : null;
+      const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null;
+      sendJson(res, 201, await clients.create(userId, name, phone, title, email));
       return true;
     }
 

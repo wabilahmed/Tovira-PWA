@@ -2,6 +2,8 @@ export interface ClientSummary {
   id: string;
   name: string;
   phone: string | null;
+  title?: string | null;
+  email?: string | null;
   createdAt: number;
 }
 
@@ -56,13 +58,16 @@ export class ClientsClient {
     }
   }
 
-  async create(name: string, phone?: string): Promise<ClientSummary> {
+  async create(name: string, phone?: string, extras?: { title?: string | null; email?: string | null }): Promise<ClientSummary> {
+    const body: Record<string, unknown> = { name };
+    if (phone) body.phone = phone;
+    if (extras?.title) body.title = extras.title;
+    if (extras?.email) body.email = extras.email;
     const res = await fetch(this.url('/clients'), {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      // Send phone only when present — keeps the common create body { name }.
-      body: JSON.stringify(phone ? { name, phone } : { name }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };

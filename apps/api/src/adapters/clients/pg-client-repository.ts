@@ -7,6 +7,8 @@ interface ClientRow {
   user_id: string;
   name: string;
   phone: string | null;
+  title: string | null;
+  email: string | null;
   created_at: Date;
   last_touched_at: Date;
 }
@@ -17,12 +19,14 @@ function toRecord(row: ClientRow): ClientRecord {
     userId: row.user_id,
     name: row.name,
     phone: row.phone,
+    title: row.title,
+    email: row.email,
     createdAt: row.created_at.getTime(),
     lastTouchedAt: row.last_touched_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, name, phone, created_at, last_touched_at';
+const COLUMNS = 'id, user_id, name, phone, title, email, created_at, last_touched_at';
 
 /**
  * Postgres-backed client store. Every method runs inside a tenant transaction
@@ -32,11 +36,11 @@ const COLUMNS = 'id, user_id, name, phone, created_at, last_touched_at';
 export class PgClientRepository implements ClientRepository {
   constructor(private readonly pool: Pool) {}
 
-  async create(userId: string, name: string, phone: string | null = null): Promise<ClientRecord> {
+  async create(userId: string, name: string, phone: string | null = null, title: string | null = null, email: string | null = null): Promise<ClientRecord> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO clients (user_id, name, phone) VALUES ($1, $2, $3) RETURNING ${COLUMNS}`,
-        [userId, name, phone],
+        `INSERT INTO clients (user_id, name, phone, title, email) VALUES ($1, $2, $3, $4, $5) RETURNING ${COLUMNS}`,
+        [userId, name, phone, title, email],
       );
       return toRecord(rows[0] as unknown as ClientRow);
     });

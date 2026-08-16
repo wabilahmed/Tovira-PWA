@@ -11,13 +11,16 @@ export interface ClientRecord {
   /** Optional contact phone (P4-7), stored as the rep entered it — we never
    *  rewrite it or guess a country code. Null when unknown. */
   phone: string | null;
+  /** Optional business-card fields (P4-5), stored verbatim; null otherwise. */
+  title: string | null;
+  email: string | null;
   createdAt: number;
   /** Recency signal for fast selection — bumped on create and on activity. */
   lastTouchedAt: number;
 }
 
 export interface ClientRepository {
-  create(userId: string, name: string, phone?: string | null): Promise<ClientRecord>;
+  create(userId: string, name: string, phone?: string | null, title?: string | null, email?: string | null): Promise<ClientRecord>;
   /** Set (or clear) a client's phone. Scoped to the owner; a no-op otherwise. */
   setPhone(userId: string, id: string, phone: string | null): Promise<void>;
   /** Most-recently-touched first. */

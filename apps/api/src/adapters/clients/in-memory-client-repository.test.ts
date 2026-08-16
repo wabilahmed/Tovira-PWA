@@ -13,6 +13,17 @@ describe('InMemoryClientRepository', () => {
     expect(list.map((c) => c.id)).toContain(created.id);
   });
 
+  // [FLOWS-9] a scanned card's title + email persist on the client record.
+  it('stores the optional title and email verbatim (null by default)', async () => {
+    const repo = new InMemoryClientRepository();
+    const withCard = await repo.create('user-A', 'Jane Doe', '+971 50 123 4567', 'CTO', 'jane@acme.ae');
+    expect(withCard.title).toBe('CTO');
+    expect(withCard.email).toBe('jane@acme.ae');
+    const plain = await repo.create('user-A', 'No Card');
+    expect(plain.title).toBeNull();
+    expect(plain.email).toBeNull();
+  });
+
   it('never returns another user\'s clients in a list', async () => {
     const repo = new InMemoryClientRepository();
     await repo.create('user-A', 'A Corp');

@@ -29,6 +29,16 @@ describe('ClientsClient', () => {
     expect((init as RequestInit).credentials).toBe('include');
   });
 
+  // [FLOWS-9] a scanned card's title + email travel with create (never discarded).
+  it('sends the scanned title and email with create', async () => {
+    fetchMock.mockResolvedValueOnce(json(201, { id: '2', name: 'Jane', phone: '+971501234567', title: 'CTO', email: 'jane@x.ae', createdAt: 2 }));
+    const created = await new ClientsClient('http://api.test').create('Jane', '+971501234567', { title: 'CTO', email: 'jane@x.ae' });
+    expect(created.title).toBe('CTO');
+    expect(created.email).toBe('jane@x.ae');
+    const init = fetchMock.mock.calls[0]![1];
+    expect((init as RequestInit).body).toBe(JSON.stringify({ name: 'Jane', phone: '+971501234567', title: 'CTO', email: 'jane@x.ae' }));
+  });
+
   // [P4-7] optional phone travels with create and can be set later.
   it('sends an optional phone with create and returns it', async () => {
     fetchMock.mockResolvedValueOnce(json(201, { id: '2', name: 'Acme', phone: '+971501234567', createdAt: 2 }));
