@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { loadConfig } from './config.js';
+import { loadConfig, assertDeployReady } from './config.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
@@ -56,6 +56,9 @@ const migrationsDir = resolve(here, '..', 'migrations');
 async function main(): Promise<void> {
   // Fail fast on bad config BEFORE opening any connection or port.
   const config = loadConfig();
+  // …and on a half-configured real provider (e.g. EMAIL_SENDER=ses with no
+  // sender), with every offending key named at once (DEPLOY-READY).
+  assertDeployReady(config);
 
   // Migrations run as the superuser/owner (creates the app role + RLS policies).
   const migrationPool = createPool(config.databaseUrl);

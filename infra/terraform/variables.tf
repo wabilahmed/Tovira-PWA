@@ -83,3 +83,34 @@ variable "marketing_acm_certificate_arn" {
   description = "ACM cert ARN in us-east-1 covering the apex + www for the marketing CloudFront. Empty = default cert."
   default     = ""
 }
+
+# --- Transactional email (SES; authored, not applied — see ses.tf) ---
+variable "ses_domain" {
+  description = "Sending domain to verify in SES (e.g. tovira.app). Empty = SES not managed by Terraform (default)."
+  type        = string
+  default     = ""
+}
+
+variable "ses_from_address" {
+  description = "The exact From address the API sends as (must match EMAIL_FROM's address and live under ses_domain)."
+  type        = string
+  default     = "no-reply@tovira.app"
+}
+
+variable "ses_mail_from_subdomain" {
+  description = "Subdomain used for the custom MAIL FROM (bounces/complaints), e.g. `mail` → mail.<ses_domain>."
+  type        = string
+  default     = "mail"
+}
+
+variable "ses_route53_zone_id" {
+  description = "Route 53 hosted-zone id for ses_domain. Empty = emit records as outputs for humans to add (default)."
+  type        = string
+  default     = ""
+}
+
+variable "ses_use_dedicated_ip" {
+  description = "Keep false early — a dedicated SES IP carries a fixed monthly cost (guarded in ses.tf)."
+  type        = bool
+  default     = false
+}

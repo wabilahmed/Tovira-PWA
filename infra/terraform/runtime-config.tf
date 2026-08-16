@@ -25,12 +25,19 @@ resource "aws_secretsmanager_secret_version" "app" {
     APP_DATABASE_URL = local.app_database_url
     APP_DB_PASSWORD  = random_password.app_db.result
     # Fill these after apply (or via CI). STRIPE stays TEST MODE until go-live.
-    GROQ_API_KEY          = "REPLACE_ME"
-    STRIPE_SECRET_KEY     = "sk_test_REPLACE_ME"
-    STRIPE_WEBHOOK_SECRET = "whsec_REPLACE_ME"
-    STRIPE_PRICE_ID       = "price_REPLACE_ME"
-    VAPID_PUBLIC_KEY      = "REPLACE_ME"
-    VAPID_PRIVATE_KEY     = "REPLACE_ME"
+    GROQ_API_KEY           = "REPLACE_ME"
+    STRIPE_SECRET_KEY      = "sk_test_REPLACE_ME"
+    STRIPE_WEBHOOK_SECRET  = "whsec_REPLACE_ME"
+    STRIPE_PRICE_ID        = "price_REPLACE_ME"
+    STRIPE_ANNUAL_PRICE_ID = "price_REPLACE_ME_annual"
+    VAPID_PUBLIC_KEY       = "REPLACE_ME"
+    VAPID_PRIVATE_KEY      = "REPLACE_ME"
+    # Transactional email (SES). Leave EMAIL_SENDER=stub until the SES domain in
+    # ses.tf is verified; then set ses + a verified sender and the public app URL.
+    EMAIL_SENDER = "stub"
+    EMAIL_FROM   = "Tovira <no-reply@tovira.app>"
+    SES_REGION   = var.region
+    APP_BASE_URL = "https://REPLACE_ME"
   })
 
   lifecycle {

@@ -169,6 +169,59 @@ export function loadConfig(env: Env = process.env): AppConfig {
 }
 
 /**
+ * Deploy-readiness audit (DEPLOY-READY). Fails FAST with a single, named list of
+ * every key that is missing or still a local placeholder — but ONLY for the
+ * providers actually turned on. Local dev (all-stub) stays zero-config; the
+ * moment a real provider is selected, its keys become mandatory.
+ *
+ * Call this at boot AFTER {@link loadConfig}. It is intentionally separate so the
+ * unit tests (which run against stub providers) don't have to satisfy prod keys.
+ */
+export function assertDeployReady(config: AppConfig, env: Env = process.env): void {
+  const missing: string[] = [];
+  const need = (cond: boolean, keyAndWhy: string): void => {
+    if (cond) missing.push(keyAndWhy);
+  };
+  const looksLocal = (url: string): boolean => /localhost|127\.0\.0\.1/.test(url);
+
+  // --- AI (extraction/recall/brief/…): a real model provider needs a key ---
+  need(config.modelProvider === 'anthropic' && !config.anthropicApiKey, 'ANTHROPIC_API_KEY (MODEL_PROVIDER=anthropic)');
+  // Every task class must resolve to a non-empty model id.
+  for (const cls of AI_TASK_CLASSES) {
+    need(isBlank(config.models[cls]), `MODEL_${cls.toUpperCase()} (model id must not be blank)`);
+  }
+
+  // --- Speech-to-text ---
+  need(config.transcriberProvider === 'groq' && !config.groqApiKey, 'GROQ_API_KEY (TRANSCRIBER=groq)');
+
+  // --- Web push ---
+  if (config.pushProvider === 'webpush') {
+    need(isBlank(config.vapidPublicKey), 'VAPID_PUBLIC_KEY (PUSH_SENDER=webpush)');
+    need(isBlank(config.vapidPrivateKey), 'VAPID_PRIVATE_KEY (PUSH_SENDER=webpush)');
+  }
+
+  // --- Transactional email (SES) ---
+  if (config.emailProvider === 'ses') {
+    need(isBlank(env.SES_REGION), 'SES_REGION (EMAIL_SENDER=ses)');
+    need(isBlank(config.emailFrom) || /\.local\b/.test(config.emailFrom), 'EMAIL_FROM (a verified SES sender, not a *.local placeholder)');
+    need(looksLocal(config.appBaseUrl), 'APP_BASE_URL (a public URL — it becomes the link inside every email)');
+  }
+
+  // --- Billing: once a real secret key is present, the rest must be real too ---
+  if (config.stripeSecretKey) {
+    need(isBlank(config.stripeWebhookSecret) || config.stripeWebhookSecret === 'whsec_test', 'STRIPE_WEBHOOK_SECRET (still the test placeholder)');
+    need(isBlank(config.stripePriceId) || config.stripePriceId === 'price_test', 'STRIPE_PRICE_ID (still the test placeholder)');
+    need(isBlank(config.stripeAnnualPriceId) || config.stripeAnnualPriceId === 'price_test_annual', 'STRIPE_ANNUAL_PRICE_ID (still the test placeholder)');
+  }
+
+  if (missing.length > 0) {
+    throw new ConfigError(
+      `Configuration is not deploy-ready. Fix these before starting with real providers:\n  - ${missing.join('\n  - ')}`,
+    );
+  }
+}
+
+/**
  * Resolve the per-class model map. Extraction inherits ANTHROPIC_MODEL (Sonnet by
  * default — the P1-9 gate lock); every other class inherits HAIKU_MODEL (Haiku
  * 4.5 by default). A `MODEL_<CLASS>` var (e.g. MODEL_RECALL, MODEL_CARD_SCAN)
