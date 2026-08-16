@@ -10,6 +10,7 @@ interface NoteRow {
   raw_text: string | null;
   audio_key: string | null;
   status: string;
+  sweep_attempts: number;
   extracted: unknown | null;
   messages: ImportedMessage[] | null;
   created_at: Date;
@@ -24,13 +25,14 @@ function toRecord(row: NoteRow): NoteRecord {
     rawText: row.raw_text,
     audioKey: row.audio_key,
     status: row.status,
+    sweepAttempts: row.sweep_attempts,
     extracted: row.extracted,
     messages: row.messages,
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, extracted, messages, created_at';
+const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, created_at';
 
 /** Postgres-backed note store; every method runs in a tenant tx (RLS enforced). */
 export class PgNoteRepository implements NoteRepository {
@@ -134,6 +136,10 @@ export class PgNoteRepository implements NoteRepository {
       if (patch.status !== undefined) {
         params.push(patch.status);
         sets.push(`status = $${params.length}`);
+      }
+      if (patch.sweepAttempts !== undefined) {
+        params.push(patch.sweepAttempts);
+        sets.push(`sweep_attempts = $${params.length}`);
       }
       if (patch.extracted !== undefined) {
         params.push(JSON.stringify(patch.extracted));

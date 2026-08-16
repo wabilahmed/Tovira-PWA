@@ -67,7 +67,7 @@ describe('hybrid routing — training-log isolation', () => {
     const match: SimilarNote = {
       note: {
         id: 'n1', userId: 'u1', clientId: 'c1', source: 'paste',
-        rawText: 'Ahmed said the pricing is too high.', audioKey: null, status: 'extracted',
+        rawText: 'Ahmed said the pricing is too high.', audioKey: null, status: 'extracted', sweepAttempts: 0,
         extracted: null, messages: null, createdAt: Date.parse('2026-01-16T10:00:00Z'),
       },
       similarity: 0.9,

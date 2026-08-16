@@ -29,6 +29,7 @@ export class InMemoryNoteRepository implements NoteRepository {
       rawText: note.rawText,
       audioKey: note.audioKey,
       status: note.status,
+      sweepAttempts: 0,
       extracted: null,
       messages: note.messages ?? null,
       createdAt: Date.now() + this.seq++,
@@ -59,6 +60,7 @@ export class InMemoryNoteRepository implements NoteRepository {
     if (!note || note.userId !== userId) return;
     if (patch.rawText !== undefined) note.rawText = patch.rawText;
     if (patch.status !== undefined) note.status = patch.status;
+    if (patch.sweepAttempts !== undefined) note.sweepAttempts = patch.sweepAttempts;
     if (patch.extracted !== undefined) note.extracted = patch.extracted;
     if (patch.messages !== undefined) note.messages = patch.messages;
     if (patch.embedding !== undefined) {

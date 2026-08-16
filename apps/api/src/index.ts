@@ -9,6 +9,7 @@ import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { PrioritiesService } from './services/hero/priorities-service.js';
 import { LocalScheduler } from './adapters/scheduler/local.js';
+import { NoteSweepService } from './services/notes/note-sweep-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
 import { ReferralService } from './services/referral/referral-service.js';
 import { InMemoryReferralRepository } from './adapters/referral/in-memory-referral-repository.js';
@@ -108,6 +109,20 @@ async function main(): Promise<void> {
   scheduler.register({
     name: 'priorities-nightly',
     run: async () => { await priorities.precomputeAll(await auth.allUserIds(), Date.now()); },
+  });
+  // Note sweep (FLOWS-7): advance any rep's stuck pending notes on a schedule so a
+  // voice note never stalls; bounded retries → terminal needs_review, never lost.
+  const noteSweep = new NoteSweepService({
+    allUserIds: () => auth.allUserIds(),
+    listPending: (u) => notes.listPendingByUser(u).then((rows) => rows.map((n) => ({ id: n.id, status: n.status, sweepAttempts: n.sweepAttempts }))),
+    transcribe: (u, id) => transcription.transcribeNote(u, id).then(() => undefined),
+    extract: (u, id, today) => extraction.extractNote(u, id, today).then(() => undefined),
+    setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
+    markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
+  });
+  scheduler.register({
+    name: 'notes-sweep',
+    run: async () => { await noteSweep.sweep(new Date().toISOString().slice(0, 10)); },
   });
   const account = createAccountService(auth, clients, notes, facts, meetings, images);
   const activation = createActivationService(config, appPool);

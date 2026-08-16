@@ -23,6 +23,8 @@ export interface NoteRecord {
   rawText: string | null;
   audioKey: string | null;
   status: string;
+  /** Server-sweep retry count (FLOWS-7); terminal needs_review after N. */
+  sweepAttempts: number;
   extracted: unknown | null;
   messages: ImportedMessage[] | null;
   createdAt: number;
@@ -38,6 +40,7 @@ export interface NewNote {
 }
 
 export interface NotePatch {
+  sweepAttempts?: number;
   rawText?: string | null;
   status?: string;
   extracted?: unknown | null;

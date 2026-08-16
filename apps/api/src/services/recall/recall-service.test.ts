@@ -8,7 +8,7 @@ const embedder: Embedder = { dimension: 8, embed: async () => [1, 0, 0, 0, 0, 0,
 const model = (text: string): ModelClient => ({ complete: async () => ({ text }) });
 
 function note(id: string, rawText: string): NoteRecord {
-  return { id, userId: 'u1', clientId: 'c1', source: 'paste', rawText, audioKey: null, status: 'extracted', extracted: null, messages: null, createdAt: Date.parse('2026-01-16T10:00:00Z') };
+  return { id, userId: 'u1', clientId: 'c1', source: 'paste', rawText, audioKey: null, status: 'extracted', sweepAttempts: 0, extracted: null, messages: null, createdAt: Date.parse('2026-01-16T10:00:00Z') };
 }
 
 function notesRepo(matches: SimilarNote[]): NoteRepository {
