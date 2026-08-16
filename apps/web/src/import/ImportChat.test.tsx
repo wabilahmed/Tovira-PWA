@@ -65,6 +65,13 @@ describe('<ImportChat>', () => {
     await waitFor(() => expect(onImported).toHaveBeenCalledWith(8));
   });
 
+  // A shared chat (Android share-target) arrives as initialContent — the paste
+  // box is prefilled so the rep only ticks consent and imports.
+  it('prefills the paste box from initialContent (a shared chat)', () => {
+    render(<ImportChat clientId="c1" api={makeApi({ ok: true, imported: 1 })} onImported={vi.fn()} initialContent={'12/03/2026, 14:02 - Sara: hi'} />);
+    expect(screen.getByLabelText(/pasted chat export/i)).toHaveValue('12/03/2026, 14:02 - Sara: hi');
+  });
+
   // A duplicate re-import is a SUCCESS with nothing new — a calm status notice,
   // never the claret "Import failed." that would scare a rep off re-exporting.
   it('shows a calm "up to date" notice on a duplicate re-import, not an error', async () => {

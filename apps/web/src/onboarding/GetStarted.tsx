@@ -15,6 +15,7 @@ export function GetStarted({
   importApi,
   onSeeded,
   onFallback,
+  sharedContent = '',
 }: {
   seeding: SeedingStatus;
   clients: ClientSummary[];
@@ -22,8 +23,11 @@ export function GetStarted({
   importApi: ImportApi;
   onSeeded: () => void;
   onFallback: (kind: string) => void;
+  /** A chat shared into the app (Android share-target) to prefill the import. */
+  sharedContent?: string;
 }): JSX.Element {
-  const [step, setStep] = useState<'guide' | 'import'>('guide');
+  // A shared chat jumps straight past the guide to the import step, prefilled.
+  const [step, setStep] = useState<'guide' | 'import'>(sharedContent ? 'import' : 'guide');
   const [target, setTarget] = useState<ClientSummary | null>(clients[0] ?? null);
   const [newName, setNewName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -69,7 +73,7 @@ export function GetStarted({
   return (
     <section aria-label="Import for client">
       <h2>Import {target.name}'s chat</h2>
-      <ImportChat clientId={target.id} api={importApi} onImported={onSeeded} />
+      <ImportChat clientId={target.id} api={importApi} onImported={onSeeded} initialContent={sharedContent} />
     </section>
   );
 }

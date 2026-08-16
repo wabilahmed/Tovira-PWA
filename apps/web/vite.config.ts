@@ -12,11 +12,16 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // injectManifest: a custom worker (src/pwa/sw.ts) so we can handle the
+      // Android share-target POST the manifest advertises — a generated worker
+      // has no hook for it. It still precaches + SPA-falls-back + auto-updates.
+      strategies: 'injectManifest',
+      srcDir: 'src/pwa',
       // Auto-update: the new SW skips waiting + claims clients; our registration
       // reloads once on controllerchange so returning users get the fresh build.
       registerType: 'autoUpdate',
       injectRegister: null, // we register manually (registerServiceWorker.ts)
-      filename: 'sw.js',
+      filename: 'sw.ts',
       // Clone to a mutable shape (the source is `as const` for literal types).
       manifest: {
         ...manifest,
@@ -29,10 +34,8 @@ export default defineConfig({
           },
         },
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
-        navigateFallback: '/index.html',
-        cleanupOutdatedCaches: true,
       },
       devOptions: { enabled: false },
     }),

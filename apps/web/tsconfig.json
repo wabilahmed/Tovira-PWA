@@ -5,5 +5,7 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  "//": "sw.ts is a WebWorker module built by vite-plugin-pwa (injectManifest); its webworker lib conflicts with the app's DOM lib under a single tsc program, so it is typechecked by the plugin's build, not here.",
+  "exclude": ["src/pwa/sw.ts"]
 }

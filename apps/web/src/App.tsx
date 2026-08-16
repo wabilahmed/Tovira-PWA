@@ -6,6 +6,7 @@ import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
 import { BookScan } from './bookscan/BookScan.js';
 import { ImportChat } from './import/ImportChat.js';
+import { consumeSharedChat, idbSharedChatStore } from './pwa/sharedChat.js';
 import { PromisesClient } from './promises/promisesClient.js';
 import { PromisesTracker } from './promises/PromisesTracker.js';
 import { ConfirmChitQueue } from './confirm/ConfirmChitQueue.js';
@@ -154,10 +155,20 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [open, setOpen] = useState<ClientSummary | null>(null);
   const [view, setView] = useState<View>('clients');
   const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
+  const [sharedContent, setSharedContent] = useState('');
   const isDesktop = useIsDesktop();
 
   const loadSeeding = (): void => void onboardingApi.status().then(setSeeding);
   useEffect(loadSeeding, []);
+
+  // A chat shared into the app via the Android share-target lands in IndexedDB
+  // (stashed by the service worker); pick it up once and open seeding prefilled.
+  useEffect(() => {
+    void consumeSharedChat(idbSharedChatStore, (chat) => {
+      setSharedContent(chat.text);
+      setView('getstarted');
+    });
+  }, []);
 
   // Reload (with the current search) whenever the query changes — recents first.
   useEffect(() => {
@@ -208,8 +219,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             return created;
           }}
           importApi={clientsApi}
+          sharedContent={sharedContent}
           onSeeded={() => {
             loadSeeding();
+            setSharedContent('');
             setView('bookscan');
           }}
           onFallback={() => setView('clients')}

@@ -15,12 +15,15 @@ export function ImportChat({
   clientId,
   api,
   onImported,
+  initialContent = '',
 }: {
   clientId: string;
   api: ImportApi;
   onImported: (count: number) => void;
+  /** Prefill (e.g. a chat shared into the app via the Android share-target). */
+  initialContent?: string;
 }): JSX.Element {
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState(initialContent);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
