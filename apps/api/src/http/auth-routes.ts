@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { AuthError, AuthService } from '../services/auth/auth-service.js';
+import { AuthError, AuthService, CONSENT_POLICY_VERSION } from '../services/auth/auth-service.js';
 import {
   BadJsonError,
   clearedSessionCookie,
@@ -52,7 +52,10 @@ export async function handleAuthRoute(
         return true;
       }
       const { email, password } = readCredentials(body);
-      const result = await auth.signup(email, password);
+      // The web sends consent:true (an explicit tick). Record which policy
+      // version they agreed to; absent consent (non-web clients) is unchanged.
+      const consentVersion = body.consent === true ? CONSENT_POLICY_VERSION : undefined;
+      const result = await auth.signup(email, password, consentVersion);
       await opts.onSignup?.(result.user.id, result.user.email);
       const ref = typeof body.ref === 'string' ? body.ref.trim() : '';
       if (ref) await opts.onReferral?.(ref, result.user.id, result.user.email);

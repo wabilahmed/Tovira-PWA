@@ -68,6 +68,8 @@ export interface AuthServiceDeps {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Password-reset tokens live for one hour. */
 export const RESET_TTL_MS = 60 * 60 * 1000;
+/** The current Terms/Privacy version a signup agrees to (P5-4). Bump on change. */
+export const CONSENT_POLICY_VERSION = '2026-08-01';
 const hashToken = (raw: string): string => createHash('sha256').update(raw).digest('hex');
 
 export class AuthService {
@@ -79,7 +81,12 @@ export class AuthService {
     this.now = deps.now ?? (() => Date.now());
   }
 
-  async signup(emailRaw: string, password: string): Promise<AuthResult> {
+  /**
+   * Create an account. When the caller supplies a `consentVersion` (the web
+   * always does — see the route), it is stored WITH a timestamp against the
+   * user (P5-4), so consent is auditable ("agreed to <version> at <time>").
+   */
+  async signup(emailRaw: string, password: string, consentVersion?: string): Promise<AuthResult> {
     const email = normalizeEmail(emailRaw);
     if (!EMAIL_RE.test(email)) throw new AuthValidationError('A valid email is required.');
     if (!password || password.length < 8) {
@@ -90,7 +97,12 @@ export class AuthService {
     const passwordHash = await this.deps.hasher.hash(password);
     // An opaque, urlsafe referral code — the share link carries this, not the id.
     const referralCode = randomBytes(6).toString('base64url');
-    const user = await this.deps.users.create({ email, passwordHash, referralCode });
+    const user = await this.deps.users.create({
+      email,
+      passwordHash,
+      referralCode,
+      ...(consentVersion ? { consentAt: this.now(), consentVersion } : {}),
+    });
     return this.issue(user);
   }
 

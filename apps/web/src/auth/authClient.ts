@@ -14,8 +14,8 @@ export class AuthClient {
     return `${this.baseUrl}${path}`;
   }
 
-  async signup(email: string, password: string, ref?: string): Promise<Session> {
-    return this.authPost('/auth/signup', email, password, ref);
+  async signup(email: string, password: string, ref?: string, consent?: boolean): Promise<Session> {
+    return this.authPost('/auth/signup', email, password, ref, consent);
   }
 
   async login(email: string, password: string): Promise<Session> {
@@ -70,12 +70,15 @@ export class AuthClient {
     }
   }
 
-  private async authPost(path: string, email: string, password: string, ref?: string): Promise<Session> {
+  private async authPost(path: string, email: string, password: string, ref?: string, consent?: boolean): Promise<Session> {
+    const body: Record<string, unknown> = { email, password };
+    if (ref) body.ref = ref;
+    if (consent !== undefined) body.consent = consent;
     const res = await fetch(this.url(path), {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(ref ? { email, password, ref } : { email, password }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };

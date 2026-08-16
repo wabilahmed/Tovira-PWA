@@ -71,6 +71,9 @@ describe('<App> integration', () => {
     expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
     await user.type(screen.getByLabelText(/email/i), 'new@example.com');
     await user.type(screen.getByLabelText(/password/i), 'password123');
+    // [P5-4] consent is required — the button is disabled until the terms are accepted.
+    expect(screen.getByRole('button', { name: /create account/i })).toBeDisabled();
+    await user.click(screen.getByLabelText(/accept terms/i));
     await user.click(screen.getByRole('button', { name: /create account/i }));
     expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
     expect(signupCalled).toBe(true);
@@ -87,6 +90,7 @@ describe('<App> integration', () => {
     await user.click(await screen.findByRole('button', { name: /need an account\? sign up/i }));
     await user.type(screen.getByLabelText(/email/i), 'dup@example.com');
     await user.type(screen.getByLabelText(/password/i), 'password123');
+    await user.click(screen.getByLabelText(/accept terms/i));
     await user.click(screen.getByRole('button', { name: /create account/i }));
     expect(await screen.findByText(/already registered/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument(); // still on the form

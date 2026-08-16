@@ -9,6 +9,9 @@ export interface UserRecord {
   passwordHash: string;
   /** Opaque per-user code for the share/referral link — never the raw user id. */
   referralCode: string;
+  /** When the rep accepted the terms + which policy version (P5-4), or null. */
+  consentAt: number | null;
+  consentVersion: string | null;
   createdAt: number;
 }
 
@@ -16,6 +19,8 @@ export interface CreateUserInput {
   email: string;
   passwordHash: string;
   referralCode: string;
+  consentAt?: number | null;
+  consentVersion?: string | null;
 }
 
 export interface UserRepository {

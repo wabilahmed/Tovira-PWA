@@ -27,6 +27,8 @@ export class InMemoryUserRepository implements UserRepository {
       email: input.email,
       passwordHash: input.passwordHash,
       referralCode: input.referralCode,
+      consentAt: input.consentAt ?? null,
+      consentVersion: input.consentVersion ?? null,
       createdAt: Date.now(),
     };
     this.byId.set(record.id, record);

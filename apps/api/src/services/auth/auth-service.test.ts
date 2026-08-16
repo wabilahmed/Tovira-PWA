@@ -99,6 +99,25 @@ describe('AuthService', () => {
   });
 });
 
+describe('AuthService — signup consent (P5-4)', () => {
+  it('records consent WITH a timestamp and policy version when supplied', async () => {
+    const clock = 1_700_000_000_000;
+    const { service, users } = makeService({ now: () => clock });
+    await service.signup('rep@example.com', 'password123', '2026-08-01');
+    const user = await users.findByEmail('rep@example.com');
+    expect(user!.consentVersion).toBe('2026-08-01');
+    expect(user!.consentAt).toBe(clock);
+  });
+
+  it('leaves consent null when none is supplied (non-web clients)', async () => {
+    const { service, users } = makeService();
+    await service.signup('rep@example.com', 'password123');
+    const user = await users.findByEmail('rep@example.com');
+    expect(user!.consentAt).toBeNull();
+    expect(user!.consentVersion).toBeNull();
+  });
+});
+
 describe('AuthService — password reset (TASK EMAIL)', () => {
   it('issues a reset token for a known email, and null for an unknown one (no enumeration)', async () => {
     const { service } = makeService();

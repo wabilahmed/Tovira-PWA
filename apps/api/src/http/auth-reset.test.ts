@@ -58,6 +58,11 @@ describe('[TASK EMAIL] password reset over HTTP', () => {
     expect((await post('/auth/reset-password', { token, password: 'another123' })).status).toBe(400);
   });
 
+  it('signup accepts consent:true and still rejects a forged consent:false (P5-4)', async () => {
+    expect((await post('/auth/signup', { email: 'consent@example.com', password: 'password123', consent: true })).status).toBe(201);
+    expect((await post('/auth/signup', { email: 'refuse@example.com', password: 'password123', consent: false })).status).toBe(400);
+  });
+
   it('rejects a garbage token (400) and a weak password (400)', async () => {
     await signup('weak@example.com');
     email.clear();

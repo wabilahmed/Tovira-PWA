@@ -559,16 +559,18 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
+    if (mode === 'signup' && !consent) return; // must accept the terms to sign up
     setBusy(true);
     setError(null);
     try {
       const ref = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') ?? undefined : undefined;
-      const session = mode === 'login' ? await auth.login(email, password) : await auth.signup(email, password, ref);
+      const session = mode === 'login' ? await auth.login(email, password) : await auth.signup(email, password, ref, true);
       onAuthed(session);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
@@ -607,8 +609,18 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </label>
+        {mode === 'signup' && (
+          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} aria-label="Accept terms" />
+            <span>
+              I agree to the{' '}
+              <a href="https://tovira.com/terms" target="_blank" rel="noreferrer">Terms</a> and{' '}
+              <a href="https://tovira.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.
+            </span>
+          </label>
+        )}
         {error && <p style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy || (mode === 'signup' && !consent)}>
           {mode === 'login' ? 'Log in' : 'Create account'}
         </button>
         <button type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} style={{ background: 'none', border: 'none', color: 'var(--brass)', cursor: 'pointer' }}>
