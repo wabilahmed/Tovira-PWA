@@ -65,6 +65,23 @@ describe('<ImportChat>', () => {
     await waitFor(() => expect(onImported).toHaveBeenCalledWith(8));
   });
 
+  // A duplicate re-import is a SUCCESS with nothing new — a calm status notice,
+  // never the claret "Import failed." that would scare a rep off re-exporting.
+  it('shows a calm "up to date" notice on a duplicate re-import, not an error', async () => {
+    const user = userEvent.setup();
+    const api = makeApi({ ok: true, imported: 0, duplicate: true });
+    const onImported = vi.fn();
+    render(<ImportChat clientId="c1" api={api} onImported={onImported} />);
+
+    await user.type(screen.getByLabelText(/pasted chat export/i), 'same chat again');
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /import chat/i }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/up to date|nothing new/i);
+    expect(screen.queryByRole('alert')).toBeNull(); // NOT an error
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith(0));
+  });
+
   // NEGATIVE: a rejected import surfaces the error and does NOT call onImported.
   it('shows the server error and does not report success on failure', async () => {
     const user = userEvent.setup();

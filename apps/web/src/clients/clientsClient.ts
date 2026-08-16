@@ -33,7 +33,7 @@ export interface Stakeholder {
 }
 
 export type ImportResult =
-  | { ok: true; imported: number; ceilingReached?: boolean }
+  | { ok: true; imported: number; ceilingReached?: boolean; duplicate?: boolean }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
 
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
@@ -121,11 +121,16 @@ export class ClientsClient {
     } catch {
       return { ok: false, error: 'other', message: 'Network error — please try again.' };
     }
-    if (res.status === 201) {
-      const body = (await res.json()) as { imported: number; ceilingReached?: boolean };
+    // 201 = new content stored; 200 = idempotent no-op (a fully-overlapping
+    // re-import). BOTH are successes — the refresh loop must never read a correct
+    // dedupe as a failure.
+    if (res.status === 201 || res.status === 200) {
+      const body = (await res.json().catch(() => ({}))) as { imported?: number; ceilingReached?: boolean; duplicate?: boolean };
+      const imported = body.imported ?? 0;
+      if (body.duplicate) return { ok: true, imported, duplicate: true };
       // Only attach the flag when the ceiling was actually hit — keeps the common
       // success shape { ok, imported } clean.
-      return body.ceilingReached ? { ok: true, imported: body.imported, ceilingReached: true } : { ok: true, imported: body.imported };
+      return body.ceilingReached ? { ok: true, imported, ceilingReached: true } : { ok: true, imported };
     }
     if (res.status === 400) return { ok: false, error: 'consent', message: 'Please confirm consent to import.' };
     if (res.status === 413) return { ok: false, error: 'too_large', message: 'That export is too large to import.' };

@@ -25,6 +25,7 @@ export function ImportChat({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ceilingCount, setCeilingCount] = useState<number | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const canSubmit = content.trim().length > 0 && consent && !busy;
 
@@ -42,15 +43,19 @@ export function ImportChat({
     setBusy(true);
     setError(null);
     setCeilingCount(null);
+    setNotice(null);
     const result = await api.importWhatsApp(clientId, content, consent);
     setBusy(false);
     if (result.ok) {
       setContent('');
       setConsent(false);
+      // A fully-overlapping re-import is a correct no-op, not a failure — say so
+      // calmly so the rep keeps re-exporting (that's what keeps the bank fed).
+      if (result.duplicate) setNotice("You're already up to date — nothing new in that export.");
       // The import succeeded and the chat is saved. If the trial ceiling stopped
       // the scan, show the reassuring notice here too (the timeline shows it per
       // note). Either way the timeline refreshes via onImported.
-      if (result.ceilingReached) setCeilingCount(result.imported);
+      else if (result.ceilingReached) setCeilingCount(result.imported);
       onImported(result.imported);
     } else {
       setError(result.message);
@@ -90,6 +95,7 @@ export function ImportChat({
       </label>
 
       {error && <p role="alert" style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
+      {notice && <p role="status" style={{ color: 'var(--text-secondary)', margin: 0 }}>{notice}</p>}
       {ceilingCount !== null && <CeilingNotice imported={ceilingCount} />}
 
       <button type="submit" disabled={!canSubmit}>

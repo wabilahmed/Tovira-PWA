@@ -108,6 +108,14 @@ describe('ClientsClient', () => {
     expect(r).toEqual({ ok: true, imported: 4, ceilingReached: true });
   });
 
+  // A fully-overlapping re-import is an idempotent SUCCESS (200 {duplicate:true}),
+  // NOT a failure — the refresh loop must never read a correct no-op as broken.
+  it('treats a 200 duplicate re-import as success (nothing new), not "Import failed."', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { note: null, imported: 0, duplicate: true }));
+    const r = await new ClientsClient('http://api.test').importWhatsApp('c1', 'chat', true);
+    expect(r).toEqual({ ok: true, imported: 0, duplicate: true });
+  });
+
   it('extractNote returns the server-reported status (e.g. trial_limit)', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { note: {}, status: 'trial_limit' }));
     const r = await new ClientsClient('http://api.test').extractNote('n1');
