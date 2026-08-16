@@ -67,6 +67,8 @@ export function Billing({
         <p data-testid="trial-status">Free trial — <span className="tov-mono">{daysLeft}</span> day{daysLeft === 1 ? '' : 's'} left.</p>
       ) : status === 'past_due' ? (
         <p data-testid="past-due" style={{ color: 'var(--amber)' }}>Your last payment failed. Update billing to keep access.</p>
+      ) : status === 'canceled' ? (
+        <p data-testid="canceled">Your subscription is canceled. Your book is preserved — resubscribe to reopen it.</p>
       ) : (
         <p data-testid="expired">Your trial has ended. Subscribe to keep your memory bank.</p>
       )}

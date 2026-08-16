@@ -54,7 +54,7 @@ export function ImportChat({
       setConsent(false);
       // A fully-overlapping re-import is a correct no-op, not a failure — say so
       // calmly so the rep keeps re-exporting (that's what keeps the bank fed).
-      if (result.duplicate) setNotice("You're already up to date — nothing new in that export.");
+      if (result.duplicate) setNotice("Already up to date — no new messages in that export.");
       // The import succeeded and the chat is saved. If the trial ceiling stopped
       // the scan, show the reassuring notice here too (the timeline shows it per
       // note). Either way the timeline refreshes via onImported.

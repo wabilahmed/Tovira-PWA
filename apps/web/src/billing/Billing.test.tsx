@@ -47,6 +47,13 @@ describe('<Billing>', () => {
     expect(screen.queryByTestId('renews-at')).toBeNull();
   });
 
+  // [FLOWS/HOUSEKEEPING] canceled gets its OWN copy, distinct from "trial ended".
+  it('shows a distinct canceled state, not the trial-ended copy', async () => {
+    render(<Billing api={makeApi({ entitled: false, status: 'canceled', trialEndsAt: 0 })} now={NOW} />);
+    expect(await screen.findByTestId('canceled')).toHaveTextContent(/subscription is canceled.*resubscribe/i);
+    expect(screen.queryByTestId('expired')).toBeNull();
+  });
+
   it('shows an expired state when the trial has ended', async () => {
     render(<Billing api={makeApi({ entitled: false, status: 'none', trialEndsAt: NOW - DAY })} now={NOW} />);
     expect(await screen.findByTestId('expired')).toBeInTheDocument();
