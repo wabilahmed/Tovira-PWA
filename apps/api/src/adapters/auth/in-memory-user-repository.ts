@@ -5,6 +5,7 @@ import type { CreateUserInput, UserRecord, UserRepository } from '../../ports/us
 export class InMemoryUserRepository implements UserRepository {
   private readonly byId = new Map<string, UserRecord>();
   private readonly byEmail = new Map<string, string>();
+  private readonly byCode = new Map<string, string>();
 
   async findByEmail(email: string): Promise<UserRecord | null> {
     const id = this.byEmail.get(email);
@@ -15,15 +16,22 @@ export class InMemoryUserRepository implements UserRepository {
     return this.byId.get(id) ?? null;
   }
 
+  async findByReferralCode(code: string): Promise<UserRecord | null> {
+    const id = this.byCode.get(code);
+    return id ? (this.byId.get(id) ?? null) : null;
+  }
+
   async create(input: CreateUserInput): Promise<UserRecord> {
     const record: UserRecord = {
       id: randomUUID(),
       email: input.email,
       passwordHash: input.passwordHash,
+      referralCode: input.referralCode,
       createdAt: Date.now(),
     };
     this.byId.set(record.id, record);
     this.byEmail.set(record.email, record.id);
+    this.byCode.set(record.referralCode, record.id);
     return record;
   }
 
@@ -32,6 +40,7 @@ export class InMemoryUserRepository implements UserRepository {
     if (rec) {
       this.byId.delete(id);
       this.byEmail.delete(rec.email);
+      this.byCode.delete(rec.referralCode);
     }
   }
 

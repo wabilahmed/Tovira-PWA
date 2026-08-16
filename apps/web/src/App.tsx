@@ -271,7 +271,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'bookscan' && (
         <>
           <BookScan api={bookScanApi} />
-          <ShareCard api={shareCardApi} referralCode={session.user.id} />
+          <ShareCard api={shareCardApi} referralCode={session.user.referralCode} />
         </>
       )}
 

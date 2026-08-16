@@ -18,10 +18,10 @@ afterAll(async () => {
   await new Promise<void>((r) => server.close(() => r()));
 });
 
-async function signup(email: string, ref?: string): Promise<{ token: string; userId: string }> {
+async function signup(email: string, ref?: string): Promise<{ token: string; userId: string; referralCode: string }> {
   const res = await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'password123', ref }) });
-  const body = (await res.json()) as { token: string; user: { id: string } };
-  return { token: body.token, userId: body.user.id };
+  const body = (await res.json()) as { token: string; user: { id: string; referralCode: string } };
+  return { token: body.token, userId: body.user.id, referralCode: body.user.referralCode };
 }
 const auth = (t: string) => ({ authorization: `Bearer ${t}`, 'content-type': 'application/json' });
 const trialEnd = async (t: string) => ((await (await fetch(`${base}/billing/status`, { headers: auth(t) })).json()) as { trialEndsAt: number }).trialEndsAt;
@@ -55,13 +55,25 @@ describe('[P5-6] referral', () => {
     const referrer = await signup('referrer@example.com');
     const beforeReferrer = await trialEnd(referrer.token);
 
-    const referred = await signup('referred@example.com', referrer.userId);
+    const referred = await signup('referred@example.com', referrer.referralCode);
     const control = await signup('control@example.com'); // no referral
 
     // The referrer gained a month (tolerant of sub-second signup timing).
     expect(Math.abs((await trialEnd(referrer.token)) - beforeReferrer - 30 * DAY)).toBeLessThan(2000);
     // The referred user's trial is ~30 days longer than an un-referred control.
     expect(Math.abs((await trialEnd(referred.token)) - (await trialEnd(control.token)) - 30 * DAY)).toBeLessThan(2000);
+  });
+
+  // The referral link carries an OPAQUE code, never the raw user id (no internal
+  // identifier leaks into a shareable URL).
+  it('exposes an opaque referral code that is not the raw user id', async () => {
+    const u = await signup('opaque@example.com');
+    expect(u.referralCode).toBeTruthy();
+    expect(u.referralCode).not.toBe(u.userId);
+    // /me exposes the same code the share link uses.
+    const me = (await (await fetch(`${base}/me`, { headers: auth(u.token) })).json()) as { user: { id: string; referralCode: string } };
+    expect(me.user.referralCode).toBe(u.referralCode);
+    expect(me.user.referralCode).not.toBe(me.user.id);
   });
 
   // ANTI-FARMING: referring yourself grants nothing (own id isn't known at signup,

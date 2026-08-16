@@ -33,6 +33,8 @@ export class InvalidCredentialsError extends AuthError {
 export interface PublicUser {
   id: string;
   email: string;
+  /** Opaque code for the share/referral link — never the raw user id (P5-6). */
+  referralCode: string;
 }
 
 export interface AuthResult {
@@ -73,7 +75,9 @@ export class AuthService {
     if (await this.deps.users.findByEmail(email)) throw new EmailInUseError();
 
     const passwordHash = await this.deps.hasher.hash(password);
-    const user = await this.deps.users.create({ email, passwordHash });
+    // An opaque, urlsafe referral code — the share link carries this, not the id.
+    const referralCode = randomBytes(6).toString('base64url');
+    const user = await this.deps.users.create({ email, passwordHash, referralCode });
     return this.issue(user);
   }
 
@@ -113,7 +117,13 @@ export class AuthService {
 
   async getPublicUser(userId: string): Promise<PublicUser | null> {
     const user = await this.deps.users.findById(userId);
-    return user ? { id: user.id, email: user.email } : null;
+    return user ? { id: user.id, email: user.email, referralCode: user.referralCode } : null;
+  }
+
+  /** Resolve an opaque referral code to its user id (P5-6), or null. */
+  async findUserIdByReferralCode(code: string): Promise<string | null> {
+    const user = await this.deps.users.findByReferralCode(code);
+    return user?.id ?? null;
   }
 
   get sessionTtlSeconds(): number {
@@ -124,7 +134,7 @@ export class AuthService {
     const token = randomBytes(32).toString('base64url');
     const expiresAt = this.now() + this.deps.sessionTtlMs;
     await this.deps.sessions.create({ token, userId: user.id, expiresAt });
-    return { user: { id: user.id, email: user.email }, token, expiresAt };
+    return { user: { id: user.id, email: user.email, referralCode: user.referralCode }, token, expiresAt };
   }
 }
 

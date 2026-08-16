@@ -7,17 +7,22 @@ export interface UserRecord {
   id: string;
   email: string;
   passwordHash: string;
+  /** Opaque per-user code for the share/referral link — never the raw user id. */
+  referralCode: string;
   createdAt: number;
 }
 
 export interface CreateUserInput {
   email: string;
   passwordHash: string;
+  referralCode: string;
 }
 
 export interface UserRepository {
   findByEmail(email: string): Promise<UserRecord | null>;
   findById(id: string): Promise<UserRecord | null>;
+  /** Resolve an opaque referral code to its user (P5-6), or null. */
+  findByReferralCode(code: string): Promise<UserRecord | null>;
   create(input: CreateUserInput): Promise<UserRecord>;
   /** Delete the user (and, on Postgres, cascade all their data). */
   delete(id: string): Promise<void>;

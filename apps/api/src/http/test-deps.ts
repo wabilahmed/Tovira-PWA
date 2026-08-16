@@ -132,7 +132,7 @@ export function buildInMemoryDeps(
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
     ledger: new LedgerService(new InMemoryLedgerRepository()),
-    referral: new ReferralService(new InMemoryReferralRepository(), billing),
+    referral: new ReferralService(new InMemoryReferralRepository(), billing, (code) => auth.findUserIdByReferralCode(code)),
     ...overrides,
   } as TestDeps;
 }

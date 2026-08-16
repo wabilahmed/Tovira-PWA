@@ -117,6 +117,7 @@ async function main(): Promise<void> {
   const referral = new ReferralService(
     config.authStore === 'postgres' ? new PgReferralRepository(appPool) : new InMemoryReferralRepository(),
     billing,
+    (code) => auth.findUserIdByReferralCode(code),
   );
   const bookScan = new BookScanService(
     { clients, notes, facts },

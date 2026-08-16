@@ -1,5 +1,5 @@
 export interface Session {
-  user: { id: string; email: string };
+  user: { id: string; email: string; referralCode: string };
 }
 
 /**
