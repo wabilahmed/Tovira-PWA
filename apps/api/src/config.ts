@@ -14,6 +14,7 @@ export type AuthStore = 'memory' | 'postgres';
 export type TranscriberProvider = 'stub' | 'groq';
 export type EmbedderProvider = 'stub' | 'bedrock';
 export type PushProvider = 'stub' | 'webpush';
+export type EmailProvider = 'stub' | 'ses';
 
 /**
  * The AI task classes (P1-9 hybrid routing). Each has its own model setting,
@@ -38,6 +39,7 @@ const AUTH_STORES: readonly AuthStore[] = ['memory', 'postgres'];
 const TRANSCRIBER_PROVIDERS: readonly TranscriberProvider[] = ['stub', 'groq'];
 const EMBEDDER_PROVIDERS: readonly EmbedderProvider[] = ['stub', 'bedrock'];
 const PUSH_PROVIDERS: readonly PushProvider[] = ['stub', 'webpush'];
+const EMAIL_PROVIDERS: readonly EmailProvider[] = ['stub', 'ses'];
 
 export interface AppConfig {
   databaseUrl: string;
@@ -88,6 +90,12 @@ export interface AppConfig {
   vapidPublicKey: string;
   vapidPrivateKey: string;
   vapidSubject: string;
+  // --- transactional email (TASK EMAIL) ---
+  emailProvider: EmailProvider;
+  emailFrom: string;
+  sesRegion: string;
+  /** Public base URL of the app (for links inside emails, e.g. password reset). */
+  appBaseUrl: string;
 }
 
 type Env = Record<string, string | undefined>;
@@ -153,6 +161,10 @@ export function loadConfig(env: Env = process.env): AppConfig {
     vapidPublicKey: env.VAPID_PUBLIC_KEY?.trim() || '',
     vapidPrivateKey: env.VAPID_PRIVATE_KEY?.trim() || '',
     vapidSubject: env.VAPID_SUBJECT?.trim() || 'mailto:ops@tovira.local',
+    emailProvider: parseEnum(env.EMAIL_SENDER, EMAIL_PROVIDERS, 'stub', 'EMAIL_SENDER'),
+    emailFrom: env.EMAIL_FROM?.trim() || 'Tovira <no-reply@tovira.local>',
+    sesRegion: env.SES_REGION?.trim() || env.BEDROCK_REGION?.trim() || 'us-east-1',
+    appBaseUrl: env.APP_BASE_URL?.trim() || 'http://localhost:5173',
   };
 }
 

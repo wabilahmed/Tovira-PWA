@@ -13,6 +13,17 @@ import { FsStorage } from './adapters/storage/fs.js';
 import { LocalScheduler } from './adapters/scheduler/local.js';
 import { InMemoryUserRepository } from './adapters/auth/in-memory-user-repository.js';
 import { InMemorySessionRepository } from './adapters/auth/in-memory-session-repository.js';
+import { InMemoryPasswordResetRepository } from './adapters/auth/in-memory-password-reset-repository.js';
+import { PgPasswordResetRepository } from './adapters/auth/pg-password-reset-repository.js';
+import type { PasswordResetRepository } from './ports/password-reset-repository.js';
+import type { EmailSender } from './ports/email.js';
+import { StubEmailSender } from './adapters/email/stub-email-sender.js';
+import { SesEmailSender } from './adapters/email/ses-email-sender.js';
+import { SESv2Client } from '@aws-sdk/client-sesv2';
+import type { EmailLogRepository } from './ports/email-log-repository.js';
+import { InMemoryEmailLogRepository } from './adapters/email/in-memory-email-log-repository.js';
+import { PgEmailLogRepository } from './adapters/email/pg-email-log-repository.js';
+import { AccountEmailService } from './services/email/account-email-service.js';
 import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
 import { PgSessionRepository } from './adapters/auth/pg-session-repository.js';
 import { AuthService } from './services/auth/auth-service.js';
@@ -152,17 +163,21 @@ export function createServices(config: AppConfig): Services {
 export function createAuthService(config: AppConfig, pool?: Pool): AuthService {
   let users: UserRepository;
   let sessions: SessionRepository;
+  let passwordResets: PasswordResetRepository;
   if (config.authStore === 'postgres') {
     if (!pool) throw new Error('authStore=postgres requires a database pool');
     users = new PgUserRepository(pool);
     sessions = new PgSessionRepository(pool);
+    passwordResets = new PgPasswordResetRepository(pool);
   } else {
     users = new InMemoryUserRepository();
     sessions = new InMemorySessionRepository();
+    passwordResets = new InMemoryPasswordResetRepository();
   }
   return new AuthService({
     users,
     sessions,
+    passwordResets,
     hasher: new ScryptHasher(),
     sessionTtlMs: config.sessionTtlHours * 60 * 60 * 1000,
   });
@@ -428,4 +443,26 @@ export function createBriefService(
   facts: FactsRepository,
 ): BriefService {
   return new BriefService(clients, notes, facts, createEmbedder(config));
+}
+
+/** Transactional email: stub locally (records), AWS SES in prod. */
+export function createEmailSender(config: AppConfig): EmailSender {
+  if (config.emailProvider === 'ses') {
+    return new SesEmailSender({ client: new SESv2Client({ region: config.sesRegion }), from: config.emailFrom });
+  }
+  return new StubEmailSender();
+}
+
+/** Idempotency log for lifecycle emails: in-memory locally, Postgres in prod. */
+export function createEmailLogRepository(config: AppConfig, pool?: Pool): EmailLogRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgEmailLogRepository(pool);
+  }
+  return new InMemoryEmailLogRepository();
+}
+
+/** The account/lifecycle email service (reset, welcome, trial, billing, delete). */
+export function createAccountEmailService(config: AppConfig, pool?: Pool): AccountEmailService {
+  return new AccountEmailService(createEmailSender(config), createEmailLogRepository(config, pool));
 }

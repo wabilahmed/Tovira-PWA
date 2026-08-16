@@ -25,6 +25,7 @@ import type { BillingService } from './services/billing/billing-service.js';
 import type { AccountService } from './services/account/account-service.js';
 import type { ActivationService } from './services/analytics/activation-service.js';
 import { handleAuthRoute } from './http/auth-routes.js';
+import type { AccountEmailService } from './services/email/account-email-service.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
@@ -87,6 +88,8 @@ export interface ApiDeps {
   monday: MondayDigestService;
   ledger: LedgerService;
   referral: ReferralService;
+  accountEmail: AccountEmailService;
+  appBaseUrl: string;
   cookieSecure?: boolean;
 }
 
@@ -122,8 +125,19 @@ export function createApiServer(deps: ApiDeps): Server {
 
       if (await handleAuthRoute(request, response, deps.auth, {
         cookieSecure,
-        onSignup: (userId, email) => deps.billing.onSignup(userId, email, Date.now()),
+        appBaseUrl: deps.appBaseUrl,
+        onSignup: async (userId, email) => {
+          await deps.billing.onSignup(userId, email, Date.now());
+          // Best-effort welcome — never on the signup critical path (an email
+          // must not slow signup or make its wall-clock timing depend on the
+          // mailer). Idempotent, so a missed one can be re-sent.
+          void deps.billing
+            .entitlement(userId, Date.now())
+            .then((ent) => deps.accountEmail.sendWelcome(userId, email, ent.trialEndsAt))
+            .catch(() => undefined);
+        },
         onReferral: (code, userId, email) => deps.referral.apply(code, userId, email).then(() => undefined),
+        sendResetEmail: (to, resetUrl) => deps.accountEmail.sendPasswordReset(to, resetUrl),
       })) return;
       // Notes routes are matched before the generic client routes so
       // /clients/:id/notes/* isn't misread as /clients/:id.

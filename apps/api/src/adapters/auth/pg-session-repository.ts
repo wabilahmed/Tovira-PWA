@@ -28,6 +28,10 @@ export class PgSessionRepository implements SessionRepository {
     return row ? { token: row.token, userId: row.user_id, expiresAt: row.expires_at.getTime() } : null;
   }
 
+  async deleteByUser(userId: string): Promise<void> {
+    await this.pool.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+  }
+
   async delete(token: string): Promise<void> {
     await this.pool.query('DELETE FROM sessions WHERE token = $1', [token]);
   }

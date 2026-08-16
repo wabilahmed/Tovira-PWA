@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
+import { ForgotPassword, ResetPassword } from './auth/PasswordReset.js';
 import { ClientsClient, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
 import { BookScanClient } from './bookscan/bookScanClient.js';
@@ -132,6 +133,12 @@ function randomId(): string {
 export function App(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  // Reached via the emailed reset link (/reset-password?token=…), before auth.
+  const [resetToken, setResetToken] = useState<string | null>(() =>
+    typeof window !== 'undefined' && window.location.pathname === '/reset-password'
+      ? new URLSearchParams(window.location.search).get('token')
+      : null,
+  );
 
   useEffect(() => {
     // On load / refresh: ask the server who we are. Cookie → still logged in.
@@ -141,6 +148,20 @@ export function App(): JSX.Element {
       .finally(() => setLoading(false));
   }, []);
 
+  if (resetToken) {
+    return (
+      <Centered>
+        <ResetPassword
+          api={auth}
+          token={resetToken}
+          onDone={() => {
+            if (typeof window !== 'undefined') window.history.replaceState({}, '', '/');
+            setResetToken(null);
+          }}
+        />
+      </Centered>
+    );
+  }
   if (loading) return <Centered>Loading…</Centered>;
   if (!session) return <LoginScreen onAuthed={setSession} />;
 
@@ -535,7 +556,7 @@ const linkButton: React.CSSProperties = {
 
 
 function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Element {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -554,6 +575,17 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
     } finally {
       setBusy(false);
     }
+  }
+
+  if (mode === 'forgot') {
+    return (
+      <Centered>
+        <div style={{ width: 300, background: 'var(--surface-raised)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: '1.75rem' }}>
+          <h1 style={{ margin: '0 0 0.75rem', letterSpacing: '-0.02em' }}>Tovira</h1>
+          <ForgotPassword api={auth} onBack={() => setMode('login')} />
+        </div>
+      </Centered>
+    );
   }
 
   return (
@@ -582,6 +614,11 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
         <button type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} style={{ background: 'none', border: 'none', color: 'var(--brass)', cursor: 'pointer' }}>
           {mode === 'login' ? 'Need an account? Sign up' : 'Have an account? Log in'}
         </button>
+        {mode === 'login' && (
+          <button type="button" onClick={() => setMode('forgot')} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem' }}>
+            Forgot password?
+          </button>
+        )}
       </form>
     </Centered>
   );

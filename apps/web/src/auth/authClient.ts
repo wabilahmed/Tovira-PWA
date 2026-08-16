@@ -26,6 +26,37 @@ export class AuthClient {
     await fetch(this.url('/auth/logout'), { method: 'POST', credentials: 'include' });
   }
 
+  /** Request a reset link. Resolves either way — the UI never reveals whether
+   *  the email has an account (no enumeration). */
+  async forgotPassword(email: string): Promise<void> {
+    try {
+      await fetch(this.url('/auth/forgot-password'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } catch {
+      /* ignore — the confirmation copy is identical regardless */
+    }
+  }
+
+  async resetPassword(token: string, password: string): Promise<{ ok: boolean; message?: string }> {
+    try {
+      const res = await fetch(this.url('/auth/reset-password'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      if (res.ok) return { ok: true };
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, message: body.message ?? 'Could not reset your password.' };
+    } catch {
+      return { ok: false, message: 'Network error — please try again.' };
+    }
+  }
+
   async getSession(): Promise<Session | null> {
     try {
       const res = await fetch(this.url('/me'), { credentials: 'include' });

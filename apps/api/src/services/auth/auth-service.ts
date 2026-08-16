@@ -1,6 +1,7 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import type { UserRepository, UserRecord } from '../../ports/user-repository.js';
 import type { SessionRepository } from '../../ports/session-repository.js';
+import type { PasswordResetRepository } from '../../ports/password-reset-repository.js';
 import type { PasswordHasher } from './password.js';
 
 export class AuthError extends Error {
@@ -47,15 +48,27 @@ export interface Identity {
   userId: string;
 }
 
+export class InvalidResetTokenError extends AuthError {
+  override name = 'InvalidResetTokenError';
+  constructor() {
+    // Generic — expired / reused / unknown all look identical (no oracle).
+    super(400, 'This reset link is invalid or has expired. Request a new one.');
+  }
+}
+
 export interface AuthServiceDeps {
   users: UserRepository;
   sessions: SessionRepository;
+  passwordResets: PasswordResetRepository;
   hasher: PasswordHasher;
   sessionTtlMs: number;
   now?: () => number;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** Password-reset tokens live for one hour. */
+export const RESET_TTL_MS = 60 * 60 * 1000;
+const hashToken = (raw: string): string => createHash('sha256').update(raw).digest('hex');
 
 export class AuthService {
   private readonly deps: AuthServiceDeps;
@@ -118,6 +131,37 @@ export class AuthService {
   async getPublicUser(userId: string): Promise<PublicUser | null> {
     const user = await this.deps.users.findById(userId);
     return user ? { id: user.id, email: user.email, referralCode: user.referralCode } : null;
+  }
+
+  /**
+   * Begin a password reset (TASK EMAIL). Returns the RAW token + the user when
+   * the email has an account, else null — the ROUTE responds 200 either way (no
+   * user enumeration). The caller emails the token; only its hash is stored.
+   */
+  async createPasswordReset(emailRaw: string): Promise<{ user: PublicUser; token: string } | null> {
+    const email = normalizeEmail(emailRaw);
+    const user = await this.deps.users.findByEmail(email);
+    if (!user) return null;
+    const token = randomBytes(32).toString('base64url');
+    await this.deps.passwordResets.create({ tokenHash: hashToken(token), userId: user.id, expiresAt: this.now() + RESET_TTL_MS });
+    return { user: { id: user.id, email: user.email, referralCode: user.referralCode }, token };
+  }
+
+  /**
+   * Complete a reset: validate the new password, set it, then INVALIDATE — every
+   * session revoked, every reset token for the user cleared (single-use +
+   * password-change invalidation). Throws on a bad token or weak password.
+   */
+  async resetPassword(rawToken: string, newPassword: string): Promise<void> {
+    if (!newPassword || newPassword.length < 8) {
+      throw new AuthValidationError('Password must be at least 8 characters.');
+    }
+    const userId = await this.deps.passwordResets.consume(hashToken(rawToken), this.now());
+    if (!userId) throw new InvalidResetTokenError();
+    const passwordHash = await this.deps.hasher.hash(newPassword);
+    await this.deps.users.updatePassword(userId, passwordHash);
+    await this.deps.sessions.deleteByUser(userId); // every existing session dies
+    await this.deps.passwordResets.deleteForUser(userId); // and any other outstanding tokens
   }
 
   /** Resolve an opaque referral code to its user id (P5-6), or null. */

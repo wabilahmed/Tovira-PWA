@@ -4,6 +4,10 @@ import { AuthService } from '../services/auth/auth-service.js';
 import { ScryptHasher } from '../services/auth/password.js';
 import { InMemoryUserRepository } from '../adapters/auth/in-memory-user-repository.js';
 import { InMemorySessionRepository } from '../adapters/auth/in-memory-session-repository.js';
+import { InMemoryPasswordResetRepository } from '../adapters/auth/in-memory-password-reset-repository.js';
+import { AccountEmailService } from '../services/email/account-email-service.js';
+import { StubEmailSender } from '../adapters/email/stub-email-sender.js';
+import { InMemoryEmailLogRepository } from '../adapters/email/in-memory-email-log-repository.js';
 import { InMemoryClientRepository } from '../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-repository.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
@@ -64,6 +68,7 @@ export function buildInMemoryDeps(
   const auth = new AuthService({
     users: new InMemoryUserRepository(),
     sessions: new InMemorySessionRepository(),
+    passwordResets: new InMemoryPasswordResetRepository(),
     hasher: new ScryptHasher(),
     sessionTtlMs: 60 * 60 * 1000,
   });
@@ -133,6 +138,8 @@ export function buildInMemoryDeps(
     monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
     ledger: new LedgerService(new InMemoryLedgerRepository()),
     referral: new ReferralService(new InMemoryReferralRepository(), billing, (code) => auth.findUserIdByReferralCode(code)),
+    accountEmail: new AccountEmailService(new StubEmailSender(), new InMemoryEmailLogRepository()),
+    appBaseUrl: 'http://localhost:5173',
     ...overrides,
   } as TestDeps;
 }

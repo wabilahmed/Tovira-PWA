@@ -24,6 +24,8 @@ export interface UserRepository {
   /** Resolve an opaque referral code to its user (P5-6), or null. */
   findByReferralCode(code: string): Promise<UserRecord | null>;
   create(input: CreateUserInput): Promise<UserRecord>;
+  /** Set a new password hash (password reset). */
+  updatePassword(id: string, passwordHash: string): Promise<void>;
   /** Delete the user (and, on Postgres, cascade all their data). */
   delete(id: string): Promise<void>;
   /** All user ids — used by the nightly priorities precompute job (P4b-3). */

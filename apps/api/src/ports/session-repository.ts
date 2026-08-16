@@ -13,4 +13,6 @@ export interface SessionRepository {
   create(session: SessionRecord): Promise<SessionRecord>;
   find(token: string): Promise<SessionRecord | null>;
   delete(token: string): Promise<void>;
+  /** Revoke ALL of a user's sessions (on password reset). */
+  deleteByUser(userId: string): Promise<void>;
 }

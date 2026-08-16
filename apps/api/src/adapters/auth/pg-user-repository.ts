@@ -57,6 +57,10 @@ export class PgUserRepository implements UserRepository {
     return toRecord(rows[0]!);
   }
 
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    await this.pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [id, passwordHash]);
+  }
+
   async delete(id: string): Promise<void> {
     // FK ON DELETE CASCADE removes every tenant table + training log for this user.
     await this.pool.query('DELETE FROM users WHERE id = $1', [id]);

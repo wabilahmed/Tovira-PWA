@@ -79,3 +79,31 @@ Format:
   by the browser (`App.tsx refresh()` firing transcribe then extract). If the rep
   never revisits the client-detail/Capture screen, a voice note can remain at
   `pending_transcription` indefinitely — there is no background worker. — *(status: open)*
+
+---
+
+## Launch-blocker batch (feat/fix commits) — decisions for Wabil
+
+- **[EMAIL / 1d — email verification at signup]** DECISION NEEDED (not implemented).
+  Trade-off: verifying the email at signup (a click-to-confirm link before the
+  trial fully opens) improves deliverability of the commercially-critical
+  lifecycle emails (trial-ending, payment-failed) and prevents a mistyped address
+  from silently losing every future email — but it adds friction at the exact
+  moment we want the rep capturing their first chat, and a broken/slow email
+  provider would block signups. Current state: no verification; the address is
+  taken as-is and password reset + lifecycle emails rely on it being correct.
+  Options: (a) no verification (current), (b) soft — allow full use but show an
+  unverified banner + re-send, (c) hard — gate the trial on verification.
+  Recommendation for a self-serve launch: **(b) soft verification** — captures
+  deliverability without blocking first value. Awaiting Wabil's call. — *(status: open)*
+
+- **[EMAIL / 1c — lifecycle email wiring, partially shipped]** The email content
+  for every lifecycle message is composed and unit-tested in
+  `AccountEmailService` (welcome, trial-ending, trial-ended, payment-failed,
+  subscription-confirmed, canceled, account-deleted), idempotent per (user,event).
+  WIRED so far: password reset (full flow) and welcome-on-signup. NOT yet wired to
+  their event sources: payment-failed / subscription-confirmed / canceled (need an
+  email + user-email dependency inside `BillingService.handleWebhook`), account-
+  deleted (inside `AccountService.deleteAccount`), and trial-ending (a new
+  scheduled job, 2 days before `trialEndsAt`, using the existing scheduler seam).
+  These are mechanical follow-ups on top of the tested service. — *(status: open)*

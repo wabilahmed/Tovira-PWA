@@ -1,20 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { AuthService, EmailInUseError, InvalidCredentialsError, AuthValidationError } from './auth-service.js';
+import { AuthService, EmailInUseError, InvalidCredentialsError, AuthValidationError, InvalidResetTokenError } from './auth-service.js';
 import { ScryptHasher } from './password.js';
 import { InMemoryUserRepository } from '../../adapters/auth/in-memory-user-repository.js';
 import { InMemorySessionRepository } from '../../adapters/auth/in-memory-session-repository.js';
+import { InMemoryPasswordResetRepository } from '../../adapters/auth/in-memory-password-reset-repository.js';
 
 function makeService(opts: { now?: () => number; sessionTtlMs?: number } = {}) {
   const users = new InMemoryUserRepository();
   const sessions = new InMemorySessionRepository();
+  const passwordResets = new InMemoryPasswordResetRepository();
   const service = new AuthService({
     users,
     sessions,
+    passwordResets,
     hasher: new ScryptHasher(),
     sessionTtlMs: opts.sessionTtlMs ?? 7 * 24 * 60 * 60 * 1000,
     now: opts.now,
   });
-  return { service, users, sessions };
+  return { service, users, sessions, passwordResets };
 }
 
 describe('AuthService', () => {
@@ -93,5 +96,53 @@ describe('AuthService', () => {
     expect(await service.authenticate(token)).not.toBeNull();
     clock += 2000; // advance past the TTL
     expect(await service.authenticate(token)).toBeNull();
+  });
+});
+
+describe('AuthService — password reset (TASK EMAIL)', () => {
+  it('issues a reset token for a known email, and null for an unknown one (no enumeration)', async () => {
+    const { service } = makeService();
+    await service.signup('rep@example.com', 'password123');
+    const known = await service.createPasswordReset('REP@Example.com'); // case-insensitive
+    expect(known?.token).toBeTruthy();
+    expect(known?.user.email).toBe('rep@example.com');
+    expect(await service.createPasswordReset('nobody@example.com')).toBeNull();
+  });
+
+  it('resets the password, lets the new one log in, and kills existing sessions', async () => {
+    const { service } = makeService();
+    const { token: oldSession } = await service.signup('rep@example.com', 'password123');
+    const reset = await service.createPasswordReset('rep@example.com');
+    await service.resetPassword(reset!.token, 'newpassword1');
+    // old session revoked
+    expect(await service.authenticate(oldSession)).toBeNull();
+    // new password works, old one doesn't
+    await expect(service.login('rep@example.com', 'newpassword1')).resolves.toBeTruthy();
+    await expect(service.login('rep@example.com', 'password123')).rejects.toBeInstanceOf(InvalidCredentialsError);
+  });
+
+  it('rejects a reused token (single-use)', async () => {
+    const { service } = makeService();
+    await service.signup('rep@example.com', 'password123');
+    const reset = await service.createPasswordReset('rep@example.com');
+    await service.resetPassword(reset!.token, 'newpassword1');
+    await expect(service.resetPassword(reset!.token, 'another12')).rejects.toBeInstanceOf(InvalidResetTokenError);
+  });
+
+  it('rejects an expired token', async () => {
+    let clock = 1_000_000;
+    const { service } = makeService({ now: () => clock });
+    await service.signup('rep@example.com', 'password123');
+    const reset = await service.createPasswordReset('rep@example.com');
+    clock += 61 * 60 * 1000; // past the 60-minute TTL
+    await expect(service.resetPassword(reset!.token, 'newpassword1')).rejects.toBeInstanceOf(InvalidResetTokenError);
+  });
+
+  it('rejects a garbage token and a weak password', async () => {
+    const { service } = makeService();
+    await service.signup('rep@example.com', 'password123');
+    await expect(service.resetPassword('not-a-real-token', 'newpassword1')).rejects.toBeInstanceOf(InvalidResetTokenError);
+    const reset = await service.createPasswordReset('rep@example.com');
+    await expect(service.resetPassword(reset!.token, 'short')).rejects.toBeInstanceOf(AuthValidationError);
   });
 });

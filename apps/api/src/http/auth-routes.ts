@@ -23,10 +23,14 @@ function readCredentials(body: unknown): Credentials {
 
 export interface AuthRouteOptions {
   cookieSecure: boolean;
+  /** Public base URL of the app, for the reset link inside the email. */
+  appBaseUrl: string;
   /** Called after a successful signup (starts the trial). */
   onSignup?: (userId: string, email: string) => Promise<void>;
   /** Called after signup when a referral code was supplied (P5-6). */
   onReferral?: (referrerCode: string, userId: string, email: string) => Promise<void>;
+  /** Deliver a password-reset link (no-op locally without an email adapter). */
+  sendResetEmail?: (to: string, resetUrl: string) => Promise<void>;
 }
 
 /** Handle an /auth/* or /me request. Returns true if it handled the request. */
@@ -70,6 +74,29 @@ export async function handleAuthRoute(
     if (method === 'POST' && url === '/auth/logout') {
       await auth.logout(extractToken(req));
       sendJson(res, 200, { ok: true }, { 'set-cookie': clearedSessionCookie(opts.cookieSecure) });
+      return true;
+    }
+
+    // Always 200, whether or not the account exists (no user enumeration — same
+    // doctrine as login). The reset work + email happen only for a real account.
+    if (method === 'POST' && url === '/auth/forgot-password') {
+      const body = (await readJsonBody(req).catch(() => ({}))) as Record<string, unknown>;
+      const email = typeof body.email === 'string' ? body.email : '';
+      const reset = await auth.createPasswordReset(email);
+      if (reset && opts.sendResetEmail) {
+        const link = `${opts.appBaseUrl}/reset-password?token=${encodeURIComponent(reset.token)}`;
+        await opts.sendResetEmail(reset.user.email, link);
+      }
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    if (method === 'POST' && url === '/auth/reset-password') {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const token = typeof body.token === 'string' ? body.token : '';
+      const password = typeof body.password === 'string' ? body.password : '';
+      await auth.resetPassword(token, password); // throws AuthError → handled below
+      sendJson(res, 200, { ok: true });
       return true;
     }
 
