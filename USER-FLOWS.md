@@ -108,8 +108,26 @@ runs to its natural end. Step shape:
 5. Success → "password updated" → back to log in; every prior session was revoked and the token is now spent · [ResetPassword] · [—] · [EMAIL]
 
 **What can go wrong:** unknown email → still 200, no email sent; expired/reused/garbage token → 400 "invalid or has expired"; weak password → 400.
-**Trust rules:** no user enumeration (identical response + no email for unknown); only the token HASH is stored; single-use; all sessions revoked on reset. **Lifecycle emails** (welcome wired; trial-ending / payment-failed / confirmed / canceled / deleted composed + tested, event-wiring pending — see report) are idempotent per (user, event).
+**Trust rules:** no user enumeration (identical response + no email for unknown); only the token HASH is stored; single-use; all sessions revoked on reset.
 **Cold start:** needs an existing account.
+
+### FLOW 3c — Confirm your email (soft verification, feat(EMAIL-VERIFY))
+1. On signup the welcome email carries a confirmation link → `{appBaseUrl}/verify-email?token=…`, single-use, valid 7 days · [AuthService.createEmailVerification → AccountEmailService.sendWelcome] · [—] · [EMAIL-VERIFY]
+2. Until confirmed, a quiet dismissible banner rides above the app: "Confirm your email so we can reach you about your trial." with a **Resend** action · [App → VerifyBanner] · [POST /auth/resend-verification, rate-limited 3/UTC-day] · [EMAIL-VERIFY]
+3. Open the link → App detects `/verify-email?token=` (works signed-in or out) → confirms → "Your email is confirmed." · [App → VerifyEmailPage] · [POST /auth/verify-email] · [EMAIL-VERIFY]
+4. Settings shows the state (Confirmed / Not confirmed yet) and offers Resend there too · [App Settings] · [GET /me → user.emailVerified] · [EMAIL-VERIFY]
+
+**Crucial:** verification is SOFT — an unverified rep has **full access to every feature**. It is never a gate; it only lets us reach them about the trial.
+**What can go wrong:** expired / reused / another user's / garbage token → 400 "invalid or has expired" (no oracle — all look identical); resend past the daily budget → 429, surfaced calmly ("too many today, try again tomorrow").
+**Trust rules:** only the token HASH is stored; single-use; another user's token verifies its OWN account, never a different one; the resend rate limit is server-enforced.
+**Cold start:** a fresh signup (unverified by default).
+
+**Lifecycle emails (feat(EMAIL-HOOKS)):** all transactional email is now wired and idempotent per `(user, event)`:
+- **welcome** — on signup (carries the confirm link, FLOW 3c).
+- **trial-ending** (~2 days out) + **trial-ended** — the `trial-emails` scheduled job over trialing subs; extension-aware (at most one ending-notice per trial).
+- **payment-failed** / **subscription-confirmed** (renewal date only when the webhook supplies one) / **subscription-canceled** — fired from the Stripe webhook, idempotent per Stripe event id.
+- **account-deleted** — sent BEFORE the purge (the address is about to be erased).
+A failing send never breaks the business action (isolated try/catch everywhere).
 
 ---
 
@@ -218,7 +236,7 @@ runs to its natural end. Step shape:
 
 *(The same queue also appears app-wide via `ConfirmChitQueue` on Today/Alerts/Monday, self-fetching `GET /confirmations`.)*
 **Happy end:** brief with receipts; a low-confidence promise moves "To confirm" → settled open promise.
-**What can go wrong:** trial ended unpaid → **`GET /brief` 402 payment_required** → panel doesn't render; no notes → honest empty "Nothing logged yet…", never a fabricated summary; no close notes → related-notes section omitted; confirm/reject on missing → 404, UI keeps the item.
+**What can go wrong:** trial ended unpaid → **`GET /brief` 402 payment_required** → the panel now renders the shared **`<Locked>`** state (Subscribe → Billing), not an empty screen (fix(LOCKED-EMBEDDED)); no notes → honest empty "Nothing logged yet…", never a fabricated summary; no close notes → related-notes section omitted; confirm/reject on missing → 404, UI keeps the item.
 **Trust rules:** uncertain items surfaced separately "(not yet facts)", never as facts; receipts = real note snippets; empty brief is honest; confirmed tick brass, unconfirmed amber; reject removes so a wrong fact can't persist.
 **Cold start:** a client with notes; brief is **entitlement-gated** (paid or in-window trial).
 
@@ -233,7 +251,7 @@ runs to its natural end. Step shape:
 
 *(Phone is entered manually via `ClientPhoneField` → `PATCH /clients/:id {phone}`, stored as typed.)*
 **Happy end:** WhatsApp opens with the edited text pre-filled (to the contact if a valid international number is stored, else the picker); Tovira sent nothing.
-**What can go wrong:** draft fails → "Could not draft a follow-up — try again."; note without rawText → button not shown; clipboard unavailable → silent no-op (select+copy still works); no/invalid phone → picker (never a wrong number); phone save by non-owner → kept locally only.
+**What can go wrong:** trial ended unpaid → **`POST /notes/:id/follow-up` 402** → the draft area renders the shared **`<Locked>`** state, not the error (fix(LOCKED-EMBEDDED)); draft fails → "Could not draft a follow-up — try again."; note without rawText → button not shown; clipboard unavailable → silent no-op (select+copy still works); no/invalid phone → picker (never a wrong number); phone save by non-owner → kept locally only.
 **Trust rules:** **never auto-sends** — wa.me only opens WhatsApp pre-filled; draft grounded only on the note + real commitments (invents no promises/dates); country code never guessed; URL-encoding preserves emojis/Arabic/line breaks.
 **Cold start:** a note with rawText under a client.
 
@@ -294,7 +312,7 @@ runs to its natural end. Step shape:
 5. "Contact created."; new client prepended · [App.tsx] · [—] · [P4-5]
 
 **Happy end:** client created from `contact.name` (+trimmed phone if present); preview cleared.
-**What can go wrong:** scan null (non-200/network) → "Couldn't read that image — try again."; `isCard===false`/no contact (non-card, blur, garbage) → "That doesn't look like a business card."; blurry fields → null; name null → "(no name found)", Save disabled, "No name detected — add it manually instead."; empty upload → 400; vision failure → typed `ModelError` → non-card.
+**What can go wrong:** trial ended unpaid → **`POST /cards/scan` 402** → the scanner renders the shared **`<Locked>`** state, not the scan error (fix(LOCKED-EMBEDDED)); scan null (non-200/network) → "Couldn't read that image — try again."; `isCard===false`/no contact (non-card, blur, garbage) → "That doesn't look like a business card."; blurry fields → null; name null → "(no name found)", Save disabled, "No name detected — add it manually instead."; empty upload → 400; vision failure → typed `ModelError` → non-card.
 **Trust rules:** any field not read with confidence = null, never guessed/pattern-completed; values verbatim (no normalising phone/email); non-card reported as such; nothing saved until explicit confirm (scan returns a proposal only).
 **Cold start:** none — a client-creation entry point. **Discrepancy:** scanned title/email are shown then **discarded** on create (only name+phone sent) — see Open questions.
 
@@ -490,6 +508,10 @@ Walk top to bottom in one sitting. **⚠ = cannot be fully verified locally.**
 1. [ ] Landing `/` renders; "Start a 7-day trial" → `app.tovira.com/` (FLOW 1)
 2. [ ] Landing `/?ref=demo` → CTA href carries `ref=demo`; `/ar` → switch → keeps `ref` (FLOWS 1, 3)
 3. [ ] Sign up (new email) → lands in empty ClientsScreen (FLOW 1)
+3a. [ ] Unverified banner shows "Confirm your email…"; Resend works; dismiss hides it; **every feature still usable while unverified** (FLOW 3c)
+3b. [ ] Open the welcome/verify link (`/verify-email?token=…`) → "confirmed" → banner gone; Settings shows Confirmed (FLOW 3c) — ⚠ needs a real mailer for the live email
+3c. [ ] Resend 4× in a day → 4th is refused calmly (server rate limit) (FLOW 3c)
+3d. [ ] Forgot password → email → reset link → new password logs in, old sessions dead (FLOW 3b) — ⚠ needs a real mailer for the live email
 4. [ ] Log out → log back in → session restored on refresh (FLOW 2)
 5. [ ] Settings → switch theme Vault ↔ Ledger ↔ System (FLOW 28)
 6. [ ] Enable notifications: Android/desktop Enable, or iOS install-first / unsupported copy (FLOW 21) — ⚠ real device push delivery
@@ -514,8 +536,10 @@ Walk top to bottom in one sitting. **⚠ = cannot be fully verified locally.**
 25. [ ] Ledger: act on a flagged client + keep a promise on time → touched count; enter a deal value → AED (FLOW 25)
 26. [ ] Subscribe monthly, then annual → Stripe Checkout → webhook → "Renews …" (FLOW 23) — ⚠ real Stripe / webhook
 27. [ ] Past-due + cancellation copy (FLOW 24) — ⚠ real Stripe webhooks
+27a. [ ] Lifecycle emails land: trial-ending (~2d out) + trial-ended (job), payment-failed / confirmed / canceled (webhook) — ⚠ real mailer + scheduler; verify idempotency (no duplicate on re-run/replay)
 28. [ ] Export my data → download JSON (FLOW 26)
-29. [ ] Delete my account → confirm → cascade → logged out (FLOW 27)
+29. [ ] Delete my account → confirm → **deletion email arrives BEFORE the purge** → cascade → logged out (FLOW 27) — ⚠ real mailer for the live email
+30. [ ] Embedded Locked: let the trial lapse (or force a 402) → brief panel, follow-up draft, and card scan each show the shared **Locked** state with Subscribe → Billing (FLOWS 10/11/16, fix(LOCKED-EMBEDDED))
 
 **Locally unverifiable:** iOS push delivery (needs an installed PWA on a device),
 real Stripe Checkout/webhooks (test-mode keys + a tunnel), the Android

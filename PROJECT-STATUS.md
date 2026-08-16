@@ -2,15 +2,18 @@
 
 **As of this build.** Everything a coding agent can implement — backend, frontend,
 and cloud infrastructure-as-code — is **built, tested, and committed to `main`**
-(the latest batch — engine v0.5 certification + five features — is committed
-locally, **push pending your review**). What remains is exclusively deploy /
-device / real-user work that requires you.
+(the latest batches — the launch-blocker set and the pre-launch close-out:
+transactional + lifecycle email, soft email verification, embedded locked
+states, and a deploy-readiness sweep — are committed locally, **push pending your
+review**). What remains is exclusively deploy / device / real-user work that
+requires you.
 
-- **Unit + component tests:** 807 passing (141 test files) · **Integration:** 10
-  (real Postgres, migrations 0001–0027) · **E2E:** 3 (Playwright PWA shell)
-- **Typecheck + lint:** clean · **Commits:** 96 on `main`
-- **DB migrations:** 27 · **Backend services:** 22 dirs · **Frontend feature
-  modules:** 36 dirs
+- **Unit + component tests:** 947 passing (160 test files) · **Integration:** the
+  migrations-inventory audit runs the real runner over the real set (0001–0034);
+  live SQL application is proven by the Docker boot · **E2E:** 3 (Playwright PWA shell)
+- **Typecheck + lint:** clean
+- **DB migrations:** 34 (0001–0034) · **Backend services:** 23 dirs · **Frontend
+  feature modules:** 37 dirs
 - **Extraction engine:** `tovira-extract-v0.5`, **human-certified** on
   claude-sonnet-5 (see §3a — the gate is the asset). Model routing is hybrid
   per-task-class — extraction on Sonnet 5 (P1-9 gate lock), all other AI classes
@@ -67,7 +70,7 @@ apps/api/            Node API
   src/http/          route handlers + test-deps (in-memory dep builder)
   src/container.ts   composition root (real vs stub by config)
   src/index.ts       server bootstrap (migrate on boot, wire everything)
-  migrations/        0001–0027 (.sql, run in order on boot)
+  migrations/        0001–0034 (.sql, run in order on boot)
   src/eval/          the P1-9 gate — eval-set (guarded ground truth), scorer, runner
 apps/web/            React PWA (see FRONTEND-PAGES.md for every screen)
 infra/terraform/     AWS infra-as-code (authored, NOT applied)
@@ -168,7 +171,7 @@ the stored result with zero model calls on read; manual refresh rate-limited
 This is the thing competitors can't shortcut: a **documented, human-certified,
 repeatable gate** proving the extraction doesn't fabricate promises, doesn't
 guess dates, doesn't merge people — and holds up on code-switched Gulf sales
-conversations. Everything else (the 807 tests, the branded frontend) is
+conversations. Everything else (the 947 tests, the branded frontend) is
 replaceable; this is not. **Keep the gate green as a permanent requirement — the
 day someone "optimizes" the prompt and skips the gate is the day Tovira starts
 lying quietly.**
@@ -223,6 +226,18 @@ authorized spend; `.env` is never committed). Full write-up:
 
 ## 3b. Shipped since the last status (this batch)
 
+0. **Launch-blocker + pre-launch close-out** (latest) — transactional email +
+   password reset; **lifecycle emails** wired and idempotent per `(user, event)`
+   (welcome w/ confirm link, trial-ending/ended via a scheduled job, payment-
+   failed/confirmed/canceled via the Stripe webhook, account-deleted before the
+   purge); **soft email verification** (full access, quiet dismissible banner,
+   server-rate-limited resend, single-use hashed 7-day tokens); the shared
+   **`<Locked>`** state now renders on the embedded gated surfaces (brief panel,
+   follow-up draft, card scan) on a 402; a **deploy-readiness audit**
+   (`assertDeployReady`) that fails fast naming every missing key for a selected
+   real provider, `.env.example` completed, a migrations-inventory audit
+   (0001–0034), and authored-not-applied **SES** Terraform with cost guards kept.
+   See `PRE-LAUNCH-REPORT.md`.
 1. **Engine v0.5 certified** (§3a) — the two trust rules + the two-tier standard,
    3× clean.
 2. **P5-2 renewal date** — `current_period_end` stored from the webhook, shown as
@@ -299,6 +314,18 @@ In Stripe (test → then live): a **monthly AED 299** price and an **annual AED
 2,990** price; put their price IDs in the runtime secret. Configure the webhook
 endpoint → your `/billing/webhook`. Keep **test mode** until launch.
 
+### D2. Turn on real email (SES) — before go-live
+The code + Terraform are done; this is account/DNS work only:
+1. `terraform apply -var ses_domain=tovira.app` (authored in `ses.tf`, gated so
+   nothing is created until you set the domain). Add the emitted DKIM CNAMEs + the
+   MAIL-FROM MX/SPF to DNS (or pass `-var ses_route53_zone_id=…` to have Terraform
+   add them). Move the identity **out of the SES sandbox**.
+2. In the runtime secret set `EMAIL_SENDER=ses`, a verified `EMAIL_FROM`,
+   `SES_REGION`, and a public `APP_BASE_URL` (email links). `assertDeployReady`
+   fails the boot, naming any of these, if you flip to `ses` half-configured.
+3. Smoke-test: sign up → welcome + confirm link arrive; forgot-password; delete →
+   the deletion email lands **before** the purge.
+
 ### E. Beta (P7-1)
 Put it in front of real field reps in their daily workflow; watch the activation
 (first useful brief within trial) and churn metrics that P7-3 already instruments.
@@ -333,7 +360,11 @@ is what drives the precompute:
   computation onto a scheduled precompute + cache for prod cost control. Works
   today; this is a perf/cost optimization, not a feature gap.
 - **#2 EventBridge scheduler** — the cloud trigger (Terraform) that fires the
-  nightly scan + precompute jobs. It's infra, so it applies with P6-1.
+  nightly scan + precompute jobs, **and now the `trial-emails` job** (trial-ending
+  ~2 days out + trial-ended). The jobs are registered in-process
+  (`LocalScheduler`); prod needs the EventBridge rule to invoke them daily. It's
+  infra, so it applies with P6-1. See the scheduled-job inventory in
+  `PRE-LAUNCH-REPORT.md`.
 
 *Shipped since the previous status: cost-guard ③ nightly-precomputed priorities
 (CG3), client phone for the WhatsApp send loop (P4-7 — stored per client, targets
@@ -382,7 +413,7 @@ incentive UI (P5-1-UI), and the non-scary seeding-ceiling state (P5-1-CEILING-UI
 ## 9. Bottom line
 
 **Build complete.** Backend + frontend are feature-for-feature with the docs;
-807 unit+component / 10 integration / 3 e2e green; typecheck + lint clean;
+947 unit+component / migrations-inventory audit / 3 e2e green; typecheck + lint clean;
 validated cloud infra is one `terraform apply` away. The extraction engine is
 **human-certified** (§3a) — the asset the whole trust doctrine rests on. The only
 remaining code work is the deferred deploy-batch pair (#8 patterns precompute +
