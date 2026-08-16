@@ -61,4 +61,19 @@ describe('[DEPLOY-READY] migrations inventory', () => {
   it('includes the email-verification migration (0034) in the set', () => {
     expect(migrations.some((m) => m.name === '0034_email_verification.sql')).toBe(true);
   });
+
+  // Regression guard for the pgcrypto bug: `gen_random_bytes()` (unlike core
+  // `gen_random_uuid()`) requires the pgcrypto extension. Any migration that uses
+  // it must be at-or-after a `CREATE EXTENSION ... pgcrypto`, or a live boot dies.
+  it('enables pgcrypto before any migration that calls gen_random_bytes()', () => {
+    const enablesPgcrypto = (sql: string): boolean => /create\s+extension[^;]*pgcrypto/i.test(sql);
+    let pgcryptoReady = false;
+    for (const m of migrations) {
+      if (enablesPgcrypto(m.sql)) pgcryptoReady = true;
+      if (/gen_random_bytes\s*\(/i.test(m.sql)) {
+        // pgcrypto must be enabled in an earlier migration OR in this same file.
+        expect(pgcryptoReady || enablesPgcrypto(m.sql), `${m.name} uses gen_random_bytes() without pgcrypto enabled`).toBe(true);
+      }
+    }
+  });
 });

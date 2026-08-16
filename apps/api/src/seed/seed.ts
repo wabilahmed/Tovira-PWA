@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { ScryptHasher, type PasswordHasher } from '../services/auth/password.js';
 import { fixtures } from './fixtures.js';
 
@@ -20,12 +21,14 @@ export interface SeedSummary {
 export async function seedDatabase(db: Queryable, deps: { hasher?: PasswordHasher } = {}): Promise<SeedSummary> {
   const hasher = deps.hasher ?? new ScryptHasher();
   const passwordHash = await hasher.hash(fixtures.user.password);
+  // referral_code is NOT NULL since 0028 — mint one the same way signup does.
+  const referralCode = randomBytes(6).toString('base64url');
 
   const { rows } = await db.query(
-    `INSERT INTO users (email, password_hash) VALUES ($1, $2)
+    `INSERT INTO users (email, password_hash, referral_code) VALUES ($1, $2, $3)
      ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
      RETURNING id`,
-    [fixtures.user.email, passwordHash],
+    [fixtures.user.email, passwordHash, referralCode],
   );
   const userId = String(rows[0]!.id);
 
