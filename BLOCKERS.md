@@ -41,3 +41,41 @@ Format:
   v0.1/v0.2 prompt-version label mismatch is a conscious human decision, not an
   oversight. — *(status: open)*
 
+
+---
+
+## Found during USER-FLOWS.md documentation (docs(FLOWS)) — not repaired
+
+*Documentation task: recorded, not fixed. Full context in `USER-FLOWS.md` → Open questions.*
+
+- **[FLOWS / Android share-target has no handler]** `apps/web/src/pwa/manifest.ts`
+  declares `share_target.action = '/share-target'`, but no server route and no
+  service-worker `fetch` handler exists for `/share-target`. A real Android "Share
+  to Tovira" export POST is not received; day-one seeding works only via the in-app
+  file picker / paste. The manifest + onboarding copy describe a path the code does
+  not implement. — *(status: open)*
+
+- **[FLOWS / Duplicate re-import shows "Import failed."]** The server returns HTTP
+  **200** `{note:null, imported:0, duplicate:true}` for a fully-overlapping
+  re-import (intended idempotent success), but `clientsClient.importWhatsApp`
+  treats only **201** as success — so a duplicate re-import surfaces a red "Import
+  failed." alert for what is actually a successful no-op. The `duplicate` flag is
+  never read client-side. — *(status: open)*
+
+- **[FLOWS / Meetings parse contract mismatch]** The server returns a discriminated
+  `ParseResult` (`kind: proposal | ambiguous_time | ambiguous_client | no_client`),
+  but `meetingsClient.parse` casts the body to a flat `ParsedMeeting` and the UI
+  reads `preview.clientId`/`preview.title`. Only `proposal` carries `clientId`; no
+  kind carries `title`; the `ambiguous_client` candidates and `no_client` name are
+  never surfaced. The parser's ambiguity kinds render as a generic preview with
+  undefined fields rather than the intended disambiguation prompts. — *(status: open)*
+
+- **[FLOWS / Card scan discards title + email on create]** `CardScan` previews the
+  scanned `title` and `email`, but `onCreateClient` sends only `name` (+`phone`) to
+  `POST /clients`. The scanned title and email are shown then dropped. — *(status: open)*
+
+- **[FLOWS / Voice pipeline can stall at pending_transcription]** The
+  `pending_transcription → pending_extraction → extracted` progression is advanced
+  by the browser (`App.tsx refresh()` firing transcribe then extract). If the rep
+  never revisits the client-detail/Capture screen, a voice note can remain at
+  `pending_transcription` indefinitely — there is no background worker. — *(status: open)*
