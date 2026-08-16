@@ -53,6 +53,10 @@ export interface SimilarNote {
 export interface NoteRepository {
   create(userId: string, note: NewNote): Promise<NoteRecord>;
   listByClient(userId: string, clientId: string): Promise<NoteRecord[]>;
+  /** Notes still awaiting transcription/extraction, across ALL the rep's clients
+   *  — the resume path so a pending note is never stuck if that client's screen
+   *  is never reopened. */
+  listPendingByUser(userId: string): Promise<NoteRecord[]>;
   findByIdForUser(userId: string, id: string): Promise<NoteRecord | null>;
   update(userId: string, id: string, patch: NotePatch): Promise<void>;
   /** Semantic search over a client's notes by embedding similarity. */

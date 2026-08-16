@@ -43,6 +43,12 @@ export class InMemoryNoteRepository implements NoteRepository {
       .sort((a, b) => b.createdAt - a.createdAt);
   }
 
+  async listPendingByUser(userId: string): Promise<NoteRecord[]> {
+    return [...this.byId.values()]
+      .filter((n) => n.userId === userId && (n.status === 'pending_transcription' || n.status === 'pending_extraction'))
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
   async findByIdForUser(userId: string, id: string): Promise<NoteRecord | null> {
     const note = this.byId.get(id);
     return note && note.userId === userId ? note : null;

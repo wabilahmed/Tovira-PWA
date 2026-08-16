@@ -66,6 +66,15 @@ export class PgNoteRepository implements NoteRepository {
     });
   }
 
+  async listPendingByUser(userId: string): Promise<NoteRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS} FROM notes WHERE status IN ('pending_transcription', 'pending_extraction') ORDER BY created_at ASC`,
+      );
+      return (rows as unknown as NoteRow[]).map(toRecord);
+    });
+  }
+
   async findByIdForUser(userId: string, id: string): Promise<NoteRecord | null> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(`SELECT ${COLUMNS} FROM notes WHERE id = $1`, [id]);

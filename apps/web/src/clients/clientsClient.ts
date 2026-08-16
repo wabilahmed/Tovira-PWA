@@ -153,6 +153,18 @@ export class ClientsClient {
     }
   }
 
+  /** Every note still awaiting transcription/extraction across all clients — the
+   *  resume path so a voice note never stalls if its client screen isn't reopened. */
+  async listPendingNotes(): Promise<NoteSummary[]> {
+    try {
+      const res = await fetch(this.url('/notes/pending'), { credentials: 'include' });
+      if (res.status !== 200) return [];
+      return ((await res.json()) as { notes: NoteSummary[] }).notes;
+    } catch {
+      return [];
+    }
+  }
+
   async transcribeNote(noteId: string): Promise<void> {
     await fetch(this.url(`/notes/${noteId}/transcribe`), { method: 'POST', credentials: 'include' });
   }

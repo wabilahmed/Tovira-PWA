@@ -91,11 +91,12 @@ export async function handleNoteRoute(
   const pasteMatch = method === 'POST' ? PASTE_RE.exec(path) : null;
   const importMatch = method === 'POST' ? IMPORT_RE.exec(path) : null;
   const listMatch = method === 'GET' ? LIST_RE.exec(path) : null;
+  const pendingMatch = method === 'GET' && path === '/notes/pending';
   const audioMatch = method === 'GET' ? AUDIO_RE.exec(path) : null;
   const transcribeMatch = method === 'POST' ? TRANSCRIBE_RE.exec(path) : null;
   const extractMatch = method === 'POST' ? EXTRACT_RE.exec(path) : null;
   const followUpMatch = method === 'POST' ? FOLLOWUP_RE.exec(path) : null;
-  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch) return false;
+  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -243,6 +244,13 @@ export async function handleNoteRoute(
     if (listMatch) {
       const clientId = decodeURIComponent(listMatch[1]!);
       sendJson(res, 200, { notes: await deps.notes.listByClient(userId, clientId) });
+      return true;
+    }
+
+    // The resume path: every note still awaiting transcription/extraction, across
+    // all the rep's clients, so the app can advance them on load (FLOWS-5).
+    if (pendingMatch) {
+      sendJson(res, 200, { notes: await deps.notes.listPendingByUser(userId) });
       return true;
     }
 

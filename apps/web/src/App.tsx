@@ -7,6 +7,7 @@ import { GetStarted } from './onboarding/GetStarted.js';
 import { BookScan } from './bookscan/BookScan.js';
 import { ImportChat } from './import/ImportChat.js';
 import { consumeSharedChat, idbSharedChatStore } from './pwa/sharedChat.js';
+import { resumePendingNotes } from './capture/resume.js';
 import { PromisesClient } from './promises/promisesClient.js';
 import { PromisesTracker } from './promises/PromisesTracker.js';
 import { ConfirmChitQueue } from './confirm/ConfirmChitQueue.js';
@@ -168,6 +169,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       setSharedContent(chat.text);
       setView('getstarted');
     });
+  }, []);
+
+  // Resume path (FLOWS-5): advance any note stuck awaiting transcription/extraction
+  // on load, across all clients — so a voice note never stalls just because the
+  // rep didn't reopen that client's screen.
+  useEffect(() => {
+    void resumePendingNotes(clientsApi);
   }, []);
 
   // Reload (with the current search) whenever the query changes — recents first.
