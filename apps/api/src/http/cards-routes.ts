@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
+import type { BillingService } from '../services/billing/billing-service.js';
 import type { CardScanner } from '../ports/card-scanner.js';
-import { BadJsonError, extractToken, readRawBody, sendJson } from './helpers.js';
+import { BadJsonError, extractToken, readRawBody, sendJson, requireEntitled } from './helpers.js';
 
 export interface CardRouteDeps {
   auth: AuthService;
+  billing: BillingService;
   scanner: CardScanner;
 }
 
@@ -25,6 +27,8 @@ export async function handleCardRoute(
     sendJson(res, 401, { error: 'unauthorized' });
     return true;
   }
+  // Entitlement gate (P5-1/P5-2): a lapsed trial gets a calm 402, not the data.
+  if (!(await requireEntitled(deps.billing, identity.userId, res))) return true;
 
   try {
     const image = await readRawBody(req);

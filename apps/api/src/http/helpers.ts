@@ -1,5 +1,26 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+/** The subset of BillingService the entitlement gate needs. */
+export interface EntitlementGate {
+  entitlement(userId: string, nowMs: number): Promise<{ entitled: boolean; status: string }>;
+}
+
+/**
+ * Entitlement gate (P5-1/P5-2). Returns true when the rep may use a premium
+ * feature; otherwise sends one consistent 402 (payment_required + status) with
+ * NO data in the body, and returns false. The always-allowed surfaces (capture,
+ * export, delete, auth, settings, billing) simply never call this — a lapsed rep
+ * is never locked out of their own data or the ability to leave with it.
+ */
+export async function requireEntitled(billing: EntitlementGate, userId: string, res: ServerResponse): Promise<boolean> {
+  const ent = await billing.entitlement(userId, Date.now());
+  if (!ent.entitled) {
+    sendJson(res, 402, { error: 'payment_required', status: ent.status });
+    return false;
+  }
+  return true;
+}
+
 export function sendJson(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
   const payload = JSON.stringify(body);
   res.writeHead(status, { 'content-type': 'application/json', ...headers });

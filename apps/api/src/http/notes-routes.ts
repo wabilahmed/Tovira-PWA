@@ -13,7 +13,7 @@ import type { BillingService } from '../services/billing/billing-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
-import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
+import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
 
 const MAX_PASTE_CHARS = 100_000;
 const MAX_IMPORT_CHARS = 5_000_000; // a full multi-year chat export
@@ -281,6 +281,8 @@ export async function handleNoteRoute(
     }
 
     if (followUpMatch) {
+      // Follow-up drafting is premium (capture itself stays free); gate it.
+      if (deps.billing && !(await requireEntitled(deps.billing, userId, res))) return true;
       // Draft only — never sends. Returns editable text for the rep.
       const result = await deps.followUp.draft(userId, decodeURIComponent(followUpMatch[1]!));
       if (!result) {

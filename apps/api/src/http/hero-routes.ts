@@ -2,12 +2,14 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { HeroService } from '../services/hero/hero-service.js';
 import { PrioritiesService, RefreshLimitError } from '../services/hero/priorities-service.js';
-import { extractToken, sendJson } from './helpers.js';
+import type { BillingService } from '../services/billing/billing-service.js';
+import { extractToken, sendJson, requireEntitled } from './helpers.js';
 
 export interface HeroRouteDeps {
   auth: AuthService;
   hero: HeroService;
   priorities: PrioritiesService;
+  billing: BillingService;
 }
 
 const GET_PATHS = ['/hero/status', '/hero/patterns', '/hero/risk', '/today'];
@@ -30,6 +32,8 @@ export async function handleHeroRoute(
     return true;
   }
   const userId = identity.userId;
+  // Today's register + patterns/risk are premium — a lapsed trial gets a 402.
+  if (!(await requireEntitled(deps.billing, userId, res))) return true;
   const now = Date.now();
 
   if (isRefresh) {

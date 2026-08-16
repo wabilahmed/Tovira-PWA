@@ -513,6 +513,35 @@ a real model key (`docker-compose.real-ai.yml`).
 
 ---
 
+## Entitlement inventory (fix(ENTITLEMENT))
+
+The policy: a lapsed trial is never locked out of its own data or the ability to
+leave with it; premium *features* return one calm 402 → "Your trial has ended.
+Subscribe to reopen your book."
+
+| Endpoint | Gated (402) | Notes |
+|---|---|---|
+| `POST /auth/*`, `GET /me` | no | auth is always open |
+| `POST /clients/:id/notes/{voice,paste,import}` | **no** | capture is always open |
+| `GET /account/export`, `DELETE /account` | **no** | never trap a rep's data or exit |
+| `GET/POST /billing/*`, Settings | no | must be able to subscribe |
+| `POST /clients`, `GET /clients`, gallery, meetings, promises, ledger, alerts | no | not premium features |
+| `GET /clients/:id/brief` | **yes** | was already gated |
+| `POST /recall` | **yes** | added |
+| `GET /book-scan` | **yes** | added |
+| `GET /monday-digest` | **yes** | added |
+| `GET /today`, `/hero/status`, `/hero/patterns`, `/hero/risk`, `POST /today/refresh` | **yes** | added |
+| `POST /notes/:id/follow-up` | **yes** | added (capture stays free) |
+| `POST /cards/scan` | **yes** | added |
+
+Enforced server-side via `requireEntitled` (402, no data in the body). The web
+shows the one `<Locked>` state on the primary gated views (Today, Ask, the Monday
+Statement, Book Scan); the embedded surfaces (brief panel, follow-up draft, card
+scan) are server-gated and fall back to their empty/error state — a consistent
+`<Locked>` on those is a small follow-up noted in the report.
+
+---
+
 ## Open questions / discrepancies (code vs docs — nothing changed)
 
 Real functional gaps also recorded in `BLOCKERS.md`:

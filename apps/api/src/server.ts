@@ -176,7 +176,7 @@ export function createApiServer(deps: ApiDeps): Server {
         return;
       if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing, activation: deps.activation, meetings: deps.meetings, ledger: deps.ledger })) return;
       if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes })) return;
-      if (await handleCardRoute(request, response, { auth: deps.auth, scanner: deps.cardScanner })) return;
+      if (await handleCardRoute(request, response, { auth: deps.auth, scanner: deps.cardScanner, billing: deps.billing })) return;
       if (
         await handleMeetingRoute(request, response, {
           auth: deps.auth,
@@ -198,11 +198,11 @@ export function createApiServer(deps: ApiDeps): Server {
       )
         return;
       if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
-      if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero, priorities: deps.priorities })) return;
-      if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
-      if (await handleRecallRoute(request, response, { auth: deps.auth, recall: deps.recall })) return;
+      if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero, priorities: deps.priorities, billing: deps.billing })) return;
+      if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan, billing: deps.billing })) return;
+      if (await handleRecallRoute(request, response, { auth: deps.auth, recall: deps.recall, billing: deps.billing })) return;
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
-      if (await handleMondayRoute(request, response, { auth: deps.auth, monday: deps.monday })) return;
+      if (await handleMondayRoute(request, response, { auth: deps.auth, monday: deps.monday, billing: deps.billing })) return;
       if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger })) return;
       if (await handleShareCardRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing, clients: deps.clients, notes: deps.notes })) return;

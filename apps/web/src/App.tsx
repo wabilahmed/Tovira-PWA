@@ -12,6 +12,7 @@ import { resumePendingNotes } from './capture/resume.js';
 import { PromisesClient } from './promises/promisesClient.js';
 import { PromisesTracker } from './promises/PromisesTracker.js';
 import { ConfirmChitQueue } from './confirm/ConfirmChitQueue.js';
+import { Locked } from './billing/Locked.js';
 import { HeroClient } from './hero/heroClient.js';
 import { HeroInsights } from './hero/HeroInsights.js';
 import { ProactiveClient } from './proactive/proactiveClient.js';
@@ -177,11 +178,19 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [open, setOpen] = useState<ClientSummary | null>(null);
   const [view, setView] = useState<View>('clients');
   const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
+  const [entitled, setEntitled] = useState(true); // default open; the server 402s regardless
   const [sharedContent, setSharedContent] = useState('');
   const isDesktop = useIsDesktop();
 
   const loadSeeding = (): void => void onboardingApi.status().then(setSeeding);
   useEffect(loadSeeding, []);
+
+  // Entitlement: gate the premium views behind one calm locked state when the
+  // trial has lapsed. Default open on a fetch failure — the server 402s anyway.
+  useEffect(() => {
+    void billingApi.status().then((e) => setEntitled(e?.entitled ?? true));
+  }, []);
+  const gated = (node: JSX.Element): JSX.Element => (entitled ? node : <Locked onSubscribe={() => setView('settings')} />);
 
   // A chat shared into the app via the Android share-target lands in IndexedDB
   // (stashed by the service worker); pick it up once and open seeding prefilled.
@@ -262,21 +271,21 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <Capture clients={clients} importApi={clientsApi} outbox={outbox} onCaptured={() => void clientsApi.list(query.trim() || undefined).then(setClients)} />
       )}
 
-      {view === 'today' && (
+      {view === 'today' && gated(
         <>
           <HeroInsights api={heroApi} />
           <ConfirmChitQueue api={promisesApi} />
-        </>
+        </>,
       )}
 
-      {view === 'week' && (
+      {view === 'week' && gated(
         <>
           <MondayDigest api={mondayApi} />
           <ConfirmChitQueue api={promisesApi} heading="Guesses to confirm" />
-        </>
+        </>,
       )}
 
-      {view === 'ask' && <Ask api={recallApi} listen={speechListen} />}
+      {view === 'ask' && gated(<Ask api={recallApi} listen={speechListen} />)}
 
       {view === 'promises' && <PromisesTracker api={promisesApi} />}
 
@@ -289,11 +298,11 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </>
       )}
 
-      {view === 'bookscan' && (
+      {view === 'bookscan' && gated(
         <>
           <BookScan api={bookScanApi} />
           <ShareCard api={shareCardApi} referralCode={session.user.referralCode} />
-        </>
+        </>,
       )}
 
       {view === 'ledger' && <Ledger api={ledgerApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}

@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
+import type { BillingService } from '../services/billing/billing-service.js';
 import type { RecallService } from '../services/recall/recall-service.js';
-import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
+import { BadJsonError, extractToken, readJsonBody, sendJson, requireEntitled } from './helpers.js';
 
 export interface RecallRouteDeps {
   auth: AuthService;
+  billing: BillingService;
   recall: RecallService;
 }
 
@@ -22,6 +24,8 @@ export async function handleRecallRoute(
     sendJson(res, 401, { error: 'unauthorized' });
     return true;
   }
+  // Entitlement gate (P5-1/P5-2): a lapsed trial gets a calm 402, not the data.
+  if (!(await requireEntitled(deps.billing, identity.userId, res))) return true;
   try {
     const body = (await readJsonBody(req)) as { question?: unknown };
     const question = typeof body.question === 'string' ? body.question : '';
