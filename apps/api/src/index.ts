@@ -10,6 +10,7 @@ import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { PrioritiesService } from './services/hero/priorities-service.js';
 import { LocalScheduler } from './adapters/scheduler/local.js';
 import { NoteSweepService } from './services/notes/note-sweep-service.js';
+import { TrialEmailService } from './services/email/trial-email-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
 import { ReferralService } from './services/referral/referral-service.js';
 import { InMemoryReferralRepository } from './adapters/referral/in-memory-referral-repository.js';
@@ -74,6 +75,8 @@ async function main(): Promise<void> {
   // enforced (falls back to the superuser URL if APP_DATABASE_URL is unset).
   const appPool = createPool(config.appDatabaseUrl);
   const auth = createAuthService(config, appPool);
+  const accountEmail = createAccountEmailService(config, appPool);
+  const emailFor = (userId: string): Promise<string | null> => auth.getPublicUser(userId).then((u) => u?.email ?? null);
   const clients = createClientRepository(config, appPool);
   const notes = createNoteRepository(config, appPool);
   const storage = createStorage(config);
@@ -82,7 +85,12 @@ async function main(): Promise<void> {
   const extractionLogs = createExtractionLogRepository(config, appPool);
   const corrections = createCorrectionRepository(config, appPool);
   // Billing is created early so the extraction router can read trial status (P5-7).
-  const billing = createBillingService(config, appPool);
+  const billingEmailHook = {
+    paymentFailed: async (userId: string, eventId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendPaymentFailed(userId, to, eventId); },
+    subscriptionConfirmed: async (userId: string, eventId: string, renewsAt: number | null) => { const to = await emailFor(userId); if (to) await accountEmail.sendSubscriptionConfirmed(userId, to, eventId, renewsAt); },
+    subscriptionCanceled: async (userId: string, eventId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendSubscriptionCanceled(userId, to, eventId); },
+  };
+  const billing = createBillingService(config, appPool, billingEmailHook);
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
   const extractionLimiter = new TrialExtractionLimiter(
     (uid, now) => billing.entitlement(uid, now).then((e) => e.status),
@@ -124,13 +132,15 @@ async function main(): Promise<void> {
     name: 'notes-sweep',
     run: async () => { await noteSweep.sweep(new Date().toISOString().slice(0, 10)); },
   });
-  const account = createAccountService(auth, clients, notes, facts, meetings, images);
+  // Trial-ending (2 days out) + trial-ended emails (EMAIL-HOOKS 1a), idempotent.
+  const trialEmail = new TrialEmailService({ listTrialing: () => billing.listTrialing() }, emailFor, accountEmail);
+  scheduler.register({ name: 'trial-emails', run: async () => { await trialEmail.run(Date.now()); } });
+  const account = createAccountService(auth, clients, notes, facts, meetings, images, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined));
   const activation = createActivationService(config, appPool);
   const recall = createRecallService(config, notes);
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch);
   const ledger = createLedgerService(config, appPool);
-  const accountEmail = createAccountEmailService(config, appPool);
   const referral = new ReferralService(
     config.authStore === 'postgres' ? new PgReferralRepository(appPool) : new InMemoryReferralRepository(),
     billing,

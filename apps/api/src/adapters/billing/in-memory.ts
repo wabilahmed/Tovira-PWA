@@ -25,6 +25,10 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
   async findByCustomerId(customerId: string): Promise<SubscriptionRecord | null> {
     return [...this.byUser.values()].find((s) => s.stripeCustomerId === customerId) ?? null;
   }
+
+  async listTrialing(): Promise<Array<{ userId: string; trialEndsAt: number }>> {
+    return [...this.byUser.values()].filter((s) => s.status === 'trialing').map((s) => ({ userId: s.userId, trialEndsAt: s.trialEndsAt }));
+  }
 }
 
 export class InMemoryTrialGrantRepository implements TrialGrantRepository {

@@ -23,6 +23,9 @@ export class AccountService {
     private readonly meetings: MeetingRepository,
     private readonly images: ImageRepository,
     private readonly purgeables: UserPurgeable[],
+    /** Sends the deletion confirmation. Called BEFORE the purge (the address is
+     *  about to be erased); a failing send never blocks or rolls back delete. */
+    private readonly onDeleted?: (userId: string, email: string) => Promise<void>,
   ) {}
 
   async exportData(userId: string): Promise<unknown> {
@@ -47,6 +50,16 @@ export class AccountService {
   }
 
   async deleteAccount(userId: string): Promise<void> {
+    // Confirm BEFORE the purge — the email is about to be erased. A failing send
+    // must never block or roll back the deletion (1d), so it is fully isolated.
+    if (this.onDeleted) {
+      try {
+        const user = await this.auth.getPublicUser(userId);
+        if (user) await this.onDeleted(userId, user.email);
+      } catch (err) {
+        console.warn(`[account] delete-confirmation email failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     for (const p of this.purgeables) await p.purgeUser(userId);
     await this.auth.deleteUser(userId);
   }

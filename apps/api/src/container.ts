@@ -85,7 +85,7 @@ import type { ImageRepository } from './ports/image-repository.js';
 import { InMemoryImageRepository } from './adapters/images/in-memory-image-repository.js';
 import { PgImageRepository } from './adapters/images/pg-image-repository.js';
 import { HeroService } from './services/hero/hero-service.js';
-import { BillingService } from './services/billing/billing-service.js';
+import { BillingService, type BillingEmailHook } from './services/billing/billing-service.js';
 import type { SubscriptionRepository, TrialGrantRepository, WebhookEventRepository } from './ports/billing.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from './adapters/billing/in-memory.js';
 import { PgSubscriptionRepository, PgTrialGrantRepository, PgWebhookEventRepository } from './adapters/billing/pg.js';
@@ -388,7 +388,7 @@ export function createHeroService(config: AppConfig, clients: ClientRepository, 
   return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays);
 }
 
-export function createBillingService(config: AppConfig, pool?: Pool): BillingService {
+export function createBillingService(config: AppConfig, pool?: Pool, emailHook?: BillingEmailHook): BillingService {
   let subs: SubscriptionRepository;
   let trials: TrialGrantRepository;
   let events: WebhookEventRepository;
@@ -405,12 +405,12 @@ export function createBillingService(config: AppConfig, pool?: Pool): BillingSer
   const stripe: StripeGateway = config.stripeSecretKey
     ? new StripeGatewayImpl({ secretKey: config.stripeSecretKey, webhookSecret: config.stripeWebhookSecret, priceId: config.stripePriceId, annualPriceId: config.stripeAnnualPriceId, successUrl: config.stripeSuccessUrl, cancelUrl: config.stripeCancelUrl })
     : new StubStripeGateway(config.stripeWebhookSecret);
-  return new BillingService(subs, trials, events, stripe, config.trialDays);
+  return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook);
 }
 
-export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository): AccountService {
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, onDeleted?: (userId: string, email: string) => Promise<void>): AccountService {
   // On Postgres, deleting the user cascades all data (FKs) — no explicit purge list.
-  return new AccountService(auth, clients, notes, facts, meetings, images, []);
+  return new AccountService(auth, clients, notes, facts, meetings, images, [], onDeleted);
 }
 
 export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {

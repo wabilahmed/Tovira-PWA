@@ -72,6 +72,13 @@ export class PgSubscriptionRepository implements SubscriptionRepository {
     await this.pool.query(`UPDATE subscriptions SET ${sets.join(', ')} WHERE user_id = $${params.length}`, params);
   }
 
+  async listTrialing(): Promise<Array<{ userId: string; trialEndsAt: number }>> {
+    const { rows } = await this.pool.query<{ user_id: string; trial_ends_at: Date }>(
+      `SELECT user_id, trial_ends_at FROM subscriptions WHERE status = 'trialing'`,
+    );
+    return rows.map((r) => ({ userId: r.user_id, trialEndsAt: r.trial_ends_at.getTime() }));
+  }
+
   async findByCustomerId(customerId: string): Promise<SubscriptionRecord | null> {
     const { rows } = await this.pool.query<SubRow>(`SELECT ${SUB_COLS} FROM subscriptions WHERE stripe_customer_id = $1`, [customerId]);
     return rows[0] ? toSub(rows[0]) : null;

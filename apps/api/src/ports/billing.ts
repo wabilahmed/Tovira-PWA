@@ -33,6 +33,8 @@ export interface SubscriptionRepository {
   get(userId: string): Promise<SubscriptionRecord | null>;
   update(userId: string, patch: SubscriptionPatch): Promise<void>;
   findByCustomerId(customerId: string): Promise<SubscriptionRecord | null>;
+  /** Every account still on a trial — drives the trial-ending/ended emails. */
+  listTrialing(): Promise<Array<{ userId: string; trialEndsAt: number }>>;
 }
 
 export interface TrialGrantRepository {
