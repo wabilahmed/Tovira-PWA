@@ -100,6 +100,17 @@ runs to its natural end. Step shape:
 **Trust rules:** query passed through byte-for-byte.
 **Cold start:** as FLOW 1.
 
+### FLOW 3b — Password reset (feat(EMAIL))
+1. Login card → "Forgot password?" → request form · [App LoginScreen (forgot) → ForgotPassword] · [—] · [EMAIL]
+2. Enter email → submit → identical confirmation whether or not the email exists: "If that email has an account, a reset link is on its way." · [ForgotPassword] · [POST /auth/forgot-password → always 200] · [EMAIL]
+3. (email) The reset link → `{appBaseUrl}/reset-password?token=…`, valid one hour · [AccountEmailService.sendPasswordReset] · [—] · [EMAIL]
+4. Open the link → App detects `/reset-password?token=` before auth → set a new password (≥8) → submit · [App → ResetPassword] · [POST /auth/reset-password] · [EMAIL]
+5. Success → "password updated" → back to log in; every prior session was revoked and the token is now spent · [ResetPassword] · [—] · [EMAIL]
+
+**What can go wrong:** unknown email → still 200, no email sent; expired/reused/garbage token → 400 "invalid or has expired"; weak password → 400.
+**Trust rules:** no user enumeration (identical response + no email for unknown); only the token HASH is stored; single-use; all sessions revoked on reset. **Lifecycle emails** (welcome wired; trial-ending / payment-failed / confirmed / canceled / deleted composed + tested, event-wiring pending — see report) are idempotent per (user, event).
+**Cold start:** needs an existing account.
+
 ---
 
 ## First value (the trial-critical path)
@@ -544,7 +555,15 @@ scan) are server-gated and fall back to their empty/error state — a consistent
 
 ## Open questions / discrepancies (code vs docs — nothing changed)
 
-Real functional gaps also recorded in `BLOCKERS.md`:
+**RESOLVED in the launch-blocker batch:** items 1–5 below are now fixed — #1
+Android share-target (`fix(FLOWS-1)`), #2 duplicate re-import (`fix(FLOWS-2)`),
+#3 meetings parse union (`fix(MEETINGS-UNION)` `e334c61`), #4 card fields
+(`fix(CARD-FIELDS)` `7fa0b45`), #5 voice stall (client `fix(FLOWS-5)` + server
+`fix(VOICE-STALL)` `48eed9b`). Labelling items 6–13 partly addressed (Monday in
+the silence budget `4fd8553`; opaque referral code `de214e6`; canceled copy
+`174f4f7`; the empty-audio "contradiction" is not one — an empty upload BODY is
+400 while SILENT audio is `needs_review`, two distinct cases; story-IDs listed
+for Wabil in `LAUNCH-BLOCKERS-REPORT.md`). Original descriptions kept for record:
 
 1. **Android share-target has no handler.** `apps/web/src/pwa/manifest.ts` declares
    `share_target.action = '/share-target'`, but no server route and no
