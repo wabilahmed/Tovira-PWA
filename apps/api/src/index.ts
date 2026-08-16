@@ -112,7 +112,7 @@ async function main(): Promise<void> {
   const activation = createActivationService(config, appPool);
   const recall = createRecallService(config, notes);
   const corpus = new CorpusStatsService(clients, notes);
-  const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays);
+  const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch);
   const ledger = createLedgerService(config, appPool);
   const referral = new ReferralService(
     config.authStore === 'postgres' ? new PgReferralRepository(appPool) : new InMemoryReferralRepository(),

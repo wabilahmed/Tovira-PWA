@@ -1,21 +1,30 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { MondayDigestService } from './monday-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryNotificationRepository } from '../../adapters/notifications/in-memory-notification-repository.js';
+import { InMemoryPushSubscriptionRepository } from '../../adapters/push/in-memory-push-subscription-repository.js';
+import { InMemoryPushBudgetRepository } from '../../adapters/push/in-memory-push-budget-repository.js';
+import { PushDispatchService } from '../push/push-dispatch-service.js';
+import type { PushSender } from '../../ports/push.js';
 
 const NOW = Date.parse('2026-08-03T09:00:00Z'); // a Monday
 const DAY = 24 * 60 * 60 * 1000;
 const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const sub = { endpoint: 'https://push.test/a', keys: { p256dh: 'k', auth: 'a' } };
 
 function make() {
   const clients = new InMemoryClientRepository();
   const notes = new InMemoryNoteRepository();
   const facts = new InMemoryFactsRepository();
   const notifications = new InMemoryNotificationRepository();
-  const svc = new MondayDigestService(clients, notes, facts, notifications, 30);
-  return { clients, notes, facts, notifications, svc };
+  const subs = new InMemoryPushSubscriptionRepository();
+  const budget = new InMemoryPushBudgetRepository();
+  const sender: PushSender = { send: vi.fn().mockResolvedValue(undefined) };
+  const pushDispatch = new PushDispatchService(sender, subs, notifications, budget);
+  const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch);
+  return { clients, notes, facts, notifications, subs, budget, sender, pushDispatch, svc };
 }
 
 describe('MondayDigestService (P3-8)', () => {
@@ -66,6 +75,26 @@ describe('MondayDigestService (P3-8)', () => {
     expect(await svc.notifyMonday('u', NOW)).toBe(true);
     expect(await svc.notifyMonday('u', NOW + DAY)).toBe(false); // same week → no second digest
     expect(await notifications.listByUser('u')).toHaveLength(1);
+  });
+
+  // [FLOWS / silence budget] the Monday push goes through the SAME ranked, capped
+  // dispatcher as every other alert — brand §10 "max 2/day, no exceptions".
+  it('pushes the Monday digest through the silence budget when budget remains', async () => {
+    const { clients, subs, sender, svc } = make();
+    await clients.create('u', 'Acme');
+    await subs.save('u', sub);
+    await svc.notifyMonday('u', NOW);
+    expect(sender.send).toHaveBeenCalledTimes(1); // pushed to the one device, within budget
+  });
+
+  it('suppresses the Monday push when the daily budget is spent, but still records it in-app', async () => {
+    const { clients, subs, budget, sender, notifications, svc } = make();
+    await clients.create('u', 'Acme');
+    await subs.save('u', sub);
+    await budget.recordSent('u', iso(NOW), 2); // the 2/day cap is already used
+    await svc.notifyMonday('u', NOW);
+    expect(sender.send).not.toHaveBeenCalled(); // no exception to the cap
+    expect(await notifications.listByUser('u')).toHaveLength(1); // suppressed from push ≠ lost
   });
 
   it('never includes another rep\'s data', async () => {

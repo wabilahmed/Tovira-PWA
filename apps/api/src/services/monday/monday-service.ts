@@ -2,6 +2,7 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
+import type { PushDispatchService } from '../push/push-dispatch-service.js';
 import type { UnansweredQuestion } from '../import/unanswered.js';
 
 /**
@@ -40,6 +41,7 @@ export class MondayDigestService {
     private readonly facts: FactsRepository,
     private readonly notifications: NotificationRepository,
     private readonly coldThresholdDays: number,
+    private readonly pushDispatch: PushDispatchService,
   ) {}
 
   async build(userId: string, nowMs: number): Promise<MondayDigest> {
@@ -77,12 +79,19 @@ export class MondayDigestService {
     const body = digest.isLight
       ? 'A clear week — nothing due, no one cooling. Nice.'
       : `${digest.promisesDue.length} promise(s) due, ${digest.coolingClients.length} cooling, ${digest.unansweredQuestions.length} open question(s).`;
-    return this.notifications.createIfAbsent(userId, {
-      type: 'monday_digest',
+    const alert = {
+      type: 'monday_digest' as const,
       dedupeKey: `monday:${digest.weekOf}`,
       clientId: null,
       title: 'Your Monday scan',
       body,
-    });
+    };
+    // Record + gate on "new this week" (idempotent), then route the PUSH through
+    // the silence budget — the Monday digest is ranked lowest and counts against
+    // the 2/day cap like everything else (brand §10, no exceptions). Suppressed
+    // from push is never lost: the in-app record above already stands.
+    const isNew = await this.notifications.createIfAbsent(userId, alert);
+    if (isNew) await this.pushDispatch.dispatch(userId, [alert], nowMs);
+    return isNew;
   }
 }

@@ -130,7 +130,7 @@ export function buildInMemoryDeps(
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1 }),
     corpus: new CorpusStatsService(clients, notes),
-    monday: new MondayDigestService(clients, notes, facts, notifications, 30),
+    monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
     ledger: new LedgerService(new InMemoryLedgerRepository()),
     referral: new ReferralService(new InMemoryReferralRepository(), billing),
     ...overrides,
