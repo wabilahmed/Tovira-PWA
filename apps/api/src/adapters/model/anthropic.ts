@@ -14,7 +14,24 @@ export interface AnthropicModelClientOptions {
 
 interface AnthropicResponseBody {
   content?: Array<{ type: string; text?: string }>;
-  usage?: { input_tokens?: number; output_tokens?: number };
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
+}
+
+/**
+ * Build the `system` field. With caching on, it becomes a content-block array
+ * whose (single) block carries `cache_control: ephemeral` — the breakpoint that
+ * actually turns Anthropic/Bedrock prompt caching ON. Without it, a plain-string
+ * system prompt is NEVER cached, no matter how byte-identical it is.
+ */
+function buildSystem(system: string | undefined, cache: boolean | undefined): unknown {
+  if (system === undefined) return undefined;
+  if (!cache) return system;
+  return [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
 }
 
 /**
@@ -46,7 +63,7 @@ export class AnthropicModelClient implements ModelClient {
         body: JSON.stringify({
           model: this.opts.model,
           max_tokens: request.maxTokens ?? 1024,
-          system: request.system,
+          system: buildSystem(request.system, request.cacheSystemPrompt),
           messages: request.messages,
           ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
         }),
@@ -71,11 +88,16 @@ export class AnthropicModelClient implements ModelClient {
     }
 
     const text = body.content?.find((b) => b.type === 'text')?.text ?? '';
+    const u = body.usage;
     return {
       text,
       usage: {
-        inputTokens: body.usage?.input_tokens ?? 0,
-        outputTokens: body.usage?.output_tokens ?? 0,
+        inputTokens: u?.input_tokens ?? 0,
+        outputTokens: u?.output_tokens ?? 0,
+        // Present only when the provider caches — surfaced so callers/observability
+        // can PROVE a cache read happened (cacheReadInputTokens > 0).
+        ...(u?.cache_creation_input_tokens !== undefined ? { cacheCreationInputTokens: u.cache_creation_input_tokens } : {}),
+        ...(u?.cache_read_input_tokens !== undefined ? { cacheReadInputTokens: u.cache_read_input_tokens } : {}),
       },
       raw: body,
     };

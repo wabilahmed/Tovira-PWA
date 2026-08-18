@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ExtractionService } from './extraction-service.js';
+import { EXTRACTION_SYSTEM_PROMPT } from './prompt.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
@@ -21,6 +22,12 @@ const VALID = JSON.stringify({
 function model(...responses: string[]): ModelClient {
   let i = 0;
   return { complete: async () => ({ text: responses[Math.min(i++, responses.length - 1)]! }) };
+}
+
+/** A model that records the last request it was asked to complete. */
+function capturingModel(text: string): { client: ModelClient; last: () => Parameters<ModelClient['complete']>[0] | null } {
+  let seen: Parameters<ModelClient['complete']>[0] | null = null;
+  return { client: { complete: async (req) => { seen = req; return { text }; } }, last: () => seen };
 }
 
 async function setup(m: ModelClient) {
@@ -51,6 +58,19 @@ describe('ExtractionService', () => {
     const promises = await facts.listPromisesByNote('user-A', note.id);
     expect(promises).toHaveLength(1);
     expect(promises[0]!.owner).toBe('rep');
+  });
+
+  // [CACHE] Extraction MUST request prompt caching, with the byte-identical
+  // system prefix — that is the whole cost lever on Sonnet.
+  it('requests prompt caching with the byte-identical system prefix', async () => {
+    const cap = capturingModel(VALID);
+    const { service, note } = await setup(cap.client);
+    await service.extractNote('user-A', note.id, '2026-07-09');
+    const req = cap.last()!;
+    expect(req.cacheSystemPrompt).toBe(true);
+    expect(req.system).toBe(EXTRACTION_SYSTEM_PROMPT);
+    // The variable bits (today's date, client) live in the message, NOT the prefix.
+    expect(req.system).not.toContain('2026-07-09');
   });
 
   // NEGATIVE: malformed output is retried once; a valid retry succeeds.

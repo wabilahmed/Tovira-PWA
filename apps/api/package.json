@@ -9,6 +9,7 @@
     "start": "tsx src/index.ts",
     "seed": "tsx src/seed/index.ts",
     "gate": "tsx src/eval/index.ts",
+    "cache:verify": "tsx src/scripts/verify-cache.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

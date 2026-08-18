@@ -129,6 +129,9 @@ export class ExtractionService {
     try {
       const res = await model.complete({
         system: EXTRACTION_SYSTEM_PROMPT,
+        // The prefix is large (>4k tokens) and byte-identical every call — cache
+        // it so repeat extractions read the prefix instead of re-billing it.
+        cacheSystemPrompt: true,
         messages: [{ role: 'user', content: userMessage }],
         maxTokens: 2048,
         // NB: temperature is deprecated for claude-sonnet-5 (the API 400s on any
