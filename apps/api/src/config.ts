@@ -5,6 +5,8 @@
  * actionable error — never a silent crash or a half-up service.
  */
 
+import type { CacheTtl } from './ports/model.js';
+
 export class ConfigError extends Error {
   override name = 'ConfigError';
 }
@@ -40,6 +42,7 @@ const TRANSCRIBER_PROVIDERS: readonly TranscriberProvider[] = ['stub', 'groq'];
 const EMBEDDER_PROVIDERS: readonly EmbedderProvider[] = ['stub', 'bedrock'];
 const PUSH_PROVIDERS: readonly PushProvider[] = ['stub', 'webpush'];
 const EMAIL_PROVIDERS: readonly EmailProvider[] = ['stub', 'ses'];
+const CACHE_TTLS: readonly CacheTtl[] = ['5m', '1h'];
 
 export interface AppConfig {
   databaseUrl: string;
@@ -57,6 +60,10 @@ export interface AppConfig {
    * all other classes=Haiku by default; each overridable via MODEL_<CLASS>.
    */
   models: Record<AiTaskClass, string>;
+  /** Prompt-cache lifetime for the extraction system prefix. '1h' by default
+   *  (survives longer gaps between captures); set EXTRACTION_CACHE_TTL=5m to
+   *  switch to the cheaper-write 5-minute tier. */
+  extractionCacheTtl: CacheTtl;
   storageDir: string;
   // --- auth (P0-3) ---
   authStore: AuthStore;
@@ -133,6 +140,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     // 0 guessed). Extraction defaults to Sonnet; override with ANTHROPIC_MODEL.
     anthropicModel: env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5',
     models: resolveModels(env),
+    extractionCacheTtl: parseEnum(env.EXTRACTION_CACHE_TTL, CACHE_TTLS, '1h', 'EXTRACTION_CACHE_TTL'),
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
     authStore: parseAuthStore(env.AUTH_STORE),
     sessionTtlHours: parseSessionTtlHours(env.SESSION_TTL_HOURS),

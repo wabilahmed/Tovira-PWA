@@ -9,6 +9,11 @@ export interface ModelMessage {
   content: string;
 }
 
+/** Prompt-cache lifetime. '5m' = default ephemeral (write premium 1.25×); '1h' =
+ *  extended cache (write premium 2×, survives longer gaps between calls). Reads
+ *  are 0.1× either way. */
+export type CacheTtl = '5m' | '1h';
+
 export interface ModelCompletionRequest {
   system?: string;
   messages: ModelMessage[];
@@ -21,6 +26,8 @@ export interface ModelCompletionRequest {
    *  extraction engine — so repeat calls read the cache instead of re-billing the
    *  whole prefix. No-op for providers/stubs that don't cache. */
   cacheSystemPrompt?: boolean;
+  /** Cache lifetime when cacheSystemPrompt is set. Defaults to '5m' when omitted. */
+  cacheTtl?: CacheTtl;
 }
 
 export interface ModelUsage {

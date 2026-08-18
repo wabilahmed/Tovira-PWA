@@ -71,4 +71,17 @@ describe('loadConfig', () => {
     const appUrl = 'postgres://tovira_app:tovira_app@localhost:5432/tovira';
     expect(loadConfig({ ...valid, APP_DATABASE_URL: appUrl }).appDatabaseUrl).toBe(appUrl);
   });
+
+  // [CACHE] the extraction prompt-cache TTL switch: 1h by default, 5m on demand.
+  it('defaults the extraction cache TTL to 1h', () => {
+    expect(loadConfig(valid).extractionCacheTtl).toBe('1h');
+  });
+
+  it('switches to the 5-minute tier via EXTRACTION_CACHE_TTL=5m', () => {
+    expect(loadConfig({ ...valid, EXTRACTION_CACHE_TTL: '5m' }).extractionCacheTtl).toBe('5m');
+  });
+
+  it('rejects an invalid EXTRACTION_CACHE_TTL with a named error', () => {
+    expect(() => loadConfig({ ...valid, EXTRACTION_CACHE_TTL: '30m' })).toThrow(/EXTRACTION_CACHE_TTL/);
+  });
 });

@@ -26,11 +26,12 @@ async function main(): Promise<void> {
   const req = {
     system: EXTRACTION_SYSTEM_PROMPT,
     cacheSystemPrompt: true,
+    cacheTtl: config.extractionCacheTtl,
     messages: [{ role: 'user' as const, content: message }],
     maxTokens: 512,
   };
 
-  console.log(`model: ${modelId}`);
+  console.log(`model: ${modelId}  ·  cache TTL: ${config.extractionCacheTtl} (EXTRACTION_CACHE_TTL)`);
   console.log(`prefix ~${estimateTokens(EXTRACTION_SYSTEM_PROMPT)} tokens (est.)\n`);
 
   let lastRead = 0;

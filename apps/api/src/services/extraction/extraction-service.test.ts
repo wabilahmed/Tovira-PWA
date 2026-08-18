@@ -30,7 +30,7 @@ function capturingModel(text: string): { client: ModelClient; last: () => Parame
   return { client: { complete: async (req) => { seen = req; return { text }; } }, last: () => seen };
 }
 
-async function setup(m: ModelClient) {
+async function setup(m: ModelClient, cacheTtl?: '5m' | '1h') {
   const clients = new InMemoryClientRepository();
   const notes = new InMemoryNoteRepository();
   const facts = new InMemoryFactsRepository();
@@ -43,7 +43,7 @@ async function setup(m: ModelClient) {
     status: 'pending_extraction',
   });
   const logs = new InMemoryExtractionLogRepository();
-  const service = new ExtractionService(m, clients, notes, facts, new StubEmbedder(8), logs, 'stub');
+  const service = new ExtractionService(m, clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined, undefined, cacheTtl);
   return { service, notes, facts, note, logs };
 }
 
@@ -71,6 +71,19 @@ describe('ExtractionService', () => {
     expect(req.system).toBe(EXTRACTION_SYSTEM_PROMPT);
     // The variable bits (today's date, client) live in the message, NOT the prefix.
     expect(req.system).not.toContain('2026-07-09');
+  });
+
+  // [CACHE] The configured cache TTL is forwarded on the request (1h / 5m switch).
+  it('forwards the configured cache TTL to the model request', async () => {
+    const capA = capturingModel(VALID);
+    const a = await setup(capA.client, '1h');
+    await a.service.extractNote('user-A', a.note.id, '2026-07-09');
+    expect(capA.last()!.cacheTtl).toBe('1h');
+
+    const capB = capturingModel(VALID);
+    const b = await setup(capB.client, '5m');
+    await b.service.extractNote('user-A', b.note.id, '2026-07-09');
+    expect(capB.last()!.cacheTtl).toBe('5m');
   });
 
   // NEGATIVE: malformed output is retried once; a valid retry succeeds.

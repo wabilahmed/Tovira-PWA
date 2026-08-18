@@ -49,12 +49,35 @@ describe('AnthropicModelClient', () => {
   describe('prompt caching', () => {
     const ok = { content: [{ type: 'text', text: '{}' }], usage: { input_tokens: 10, output_tokens: 2, cache_read_input_tokens: 4096 } };
 
-    it('sends cache_control on the system block when cacheSystemPrompt is set', async () => {
+    it('sends cache_control on the system block when cacheSystemPrompt is set (5-min default)', async () => {
       const calls = stubFetch(ok);
       await client().complete({ system: 'BIG PREFIX', cacheSystemPrompt: true, messages: [{ role: 'user', content: 'x' }] });
       const body = sentBody(calls);
       expect(Array.isArray(body.system)).toBe(true);
       expect(body.system[0]).toEqual({ type: 'text', text: 'BIG PREFIX', cache_control: { type: 'ephemeral' } });
+      // No extended-TTL beta header on the default (5-minute) path.
+      expect((calls[0]!.init.headers as Record<string, string>)['anthropic-beta']).toBeUndefined();
+    });
+
+    it("the 1-hour tier sets ttl:'1h' AND the extended-cache beta header", async () => {
+      const calls = stubFetch(ok);
+      await client().complete({ system: 'BIG PREFIX', cacheSystemPrompt: true, cacheTtl: '1h', messages: [{ role: 'user', content: 'x' }] });
+      expect(sentBody(calls).system[0].cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+      expect((calls[0]!.init.headers as Record<string, string>)['anthropic-beta']).toBe('extended-cache-ttl-2025-04-11');
+    });
+
+    it("the explicit 5-minute tier sets no ttl and no beta header", async () => {
+      const calls = stubFetch(ok);
+      await client().complete({ system: 'p', cacheSystemPrompt: true, cacheTtl: '5m', messages: [{ role: 'user', content: 'x' }] });
+      expect(sentBody(calls).system[0].cache_control).toEqual({ type: 'ephemeral' });
+      expect((calls[0]!.init.headers as Record<string, string>)['anthropic-beta']).toBeUndefined();
+    });
+
+    it("never sends the extended-cache beta header when caching is off, even if a ttl leaks in", async () => {
+      const calls = stubFetch(ok);
+      await client().complete({ system: 'p', cacheTtl: '1h', messages: [{ role: 'user', content: 'x' }] });
+      expect((calls[0]!.init.headers as Record<string, string>)['anthropic-beta']).toBeUndefined();
+      expect(sentBody(calls).system).toBe('p'); // plain string — not cached
     });
 
     it('leaves system as a plain string when caching is off (backward compatible)', async () => {

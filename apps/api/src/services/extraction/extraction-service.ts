@@ -1,4 +1,4 @@
-import type { ModelClient } from '../../ports/model.js';
+import type { CacheTtl, ModelClient } from '../../ports/model.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
@@ -50,6 +50,9 @@ export class ExtractionService {
     private readonly router?: ModelRouter,
     /** Trial extraction ceiling (P5-1). Optional — unlimited when absent. */
     private readonly limiter?: ExtractionLimiter,
+    /** Prompt-cache lifetime for the (byte-identical) system prefix. Defaults to
+     *  the cheaper-write 5-minute tier; production passes config ('1h'). */
+    private readonly cacheTtl: CacheTtl = '5m',
   ) {}
 
   async extractNote(userId: string, noteId: string, today: string): Promise<ExtractOutcome> {
@@ -132,6 +135,7 @@ export class ExtractionService {
         // The prefix is large (>4k tokens) and byte-identical every call — cache
         // it so repeat extractions read the prefix instead of re-billing it.
         cacheSystemPrompt: true,
+        cacheTtl: this.cacheTtl,
         messages: [{ role: 'user', content: userMessage }],
         maxTokens: 2048,
         // NB: temperature is deprecated for claude-sonnet-5 (the API 400s on any

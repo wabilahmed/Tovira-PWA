@@ -1,9 +1,13 @@
 import {
   ModelError,
+  type CacheTtl,
   type ModelClient,
   type ModelCompletionRequest,
   type ModelCompletionResponse,
 } from '../../ports/model.js';
+
+/** Anthropic beta flag required to use the 1-hour prompt-cache TTL. */
+const EXTENDED_CACHE_TTL_BETA = 'extended-cache-ttl-2025-04-11';
 
 export interface AnthropicModelClientOptions {
   apiKey: string;
@@ -27,11 +31,15 @@ interface AnthropicResponseBody {
  * whose (single) block carries `cache_control: ephemeral` — the breakpoint that
  * actually turns Anthropic/Bedrock prompt caching ON. Without it, a plain-string
  * system prompt is NEVER cached, no matter how byte-identical it is.
+ *
+ * ttl '1h' adds `ttl: '1h'` (the extended tier — survives longer gaps at a higher
+ * write premium); '5m'/omitted is the default ephemeral lifetime.
  */
-function buildSystem(system: string | undefined, cache: boolean | undefined): unknown {
+function buildSystem(system: string | undefined, cache: boolean | undefined, ttl: CacheTtl | undefined): unknown {
   if (system === undefined) return undefined;
   if (!cache) return system;
-  return [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
+  const cache_control = ttl === '1h' ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' };
+  return [{ type: 'text', text: system, cache_control }];
 }
 
 /**
@@ -51,6 +59,9 @@ export class AnthropicModelClient implements ModelClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.opts.timeoutMs ?? 30_000);
 
+    // The 1-hour cache tier is gated behind a beta flag; the 5-minute default is not.
+    const wantsExtendedTtl = request.cacheSystemPrompt === true && request.cacheTtl === '1h';
+
     let response: Response;
     try {
       response = await fetch(`${this.opts.baseUrl}/v1/messages`, {
@@ -59,11 +70,12 @@ export class AnthropicModelClient implements ModelClient {
           'content-type': 'application/json',
           'x-api-key': this.opts.apiKey,
           'anthropic-version': '2023-06-01',
+          ...(wantsExtendedTtl ? { 'anthropic-beta': EXTENDED_CACHE_TTL_BETA } : {}),
         },
         body: JSON.stringify({
           model: this.opts.model,
           max_tokens: request.maxTokens ?? 1024,
-          system: buildSystem(request.system, request.cacheSystemPrompt),
+          system: buildSystem(request.system, request.cacheSystemPrompt, request.cacheTtl),
           messages: request.messages,
           ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
         }),
