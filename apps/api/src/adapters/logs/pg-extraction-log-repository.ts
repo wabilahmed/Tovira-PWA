@@ -18,6 +18,8 @@ interface LogRow {
   input_tokens: number;
   output_tokens: number;
   latency_ms: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
   created_at: Date;
 }
 
@@ -34,12 +36,14 @@ function toRecord(row: LogRow): ExtractionLogRecord {
     inputTokens: row.input_tokens,
     outputTokens: row.output_tokens,
     latencyMs: row.latency_ms,
+    cacheCreationTokens: row.cache_creation_tokens,
+    cacheReadTokens: row.cache_read_tokens,
     createdAt: row.created_at.getTime(),
   };
 }
 
 const COLUMNS =
-  'id, user_id, note_id, prompt_version, model, input, raw_output, status, input_tokens, output_tokens, latency_ms, created_at';
+  'id, user_id, note_id, prompt_version, model, input, raw_output, status, input_tokens, output_tokens, latency_ms, cache_creation_tokens, cache_read_tokens, created_at';
 
 export class PgExtractionLogRepository implements ExtractionLogRepository {
   constructor(private readonly pool: Pool) {}
@@ -48,8 +52,8 @@ export class PgExtractionLogRepository implements ExtractionLogRepository {
     await withTenant(this.pool, userId, async (c) => {
       await c.query(
         `INSERT INTO extraction_logs
-           (user_id, note_id, prompt_version, model, input, raw_output, status, input_tokens, output_tokens, latency_ms)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+           (user_id, note_id, prompt_version, model, input, raw_output, status, input_tokens, output_tokens, latency_ms, cache_creation_tokens, cache_read_tokens)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
           userId,
           entry.noteId,
@@ -61,6 +65,8 @@ export class PgExtractionLogRepository implements ExtractionLogRepository {
           entry.inputTokens,
           entry.outputTokens,
           entry.latencyMs,
+          entry.cacheCreationTokens ?? 0,
+          entry.cacheReadTokens ?? 0,
         ],
       );
     });

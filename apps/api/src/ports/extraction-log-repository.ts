@@ -15,6 +15,11 @@ export interface ExtractionLogEntry {
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
+  /** Prompt-cache usage (CACHE-TRACK). A call that WROTE the cache has
+   *  cacheCreationTokens > 0; one that READ it has cacheReadTokens > 0. Both 0
+   *  when the provider doesn't cache (stub/local). Drives the tier advisor. */
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
 }
 
 export interface ExtractionLogRecord extends ExtractionLogEntry {

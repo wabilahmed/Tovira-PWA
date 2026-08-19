@@ -24,6 +24,8 @@ interface Attempt {
   raw: string | null;
   inputTokens: number;
   outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
 }
 
 /**
@@ -83,7 +85,7 @@ export class ExtractionService {
     const route = this.router ? await this.router.resolve(userId) : { model: this.model, modelId: this.modelId };
 
     const start = this.now();
-    let last: Attempt = { parsed: null, raw: null, inputTokens: 0, outputTokens: 0 };
+    let last: Attempt = { parsed: null, raw: null, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
     let extraction: Extraction | null = null;
     for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
       last = await this.call(route.model, userMessage);
@@ -120,6 +122,8 @@ export class ExtractionService {
       inputTokens: last.inputTokens,
       outputTokens: last.outputTokens,
       latencyMs: this.now() - start,
+      cacheCreationTokens: last.cacheCreationTokens,
+      cacheReadTokens: last.cacheReadTokens,
     });
 
     return extraction ? { status } : { status, flagged: true };
@@ -129,6 +133,8 @@ export class ExtractionService {
     let raw: string | null = null;
     let inputTokens = 0;
     let outputTokens = 0;
+    let cacheCreationTokens = 0;
+    let cacheReadTokens = 0;
     try {
       const res = await model.complete({
         system: EXTRACTION_SYSTEM_PROMPT,
@@ -146,10 +152,12 @@ export class ExtractionService {
       raw = res.text;
       inputTokens = res.usage?.inputTokens ?? 0;
       outputTokens = res.usage?.outputTokens ?? 0;
+      cacheCreationTokens = res.usage?.cacheCreationInputTokens ?? 0;
+      cacheReadTokens = res.usage?.cacheReadInputTokens ?? 0;
     } catch {
-      return { parsed: null, raw: null, inputTokens, outputTokens };
+      return { parsed: null, raw: null, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens };
     }
     const parsed = extractJsonObject(raw);
-    return { parsed, raw, inputTokens, outputTokens };
+    return { parsed, raw, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens };
   }
 }
