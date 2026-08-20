@@ -14,7 +14,13 @@
 @import '../../../../packages/brand/fonts.css';
 @import '../../../../packages/brand/primitives.css';
 
-:root { --measure: 1120px; --gap: 1.5rem; }
+:root {
+  --measure: 1120px;
+  --gap: 1.5rem;
+  /* Scroll-journey motion: an expo-out settle, cinematic duration. */
+  --rv-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --rv-dur: 720ms;
+}
 
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -26,6 +32,7 @@ body {
   font-family: var(--font-sans);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden; /* directional reveals slide in from off-canvas */
 }
 
 .wrap { max-width: var(--measure); margin-inline: auto; padding-inline: 20px; }
@@ -148,18 +155,42 @@ a:not(.cta) { color: var(--text-primary); }
 .mobile-cta.is-visible { transform: none; }
 .mobile-cta[hidden] { display: none; }
 
-/* ── Reveal / stagger / deal-out — enhancement only (gated on .js) ── */
-.js [data-reveal] { opacity: 0; transform: translateY(12px); }
-.js [data-reveal][data-revealed] { opacity: 1; transform: none; transition: opacity 200ms ease-out, transform 200ms ease-out; }
-.js [data-stagger] [data-stagger-item],
-.js [data-deal] [data-deal-item] { opacity: 0; transform: translateY(12px); }
-.js [data-stagger][data-revealed] [data-stagger-item],
-.js [data-deal][data-revealed] [data-deal-item] { opacity: 1; transform: none; transition: opacity 200ms ease-out, transform 200ms ease-out; }
-.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(2),
-.js [data-deal][data-revealed] [data-deal-item]:nth-child(2) { transition-delay: 60ms; }
-.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(3),
-.js [data-deal][data-revealed] [data-deal-item]:nth-child(3) { transition-delay: 120ms; }
-.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(4) { transition-delay: 180ms; }
+/* ── The scroll journey (gated on .js) — bigger, directional, choreographed.
+   As each section enters view its parts glide into place; the eye is led down
+   the page. All scroll-triggered once; instant under reduced-motion (below). ── */
+.js [data-reveal] { opacity: 0; transform: translateY(48px); transition: opacity var(--rv-dur) var(--rv-ease), transform var(--rv-dur) var(--rv-ease); }
+.js [data-reveal][data-revealed] { opacity: 1; transform: none; }
+
+/* Centered blocks (the turn, the close) rise + settle up from a slight zoom.
+   The directional/hidden transforms below are scoped to :not([data-revealed]) so
+   they out-specify the base but STILL yield to the revealed reset (transform:none)
+   — otherwise the element settles offset and never animates into place. */
+.js .prose-center[data-reveal]:not([data-revealed]) { transform: translateY(40px) scale(0.97); }
+
+/* Directional entrances keyed to the zigzag — copy and visual slide in from
+   opposite sides, converging (desktop only; mobile keeps the vertical rise so
+   nothing slides off a narrow screen). */
+@media (min-width: 768px) {
+  .js .sec__copy[data-reveal]:not([data-revealed]) { transform: translateX(-60px); }
+  .js .sec__visual[data-reveal]:not([data-revealed]) { transform: translateX(60px) scale(0.94); }
+  .js .sec--reverse .sec__copy[data-reveal]:not([data-revealed]) { transform: translateX(60px); }
+  .js .sec--reverse .sec__visual[data-reveal]:not([data-revealed]) { transform: translateX(-60px) scale(0.94); }
+}
+
+/* Staggered groups (silence rows, use-case cards, plans) rise in sequence. */
+.js [data-stagger] [data-stagger-item] { opacity: 0; transform: translateY(44px); transition: opacity var(--rv-dur) var(--rv-ease), transform var(--rv-dur) var(--rv-ease); }
+.js [data-stagger][data-revealed] [data-stagger-item] { opacity: 1; transform: none; }
+.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(1) { transition-delay: 40ms; }
+.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(2) { transition-delay: 150ms; }
+.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(3) { transition-delay: 260ms; }
+.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(4) { transition-delay: 370ms; }
+
+/* The §5 proof chits deal out like an audit across a desk — a slight fan + rise. */
+.js [data-deal] [data-deal-item] { opacity: 0; transform: translateY(46px) rotate(-2.5deg); transition: opacity var(--rv-dur) var(--rv-ease), transform var(--rv-dur) var(--rv-ease); }
+.js [data-deal][data-revealed] [data-deal-item] { opacity: 1; transform: none; }
+.js [data-deal][data-revealed] [data-deal-item]:nth-child(1) { transition-delay: 40ms; }
+.js [data-deal][data-revealed] [data-deal-item]:nth-child(2) { transition-delay: 170ms; }
+.js [data-deal][data-revealed] [data-deal-item]:nth-child(3) { transition-delay: 300ms; }
 
 /* ── Lead-down connectors — a ledger thread between sections. As each section
    reveals, the thread draws downward (the line grows, then a node drops in),
