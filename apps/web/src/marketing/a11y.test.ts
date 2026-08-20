@@ -55,7 +55,7 @@ describe('[SITE-5] meta & SEO', () => {
   it('has OpenGraph + Twitter cards pointing at the OG image', () => {
     const d = parse(EN);
     expect(d.querySelector('meta[property="og:title"]')).not.toBeNull();
-    expect(d.querySelector('meta[property="og:image"]')?.getAttribute('content')).toMatch(/og\.svg$/);
+    expect(d.querySelector('meta[property="og:image"]')?.getAttribute('content')).toMatch(/og\.(png|svg)$/);
     expect(d.querySelector('meta[name="twitter:card"]')?.getAttribute('content')).toBe('summary_large_image');
     expect(d.querySelector('meta[property="og:locale:alternate"]')?.getAttribute('content')).toBe('ar_AE');
   });

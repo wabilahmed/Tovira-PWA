@@ -13,6 +13,7 @@
  *     HttpOnly and is still validated by the app.
  */
 import './ref.js';
+import { initMarketingMotion } from './reveal.js';
 
 const AUTH_HINT = 'tovira.authed';
 
@@ -27,3 +28,9 @@ function redirectIfAuthed(): void {
 }
 
 if (typeof location !== 'undefined' && typeof localStorage !== 'undefined') redirectIfAuthed();
+
+// Marketing motion (reveal-on-scroll, §4 frame swap, mobile CTA). Enhancement only.
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => initMarketingMotion());
+  else initMarketingMotion();
+}
