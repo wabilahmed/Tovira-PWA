@@ -3,6 +3,22 @@ export interface Session {
 }
 
 /**
+ * A non-secret hint the static marketing page reads to redirect a logged-in rep
+ * straight to the app (the real session is an HttpOnly cookie the app still
+ * validates — this only avoids showing a stranger's landing page to a signed-in
+ * user). Best-effort; private mode simply skips it.
+ */
+const AUTH_HINT_KEY = 'tovira.authed';
+function setAuthHint(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(AUTH_HINT_KEY, '1');
+    else localStorage.removeItem(AUTH_HINT_KEY);
+  } catch {
+    /* no storage — the marketing redirect just won't fire */
+  }
+}
+
+/**
  * Client half of the session. Talks to the API with `credentials: 'include'` so
  * the HttpOnly session cookie rides along, and treats a 401 from /me as
  * "logged out" (the UI then shows the login screen).
@@ -23,6 +39,7 @@ export class AuthClient {
   }
 
   async logout(): Promise<void> {
+    setAuthHint(false);
     await fetch(this.url('/auth/logout'), { method: 'POST', credentials: 'include' });
   }
 
@@ -91,8 +108,12 @@ export class AuthClient {
   async getSession(): Promise<Session | null> {
     try {
       const res = await fetch(this.url('/me'), { credentials: 'include' });
-      if (res.status !== 200) return null;
+      if (res.status !== 200) {
+        setAuthHint(false); // stale hint → clear it
+        return null;
+      }
       const data = (await res.json()) as Session;
+      setAuthHint(true);
       return { user: data.user };
     } catch {
       // Offline / network error → treat as not-authenticated so the shell still
@@ -116,6 +137,7 @@ export class AuthClient {
       throw new Error(body.message ?? 'Authentication failed.');
     }
     const data = (await res.json()) as Session;
+    setAuthHint(true);
     return { user: data.user };
   }
 }

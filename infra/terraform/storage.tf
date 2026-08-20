@@ -46,9 +46,11 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
-  default_root_object = "index.html"
-  comment             = "tovira-${var.env} PWA"
-  price_class         = "PriceClass_100" # cheapest edge footprint
+  default_root_object = "index.html" # `/` → the prerendered marketing landing
+  comment             = "tovira-${var.env} PWA + marketing"
+  price_class         = "PriceClass_100" # cheapest edge footprint (guarded in marketing.tf)
+  # Apex + www serve this same distribution now (the marketing site was merged in).
+  aliases = local.marketing_aliases
 
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -62,18 +64,26 @@ resource "aws_cloudfront_distribution" "frontend" {
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
     cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+
+    # Directory-index for the prerendered marketing pages (/privacy, /ar → …/index.html).
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.frontend_dir_index.arn
+    }
   }
 
-  # SPA: serve index.html for client-side routes.
+  # SPA fallback: a request that isn't a real file (an app client-side route like
+  # /clients or /reset-password) 404s at the origin and serves the APP SHELL —
+  # app.html, NOT the marketing landing (which owns `/`).
   custom_error_response {
     error_code         = 403
     response_code      = 200
-    response_page_path = "/index.html"
+    response_page_path = "/app.html"
   }
   custom_error_response {
     error_code         = 404
     response_code      = 200
-    response_page_path = "/index.html"
+    response_page_path = "/app.html"
   }
 
   restrictions {
@@ -82,8 +92,20 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  viewer_certificate {
-    cloudfront_default_certificate = true # swap for ACM when a custom domain is added
+  # Default CloudFront cert until a marketing domain + ACM cert (us-east-1) are set.
+  dynamic "viewer_certificate" {
+    for_each = var.marketing_acm_certificate_arn == "" ? [1] : []
+    content {
+      cloudfront_default_certificate = true
+    }
+  }
+  dynamic "viewer_certificate" {
+    for_each = var.marketing_acm_certificate_arn == "" ? [] : [1]
+    content {
+      acm_certificate_arn      = var.marketing_acm_certificate_arn
+      ssl_support_method       = "sni-only"
+      minimum_protocol_version = "TLSv1.2_2021"
+    }
   }
 }
 

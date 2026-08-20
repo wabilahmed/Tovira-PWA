@@ -5,8 +5,8 @@ import { resolve } from 'node:path';
 const read = (p: string): string => readFileSync(resolve(process.cwd(), p), 'utf8');
 const parse = (p: string): Document => new DOMParser().parseFromString(read(p), 'text/html');
 
-const EN = 'apps/site/index.html';
-const AR = 'apps/site/ar/index.html';
+const EN = 'apps/web/index.html';
+const AR = 'apps/web/ar/index.html';
 
 describe('[SITE-5] accessibility & landmarks', () => {
   it('the English page has exactly one h1 and the core landmarks', () => {
@@ -27,7 +27,7 @@ describe('[SITE-5] accessibility & landmarks', () => {
   });
 
   it('the OG image is a real asset with an accessible label', () => {
-    const svg = read('apps/site/public/og.svg');
+    const svg = read('apps/web/public/og.svg');
     expect(svg).toContain('<svg');
     expect(svg).toMatch(/aria-label=/);
   });
@@ -63,7 +63,7 @@ describe('[SITE-5] meta & SEO', () => {
 
 describe('[SITE-5] visible focus (brass) in the stylesheet', () => {
   it('defines a visible brass focus ring', () => {
-    const css = read('apps/site/src/styles/site.css');
+    const css = read('apps/web/src/marketing/site.css');
     expect(css).toMatch(/:focus-visible/);
     expect(css).toMatch(/outline:\s*2px solid var\(--brass\)/);
   });

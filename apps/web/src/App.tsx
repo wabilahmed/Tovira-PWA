@@ -165,7 +165,7 @@ export function App(): JSX.Element {
           api={auth}
           token={resetToken}
           onDone={() => {
-            if (typeof window !== 'undefined') window.history.replaceState({}, '', '/');
+            if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
             setResetToken(null);
           }}
         />
@@ -179,7 +179,7 @@ export function App(): JSX.Element {
           api={auth}
           token={verifyToken}
           onDone={() => {
-            if (typeof window !== 'undefined') window.history.replaceState({}, '', '/');
+            if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
             setVerifyToken(null);
             // Re-read the session so a now-verified account drops the banner.
             void auth.getSession().then(setSession);

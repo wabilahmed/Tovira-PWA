@@ -7,13 +7,15 @@
  * reader who followed a referral link doesn't lose it by switching to Arabic.
  */
 
-/** Append a search string's params to a link, unchanged. Relative hrefs resolve
- *  against `origin`; an absolute href (the app URL) keeps its own origin. */
+/** Append a search string's params to a link, unchanged. A RELATIVE href (the
+ *  same-origin `/app` CTA, now that the site lives in the PWA) stays relative;
+ *  an ABSOLUTE href (an env-overridden app URL) keeps its own origin. */
 export function withParams(href: string, search: string, origin: string): string {
   const incoming = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
   const url = new URL(href, origin);
   for (const [key, value] of incoming) url.searchParams.set(key, value);
-  return url.toString();
+  const isAbsolute = /^[a-z][a-z0-9+.-]*:\/\//i.test(href);
+  return isAbsolute ? url.toString() : url.pathname + url.search + url.hash;
 }
 
 /** Swap a link's origin for the configured app URL (env override), path intact. */

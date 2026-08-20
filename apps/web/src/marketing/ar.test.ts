@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const ARABIC = /[؀-ۿ]/;
-const html = readFileSync(resolve(process.cwd(), 'apps/site/ar/index.html'), 'utf8');
+const html = readFileSync(resolve(process.cwd(), 'apps/web/ar/index.html'), 'utf8');
 function doc(): Document {
   return new DOMParser().parseFromString(html, 'text/html');
 }
@@ -59,6 +59,6 @@ describe('[SITE-4] Arabic page /ar — RTL scaffold, not machine-translated', ()
   it('still ships working CTAs to the app', () => {
     const ctas = [...doc().querySelectorAll<HTMLAnchorElement>('[data-cta]')];
     expect(ctas.length).toBeGreaterThan(0);
-    for (const a of ctas) expect(a.getAttribute('href')).toBe('https://app.tovira.com/');
+    for (const a of ctas) expect(a.getAttribute('href')).toBe('/app');
   });
 });

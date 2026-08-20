@@ -8,8 +8,7 @@
   },
   "workspaces": [
     "apps/api",
-    "apps/web",
-    "apps/site"
+    "apps/web"
   ],
   "scripts": {
     "dev": "docker compose up",
@@ -20,8 +19,7 @@
     "test:e2e": "playwright test",
     "seed": "npm run seed -w apps/api",
     "gate": "npm run gate -w apps/api",
-    "build:site": "npm run build -w apps/site",
-    "typecheck": "tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit && tsc -p apps/site/tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "typecheck": "tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint ."
   },
   "devDependencies": {

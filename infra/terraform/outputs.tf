@@ -39,12 +39,10 @@ output "runtime_config_secret_arn" {
   value       = aws_secretsmanager_secret.app.arn
 }
 
-output "marketing_bucket" {
-  description = "S3 bucket for the marketing site build (apps/site/dist)."
-  value       = aws_s3_bucket.marketing.bucket
-}
+# The marketing site no longer has its own bucket — it builds into the app's dist
+# and ships to the frontend bucket. See `frontend_bucket` above.
 
 output "marketing_url" {
-  description = "Marketing site URL (CloudFront default domain until the apex is wired)."
-  value       = "https://${aws_cloudfront_distribution.marketing.domain_name}"
+  description = "Marketing landing URL — the merged distribution (apex + www once wired)."
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
 }

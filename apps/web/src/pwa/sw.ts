@@ -9,6 +9,7 @@
  */
 import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
+import { NetworkFirst } from 'workbox-strategies';
 import { readSharedChat, idbSharedChatStore } from './sharedChat.js';
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> };
@@ -16,10 +17,19 @@ declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: str
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
-// SPA: serve index.html for client-side routes (matches the old generateSW
-// navigateFallback), but never for the share-target POST.
+// The prerendered marketing routes (`/`, `/privacy`, `/terms`, `/ar` + Arabic
+// legal). A stranger must never see a stale cached landing page after a deploy,
+// so these are NETWORK-FIRST with a cached fallback for offline.
+const MARKETING = /^\/(privacy|terms|ar(\/(privacy|terms))?)?$/;
+const isMarketingNav = ({ request, url }: { request: Request; url: URL }): boolean =>
+  request.mode === 'navigate' && MARKETING.test(url.pathname.replace(/\/$/, '') || '/');
+registerRoute(isMarketingNav, new NetworkFirst({ cacheName: 'tovira-marketing' }));
+
+// SPA: every OTHER navigation serves the app shell (app.html) — the marketing
+// pages own `/`, so the shell moved off it. Never fire for the share-target POST
+// or the marketing routes above.
 registerRoute(
-  new NavigationRoute(createHandlerBoundToURL('index.html'), { denylist: [/^\/share-target/] }),
+  new NavigationRoute(createHandlerBoundToURL('app.html'), { denylist: [/^\/share-target/, MARKETING] }),
 );
 
 // Auto-update: take over immediately so a returning user gets the fresh build
@@ -43,7 +53,7 @@ self.addEventListener('fetch', (event) => {
         } catch {
           /* best effort — never block the redirect into the app */
         }
-        return Response.redirect('/?shared=chat', 303);
+        return Response.redirect('/app?shared=chat', 303);
       })(),
     );
   }

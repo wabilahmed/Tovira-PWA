@@ -5,8 +5,8 @@ import { resolve } from 'node:path';
 const read = (p: string): string => readFileSync(resolve(process.cwd(), p), 'utf8');
 const parse = (p: string): Document => new DOMParser().parseFromString(read(p), 'text/html');
 
-const PRIVACY = 'apps/site/privacy/index.html';
-const TERMS = 'apps/site/terms/index.html';
+const PRIVACY = 'apps/web/privacy/index.html';
+const TERMS = 'apps/web/terms/index.html';
 
 describe('[SITE / LEGAL] Privacy & Terms exist and are honest skeletons', () => {
   it('both pages exist with a single h1 and a noindex draft marker', () => {
@@ -45,7 +45,7 @@ describe('[SITE / LEGAL] Privacy & Terms exist and are honest skeletons', () => 
   });
 
   it('the landing footer links to /privacy and /terms (both languages)', () => {
-    for (const page of ['apps/site/index.html', 'apps/site/ar/index.html']) {
+    for (const page of ['apps/web/index.html', 'apps/web/ar/index.html']) {
       const hrefs = [...parse(page).querySelectorAll('footer a')].map((a) => a.getAttribute('href'));
       expect(hrefs).toContain('/privacy');
       expect(hrefs).toContain('/terms');
@@ -53,7 +53,7 @@ describe('[SITE / LEGAL] Privacy & Terms exist and are honest skeletons', () => 
   });
 
   it('the Arabic legal pages are RTL scaffolds pointing at the English source', () => {
-    for (const p of ['apps/site/ar/privacy/index.html', 'apps/site/ar/terms/index.html']) {
+    for (const p of ['apps/web/ar/privacy/index.html', 'apps/web/ar/terms/index.html']) {
       const d = parse(p);
       expect(d.documentElement.getAttribute('dir')).toBe('rtl');
       expect(read(p)).toMatch(/TRANSLATION NEEDED/);

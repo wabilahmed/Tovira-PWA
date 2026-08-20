@@ -3,21 +3,21 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { withParams, withAppUrl, enhanceLinks } from './ref.js';
 
-const APP = 'https://app.tovira.com/';
+const APP = '/app';
 const ORIGIN = 'https://tovira.com';
 
 // The real shipped page — the test runs against the actual CTAs, not a fixture,
 // so a CTA that loses its data-cta or its app href fails here. (Resolved from
 // cwd: vitest runs from the repo root, and the jsdom env makes import.meta.url
 // a non-file URL.)
-const html = readFileSync(resolve(process.cwd(), 'apps/site/index.html'), 'utf8');
+const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8');
 function pageDoc(): Document {
   return new DOMParser().parseFromString(html, 'text/html');
 }
 
 describe('withParams', () => {
   it('appends incoming params to an absolute app URL', () => {
-    expect(withParams(APP, '?ref=abc123', ORIGIN)).toBe('https://app.tovira.com/?ref=abc123');
+    expect(withParams(APP, '?ref=abc123', ORIGIN)).toBe('/app?ref=abc123');
   });
   it('carries multiple params (ref + utm) through unchanged', () => {
     const out = withParams(APP, '?ref=abc123&utm_source=x&utm_campaign=y', ORIGIN);
@@ -26,13 +26,13 @@ describe('withParams', () => {
     expect(out).toContain('utm_campaign=y');
   });
   it('adds no query when there is none', () => {
-    expect(withParams(APP, '', ORIGIN)).toBe('https://app.tovira.com/');
+    expect(withParams(APP, '', ORIGIN)).toBe('/app');
   });
 });
 
 describe('withAppUrl (env override)', () => {
   it('swaps the origin for the configured app URL, keeping the path/query', () => {
-    expect(withAppUrl('https://app.tovira.com/', ORIGIN, 'https://staging.tovira.dev')).toBe('https://staging.tovira.dev/');
+    expect(withAppUrl('/app', ORIGIN, 'https://staging.tovira.dev')).toBe('https://staging.tovira.dev/app');
   });
   it('is a no-op when no app URL is configured', () => {
     expect(withAppUrl(APP, ORIGIN, undefined)).toBe(APP);
@@ -47,7 +47,7 @@ describe('[SITE-3] referral pass-through on the real page (the growth loop)', ()
     expect(ctas.length).toBeGreaterThan(0);
     for (const a of ctas) {
       expect(a.getAttribute('href')).toContain('ref=abc123');
-      expect(a.getAttribute('href')!.startsWith('https://app.tovira.com/')).toBe(true);
+      expect(a.getAttribute('href')!.startsWith('/app')).toBe(true);
     }
   });
 
@@ -67,7 +67,7 @@ describe('[SITE-3] referral pass-through on the real page (the growth loop)', ()
     const doc = pageDoc();
     enhanceLinks(doc, '', ORIGIN);
     for (const a of doc.querySelectorAll<HTMLAnchorElement>('[data-cta]')) {
-      expect(a.getAttribute('href')).toBe('https://app.tovira.com/');
+      expect(a.getAttribute('href')).toBe('/app');
       expect(a.getAttribute('href')).not.toContain('?');
     }
   });
@@ -84,6 +84,6 @@ describe('[SITE-3] referral pass-through on the real page (the growth loop)', ()
   it('ships CTAs that work with no JS (absolute app hrefs in the source HTML)', () => {
     const doc = pageDoc();
     const ctas = [...doc.querySelectorAll<HTMLAnchorElement>('[data-cta]')];
-    for (const a of ctas) expect(a.getAttribute('href')).toBe('https://app.tovira.com/');
+    for (const a of ctas) expect(a.getAttribute('href')).toBe('/app');
   });
 });

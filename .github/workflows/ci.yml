@@ -18,7 +18,5 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-      # Build the product PWA and the marketing site side by side — a broken
-      # build in either fails CI. They deploy independently, but both must build.
+      # One build: the marketing routes are prerendered inside the PWA build.
       - run: npm run build -w apps/web
-      - run: npm run build:site
