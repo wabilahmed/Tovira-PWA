@@ -192,6 +192,57 @@ a:not(.cta) { color: var(--text-primary); }
 .js [data-deal][data-revealed] [data-deal-item]:nth-child(2) { transition-delay: 170ms; }
 .js [data-deal][data-revealed] [data-deal-item]:nth-child(3) { transition-delay: 300ms; }
 
+/* ── Scroll-LINKED upgrade (Chrome/Edge; native CSS scroll-driven animation).
+   The transition-based reveal above fires ONCE when a trigger line is crossed,
+   so it finishes while the section is still off-centre. Where the browser
+   supports view() timelines we instead SCRUB each part's position against the
+   section's travel through the viewport: parts start fully out to the sides as
+   the section enters from the bottom and reach their destination as it settles
+   into view — the position is a function of scroll, not a fixed clock. Falls
+   back to the reveal above where view() is unsupported (Safari/Firefox), and is
+   skipped entirely under reduced-motion (this whole block is gated on it). ── */
+@keyframes sj-rise        { from { opacity: 0; transform: translateY(56px); }               to { opacity: 1; transform: none; } }
+@keyframes sj-from-left   { from { opacity: 0; transform: translateX(-90px); }               to { opacity: 1; transform: none; } }
+@keyframes sj-from-right  { from { opacity: 0; transform: translateX(90px); }                to { opacity: 1; transform: none; } }
+@keyframes sj-in-left     { from { opacity: 0; transform: translateX(-90px) scale(0.92); }   to { opacity: 1; transform: none; } }
+@keyframes sj-in-right    { from { opacity: 0; transform: translateX(90px) scale(0.92); }     to { opacity: 1; transform: none; } }
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* The animation (fill: both) owns opacity+transform, overriding the reveal
+       above; neutralise its transition so the two never fight. Default = rise. */
+    .js .sec__copy[data-reveal],
+    .js .sec__visual[data-reveal],
+    .js .prose-center[data-reveal],
+    .js [data-stagger] [data-stagger-item],
+    .js [data-deal] [data-deal-item] {
+      animation: sj-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 8% cover 50%;
+      transition: none;
+    }
+
+    /* Desktop zigzag: copy and visual scrub in from opposite sides, converging
+       on the section's resting position as it reaches the middle of the screen. */
+    @media (min-width: 768px) {
+      .js .sec__copy[data-reveal]                 { animation-name: sj-from-left; }
+      .js .sec__visual[data-reveal]               { animation-name: sj-in-right; }
+      .js .sec--reverse .sec__copy[data-reveal]   { animation-name: sj-from-right; }
+      .js .sec--reverse .sec__visual[data-reveal] { animation-name: sj-in-left; }
+    }
+
+    /* Grouped items keep their sequence by scrubbing over staggered ranges —
+       each arrives a little further up the scroll than the last. */
+    .js [data-stagger] [data-stagger-item]:nth-child(1),
+    .js [data-deal] [data-deal-item]:nth-child(1) { animation-range: entry 4% cover 44%; }
+    .js [data-stagger] [data-stagger-item]:nth-child(2),
+    .js [data-deal] [data-deal-item]:nth-child(2) { animation-range: entry 12% cover 52%; }
+    .js [data-stagger] [data-stagger-item]:nth-child(3),
+    .js [data-deal] [data-deal-item]:nth-child(3) { animation-range: entry 20% cover 60%; }
+    .js [data-stagger] [data-stagger-item]:nth-child(4) { animation-range: entry 28% cover 68%; }
+  }
+}
+
 /* ── Lead-down connectors — a ledger thread between sections. As each section
    reveals, the thread draws downward (the line grows, then a node drops in),
    pulling the eye to the next section. A static divider under reduced-motion or
