@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#16130f" media="(prefers-color-scheme: dark)" />
     <title>Tovira — تذكّر كل محادثة مع عملائك</title>
     <!-- TRANSLATION NEEDED: description in Arabic (English placeholder for now). -->
-    <meta name="description" content="Export one WhatsApp chat and see what your client book has been hiding. Built for field sales in the UAE." />
+    <meta name="description" content="Forty clients, ten thousand details, one memory. Tovira reads the conversations you already have and hands them back the moment you need them. Field sales, UAE." />
     <link rel="canonical" href="https://tovira.com/ar" />
     <link rel="alternate" hreflang="en" href="https://tovira.com/" />
     <link rel="alternate" hreflang="ar" href="https://tovira.com/ar" />
@@ -15,113 +15,105 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Tovira" />
     <meta property="og:url" content="https://tovira.com/ar" />
+    <meta property="og:image" content="https://tovira.com/og.png" />
     <meta property="og:image" content="https://tovira.com/og.svg" />
-    <meta property="og:image:alt" content="Tovira — the Book Scan, shown in the Vault theme." />
+    <meta property="og:image:alt" content="Tovira — a pre-meeting brief in the Ledger theme." />
     <meta property="og:locale" content="ar_AE" />
     <meta property="og:locale:alternate" content="en_US" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://tovira.com/og.svg" />
+    <meta name="twitter:image" content="https://tovira.com/og.png" />
     <link rel="stylesheet" href="/src/marketing/site.css" />
     <script type="module" src="/src/marketing/main.ts"></script>
   </head>
   <body>
     <!--
       SITE-4 — Arabic scaffold. RTL layout is LIVE (dir=rtl + logical properties);
-      the marketing copy is NOT machine-translated. Each section carries a
-      TRANSLATION NEEDED marker and its English source so a native copywriter
-      fills it in with the same restraint. The hero headline especially is the
-      one line worth paying a native copywriter for.
+      the marketing copy is NOT machine-translated. Each of the 10 funnel sections
+      carries a TRANSLATION NEEDED marker and its English source (pinned LTR) so a
+      native copywriter fills it in with the same restraint. The hero especially is
+      worth paying a native copywriter for.
     -->
-    <header class="section" style="padding-block: 1.25rem; border: none;">
-      <div class="site" style="display: flex; justify-content: space-between; align-items: center;">
+    <header class="site-head">
+      <div class="wrap site-head__row">
         <span class="wordmark" dir="ltr">Tovira</span>
-        <a class="langswitch" href="/" hreflang="en" data-langswitch>English</a>
+        <nav aria-label="Primary" class="site-head__nav">
+          <a class="langswitch" href="/" hreflang="en" data-langswitch>English</a>
+          <a class="cta cta--sm" data-cta href="/app" dir="ltr">Start a 7-day trial</a>
+        </nav>
       </div>
     </header>
 
-    <main class="site">
-      <!-- A live bidi + RTL-receipt sample: the copywriter inherits this exact
+    <main class="wrap">
+      <!-- Live bidi + RTL-receipt sample: the copywriter inherits this exact
            treatment. The mono stamp stays LTR/Latin inside the RTL chit (§3 bidi
-           rule); prices and Latin brand terms sit correctly in the Arabic run. -->
-      <section class="section" aria-label="RTL sample">
+           rule); a price and the Latin brand term sit correctly in the Arabic run. -->
+      <section class="sec" aria-label="RTL sample">
         <p class="xlate">RTL / bidi sample — layout only, not final copy</p>
         <div class="tov-receipt">
-          <div dir="rtl" lang="ar" class="tov-receipt__rtl" style="color: var(--text-primary)">«عيّنة اتجاه — Tovira، السعر AED 299»</div>
-          <div class="tov-stamp" style="margin-top: 6px">WHATSAPP · 14 MAR 2026</div>
+          <div dir="rtl" lang="ar" class="tov-receipt__rtl" style="color: var(--text-primary)">«عيّنة اتجاه من Tovira — السعر AED 299 في الشهر»</div>
+          <div class="tov-stamp">WHATSAPP · 14 MAR 2026</div>
         </div>
       </section>
 
-      <section class="section" aria-label="Section 1">
+      <section class="sec" aria-label="Section 1">
         <p class="xlate">TRANSLATION NEEDED — §1 Hero</p>
-        <blockquote class="source" lang="en" dir="ltr">FOR FIELD SALES · UAE — Export one WhatsApp chat. See what your book has been hiding. Tovira reads the conversations you already have and tells you what you've forgotten — the promise you never kept, the question you never answered, the client who went quiet three weeks ago. [CTA] Start a 7-day trial · AED 299 / month · No card for the first 7 days.</blockquote>
+        <blockquote class="source" lang="en" dir="ltr">FOR FIELD SALES · UAE — Forty clients. Ten thousand details. One memory. Every meeting adds something you are expected to remember — what they asked for, what you promised, who really signs off, the daughter starting university. Tovira keeps every one of them, and hands them back the moment you need them. [CTA] Start a 7-day trial · AED 299 / month · No card for the first 7 days.</blockquote>
         <p><a class="cta" data-cta href="/app" dir="ltr">Start a 7-day trial</a></p>
       </section>
 
-      <section class="section" aria-label="Section 2">
-        <p class="xlate">TRANSLATION NEEDED — §2 The Book Scan</p>
-        <blockquote class="source" lang="en" dir="ltr">Your first scan takes about a minute. Open a client's chat in WhatsApp. Export it. Send it to Tovira. That is the whole setup — no forms, no CRM homework, no typing up your week. [Four receipt-chits: open promise; unanswered question; going quiet (claret); date ahead — no year stated (amber).] Every line shows the message it came from. Tovira never tells you something it cannot show you.</blockquote>
+      <section class="sec" aria-label="Section 2">
+        <p class="xlate">TRANSLATION NEEDED — §2 The cost</p>
+        <blockquote class="source" lang="en" dir="ltr">Forgetting is silent. You never feel the deal you lost to a forgotten promise. There is no moment where it goes wrong — only a client who slowly stops replying, and a reason you never learn. Twenty relationships is already more than memory holds. Forty is not close.</blockquote>
       </section>
 
-      <section class="section" aria-label="Section 3">
-        <p class="xlate">TRANSLATION NEEDED — §3 The problem</p>
-        <blockquote class="source" lang="en" dir="ltr">Forgetting is silent. You never feel the deal you lost to a forgotten promise. There is no moment where it goes wrong — just a client who stops replying, and a reason you never learn. Twenty relationships is already more than memory holds. Forty is not close. Your chat history has all of it. Nobody has time to scroll back through it.</blockquote>
+      <section class="sec" aria-label="Section 3">
+        <p class="xlate">TRANSLATION NEEDED — §3 The turn</p>
+        <blockquote class="source" lang="en" dir="ltr">What if the record kept itself. You already have the raw material. Every conversation you have had with every client is sitting in your phone. What is missing is something that reads it, remembers it, and speaks up at the right moment. That is the whole of Tovira.</blockquote>
       </section>
 
-      <section class="section" aria-label="Section 4">
+      <section class="sec" aria-label="Section 4">
         <p class="xlate">TRANSLATION NEEDED — §4 How it works</p>
-        <blockquote class="source" lang="en" dir="ltr">01 — Capture: Talk. Thirty seconds in the car after a meeting is enough. Or paste a message, or export a chat. 02 — Tovira reads it: Promises, people, dates, concerns, personal details — pulled out and filed against the right client. Arabic, English, Hindi, Urdu — including all four in one sentence. 03 — It comes back when you need it: A brief before the meeting. A statement on Monday. A note when a client goes quiet. Tovira speaks rarely. When it speaks, act.</blockquote>
+        <blockquote class="source" lang="en" dir="ltr">Three steps. About a minute of your day. 01 Capture — talk for thirty seconds in the car after a meeting, or paste a message, or export a whole WhatsApp chat. 02 Tovira reads it — promises, people, dates, concerns, personal details, filed against the right client; Arabic, English, Hindi, Urdu, all four in one sentence. 03 It comes back when you need it — a brief before the meeting, a statement on Monday, a quiet word when a client goes quiet.</blockquote>
       </section>
 
-      <section class="section" aria-label="Section 5">
-        <p class="xlate">TRANSLATION NEEDED — §5 What it holds</p>
-        <blockquote class="source" lang="en" dir="ltr">Open promises — everything you committed to, with dates, across every client. The people — who decides, who blocks, who reports to whom. The personal — the daughter at university, the knee surgery, the football club. The concerns — every objection raised, in their words. The dates — launches, renewals, anniversaries. Everything said — searchable by asking a question out loud.</blockquote>
+      <section class="sec" aria-label="Section 5">
+        <p class="xlate">TRANSLATION NEEDED — §5 The proof</p>
+        <blockquote class="source" lang="en" dir="ltr">It never tells you something it cannot show you. Every fact Tovira surfaces carries the message it came from — the words, the date, the source. If it has nothing on record, it says so rather than filling the gap with something plausible. The standard it had to pass: zero invented commitments, zero guessed dates, verified across repeated runs on real conversations, in four languages.</blockquote>
       </section>
 
-      <section class="section" aria-label="Section 6">
-        <p class="xlate">TRANSLATION NEEDED — §6 Ask it anything</p>
-        <blockquote class="source" lang="en" dir="ltr">A memory you can talk to. You: What did Ahmed say about pricing? Tovira: He raised it twice. In March he asked for a better bulk price; in April he said the enterprise tier was above their budget. [two receipt-chits] When Tovira has nothing on record, it says so. It does not fill the gap with something plausible.</blockquote>
+      <section class="sec" aria-label="Section 6">
+        <p class="xlate">TRANSLATION NEEDED — §6 Use cases</p>
+        <blockquote class="source" lang="en" dir="ltr">Built for people whose deals are relationships. Real estate — forty buyers, each with a budget, a community, a school-run constraint, and a spouse with the real veto. Insurance and brokerage — renewal dates are the business, with last year's objection and the claim that made them cautious. Wealth and private clients — relationships measured in years; the graduation, the surgery, the football club are the relationship.</blockquote>
       </section>
 
-      <section class="section" aria-label="Section 7">
-        <p class="xlate">TRANSLATION NEEDED — §7 Built for how business is done here</p>
-        <blockquote class="source" lang="en" dir="ltr">Your conversations switch languages. So does Tovira. Half a sentence in Arabic, a number in English, a name in Urdu — the tools built in San Francisco lose the thread. Tovira was tested on code-switched Gulf sales conversations before it was released, and the accuracy standard it had to pass is published below. The standard: zero invented commitments. Zero guessed dates. Verified across repeated runs on real conversations, in four languages.</blockquote>
+      <section class="sec" aria-label="Section 7">
+        <p class="xlate">TRANSLATION NEEDED — §7 Security</p>
+        <blockquote class="source" lang="en" dir="ltr">It is your book. It stays yours. Encrypted in transit and at rest; every rep's book isolated at the database level. Tovira never connects to your WhatsApp account — you send a file; it cannot send messages as you. Follow-up drafts open in WhatsApp with the text ready; you press send. Export everything any time; delete your account and it is gone, including from training records.</blockquote>
       </section>
 
-      <section class="section" aria-label="Section 8">
-        <p class="xlate">TRANSLATION NEEDED — §8 Why not just ChatGPT</p>
-        <blockquote class="source" lang="en" dir="ltr">ChatGPT waits to be asked. You can paste a thread into a chat window and get a decent answer. You cannot paste forty clients into it every morning, and it will never tap you on the shoulder on a Tuesday to say that Falcon Group has gone quiet. Tovira is not a place you go to think. It is the record that keeps itself, and speaks up when something needs you.</blockquote>
-      </section>
-
-      <section class="section" aria-label="Section 9">
-        <p class="xlate">TRANSLATION NEEDED — §9 Your data</p>
-        <blockquote class="source" lang="en" dir="ltr">It is your book. It stays yours. Nothing is sent anywhere on your behalf. Follow-up messages open in WhatsApp with the text ready — you press send. No connection to your WhatsApp account. You export a file; that is all. Export everything, any time, in one file. Delete your account and it is gone — including from our training records.</blockquote>
-      </section>
-
-      <section class="section" aria-label="Section 10">
-        <p class="xlate">TRANSLATION NEEDED — §10 Price</p>
-        <blockquote class="source" lang="en" dir="ltr">One price. Everything included. AED 299 / month. Or AED 2,990 / year — two months free. 7-day trial. No card to start. Every feature, from day one. No tiers, no add-ons, no seats to count. Cancel from Settings in one click. One recovered deal covers a year.</blockquote>
+      <section class="sec" aria-label="Section 8">
+        <p class="xlate">TRANSLATION NEEDED — §8 Plans</p>
+        <blockquote class="source" lang="en" dir="ltr">One price. Everything included. Monthly — AED 299 / month, every feature from day one, cancel in one click. Yearly — AED 2,990 / year, two months free. 7-day trial, no card to start, no tiers, no add-ons, no seats to count. One recovered deal covers a year.</blockquote>
         <p><a class="cta" data-cta href="/app" dir="ltr">Start a 7-day trial</a></p>
       </section>
 
-      <section class="section" aria-label="Section 11">
-        <p class="xlate">TRANSLATION NEEDED — §11 Questions</p>
-        <blockquote class="source" lang="en" dir="ltr">Do I have to connect my WhatsApp? No. WhatsApp has an Export Chat button — you send Tovira the file it produces. Tovira never connects to your account and cannot send messages as you. What if I stop paying? Export your entire book first. Nothing is held hostage. Does it work in Arabic? Yes — including mixed with English, Hindi, and Urdu in the same sentence. That is what it was built for. Is it a CRM? No. A CRM is a form you fill in for your manager. Tovira is a memory that fills itself in for you. If you have a CRM, keep it. Who is it not for? Inside sales teams running recorded video calls — those tools already exist and they are good. Tovira is for people who sell in person.</blockquote>
+      <section class="sec" aria-label="Section 9">
+        <p class="xlate">TRANSLATION NEEDED — §9 FAQ</p>
+        <blockquote class="source" lang="en" dir="ltr">Questions. Do I have to connect my WhatsApp? No — you send the exported file. Does it work in Arabic? Yes, including mixed with English, Hindi and Urdu in one sentence. Is it a CRM? No — a CRM is a form for your manager; Tovira is a memory that fills itself in. Why not just ChatGPT? It waits to be asked and will never tell you on a Tuesday that a client has gone quiet. What if I stop paying? Export your entire book first. Who is it not for? Inside sales running recorded video calls.</blockquote>
       </section>
 
-      <section class="section" aria-label="Section 12">
-        <p class="xlate">TRANSLATION NEEDED — §12 Close</p>
-        <blockquote class="source" lang="en" dir="ltr">Your client book is an asset. This is where it's kept. Start a 7-day trial · AED 299 / month · 7 days free · No card to start.</blockquote>
+      <section class="sec" aria-label="Section 10">
+        <p class="xlate">TRANSLATION NEEDED — §10 Close</p>
+        <blockquote class="source" lang="en" dir="ltr">Your client book is an asset. This is where it's kept. [CTA] Start a 7-day trial · AED 299 / month · 7 days free · No card to start.</blockquote>
         <p><a class="cta" data-cta href="/app" dir="ltr">Start a 7-day trial</a></p>
       </section>
     </main>
 
-    <footer class="section">
-      <div class="site">
+    <footer class="site-foot">
+      <div class="wrap">
         <p dir="ltr">Tovira · Dubai, UAE</p>
         <nav aria-label="Footer">
-          <a href="/privacy">Privacy</a> ·
-          <a href="/terms">Terms</a> ·
-          <a href="/contact">Contact</a> ·
+          <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> ·
           <a href="/" hreflang="en" data-langswitch>English</a>
         </nav>
       </div>

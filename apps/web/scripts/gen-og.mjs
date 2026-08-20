@@ -1,3 +1,4 @@
+/* global URL, console */
 // Rasterize the OpenGraph card (public/og.svg → public/og.png). Some scrapers
 // skip SVG OG images, so we ship a PNG too. Build-time only (sharp is a devDep,
 // never shipped to users). Run: `npm run gen:og -w apps/web`.

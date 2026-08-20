@@ -41,9 +41,9 @@ describe('[SITE-4] Arabic page /ar — RTL scaffold, not machine-translated', ()
   it('marks every section TRANSLATION NEEDED with its English source (no invented Arabic copy)', () => {
     const d = doc();
     const markers = [...d.querySelectorAll('.xlate')].filter((m) => /TRANSLATION NEEDED/.test(m.textContent ?? ''));
-    expect(markers.length).toBe(12); // one per landing section
+    expect(markers.length).toBe(10); // one per funnel section (§1–§10)
     const sources = [...d.querySelectorAll('blockquote.source')];
-    expect(sources.length).toBe(12);
+    expect(sources.length).toBe(10);
     for (const s of sources) {
       expect(s.getAttribute('dir')).toBe('ltr'); // English source pinned LTR for the copywriter
       expect(s.getAttribute('lang')).toBe('en');
