@@ -16,9 +16,9 @@ function root(): HTMLElement | null {
 export function getTheme(): ThemeChoice {
   try {
     const v = localStorage.getItem(KEY);
-    return v === 'vault' || v === 'ledger' ? v : 'system';
+    return v === 'vault' || v === 'ledger' || v === 'system' ? v : 'ledger';
   } catch {
-    return 'system';
+    return 'ledger'; // first run defaults to Ledger (light), even on a dark device
   }
 }
 
@@ -31,8 +31,9 @@ export function applyTheme(choice: ThemeChoice): void {
 
 export function setTheme(choice: ThemeChoice): void {
   try {
-    if (choice === 'system') localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, choice);
+    // Store every choice (including 'system') so "no key" unambiguously means
+    // first-run → Ledger (light), not "the user picked System".
+    localStorage.setItem(KEY, choice);
   } catch {
     /* private mode — the choice just won't persist */
   }

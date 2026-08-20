@@ -72,8 +72,15 @@ describe('[SITE-3] referral pass-through on the real page (the growth loop)', ()
     }
   });
 
-  it('the language switch carries the ref too (no attribution lost on /ar)', () => {
-    const doc = pageDoc();
+  // The English landing no longer links to /ar (the untranslated page). The
+  // remaining language switch — on /ar, back to English — must still carry the ref.
+  it('the English page has no Arabic language switch', () => {
+    expect(pageDoc().querySelectorAll('[data-langswitch]')).toHaveLength(0);
+  });
+
+  it('the /ar → English switch carries the ref (no attribution lost across languages)', () => {
+    const arHtml = readFileSync(resolve(process.cwd(), 'apps/web/ar/index.html'), 'utf8');
+    const doc = new DOMParser().parseFromString(arHtml, 'text/html');
     enhanceLinks(doc, '?ref=abc123', ORIGIN);
     const langs = [...doc.querySelectorAll<HTMLAnchorElement>('[data-langswitch]')];
     expect(langs.length).toBeGreaterThan(0);

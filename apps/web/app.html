@@ -14,6 +14,9 @@
         try {
           var t = localStorage.getItem('tovira.theme');
           if (t === 'vault' || t === 'ledger') document.documentElement.setAttribute('data-theme', t);
+          // First run (no saved choice) defaults to Ledger (light), even on a dark
+          // device. Only an explicit 'system' choice follows the OS.
+          else if (t !== 'system') document.documentElement.setAttribute('data-theme', 'ledger');
         } catch (e) {}
       })();
     </script>
