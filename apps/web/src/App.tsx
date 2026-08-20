@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
 import { ForgotPassword, ResetPassword } from './auth/PasswordReset.js';
+import { AuthShell } from './auth/AuthShell.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
@@ -160,16 +161,14 @@ export function App(): JSX.Element {
 
   if (resetToken) {
     return (
-      <Centered>
-        <ResetPassword
-          api={auth}
-          token={resetToken}
-          onDone={() => {
-            if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
-            setResetToken(null);
-          }}
-        />
-      </Centered>
+      <ResetPassword
+        api={auth}
+        token={resetToken}
+        onDone={() => {
+          if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
+          setResetToken(null);
+        }}
+      />
     );
   }
   if (verifyToken) {
@@ -640,27 +639,18 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
   }
 
   if (mode === 'forgot') {
-    return (
-      <Centered>
-        <div style={{ width: 300, background: 'var(--surface-raised)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: '1.75rem' }}>
-          <h1 style={{ margin: '0 0 0.75rem', letterSpacing: '-0.02em' }}>Tovira</h1>
-          <ForgotPassword api={auth} onBack={() => setMode('login')} />
-        </div>
-      </Centered>
-    );
+    return <ForgotPassword api={auth} onBack={() => setMode('login')} />;
   }
 
   return (
-    <Centered>
-      <form onSubmit={submit} style={{ display: 'grid', gap: '0.75rem', width: 300, background: 'var(--surface-raised)', border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: '1.75rem' }}>
-        <h1 style={{ margin: 0, letterSpacing: '-0.02em' }}>Tovira</h1>
-        <p style={{ margin: '-0.4rem 0 0.4rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Your client book, kept.</p>
-        <label>
-          Email
+    <AuthShell subtitle={mode === 'login' ? 'Log in to your vault' : 'Create your account'}>
+      <form onSubmit={submit} className="auth__form" aria-label={mode === 'login' ? 'Log in' : 'Sign up'}>
+        <label className="auth__field">
+          <span>Email</span>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
         </label>
-        <label>
-          Password
+        <label className="auth__field">
+          <span>Password</span>
           <input
             type="password"
             value={password}
@@ -670,7 +660,7 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
           />
         </label>
         {mode === 'signup' && (
-          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+          <label className="auth__consent">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} aria-label="Accept terms" />
             <span>
               I agree to the{' '}
@@ -679,20 +669,23 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
             </span>
           </label>
         )}
-        {error && <p style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
-        <button type="submit" disabled={busy || (mode === 'signup' && !consent)}>
+        {error && <p className="auth__error" role="alert">{error}</p>}
+        <button className="auth__submit" type="submit" disabled={busy || (mode === 'signup' && !consent)}>
           {mode === 'login' ? 'Log in' : 'Create account'}
         </button>
-        <button type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} style={{ background: 'none', border: 'none', color: 'var(--brass)', cursor: 'pointer' }}>
+      </form>
+      <div className="auth__alt">
+        <button type="button" className="auth__link" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
           {mode === 'login' ? 'Need an account? Sign up' : 'Have an account? Log in'}
         </button>
         {mode === 'login' && (
-          <button type="button" onClick={() => setMode('forgot')} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem' }}>
+          <button type="button" className="auth__link auth__link--muted" onClick={() => setMode('forgot')}>
             Forgot password?
           </button>
         )}
-      </form>
-    </Centered>
+      </div>
+      {mode === 'signup' && <p className="auth__trust">7 days free · no card to start</p>}
+    </AuthShell>
   );
 }
 
