@@ -2,14 +2,15 @@ import { useState } from 'react';
 import { getTheme, setTheme, type ThemeChoice } from '../styles/theme.js';
 
 const OPTIONS: Array<{ value: ThemeChoice; label: string }> = [
-  { value: 'system', label: 'System' },
-  { value: 'vault', label: 'Vault' },
   { value: 'ledger', label: 'Ledger' },
+  { value: 'vault', label: 'Vault' },
+  { value: 'system', label: 'System' },
 ];
 
 /**
- * The two materials, chosen by hand (docs/tovira-brand.md §1). System follows the
- * device; Vault is the dark identity; Ledger is daylight paper.
+ * The two materials, chosen by hand (docs/tovira-brand.md §1, §11). brand v1.2:
+ * Ledger (light paper) is the default; Vault is the low-light option; System
+ * follows the device.
  */
 export function ThemeToggle(): JSX.Element {
   const [choice, setChoice] = useState<ThemeChoice>(() => getTheme());
@@ -47,7 +48,7 @@ export function ThemeToggle(): JSX.Element {
         })}
       </div>
       <p style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', marginBottom: 0 }}>
-        Vault is the default. Ledger suits bright daylight; System follows your device.
+        Ledger is the default. Vault suits low light; System follows your device.
       </p>
     </section>
   );

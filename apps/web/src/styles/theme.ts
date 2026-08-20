@@ -1,8 +1,9 @@
 /**
- * Theme control for the two materials (docs/tovira-brand.md §1). Vault (dark) is
- * the default identity; Ledger (light) is the daylight option. With no explicit
- * choice we follow the system preference (handled in CSS); a manual choice is
- * pinned on <html data-theme> and remembered in localStorage.
+ * Theme control for the two materials (docs/tovira-brand.md §1, §11). brand v1.2:
+ * **Ledger (light) is the default**; Vault (dark) is the equal low-light option.
+ * With no explicit choice we follow the system preference (handled in CSS —
+ * light by default, dark when the device prefers dark); a manual choice is pinned
+ * on <html data-theme> and remembered in localStorage.
  */
 export type ThemeChoice = 'system' | 'vault' | 'ledger';
 

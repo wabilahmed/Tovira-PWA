@@ -35,26 +35,41 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const vault = block(':root {');
-const ledger = block(":root[data-theme='ledger']");
+// brand v1.2: Ledger (light) is the default — the bare `:root {` block. Vault
+// (dark) lives under the manual-override selector. We test BOTH full token sets;
+// the light theme is the drift risk (warm gray-on-cream), so it is held to the
+// same floors as dark.
+const ledger = block(':root {');
+const vault = block(":root[data-theme='vault']");
 
 describe.each([
-  ['Vault', vault],
-  ['Ledger', ledger],
+  ['Ledger (light, default)', ledger],
+  ['Vault (dark)', vault],
 ])('%s token contrast', (_name, t) => {
-  it('primary + secondary text clear AA (4.5) on base and raised surfaces', () => {
-    for (const surface of ['--surface-base', '--surface-raised']) {
-      for (const text of ['--text-primary', '--text-secondary']) {
-        expect(contrast(t[text]!, t[surface]!)).toBeGreaterThanOrEqual(4.5);
-      }
+  // Body text: AA is the floor, AAA (7.0) is the target for the PRIMARY reading
+  // colour — both themes must actually hit it.
+  it('primary body text clears AAA (7.0) on base, raised and elevated surfaces', () => {
+    for (const surface of ['--surface-base', '--surface-raised', '--surface-elevated']) {
+      expect(contrast(t['--text-primary']!, t[surface]!)).toBeGreaterThanOrEqual(7.0);
     }
   });
 
-  it('brass, claret, amber and green accents clear the UI-component floor (3.0) on both surfaces', () => {
+  it('secondary text clears AA (4.5) on base, raised and elevated surfaces', () => {
+    for (const surface of ['--surface-base', '--surface-raised', '--surface-elevated']) {
+      expect(contrast(t['--text-secondary']!, t[surface]!)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('brass, claret, amber and green accents clear the UI-component floor (3.0) on base and raised', () => {
     for (const surface of ['--surface-base', '--surface-raised']) {
       for (const accent of ['--brass', '--claret', '--amber', '--green']) {
         expect(contrast(t[accent]!, t[surface]!)).toBeGreaterThanOrEqual(3.0);
       }
     }
+  });
+
+  // A brass FILL carries brass-ink text (buttons) — that pairing must be legible.
+  it('brass-ink on a brass fill clears AA (4.5)', () => {
+    expect(contrast(t['--brass-ink']!, t['--brass']!)).toBeGreaterThanOrEqual(4.5);
   });
 });

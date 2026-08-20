@@ -1,6 +1,10 @@
-# Tovira — Brand Guideline (v1.1)
+# Tovira — Brand Guideline (v1.2)
 
-**Direction: The Private Vault.** Tovira is the discreet professional's asset —
+**Direction (v1.2): The Ledger — light-first.** See §11, which amends the
+default material. The identity below is unchanged; only which surface is the
+default has flipped.
+
+**Original direction (v1.0–v1.1): The Private Vault.** Tovira is the discreet professional's asset —
 the register of a private bank. It guards a salesperson's most valuable
 possession: their client relationships. Everything below derives from that one
 sentence.
@@ -257,5 +261,56 @@ table is the mapping — no other renames are implied.
 
 ---
 
-*v1.1 — direction locked: The Private Vault. Tokens and codex above are the
-contract; propose changes here first, then implement.*
+## 11. v1.2 — Light-first revision (amends §1 and §2)
+
+**Why:** the Vault default read as too dark for daily, outdoor, one-handed use.
+Premium does not require darkness — a private bank is a dark vault *and* a
+bright room full of ledger paper. We are moving to the paper.
+
+### The default flips
+- **Ledger (light) is now the default material.** It is what a stranger sees on
+  the landing page and what a rep gets on first run.
+- **Vault (dark) is retained** as a full, equal theme — selected by
+  `prefers-color-scheme: dark` or manually in Settings. It is not deprecated;
+  every component is still designed against both.
+- Nothing about the identity changes: same type system, same receipt-chit, same
+  brass-is-earned and claret-means-act rules, same refusals.
+
+### Added / revised tokens (light surfaces)
+| Token | Hex | Use |
+|---|---|---|
+| `canvas-50` | `#FBF9F5` | **NEW — the default page surface.** A clean warm white; brighter and more inviting than parchment. |
+| `parchment-100` | `#EFEAE0` | Raised surface on light (cards, panels) — was the base, now a step up |
+| `parchment-200` | `#E5DFD2` | Sunken/inset areas, table row banding |
+| `ink-text` | `#1C1812` | Primary text on light |
+| `ink-600` | `#5F5A4E` | Secondary text on light (replaces using parchment-400 on light) |
+| `hairline-light` | `#D8D2C4` | Borders/rules on light — softer than the old parchment-400 |
+| `brass-600` | `#9C7734` | Brass on light: accents, value moments, primary buttons |
+| `brass-700` | `#8A6A2F` | Brass text on light where more contrast is needed |
+| `claret-500` | `#9E3B33` | Unchanged — action needed |
+| `ledger-green-500` | `#4F6F58` | Unchanged — confirmed / kept |
+| `amber-600` | `#96661F` | Uncertain / needs review, darkened for light surfaces |
+
+All Vault (dark) tokens in §2 remain exactly as specified.
+
+### Warmth rules (what "inviting" means here — it is not decoration)
+- **More air, not more color.** Increase default section padding one step on the
+  scale before reaching for any new hue.
+- **Softer separation:** prefer whitespace and `hairline-light` over boxes;
+  cards get a surface step, not a shadow.
+- **Radius stays 6px**, but full-bleed panels on light may use 8px.
+- **Contrast floor is unchanged** — AA minimum, AAA target for body. Verify
+  every light-surface pairing; a warm palette makes it easy to drift into
+  low-contrast gray-on-cream, which is the failure mode to avoid.
+- Brass on light must read as a considered accent, never as yellow highlighter.
+
+### What does not change
+Brass is still earned. Claret still means act. Receipts still carry every
+claim. Numbers are still mono and tabular. No gradients, glows, glassmorphism,
+emoji, exclamation marks, gamification, or urgency patterns.
+
+---
+
+*v1.2 — direction: The Ledger (light-first), with Vault retained as the dark
+theme. Tokens and codex above are the contract; propose changes here first,
+then implement.*
