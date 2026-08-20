@@ -1,157 +1,160 @@
 /*
  * Tovira — design TOKENS (single source of truth).
  * Imported by BOTH apps/web (theme.css) and the marketing routes. Do not fork
- * the palette — change a colour here and the product and marketing move together.
- * Two materials, one palette. brand v1.2: **Ledger (light) is the default**;
- * Vault (dark) is retained as an equal theme (prefers-color-scheme: dark or the
- * Settings override). Contrast is verified by apps/web/src/styles/contrast.test.ts
- * against THIS file, in BOTH themes.
+ * the palette. Two materials, one palette. v1.3: the HUES are adopted from the
+ * live site tovira.io (a warm terracotta accent on paper); the design system —
+ * type, receipt-chit, spacing, motion, voice, and the SEMANTIC rules (accent is
+ * earned, claret means act, amber means uncertain) — is unchanged from v1.2.
+ * Ledger (light) is the default; Vault (dark) is derived from the same identity.
+ * Contrast is verified by apps/web/src/styles/contrast.test.ts in BOTH themes.
  */
 
-/* ---- Ledger (light) — the DEFAULT material (brand v1.2 §11) --------------- */
+/* ---- Ledger (light) — DEFAULT. Hues from tovira.io (paper/card/ink/terracotta) */
 :root {
-  --surface-base: #fbf9f5;      /* canvas-50 — clean warm white */
-  --surface-raised: #efeae0;    /* parchment-100 — cards, panels */
-  --surface-elevated: #e5dfd2;  /* parchment-200 — sheets, sunken/banded */
-  --hairline: #d8d2c4;          /* hairline-light — softer than parchment-400 */
+  --surface-base: #f4f1ea;      /* tovira.io brand-paper — the page */
+  --surface-raised: #faf7ef;    /* tovira.io brand-card — cards, panels */
+  --surface-elevated: #ede8dc;  /* one banded step deeper (sheets, row banding) */
+  --hairline: #d6cfbd;          /* tovira.io brand-line */
 
-  --text-primary: #1c1812;      /* ink-text (AAA on canvas) */
-  --text-secondary: #5f5a4e;    /* ink-600 */
-  --text-tertiary: #6e6757;     /* muted labels */
+  --text-primary: #1c1917;      /* tovira.io brand-ink (AAA on paper) */
+  --text-secondary: #6b645d;    /* tovira.io brand-muted #78716c, DARKENED for AA
+                                   (the source muted was 4.30:1 — below the floor) */
+  --text-tertiary: #8b847a;     /* muted step (not body text) */
 
-  --brass: #8a6a2f;             /* brass-700 — the accent + button fill on light
-                                   (brass-600 #9c7734 fails AA under a label) */
-  --brass-strong: #74581f;      /* darker still — hover/active */
-  --brass-ink: #fbf9f5;         /* canvas text on a brass fill — clears AA */
-  --brass-surface: rgba(138, 106, 47, 0.12);
+  --brass: #d14821;             /* tovira.io brand-accent — the (terracotta) accent */
+  --brass-strong: #c0411d;      /* tovira.io accent-dark — hover/active */
+  --brass-ink: #ffffff;         /* white on the terracotta fill (AA) */
+  --brass-surface: rgba(209, 72, 33, 0.12);
 
-  --claret: #9e3b33;            /* banker's red — action needed (unchanged) */
+  --claret: #9e3b33;            /* kept — tovira.io has no distinct danger hue; the
+                                   accent must stay distinct from "act" */
   --claret-line: #c99b96;
   --claret-surface: rgba(158, 59, 51, 0.10);
 
-  --green: #4f6f58;             /* confirmed / kept (unchanged) */
+  --green: #4a7c59;             /* tovira.io brand-success */
   --green-line: #a9bbaf;
-  --green-surface: rgba(79, 111, 88, 0.10);
+  --green-surface: rgba(74, 124, 89, 0.10);
 
-  --amber: #96661f;             /* amber-600 — uncertain, darkened for light */
+  --amber: #96661f;             /* kept — tovira.io warning #fcd34d fails AA as text;
+                                   its bright yellow tints the surface only */
   --amber-line: #d6c08a;
-  --amber-surface: rgba(150, 102, 31, 0.14);
+  --amber-surface: rgba(252, 211, 77, 0.22);
 
   --radius-card: 6px;
   --radius-chip: 4px;
-  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.18);
+  --shadow-overlay: 0 8px 32px -8px rgba(28, 25, 23, 0.12); /* tovira.io shadow-card */
 
   --font-display: 'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif;
   --font-sans: 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  /* The Arabic companion (§3) with its own body leading (§10 token proposal):
-     Plex Sans Arabic needs ≈1.6 at the same size for ascender/descender clearance. */
   --font-arabic: 'IBM Plex Sans Arabic', var(--font-sans);
   --leading-arabic: 1.6;
 
   color-scheme: light;
 }
 
-/* Vault (dark) — colours only; fonts/radius are inherited from :root. Applied by
-   the system-dark auto-switch and the manual override below. */
+/* The Vault (dark) token set — DERIVED from the light identity (not inverted):
+   warm terracotta-tinted near-blacks, the accent lifted lighter/less-saturated so
+   it reads as the same colour, off-white text (never pure #fff). Shared by the
+   system-dark auto-switch and the manual override. */
 
 /* ---- Vault (dark) — auto when the system prefers dark, unless forced Ledger */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='ledger']) {
-    --surface-base: #16130f;      /* warm near-black, leather-leaning */
-    --surface-raised: #1e1a15;    /* cards */
-    --surface-elevated: #28231c;  /* sheets, modals */
-    --hairline: #3a342b;          /* borders */
+    --surface-base: #1b1512;      /* warm near-black, terracotta-tinted */
+    --surface-raised: #241d18;    /* cards */
+    --surface-elevated: #2e2620;  /* sheets, modals */
+    --hairline: #3d332a;          /* borders */
 
-    --text-primary: #efeae0;      /* parchment-100 (AAA on base) */
-    --text-secondary: #b9b2a2;    /* parchment-400 */
-    --text-tertiary: #8c846f;
+    --text-primary: #f4f1ea;      /* the light theme's paper, as text (AAA on base) */
+    --text-secondary: #b8ab9c;
+    --text-tertiary: #8a7f72;
 
-    --brass: #b3893f;             /* brass-500 — the accent on dark */
-    --brass-strong: #c99a4b;
-    --brass-ink: #16130f;
-    --brass-surface: rgba(179, 137, 63, 0.15);
+    --brass: #e8724a;             /* the terracotta, lifted for a dark surface */
+    --brass-strong: #f08a63;
+    --brass-ink: #1b1512;         /* dark ink on the lighter terracotta fill */
+    --brass-surface: rgba(232, 114, 74, 0.16);
 
-    --claret: #d2726a;            /* banker's red — legible on dark */
+    --claret: #d9766d;            /* action needed — legible on dark */
     --claret-line: #7a2e28;
-    --claret-surface: rgba(158, 59, 51, 0.18);
+    --claret-surface: rgba(158, 59, 51, 0.20);
 
-    --green: #7fa389;
+    --green: #7fa98c;
     --green-line: #3c5344;
-    --green-surface: rgba(79, 111, 88, 0.18);
+    --green-surface: rgba(74, 124, 89, 0.18);
 
-    --amber: #ce9a4e;
+    --amber: #dba75a;
     --amber-line: #6e5326;
-    --amber-surface: rgba(176, 122, 42, 0.16);
+    --amber-surface: rgba(219, 167, 90, 0.16);
 
-    --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.35);
+    --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.4);
 
     color-scheme: dark;
   }
 }
 
-/* ---- Manual override in Settings: force Vault regardless of system pref ---- */
+/* ---- Manual override: force Vault regardless of system preference ---------- */
 :root[data-theme='vault'] {
-  --surface-base: #16130f;
-  --surface-raised: #1e1a15;
-  --surface-elevated: #28231c;
-  --hairline: #3a342b;
+  --surface-base: #1b1512;
+  --surface-raised: #241d18;
+  --surface-elevated: #2e2620;
+  --hairline: #3d332a;
 
-  --text-primary: #efeae0;
-  --text-secondary: #b9b2a2;
-  --text-tertiary: #8c846f;
+  --text-primary: #f4f1ea;
+  --text-secondary: #b8ab9c;
+  --text-tertiary: #8a7f72;
 
-  --brass: #b3893f;
-  --brass-strong: #c99a4b;
-  --brass-ink: #16130f;
-  --brass-surface: rgba(179, 137, 63, 0.15);
+  --brass: #e8724a;
+  --brass-strong: #f08a63;
+  --brass-ink: #1b1512;
+  --brass-surface: rgba(232, 114, 74, 0.16);
 
-  --claret: #d2726a;
+  --claret: #d9766d;
   --claret-line: #7a2e28;
-  --claret-surface: rgba(158, 59, 51, 0.18);
+  --claret-surface: rgba(158, 59, 51, 0.20);
 
-  --green: #7fa389;
+  --green: #7fa98c;
   --green-line: #3c5344;
-  --green-surface: rgba(79, 111, 88, 0.18);
+  --green-surface: rgba(74, 124, 89, 0.18);
 
-  --amber: #ce9a4e;
+  --amber: #dba75a;
   --amber-line: #6e5326;
-  --amber-surface: rgba(176, 122, 42, 0.16);
+  --amber-surface: rgba(219, 167, 90, 0.16);
 
-  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.35);
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.4);
 
   color-scheme: dark;
 }
 
-/* ---- Manual override: force Ledger even when the system prefers dark ------- */
+/* ---- Manual override: force Ledger even when the system prefers dark -------- */
 :root[data-theme='ledger'] {
-  --surface-base: #fbf9f5;
-  --surface-raised: #efeae0;
-  --surface-elevated: #e5dfd2;
-  --hairline: #d8d2c4;
+  --surface-base: #f4f1ea;
+  --surface-raised: #faf7ef;
+  --surface-elevated: #ede8dc;
+  --hairline: #d6cfbd;
 
-  --text-primary: #1c1812;
-  --text-secondary: #5f5a4e;
-  --text-tertiary: #6e6757;
+  --text-primary: #1c1917;
+  --text-secondary: #6b645d;
+  --text-tertiary: #8b847a;
 
-  --brass: #8a6a2f;
-  --brass-strong: #74581f;
-  --brass-ink: #fbf9f5;
-  --brass-surface: rgba(138, 106, 47, 0.12);
+  --brass: #d14821;
+  --brass-strong: #c0411d;
+  --brass-ink: #ffffff;
+  --brass-surface: rgba(209, 72, 33, 0.12);
 
   --claret: #9e3b33;
   --claret-line: #c99b96;
   --claret-surface: rgba(158, 59, 51, 0.10);
 
-  --green: #4f6f58;
+  --green: #4a7c59;
   --green-line: #a9bbaf;
-  --green-surface: rgba(79, 111, 88, 0.10);
+  --green-surface: rgba(74, 124, 89, 0.10);
 
   --amber: #96661f;
   --amber-line: #d6c08a;
-  --amber-surface: rgba(150, 102, 31, 0.14);
+  --amber-surface: rgba(252, 211, 77, 0.22);
 
-  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.18);
+  --shadow-overlay: 0 8px 32px -8px rgba(28, 25, 23, 0.12);
 
   color-scheme: light;
 }

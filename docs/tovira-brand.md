@@ -1,8 +1,10 @@
-# Tovira — Brand Guideline (v1.2)
+# Tovira — Brand Guideline (v1.3)
 
-**Direction (v1.2): The Ledger — light-first.** See §11, which amends the
-default material. The identity below is unchanged; only which surface is the
-default has flipped.
+**Direction (v1.3): The Ledger — light-first, tovira.io palette.** See §11
+(light-first) and §12 (the palette adopted from the live site). The design system
+below — type, receipt-chit, spacing, motion, voice, refusals, and the SEMANTIC
+colour rules — is unchanged; §12 moves the HUES only, and §2/§11 hex values are
+superseded by §12's table.
 
 **Original direction (v1.0–v1.1): The Private Vault.** Tovira is the discreet professional's asset —
 the register of a private bank. It guards a salesperson's most valuable
@@ -314,3 +316,55 @@ emoji, exclamation marks, gamification, or urgency patterns.
 *v1.2 — direction: The Ledger (light-first), with Vault retained as the dark
 theme. Tokens and codex above are the contract; propose changes here first,
 then implement.*
+
+---
+
+## 12. v1.3 — tovira.io palette (supersedes the §2/§11 hex values)
+
+**What changed:** the HUES only, adopted from the live site **tovira.io** (a warm
+terracotta accent on paper). **Nothing else moves** — the direction ("The Private
+Vault / Ledger"), the type system, the receipt-chit, spacing, motion, voice, the
+refusals, and the semantic colour rules (§2) all stand. Brass is still earned;
+claret still means *act*; amber still means *uncertain*; the three stay distinct.
+Ledger (light) remains the default; Vault (dark) is **derived** from the same
+identity (not inverted). Verified in both themes by `contrast.test.ts`.
+
+### Ledger (light) — from tovira.io's own tokens
+| Role | Token | Hex | tovira.io source |
+|---|---|---|---|
+| Page surface | `--surface-base` | `#F4F1EA` | `brand-paper` |
+| Raised (cards) | `--surface-raised` | `#FAF7EF` | `brand-card` |
+| Banded/sheets | `--surface-elevated` | `#EDE8DC` | a step deeper |
+| Hairline | `--hairline` | `#D6CFBD` | `brand-line` |
+| Primary text | `--text-primary` | `#1C1917` | `brand-ink` |
+| Secondary text | `--text-secondary` | `#6B645D` | `brand-muted` #78716C **darkened for AA** |
+| Accent / primary action | `--brass` | `#D14821` | `brand-accent` |
+| Accent hover | `--brass-strong` | `#C0411D` | accent-dark |
+| Text on accent | `--brass-ink` | `#FFFFFF` | — |
+| Action-needed | `--claret` | `#9E3B33` | **kept** (site has no distinct danger) |
+| Confirmed / kept | `--green` | `#4A7C59` | `brand-success` |
+| Uncertain / review | `--amber` | `#96661F` | **kept** (site warning #FCD34D fails AA as text; used as a surface tint only) |
+| Shadow | `--shadow-overlay` | `0 8px 32px -8px rgba(28,25,23,0.12)` | `shadow-card` |
+
+### Vault (dark) — derived, same identity in a low light
+| Role | Token | Hex |
+|---|---|---|
+| Base / raised / elevated | `--surface-*` | `#1B1512` / `#241D18` / `#2E2620` (warm terracotta-tinted near-blacks) |
+| Hairline | `--hairline` | `#3D332A` |
+| Primary / secondary text | `--text-*` | `#F4F1EA` / `#B8AB9C` (off-white, never pure #FFF) |
+| Accent (lifted) | `--brass` / `--brass-strong` / `--brass-ink` | `#E8724A` / `#F08A63` / `#1B1512` |
+| Action-needed | `--claret` | `#D9766D` |
+| Confirmed | `--green` | `#7FA98C` |
+| Uncertain | `--amber` | `#DBA75A` |
+
+### AA notes (source palette gaps we corrected)
+- tovira.io's muted text `#78716C` on its paper `#F4F1EA` is **4.30:1** — below the
+  4.5 AA floor for body text. Darkened to `#6B645D` (≥4.5 on every light surface).
+- tovira.io's warning `#FCD34D` (bright yellow) cannot meet AA as text on paper;
+  our amber stays `#96661F` for the "uncertain" role, and `#FCD34D` tints the
+  amber surface only.
+- tovira.io has no distinct danger hue (its accent doubles as the alert). Since
+  the accent must stay distinct from "act", `--claret` is **kept** at `#9E3B33`.
+
+*v1.3 — direction unchanged (The Ledger, light-first, Vault retained); only the
+hues moved to the tovira.io palette. Tokens above are the contract.*

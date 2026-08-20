@@ -60,11 +60,20 @@ describe.each([
     }
   });
 
-  it('brass, claret, amber and green accents clear the UI-component floor (3.0) on base and raised', () => {
-    for (const surface of ['--surface-base', '--surface-raised']) {
+  it('brass, claret, amber and green accents clear the UI-component floor (3.0) on every surface', () => {
+    for (const surface of ['--surface-base', '--surface-raised', '--surface-elevated']) {
       for (const accent of ['--brass', '--claret', '--amber', '--green']) {
-        expect(contrast(t[accent]!, t[surface]!)).toBeGreaterThanOrEqual(3.0);
+        expect(contrast(t[accent]!, t[surface]!), `${accent} on ${surface}`).toBeGreaterThanOrEqual(3.0);
       }
+    }
+  });
+
+  // The semantic hues must stay DISTINCT from each other — the accent can never
+  // be mistaken for "act" (claret) or "uncertain" (amber).
+  it('accent, claret and amber are visibly distinct colours', () => {
+    expect(contrast(t['--brass']!, t['--claret']!)).not.toBe(1);
+    for (const [a, b] of [['--brass', '--claret'], ['--brass', '--amber'], ['--claret', '--amber']] as const) {
+      expect(t[a]).not.toBe(t[b]);
     }
   });
 
