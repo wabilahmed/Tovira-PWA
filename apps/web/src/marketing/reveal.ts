@@ -32,9 +32,7 @@ function initReveal(doc: Document): void {
         }
       }
     },
-    // Trigger as the element enters the lower viewport so the long entrance plays
-    // WHILE it scrolls up into place (the "coming into view" feel).
-    { threshold: 0, rootMargin: '0px 0px -14% 0px' },
+    { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
   );
   targets.forEach((el) => io.observe(el));
   // Safety net: nothing may remain hidden if the observer never fires.

@@ -14,13 +14,7 @@
 @import '../../../../packages/brand/fonts.css';
 @import '../../../../packages/brand/primitives.css';
 
-:root {
-  --measure: 1120px;
-  --gap: 1.5rem;
-  /* Scroll-journey motion: an expo-out settle, cinematic duration. */
-  --rv-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --rv-dur: 720ms;
-}
+:root { --measure: 1120px; --gap: 1.5rem; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -32,7 +26,6 @@ body {
   font-family: var(--font-sans);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden; /* directional reveals slide in from off-canvas */
 }
 
 .wrap { max-width: var(--measure); margin-inline: auto; padding-inline: 20px; }
@@ -155,98 +148,18 @@ a:not(.cta) { color: var(--text-primary); }
 .mobile-cta.is-visible { transform: none; }
 .mobile-cta[hidden] { display: none; }
 
-/* ── The scroll journey (gated on .js) — bigger, directional, choreographed.
-   As each section enters view its parts glide into place; the eye is led down
-   the page. All scroll-triggered once; instant under reduced-motion (below). ── */
-.js [data-reveal] { opacity: 0; transform: translateY(48px); transition: opacity var(--rv-dur) var(--rv-ease), transform var(--rv-dur) var(--rv-ease); }
-.js [data-reveal][data-revealed] { opacity: 1; transform: none; }
-
-/* Centered blocks (the turn, the close) rise + settle up from a slight zoom.
-   The directional/hidden transforms below are scoped to :not([data-revealed]) so
-   they out-specify the base but STILL yield to the revealed reset (transform:none)
-   — otherwise the element settles offset and never animates into place. */
-.js .prose-center[data-reveal]:not([data-revealed]) { transform: translateY(40px) scale(0.97); }
-
-/* Directional entrances keyed to the zigzag — copy and visual slide in from
-   opposite sides, converging (desktop only; mobile keeps the vertical rise so
-   nothing slides off a narrow screen). */
-@media (min-width: 768px) {
-  .js .sec__copy[data-reveal]:not([data-revealed]) { transform: translateX(-60px); }
-  .js .sec__visual[data-reveal]:not([data-revealed]) { transform: translateX(60px) scale(0.94); }
-  .js .sec--reverse .sec__copy[data-reveal]:not([data-revealed]) { transform: translateX(60px); }
-  .js .sec--reverse .sec__visual[data-reveal]:not([data-revealed]) { transform: translateX(-60px) scale(0.94); }
-}
-
-/* Staggered groups (silence rows, use-case cards, plans) rise in sequence. */
-.js [data-stagger] [data-stagger-item] { opacity: 0; transform: translateY(44px); transition: opacity var(--rv-dur) var(--rv-ease), transform var(--rv-dur) var(--rv-ease); }
-.js [data-stagger][data-revealed] [data-stagger-item] { opacity: 1; transform: none; }
-.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(1) { transition-delay: 40ms; }
-.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(2) { transition-delay: 150ms; }
-.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(3) { transition-delay: 260ms; }
-.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(4) { transition-delay: 370ms; }
-
-/* The §5 proof chits deal out like an audit across a desk — a slight fan + rise. */
-.js [data-deal] [data-deal-item] { opacity: 0; transform: translateY(46px) rotate(-2.5deg); transition: opacity var(--rv-dur) var(--rv-ease), transform var(--rv-dur) var(--rv-ease); }
-.js [data-deal][data-revealed] [data-deal-item] { opacity: 1; transform: none; }
-.js [data-deal][data-revealed] [data-deal-item]:nth-child(1) { transition-delay: 40ms; }
-.js [data-deal][data-revealed] [data-deal-item]:nth-child(2) { transition-delay: 170ms; }
-.js [data-deal][data-revealed] [data-deal-item]:nth-child(3) { transition-delay: 300ms; }
-
-/* ── Scroll-LINKED upgrade (Chrome/Edge; native CSS scroll-driven animation).
-   The transition-based reveal above fires ONCE when a trigger line is crossed,
-   so it finishes while the section is still off-centre. Where the browser
-   supports view() timelines we instead SCRUB each part's position against the
-   section's travel through the viewport: parts start fully out to the sides as
-   the section enters from the bottom and reach their destination as it settles
-   into view — the position is a function of scroll, not a fixed clock. Falls
-   back to the reveal above where view() is unsupported (Safari/Firefox), and is
-   skipped entirely under reduced-motion (this whole block is gated on it). ── */
-@keyframes sj-rise        { from { opacity: 0; transform: translateY(56px); }               to { opacity: 1; transform: none; } }
-@keyframes sj-from-left   { from { opacity: 0; transform: translateX(-90px); }               to { opacity: 1; transform: none; } }
-@keyframes sj-from-right  { from { opacity: 0; transform: translateX(90px); }                to { opacity: 1; transform: none; } }
-@keyframes sj-in-left     { from { opacity: 0; transform: translateX(-90px) scale(0.92); }   to { opacity: 1; transform: none; } }
-@keyframes sj-in-right    { from { opacity: 0; transform: translateX(90px) scale(0.92); }     to { opacity: 1; transform: none; } }
-/* A slight, idle downward jump for the down-pointing cues (the hero scroll arrow
-   and the between-section connector dots) — invites the next scroll. */
-@keyframes sj-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
-
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    /* The animation (fill: both) owns opacity+transform, overriding the reveal
-       above; neutralise its transition so the two never fight. Default = rise. */
-    .js .sec__copy[data-reveal],
-    .js .sec__visual[data-reveal],
-    .js .prose-center[data-reveal],
-    .js [data-stagger] [data-stagger-item],
-    .js [data-deal] [data-deal-item] {
-      animation: sj-rise linear both;
-      animation-timeline: view();
-      /* Parts begin as they peek in and settle a little past centre — still
-         travelling at half-in-view, without dragging on too long. */
-      animation-range: entry 4% cover 64%;
-      transition: none;
-    }
-
-    /* Desktop zigzag: copy and visual scrub in from opposite sides, converging
-       on the section's resting position as it reaches the middle of the screen. */
-    @media (min-width: 768px) {
-      .js .sec__copy[data-reveal]                 { animation-name: sj-from-left; }
-      .js .sec__visual[data-reveal]               { animation-name: sj-in-right; }
-      .js .sec--reverse .sec__copy[data-reveal]   { animation-name: sj-from-right; }
-      .js .sec--reverse .sec__visual[data-reveal] { animation-name: sj-in-left; }
-    }
-
-    /* Grouped items keep their sequence by scrubbing over staggered ranges —
-       each arrives a little further up the scroll than the last. */
-    .js [data-stagger] [data-stagger-item]:nth-child(1),
-    .js [data-deal] [data-deal-item]:nth-child(1) { animation-range: entry 2% cover 55%; }
-    .js [data-stagger] [data-stagger-item]:nth-child(2),
-    .js [data-deal] [data-deal-item]:nth-child(2) { animation-range: entry 11% cover 63%; }
-    .js [data-stagger] [data-stagger-item]:nth-child(3),
-    .js [data-deal] [data-deal-item]:nth-child(3) { animation-range: entry 20% cover 71%; }
-    .js [data-stagger] [data-stagger-item]:nth-child(4) { animation-range: entry 29% cover 79%; }
-  }
-}
+/* ── Reveal / stagger / deal-out — enhancement only (gated on .js) ── */
+.js [data-reveal] { opacity: 0; transform: translateY(12px); }
+.js [data-reveal][data-revealed] { opacity: 1; transform: none; transition: opacity 200ms ease-out, transform 200ms ease-out; }
+.js [data-stagger] [data-stagger-item],
+.js [data-deal] [data-deal-item] { opacity: 0; transform: translateY(12px); }
+.js [data-stagger][data-revealed] [data-stagger-item],
+.js [data-deal][data-revealed] [data-deal-item] { opacity: 1; transform: none; transition: opacity 200ms ease-out, transform 200ms ease-out; }
+.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(2),
+.js [data-deal][data-revealed] [data-deal-item]:nth-child(2) { transition-delay: 60ms; }
+.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(3),
+.js [data-deal][data-revealed] [data-deal-item]:nth-child(3) { transition-delay: 120ms; }
+.js [data-stagger][data-revealed] [data-stagger-item]:nth-child(4) { transition-delay: 180ms; }
 
 /* ── Lead-down connectors — a ledger thread between sections. As each section
    reveals, the thread draws downward (the line grows, then a node drops in),
@@ -261,15 +174,6 @@ a:not(.cta) { color: var(--text-primary); }
 .js .lead[data-reveal] .lead__dot { opacity: 0; transform: translateY(-8px); }
 .lead[data-reveal][data-revealed] .lead__line { transform: scaleY(1); transition: transform 400ms ease-out; }
 .lead[data-reveal][data-revealed] .lead__dot { opacity: 1; transform: none; transition: opacity 220ms ease-out 340ms, transform 220ms ease-out 340ms; }
-
-/* Down-pointing cues jump gently to lead the eye onward (idle loop; decorative,
-   so aria-hidden in the markup). Off entirely under reduced-motion. The dot's
-   jump starts after its reveal has dropped it into place. */
-.jump { display: inline-block; }
-@media (prefers-reduced-motion: no-preference) {
-  .jump { animation: sj-nudge 1.5s ease-in-out infinite; }
-  .lead[data-revealed] .lead__dot { animation: sj-nudge 1.9s ease-in-out 700ms infinite; }
-}
 
 /* ── Tablet + desktop ── */
 @media (min-width: 768px) {
