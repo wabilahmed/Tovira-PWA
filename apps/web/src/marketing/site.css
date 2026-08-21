@@ -117,6 +117,8 @@ a:not(.cta) { color: var(--text-primary); }
 
 /* ── §6 use cases ── */
 .usecases { display: grid; gap: 1.25rem; margin-top: 1.5rem; }
+/* §7 security assurances — same card as the use-cases, in a 2-up grid. */
+.assurances { display: grid; gap: 1.25rem; margin-top: 1.5rem; }
 .usecase { padding: 1.4rem; }
 .usecase__label { font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brass); margin: 0 0 0.5rem; }
 .usecase p { color: var(--text-secondary); }
@@ -179,6 +181,7 @@ a:not(.cta) { color: var(--text-primary); }
 @media (min-width: 768px) {
   .sec { padding-block: 4.5rem; }
   .usecases { grid-template-columns: repeat(3, 1fr); }
+  .assurances { grid-template-columns: 1fr 1fr; }
   .plans { grid-template-columns: 1fr 1fr; max-width: 760px; margin-inline: auto; }
   .faq { grid-template-columns: 1fr 1fr; gap: 0.75rem 1.5rem; }
   .mobile-cta { display: none; }
