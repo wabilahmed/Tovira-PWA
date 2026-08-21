@@ -62,13 +62,17 @@ a:not(.cta) { color: var(--text-primary); }
 .site-head__row { display: flex; align-items: center; justify-content: space-between; padding-block: 0.85rem; }
 .site-head__nav { display: flex; align-items: center; gap: 1.1rem; }
 .wordmark { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; }
+.wordmark__accent { color: var(--brass); }
 .langswitch { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-secondary); text-decoration: none; }
 .site-foot { border-top: 1px solid var(--hairline); color: var(--text-secondary); font-size: 0.9rem; padding-block: 2rem; margin-bottom: 72px; }
 .site-foot nav { margin-top: 0.4rem; }
 .site-foot a { color: var(--text-secondary); }
 
 /* ── Sections & the alternating grid ── */
-.sec { padding-block: 3.5rem; }
+.sec { padding-block: 2.25rem; }
+/* The sticky header already separates the hero; keep the top gap tight.
+   .sec.hero (0,2,0) beats the responsive `.sec` padding-block rules below. */
+.sec.hero { padding-block-start: 1.5rem; }
 .sec--band { background: var(--surface-raised); }
 .sec__grid { display: grid; gap: 2rem; }
 .sec__copy > *:last-child, .prose > *:last-child, .prose-center > *:last-child { margin-bottom: 0; }
@@ -182,7 +186,7 @@ a:not(.cta) { color: var(--text-primary); }
 
 /* ── Tablet + desktop ── */
 @media (min-width: 768px) {
-  .sec { padding-block: 4.5rem; }
+  .sec { padding-block: 2.75rem; }
   .usecases { grid-template-columns: repeat(3, 1fr); }
   .assurances { grid-template-columns: 1fr 1fr; }
   .plans { grid-template-columns: 1fr 1fr; max-width: 760px; margin-inline: auto; }
@@ -192,7 +196,7 @@ a:not(.cta) { color: var(--text-primary); }
 }
 
 @media (min-width: 1024px) {
-  .sec { padding-block: 6rem; }
+  .sec { padding-block: 3.5rem; }
   /* Alternating two-column zigzag: copy left / visual right, then reversed. */
   .sec__grid { grid-template-columns: 1.05fr 0.95fr; gap: 4rem; align-items: center; }
   .sec--reverse .sec__copy { order: 2; }
