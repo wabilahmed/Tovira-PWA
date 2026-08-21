@@ -206,6 +206,9 @@ a:not(.cta) { color: var(--text-primary); }
 @keyframes sj-from-right  { from { opacity: 0; transform: translateX(90px); }                to { opacity: 1; transform: none; } }
 @keyframes sj-in-left     { from { opacity: 0; transform: translateX(-90px) scale(0.92); }   to { opacity: 1; transform: none; } }
 @keyframes sj-in-right    { from { opacity: 0; transform: translateX(90px) scale(0.92); }     to { opacity: 1; transform: none; } }
+/* A slight, idle downward jump for the down-pointing cues (the hero scroll arrow
+   and the between-section connector dots) — invites the next scroll. */
+@keyframes sj-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
 
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
@@ -218,7 +221,9 @@ a:not(.cta) { color: var(--text-primary); }
     .js [data-deal] [data-deal-item] {
       animation: sj-rise linear both;
       animation-timeline: view();
-      animation-range: entry 8% cover 50%;
+      /* A long scrub: parts begin as they peek in and are still travelling when
+         half the section is on screen, settling only once it is well into view. */
+      animation-range: entry 0% cover 78%;
       transition: none;
     }
 
@@ -234,12 +239,12 @@ a:not(.cta) { color: var(--text-primary); }
     /* Grouped items keep their sequence by scrubbing over staggered ranges —
        each arrives a little further up the scroll than the last. */
     .js [data-stagger] [data-stagger-item]:nth-child(1),
-    .js [data-deal] [data-deal-item]:nth-child(1) { animation-range: entry 4% cover 44%; }
+    .js [data-deal] [data-deal-item]:nth-child(1) { animation-range: entry 0% cover 66%; }
     .js [data-stagger] [data-stagger-item]:nth-child(2),
-    .js [data-deal] [data-deal-item]:nth-child(2) { animation-range: entry 12% cover 52%; }
+    .js [data-deal] [data-deal-item]:nth-child(2) { animation-range: entry 10% cover 74%; }
     .js [data-stagger] [data-stagger-item]:nth-child(3),
-    .js [data-deal] [data-deal-item]:nth-child(3) { animation-range: entry 20% cover 60%; }
-    .js [data-stagger] [data-stagger-item]:nth-child(4) { animation-range: entry 28% cover 68%; }
+    .js [data-deal] [data-deal-item]:nth-child(3) { animation-range: entry 20% cover 82%; }
+    .js [data-stagger] [data-stagger-item]:nth-child(4) { animation-range: entry 30% cover 90%; }
   }
 }
 
@@ -256,6 +261,15 @@ a:not(.cta) { color: var(--text-primary); }
 .js .lead[data-reveal] .lead__dot { opacity: 0; transform: translateY(-8px); }
 .lead[data-reveal][data-revealed] .lead__line { transform: scaleY(1); transition: transform 400ms ease-out; }
 .lead[data-reveal][data-revealed] .lead__dot { opacity: 1; transform: none; transition: opacity 220ms ease-out 340ms, transform 220ms ease-out 340ms; }
+
+/* Down-pointing cues jump gently to lead the eye onward (idle loop; decorative,
+   so aria-hidden in the markup). Off entirely under reduced-motion. The dot's
+   jump starts after its reveal has dropped it into place. */
+.jump { display: inline-block; }
+@media (prefers-reduced-motion: no-preference) {
+  .jump { animation: sj-nudge 1.5s ease-in-out infinite; }
+  .lead[data-revealed] .lead__dot { animation: sj-nudge 1.9s ease-in-out 700ms infinite; }
+}
 
 /* ── Tablet + desktop ── */
 @media (min-width: 768px) {
