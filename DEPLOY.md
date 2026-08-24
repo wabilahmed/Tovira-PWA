@@ -126,20 +126,111 @@ The workflow never runs on merge — it's manual only.
 
 ## Known Terraform gaps (fix before go-live — not touched here by policy)
 
+**0. 🚨 SHOW-STOPPER: CloudFront never routes the API.** The distribution
+(`storage.tf`) has only the S3 `frontend` origin; its default behavior allows
+`GET/HEAD/OPTIONS` and rewrites `403/404 → /app.html`. But the PWA calls the API
+**same-origin** (`POST /auth/login`, `/me`, `/clients`, …) — so in production
+every API call hits S3, is rejected, and comes back as the HTML app shell. Auth
+and the whole API are unreachable until CloudFront forwards the API paths to the
+ALB. This is the first thing to fix. See the paste-ready snippet below.
+
 1. **`ANTHROPIC_API_KEY` is not provisioned or injected.** `ecs.tf` sets
    `MODEL_PROVIDER=anthropic`, but the key is absent from both the secret bundle
-   (`runtime-config.tf`) and the task `secrets` (`ecs.tf`). Add
-   `ANTHROPIC_API_KEY` to the `secret_string`, and a matching entry to the task
-   `secrets = [ … ]`. Without this the model calls fail.
+   (`runtime-config.tf`) and the task `secrets` (`ecs.tf`). The API calls
+   `assertDeployReady()` on boot, so the task will **crash-loop with a named
+   error** until this is set — loud, not silent, but still a hard blocker.
 2. **Several app env vars aren't injected into the task.** The secret bundle
    defines `APP_BASE_URL`, `EMAIL_SENDER`, `EMAIL_FROM`, `SES_REGION`, and
    `STRIPE_ANNUAL_PRICE_ID`, but `ecs.tf`'s `secrets` / `environment` don't pass
    them through — so emails would use the localhost default base URL, the annual
-   plan wouldn't resolve, and email stays stubbed. Add them to the task.
+   plan wouldn't resolve, and email stays stubbed.
 3. **No GitHub OIDC deploy role** in `iam.tf` — add the role in step 4.
-4. **`CLOUDFRONT_DISTRIBUTION_ID` isn't a Terraform output.** Add an output for
-   `aws_cloudfront_distribution.frontend.id`, or read it from the console /
-   `aws cloudfront list-distributions`.
+4. **`CLOUDFRONT_DISTRIBUTION_ID` isn't a Terraform output** — add one, or read it
+   from the console / `aws cloudfront list-distributions`.
+
+---
+
+## Paste-ready Terraform fixes
+
+These are documentation, not applied. Drop them into the matching `.tf`, run
+`terraform plan`, review, `apply`. No secret VALUES appear here.
+
+### Gap 0 — forward the API through CloudFront (in `storage.tf`)
+Add the ALB as a second origin and one behavior per API path. Note the two
+caveats after the snippet — they matter.
+```hcl
+locals {
+  # Every top-level API path prefix the server serves. Keep in sync with apps/api/src/http/*.
+  api_path_patterns = [
+    "/auth/*", "/me", "/account", "/account/*", "/clients", "/clients/*",
+    "/hero/*", "/promises", "/confirmations", "/meetings", "/meetings/*",
+    "/billing/*", "/cards/*", "/recall", "/notes/*", "/images/*", "/import/*",
+    "/stakeholders/*", "/push/*", "/health", "/ledger", "/ledger/*",
+  ]
+}
+
+# ...inside resource "aws_cloudfront_distribution" "frontend":
+
+  origin {
+    domain_name = aws_lb.api.dns_name
+    origin_id   = "api"
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"       # CloudFront→ALB is internal HTTP
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  dynamic "ordered_cache_behavior" {
+    for_each = local.api_path_patterns
+    content {
+      path_pattern             = ordered_cache_behavior.value
+      target_origin_id         = "api"
+      viewer_protocol_policy    = "redirect-to-https"
+      allowed_methods          = ["GET","HEAD","OPTIONS","PUT","POST","PATCH","DELETE"]
+      cached_methods           = ["GET","HEAD"]
+      cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # Managed-CachingDisabled
+      origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # Managed-AllViewerExceptHostHeader
+    }
+  }
+```
+- **Caveat A (SPA fallback vs API errors).** The existing `403/404 → /app.html`
+  `custom_error_response` is distribution-wide, so a legitimate API `404`/`403`
+  would also be rewritten to the app shell. Move the SPA fallback off
+  `custom_error_response` and onto a CloudFront **viewer-request Function** (extend
+  the existing `frontend_dir_index`) that rewrites non-file, non-API routes to
+  `/app.html`, and delete the two `custom_error_response` blocks — so API errors
+  pass through untouched.
+- **Caveat B (cleaner alternative).** Prefixing every web call with `/api` (set
+  each client's `baseUrl` to `/api` and mount the API under `/api`) collapses all
+  the behaviors above into a single `/api/*` behavior. That's an app-code change
+  across the clients + server routing + tests — worth doing, but bigger than a TF
+  edit. Say the word and I'll scope it.
+
+### Gap 1 & 2 — provide the model key and the missing env (in `runtime-config.tf` + `ecs.tf`)
+```hcl
+# runtime-config.tf — add to the secret_string map (value stays a placeholder):
+    ANTHROPIC_API_KEY = "REPLACE_ME"
+
+# ecs.tf — add to the task definition. Secrets pull from Secrets Manager;
+# the non-secret ones can be plain `environment` entries.
+    { name = "ANTHROPIC_API_KEY",     valueFrom = "${aws_secretsmanager_secret.app.arn}:ANTHROPIC_API_KEY::" },
+    { name = "STRIPE_ANNUAL_PRICE_ID",valueFrom = "${aws_secretsmanager_secret.app.arn}:STRIPE_ANNUAL_PRICE_ID::" },
+    { name = "APP_BASE_URL",          valueFrom = "${aws_secretsmanager_secret.app.arn}:APP_BASE_URL::" },
+    { name = "EMAIL_SENDER",          valueFrom = "${aws_secretsmanager_secret.app.arn}:EMAIL_SENDER::" },
+    { name = "EMAIL_FROM",            valueFrom = "${aws_secretsmanager_secret.app.arn}:EMAIL_FROM::" },
+    { name = "SES_REGION",            valueFrom = "${aws_secretsmanager_secret.app.arn}:SES_REGION::" },
+```
+(Real values go into Secrets Manager per step 5 — never into these files.)
+
+### Gap 4 — expose the distribution id (in `outputs.tf`)
+```hcl
+output "cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.frontend.id
+}
+```
+Then set the `CLOUDFRONT_DISTRIBUTION_ID` repo variable from it.
 
 ## Notes
 
