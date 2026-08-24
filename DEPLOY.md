@@ -236,12 +236,15 @@ Audited the launch-critical surfaces against the real code.
   413. Errors return generic 500s (no internals leaked).
 - **Rate limits** exist on verification-email resends and hero refreshes.
 
-**Gaps to close:**
-1. **[Moderate] No brute-force throttling on `/auth/login`, `/auth/forgot-password`,
-   `/auth/reset-password`.** Online password guessing is unbounded. Recommend a
-   per-(IP+email) limiter — a fixed-window/lockout after N failures — reading the
-   client IP from `X-Forwarded-For` (behind CloudFront/ALB). App-code change;
-   worth doing before a public launch.
+**Gaps:**
+1. **[RESOLVED] Login brute-force throttling.** `/auth/login` now throttles per
+   IP+email — 8 failed attempts per 15 min, then `429` (even for the correct
+   password) until the window rolls over; a success clears the counter. Client IP
+   is read from `X-Forwarded-For` behind CloudFront/ALB
+   (`services/security/rate-limiter.ts`). In-process (fine for the single API
+   task); move to a shared store if the service scales horizontally.
+   *Follow-up:* `/auth/forgot-password` is not yet throttled (email-bomb of a
+   victim) — a cheap extension with the same limiter.
 2. **[Moderate] No security response headers.** Add a CloudFront response-headers
    policy so the PWA HTML carries HSTS + anti-clickjacking + nosniff:
    ```hcl

@@ -1,0 +1,8 @@
+# Tovira — allow the marketing pages; keep the app shell and token links out of the index.
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /reset-password
+Disallow: /verify-email
+
+Sitemap: https://tovira.com/sitemap.xml

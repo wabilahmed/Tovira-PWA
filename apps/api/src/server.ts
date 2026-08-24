@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { Pool } from 'pg';
 import type { AuthService } from './services/auth/auth-service.js';
+import type { RateLimiter } from './services/security/rate-limiter.js';
 import type { ClientRepository } from './ports/client-repository.js';
 import type { NoteRepository } from './ports/note-repository.js';
 import type { Storage } from './ports/storage.js';
@@ -91,6 +92,8 @@ export interface ApiDeps {
   accountEmail: AccountEmailService;
   appBaseUrl: string;
   cookieSecure?: boolean;
+  /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
+  loginLimiter?: RateLimiter;
 }
 
 /**
@@ -153,6 +156,7 @@ export function createApiServer(deps: ApiDeps): Server {
         onReferral: (code, userId, email) => deps.referral.apply(code, userId, email).then(() => undefined),
         sendResetEmail: (to, resetUrl) => deps.accountEmail.sendPasswordReset(to, resetUrl),
         sendVerifyEmail: (to, verifyUrl) => deps.accountEmail.sendVerification(to, verifyUrl),
+        loginLimiter: deps.loginLimiter,
       })) return;
       // Notes routes are matched before the generic client routes so
       // /clients/:id/notes/* isn't misread as /clients/:id.

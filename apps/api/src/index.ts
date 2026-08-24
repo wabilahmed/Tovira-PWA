@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { loadConfig, assertDeployReady } from './config.js';
+import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
@@ -190,6 +191,8 @@ async function main(): Promise<void> {
     accountEmail,
     appBaseUrl: config.appBaseUrl,
     cookieSecure: config.nodeEnv === 'production',
+    // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
+    loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),
   });
   server.listen(config.port, () => {
     console.log(`[api] listening on http://0.0.0.0:${config.port} (${config.nodeEnv})`);

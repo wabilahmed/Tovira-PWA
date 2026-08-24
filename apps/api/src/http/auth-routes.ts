@@ -3,11 +3,13 @@ import { AuthError, AuthService, CONSENT_POLICY_VERSION } from '../services/auth
 import {
   BadJsonError,
   clearedSessionCookie,
+  clientIp,
   extractToken,
   readJsonBody,
   sendJson,
   sessionCookie,
 } from './helpers.js';
+import type { RateLimiter } from '../services/security/rate-limiter.js';
 
 interface Credentials {
   email: string;
@@ -33,6 +35,8 @@ export interface AuthRouteOptions {
   sendResetEmail?: (to: string, resetUrl: string) => Promise<void>;
   /** Deliver an email-verification link (EMAIL-VERIFY resend path). */
   sendVerifyEmail?: (to: string, verifyUrl: string) => Promise<void>;
+  /** Throttle failed logins per IP+email (defends against brute force). */
+  loginLimiter?: RateLimiter;
 }
 
 function verifyLink(appBaseUrl: string, token: string): string {
@@ -73,10 +77,22 @@ export async function handleAuthRoute(
 
     if (method === 'POST' && url === '/auth/login') {
       const { email, password } = readCredentials(await readJsonBody(req));
-      const result = await auth.login(email, password);
-      sendJson(res, 200, result, {
-        'set-cookie': sessionCookie(result.token, auth.sessionTtlSeconds, opts.cookieSecure),
-      });
+      const rlKey = `login:${clientIp(req)}:${email.trim().toLowerCase()}`;
+      const gate = opts.loginLimiter?.check(rlKey);
+      if (gate?.limited) {
+        sendJson(res, 429, { error: 'rate_limited', message: 'Too many attempts — please wait a moment and try again.' }, { 'retry-after': String(gate.retryAfterSec) });
+        return true;
+      }
+      try {
+        const result = await auth.login(email, password);
+        opts.loginLimiter?.clear(rlKey); // a good login wipes the failure count
+        sendJson(res, 200, result, {
+          'set-cookie': sessionCookie(result.token, auth.sessionTtlSeconds, opts.cookieSecure),
+        });
+      } catch (err) {
+        if (err instanceof AuthError) opts.loginLimiter?.record(rlKey); // count only credential failures
+        throw err; // handled by the outer catch (generic 401 — no enumeration)
+      }
       return true;
     }
 

@@ -73,6 +73,16 @@ export function parseCookies(header: string | undefined): Record<string, string>
   return out;
 }
 
+/**
+ * The client IP for rate-limiting. Behind CloudFront/ALB the real client is the
+ * first hop of `X-Forwarded-For`; fall back to the socket address locally.
+ */
+export function clientIp(req: IncomingMessage): string {
+  const xff = req.headers['x-forwarded-for'];
+  const first = Array.isArray(xff) ? xff[0] : (xff ?? '').split(',')[0];
+  return (first || req.socket?.remoteAddress || 'unknown').trim();
+}
+
 /** Extract the session token from `Authorization: Bearer` or the session cookie. */
 export function extractToken(req: IncomingMessage): string {
   const auth = req.headers.authorization;
