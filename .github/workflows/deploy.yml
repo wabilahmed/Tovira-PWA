@@ -81,6 +81,17 @@ jobs:
           cluster: tovira-${{ env.DEPLOY_ENV }}
           wait-for-service-stability: true
 
+      - name: Smoke test — public health via CloudFront → ALB
+        if: ${{ vars.SMOKE_URL != '' }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -fsS -o /dev/null -w "%{http_code}" "${{ vars.SMOKE_URL }}/api/health" || true)
+            echo "attempt $i → $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "::error::/api/health never returned 200 through CloudFront"; exit 1
+
   web:
     if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == 'web' }}
     runs-on: ubuntu-latest
@@ -109,3 +120,12 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
             --paths '/*'
+
+      - name: Smoke test — the app shell and landing load
+        if: ${{ vars.SMOKE_URL != '' }}
+        run: |
+          for path in / /app; do
+            code=$(curl -fsS -o /dev/null -w "%{http_code}" "${{ vars.SMOKE_URL }}${path}" || true)
+            echo "$path → $code"
+            [ "$code" = "200" ] || { echo "::error::$path did not return 200"; exit 1; }
+          done

@@ -7,7 +7,10 @@ import { manifest } from './src/pwa/manifest.js';
 // Proxy the API so the PWA calls it same-origin (the session cookie rides along).
 // Target is the API container in Docker (http://api:3001) or localhost in bare dev.
 const apiTarget = process.env.VITE_API_PROXY ?? 'http://localhost:3001';
-const apiRoutes = ['/auth', '/me', '/health'];
+// The PWA calls the whole API under /api/* (matching the single CloudFront
+// behavior in prod); the API server strips the prefix. One rule covers every
+// route — no per-endpoint list to keep in sync.
+const apiRoutes = ['/api'];
 
 const html = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 

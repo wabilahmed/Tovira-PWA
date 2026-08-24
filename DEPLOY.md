@@ -128,11 +128,11 @@ The workflow never runs on merge — it's manual only.
 
 **0. 🚨 SHOW-STOPPER: CloudFront never routes the API.** The distribution
 (`storage.tf`) has only the S3 `frontend` origin; its default behavior allows
-`GET/HEAD/OPTIONS` and rewrites `403/404 → /app.html`. But the PWA calls the API
-**same-origin** (`POST /auth/login`, `/me`, `/clients`, …) — so in production
-every API call hits S3, is rejected, and comes back as the HTML app shell. Auth
-and the whole API are unreachable until CloudFront forwards the API paths to the
-ALB. This is the first thing to fix. See the paste-ready snippet below.
+`GET/HEAD/OPTIONS` and rewrites `403/404 → /app.html`. The PWA calls the API and
+those calls must reach the ALB, not S3 — otherwise auth and the whole API are
+unreachable in prod. The app now calls the API under **`/api/*`** (the server
+strips the prefix), so the fix is a **single** CloudFront behavior. See the
+paste-ready snippet below.
 
 1. **`ANTHROPIC_API_KEY` is not provisioned or injected.** `ecs.tf` sets
    `MODEL_PROVIDER=anthropic`, but the key is absent from both the secret bundle
@@ -156,19 +156,9 @@ These are documentation, not applied. Drop them into the matching `.tf`, run
 `terraform plan`, review, `apply`. No secret VALUES appear here.
 
 ### Gap 0 — forward the API through CloudFront (in `storage.tf`)
-Add the ALB as a second origin and one behavior per API path. Note the two
-caveats after the snippet — they matter.
+The app calls the API under `/api/*` and the server strips the prefix, so this is
+one origin + one behavior. Note caveat A.
 ```hcl
-locals {
-  # Every top-level API path prefix the server serves. Keep in sync with apps/api/src/http/*.
-  api_path_patterns = [
-    "/auth/*", "/me", "/account", "/account/*", "/clients", "/clients/*",
-    "/hero/*", "/promises", "/confirmations", "/meetings", "/meetings/*",
-    "/billing/*", "/cards/*", "/recall", "/notes/*", "/images/*", "/import/*",
-    "/stakeholders/*", "/push/*", "/health", "/ledger", "/ledger/*",
-  ]
-}
-
 # ...inside resource "aws_cloudfront_distribution" "frontend":
 
   origin {
@@ -182,31 +172,23 @@ locals {
     }
   }
 
-  dynamic "ordered_cache_behavior" {
-    for_each = local.api_path_patterns
-    content {
-      path_pattern             = ordered_cache_behavior.value
-      target_origin_id         = "api"
-      viewer_protocol_policy    = "redirect-to-https"
-      allowed_methods          = ["GET","HEAD","OPTIONS","PUT","POST","PATCH","DELETE"]
-      cached_methods           = ["GET","HEAD"]
-      cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # Managed-CachingDisabled
-      origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # Managed-AllViewerExceptHostHeader
-    }
+  ordered_cache_behavior {
+    path_pattern             = "/api/*"
+    target_origin_id         = "api"
+    viewer_protocol_policy   = "redirect-to-https"
+    allowed_methods          = ["GET","HEAD","OPTIONS","PUT","POST","PATCH","DELETE"]
+    cached_methods           = ["GET","HEAD"]
+    cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # Managed-CachingDisabled
+    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # Managed-AllViewerExceptHostHeader
   }
 ```
 - **Caveat A (SPA fallback vs API errors).** The existing `403/404 → /app.html`
-  `custom_error_response` is distribution-wide, so a legitimate API `404`/`403`
-  would also be rewritten to the app shell. Move the SPA fallback off
-  `custom_error_response` and onto a CloudFront **viewer-request Function** (extend
-  the existing `frontend_dir_index`) that rewrites non-file, non-API routes to
-  `/app.html`, and delete the two `custom_error_response` blocks — so API errors
-  pass through untouched.
-- **Caveat B (cleaner alternative).** Prefixing every web call with `/api` (set
-  each client's `baseUrl` to `/api` and mount the API under `/api`) collapses all
-  the behaviors above into a single `/api/*` behavior. That's an app-code change
-  across the clients + server routing + tests — worth doing, but bigger than a TF
-  edit. Say the word and I'll scope it.
+  `custom_error_response` is distribution-wide. It won't touch normal `/api`
+  JSON responses, but if you *also* want app deep-links to keep working, prefer a
+  CloudFront **viewer-request Function** (extend `frontend_dir_index`) for the SPA
+  fallback over `custom_error_response`, so nothing rewrites API 4xx bodies.
+- Point Stripe's webhook at `https://<domain>/api/billing/webhook`, and set the
+  ALB target-group health check to `/health` (direct to the container, no prefix).
 
 ### Gap 1 & 2 — provide the model key and the missing env (in `runtime-config.tf` + `ecs.tf`)
 ```hcl

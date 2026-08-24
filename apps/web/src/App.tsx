@@ -1,3 +1,4 @@
+import { API_BASE } from './apiBase.js';
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
 import { ForgotPassword, ResetPassword } from './auth/PasswordReset.js';
@@ -64,24 +65,24 @@ import { HttpUploader } from './capture/uploader.js';
 import { requestMicrophone } from './capture/microphone.js';
 import { startRecording, type ActiveRecording } from './capture/recorder.js';
 
-const auth = new AuthClient();
-const clientsApi = new ClientsClient();
-const onboardingApi = new OnboardingClient();
-const bookScanApi = new BookScanClient();
-const promisesApi = new PromisesClient();
-const heroApi = new HeroClient();
-const proactiveApi = new ProactiveClient();
-const meetingsApi = new MeetingsClient();
-const billingApi = new BillingClient();
-const accountApi = new AccountClient();
-const cardsApi = new CardsClient();
-const imagesApi = new ImagesClient();
-const recallApi = new RecallClient();
-const corpusApi = new CorpusClient();
-const mondayApi = new MondayClient();
-const ledgerApi = new LedgerClient();
-const shareCardApi = new ShareCardClient();
-const pushClient = new PushClient();
+const auth = new AuthClient(API_BASE);
+const clientsApi = new ClientsClient(API_BASE);
+const onboardingApi = new OnboardingClient(API_BASE);
+const bookScanApi = new BookScanClient(API_BASE);
+const promisesApi = new PromisesClient(API_BASE);
+const heroApi = new HeroClient(API_BASE);
+const proactiveApi = new ProactiveClient(API_BASE);
+const meetingsApi = new MeetingsClient(API_BASE);
+const billingApi = new BillingClient(API_BASE);
+const accountApi = new AccountClient(API_BASE);
+const cardsApi = new CardsClient(API_BASE);
+const imagesApi = new ImagesClient(API_BASE);
+const recallApi = new RecallClient(API_BASE);
+const corpusApi = new CorpusClient(API_BASE);
+const mondayApi = new MondayClient(API_BASE);
+const ledgerApi = new LedgerClient(API_BASE);
+const shareCardApi = new ShareCardClient(API_BASE);
+const pushClient = new PushClient(API_BASE);
 
 // Optional voice input for recall: use the browser's SpeechRecognition when the
 // engine exists, otherwise recall stays text-only (no dead button).
@@ -130,7 +131,7 @@ const notificationApi: NotificationApi = {
     }),
   sendTest: () => pushClient.sendTest(),
 };
-const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader());
+const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader(API_BASE));
 
 function randomId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Math.random());

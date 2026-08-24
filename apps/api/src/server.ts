@@ -111,6 +111,14 @@ export function createApiServer(deps: ApiDeps): Server {
       request: typeof req,
       response: typeof res,
     ): Promise<void> {
+      // Behind CloudFront the PWA calls the API under /api/* (a single cache
+      // behavior forwards that prefix to the ALB). Strip it so routing is
+      // identical whether the request came in prefixed or same-origin/local.
+      // The ALB/ECS health check hits /health directly and is unaffected.
+      if (request.url) {
+        const stripped = request.url.replace(/^\/api(?=\/|\?|$)/, '');
+        request.url = stripped === '' ? '/' : stripped;
+      }
       const url = (request.url ?? '/').split('?')[0];
 
       if (request.method === 'GET' && (url === '/health' || url === '/healthz')) {
