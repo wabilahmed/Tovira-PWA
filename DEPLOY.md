@@ -26,6 +26,54 @@ the Terraform, adding secrets, and pointing DNS.
 
 ---
 
+## Automated provisioning (one bootstrap, then buttons)
+
+Drive the whole setup from one local bootstrap + two GitHub workflows — no clicking
+around the console. (The manual steps below are the under-the-hood detail.)
+
+**Prerequisite:** close the Terraform gaps first (see *Paste-ready Terraform fixes*),
+especially the CloudFront `/api` behavior — provisioning applies whatever Terraform
+is in the repo, so an incomplete stack deploys broken.
+
+1. **Bootstrap once** (local, AWS admin creds; idempotent — creates the state bucket
+   + the two OIDC roles):
+   ```bash
+   ENV=prod AWS_REGION=eu-north-1 GITHUB_REPO=wabilahmed/Tovira-PWA \
+     bash scripts/aws-bootstrap.sh          # or: make bootstrap
+   ```
+   It prints the exact GitHub **secrets** (`AWS_PROVISION_ROLE_ARN`,
+   `AWS_DEPLOY_ROLE_ARN`, `ANTHROPIC_API_KEY`) and **variables** (`AWS_REGION`,
+   `DEPLOY_ENV`, `TF_STATE_BUCKET`, `FRONTEND_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`,
+   `SMOKE_URL`) to set in *Settings → Secrets and variables → Actions*.
+
+2. **Provision the infra** — run the **Provision (Terraform)** workflow: `plan`
+   first (review the diff), then `apply` (via OIDC; S3 remote state is configured at
+   runtime). Gate `apply` by protecting a `production` environment with a required
+   reviewer. The first apply uses a placeholder image; step 4 makes it real.
+   ```bash
+   make provision-plan     # review, then:
+   make provision-apply
+   ```
+   Copy `FRONTEND_BUCKET` + the CloudFront distribution id into the repo variables.
+
+3. **Load runtime config** into Secrets Manager (never committed):
+   ```bash
+   cp .env.example .env.prod   # fill in the real values (.env.prod is git-ignored)
+   make config                 # → scripts/load-runtime-config.sh
+   ```
+
+4. **Deploy the app** — run the **Deploy** workflow (`make deploy`): builds + pushes
+   the API image, rolls the ECS service (migrations on boot), ships the PWA, and
+   smoke-tests `/api/health`.
+
+5. **DNS/TLS** — point the domain at CloudFront and issue the ACM cert in `us-east-1`.
+   With the domain in Route 53, Terraform can automate the cert + validation records;
+   otherwise validate once by hand.
+
+After the one bootstrap, provisioning and deploys are two buttons in the Actions tab.
+Fully managed alternative: connect the repo to **HCP Terraform** (remote state +
+plan/apply on merge with a UI approval) in place of the Provision workflow.
+
 ## One-time setup
 
 ### 1. Decide the region

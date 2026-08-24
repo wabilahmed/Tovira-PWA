@@ -1,0 +1,85 @@
+name: Provision (Terraform)
+
+# Manual only. Runs `terraform plan` / `apply` for the whole stack via AWS OIDC
+# (no static keys), using the roles + state bucket created by scripts/aws-bootstrap.sh.
+# Remote state is configured at runtime (a backend.tf is written here) so the
+# committed Terraform stays untouched. Gate `apply` with a required reviewer by
+# protecting the `production` environment in repo settings.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: plan or apply
+        type: choice
+        default: plan
+        options: [plan, apply]
+
+concurrency:
+  group: provision-${{ vars.DEPLOY_ENV || 'prod' }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-north-1' }}
+  DEPLOY_ENV: ${{ vars.DEPLOY_ENV || 'prod' }}
+  # A harmless placeholder image for the very first apply (the ECS task can't
+  # reference an image that isn't in ECR yet). Run "Deploy" right after to push
+  # the real image and make the service healthy.
+  PLACEHOLDER_IMAGE: public.ecr.aws/nginx/nginx:stable
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.action == 'apply' && 'production' || '' }}
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PROVISION_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Configure remote state (S3 backend) at runtime
+        run: printf 'terraform {\n  backend "s3" {}\n}\n' > backend.tf
+
+      - name: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=tovira/${DEPLOY_ENV}.tfstate" \
+            -backend-config="region=${AWS_REGION}"
+
+      - name: terraform fmt + validate
+        run: |
+          terraform fmt -check -recursive || true
+          terraform validate
+
+      - name: terraform plan
+        run: |
+          terraform plan -input=false \
+            -var="region=${AWS_REGION}" \
+            -var="env=${DEPLOY_ENV}" \
+            -var="api_image=${PLACEHOLDER_IMAGE}" \
+            -out=tfplan
+
+      - name: terraform apply
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: terraform apply -input=false tfplan
+
+      - name: Show key outputs (after apply)
+        if: ${{ github.event.inputs.action == 'apply' }}
+        run: |
+          echo "Set these repo variables from the outputs below:"
+          terraform output -raw frontend_bucket && echo "  → FRONTEND_BUCKET"
+          terraform output -raw ecr_repository_url || true
