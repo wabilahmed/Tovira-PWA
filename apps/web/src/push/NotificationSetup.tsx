@@ -1,3 +1,4 @@
+import { hapticTick } from '../haptics.js';
 import { useState } from 'react';
 import { onboardingStep, type OnboardingState } from '../onboarding/onboarding.js';
 import type { PushResult } from './enablePush.js';
@@ -25,8 +26,10 @@ export function NotificationSetup({ state, api }: { state: OnboardingState; api:
   async function enable(): Promise<void> {
     setBusy(true);
     setSent(null);
-    setResult(await api.enable());
+    const outcome = await api.enable();
+    setResult(outcome);
     setBusy(false);
+    if (outcome === 'enabled') hapticTick(); // notifications turned on — a commit
   }
   async function test(): Promise<void> {
     setSent(await api.sendTest());

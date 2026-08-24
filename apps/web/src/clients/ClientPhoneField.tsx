@@ -1,3 +1,4 @@
+import { hapticTick } from '../haptics.js';
 import { useState } from 'react';
 
 /**
@@ -22,6 +23,7 @@ export function ClientPhoneField({
     await onSave(value.trim() || null);
     setBusy(false);
     setSaved(true);
+    hapticTick(); // saved — a commit
   }
 
   return (

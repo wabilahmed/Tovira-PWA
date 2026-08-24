@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useIsDesktop } from './useIsDesktop.js';
 import { TabBar } from './TabBar.js';
 import { Sidebar } from './Sidebar.js';
+import { ScreenTransition } from './ScreenTransition.js';
 import type { View } from './nav.js';
 
 /**
@@ -28,14 +29,18 @@ export function AppShell({
     return (
       <div className="tov-shell">
         <Sidebar view={view} onNavigate={onNavigate} needsSeeding={needsSeeding} footer={sidebarFooter} />
-        <div className="tov-content">{children}</div>
+        <div className="tov-content">
+          <ScreenTransition viewKey={view}>{children}</ScreenTransition>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="tov-appframe">
-      <main className="tov-screen">{children}</main>
+      <main className="tov-screen">
+        <ScreenTransition viewKey={view}>{children}</ScreenTransition>
+      </main>
       {needsSeeding && view !== 'getstarted' && (
         <button type="button" className="tov-primary tov-getstarted" onClick={() => onNavigate('getstarted')}>
           Get started

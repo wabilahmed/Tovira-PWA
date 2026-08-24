@@ -24,6 +24,20 @@
   padding: 20px 18px 40px;
   font-family: var(--font-sans);
 }
+/* Wrapper the ScreenTransition animates (opacity/rise on section change). */
+.tov-screenwrap { will-change: opacity; }
+
+/* A full-screen push (client detail): slides in from the right over the base,
+   driven per-frame by PushView.tsx; a left edge-shadow gives it depth. */
+.tov-push {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  background: var(--surface-base);
+  overflow-y: auto;
+  will-change: transform;
+  box-shadow: -14px 0 44px -14px rgba(0, 0, 0, 0.5);
+}
 .tov-getstarted {
   position: sticky;
   bottom: 68px;

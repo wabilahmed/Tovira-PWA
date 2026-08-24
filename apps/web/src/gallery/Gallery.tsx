@@ -1,3 +1,4 @@
+import { hapticTick } from '../haptics.js';
 import { useEffect, useState } from 'react';
 import type { ImageRecord } from './imagesClient.js';
 
@@ -27,6 +28,7 @@ export function Gallery({ clientId, api }: { clientId: string; api: ImagesApi })
       setError('Upload failed — please try again.');
       return;
     }
+    hapticTick(); // a photo was saved — a commit
     void load();
   }
 

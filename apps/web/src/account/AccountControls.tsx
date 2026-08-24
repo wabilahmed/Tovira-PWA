@@ -1,3 +1,4 @@
+import { hapticTick } from '../haptics.js';
 import { useState } from 'react';
 
 export interface AccountApi {
@@ -28,8 +29,10 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
     setError(null);
     const ok = await api.deleteAccount();
     setBusy(false);
-    if (ok) onDeleted();
-    else setError('Could not delete your account — please try again.');
+    if (ok) {
+      hapticTick(); // account deletion confirmed — a commit
+      onDeleted();
+    } else setError('Could not delete your account — please try again.');
   }
 
   return (
@@ -51,7 +54,7 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
       {!confirming ? (
         <button onClick={() => setConfirming(true)} style={{ color: 'var(--claret)' }}>Delete my account</button>
       ) : (
-        <div data-testid="delete-confirm" style={{ borderInlineStart: '2px solid var(--claret)', background: 'var(--claret-surface)', borderRadius: 'var(--radius-card)', padding: '0.75rem 1rem' }}>
+        <div data-testid="delete-confirm" className="tov-deal" style={{ borderInlineStart: '2px solid var(--claret)', background: 'var(--claret-surface)', borderRadius: 'var(--radius-card)', padding: '0.75rem 1rem' }}>
           <strong>Are you sure? This is permanent.</strong>
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
             <button onClick={() => void doDelete()} disabled={busy} style={{ background: 'var(--claret)', borderColor: 'var(--claret)', color: 'var(--surface-base)', fontWeight: 600 }}>

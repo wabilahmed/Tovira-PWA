@@ -1,3 +1,4 @@
+import { hapticTick } from '../haptics.js';
 import { useState } from 'react';
 import type { ImportResult } from '../clients/clientsClient.js';
 import { CeilingNotice } from './CeilingNotice.js';
@@ -50,6 +51,7 @@ export function ImportChat({
     const result = await api.importWhatsApp(clientId, content, consent);
     setBusy(false);
     if (result.ok) {
+      hapticTick(); // the chat is saved — a genuine commit
       setContent('');
       setConsent(false);
       // A fully-overlapping re-import is a correct no-op, not a failure — say so

@@ -39,7 +39,10 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
     } else setError('Could not mark that done — please try again.');
   }
   async function confirm(id: string): Promise<void> {
-    if (await api.confirm(id)) setPending((prev) => prev.filter((p) => p.id !== id));
+    if (await api.confirm(id)) {
+      hapticTick(); // a guess became a fact — a commit
+      setPending((prev) => prev.filter((p) => p.id !== id));
+    }
   }
   async function reject(id: string): Promise<void> {
     if (await api.reject(id)) setPending((prev) => prev.filter((p) => p.id !== id));

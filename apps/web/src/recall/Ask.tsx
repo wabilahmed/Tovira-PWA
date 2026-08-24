@@ -56,7 +56,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
 
       {result && (
-        <div style={{ marginTop: '1rem' }}>
+        <div className="tov-deal" style={{ marginTop: '1rem' }}>
           {/* §7: the label states provenance ("on record"), not "answer". */}
           {result.receipts.length > 0 && <div className="tov-stamp" style={{ marginBottom: 4 }}>On record</div>}
           <p data-testid="answer">{result.answer}</p>

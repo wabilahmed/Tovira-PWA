@@ -51,8 +51,10 @@ import { NotificationSetup, type NotificationApi } from './push/NotificationSetu
 import { ThemeToggle } from './settings/ThemeToggle.js';
 import { formatMonthYear, formatBody } from './format/dates.js';
 import { AppShell } from './shell/AppShell.js';
+import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
 import { useIsDesktop } from './shell/useIsDesktop.js';
+import { hapticTick } from './haptics.js';
 import { Receipt } from './components/Receipt.js';
 import { Capture } from './capture/Capture.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
@@ -242,7 +244,18 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
   // Mobile pushes the client detail full-screen; desktop keeps it beside the
   // list rail (the §8 split view), so the push only happens off desktop.
-  if (open && !isDesktop) return <ClientDetail client={open} onBack={() => setOpen(null)} onSubscribe={() => { setOpen(null); setView('settings'); }} />;
+  if (open && !isDesktop)
+    return (
+      <PushView onDismiss={() => setOpen(null)}>
+        {(dismiss) => (
+          <ClientDetail
+            client={open}
+            onBack={() => dismiss()}
+            onSubscribe={() => dismiss(() => setView('settings'))}
+          />
+        )}
+      </PushView>
+    );
 
   async function addClient(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -502,6 +515,7 @@ function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; 
     const blob = await active.stop();
     setActive(null);
     await outbox.enqueue({ id: randomId(), clientId: client.id, blob, createdAt: Date.now() });
+    hapticTick(); // the recording is captured — a commit
     refresh();
   }
 
@@ -511,6 +525,7 @@ function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; 
     setStatus(null);
     try {
       await clientsApi.createPasteNote(client.id, paste);
+      hapticTick(); // the message is saved — a commit
       setPaste('');
       refresh();
     } catch (err) {

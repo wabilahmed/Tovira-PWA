@@ -1,3 +1,4 @@
+import { hapticTick } from '../haptics.js';
 import { useState } from 'react';
 import type { CardScanResult, ScannedContact } from './cardsClient.js';
 import { Locked } from '../billing/Locked.js';
@@ -49,6 +50,7 @@ export function CardScan({
     else if (trimmed) await onCreateClient(contact.name, trimmed);
     else await onCreateClient(contact.name);
     setState('saved');
+    hapticTick(); // a contact was created — a genuine commit
     setContact(null);
     setPhone('');
   }
@@ -67,7 +69,7 @@ export function CardScan({
       {state === 'saved' && <p style={{ color: 'var(--green)' }}>Contact created.</p>}
 
       {state === 'ready' && contact && (
-        <div data-testid="card-preview" className="tov-card" style={{ margin: '0.75rem 0' }}>
+        <div data-testid="card-preview" className="tov-card tov-deal" style={{ margin: '0.75rem 0' }}>
           <p style={{ margin: 0 }}><strong>{contact.name ?? '(no name found)'}</strong></p>
           {contact.title && <div>{contact.title}</div>}
           {contact.email && <div>{contact.email}</div>}

@@ -1,3 +1,4 @@
+import { hapticTick } from '../haptics.js';
 import { useEffect, useState } from 'react';
 import type { Meeting, ParseResult } from './meetingsClient.js';
 
@@ -88,6 +89,7 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
       setError('Could not save the meeting.');
       return;
     }
+    hapticTick(); // a meeting was saved — a commit
     reset();
     setText('');
     void load();
@@ -115,7 +117,7 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
 
       {/* A clear proposal (parser's, or one built from a chosen candidate) → confirm. */}
       {proposal && (
-        <div data-testid="meeting-preview" style={box}>
+        <div data-testid="meeting-preview" className="tov-deal" style={box}>
           <p style={{ margin: 0 }}>
             <strong>Meeting</strong> — {proposal.datetimeRaw}
             {proposal.datetime ? ` (${proposal.datetime})` : ' (time unconfirmed)'}

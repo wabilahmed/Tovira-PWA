@@ -57,7 +57,7 @@ export function TrialIncentive({ api }: { api: IncentiveApi }): JSX.Element | nu
   if (inc.state === 'earned' && !dismissed) {
     const newEnd = new Date(inc.trialEndsAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     return (
-      <section data-testid="incentive-earned" aria-label="Trial extended" style={{ ...box, borderColor: 'var(--green-line)', background: 'var(--green-surface)' }}>
+      <section data-testid="incentive-earned" className="tov-deal" aria-label="Trial extended" style={{ ...box, borderColor: 'var(--green-line)', background: 'var(--green-surface)' }}>
         {probe}
         <strong>You earned +<span className="tov-mono">{inc.extensionDays}</span> more trial days</strong>
         <p style={{ margin: '0.25rem 0' }}>Your trial now runs to <span className="tov-mono">{newEnd}</span>.</p>

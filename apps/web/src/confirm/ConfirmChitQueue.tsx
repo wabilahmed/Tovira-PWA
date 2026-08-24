@@ -1,3 +1,4 @@
+import { hapticTick } from '../haptics.js';
 import { useEffect, useState } from 'react';
 import type { OpenPromise } from '../promises/promisesClient.js';
 import { ConfirmChit } from './ConfirmChit.js';
@@ -33,7 +34,10 @@ export function ConfirmChitQueue({ api, heading = 'To confirm' }: { api: Confirm
 
   const drop = (id: string) => setItems((prev) => prev.filter((p) => p.id !== id));
   async function confirm(id: string): Promise<void> {
-    if (await api.confirm(id)) drop(id);
+    if (await api.confirm(id)) {
+      hapticTick(); // a guess became a fact — a commit
+      drop(id);
+    }
   }
   async function reject(id: string): Promise<void> {
     if (await api.reject(id)) drop(id);
