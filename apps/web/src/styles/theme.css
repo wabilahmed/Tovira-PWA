@@ -112,6 +112,27 @@
 }
 .tov-sidebar__item:hover:not(:disabled) { border-color: transparent; border-inline-start-color: var(--hairline); color: var(--text-primary); }
 .tov-sidebar__item[data-active] { color: var(--brass); border-inline-start-color: var(--brass); font-weight: 600; }
+
+/* Instant press feedback on the flush nav surfaces (apple-design §1/§10): a
+   background tint reads better than a scale on a full-bleed row, so cancel the
+   base button scale and flash the tint on pointer-down. */
+.tov-tab:active:not(:disabled),
+.tov-sidebar__item:active:not(:disabled),
+.tov-sheet__item:active:not(:disabled) { transform: none; background: var(--brass-surface); }
+
+/* Translucent chrome (apple-design §12): the pinned tab bar and the overflow
+   sheet float as glass so content scrolls under them — the same material as the
+   marketing header. The bigger surface (the sheet) reads as thicker: more blur.
+   Falls back to opaque where backdrop-filter is unsupported, and honours a
+   reduced-transparency request. */
+@supports (backdrop-filter: blur(1px)) {
+  .tov-tabbar { background: color-mix(in srgb, var(--surface-base) 78%, transparent); backdrop-filter: blur(18px) saturate(180%); }
+  .tov-sheet { background: color-mix(in srgb, var(--surface-raised) 80%, transparent); backdrop-filter: blur(24px) saturate(180%); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .tov-tabbar { background: var(--surface-base); backdrop-filter: none; }
+  .tov-sheet { background: var(--surface-raised); backdrop-filter: none; }
+}
 .tov-sidebar__footer { margin-top: auto; padding-inline: 12px; color: var(--text-tertiary); font-size: 0.8rem; }
 .tov-content { padding: 32px 44px 56px; max-width: 1100px; }
 

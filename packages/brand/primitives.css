@@ -62,9 +62,15 @@ button {
   background: var(--surface-raised);
   color: var(--text-primary);
   cursor: pointer;
-  transition: background 160ms ease-out, border-color 160ms ease-out, opacity 160ms ease-out;
+  -webkit-tap-highlight-color: transparent; /* our own :active replaces the grey mobile flash */
+  touch-action: manipulation;               /* no legacy ~300ms tap delay / double-tap zoom */
+  user-select: none;
+  transition: background 160ms ease-out, border-color 160ms ease-out, opacity 160ms ease-out, transform 80ms ease-out;
 }
 button:hover:not(:disabled) { border-color: var(--brass); }
+/* Press feedback is instant, on pointer-down — the foundation of directness
+   (apple-design §1 Response). Every touch surface confirms the press at once. */
+button:active:not(:disabled) { transform: scale(0.97); }
 button:disabled { opacity: 0.5; cursor: default; }
 
 /* Primary actions earn the brass. Submit buttons are the app's primary verbs. */
@@ -191,4 +197,5 @@ ul, ol { padding-inline-start: 1.25rem; }
   font: inherit;
 }
 .tov-link:hover:not(:disabled) { border: none; text-decoration: underline; }
+.tov-link:active:not(:disabled) { transform: none; opacity: 0.6; }
 

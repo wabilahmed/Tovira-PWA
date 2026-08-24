@@ -92,6 +92,7 @@
 .auth__alt { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; margin-top: 1.1rem; padding-top: 1.1rem; border-top: 1px solid var(--hairline); }
 .auth__link { background: none; border: none; cursor: pointer; font: inherit; font-size: 0.9rem; color: var(--brass); padding: 0.2rem 0.3rem; }
 .auth__link:hover { text-decoration: underline; }
+.auth__link:active { transform: none; opacity: 0.6; }
 .auth__link--muted { color: var(--text-secondary); font-size: 0.85rem; }
 .auth__trust { font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-tertiary); text-align: center; margin: 0.85rem 0 0; }
 
