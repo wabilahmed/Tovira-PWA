@@ -214,6 +214,92 @@ output "cloudfront_distribution_id" {
 ```
 Then set the `CLOUDFRONT_DISTRIBUTION_ID` repo variable from it.
 
+## Cost & scaling — cheapest 10-user setup (Stockholm)
+
+The existing architecture (Fargate + ALB + CloudFront + RDS) is already the
+cheapest *sensible* managed design, and it scales horizontally with **zero
+downtime** — keep it. Don't drop the ALB for a single EC2: that would be ~$20/mo
+cheaper but can't do no-downtime rolling deploys or horizontal scale.
+
+**Region → Stockholm** (`infra/terraform/variables.tf`):
+- `region` default → `"eu-north-1"`
+- `azs` default → `["eu-north-1a", "eu-north-1b"]`
+
+**Approx cost, ~10 users, on-demand USD/mo** (Stockholm is one of the cheapest
+regions):
+
+| Component | ~Cost |
+| --- | --- |
+| Fargate 0.25 vCPU + 0.5 GB (ARM, 24×7) | $8–10 |
+| RDS db.t4g.micro + 20 GB gp3 + 7-day backups (single-AZ) | $14–16 |
+| ALB (base + minimal traffic) | $16–18 |
+| S3 + CloudFront (near/inside free tier) | $1–3 |
+| Route 53 + Secrets Manager + CloudWatch | $3–4 |
+| Cognito (<50k MAU) / SES (per-email) | ~$0 |
+| **Total** | **≈ $45/mo** |
+
+### Why it's already zero-downtime
+- **PWA (S3+CloudFront):** infinite scale, no ops, never any downtime.
+- **API (Fargate behind ALB):** ECS rolling deploys default to start-before-stop
+  (minHealthy 100% / max 200%) — a new task launches, the ALB health-checks it on
+  `/health`, traffic shifts, the old task drains. Zero downtime even at 1 task.
+
+### Make it scale *automatically* (free — you stay at 1 task until real load)
+Today `desired_count = 1` with no autoscaling. Add target-tracking so it scales
+itself, and a circuit breaker so a bad rollout auto-reverts:
+```hcl
+resource "aws_appautoscaling_target" "api" {
+  min_capacity       = 1
+  max_capacity       = 6
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.api.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+resource "aws_appautoscaling_policy" "api_cpu" {
+  name               = "tovira-${var.env}-cpu"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.api.resource_id
+  scalable_dimension = aws_appautoscaling_target.api.scalable_dimension
+  service_namespace  = "ecs"
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification { predefined_metric_type = "ECSServiceAverageCPUUtilization" }
+    target_value       = 60
+    scale_out_cooldown = 60
+    scale_in_cooldown  = 300
+  }
+}
+
+# add to resource "aws_ecs_service" "api":
+#   health_check_grace_period_seconds = 60           # migrations/boot before ALB judges health
+#   deployment_circuit_breaker { enable = true, rollback = true }
+```
+
+### The one caveat — the database
+The stateless tier scales seamlessly; the DB is the piece that isn't no-downtime
+yet:
+- **Storage** autoscales to 100 GB already — no downtime.
+- **Vertical resize / AZ failure**: RDS is **single-AZ** (a guardrail `check` in
+  `database.tf` currently *enforces* `multi_az = false` for cost), so a resize or
+  failure is a short outage — no standby to fail over to.
+- **When you outgrow 10 users**, flip `multi_az = true` (and relax that guardrail):
+  resizes/failovers become a ~60–120s blip instead of an outage. Adds ~$14/mo, so
+  keep single-AZ now and flip it once there's revenue. One line, no re-architecture.
+
+### App-side rule for zero-downtime deploys
+During a rolling deploy the old and new tasks run **simultaneously** against the
+same DB, so schema changes must be **backward-compatible**: add
+columns/tables + backfill first, drop the old shape in a *later* deploy
+(expand/contract). Migrations run on boot, so this discipline is what keeps a
+deploy truly zero-downtime.
+
+### Stockholm caveats
+- **Bedrock isn't in `eu-north-1`.** If `EMBEDDER=bedrock`, point `BEDROCK_REGION`
+  at a Bedrock region (e.g. `eu-central-1`) for a cross-region call, or keep
+  `EMBEDDER=stub` at this scale. Everything else is available in Stockholm.
+- The **CloudFront ACM cert must still be in `us-east-1`** (global, region-independent).
+- Optional: **Fargate Spot** cuts task compute ~70% (~$3 vs ~$9) but a single Spot
+  task can be interrupted — fine if you tolerate the blip, skip if you don't.
+
 ## Security review (pre-launch)
 
 Audited the launch-critical surfaces against the real code.
