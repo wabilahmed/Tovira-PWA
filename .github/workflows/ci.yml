@@ -20,3 +20,29 @@ jobs:
       - run: npm test
       # One build: the marketing routes are prerendered inside the PWA build.
       - run: npm run build -w apps/web
+
+  # The P1-9 extraction quality gate (Sonnet vs Haiku). It needs a real model
+  # key, so it self-activates: a no-op until ANTHROPIC_API_KEY is in the repo
+  # secrets, then it fails the build if extraction ever guesses a date /
+  # fabricates a promise / merges two people. Runs on main only (it spends).
+  gate:
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run the extraction gate (only when a key is configured)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL_PROVIDER: anthropic
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "No ANTHROPIC_API_KEY secret set — skipping the P1-9 gate."
+            exit 0
+          fi
+          npm run gate

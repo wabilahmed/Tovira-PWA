@@ -1,0 +1,111 @@
+name: Deploy
+
+# Manual only — never auto-deploys on merge. A human triggers this from the
+# Actions tab after the infrastructure exists. Authenticates to AWS via OIDC
+# (no long-lived keys). Prerequisites (one-time), see DEPLOY.md:
+#   - Terraform applied (ECR, ECS, RDS, S3+CloudFront, Secrets Manager, …).
+#   - A GitHub OIDC deploy role in AWS  → secret  AWS_DEPLOY_ROLE_ARN
+#   - Repo variables: AWS_REGION, DEPLOY_ENV, FRONTEND_BUCKET, CLOUDFRONT_DISTRIBUTION_ID
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: What to deploy
+        type: choice
+        default: both
+        options: [both, api, web]
+
+concurrency:
+  group: deploy-${{ vars.DEPLOY_ENV || 'prod' }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # required for OIDC
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
+  DEPLOY_ENV: ${{ vars.DEPLOY_ENV || 'prod' }}
+  ECR_REPOSITORY: tovira/api # matches infra/terraform/ecr.tf
+
+jobs:
+  api:
+    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == 'api' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the API image
+        id: build
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          IMAGE="$REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}"
+          docker build -f docker/api.prod.Dockerfile -t "$IMAGE" -t "$REGISTRY/$ECR_REPOSITORY:latest" .
+          docker push "$IMAGE"
+          docker push "$REGISTRY/$ECR_REPOSITORY:latest"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Render the current task definition with the new image
+        id: taskdef
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "tovira-${DEPLOY_ENV}-api" \
+            --query 'taskDefinition' --output json \
+            | jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' \
+            > taskdef.json
+
+      - name: Fill in the image
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: taskdef.json
+          container-name: api # matches infra/terraform/ecs.tf
+          image: ${{ steps.build.outputs.image }}
+
+      - name: Deploy to ECS (migrations run on boot) and wait for stability
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: tovira-${{ env.DEPLOY_ENV }}
+          cluster: tovira-${{ env.DEPLOY_ENV }}
+          wait-for-service-stability: true
+
+  web:
+    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == 'web' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - name: Build the PWA (marketing routes are prerendered inside it)
+        run: npm run build -w apps/web
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync to S3
+        run: aws s3 sync apps/web/dist "s3://${{ vars.FRONTEND_BUCKET }}" --delete
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths '/*'
