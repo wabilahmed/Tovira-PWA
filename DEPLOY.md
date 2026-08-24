@@ -214,6 +214,52 @@ output "cloudfront_distribution_id" {
 ```
 Then set the `CLOUDFRONT_DISTRIBUTION_ID` repo variable from it.
 
+## Security review (pre-launch)
+
+Audited the launch-critical surfaces against the real code.
+
+**Strong — no action:**
+- **Tenant isolation** enforced at the DB: the API connects as a *non-superuser*
+  role and every repository call runs in a transaction that sets
+  `set_config('app.user_id', …, true)`, so Postgres RLS scopes every row;
+  fail-closed on any error (`db/tenant.ts`). Verified live: a user only ever sees
+  their own clients.
+- **Passwords**: scrypt with a per-user 16-byte salt, constant-time verify
+  (`services/auth/password.ts`).
+- **Session tokens**: 256-bit (`randomBytes(32)`), and **stored SHA-256-hashed**
+  — a DB leak doesn't yield usable sessions. Cookies are `HttpOnly`,
+  `SameSite=Lax`, and `Secure` in production.
+- **No user enumeration**: login and forgot-password return generic outcomes.
+- **Stripe webhook** verifies the signature (`constructEvent`) and rejects
+  forged/unsigned events.
+- **Body limits**: JSON capped at 1 MB, uploads at 30 MB; media ingest returns
+  413. Errors return generic 500s (no internals leaked).
+- **Rate limits** exist on verification-email resends and hero refreshes.
+
+**Gaps to close:**
+1. **[Moderate] No brute-force throttling on `/auth/login`, `/auth/forgot-password`,
+   `/auth/reset-password`.** Online password guessing is unbounded. Recommend a
+   per-(IP+email) limiter — a fixed-window/lockout after N failures — reading the
+   client IP from `X-Forwarded-For` (behind CloudFront/ALB). App-code change;
+   worth doing before a public launch.
+2. **[Moderate] No security response headers.** Add a CloudFront response-headers
+   policy so the PWA HTML carries HSTS + anti-clickjacking + nosniff:
+   ```hcl
+   resource "aws_cloudfront_response_headers_policy" "security" {
+     name = "tovira-${var.env}-security"
+     security_headers_config {
+       strict_transport_security { access_control_max_age_sec = 31536000
+         include_subdomains = true  preload = true  override = true }
+       content_type_options { override = true }                      # nosniff
+       frame_options { frame_option = "DENY"  override = true }
+       referrer_policy { referrer_policy = "strict-origin-when-cross-origin" override = true }
+     }
+   }
+   # attach response_headers_policy_id to the default (S3/HTML) behavior.
+   ```
+   Consider a Content-Security-Policy for the HTML too (the app is self-contained,
+   so a tight `default-src 'self'` is realistic).
+
 ## Notes
 
 - **Stripe** is test-mode only through phase 5 (`CLAUDE.md`). Live billing needs a
