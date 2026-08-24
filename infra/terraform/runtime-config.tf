@@ -24,7 +24,9 @@ resource "aws_secretsmanager_secret_version" "app" {
     DATABASE_URL     = local.database_url
     APP_DATABASE_URL = local.app_database_url
     APP_DB_PASSWORD  = random_password.app_db.result
-    # Fill these after apply (or via CI). STRIPE stays TEST MODE until go-live.
+    # Fill these after apply (via scripts/load-runtime-config.sh). STRIPE stays
+    # TEST MODE until go-live.
+    ANTHROPIC_API_KEY      = "REPLACE_ME"
     GROQ_API_KEY           = "REPLACE_ME"
     STRIPE_SECRET_KEY      = "sk_test_REPLACE_ME"
     STRIPE_WEBHOOK_SECRET  = "whsec_REPLACE_ME"

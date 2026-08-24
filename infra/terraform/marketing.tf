@@ -21,17 +21,26 @@ locals {
 resource "aws_cloudfront_function" "frontend_dir_index" {
   name    = "tovira-${var.env}-frontend-dir-index"
   runtime = "cloudfront-js-2.0"
-  comment = "Append index.html for directory-style marketing requests"
+  comment = "Marketing directory-index + SPA fallback (S3 behavior only; /api bypasses this)"
   publish = true
-  code    = <<-JS
+  # Runs on the S3 (default) behavior only — /api/* has its own behavior and is
+  # never seen here. Static files (a dot in the path) pass through. The prerendered
+  # marketing pages map to their index.html. Everything else dotless is an app
+  # client-side route and is served the app shell — replacing the old
+  # custom_error_response fallback, which could not be scoped away from /api.
+  code = <<-JS
+    var MARKETING = ['/privacy', '/terms', '/ar', '/ar/privacy', '/ar/terms'];
     function handler(event) {
       var req = event.request;
       var uri = req.uri;
-      if (uri.endsWith('/')) {
-        req.uri = uri + 'index.html';
-      } else if (!uri.includes('.')) {
-        req.uri = uri + '/index.html';
+      if (uri.indexOf('.') !== -1) { return req; }           // real static asset
+      if (uri === '/') { req.uri = '/index.html'; return req; }
+      var trimmed = uri.endsWith('/') ? uri.slice(0, -1) : uri;
+      if (MARKETING.indexOf(trimmed) !== -1) {               // prerendered marketing page
+        req.uri = trimmed + '/index.html';
+        return req;
       }
+      req.uri = '/app.html';                                 // app client-side route
       return req;
     }
   JS

@@ -31,9 +31,8 @@ the Terraform, adding secrets, and pointing DNS.
 Drive the whole setup from one local bootstrap + two GitHub workflows — no clicking
 around the console. (The manual steps below are the under-the-hood detail.)
 
-**Prerequisite:** close the Terraform gaps first (see *Paste-ready Terraform fixes*),
-especially the CloudFront `/api` behavior — provisioning applies whatever Terraform
-is in the repo, so an incomplete stack deploys broken.
+The Terraform is complete (see *Terraform status — gaps closed*), so provisioning
+stands up a working stack. You supply only real secret values and DNS.
 
 1. **Bootstrap once** (local, AWS admin creds; idempotent — creates the state bucket
    + the two OIDC roles):
@@ -172,95 +171,36 @@ The workflow never runs on merge — it's manual only.
 
 ---
 
-## Known Terraform gaps (fix before go-live — not touched here by policy)
+## Terraform status — gaps closed
 
-**0. 🚨 SHOW-STOPPER: CloudFront never routes the API.** The distribution
-(`storage.tf`) has only the S3 `frontend` origin; its default behavior allows
-`GET/HEAD/OPTIONS` and rewrites `403/404 → /app.html`. The PWA calls the API and
-those calls must reach the ALB, not S3 — otherwise auth and the whole API are
-unreachable in prod. The app now calls the API under **`/api/*`** (the server
-strips the prefix), so the fix is a **single** CloudFront behavior. See the
-paste-ready snippet below.
+The blockers found in the pre-launch audit are now **fixed in `infra/terraform/`**
+(`terraform validate` passes). What changed:
 
-1. **`ANTHROPIC_API_KEY` is not provisioned or injected.** `ecs.tf` sets
-   `MODEL_PROVIDER=anthropic`, but the key is absent from both the secret bundle
-   (`runtime-config.tf`) and the task `secrets` (`ecs.tf`). The API calls
-   `assertDeployReady()` on boot, so the task will **crash-loop with a named
-   error** until this is set — loud, not silent, but still a hard blocker.
-2. **Several app env vars aren't injected into the task.** The secret bundle
-   defines `APP_BASE_URL`, `EMAIL_SENDER`, `EMAIL_FROM`, `SES_REGION`, and
-   `STRIPE_ANNUAL_PRICE_ID`, but `ecs.tf`'s `secrets` / `environment` don't pass
-   them through — so emails would use the localhost default base URL, the annual
-   plan wouldn't resolve, and email stays stubbed.
-3. **No GitHub OIDC deploy role** in `iam.tf` — add the role in step 4.
-4. **`CLOUDFRONT_DISTRIBUTION_ID` isn't a Terraform output** — add one, or read it
-   from the console / `aws cloudfront list-distributions`.
+- **[RESOLVED] CloudFront now routes the API.** `storage.tf` adds the ALB as a
+  second origin and a `/api/*` behavior (uncached, all methods, cookies + auth
+  forwarded). The distribution-wide `custom_error_response` was removed (it would
+  rewrite legitimate API 4xx into the app shell); the SPA fallback moved into the
+  `frontend_dir_index` CloudFront function (`marketing.tf`) — static files pass,
+  marketing pages get their index, every other dotless path serves `/app.html`.
+- **[RESOLVED] Model key + missing env.** `ANTHROPIC_API_KEY` is added to the
+  secret bundle (`runtime-config.tf`) and, with `STRIPE_ANNUAL_PRICE_ID`,
+  `APP_BASE_URL`, `EMAIL_SENDER`, `EMAIL_FROM`, `SES_REGION`, injected into the
+  task (`ecs.tf`).
+- **[RESOLVED] Distribution id output** (`outputs.tf` → `cloudfront_distribution_id`).
+- **[RESOLVED] OIDC deploy role** — created by `scripts/aws-bootstrap.sh` (not TF).
+- **[RESOLVED] Autoscaling + zero-downtime deploys** — `autoscaling.tf`
+  (target-tracking, min 1 / max 6) + `deployment_circuit_breaker` and
+  `health_check_grace_period_seconds` on the ECS service; `desired_count` is now
+  ignored so Terraform and autoscaling don't fight.
+- **[RESOLVED] Security response headers** — a CloudFront response-headers policy
+  (HSTS, nosniff, `frame-options DENY`, referrer policy) on both behaviors.
+- **Region** defaults to `eu-north-1` (Stockholm).
 
----
-
-## Paste-ready Terraform fixes
-
-These are documentation, not applied. Drop them into the matching `.tf`, run
-`terraform plan`, review, `apply`. No secret VALUES appear here.
-
-### Gap 0 — forward the API through CloudFront (in `storage.tf`)
-The app calls the API under `/api/*` and the server strips the prefix, so this is
-one origin + one behavior. Note caveat A.
-```hcl
-# ...inside resource "aws_cloudfront_distribution" "frontend":
-
-  origin {
-    domain_name = aws_lb.api.dns_name
-    origin_id   = "api"
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"       # CloudFront→ALB is internal HTTP
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-  }
-
-  ordered_cache_behavior {
-    path_pattern             = "/api/*"
-    target_origin_id         = "api"
-    viewer_protocol_policy   = "redirect-to-https"
-    allowed_methods          = ["GET","HEAD","OPTIONS","PUT","POST","PATCH","DELETE"]
-    cached_methods           = ["GET","HEAD"]
-    cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # Managed-CachingDisabled
-    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # Managed-AllViewerExceptHostHeader
-  }
-```
-- **Caveat A (SPA fallback vs API errors).** The existing `403/404 → /app.html`
-  `custom_error_response` is distribution-wide. It won't touch normal `/api`
-  JSON responses, but if you *also* want app deep-links to keep working, prefer a
-  CloudFront **viewer-request Function** (extend `frontend_dir_index`) for the SPA
-  fallback over `custom_error_response`, so nothing rewrites API 4xx bodies.
-- Point Stripe's webhook at `https://<domain>/api/billing/webhook`, and set the
-  ALB target-group health check to `/health` (direct to the container, no prefix).
-
-### Gap 1 & 2 — provide the model key and the missing env (in `runtime-config.tf` + `ecs.tf`)
-```hcl
-# runtime-config.tf — add to the secret_string map (value stays a placeholder):
-    ANTHROPIC_API_KEY = "REPLACE_ME"
-
-# ecs.tf — add to the task definition. Secrets pull from Secrets Manager;
-# the non-secret ones can be plain `environment` entries.
-    { name = "ANTHROPIC_API_KEY",     valueFrom = "${aws_secretsmanager_secret.app.arn}:ANTHROPIC_API_KEY::" },
-    { name = "STRIPE_ANNUAL_PRICE_ID",valueFrom = "${aws_secretsmanager_secret.app.arn}:STRIPE_ANNUAL_PRICE_ID::" },
-    { name = "APP_BASE_URL",          valueFrom = "${aws_secretsmanager_secret.app.arn}:APP_BASE_URL::" },
-    { name = "EMAIL_SENDER",          valueFrom = "${aws_secretsmanager_secret.app.arn}:EMAIL_SENDER::" },
-    { name = "EMAIL_FROM",            valueFrom = "${aws_secretsmanager_secret.app.arn}:EMAIL_FROM::" },
-    { name = "SES_REGION",            valueFrom = "${aws_secretsmanager_secret.app.arn}:SES_REGION::" },
-```
-(Real values go into Secrets Manager per step 5 — never into these files.)
-
-### Gap 4 — expose the distribution id (in `outputs.tf`)
-```hcl
-output "cloudfront_distribution_id" {
-  value = aws_cloudfront_distribution.frontend.id
-}
-```
-Then set the `CLOUDFRONT_DISTRIBUTION_ID` repo variable from it.
+Two follow-ups remain (both noted below, neither a blocker):
+- Point Stripe's webhook at `https://<domain>/api/billing/webhook`.
+- CloudFront→ALB is HTTP over the internet — for hardening, lock the ALB security
+  group to CloudFront's managed prefix list + a shared-secret origin header, or add
+  a 443 listener with ACM.
 
 ## Cost & scaling — cheapest 10-user setup (Stockholm)
 
@@ -379,23 +319,10 @@ Audited the launch-critical surfaces against the real code.
    task); move to a shared store if the service scales horizontally.
    *Follow-up:* `/auth/forgot-password` is not yet throttled (email-bomb of a
    victim) — a cheap extension with the same limiter.
-2. **[Moderate] No security response headers.** Add a CloudFront response-headers
-   policy so the PWA HTML carries HSTS + anti-clickjacking + nosniff:
-   ```hcl
-   resource "aws_cloudfront_response_headers_policy" "security" {
-     name = "tovira-${var.env}-security"
-     security_headers_config {
-       strict_transport_security { access_control_max_age_sec = 31536000
-         include_subdomains = true  preload = true  override = true }
-       content_type_options { override = true }                      # nosniff
-       frame_options { frame_option = "DENY"  override = true }
-       referrer_policy { referrer_policy = "strict-origin-when-cross-origin" override = true }
-     }
-   }
-   # attach response_headers_policy_id to the default (S3/HTML) behavior.
-   ```
-   Consider a Content-Security-Policy for the HTML too (the app is self-contained,
-   so a tight `default-src 'self'` is realistic).
+2. **[RESOLVED] Security response headers.** A CloudFront response-headers policy
+   (HSTS, nosniff, `frame-options DENY`, referrer policy) is now attached to both
+   behaviors (`storage.tf`). *Optional follow-up:* add a Content-Security-Policy for
+   the HTML — the app is self-contained, so a tight `default-src 'self'` is realistic.
 
 ## Notes
 

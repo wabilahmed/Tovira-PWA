@@ -44,6 +44,31 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   signing_protocol                  = "sigv4"
 }
 
+# Security response headers (defence-in-depth for the PWA HTML): HSTS,
+# anti-clickjacking, MIME-sniff protection, a tight referrer policy.
+resource "aws_cloudfront_response_headers_policy" "security" {
+  name = "tovira-${var.env}-security"
+  security_headers_config {
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = true
+      preload                    = true
+      override                   = true
+    }
+    content_type_options {
+      override = true
+    }
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+  }
+}
+
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   default_root_object = "index.html" # `/` → the prerendered marketing landing
@@ -58,32 +83,49 @@ resource "aws_cloudfront_distribution" "frontend" {
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
   }
 
-  default_cache_behavior {
-    target_origin_id       = "frontend"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
-    cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+  # The API behind the ALB — CloudFront forwards /api/* here so the PWA reaches it
+  # same-origin (the server strips the /api prefix). HTTP to the ALB is internal;
+  # for production, lock the ALB SG to CloudFront's managed prefix list and add a
+  # shared-secret origin header (see the note in security.tf).
+  origin {
+    domain_name = aws_lb.api.dns_name
+    origin_id   = "api"
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
 
-    # Directory-index for the prerendered marketing pages (/privacy, /ar → …/index.html).
+  default_cache_behavior {
+    target_origin_id           = "frontend"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
+
+    # Directory-index for marketing pages + SPA fallback to /app.html (marketing.tf).
     function_association {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.frontend_dir_index.arn
     }
   }
 
-  # SPA fallback: a request that isn't a real file (an app client-side route like
-  # /clients or /reset-password) 404s at the origin and serves the APP SHELL —
-  # app.html, NOT the marketing landing (which owns `/`).
-  custom_error_response {
-    error_code         = 403
-    response_code      = 200
-    response_page_path = "/app.html"
-  }
-  custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/app.html"
+  # API: everything under /api/* goes to the ALB — uncached, all methods, cookies +
+  # Authorization forwarded. No custom_error_response is used anywhere: it is
+  # distribution-wide and would rewrite legitimate API 4xx into the app shell. The
+  # SPA fallback is done in the viewer-request function instead.
+  ordered_cache_behavior {
+    path_pattern               = "/api/*"
+    target_origin_id           = "api"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods             = ["GET", "HEAD"]
+    cache_policy_id            = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # Managed-CachingDisabled
+    origin_request_policy_id   = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # Managed-AllViewerExceptHostHeader
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
   }
 
   restrictions {

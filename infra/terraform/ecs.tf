@@ -55,6 +55,14 @@ resource "aws_ecs_task_definition" "api" {
       { name = "STRIPE_PRICE_ID", valueFrom = "${aws_secretsmanager_secret.app.arn}:STRIPE_PRICE_ID::" },
       { name = "VAPID_PUBLIC_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:VAPID_PUBLIC_KEY::" },
       { name = "VAPID_PRIVATE_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:VAPID_PRIVATE_KEY::" },
+      # MODEL_PROVIDER=anthropic above — the key must be present or the API fails
+      # assertDeployReady() on boot.
+      { name = "ANTHROPIC_API_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:ANTHROPIC_API_KEY::" },
+      { name = "STRIPE_ANNUAL_PRICE_ID", valueFrom = "${aws_secretsmanager_secret.app.arn}:STRIPE_ANNUAL_PRICE_ID::" },
+      { name = "APP_BASE_URL", valueFrom = "${aws_secretsmanager_secret.app.arn}:APP_BASE_URL::" },
+      { name = "EMAIL_SENDER", valueFrom = "${aws_secretsmanager_secret.app.arn}:EMAIL_SENDER::" },
+      { name = "EMAIL_FROM", valueFrom = "${aws_secretsmanager_secret.app.arn}:EMAIL_FROM::" },
+      { name = "SES_REGION", valueFrom = "${aws_secretsmanager_secret.app.arn}:SES_REGION::" },
     ]
     healthCheck = {
       command     = ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
@@ -112,8 +120,19 @@ resource "aws_ecs_service" "api" {
   name            = "tovira-${var.env}-api"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 1 # one task handles thousands of users; scale on CloudWatch
+  desired_count   = 1 # starting point; autoscaling.tf scales this out on load
   launch_type     = "FARGATE"
+
+  # Give a new task time to run migrations + boot before the ALB judges its health.
+  health_check_grace_period_seconds = 60
+
+  # Zero-downtime: ECS defaults (min 100% / max 200%) start a new task before
+  # draining the old; the circuit breaker rolls back a deploy that never goes
+  # healthy instead of leaving it half-shipped.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   network_configuration {
     subnets          = aws_subnet.public[*].id
@@ -130,6 +149,7 @@ resource "aws_ecs_service" "api" {
   depends_on = [aws_lb_listener.http]
 
   lifecycle {
-    ignore_changes = [task_definition] # CI updates the image/task def out of band
+    # CI updates the image/task def out of band; autoscaling owns desired_count.
+    ignore_changes = [task_definition, desired_count]
   }
 }

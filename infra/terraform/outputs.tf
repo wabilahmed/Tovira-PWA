@@ -18,6 +18,11 @@ output "frontend_bucket" {
   value       = aws_s3_bucket.frontend.bucket
 }
 
+output "cloudfront_distribution_id" {
+  description = "Set as the CLOUDFRONT_DISTRIBUTION_ID repo variable (deploy invalidation)."
+  value       = aws_cloudfront_distribution.frontend.id
+}
+
 output "media_bucket" {
   value = aws_s3_bucket.media.bucket
 }

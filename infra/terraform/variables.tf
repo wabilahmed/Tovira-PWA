@@ -1,7 +1,7 @@
 variable "region" {
   description = "AWS region (keep components in one region; one AZ early for cost)."
   type        = string
-  default     = "eu-west-1"
+  default     = "eu-north-1" # Stockholm — one of the cheapest regions
 }
 
 variable "env" {
@@ -19,7 +19,7 @@ variable "vpc_cidr" {
 # INSTANCE is single-AZ (multi_az = false) for cost.
 variable "azs" {
   type    = list(string)
-  default = ["eu-west-1a", "eu-west-1b"]
+  default = ["eu-north-1a", "eu-north-1b"]
 }
 
 variable "db_instance_class" {
