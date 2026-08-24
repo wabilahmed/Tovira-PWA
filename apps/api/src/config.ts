@@ -123,6 +123,9 @@ export function loadConfig(env: Env = process.env): AppConfig {
   }
 
   const port = parsePort(env.PORT);
+  // Checkout redirects default to the app itself, so setting APP_BASE_URL is
+  // enough — no separate STRIPE_SUCCESS_URL/CANCEL_URL to keep in sync in prod.
+  const appBaseUrl = env.APP_BASE_URL?.trim() || 'http://localhost:5173';
 
   return {
     databaseUrl: env.DATABASE_URL!.trim(),
@@ -160,8 +163,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     stripeSecretKey: isBlank(env.STRIPE_SECRET_KEY) ? undefined : env.STRIPE_SECRET_KEY!.trim(),
     stripePriceId: env.STRIPE_PRICE_ID?.trim() || 'price_test',
     stripeAnnualPriceId: env.STRIPE_ANNUAL_PRICE_ID?.trim() || 'price_test_annual',
-    stripeSuccessUrl: env.STRIPE_SUCCESS_URL?.trim() || 'http://localhost:5173/billing/success',
-    stripeCancelUrl: env.STRIPE_CANCEL_URL?.trim() || 'http://localhost:5173/billing/cancel',
+    stripeSuccessUrl: env.STRIPE_SUCCESS_URL?.trim() || `${appBaseUrl}/billing/success`,
+    stripeCancelUrl: env.STRIPE_CANCEL_URL?.trim() || `${appBaseUrl}/billing/cancel`,
     embedderProvider: parseEnum(env.EMBEDDER, EMBEDDER_PROVIDERS, 'stub', 'EMBEDDER'),
     bedrockRegion: env.BEDROCK_REGION?.trim() || 'us-east-1',
     embedModel: env.EMBED_MODEL?.trim() || 'amazon.titan-embed-text-v2:0',
@@ -172,7 +175,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     emailProvider: parseEnum(env.EMAIL_SENDER, EMAIL_PROVIDERS, 'stub', 'EMAIL_SENDER'),
     emailFrom: env.EMAIL_FROM?.trim() || 'Tovira <no-reply@tovira.local>',
     sesRegion: env.SES_REGION?.trim() || env.BEDROCK_REGION?.trim() || 'us-east-1',
-    appBaseUrl: env.APP_BASE_URL?.trim() || 'http://localhost:5173',
+    appBaseUrl,
   };
 }
 
