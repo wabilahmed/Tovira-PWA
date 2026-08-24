@@ -53,21 +53,59 @@
   line-height: 1.15;
 }
 .tov-tab:hover:not(:disabled) { border-color: transparent; color: var(--text-secondary); }
-/* Active tab: a 2px brass rule — a state indicator, not a competing element. */
-.tov-tab[data-active] { color: var(--brass); border-top-color: var(--brass); }
+/* Active tab: brass text; the 2px brass rule is a single marker that SLIDES
+   between tabs (spring-driven in TabBar.tsx) rather than snapping per-tab. */
+.tov-tab[data-active] { color: var(--brass); }
+.tov-tab__marker {
+  position: absolute;
+  top: -1px; /* over the bar's top hairline */
+  left: 0;
+  height: 2px;
+  width: 0;
+  background: var(--brass);
+  border-radius: 0 0 2px 2px;
+  opacity: 0; /* until JS measures + places it */
+  pointer-events: none;
+}
 
+/* The overflow menu is a real draggable bottom sheet (see BottomSheet.tsx):
+   fixed to the foot, glass, grabbable; the transform + scrim opacity are driven
+   per-frame by the spring/gesture code. The glass + reduced-transparency rules
+   further down also apply to .tov-sheet. */
+.tov-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.42);
+  opacity: 0; /* driven live 0→1 with the sheet's travel */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
 .tov-sheet {
-  position: sticky;
-  bottom: 58px;
-  z-index: 4;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 21;
+  margin-inline: auto;
+  max-width: 460px;
   display: grid;
   gap: 1px;
-  margin: 0 8px 4px;
-  padding: 6px;
+  padding: 8px 10px calc(12px + env(safe-area-inset-bottom));
   background: var(--surface-raised);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-overlay);
+  border-top: 1px solid var(--hairline);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -14px 44px -14px rgba(0, 0, 0, 0.5); /* bigger surface reads thicker */
+  will-change: transform;
+  touch-action: none; /* the sheet owns the vertical drag */
+  outline: none;
+}
+.tov-sheet__grip {
+  width: 38px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--hairline);
+  margin: 2px auto 8px;
 }
 .tov-sheet__item {
   min-height: 44px;
