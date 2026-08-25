@@ -216,11 +216,16 @@ export function createStorage(config: AppConfig): Storage {
 /** Speech-to-text: stub locally, Groq/Whisper when configured. */
 export function createTranscriber(config: AppConfig): Transcriber {
   if (config.transcriberProvider === 'groq') {
-    return new GroqTranscriber({
-      apiKey: config.groqApiKey ?? '',
-      baseUrl: config.groqBaseUrl,
-      model: config.groqModel,
-    });
+    try {
+      return new GroqTranscriber({
+        apiKey: config.groqApiKey ?? '',
+        baseUrl: config.groqBaseUrl,
+        model: config.groqModel,
+      });
+    } catch (err) {
+      console.warn(`[transcribe] groq disabled (missing/invalid key: ${err instanceof Error ? err.message : String(err)}). Add a real key to enable voice notes.`);
+      return new StubTranscriber();
+    }
   }
   return new StubTranscriber();
 }
@@ -346,7 +351,13 @@ export function createPushSubscriptionRepository(config: AppConfig, pool?: Pool)
 /** Push delivery: stub locally; real VAPID/web-push when configured. */
 export function createPushSender(config: AppConfig): PushSender {
   if (config.pushProvider === 'webpush') {
-    return new WebPushSender({ publicKey: config.vapidPublicKey, privateKey: config.vapidPrivateKey, subject: config.vapidSubject });
+    try {
+      return new WebPushSender({ publicKey: config.vapidPublicKey, privateKey: config.vapidPrivateKey, subject: config.vapidSubject });
+    } catch (err) {
+      // Placeholder/blank/invalid VAPID keys must not crash boot — disable push.
+      console.warn(`[push] web push disabled (invalid VAPID keys: ${err instanceof Error ? err.message : String(err)}). Add real keys to enable notifications.`);
+      return new StubPushSender();
+    }
   }
   return new StubPushSender();
 }
