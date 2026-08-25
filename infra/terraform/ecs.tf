@@ -41,7 +41,10 @@ resource "aws_ecs_task_definition" "api" {
       { name = "AUTH_STORE", value = "postgres" },
       { name = "MODEL_PROVIDER", value = "anthropic" },
       { name = "TRANSCRIBER", value = "groq" },
-      { name = "EMBEDDER", value = "bedrock" },
+      # Built-in embeddings for launch — real Bedrock needs per-region model access
+      # granted in the console (Stockholm has no Bedrock; Frankfurt does). Flip to
+      # "bedrock" + set BEDROCK_REGION once model access is enabled. See DEPLOY.md.
+      { name = "EMBEDDER", value = "stub" },
       { name = "PUSH_SENDER", value = "webpush" },
       { name = "BEDROCK_REGION", value = var.region },
       { name = "S3_MEDIA_BUCKET", value = aws_s3_bucket.media.bucket },
