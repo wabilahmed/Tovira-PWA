@@ -71,6 +71,16 @@ async function main(): Promise<void> {
     } else {
       console.log('[migrate] schema up to date');
     }
+    // The migration creates the tovira_app role with a dev password; sync it to
+    // whatever APP_DATABASE_URL actually uses (prod generates a random one) so
+    // the app can authenticate as its RLS-enforced role. Superuser connection.
+    if (config.appDatabaseUrl !== config.databaseUrl) {
+      const appPw = new URL(config.appDatabaseUrl).password;
+      if (appPw) {
+        await client.query(`ALTER ROLE tovira_app WITH LOGIN PASSWORD '${appPw.replace(/'/g, "''")}'`);
+        console.log('[migrate] synced tovira_app role password');
+      }
+    }
   } finally {
     client.release();
   }
