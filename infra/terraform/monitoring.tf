@@ -13,9 +13,28 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alarm_email
 }
 
+# Billing alarms live in us-east-1, and an alarm's SNS action must be in the
+# alarm's OWN region — so the billing alarm needs a us-east-1 topic (not the
+# regional one above). Only created when an alarm email is set; otherwise the
+# console AWS Budget is the cost safety net.
+resource "aws_sns_topic" "alarms_use1" {
+  provider = aws.us_east_1
+  count    = var.alarm_email == "" ? 0 : 1
+  name     = "tovira-${var.env}-alarms-use1"
+}
+
+resource "aws_sns_topic_subscription" "email_use1" {
+  provider  = aws.us_east_1
+  count     = var.alarm_email == "" ? 0 : 1
+  topic_arn = aws_sns_topic.alarms_use1[0].arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+}
+
 # Estimated-charges billing alarm (published in us-east-1).
 resource "aws_cloudwatch_metric_alarm" "billing" {
   provider            = aws.us_east_1
+  count               = var.alarm_email == "" ? 0 : 1
   alarm_name          = "tovira-${var.env}-monthly-cost"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
@@ -25,7 +44,7 @@ resource "aws_cloudwatch_metric_alarm" "billing" {
   statistic           = "Maximum"
   threshold           = var.cost_alarm_monthly_usd
   dimensions          = { Currency = "USD" }
-  alarm_actions       = [aws_sns_topic.alarms.arn]
+  alarm_actions       = [aws_sns_topic.alarms_use1[0].arn]
 }
 
 # API 5xx from the ALB.
