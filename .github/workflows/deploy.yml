@@ -51,9 +51,14 @@ jobs:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           IMAGE="$REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}"
-          docker build -f docker/api.prod.Dockerfile -t "$IMAGE" -t "$REGISTRY/$ECR_REPOSITORY:latest" .
-          docker push "$IMAGE"
-          docker push "$REGISTRY/$ECR_REPOSITORY:latest"
+          # ECR tags are immutable — only push if this exact version isn't there
+          # yet (makes re-runs of the same commit safe). No 'latest' tag.
+          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="${GITHUB_SHA}" >/dev/null 2>&1; then
+            echo "image ${GITHUB_SHA} already in ECR — reusing it"
+          else
+            docker build -f docker/api.prod.Dockerfile -t "$IMAGE" .
+            docker push "$IMAGE"
+          fi
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
       - name: Render the current task definition with the new image
