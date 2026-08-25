@@ -93,11 +93,13 @@ jobs:
       - name: Smoke test — public health via CloudFront → ALB
         if: ${{ vars.SMOKE_URL != '' }}
         run: |
-          for i in 1 2 3 4 5 6; do
+          # A fresh ARM task cold-starts + the ALB needs ~2 healthy checks before
+          # it routes, so give it up to ~6 minutes.
+          for i in $(seq 1 24); do
             code=$(curl -fsS -o /dev/null -w "%{http_code}" "${{ vars.SMOKE_URL }}/api/health" || true)
             echo "attempt $i → $code"
             [ "$code" = "200" ] && exit 0
-            sleep 10
+            sleep 15
           done
           echo "::error::/api/health never returned 200 through CloudFront"; exit 1
 
