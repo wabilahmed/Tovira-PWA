@@ -18,3 +18,11 @@ apps/web/dev-dist/
 *.tfstate.*
 infra/terraform/.build/
 crash.log
+
+# Secrets / credentials — never commit these
+*.csv
+*accessKeys*
+*credentials*
+*.pem
+.env.prod
+backend.tf
