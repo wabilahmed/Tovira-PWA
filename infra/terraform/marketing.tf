@@ -9,8 +9,12 @@
 # locked infra; apply with the rest at go-live.
 
 locals {
-  # Apex + www serve the merged distribution. Empty domain → default CF cert only.
-  marketing_aliases = var.marketing_domain == "" ? [] : [var.marketing_domain, "www.${var.marketing_domain}"]
+  # The exact hostname(s) the distribution answers on. A bare subdomain
+  # (staging.tovira.io) is used as-is; an apex adds www too. Empty → default CF
+  # cert only.
+  marketing_aliases = var.marketing_domain == "" ? [] : (
+    length(split(".", var.marketing_domain)) > 2 ? [var.marketing_domain] : [var.marketing_domain, "www.${var.marketing_domain}"]
+  )
 }
 
 # Directory-index rewrite for the prerendered marketing pages: an S3 REST origin

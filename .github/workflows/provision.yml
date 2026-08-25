@@ -71,6 +71,8 @@ jobs:
             -var="region=${AWS_REGION}" \
             -var="env=${DEPLOY_ENV}" \
             -var="api_image=${PLACEHOLDER_IMAGE}" \
+            -var="marketing_domain=${{ vars.MARKETING_DOMAIN }}" \
+            -var="marketing_acm_certificate_arn=${{ vars.MARKETING_ACM_CERT_ARN }}" \
             -out=tfplan
 
       - name: terraform apply
