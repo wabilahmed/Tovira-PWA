@@ -77,7 +77,7 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render.outputs.task-definition }}
-          service: tovira-${{ env.DEPLOY_ENV }}
+          service: tovira-${{ env.DEPLOY_ENV }}-api
           cluster: tovira-${{ env.DEPLOY_ENV }}
           wait-for-service-stability: true
 
