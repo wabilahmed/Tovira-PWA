@@ -61,6 +61,8 @@ a:not(.cta) { color: var(--text-primary); }
 .site-head { border-bottom: 1px solid var(--hairline); position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--surface-base) 90%, transparent); backdrop-filter: blur(8px); }
 .site-head__row { display: flex; align-items: center; justify-content: space-between; padding-block: 0.85rem; }
 .site-head__nav { display: flex; align-items: center; gap: 1.1rem; }
+.site-head__login { color: var(--text-secondary); font-weight: 500; align-self: center; }
+.site-head__login:hover { color: var(--brass); }
 .wordmark { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; }
 .wordmark__accent { color: var(--brass); }
 .langswitch { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-secondary); text-decoration: none; }
