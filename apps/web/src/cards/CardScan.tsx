@@ -57,7 +57,7 @@ export function CardScan({
 
   return (
     <section aria-label="Scan a business card">
-      <label>
+      <label className="tov-filebtn">
         Scan a business card
         <input type="file" accept="image/*" aria-label="Business card photo" onChange={onFile} />
       </label>

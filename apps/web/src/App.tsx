@@ -389,36 +389,35 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'clients' && (
         <div className={isDesktop ? 'tov-split' : undefined}>
           <div className={isDesktop ? 'tov-split__rail' : undefined}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem', marginBottom: '0.5rem' }}>
+          <div className="clients-meta">
             <CorpusBadge api={corpusApi} />
-            <small style={{ color: 'var(--text-secondary)' }}>
-              {session.user.email} · <button onClick={onLogout} style={linkButton}>Log out</button>
-            </small>
+            <span>{session.user.email} · <button onClick={onLogout} className="tov-link">Log out</button></span>
           </div>
-          <h2 style={{ marginTop: 0 }}>Clients</h2>
-          <form onSubmit={addClient} style={{ display: 'flex', gap: '0.5rem', margin: '1.5rem 0' }}>
+          <h2 className="clients-title">Clients</h2>
+          <form onSubmit={addClient} className="clients-add">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="New client name"
               aria-label="New client name"
-              style={{ flex: 1 }}
             />
-            <button type="submit" disabled={busy}>Add client</button>
+            <button type="submit" className="tov-primary" disabled={busy}>Add</button>
           </form>
-          {error && <p style={{ color: 'var(--claret)' }}>{error}</p>}
+          {error && <p style={{ color: 'var(--claret)', margin: '0 0 0.9rem' }}>{error}</p>}
 
-          <CardScan
-            api={cardsApi}
-            onSubscribe={() => setView('settings')}
-            onCreateClient={async (n, phone, extras) => {
-              // Persist the scanned title/email directly on the client record
-              // (stored verbatim, never guessed) — nothing scanned is discarded.
-              const created = await clientsApi.create(n, phone, extras);
-              setClients((prev) => [created, ...prev]);
-              return created;
-            }}
-          />
+          <div className="clients-scan">
+            <CardScan
+              api={cardsApi}
+              onSubscribe={() => setView('settings')}
+              onCreateClient={async (n, phone, extras) => {
+                // Persist the scanned title/email directly on the client record
+                // (stored verbatim, never guessed) — nothing scanned is discarded.
+                const created = await clientsApi.create(n, phone, extras);
+                setClients((prev) => [created, ...prev]);
+                return created;
+              }}
+            />
+          </div>
 
           <input
             type="search"
@@ -426,7 +425,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search clients…"
             aria-label="Search clients"
-            style={{ width: '100%', marginBottom: '1rem' }}
+            className="clients-search"
           />
 
           {clients.length === 0 ? (
