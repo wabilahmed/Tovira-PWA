@@ -151,6 +151,8 @@
   letter-spacing: -0.02em;
   padding-inline: 12px;
 }
+/* Wordmark: the T and v carry the brass accent (matches the marketing header). */
+.tov-wordmark__accent { color: var(--brass); }
 .tov-sidebar__nav { display: flex; flex-direction: column; gap: 2px; }
 .tov-sidebar__item {
   min-height: 40px;

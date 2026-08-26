@@ -1,4 +1,5 @@
 import './auth.css';
+import { Wordmark } from '../components/Wordmark.js';
 
 /**
  * The branded frame shared by every auth screen (log in / sign up / forgot /
@@ -12,7 +13,7 @@ export function AuthShell({ subtitle, children }: { subtitle?: string; children:
       <div className="auth__bg" aria-hidden="true" />
       <div className="auth__card">
         <a className="auth__home" href="/">← Back to home</a>
-        <h1 className="auth__wordmark">Tovira</h1>
+        <h1 className="auth__wordmark"><Wordmark /></h1>
         <p className="auth__tagline">Your deal, Our memory, Instant success.</p>
         {subtitle && <p className="auth__subtitle">{subtitle}</p>}
         {children}

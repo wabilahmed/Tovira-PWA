@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { SIDEBAR, type View } from './nav.js';
+import { Wordmark } from '../components/Wordmark.js';
 
 /**
  * The desktop nav (≥1180px): the Fraunces wordmark over the full section list,
@@ -18,7 +19,7 @@ export function Sidebar({
 }): JSX.Element {
   return (
     <aside className="tov-sidebar" aria-label="Sections">
-      <div className="tov-sidebar__brand">Tovira</div>
+      <div className="tov-sidebar__brand"><Wordmark /></div>
       <nav className="tov-sidebar__nav">
         {needsSeeding && (
           <button
