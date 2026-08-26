@@ -40,6 +40,10 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MODEL_PROVIDER: anthropic
+          # The eval only calls loadConfig() + the model client — it never opens a
+          # DB connection. loadConfig requires DATABASE_URL to be present, so give
+          # it a syntactically valid dummy that is never dialed.
+          DATABASE_URL: postgres://gate:gate@localhost:5432/gate
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
             echo "No ANTHROPIC_API_KEY secret set — skipping the P1-9 gate."
