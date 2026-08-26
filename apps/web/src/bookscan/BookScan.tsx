@@ -44,7 +44,6 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
           <h2>What your book has been hiding</h2>
         </header>
         <p style={{ color: 'var(--text-secondary)' }}>{report.message}</p>
-        <p style={{ marginTop: '1.5rem', color: 'var(--brass)' }}>{report.invitation}</p>
       </section>
     );
   }

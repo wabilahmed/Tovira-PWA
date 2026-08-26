@@ -167,7 +167,9 @@ export class BookScanService {
       items,
       isEmpty,
       message: isEmpty
-        ? "Not much here yet — export another chat and I'll scan it too."
+        ? chatsRead === 0
+          ? "Nothing to scan yet — export your first WhatsApp chat and I'll X-ray it for you."
+          : "Not much here yet — export another chat and I'll scan it too."
         : null,
       invitation: INVITATION,
       chatsRead,
