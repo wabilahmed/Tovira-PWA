@@ -20,9 +20,12 @@ the Terraform, adding secrets, and pointing DNS.
   push; plus a P1-9 extraction gate that self-activates once a key exists.
 - **Prod image** (`docker/api.prod.Dockerfile`) — installs all deps (the app runs
   via `tsx`, a devDependency, at runtime), runs under `tini` for clean SIGTERM.
-- **Deploy workflow** (`.github/workflows/deploy.yml`) — manual trigger only,
+- **Deploy workflow** (`.github/workflows/deploy.yml`) — **auto-deploys after CI
+  passes on `main`** (chained via `workflow_run`; a red suite never deploys), and
+  is still manually runnable from the Actions tab (target `api` / `web` / `both`).
   OIDC auth (no static keys): builds/pushes the API image, rolls the ECS service,
-  and syncs the PWA to S3 + invalidates CloudFront.
+  and syncs the PWA to S3 + invalidates CloudFront. Image tag + checkout are pinned
+  to the exact commit CI verified.
 
 ---
 

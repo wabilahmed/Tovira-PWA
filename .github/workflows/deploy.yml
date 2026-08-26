@@ -1,12 +1,19 @@
 name: Deploy
 
-# Manual only — never auto-deploys on merge. A human triggers this from the
-# Actions tab after the infrastructure exists. Authenticates to AWS via OIDC
-# (no long-lived keys). Prerequisites (one-time), see DEPLOY.md:
+# Auto-deploys after CI passes on main (never on a red suite — it waits for the
+# "CI" workflow to finish and only proceeds when its conclusion is success). Still
+# manually runnable from the Actions tab (pick api / web / both). Authenticates to
+# AWS via OIDC (no long-lived keys). Prerequisites (one-time), see DEPLOY.md:
 #   - Terraform applied (ECR, ECS, RDS, S3+CloudFront, Secrets Manager, …).
 #   - A GitHub OIDC deploy role in AWS  → secret  AWS_DEPLOY_ROLE_ARN
 #   - Repo variables: AWS_REGION, DEPLOY_ENV, FRONTEND_BUCKET, CLOUDFRONT_DISTRIBUTION_ID
 on:
+  # Chain after CI: a push to main runs "CI" (typecheck/lint/test/build + the
+  # P1-9 gate); when that succeeds, this deploys. A failed suite → no deploy.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       target:
@@ -27,13 +34,21 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
   DEPLOY_ENV: ${{ vars.DEPLOY_ENV || 'prod' }}
   ECR_REPOSITORY: tovira/api # matches infra/terraform/ecr.tf
+  # The exact commit CI verified (head_sha on the auto path, dispatch sha manually)
+  # — tag the image and check out with the SAME sha so we deploy what was tested.
+  IMAGE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   api:
-    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == 'api' }}
+    # Auto (after a green CI) → deploy; manual → honor the target picker.
+    if: >-
+      ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+          || (github.event_name == 'workflow_dispatch' && (inputs.target == 'both' || inputs.target == 'api')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -55,11 +70,11 @@ jobs:
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
-          IMAGE="$REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}"
+          IMAGE="$REGISTRY/$ECR_REPOSITORY:${IMAGE_SHA}"
           # ECR tags are immutable — only push if this exact version isn't there
           # yet (makes re-runs of the same commit safe). No 'latest' tag.
-          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="${GITHUB_SHA}" >/dev/null 2>&1; then
-            echo "image ${GITHUB_SHA} already in ECR — reusing it"
+          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="${IMAGE_SHA}" >/dev/null 2>&1; then
+            echo "image ${IMAGE_SHA} already in ECR — reusing it"
           else
             docker buildx build --platform linux/arm64 -f docker/api.prod.Dockerfile -t "$IMAGE" --push .
           fi
@@ -104,10 +119,15 @@ jobs:
           echo "::error::/api/health never returned 200 through CloudFront"; exit 1
 
   web:
-    if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == 'web' }}
+    # Auto (after a green CI) → deploy; manual → honor the target picker.
+    if: >-
+      ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+          || (github.event_name == 'workflow_dispatch' && (inputs.target == 'both' || inputs.target == 'web')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
