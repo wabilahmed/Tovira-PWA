@@ -66,6 +66,7 @@ resource "aws_ecs_task_definition" "api" {
       { name = "EMAIL_SENDER", valueFrom = "${aws_secretsmanager_secret.app.arn}:EMAIL_SENDER::" },
       { name = "EMAIL_FROM", valueFrom = "${aws_secretsmanager_secret.app.arn}:EMAIL_FROM::" },
       { name = "SES_REGION", valueFrom = "${aws_secretsmanager_secret.app.arn}:SES_REGION::" },
+      { name = "RESEND_API_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:RESEND_API_KEY::" },
     ]
     healthCheck = {
       command     = ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]

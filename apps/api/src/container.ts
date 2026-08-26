@@ -22,6 +22,7 @@ import type { EmailVerificationRepository } from './ports/email-verification-rep
 import type { EmailSender } from './ports/email.js';
 import { StubEmailSender } from './adapters/email/stub-email-sender.js';
 import { SesEmailSender } from './adapters/email/ses-email-sender.js';
+import { ResendEmailSender } from './adapters/email/resend-email-sender.js';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
 import type { EmailLogRepository } from './ports/email-log-repository.js';
 import { InMemoryEmailLogRepository } from './adapters/email/in-memory-email-log-repository.js';
@@ -467,6 +468,9 @@ export function createBriefService(
 export function createEmailSender(config: AppConfig): EmailSender {
   if (config.emailProvider === 'ses') {
     return new SesEmailSender({ client: new SESv2Client({ region: config.sesRegion }), from: config.emailFrom });
+  }
+  if (config.emailProvider === 'resend') {
+    return new ResendEmailSender({ apiKey: config.resendApiKey ?? '', from: config.emailFrom });
   }
   return new StubEmailSender();
 }

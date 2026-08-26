@@ -36,10 +36,11 @@ resource "aws_secretsmanager_secret_version" "app" {
     VAPID_PRIVATE_KEY      = "REPLACE_ME"
     # Transactional email (SES). Leave EMAIL_SENDER=stub until the SES domain in
     # ses.tf is verified; then set ses + a verified sender and the public app URL.
-    EMAIL_SENDER = "stub"
-    EMAIL_FROM   = "Tovira <no-reply@tovira.app>"
-    SES_REGION   = var.region
-    APP_BASE_URL = "https://REPLACE_ME"
+    EMAIL_SENDER   = "stub"
+    EMAIL_FROM     = "Tovira <no-reply@tovira.app>"
+    SES_REGION     = var.region
+    RESEND_API_KEY = "REPLACE_ME"
+    APP_BASE_URL   = "https://REPLACE_ME"
   })
 
   lifecycle {

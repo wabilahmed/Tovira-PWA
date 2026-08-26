@@ -16,7 +16,7 @@ export type AuthStore = 'memory' | 'postgres';
 export type TranscriberProvider = 'stub' | 'groq';
 export type EmbedderProvider = 'stub' | 'bedrock';
 export type PushProvider = 'stub' | 'webpush';
-export type EmailProvider = 'stub' | 'ses';
+export type EmailProvider = 'stub' | 'ses' | 'resend';
 
 /**
  * The AI task classes (P1-9 hybrid routing). Each has its own model setting,
@@ -41,7 +41,7 @@ const AUTH_STORES: readonly AuthStore[] = ['memory', 'postgres'];
 const TRANSCRIBER_PROVIDERS: readonly TranscriberProvider[] = ['stub', 'groq'];
 const EMBEDDER_PROVIDERS: readonly EmbedderProvider[] = ['stub', 'bedrock'];
 const PUSH_PROVIDERS: readonly PushProvider[] = ['stub', 'webpush'];
-const EMAIL_PROVIDERS: readonly EmailProvider[] = ['stub', 'ses'];
+const EMAIL_PROVIDERS: readonly EmailProvider[] = ['stub', 'ses', 'resend'];
 const CACHE_TTLS: readonly CacheTtl[] = ['5m', '1h'];
 
 export interface AppConfig {
@@ -100,6 +100,7 @@ export interface AppConfig {
   // --- transactional email (TASK EMAIL) ---
   emailProvider: EmailProvider;
   emailFrom: string;
+  resendApiKey: string | undefined;
   sesRegion: string;
   /** Public base URL of the app (for links inside emails, e.g. password reset). */
   appBaseUrl: string;
@@ -174,6 +175,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     vapidSubject: env.VAPID_SUBJECT?.trim() || 'mailto:ops@tovira.local',
     emailProvider: parseEnum(env.EMAIL_SENDER, EMAIL_PROVIDERS, 'stub', 'EMAIL_SENDER'),
     emailFrom: env.EMAIL_FROM?.trim() || 'Tovira <no-reply@tovira.local>',
+    resendApiKey: isBlank(env.RESEND_API_KEY) ? undefined : env.RESEND_API_KEY!.trim(),
     sesRegion: env.SES_REGION?.trim() || env.BEDROCK_REGION?.trim() || 'us-east-1',
     appBaseUrl,
   };
@@ -215,6 +217,11 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
   if (config.emailProvider === 'ses') {
     need(isBlank(env.SES_REGION), 'SES_REGION (EMAIL_SENDER=ses)');
     need(isBlank(config.emailFrom) || /\.local\b/.test(config.emailFrom), 'EMAIL_FROM (a verified SES sender, not a *.local placeholder)');
+    need(looksLocal(config.appBaseUrl), 'APP_BASE_URL (a public URL — it becomes the link inside every email)');
+  }
+  if (config.emailProvider === 'resend') {
+    need(!config.resendApiKey, 'RESEND_API_KEY (EMAIL_SENDER=resend)');
+    need(isBlank(config.emailFrom) || /\.local\b/.test(config.emailFrom), 'EMAIL_FROM (a verified Resend sender, not a *.local placeholder)');
     need(looksLocal(config.appBaseUrl), 'APP_BASE_URL (a public URL — it becomes the link inside every email)');
   }
 
