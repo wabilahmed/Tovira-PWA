@@ -17,7 +17,7 @@ const html = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 // The prerendered marketing pages (static HTML, no app code) live at these paths;
 // everything else is the SPA (app.html). Kept in one place so the dev fallback and
 // the service-worker routing agree.
-const MARKETING_PATHS = ['/', '/privacy', '/terms', '/ar', '/ar/privacy', '/ar/terms'];
+const MARKETING_PATHS = ['/', '/privacy', '/terms'];
 const isMarketing = (pathname: string): boolean => {
   const p = pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
   return MARKETING_PATHS.includes(p);
@@ -54,9 +54,6 @@ export default defineConfig({
         landing: html('./index.html'),
         privacy: html('./privacy/index.html'),
         terms: html('./terms/index.html'),
-        ar: html('./ar/index.html'),
-        arPrivacy: html('./ar/privacy/index.html'),
-        arTerms: html('./ar/terms/index.html'),
       },
     },
   },

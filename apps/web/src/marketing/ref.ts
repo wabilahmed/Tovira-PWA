@@ -3,8 +3,7 @@
  * plain links to the app and work with no JS at all. This progressive
  * enhancement carries the landing page's incoming query — `?ref=…`, `utm_*`,
  * anything — through to the app URL unchanged, so an attributed visit stays
- * attributed after the click. The language switch preserves the query too, so a
- * reader who followed a referral link doesn't lose it by switching to Arabic.
+ * attributed after the click.
  */
 
 /** Append a search string's params to a link, unchanged. A RELATIVE href (the
@@ -32,15 +31,12 @@ export function withAppUrl(href: string, origin: string, appUrl?: string): strin
   }
 }
 
-/** Enhance every CTA (→ app) and language switch (→ /ar or /) in `root` with the
- *  incoming query. Idempotent-safe: setting an unchanged href is harmless. */
+/** Enhance every CTA (→ app) in `root` with the incoming query so a referral code
+ *  rides through to signup. Idempotent-safe: setting an unchanged href is harmless. */
 export function enhanceLinks(root: Document | Element, search: string, origin: string, appUrl?: string): void {
   root.querySelectorAll<HTMLAnchorElement>('[data-cta]').forEach((a) => {
     const base = withAppUrl(a.getAttribute('href') ?? '', origin, appUrl);
     a.setAttribute('href', withParams(base, search, origin));
-  });
-  root.querySelectorAll<HTMLAnchorElement>('[data-langswitch]').forEach((a) => {
-    a.setAttribute('href', withParams(a.getAttribute('href') ?? '', search, origin));
   });
 }
 

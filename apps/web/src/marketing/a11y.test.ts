@@ -6,7 +6,6 @@ const read = (p: string): string => readFileSync(resolve(process.cwd(), p), 'utf
 const parse = (p: string): Document => new DOMParser().parseFromString(read(p), 'text/html');
 
 const EN = 'apps/web/index.html';
-const AR = 'apps/web/ar/index.html';
 
 describe('[SITE-5] accessibility & landmarks', () => {
   it('the English page has exactly one h1 and the core landmarks', () => {
@@ -19,10 +18,8 @@ describe('[SITE-5] accessibility & landmarks', () => {
   });
 
   it('every role="img" carries real alt text (aria-label)', () => {
-    for (const p of [EN, AR]) {
-      for (const el of parse(p).querySelectorAll('[role="img"]')) {
-        expect((el.getAttribute('aria-label') ?? '').trim().length).toBeGreaterThan(0);
-      }
+    for (const el of parse(EN).querySelectorAll('[role="img"]')) {
+      expect((el.getAttribute('aria-label') ?? '').trim().length).toBeGreaterThan(0);
     }
   });
 
@@ -49,7 +46,8 @@ describe('[SITE-5] meta & SEO', () => {
     expect(d.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://tovira.com/');
     const alternates = [...d.querySelectorAll('link[rel="alternate"][hreflang]')].map((l) => l.getAttribute('hreflang'));
     expect(alternates).toContain('en');
-    expect(alternates).toContain('ar');
+    expect(alternates).toContain('x-default');
+    expect(alternates).not.toContain('ar'); // English-only: no Arabic alternate
   });
 
   it('has OpenGraph + Twitter cards pointing at the OG image', () => {

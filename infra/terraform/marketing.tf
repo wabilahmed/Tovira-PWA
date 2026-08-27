@@ -33,7 +33,7 @@ resource "aws_cloudfront_function" "frontend_dir_index" {
   # client-side route and is served the app shell — replacing the old
   # custom_error_response fallback, which could not be scoped away from /api.
   code = <<-JS
-    var MARKETING = ['/privacy', '/terms', '/ar', '/ar/privacy', '/ar/terms'];
+    var MARKETING = ['/privacy', '/terms'];
     function handler(event) {
       var req = event.request;
       var uri = req.uri;

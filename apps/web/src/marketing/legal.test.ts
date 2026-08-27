@@ -44,19 +44,9 @@ describe('[SITE / LEGAL] Privacy & Terms exist and are honest skeletons', () => 
     expect(t).toMatch(/AED 299/);
   });
 
-  it('the landing footer links to /privacy and /terms (both languages)', () => {
-    for (const page of ['apps/web/index.html', 'apps/web/ar/index.html']) {
-      const hrefs = [...parse(page).querySelectorAll('footer a')].map((a) => a.getAttribute('href'));
-      expect(hrefs).toContain('/privacy');
-      expect(hrefs).toContain('/terms');
-    }
-  });
-
-  it('the Arabic legal pages are RTL scaffolds pointing at the English source', () => {
-    for (const p of ['apps/web/ar/privacy/index.html', 'apps/web/ar/terms/index.html']) {
-      const d = parse(p);
-      expect(d.documentElement.getAttribute('dir')).toBe('rtl');
-      expect(read(p)).toMatch(/TRANSLATION NEEDED/);
-    }
+  it('the landing footer links to /privacy and /terms', () => {
+    const hrefs = [...parse('apps/web/index.html').querySelectorAll('footer a')].map((a) => a.getAttribute('href'));
+    expect(hrefs).toContain('/privacy');
+    expect(hrefs).toContain('/terms');
   });
 });

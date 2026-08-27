@@ -7,7 +7,7 @@ change it. Real gaps found here are recorded in *Open questions* and `BLOCKERS.m
 not repaired.
 
 **The rule for every flow:** every flow starts on the marketing landing page
-(`apps/site`, `/` or `/ar`); step 2 is always **Sign up** or **Log in**; then it
+(`apps/site`, `/`); step 2 is always **Sign up** or **Log in**; then it
 runs to its natural end. Step shape:
 
 `N. <where> → <does> → <sees> · [screen/component] · [API] · [story ID]`
@@ -20,7 +20,6 @@ runs to its natural end. Step shape:
 |---|---|---|---|---|
 | 1 | Sign up → empty app (with `?ref=`) | Landing CTA | LoginScreen, ClientsScreen | brand-new OK |
 | 2 | Log in / log out | Landing CTA | LoginScreen, ClientsScreen | needs account |
-| 3 | `/ar` → switch language → sign up | Landing `/ar` | ar/index.html, ref.ts, LoginScreen | brand-new OK |
 | 4 | Day-one seeding → Book Scan | Get started | GetStarted, ImportChat, BookScan | ≥1 client + a chat export |
 | 5 | Book Scan share card + referral | after scan | ShareCard | a scan with ≥1 finding |
 | 6 | Trial extension (+7 days) | capture on 3 clients | TrialIncentive (Settings) | trialing + notes on 3 clients |
@@ -67,7 +66,7 @@ runs to its natural end. Step shape:
 ## Getting in
 
 ### FLOW 1 — New rep signs up → empty app (with `?ref=<code>`)
-1. Landing `/` (or `/ar`) → clicks "Start a 7-day trial" → arrives `app.tovira.com/?ref=<code>` (query carried) · [apps/site/index.html + ref.ts] · [—] · [SITE-3 / P5-6]
+1. Landing `/` → clicks "Start a 7-day trial" → arrives `app.tovira.com/?ref=<code>` (query carried) · [apps/site/index.html + ref.ts] · [—] · [SITE-3 / P5-6]
 2. App boots → `GET /me` 401 → sees login card → taps "Sign up" · [App.tsx → LoginScreen] · [GET /me] · [P0-3]
 3. Enters email + password (≥8) → `LoginScreen.submit` reads `ref` from the URL → `auth.signup(email,password,ref)` · [App.tsx LoginScreen] · [POST /auth/signup] · [P0-3, P5-6]
 4. Server creates user + session cookie (201) → `billing.onSignup` (trial sub, end = grant + trialDays) → if `ref`, `referral.apply` · [auth-routes.ts, server.ts] · [—] · [P5-1, P5-6]
@@ -89,16 +88,6 @@ runs to its natural end. Step shape:
 **What can go wrong:** expired session → token deleted → 401 → login; wrong password/unknown email → single generic 401 "Invalid email or password."; offline on boot → login shown (PWA still usable offline; sign-in needs a connection).
 **Trust rules:** no user enumeration (generic error + constant-time verify with a dummy hash); HttpOnly cookie (JS can't read the token); server owns identity.
 **Cold start:** needs an existing account.
-
-### FLOW 3 — `/ar` → switch language → sign up (ref preserved)
-1. On `/ar?ref=<code>` (RTL) → clicks "English" (`data-langswitch`) → `ref.ts` rewrote it to `/?ref=<code>` · [ar/index.html + ref.ts] · [—] · [SITE-3]
-2. On `/?ref=<code>` → "Start a 7-day trial" (also query-enhanced) → `app.tovira.com/?ref=<code>` · [index.html] · [—] · [SITE-3]
-3–6. As FLOW 1 steps 2–6 (ref consumed at signup) · [LoginScreen] · [POST /auth/signup] · [P0-3, P5-6]
-
-**Happy end:** language toggle keeps attribution; signup still grants both parties a month.
-**What can go wrong:** `withParams`/`withAppUrl` are try/caught → a malformed href keeps its original (link works, unenhanced). No JS → CTAs work but `ref` is not carried.
-**Trust rules:** query passed through byte-for-byte.
-**Cold start:** as FLOW 1.
 
 ### FLOW 3b — Password reset (feat(EMAIL))
 1. Login card → "Forgot password?" → request form · [App LoginScreen (forgot) → ForgotPassword] · [—] · [EMAIL]
@@ -506,7 +495,7 @@ A failing send never breaks the business action (isolated try/catch everywhere).
 Walk top to bottom in one sitting. **⚠ = cannot be fully verified locally.**
 
 1. [ ] Landing `/` renders; "Start a 7-day trial" → `app.tovira.com/` (FLOW 1)
-2. [ ] Landing `/?ref=demo` → CTA href carries `ref=demo`; `/ar` → switch → keeps `ref` (FLOWS 1, 3)
+2. [ ] Landing `/?ref=demo` → CTA href carries `ref=demo` (FLOW 1)
 3. [ ] Sign up (new email) → lands in empty ClientsScreen (FLOW 1)
 3a. [ ] Unverified banner shows "Confirm your email…"; Resend works; dismiss hides it; **every feature still usable while unverified** (FLOW 3c)
 3b. [ ] Open the welcome/verify link (`/verify-email?token=…`) → "confirmed" → banner gone; Settings shows Confirmed (FLOW 3c) — ⚠ needs a real mailer for the live email
