@@ -353,6 +353,21 @@
 }
 .tov-verify-banner__actions { margin-inline-start: auto; display: inline-flex; gap: 0.85rem; }
 .tov-verify-banner__status { flex-basis: 100%; margin: 0.2rem 0 0; font-size: 0.85rem; color: var(--text-secondary); }
+/* Install banner (P0-5): shows only when Chrome deems the app installable. */
+.tov-install {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 0.85rem;
+  margin: 0 0 0.85rem;
+  border: 1px solid var(--brass);
+  border-radius: 6px;
+  background: var(--brass-surface);
+  color: var(--text-primary);
+}
+.tov-install__copy { margin: 0; font-size: 0.9rem; flex: 1 1 16rem; }
+.tov-install__btn { margin-inline-start: auto; }
 .tov-setting-line { color: var(--text-secondary); font-size: 0.9rem; }
 .tov-verified { color: var(--brass); }
 .tov-unverified { color: var(--amber); }

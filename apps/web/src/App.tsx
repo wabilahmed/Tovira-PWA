@@ -52,6 +52,7 @@ import { NotificationSetup, type NotificationApi } from './push/NotificationSetu
 import { ThemeToggle } from './settings/ThemeToggle.js';
 import { formatMonthYear, formatBody } from './format/dates.js';
 import { AppShell } from './shell/AppShell.js';
+import { InstallBanner } from './pwa/InstallBanner.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
 import { useIsDesktop } from './shell/useIsDesktop.js';
@@ -288,6 +289,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </span>
       }
     >
+      <InstallBanner />
+
       {!session.user.emailVerified && !bannerDismissed && (
         <VerifyBanner api={auth} onDismiss={() => setBannerDismissed(true)} />
       )}
