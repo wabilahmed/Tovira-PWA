@@ -1,8 +1,18 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"],
-    "lib": ["ES2022"]
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2022"
+    ]
   },
-  "include": ["test/**/*.ts", "vitest.config.ts", "vitest.integration.config.ts"]
+  "include": [
+    "test/**/*.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts",
+    "tests/**/*.ts",
+    "vitest.staging.config.ts"
+  ]
 }

@@ -26,3 +26,6 @@ crash.log
 *.pem
 .env.prod
 backend.tf
+
+# staging harness run artifacts (live results, not source)
+tests/staging/.results/
