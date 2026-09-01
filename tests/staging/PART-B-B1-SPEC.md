@@ -1,8 +1,18 @@
-# Part B · B1 — Extreme extraction, dense trap note  (SPEC + ANSWER KEY, awaiting certification)
+# Part B · B1 — Extreme extraction, dense trap note  (ANSWER KEY — CERTIFIED 2026-09-01)
 
-**Status:** answer key drafted, **NOT yet certified**. Per the plan there is a hard stop
-here: certify (or correct) this key before I build the scoring test and run it. Nothing
-is scored until you sign off — this is the one place I must not mark my own homework.
+**Status:** **CERTIFIED.** Option (A) signed off, with three corrections applied below.
+This key is now locked; the scoring test asserts against it.
+
+**Why (A) — the certified rationale:** the failure modes aren't symmetric. A **null** date
+surfaces in the confirmation queue and the rep fixes it in seconds. A **silently-wrong**
+date fires a reminder on the wrong day months later with no visible error — read `03/04`
+as March when the client meant April and the rep chases pricing a month after the
+deadline and never learns why the deal went cold. That is exactly the silent-failure
+class the trust doctrine exists to prevent, so an ambiguous numeric date stays **null**.
+
+**Option (B) — parked:** day-first (UAE convention) may be the right product answer
+eventually, but it is an engine change (a prompt rule + a full P1-9 re-certification —
+[[p1-9-certification-standard]]), not something to smuggle into a test fixture.
 
 **Run conditions to note:** email delivery was **unavailable** during the Part A run
 (Resend out of quota). Part B (import / extraction / recall) does not touch email, so
@@ -33,14 +43,16 @@ graduated — he's off to London next week to celebrate.
 ## Answer key (my reading — the thing to certify)
 
 **Promises** (2):
-1. `Send the revised SOW` — owner **rep**, `due_raw: "this Thursday"`, **`due_date: 2026-09-03`** (Tue 2026-09-01 → this Thursday; day+month+year fixed), confidence high.
-2. `Loop in Gulf Petrochem's procurement lead` — owner **rep**, `due_date: null`, `due_raw: "once it's signed"` (a condition, not a date), confidence high. *A promise with no resolvable date must still be logged, not dropped.*
+1. `Send the revised SOW` — owner **rep**, `due_raw: "this Thursday"`, **`due_date: 2026-09-03`** (Tue 2026-09-01 → this Thursday; day+month+year fixed), **confidence high**.
+2. `Loop in Gulf Petrochem's procurement lead` — owner **rep**, `due_date: null`, `due_raw: "once it's signed"` (a condition, not a date), **confidence LOW** *(correction)*. It is a real commitment, so it is logged — but it is conditional on an event that hasn't happened (the SOW being signed). Low confidence routes it to the **confirmation queue**, not the open-promises list, where a null-date item would otherwise sit looking overdue forever.
 
 **Next steps** (1): `Get legal to review the MSA`. — the soft "we should probably … at some point" is **not** a promise (Rule 4).
 
+**Context — explicitly NOT extracted as a commitment** *(added)*: "board approved budget for the Q4 rollout" is **context** — it belongs in the summary, and must be **neither a promise nor a concern**. It is the kind of positive statement a weak engine turns into a phantom commitment; the key asserts it does not.
+
 **People:** `Khalid` (contact at Gulf Petrochem; role null; decision_role unknown/influencer). `Mona` (role **CFO**; decision_role **decision_maker** — "actually signs off"). The *procurement lead* is a role-only reference and may optionally appear as `{name: null, role: "procurement lead"}`; present-or-absent is acceptable, an **empty-string name is not**.
 
-**Personal facts:** `{subject: "Khalid", fact: "Daughter graduated; traveling to London next week to celebrate", category: family}`. — "next week" here is personal travel, not a business key_date.
+**Personal facts:** `{subject: "Khalid", fact: "Daughter graduated; traveling to London next week to celebrate", category: family}`. — **Decision on the London line** *(clarified)*: the trip is captured **here, as part of this personal fact**, NOT as a `key_date`. "next week" is personal travel tied to the graduation, not a business deadline, so it is **not** resolved and **not** a separate dated item. It is a legitimate extracted fact (scored as present), just not a date.
 
 **Key dates** (3) — the heart of B1:
 | description | date | date_raw | why |
