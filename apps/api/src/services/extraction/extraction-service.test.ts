@@ -144,7 +144,7 @@ describe('ExtractionService', () => {
     const rows = await logs.listByUser('user-A');
     expect(rows).toHaveLength(1);
     expect(rows[0]!.model).toBe('stub');
-    expect(rows[0]!.promptVersion).toBe('tovira-extract-v0.6');
+    expect(rows[0]!.promptVersion).toBe('tovira-extract-v0.7');
     expect(rows[0]!.status).toBe('extracted');
     expect(rows[0]!.input).toContain('revised quote');
     expect(rows[0]!.rawOutput).toBe(VALID);

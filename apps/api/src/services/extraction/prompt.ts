@@ -1,5 +1,5 @@
 /**
- * The extraction prompt (v0.6 — v0.5 + ambiguous-numeric-date → null + conditional-promise → low confidence), split on the
+ * The extraction prompt (v0.7 — v0.6 + sensitive-data redaction rule (no card/ID/credential values; no health/special-category facts)), split on the
  * caching boundary from the spec:
  *  - EXTRACTION_SYSTEM_PROMPT: the CACHEABLE prefix — role + schema + rules +
  *    examples. Byte-identical every call, ≥4,096 tokens (the Haiku cache floor).
@@ -13,7 +13,7 @@
 
 import { renderGlossary, type GlossaryEntry } from './glossary.js';
 
-export const PROMPT_VERSION = 'tovira-extract-v0.6';
+export const PROMPT_VERSION = 'tovira-extract-v0.7';
 
 export interface ExtractionPromptInput {
   today: string; // YYYY-MM-DD
@@ -57,7 +57,7 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
     {
       "subject": "which person this is about",
       "fact": "the durable personal detail, e.g. 'daughter just started college'",
-      "category": "family | hobby | preference | health | background | other"
+      "category": "family | hobby | preference | background | other"
     }
   ],
   "key_dates": [
@@ -90,7 +90,8 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
 4. Promises vs next steps: a promise is a clear commitment ("I'll send the revised quote Friday", "I'll get you the rollout plan by end of week"). A next step is softer ("we should probably loop in their finance team", "maybe get IT on the next call"). When unsure, treat it as a next step, not a promise. Words like "maybe", "we should", "probably", "at some point" signal a next step, not a promise. A commitment that is CONTINGENT on an event that has not happened yet ("once the contract is signed", "after they approve the budget", "when the PO comes through") IS a real promise — log it, do not drop it as a next step — but set "confidence": "low" so the app routes it to confirmation rather than the open list, and set due_date null unless a specific date is also given.
 5. People: use names exactly as stated. Do not merge two mentions into one person unless clearly the same person. If a note mentions "Sarah" and "Sara" without making clear they are the same person, keep them as two separate people. Do not assume a decision role that wasn't indicated - use "unknown". A person entry requires a stated name: a role with no name — "the buyer", "their CFO", "the procurement lead", "someone in finance" — is NOT a person and must NEVER be output as a person with a null or empty name. If an unnamed role carries a decision-relevant fact, keep it in concerns or next_steps, not in people.
 6. The note is about the client named in the message below. Attribute facts to the right person; the main contact may be that client, but notes can mention others.
-7. Output only valid JSON matching the schema. No prose, no explanation, no markdown, no code fences. Nothing before or after the JSON object.
+7. Sensitive data — protection wins on a genuine conflict, but only on a genuine conflict. Never copy account numbers, card numbers, IBANs, government identifiers (Emirates ID, passport, visa, licence), passwords, PINs, OTPs, or credentials into ANY field — not summary, concerns, personal_facts, next_steps, or notes. Refer to such a value only in general terms ("sent their bank details", "shared a card") and never reproduce the value or any of its digits. Never record religion, ethnicity, political opinion, sexual orientation, criminal history, or ANYTHING about a person's health (illness, injury, treatment, medication, appointment) as a personal fact or in any other field — extract the rest of the note normally and say nothing about the health matter. Do NOT over-suppress: a legitimate fact (a promise, a date, a person) that merely sits near sensitive content is unaffected — extract it fully and at its normal confidence, because dropping it protects nothing. The two only conflict when the commitment's object IS the sensitive value ("send the payment to that IBAN", "confirm the card ending 4421"): then record the commitment in general terms ("send the payment details") with confidence "low" so the rep confirms from the source, and never include the value.
+8. Output only valid JSON matching the schema. No prose, no explanation, no markdown, no code fences. Nothing before or after the JSON object.
 
 ## Worked examples
 
