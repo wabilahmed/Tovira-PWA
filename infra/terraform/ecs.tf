@@ -42,10 +42,11 @@ resource "aws_ecs_task_definition" "api" {
       { name = "MODEL_PROVIDER", value = "anthropic" },
       { name = "TRANSCRIBER", value = "groq" },
       # Real embeddings (STAGING-EMBEDDER): recall + semantic search need a live
-      # embedder — a stub returns nothing and assertDeployReady now refuses to boot a
-      # real-AI + stub-embedder config. Stockholm has no Bedrock, so we call Frankfurt
-      # cross-region. PREREQUISITE (console, one-time): enable model access for
-      # EMBED_MODEL in bedrock_region (eu-central-1) or the InvokeModel calls fail.
+      # embedder — a stub returns nothing and assertDeployReady refuses to boot a
+      # real-AI + stub-embedder config. Bedrock now runs in eu-north-1 (Stockholm), so
+      # embeddings stay in-region — no cross-region hop, and client text is processed
+      # in the same region as the rest of the data (data-residency). Model access is
+      # auto-enabled on first invoke. bedrock_region defaults to the app region.
       { name = "EMBEDDER", value = "bedrock" },
       { name = "BEDROCK_REGION", value = var.bedrock_region },
       { name = "EMBED_MODEL", value = "amazon.titan-embed-text-v2:0" },
@@ -53,7 +54,6 @@ resource "aws_ecs_task_definition" "api" {
       # t4g.small, negligible quality loss. MUST match the notes.embedding column.
       { name = "EMBED_DIM", value = "512" },
       { name = "PUSH_SENDER", value = "webpush" },
-      { name = "BEDROCK_REGION", value = var.region },
       { name = "S3_MEDIA_BUCKET", value = aws_s3_bucket.media.bucket },
     ]
     secrets = [

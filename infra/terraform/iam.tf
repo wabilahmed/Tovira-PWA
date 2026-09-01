@@ -49,8 +49,11 @@ resource "aws_iam_role_policy" "task_bedrock" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["bedrock:InvokeModel"]
-      # Bedrock lives in bedrock_region (Frankfurt), not the app's region (Stockholm).
-      Resource = "arn:aws:bedrock:${var.bedrock_region}::foundation-model/*"
+      # All-region foundation-model scope (not pinned to one region): InvokeModel on a
+      # foundation model is the only Bedrock right the task needs, and pinning the region
+      # is what silently denied us when BEDROCK_REGION and this ARN drifted apart. The `*`
+      # region keeps least-privilege on the action while making a region change safe.
+      Resource = "arn:aws:bedrock:*::foundation-model/*"
     }]
   })
 }

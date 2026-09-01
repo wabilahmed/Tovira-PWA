@@ -5,9 +5,9 @@ variable "region" {
 }
 
 variable "bedrock_region" {
-  description = "Region for Bedrock embeddings — Stockholm has no Bedrock, so the app calls a nearby region cross-region. Enable model access for EMBED_MODEL there (console)."
+  description = "Region for Bedrock embeddings. Stockholm (eu-north-1) now has Bedrock + Titan v2, so this defaults to the app region: embeddings stay in-region (no cross-region hop, client text processed where the rest of the data lives). Model access auto-enables on first invoke."
   type        = string
-  default     = "eu-central-1" # Frankfurt — nearest region with Bedrock to Stockholm
+  default     = "eu-north-1" # same as var.region — in-region embeddings
 }
 
 variable "env" {
