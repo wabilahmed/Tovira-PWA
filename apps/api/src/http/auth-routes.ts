@@ -76,7 +76,6 @@ export async function handleAuthRoute(
         try {
           await opts.onReferral?.(ref, result.user.id, result.user.email);
         } catch (err) {
-          // eslint-disable-next-line no-console
           console.warn('referral crediting failed; signup still succeeded', err);
         }
       }
@@ -121,7 +120,16 @@ export async function handleAuthRoute(
       const reset = await auth.createPasswordReset(email);
       if (reset && opts.sendResetEmail) {
         const link = `${opts.appBaseUrl}/reset-password?token=${encodeURIComponent(reset.token)}`;
-        await opts.sendResetEmail(reset.user.email, link);
+        // Delivery is best-effort: a send failure (provider quota, unverified
+        // address, transient outage) must NEVER surface as a 500. A 500 for a known
+        // email while an unknown one returns 200 is an account-enumeration oracle.
+        // Same rule as the lifecycle-email hooks and referral crediting: log it, let
+        // the action succeed. The reset token is already persisted; only delivery lapses.
+        try {
+          await opts.sendResetEmail(reset.user.email, link);
+        } catch (err) {
+          console.warn('password-reset email delivery failed; request still returns 200', err);
+        }
       }
       sendJson(res, 200, { ok: true });
       return true;
@@ -171,7 +179,15 @@ export async function handleAuthRoute(
         return true;
       }
       const token = await auth.resendVerification(identity.userId); // throws on rate limit
-      if (opts.sendVerifyEmail) await opts.sendVerifyEmail(user.email, verifyLink(opts.appBaseUrl, token));
+      if (opts.sendVerifyEmail) {
+        // Best-effort delivery (same rule as the reset email): verification is soft —
+        // access is never gated on it — so a send failure is logged, not a 500.
+        try {
+          await opts.sendVerifyEmail(user.email, verifyLink(opts.appBaseUrl, token));
+        } catch (err) {
+          console.warn('verification email delivery failed; request still returns 200', err);
+        }
+      }
       sendJson(res, 200, { ok: true });
       return true;
     }

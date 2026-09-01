@@ -108,7 +108,6 @@ export class ExtractionService {
       try {
         embedding = await this.embedder.embed(note.rawText);
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.warn(`[extract] embedding failed for note ${noteId}; saving facts without a vector`, err);
       }
       await this.notes.update(userId, noteId, { extracted: extraction, status: 'extracted', embedding });

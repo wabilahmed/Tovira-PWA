@@ -7,6 +7,7 @@ import { AccountEmailService } from '../services/email/account-email-service.js'
 import { StubEmailSender } from '../adapters/email/stub-email-sender.js';
 import { InMemoryEmailLogRepository } from '../adapters/email/in-memory-email-log-repository.js';
 import { VERIFY_RESEND_LIMIT } from '../services/auth/auth-service.js';
+import type { EmailSender } from '../ports/email.js';
 
 let server: Server;
 let base: string;
@@ -101,5 +102,43 @@ describe('[EMAIL-VERIFY] soft email verification over HTTP', () => {
 
   it('resend requires a session (401 when signed out)', async () => {
     expect((await post('/auth/resend-verification', {})).status).toBe(401);
+  });
+});
+
+// FORGOT-PW-500 (same shape): a verify-email delivery failure must not 500 the
+// resend endpoint. Verification is soft (access is never gated on it), so a failed
+// send is best-effort — logged, request still 200 — matching the reset-email rule.
+describe('[EMAIL-SEND-500] resend-verification survives a delivery failure', () => {
+  let s: Server;
+  let b: string;
+  const throwingSender: EmailSender = {
+    send: async (m) => {
+      if (/confirm your email/i.test(m.subject)) throw new Error('Resend: daily quota exceeded');
+    },
+  };
+  beforeAll(async () => {
+    const deps = buildInMemoryDeps({ accountEmail: new AccountEmailService(throwingSender, new InMemoryEmailLogRepository()) });
+    s = createApiServer(deps);
+    await new Promise<void>((r) => s.listen(0, r));
+    b = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+  });
+  afterAll(async () => {
+    await new Promise<void>((r) => s.close(() => r()));
+  });
+
+  it('returns 200 (not 500) when the verify send throws', async () => {
+    const signupRes = await fetch(`${b}/auth/signup`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'verifyfail@example.com', password: 'password123' }),
+    });
+    expect(signupRes.status).toBe(201); // welcome send (different subject) unaffected
+    const cookie = (signupRes.headers.get('set-cookie') ?? '').split(';')[0]!;
+    const resend = await fetch(`${b}/auth/resend-verification`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({}),
+    });
+    expect(resend.status, 'a failed verify send must not 500').toBe(200);
   });
 });
