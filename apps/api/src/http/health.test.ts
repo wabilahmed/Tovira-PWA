@@ -1,0 +1,48 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import type { AddressInfo } from 'node:net';
+import type { Server } from 'node:http';
+import { createApiServer } from '../server.js';
+import { buildInMemoryDeps } from './test-deps.js';
+import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
+
+// SWEEP-NEVER-RUNS: /health must surface the scheduled brain's last run per job, so a
+// scheduler that never fires is visible instead of looking like one with nothing to do.
+describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
+  let server: Server;
+  let base: string;
+  const jobRuns = new InMemoryJobRunStore();
+
+  beforeAll(async () => {
+    await jobRuns.record('notes-sweep', { at: Date.now() - 20_000, ok: true, error: null });
+    await jobRuns.record('priorities-nightly', { at: Date.now() - 5_000, ok: false, error: 'boom' });
+    const deps = buildInMemoryDeps({ jobRuns, adapterModes: { model: 'live', embedder: 'live' } });
+    server = createApiServer(deps);
+    await new Promise<void>((r) => server.listen(0, r));
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+  afterAll(async () => {
+    await new Promise<void>((r) => server.close(() => r()));
+  });
+
+  it('lists each job with ok + age (a dead scheduler shows as stale/absent, not healthy)', async () => {
+    const res = await fetch(`${base}/health`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      status: string;
+      adapters?: Record<string, string>;
+      jobs: Array<{ name: string; ok: boolean; ageSeconds: number; lastRunAt: string; error?: string }>;
+    };
+    expect(body.status).toBe('ok');
+    expect(body.adapters).toMatchObject({ embedder: 'live' });
+
+    const sweep = body.jobs.find((j) => j.name === 'notes-sweep');
+    expect(sweep, 'notes-sweep present in /health').toBeTruthy();
+    expect(sweep!.ok).toBe(true);
+    expect(sweep!.ageSeconds).toBeGreaterThanOrEqual(19); // ~20s ago
+    expect(typeof sweep!.lastRunAt).toBe('string');
+
+    const nightly = body.jobs.find((j) => j.name === 'priorities-nightly');
+    expect(nightly!.ok).toBe(false);
+    expect(nightly!.error).toBe('boom'); // a failing job is visible, with its reason
+  });
+});

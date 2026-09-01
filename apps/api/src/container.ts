@@ -4,6 +4,9 @@ import type { ModelClient } from './ports/model.js';
 import type { AuthProvider } from './ports/auth.js';
 import type { Storage } from './ports/storage.js';
 import type { Scheduler } from './ports/scheduler.js';
+import type { AdvisoryLock, JobRunStore } from './ports/scheduled-jobs.js';
+import { PgJobRunStore, PgAdvisoryLock } from './adapters/scheduler/pg-scheduled-jobs.js';
+import { InMemoryJobRunStore, InMemoryAdvisoryLock } from './adapters/scheduler/in-memory-scheduled-jobs.js';
 import type { UserRepository } from './ports/user-repository.js';
 import type { SessionRepository } from './ports/session-repository.js';
 import { StubModelClient } from './adapters/model/stub.js';
@@ -487,4 +490,22 @@ export function createEmailLogRepository(config: AppConfig, pool?: Pool): EmailL
 /** The account/lifecycle email service (reset, welcome, trial, billing, delete). */
 export function createAccountEmailService(config: AppConfig, pool?: Pool): AccountEmailService {
   return new AccountEmailService(createEmailSender(config), createEmailLogRepository(config, pool));
+}
+
+/** Last-run store for the scheduled brain (SWEEP-NEVER-RUNS): Postgres in prod. */
+export function createJobRunStore(config: AppConfig, pool?: Pool): JobRunStore {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgJobRunStore(pool);
+  }
+  return new InMemoryJobRunStore();
+}
+
+/** Cross-task job mutex: a Postgres session advisory lock in prod, in-memory locally. */
+export function createAdvisoryLock(config: AppConfig, pool?: Pool): AdvisoryLock {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgAdvisoryLock(pool);
+  }
+  return new InMemoryAdvisoryLock();
 }

@@ -18,6 +18,7 @@ import type { NotificationRepository } from './ports/notification-repository.js'
 import type { ScanService, ScanConfig } from './services/scan/scan-service.js';
 import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import type { PushDispatchService } from './services/push/push-dispatch-service.js';
+import type { JobRun, JobRunStore } from './ports/scheduled-jobs.js';
 import type { CardScanner } from './ports/card-scanner.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
@@ -54,6 +55,17 @@ import { handleBillingRoute } from './http/billing-routes.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
 import { sendJson } from './http/helpers.js';
+
+/** Shape each job's last-run for /health: ISO time + age so "is it alive" is at a glance. */
+function summarizeJobs(jobs: JobRun[], nowMs: number) {
+  return jobs.map((j) => ({
+    name: j.name,
+    ok: j.ok,
+    lastRunAt: new Date(j.lastRunAt).toISOString(),
+    ageSeconds: Math.max(0, Math.round((nowMs - j.lastRunAt) / 1000)),
+    ...(j.error ? { error: j.error } : {}),
+  }));
+}
 
 export interface ApiDeps {
   pool: Pool;
@@ -93,6 +105,8 @@ export interface ApiDeps {
   appBaseUrl: string;
   /** Which pluggable adapters are live vs stub (health/observability). */
   adapterModes?: Record<string, 'live' | 'stub'>;
+  /** Last-run records for the scheduled brain, surfaced in /health (SWEEP-NEVER-RUNS). */
+  jobRuns?: JobRunStore;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -138,7 +152,15 @@ export function createApiServer(deps: ApiDeps): Server {
           await deps.pool.query('SELECT 1');
           // adapters: which pluggable providers are live vs stub, so "staging is
           // representative" is verifiable rather than assumed (STAGING-EMBEDDER).
-          sendJson(response, 200, { status: 'ok', ...(deps.adapterModes ? { adapters: deps.adapterModes } : {}) });
+          // jobs: the scheduled brain's last-run per job, so "the brain is running"
+          // is checkable, not assumed (SWEEP-NEVER-RUNS). A jobs-read failure omits
+          // the field rather than flapping the ALB check — SELECT 1 already gates liveness.
+          const jobs = deps.jobRuns ? await deps.jobRuns.list().catch(() => undefined) : undefined;
+          sendJson(response, 200, {
+            status: 'ok',
+            ...(deps.adapterModes ? { adapters: deps.adapterModes } : {}),
+            ...(jobs ? { jobs: summarizeJobs(jobs, Date.now()) } : {}),
+          });
         } catch {
           sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' });
         }

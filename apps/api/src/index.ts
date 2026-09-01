@@ -9,7 +9,6 @@ import { BookScanService } from './services/book-scan/book-scan-service.js';
 import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { PrioritiesService } from './services/hero/priorities-service.js';
-import { LocalScheduler } from './adapters/scheduler/local.js';
 import { NoteSweepService } from './services/notes/note-sweep-service.js';
 import { TrialEmailService } from './services/email/trial-email-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
@@ -49,7 +48,10 @@ import {
   createBillingService,
   createAccountService,
   createActivationService,
+  createJobRunStore,
+  createAdvisoryLock,
 } from './container.js';
+import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -130,13 +132,9 @@ async function main(): Promise<void> {
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
   // (cost-guard #3, P4b-3). Uses the priorities-class model (see routing).
   const priorities = new PrioritiesService(hero, createModelClient(config, 'priorities'), createPrioritiesRepository(config, appPool));
-  const scheduler = new LocalScheduler();
-  scheduler.register({
-    name: 'priorities-nightly',
-    run: async () => { await priorities.precomputeAll(await auth.allUserIds(), Date.now()); },
-  });
-  // Note sweep (FLOWS-7): advance any rep's stuck pending notes on a schedule so a
-  // voice note never stalls; bounded retries → terminal needs_review, never lost.
+  // Note sweep (FLOWS-7): advance any rep's stuck pending notes so a voice note or a
+  // deferred import (IMPORT-ASYNC) never stalls; bounded retries → terminal
+  // needs_review, never lost.
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),
     listPending: (u) => notes.listPendingByUser(u).then((rows) => rows.map((n) => ({ id: n.id, status: n.status, sweepAttempts: n.sweepAttempts }))),
@@ -145,13 +143,30 @@ async function main(): Promise<void> {
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
   });
-  scheduler.register({
-    name: 'notes-sweep',
-    run: async () => { await noteSweep.sweep(new Date().toISOString().slice(0, 10)); },
-  });
   // Trial-ending (2 days out) + trial-ended emails (EMAIL-HOOKS 1a), idempotent.
   const trialEmail = new TrialEmailService({ listTrialing: () => billing.listTrialing() }, emailFor, accountEmail);
-  scheduler.register({ name: 'trial-emails', run: async () => { await trialEmail.run(Date.now()); } });
+
+  // SWEEP-NEVER-RUNS: the EventBridge→Lambda path is a stub and a LocalScheduler only
+  // fires when triggered — nothing triggered it, so the sweep, nightly priorities and
+  // trial emails silently never ran in prod (imported notes were stranded pending).
+  // This persistent task drives them on an in-process timer, coordinated across tasks
+  // by a Postgres SESSION advisory lock (auto-released on crash), with each run
+  // recorded so /health can show the brain is alive.
+  const jobRunStore = createJobRunStore(config, appPool);
+  const scheduledBrain = new ScheduledBrain({
+    store: jobRunStore,
+    lock: createAdvisoryLock(config, appPool),
+    log: (m, e) => console.warn(m, e ?? ''),
+    jobs: [
+      // Frequent + cheap-when-idle: deferred imports must extract within ~a minute.
+      { name: 'notes-sweep', lockKey: 4711001, intervalMs: 15_000,
+        run: async () => { await noteSweep.sweep(new Date().toISOString().slice(0, 10)); } },
+      { name: 'priorities-nightly', lockKey: 4711002, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => { await priorities.precomputeAll(await auth.allUserIds(), Date.now()); } },
+      { name: 'trial-emails', lockKey: 4711003, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => { await trialEmail.run(Date.now()); } },
+    ],
+  });
   const account = createAccountService(auth, clients, notes, facts, meetings, images, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined));
   const activation = createActivationService(config, appPool);
   const recall = createRecallService(config, notes);
@@ -204,15 +219,20 @@ async function main(): Promise<void> {
     accountEmail,
     appBaseUrl: config.appBaseUrl,
     adapterModes: describeAdapters(config),
+    jobRuns: jobRunStore,
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),
   });
   server.listen(config.port, () => {
     console.log(`[api] listening on http://0.0.0.0:${config.port} (${config.nodeEnv})`);
+    // Start the scheduled brain once the server is up (migrations have already run,
+    // so scheduled_job_runs exists). start() runs one pass immediately.
+    scheduledBrain.start();
   });
 
   const shutdown = () => {
+    scheduledBrain.stop();
     server.close(() => {
       void Promise.all([appPool.end(), migrationPool.end()]).then(() => process.exit(0));
     });
