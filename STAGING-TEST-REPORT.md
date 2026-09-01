@@ -202,13 +202,19 @@ difference → one tracker row).
 
 **Match is strict by design** (client + owner + cosmetically-normalized text): merging
 two genuinely-distinct commitments (fabrication by omission) is worse than a visible
-duplicate. Consequence: when the model **rewords** the same commitment (B2-9's live pair:
-`"Send Priya the integration timeline"` vs `"Send the integration timeline"`), strict
-match correctly does not merge them — that is **semantic** merging, a separate and
-separately-certified step, deliberately out of scope here. B2-9's staging assertion
-therefore still shows two for the reworded pair; the shipped fix covers true
-exact/normalized duplicates (re-imports, identical extractions), which are the common
-real case. Semantic promise-merge is logged as the follow-up.
+duplicate. **Sizing — dedup is NOT "solved":** strict catches the same note imported
+twice and near-identical pastes (normalize-only differences), but **not** the case that
+motivated the finding — a voice note ("Send Priya the integration timeline") plus the
+client's pasted confirmation ("Send the integration timeline"), where the model rewords
+and the normalized texts differ. That reword is the **common** production case, not the
+exotic one, so a user-visible duplicate is **likely still present** in real use. The
+shipped state is a genuine improvement (exact/near-identical dups collapse) and, crucially,
+the remaining duplicate is **visible and annoying rather than silent and lossy**. Closing
+the common case needs **semantic promise-merge** — a separate, separately-certified step,
+logged as the follow-up. Two GREEN characterization tests hold the line: **B2-9a** proves
+the strict guarantee (cosmetic-only dup → one row); **B2-9b** asserts the current gap
+(reworded pair → two rows) and is a tripwire — it flips RED the day semantic merge ships,
+forcing re-certification rather than letting the gap quietly persist.
 
 **B3–B4 pending.** B3 is the scale test (≈10k code-switched lines through the async
 import → sweep; must drain the whole import, not finish early — watch `scheduled_job_runs`)
