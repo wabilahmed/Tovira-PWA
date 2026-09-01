@@ -275,4 +275,36 @@ export const EVAL_NOTES: EvalNote[] = [
       next_steps: ['Get the buyer and their finance manager to sign'],
     },
   },
+  // v0.6 (certified 2026-09-01): an AMBIGUOUS numeric date — both components ≤ 12, so
+  // DD/MM and MM/DD are both valid (05/06/2026 is 5 June OR 6 May) — must stay null with
+  // the raw string kept; the note's locale is unknowable (WhatsApp exports carry the
+  // producing phone's locale). Resolving it to any date is a guessed date and fails the
+  // gate. The promise itself is firm, so its confidence is high — this tests the DATE.
+  {
+    id: 'ambiguous-numeric-date',
+    today: '2026-07-09',
+    clientName: 'Delta Freight',
+    source: 'paste',
+    note: 'I promised to send them the signed contract by 05/06/2026.',
+    expected: {
+      ...empty,
+      summary: 'Rep committed to sending Delta Freight the signed contract by a date given in ambiguous numeric form.',
+      promises: [{ text: 'Send the signed contract', owner: 'rep', due_date: null, due_raw: '05/06/2026', confidence: 'high' }],
+    },
+  },
+  // v0.6 (certified 2026-09-01): a CONDITIONAL promise — contingent on an event that has
+  // not happened ("once the MSA is signed") — IS a real commitment and must be logged,
+  // but with confidence LOW so it routes to confirmation rather than the open list.
+  {
+    id: 'conditional-promise',
+    today: '2026-07-09',
+    clientName: 'Orion Systems',
+    source: 'voice',
+    note: "Told them once the MSA is signed, I'll introduce them to our onboarding team.",
+    expected: {
+      ...empty,
+      summary: "Rep will introduce the onboarding team once Orion's MSA is signed.",
+      promises: [{ text: 'Introduce the onboarding team', owner: 'rep', due_date: null, due_raw: 'once the MSA is signed', confidence: 'low' }],
+    },
+  },
 ];
