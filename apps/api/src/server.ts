@@ -19,6 +19,7 @@ import type { ScanService, ScanConfig } from './services/scan/scan-service.js';
 import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import type { PushDispatchService } from './services/push/push-dispatch-service.js';
 import type { JobRun, JobRunStore } from './ports/scheduled-jobs.js';
+import type { ModelMetricsRegistry } from './services/metrics/model-metrics.js';
 import type { CardScanner } from './ports/card-scanner.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
@@ -107,6 +108,8 @@ export interface ApiDeps {
   adapterModes?: Record<string, 'live' | 'stub'>;
   /** Last-run records for the scheduled brain, surfaced in /health (SWEEP-NEVER-RUNS). */
   jobRuns?: JobRunStore;
+  /** Per-task-class prompt-cache metrics, surfaced in /health (CACHE-1). */
+  modelMetrics?: ModelMetricsRegistry;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -160,6 +163,9 @@ export function createApiServer(deps: ApiDeps): Server {
             status: 'ok',
             ...(deps.adapterModes ? { adapters: deps.adapterModes } : {}),
             ...(jobs ? { jobs: summarizeJobs(jobs, Date.now()) } : {}),
+            // cache: per-task-class prompt-cache hit rate (over cacheable calls), so
+            // "caching is working" is checkable, not assumed (CACHE-1).
+            ...(deps.modelMetrics ? { cache: deps.modelMetrics.snapshot() } : {}),
           });
         } catch {
           sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' });

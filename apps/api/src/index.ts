@@ -52,6 +52,8 @@ import {
   createAdvisoryLock,
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
+import { modelMetrics } from './services/metrics/model-metrics.js';
+import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -220,12 +222,18 @@ async function main(): Promise<void> {
     appBaseUrl: config.appBaseUrl,
     adapterModes: describeAdapters(config),
     jobRuns: jobRunStore,
+    modelMetrics,
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),
   });
   server.listen(config.port, () => {
     console.log(`[api] listening on http://0.0.0.0:${config.port} (${config.nodeEnv})`);
+    // CACHE-1: name, per task class, the model + prefix size + whether a cache
+    // breakpoint is set — so a broken/absent cache is visible at boot, not inferred.
+    const prefixTok = estimateTokens(EXTRACTION_SYSTEM_PROMPT);
+    console.log(`[cache] extraction: model=${config.models.extraction} prefix≈${prefixTok}tok breakpoint=on ttl=${config.extractionCacheTtl} (Sonnet min ~1024)`);
+    console.log(`[cache] recall/priorities/brief/followup/cardScan: model=${config.models.recall} breakpoint=off (system prompts below the cacheable minimum — uncacheable by design)`);
     // Start the scheduled brain once the server is up (migrations have already run,
     // so scheduled_job_runs exists). start() runs one pass immediately.
     scheduledBrain.start();

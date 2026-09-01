@@ -11,6 +11,7 @@ import type { UserRepository } from './ports/user-repository.js';
 import type { SessionRepository } from './ports/session-repository.js';
 import { StubModelClient } from './adapters/model/stub.js';
 import { AnthropicModelClient } from './adapters/model/anthropic.js';
+import { MeteredModelClient } from './adapters/model/metered.js';
 import { StubAuthProvider } from './adapters/auth/stub.js';
 import { FsStorage } from './adapters/storage/fs.js';
 import { LocalScheduler } from './adapters/scheduler/local.js';
@@ -147,14 +148,13 @@ export function createRecallService(config: AppConfig, notes: NoteRepository): R
  * separate caches. Defaults to `extraction` (Sonnet) for backward compatibility.
  */
 export function createModelClient(config: AppConfig, taskClass: AiTaskClass = 'extraction'): ModelClient {
-  if (config.modelProvider === 'anthropic') {
-    return new AnthropicModelClient({
-      apiKey: config.anthropicApiKey ?? '',
-      baseUrl: config.anthropicBaseUrl,
-      model: config.models[taskClass],
-    });
-  }
-  return new StubModelClient();
+  const model = config.models[taskClass];
+  const inner: ModelClient =
+    config.modelProvider === 'anthropic'
+      ? new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model })
+      : new StubModelClient();
+  // CACHE-1: meter every call's cache outcome per task class (→ /health, observability).
+  return new MeteredModelClient(inner, taskClass, model);
 }
 
 export function createServices(config: AppConfig): Services {

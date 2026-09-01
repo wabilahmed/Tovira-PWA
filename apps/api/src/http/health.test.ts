@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
 import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
+import { ModelMetricsRegistry, NA_BELOW_MIN } from '../services/metrics/model-metrics.js';
 
 // SWEEP-NEVER-RUNS: /health must surface the scheduled brain's last run per job, so a
 // scheduler that never fires is visible instead of looking like one with nothing to do.
@@ -12,10 +13,15 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
   let base: string;
   const jobRuns = new InMemoryJobRunStore();
 
+  const modelMetrics = new ModelMetricsRegistry();
+
   beforeAll(async () => {
     await jobRuns.record('notes-sweep', { at: Date.now() - 20_000, ok: true, error: null });
     await jobRuns.record('priorities-nightly', { at: Date.now() - 5_000, ok: false, error: 'boom' });
-    const deps = buildInMemoryDeps({ jobRuns, adapterModes: { model: 'live', embedder: 'live' } });
+    // extraction cacheable (3/4 hit → 75%); recall never cacheable → n/a
+    for (const hit of [false, true, true, true]) modelMetrics.record('extraction', 'claude-sonnet-5', { cacheable: true, hit });
+    modelMetrics.record('recall', 'claude-haiku-4-5', { cacheable: false, hit: false });
+    const deps = buildInMemoryDeps({ jobRuns, modelMetrics, adapterModes: { model: 'live', embedder: 'live' } });
     server = createApiServer(deps);
     await new Promise<void>((r) => server.listen(0, r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -44,5 +50,12 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
     const nightly = body.jobs.find((j) => j.name === 'priorities-nightly');
     expect(nightly!.ok).toBe(false);
     expect(nightly!.error).toBe('boom'); // a failing job is visible, with its reason
+  });
+
+  it('surfaces per-class cache hit rate over cacheable calls (n/a for uncacheable classes)', async () => {
+    const res = await fetch(`${base}/health`);
+    const body = (await res.json()) as { cache: Record<string, { hitRate: string; cacheableCalls: number }> };
+    expect(body.cache.extraction!.hitRate).toBe('75%'); // 3 of 4 cacheable calls hit
+    expect(body.cache.recall!.hitRate).toBe(NA_BELOW_MIN); // never requested caching → not 0%
   });
 });

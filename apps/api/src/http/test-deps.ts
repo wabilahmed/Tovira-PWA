@@ -51,6 +51,7 @@ import { PushDispatchService } from '../services/push/push-dispatch-service.js';
 import { StubCardScanner } from '../adapters/vision/stub-card-scanner.js';
 import { InMemoryImageRepository } from '../adapters/images/in-memory-image-repository.js';
 import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
+import { ModelMetricsRegistry } from '../services/metrics/model-metrics.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -144,6 +145,7 @@ export function buildInMemoryDeps(
     accountEmail: new AccountEmailService(new StubEmailSender(), new InMemoryEmailLogRepository()),
     appBaseUrl: 'http://localhost:5173',
     jobRuns: new InMemoryJobRunStore(),
+    modelMetrics: new ModelMetricsRegistry(),
     ...overrides,
   } as TestDeps;
 }
