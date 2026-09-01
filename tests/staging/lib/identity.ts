@@ -63,6 +63,20 @@ export class IdentityFactory {
     return identity;
   }
 
+  /**
+   * Adopt an account we created out-of-band (e.g. via a raw signup that returned a
+   * non-201 but still created the row) so teardown will clean it up. Logs in to get a
+   * session; returns null if it can't (nothing to adopt). Rail #3 — never leak accounts.
+   */
+  async adopt(email: string, password: string): Promise<Identity | null> {
+    const http = new HttpClient(this.target);
+    const res = await http.post<SignupResult>('/auth/login', { email, password });
+    if (res.status !== 200 || !res.body?.token) return null;
+    const identity: Identity = { email, password, userId: res.body.user?.id ?? '', token: res.body.token, http };
+    this.created.push(identity);
+    return identity;
+  }
+
   /** Everything this factory created, for assertions/reporting. */
   all(): readonly Identity[] {
     return this.created;
