@@ -100,7 +100,17 @@ export class ExtractionService {
       // Chat imports carry speaker-attributed messages → detect client questions
       // the rep never answered (P1-6). Deterministic; never fabricated.
       extraction.unanswered_questions = note.messages ? detectUnansweredQuestions(note.messages) : [];
-      const embedding = await this.embedder.embed(note.rawText);
+      // Embedding is the semantic-search substrate, NOT the facts. If the embedder is
+      // down or denied (e.g. Bedrock model access not yet granted), we must still save
+      // the extracted facts — "never lose a recording". The note is 'extracted' with a
+      // null vector; recall for it is degraded until a re-embed. Best-effort, never fatal.
+      let embedding: number[] | null = null;
+      try {
+        embedding = await this.embedder.embed(note.rawText);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`[extract] embedding failed for note ${noteId}; saving facts without a vector`, err);
+      }
       await this.notes.update(userId, noteId, { extracted: extraction, status: 'extracted', embedding });
       await this.facts.saveExtraction(userId, {
         noteId,

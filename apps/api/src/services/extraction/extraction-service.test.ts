@@ -7,6 +7,7 @@ import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-re
 import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { StubEmbedder } from '../../adapters/embedding/stub.js';
 import type { ModelClient } from '../../ports/model.js';
+import type { Embedder } from '../../ports/embedder.js';
 
 const VALID = JSON.stringify({
   summary: 'Rep committed to sending the revised quote.',
@@ -30,7 +31,7 @@ function capturingModel(text: string): { client: ModelClient; last: () => Parame
   return { client: { complete: async (req) => { seen = req; return { text }; } }, last: () => seen };
 }
 
-async function setup(m: ModelClient, cacheTtl?: '5m' | '1h') {
+async function setup(m: ModelClient, cacheTtl?: '5m' | '1h', embedder: Embedder = new StubEmbedder(8)) {
   const clients = new InMemoryClientRepository();
   const notes = new InMemoryNoteRepository();
   const facts = new InMemoryFactsRepository();
@@ -43,7 +44,7 @@ async function setup(m: ModelClient, cacheTtl?: '5m' | '1h') {
     status: 'pending_extraction',
   });
   const logs = new InMemoryExtractionLogRepository();
-  const service = new ExtractionService(m, clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined, undefined, cacheTtl);
+  const service = new ExtractionService(m, clients, notes, facts, embedder, logs, 'stub', undefined, undefined, undefined, cacheTtl);
   return { service, notes, facts, note, logs };
 }
 
@@ -58,6 +59,21 @@ describe('ExtractionService', () => {
     const promises = await facts.listPromisesByNote('user-A', note.id);
     expect(promises).toHaveLength(1);
     expect(promises[0]!.owner).toBe('rep');
+  });
+
+  // Embedding is best-effort: if the embedder throws (e.g. Bedrock model access not
+  // granted / an outage), the FACTS must still be saved and the note marked extracted —
+  // "never lose a recording". Only semantic search for the note degrades (null vector).
+  it('saves facts and marks extracted even when the embedder fails (no lost recording)', async () => {
+    const throwing: Embedder = { dimension: 8, embed: async () => { throw new Error('bedrock AccessDeniedException'); } };
+    const { service, notes, facts, note } = await setup(model(VALID), undefined, throwing);
+    const out = await service.extractNote('user-A', note.id, '2026-07-09');
+    expect(out.status).toBe('extracted'); // NOT an error/needs_review
+    const stored = await notes.findByIdForUser('user-A', note.id);
+    expect(stored?.status).toBe('extracted');
+    expect((stored?.extracted as { summary: string } | null)?.summary).toContain('revised quote');
+    // The vector is skipped (recall for this note degrades), but the FACTS are kept:
+    expect(await facts.listPromisesByNote('user-A', note.id)).toHaveLength(1);
   });
 
   // [CACHE] Extraction MUST request prompt caching, with the byte-identical
