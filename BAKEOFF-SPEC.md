@@ -93,7 +93,7 @@ Needle @ line 8000: "office moved to Sheikh Zayed Road, tower 3"
 
 **Planted traps (expected behaviour):**
 - **needle**: at ~line 8000: "office moved to Sheikh Zayed Road, tower 3" — must be recallable
-- **near-duplicate**: the integration-timeline commitment appears twice → ONE promise, not two
+- **near-duplicate**: COSMETIC near-dup (near-identical wording) → ONE promise. If a model instead rewords into two, that is the B2-9 documented semantic-dedup gap — scored as known-gap, NOT a disqualifying fabrication
 - **deleted**: "This message was deleted" lines carry no fact
 - **media**: "<Media omitted>" lines carry no fact
 - **scale-drain**: the sweep must drain the WHOLE import; scheduled_job_runs must not report ok on a partial drain

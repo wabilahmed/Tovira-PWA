@@ -71,15 +71,35 @@ export interface AnswerKey {
   uncertifiedLanguages: string[];
 }
 
-// Deterministic benign filler by language — none of these carry a plantable fact.
+// Deterministic benign filler by language — realistic conversational lines that carry
+// NO plantable fact (no commitment, no resolvable date, no named person). Varied and
+// substantive so a long transcript reads like a real chat rather than degenerate noise
+// (degenerate filler makes even a good extractor return empty — a fixture artifact, not
+// a model failure).
 const FILLER: Record<string, string[]> = {
-  en: ['sounds good', 'ok thanks', 'let me check and revert', 'great, appreciate it', 'noted', 'will do', 'talk soon', 'haha yeah', 'makes sense', 'on it'],
-  arz: ['tamam', 'inshallah', 'akeed', 'meshy keda', 'shukran', 'wa2t eh?', 'tab tayeb', 'zabt'],
-  ar: ['تمام', 'إن شاء الله', 'شكراً', 'ماشي', 'حاضر', 'تسلم', 'أوكي', 'طيب'],
-  hi: ['theek hai', 'haan ji', 'accha', 'dhanyavaad', 'ho jayega', 'zaroor'],
-  ur: ['theek hai', 'jee haan', 'shukriya', 'bilkul', 'ho jayega ga'],
-  ru: ['хорошо', 'спасибо', 'договорились', 'понял', 'ок', 'до связи'],
-  tl: ['sige', 'salamat', 'okay lang', 'oo naman', 'ingat', 'game'],
+  en: [
+    'sounds good, appreciate the quick turnaround', 'let me look into that on my end', 'that makes sense to me',
+    'the demo yesterday went really well I thought', 'their team seemed engaged on the call', 'yeah the weather has been brutal this week',
+    'how was your weekend?', 'traffic on the way in was terrible today', 'coffee first, then we talk numbers haha',
+    'I think we are aligned on the overall direction', 'good point, I had not considered that angle', 'let me loop back after I sync internally',
+    'the office coffee machine is broken again', 'did you catch the match last night?', 'agreed, no rush on this from our side',
+    'happy to jump on a quick call if easier', 'thanks for being patient with all the back and forth', 'that works for me either way',
+    'lets keep the momentum going', 'totally understand, take your time',
+  ],
+  arz: [
+    'el demo kan helw awi', 'ana fahem 2asdak', 'khalas neshoof ba3d el ijaza', 'el gaw harr gedan el ayam di',
+    'ezayak? kollo tamam?', 'el meeting kan mofeed', 'mafeesh mshakel khalis', 'ana ma3ak fel ra2y da',
+    'neb2a nkallem ba3den', 'shokran 3ala el sabr', 'el share3 zahma en-naharda', 'tab neshoof',
+  ],
+  ar: [
+    'العرض التقديمي كان ممتازاً أمس', 'أفهم وجهة نظرك تماماً', 'الجو حار جداً هذه الأيام', 'كيف كانت عطلتك؟',
+    'الاجتماع كان مفيداً للطرفين', 'لا توجد أي مشكلة من جانبنا', 'أتفق معك في هذا الرأي', 'دعنا نتحدث لاحقاً',
+    'شكراً على سعة صدرك', 'الزحام في الطريق كان فظيعاً', 'نتواصل قريباً', 'خذ وقتك، لا استعجال',
+  ],
+  hi: ['demo bahut accha raha kal', 'main aapki baat samajh gaya', 'mausam bahut garam hai in dino', 'weekend kaisa raha aapka?', 'meeting productive thi', 'humari taraf se koi dikkat nahi', 'main aapse sehmat hoon', 'baad mein baat karte hain', 'dhanyavaad patience ke liye'],
+  ur: ['demo kaafi acha raha', 'main samajh gaya aap ki baat', 'mausam bohat garam hai', 'aap ka weekend kaisa tha?', 'meeting mufeed rahi', 'hamari taraf se koi masla nahi', 'main aap se muttafiq hoon', 'baad mein baat karte hain'],
+  ru: ['презентация вчера прошла отлично', 'я понимаю вашу мысль', 'жара стоит невыносимая', 'как прошли выходные?', 'встреча была продуктивной', 'с нашей стороны проблем нет', 'согласен с вами', 'спишемся позже'],
+  tl: ['ang ganda ng demo kahapon', 'naiintindihan ko ang punto mo', 'ang init ng panahon ngayon', 'kumusta ang weekend mo?', 'productive ang meeting', 'walang problema sa amin', 'sang-ayon ako sa iyo', 'usap tayo mamaya'],
 };
 const SENDERS = ['Me', 'Client'];
 

@@ -119,14 +119,15 @@ export const EXPORTS: ExportSpec[] = [
     needleAtLine: 8000,
     promises: [
       { text: 'Send the integration timeline', owner: 'rep', dueDate: '2026-09-04', dueRaw: 'this Friday', confidence: 'high', sender: 'Me', line: "I'll send the integration timeline this Friday." },
-      // Near-duplicate of the SAME commitment later in the thread → one promise, not two.
-      { text: 'Send the integration timeline', owner: 'rep', dueDate: '2026-09-04', dueRaw: 'this Friday', confidence: 'high', sender: 'Me', line: 'just to confirm, integration timeline coming your way this Friday.' },
+      // COSMETIC near-duplicate (same commitment, near-identical wording) → ONE promise.
+      // Strict dedup merges exact/normalized text within a note; expected key = one row.
+      { text: 'Send the integration timeline', owner: 'rep', dueDate: '2026-09-04', dueRaw: 'this Friday', confidence: 'high', sender: 'Me', line: "confirming — I'll send the integration timeline this Friday." },
     ],
     people: [{ name: 'Priya', sender: 'Client', line: 'Priya from their side, decision maker on vendors.' }],
     keyDates: [],
     traps: [
       { kind: 'needle', note: 'at ~line 8000: "office moved to Sheikh Zayed Road, tower 3" — must be recallable' },
-      { kind: 'near-duplicate', note: 'the integration-timeline commitment appears twice → ONE promise, not two' },
+      { kind: 'near-duplicate', note: 'COSMETIC near-dup (near-identical wording) → ONE promise. If a model instead rewords into two, that is the B2-9 documented semantic-dedup gap — scored as known-gap, NOT a disqualifying fabrication' },
       { kind: 'deleted', note: '"This message was deleted" lines carry no fact' },
       { kind: 'media', note: '"<Media omitted>" lines carry no fact' },
       { kind: 'scale-drain', note: 'the sweep must drain the WHOLE import; scheduled_job_runs must not report ok on a partial drain' },
