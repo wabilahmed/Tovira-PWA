@@ -28,6 +28,24 @@ interface NoteRecord {
   messages: unknown[] | null;
 }
 
+/**
+ * Wait for the BACKGROUND sweep (SWEEP-NEVER-RUNS) to advance a note out of pending —
+ * no synchronous /extract call (that would 504 on a heavy chat and defeat the async
+ * design). Returns the terminal status. Fails loudly if the sweep never advances it.
+ */
+async function waitForBackgroundExtraction(rep: Identity, clientId: string, noteId: string, timeoutMs = 100_000): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  let last = 'pending_extraction';
+  for (;;) {
+    const res = await rep.http.get<{ notes: NoteRecord[] }>(`/clients/${clientId}/notes`);
+    const note = res.body.notes.find((n) => n.id === noteId);
+    last = note?.status ?? last;
+    if (note && last !== 'pending_extraction' && last !== 'pending_transcription') return last;
+    if (Date.now() > deadline) throw new Error(`note ${noteId} still '${last}' after ${timeoutMs}ms — the background sweep is not advancing it`);
+    await new Promise((r) => setTimeout(r, 4000));
+  }
+}
+
 async function createClient(rep: Identity, name: string): Promise<string> {
   const res = await rep.http.post<{ id: string }>('/clients', { name });
   if (res.status !== 201 || !res.body.id) throw new Error(`create client failed: ${rep.http.lastExchange()}`);
@@ -153,10 +171,13 @@ describe('[STAGING-3] capture, extraction & seeding', () => {
     // regardless of model latency (the old failure was a ~30s inline model call).
     expect(ms, `import took ${ms}ms — should be prompt (no inline model call)`).toBeLessThan(15000);
     expect(imp.body.status).toBe('pending_extraction');
-    // And it still completes in the background: draining /extract advances it.
-    const ex = await rep.http.post<{ status: string }>(`/notes/${imp.body.note.id}/extract`);
-    expect(['extracted', 'needs_review', 'trial_limit']).toContain(ex.body.status);
-    h.report.pass('A', 'FLOW 4', 'async import returns promptly then extracts in background', `${ms}ms → ${ex.body.status}`);
+    // And it completes in the BACKGROUND via the sweep — NOT a synchronous /extract
+    // (that would 504 on this heavy 3-message multilingual chat, re-introducing the
+    // exact gateway timeout the async design removes). This is the real SWEEP-NEVER-RUNS
+    // end-to-end check: the brain must advance the note on its own.
+    const status = await waitForBackgroundExtraction(rep, clientId, imp.body.note.id);
+    expect(['extracted', 'needs_review']).toContain(status);
+    h.report.pass('A', 'FLOW 4', 'async import returns promptly then the sweep extracts it in the background', `${ms}ms → ${status}`);
   });
 
   // ---- FLOW 20: dedupe on re-import; only-new-tail on extended import ----
