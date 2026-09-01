@@ -1,11 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { LedgerService } from '../services/ledger/ledger-service.js';
+import type { ClientRepository } from '../ports/client-repository.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
 export interface LedgerRouteDeps {
   auth: AuthService;
   ledger: LedgerService;
+  clients: ClientRepository;
 }
 
 const DEAL_VALUE_RE = /^\/clients\/([^/]+)\/deal-value$/;
@@ -34,13 +36,20 @@ export async function handleLedgerRoute(
   }
 
   try {
+    const clientId = decodeURIComponent(dealMatch![1]!);
+    // [P0-4] Ownership guard: a foreign or unknown client id is a 404, identical to
+    // a non-existent one — never write a deal value onto another tenant's client.
+    if (!(await deps.clients.findByIdForUser(identity.userId, clientId))) {
+      sendJson(res, 404, { error: 'not_found' });
+      return true;
+    }
     const body = (await readJsonBody(req)) as { aed?: unknown };
     const aed = typeof body.aed === 'number' ? body.aed : NaN;
     if (!Number.isFinite(aed) || aed < 0) {
       sendJson(res, 400, { error: 'validation', message: 'A non-negative deal value (AED) is required.' });
       return true;
     }
-    await deps.ledger.setDealValue(identity.userId, decodeURIComponent(dealMatch![1]!), aed);
+    await deps.ledger.setDealValue(identity.userId, clientId, aed);
     sendJson(res, 200, { ok: true });
     return true;
   } catch (err) {

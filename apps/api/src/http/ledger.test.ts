@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
@@ -90,5 +91,32 @@ describe('[P4-11] Recovered Value Ledger', () => {
 
     const b = await signup('b-ledger@example.com');
     expect((await ledger(b.token)).totalTouched).toBe(0);
+  });
+
+  // [P0-4] IDOR: a rep must not be able to write a deal value onto a client that
+  // belongs to another tenant. The foreign id must be indistinguishable from a
+  // non-existent one (no "exists but not yours" oracle).
+  it('rejects setting a deal value on another tenant\'s client id (404, nothing persisted)', async () => {
+    const a = await signup('a-idor@example.com');
+    const aClient = await createClient(a.token, 'A Secret Client');
+    const b = await signup('b-idor@example.com');
+
+    const res = await fetch(`${base}/clients/${aClient}/deal-value`, { method: 'POST', headers: auth(b.token), body: JSON.stringify({ aed: 999999 }) });
+    expect(res.status).toBe(404);
+    // Nothing persisted for B, and A's ledger is untouched.
+    expect((await ledger(b.token)).aed).toBeNull();
+    expect((await ledger(a.token)).aed).toBeNull();
+  });
+
+  it('gives a foreign client id the SAME 404 as a random UUID (no existence oracle)', async () => {
+    const a = await signup('a-oracle@example.com');
+    const aClient = await createClient(a.token, 'A Oracle Client');
+    const b = await signup('b-oracle@example.com');
+
+    const foreign = await fetch(`${base}/clients/${aClient}/deal-value`, { method: 'POST', headers: auth(b.token), body: JSON.stringify({ aed: 1 }) });
+    const random = await fetch(`${base}/clients/${randomUUID()}/deal-value`, { method: 'POST', headers: auth(b.token), body: JSON.stringify({ aed: 1 }) });
+    expect(foreign.status).toBe(404);
+    expect(random.status).toBe(404);
+    expect(await foreign.text()).toBe(await random.text()); // byte-identical body — no oracle
   });
 });

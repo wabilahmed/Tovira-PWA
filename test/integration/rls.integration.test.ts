@@ -102,4 +102,44 @@ describe('Postgres Row-Level Security enforces tenant isolation', () => {
     // And nothing was written.
     expect(sql(`SELECT count(*) FROM clients WHERE name='sneaky';`)).toBe('0');
   });
+
+  // [P0-4 / IDOR-DEAL-VALUE, migration 0036] The reported hole: a row in the caller's
+  // OWN tenant that references ANOTHER tenant's client_id. RLS can't catch it (the
+  // row's user_id is the caller's). The composite (user_id, client_id) FK must.
+  it('the composite FK blocks a deal value that references another tenant\'s client (the IDOR, at the DB)', () => {
+    const aClient = sql(`SELECT id FROM clients WHERE user_id='${userA}' AND name='A Secret Corp';`);
+    let threw = false;
+    try {
+      // As B: a well-formed, RLS-passing row (user_id = B) pointing at A's client id.
+      asAppRole(userB, `INSERT INTO client_deal_values (user_id, client_id, aed) VALUES ('${userB}','${aClient}', 999999);`);
+    } catch (err) {
+      threw = true;
+      expect(String(err)).toMatch(/foreign key|violates/i); // FK, not RLS
+    }
+    expect(threw).toBe(true);
+    expect(sql(`SELECT count(*) FROM client_deal_values WHERE client_id='${aClient}';`)).toBe('0');
+  });
+
+  it('every swept child FK to clients/notes is composite (spans user_id + the ref column)', () => {
+    // Each tenant-owned reference FK must span exactly two columns, so a
+    // single-column (global-id) reference can never be reintroduced by accident.
+    const composite = sql(
+      `SELECT conrelid::regclass || ':' || conname FROM pg_constraint
+        WHERE contype='f' AND cardinality(conkey)=2
+          AND confrelid IN ('clients'::regclass, 'notes'::regclass)
+        ORDER BY 1;`,
+    );
+    // The reported table plus the rest of the sweep must all appear as 2-column FKs.
+    for (const needle of [
+      'client_deal_values:client_deal_values_user_id_client_id_fkey',
+      'ledger_events:ledger_events_user_id_client_id_fkey',
+      'notes:notes_user_id_client_id_fkey',
+      'meetings:meetings_user_id_client_id_fkey',
+      'images:images_user_id_client_id_fkey',
+      'key_dates:key_dates_user_id_client_id_fkey',
+      'promises:promises_user_id_client_id_fkey',
+    ]) {
+      expect(composite).toContain(needle);
+    }
+  });
 });
