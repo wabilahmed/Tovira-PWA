@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import type { ReferralService } from '../services/referral/referral-service.js';
 
 let server: Server;
 let base: string;
@@ -87,5 +88,25 @@ describe('[P5-6] referral', () => {
     // A garbage referrer credits NO ONE — the referred user gets a normal trial.
     expect(Math.abs((await trialEnd(withGarbage.token)) - (await trialEnd(control.token)))).toBeLessThan(2000);
     expect(beforeEnd).toBeGreaterThan(0);
+  });
+
+  // REFERRAL-500 regression: crediting must NEVER break signup. Even if the credit
+  // step throws (the live cause was a missing GRANT on `referrals` → permission
+  // denied), the account is still created and the failure is swallowed + logged —
+  // the same isolation rule the lifecycle email hooks follow.
+  it('a crediting failure does not fail signup', async () => {
+    const failing = buildInMemoryDeps();
+    failing.referral = { apply: async () => { throw new Error('permission denied for table referrals'); } } as unknown as ReferralService;
+    const srv = createApiServer(failing);
+    await new Promise<void>((r) => srv.listen(0, r));
+    const b = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+    try {
+      const referrer = (await (await fetch(`${b}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'iso-referrer@example.com', password: 'password123' }) })).json()) as { user: { referralCode: string } };
+      const res = await fetch(`${b}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'iso-referred@example.com', password: 'password123', ref: referrer.user.referralCode }) });
+      expect(res.status).toBe(201); // signup succeeds despite crediting throwing
+      expect(((await res.json()) as { user: { id: string } }).user.id).toBeTruthy();
+    } finally {
+      await new Promise<void>((r) => srv.close(() => r()));
+    }
   });
 });

@@ -68,7 +68,18 @@ export async function handleAuthRoute(
       const result = await auth.signup(email, password, consentVersion);
       await opts.onSignup?.(result.user.id, result.user.email);
       const ref = typeof body.ref === 'string' ? body.ref.trim() : '';
-      if (ref) await opts.onReferral?.(ref, result.user.id, result.user.email);
+      if (ref) {
+        // Referral crediting must NEVER break signup — the same isolation the
+        // lifecycle email hooks use. A crediting failure (e.g. a transient DB
+        // error) is logged; the account is still created. Crediting is idempotent
+        // (referrals PK on referred_email), so a retry can't double-credit.
+        try {
+          await opts.onReferral?.(ref, result.user.id, result.user.email);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('referral crediting failed; signup still succeeded', err);
+        }
+      }
       sendJson(res, 201, result, {
         'set-cookie': sessionCookie(result.token, auth.sessionTtlSeconds, opts.cookieSecure),
       });
