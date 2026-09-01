@@ -7,6 +7,11 @@ everything torn down. Stripe test-mode. No real mail. Two-part plan: **Part A**
 (functional, FLOWS 1–27 + P5) → **Part B** (extreme extraction) — this report covers
 Part A and the fix batch it drove.
 
+**Run condition:** outbound **email delivery was unavailable** during this run (the Resend
+account was out of quota — which is what exposed EMAIL-SEND-500). All endpoints degrade
+correctly (finding 6), so this affected no result; it is recorded here so the absence of
+delivered mail is never later read as a finding. Part B does not touch email.
+
 ## Executive summary
 
 - **Part A: 48/48 test cases green.** Structured coverage: **53 PASS · 3 PARTIAL · 2
