@@ -1,3 +1,4 @@
+import { redactSensitive } from '../redaction/redact.js';
 import type { Transcriber } from '../../ports/transcriber.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { Storage } from '../../ports/storage.js';
@@ -45,7 +46,13 @@ export class TranscriptionService {
 
     const flagged = text.trim() === '' || quality === 'low';
     const status = flagged ? 'needs_review' : 'pending_extraction';
-    await this.notes.update(userId, noteId, { rawText: text, status });
+    // REDACT-2: strip Tier-1 sensitive values from the transcript BEFORE storage —
+    // a client reading out a card number or OTP must never land in the raw store.
+    const r = redactSensitive(text);
+    if (r.total > 0) {
+      console.info(`[redact] voice note ${noteId}: ${r.total} Tier-1 value(s) redacted`);
+    }
+    await this.notes.update(userId, noteId, { rawText: r.redacted, status });
     return { status };
   }
 }

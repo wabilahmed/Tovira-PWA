@@ -14,6 +14,17 @@ import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
+import { redactSensitive } from '../services/redaction/redact.js';
+
+/** REDACT-2: strip Tier-1 sensitive values before storage; log the COUNT per note
+ *  (never the values) so the volume is observable. */
+function redactForStore(text: string, noteHint: string): string {
+  const r = redactSensitive(text);
+  if (r.total > 0) {
+    console.info(`[redact] ${noteHint}: ${r.total} Tier-1 value(s) redacted (${Object.entries(r.counts).map(([k, v]) => `${k}:${v}`).join(', ')})`);
+  }
+  return r.redacted;
+}
 
 const MAX_PASTE_CHARS = 100_000;
 const MAX_IMPORT_CHARS = 5_000_000; // a full multi-year chat export
@@ -155,11 +166,12 @@ export async function handleNoteRoute(
         });
         return true;
       }
-      // Stored verbatim — emojis and line breaks preserved. Queued for extraction.
+      // Tier-1 sensitive values are redacted BEFORE storage (never stored). Emojis and
+      // line breaks otherwise preserved. Queued for extraction.
       const note = await deps.notes.create(userId, {
         clientId,
         source: 'paste',
-        rawText: text,
+        rawText: redactForStore(text, `paste note (client ${clientId})`),
         audioKey: null,
         status: 'pending_extraction',
       });
@@ -205,10 +217,22 @@ export async function handleNoteRoute(
         parsed = { ok: false as const, reason: 'The export could not be parsed.' };
       }
       if (!parsed.ok) {
-        // Preserve the raw file, flagged — a parse failure is never a half-import.
-        await deps.notes.create(userId, { clientId, source: 'whatsapp_export', rawText: content, audioKey: null, status: 'import_failed' });
+        // Preserve the file, flagged — but STILL redact Tier-1 values; a parse failure
+        // must not become a raw-secrets store (the highest-risk leak path).
+        await deps.notes.create(userId, { clientId, source: 'whatsapp_export', rawText: redactForStore(content, `import_failed (client ${clientId})`), audioKey: null, status: 'import_failed' });
         sendJson(res, 422, { error: 'import_failed', reason: parsed.reason });
         return true;
+      }
+      // Redact each message BEFORE dedupe + storage — so both the stored messages and
+      // the rendered rawText are clean, and dedupe compares like-for-like (redacted).
+      let importRedactions = 0;
+      parsed = { ...parsed, messages: parsed.messages.map((m) => {
+        const r = redactSensitive(m.body);
+        importRedactions += r.total;
+        return { ...m, body: r.redacted };
+      }) };
+      if (importRedactions > 0) {
+        console.info(`[redact] import (client ${clientId}): ${importRedactions} Tier-1 value(s) redacted across messages`);
       }
       // Dedupe against everything already imported for this client (P3-7): a
       // re-export overlaps the last one, so store overlapping messages once and
