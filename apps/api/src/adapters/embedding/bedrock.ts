@@ -44,7 +44,11 @@ export class BedrockEmbedder implements Embedder {
       return parsed.embedding;
     } catch (err) {
       if (err instanceof EmbeddingError) throw err;
-      throw new EmbeddingError('embedding request failed', err);
+      // Surface the underlying AWS error (name + message) in our message, not just a
+      // generic wrapper — so a Bedrock failure (AccessDenied, ValidationException,
+      // endpoint/region, throttling) is diagnosable from the logs without guesswork.
+      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      throw new EmbeddingError(`embedding request failed [${this.modelId}]: ${detail}`, err);
     }
   }
 }

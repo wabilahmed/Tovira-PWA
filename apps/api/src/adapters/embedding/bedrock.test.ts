@@ -14,11 +14,15 @@ describe('BedrockEmbedder', () => {
     expect(e.dimension).toBe(3);
   });
 
-  it('wraps a transport failure in a typed EmbeddingError', async () => {
+  it('wraps a transport failure in a typed EmbeddingError, surfacing the AWS cause', async () => {
     const client = invoker(async () => { throw new Error('no creds'); });
     const err = await new BedrockEmbedder({ region: 'us-east-1', client }).embed('x').catch((e) => e);
     expect(err).toBeInstanceOf(EmbeddingError);
-    expect((err as Error).message).toBe('embedding request failed');
+    // Message keeps the base + surfaces the underlying AWS error (name + message) so
+    // a Bedrock failure is diagnosable from logs; the original error is kept as cause.
+    expect((err as Error).message).toContain('embedding request failed');
+    expect((err as Error).message).toContain('no creds');
+    expect((err as { cause?: unknown }).cause).toBeInstanceOf(Error);
   });
 
   it('errors when the response has no embedding', async () => {
