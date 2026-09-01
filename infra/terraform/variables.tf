@@ -4,6 +4,12 @@ variable "region" {
   default     = "eu-north-1" # Stockholm — one of the cheapest regions
 }
 
+variable "bedrock_region" {
+  description = "Region for Bedrock embeddings — Stockholm has no Bedrock, so the app calls a nearby region cross-region. Enable model access for EMBED_MODEL there (console)."
+  type        = string
+  default     = "eu-central-1" # Frankfurt — nearest region with Bedrock to Stockholm
+}
+
 variable "env" {
   description = "Environment name."
   type        = string

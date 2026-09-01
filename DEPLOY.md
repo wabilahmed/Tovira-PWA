@@ -284,9 +284,16 @@ columns/tables + backfill first, drop the old shape in a *later* deploy
 deploy truly zero-downtime.
 
 ### Stockholm caveats
-- **Bedrock isn't in `eu-north-1`.** If `EMBEDDER=bedrock`, point `BEDROCK_REGION`
-  at a Bedrock region (e.g. `eu-central-1`) for a cross-region call, or keep
-  `EMBEDDER=stub` at this scale. Everything else is available in Stockholm.
+- **Bedrock isn't in `eu-north-1`.** Embeddings therefore call **Frankfurt**
+  cross-region: `EMBEDDER=bedrock`, `BEDROCK_REGION=eu-central-1` (the
+  `bedrock_region` Terraform var), `EMBED_MODEL=amazon.titan-embed-text-v2:0`. The
+  task role's `invoke-bedrock` policy is scoped to `bedrock_region`.
+  **One-time console prerequisite:** in the **eu-central-1 Bedrock console → Model
+  access**, enable access for `amazon.titan-embed-text-v2:0`, or the `InvokeModel`
+  calls fail (recall/search degrade — the app still boots). A stub embedder is no
+  longer allowed with a real AI provider (`assertDeployReady` refuses it), and
+  `GET /health` + the `[adapters]` boot line report live-vs-stub so a
+  non-representative staging is caught immediately.
 - The **CloudFront ACM cert must still be in `us-east-1`** (global, region-independent).
 - Optional: **Fargate Spot** cuts task compute ~70% (~$3 vs ~$9) but a single Spot
   task can be interrupted — fine if you tolerate the blip, skip if you don't.

@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { loadConfig, assertDeployReady } from './config.js';
+import { loadConfig, assertDeployReady, describeAdapters } from './config.js';
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
@@ -60,6 +60,9 @@ async function main(): Promise<void> {
   // …and on a half-configured real provider (e.g. EMAIL_SENDER=ses with no
   // sender), with every offending key named at once (DEPLOY-READY).
   assertDeployReady(config);
+  // Startup signal: which adapters are live vs stub, so "staging is representative"
+  // is verifiable at a glance (and again on GET /health).
+  console.log(`[adapters] ${Object.entries(describeAdapters(config)).map(([k, v]) => `${k}=${v}`).join(' ')}`);
 
   // Migrations run as the superuser/owner (creates the app role + RLS policies).
   const migrationPool = createPool(config.databaseUrl);
@@ -200,6 +203,7 @@ async function main(): Promise<void> {
     referral,
     accountEmail,
     appBaseUrl: config.appBaseUrl,
+    adapterModes: describeAdapters(config),
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),

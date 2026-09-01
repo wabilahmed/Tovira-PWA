@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadConfig, assertDeployReady, ConfigError } from './config.js';
+import { loadConfig, assertDeployReady, describeAdapters, ConfigError } from './config.js';
 
 // [DEPLOY-READY] the boot-time audit: a real provider selected without its key
 // must fail fast with the MISSING KEY NAMED — never a silent half-up service.
@@ -68,5 +68,45 @@ describe('assertDeployReady', () => {
   it('collects EVERY offending key into one error (not just the first)', () => {
     const check = ready({ ...base, MODEL_PROVIDER: 'anthropic', TRANSCRIBER: 'groq', PUSH_SENDER: 'webpush' });
     expect(check).toThrow(/ANTHROPIC_API_KEY[\s\S]*GROQ_API_KEY[\s\S]*VAPID_PUBLIC_KEY/);
+  });
+
+  // [STAGING-EMBEDDER] a real AI provider with a STUB embedder is a half-real config
+  // — recall/search silently return nothing. It must fail fast, naming EMBEDDER.
+  it('MODEL_PROVIDER=anthropic with a STUB embedder fails, naming EMBEDDER', () => {
+    const check = ready({ ...base, MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-real' }); // EMBEDDER defaults to stub
+    expect(check).toThrow(ConfigError);
+    expect(check).toThrow(/EMBEDDER/);
+  });
+
+  it('MODEL_PROVIDER=anthropic with a real (bedrock) embedder passes', () => {
+    expect(ready({ ...base, MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-real', EMBEDDER: 'bedrock' })).not.toThrow();
+  });
+});
+
+describe('EMBED_DIM (embedding dimension)', () => {
+  const base = { DATABASE_URL: 'postgres://tovira:tovira@localhost:5432/tovira' };
+  it('defaults to 512 (half the storage/index RAM of 1024 on a t4g.small)', () => {
+    expect(loadConfig(base).embedDim).toBe(512);
+  });
+  it('accepts the Titan-v2 supported dimensions', () => {
+    expect(loadConfig({ ...base, EMBED_DIM: '1024' }).embedDim).toBe(1024);
+    expect(loadConfig({ ...base, EMBED_DIM: '256' }).embedDim).toBe(256);
+  });
+  it('rejects an unsupported dimension, naming EMBED_DIM', () => {
+    expect(() => loadConfig({ ...base, EMBED_DIM: '768' })).toThrow(/EMBED_DIM/);
+  });
+});
+
+describe('describeAdapters', () => {
+  const base = { DATABASE_URL: 'postgres://tovira:tovira@localhost:5432/tovira' };
+  it('reports all-stub for a local config', () => {
+    expect(describeAdapters(loadConfig(base))).toEqual({ model: 'stub', embedder: 'stub', transcriber: 'stub', push: 'stub', email: 'stub' });
+  });
+  it('reports live for the providers that are real', () => {
+    const modes = describeAdapters(loadConfig({ ...base, MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'k', EMBEDDER: 'bedrock', TRANSCRIBER: 'groq' }));
+    expect(modes.model).toBe('live');
+    expect(modes.embedder).toBe('live');
+    expect(modes.transcriber).toBe('live');
+    expect(modes.push).toBe('stub');
   });
 });

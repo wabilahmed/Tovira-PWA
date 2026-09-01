@@ -49,7 +49,8 @@ resource "aws_iam_role_policy" "task_bedrock" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["bedrock:InvokeModel"]
-      Resource = "arn:aws:bedrock:${var.region}::foundation-model/*"
+      # Bedrock lives in bedrock_region (Frankfurt), not the app's region (Stockholm).
+      Resource = "arn:aws:bedrock:${var.bedrock_region}::foundation-model/*"
     }]
   })
 }

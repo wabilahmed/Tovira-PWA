@@ -251,9 +251,9 @@ export function createFactsRepository(config: AppConfig, pool?: Pool): FactsRepo
 /** Text embeddings: stub locally, Bedrock (Titan v2) when configured. */
 export function createEmbedder(config: AppConfig): Embedder {
   if (config.embedderProvider === 'bedrock') {
-    return new BedrockEmbedder({ region: config.bedrockRegion, modelId: config.embedModel, dimension: 1024 });
+    return new BedrockEmbedder({ region: config.bedrockRegion, modelId: config.embedModel, dimension: config.embedDim });
   }
-  return new StubEmbedder(1024);
+  return new StubEmbedder(config.embedDim);
 }
 
 /** The extraction training log (P1-8), RLS-backed on pg. */

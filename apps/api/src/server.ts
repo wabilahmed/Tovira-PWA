@@ -91,6 +91,8 @@ export interface ApiDeps {
   referral: ReferralService;
   accountEmail: AccountEmailService;
   appBaseUrl: string;
+  /** Which pluggable adapters are live vs stub (health/observability). */
+  adapterModes?: Record<string, 'live' | 'stub'>;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -134,7 +136,9 @@ export function createApiServer(deps: ApiDeps): Server {
       if (request.method === 'GET' && (url === '/health' || url === '/healthz')) {
         try {
           await deps.pool.query('SELECT 1');
-          sendJson(response, 200, { status: 'ok' });
+          // adapters: which pluggable providers are live vs stub, so "staging is
+          // representative" is verifiable rather than assumed (STAGING-EMBEDDER).
+          sendJson(response, 200, { status: 'ok', ...(deps.adapterModes ? { adapters: deps.adapterModes } : {}) });
         } catch {
           sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' });
         }

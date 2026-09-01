@@ -93,6 +93,9 @@ export interface AppConfig {
   embedderProvider: EmbedderProvider;
   bedrockRegion: string;
   embedModel: string;
+  /** Embedding vector dimension (Titan-v2 supports 256/512/1024). MUST match the
+   *  notes.embedding pgvector column; changing it needs a migration + full re-embed. */
+  embedDim: number;
   pushProvider: PushProvider;
   vapidPublicKey: string;
   vapidPrivateKey: string;
@@ -169,6 +172,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     embedderProvider: parseEnum(env.EMBEDDER, EMBEDDER_PROVIDERS, 'stub', 'EMBEDDER'),
     bedrockRegion: env.BEDROCK_REGION?.trim() || 'us-east-1',
     embedModel: env.EMBED_MODEL?.trim() || 'amazon.titan-embed-text-v2:0',
+    embedDim: parseEmbedDim(env.EMBED_DIM),
     pushProvider: parseEnum(env.PUSH_SENDER, PUSH_PROVIDERS, 'stub', 'PUSH_SENDER'),
     vapidPublicKey: env.VAPID_PUBLIC_KEY?.trim() || '',
     vapidPrivateKey: env.VAPID_PRIVATE_KEY?.trim() || '',
@@ -204,6 +208,13 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
     need(isBlank(config.models[cls]), `MODEL_${cls.toUpperCase()} (model id must not be blank)`);
   }
 
+  // --- Embeddings (recall + semantic search) ---
+  // A real AI model provider paired with a STUB embedder is a HALF-REAL config: it
+  // boots quietly and then silently returns nothing for recall and semantic search.
+  // Refuse it so staging/prod can never be non-representative without someone noticing.
+  need(config.modelProvider === 'anthropic' && config.embedderProvider === 'stub',
+    "EMBEDDER (must be a real provider such as 'bedrock', not 'stub', when MODEL_PROVIDER is real — recall and semantic search return nothing with a stub embedder)");
+
   // --- Speech-to-text ---
   need(config.transcriberProvider === 'groq' && !config.groqApiKey, 'GROQ_API_KEY (TRANSCRIBER=groq)');
 
@@ -237,6 +248,22 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
       `Configuration is not deploy-ready. Fix these before starting with real providers:\n  - ${missing.join('\n  - ')}`,
     );
   }
+}
+
+/**
+ * A boot/health-time summary of which pluggable adapters are REAL vs STUB, so
+ * "staging is representative" is verifiable rather than assumed (STAGING-EMBEDDER).
+ * Logged at startup and surfaced on the health endpoint.
+ */
+export function describeAdapters(config: AppConfig): Record<'model' | 'embedder' | 'transcriber' | 'push' | 'email', 'live' | 'stub'> {
+  const mode = (isReal: boolean): 'live' | 'stub' => (isReal ? 'live' : 'stub');
+  return {
+    model: mode(config.modelProvider !== 'stub'),
+    embedder: mode(config.embedderProvider !== 'stub'),
+    transcriber: mode(config.transcriberProvider !== 'stub'),
+    push: mode(config.pushProvider !== 'stub'),
+    email: mode(config.emailProvider !== 'stub'),
+  };
 }
 
 /**
@@ -294,6 +321,22 @@ function parseSessionTtlHours(raw: string | undefined): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) {
     throw new ConfigError(`Invalid SESSION_TTL_HOURS: "${raw}". Expected a positive number.`);
+  }
+  return n;
+}
+
+/**
+ * Embedding dimension. Titan-v2 supports 256/512/1024. Default 512: half the storage
+ * and ANN-index RAM of 1024 on a t4g.small (2GB shared with Postgres), with negligible
+ * retrieval-quality loss. MUST match the notes.embedding pgvector column — changing it
+ * requires a migration to resize the column AND a full re-embed of every note.
+ */
+function parseEmbedDim(raw: string | undefined): number {
+  const value = raw?.trim();
+  if (!value) return 512;
+  const n = Number(value);
+  if (![256, 512, 1024].includes(n)) {
+    throw new ConfigError(`Invalid EMBED_DIM: "${value}". Expected one of: 256, 512, 1024.`);
   }
   return n;
 }
