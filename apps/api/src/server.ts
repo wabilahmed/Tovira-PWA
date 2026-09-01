@@ -105,9 +105,16 @@ export function createApiServer(deps: ApiDeps): Server {
 
   return createServer((req, res) => {
     void dispatch(req, res).catch((err: unknown) => {
-      // Never leak internals; never leave a hanging socket.
+      // Never leak internals (no stack/message in the body); never leave a hanging
+      // socket. MALFORMED-ID sweep: a malformed path id reaches Postgres as an
+      // invalid uuid (SQLSTATE 22P02) and would otherwise surface as a 500. Map it
+      // to a generic 400 for EVERY id-taking route at once — no route can forget.
       console.error(`[api] unhandled: ${err instanceof Error ? err.message : String(err)}`);
-      if (!res.headersSent) sendJson(res, 500, { error: 'internal_error' });
+      const code = (err as { code?: unknown })?.code;
+      if (!res.headersSent) {
+        if (code === '22P02') sendJson(res, 400, { error: 'bad_request', message: 'Invalid identifier.' });
+        else sendJson(res, 500, { error: 'internal_error' });
+      }
     });
 
     async function dispatch(
