@@ -44,6 +44,17 @@ describe('scoreNote', () => {
     expect(scoreNote(expected, actual).guessedDates).toBe(1);
   });
 
+  it('flags a false certainty (truth low-confidence, prediction high) on a matched promise', () => {
+    const low = { ...promise('circle back on the contract', null), confidence: 'low' as const };
+    const high = { ...promise('circle back on the contract', null), confidence: 'high' as const };
+    // truth low, predicted high → an unconfirmed guess presented as a fact
+    expect(scoreNote({ ...base, promises: [low] }, { ...base, promises: [high] }).falseCertainties).toBe(1);
+    // truth low, predicted low → fine
+    expect(scoreNote({ ...base, promises: [low] }, { ...base, promises: [low] }).falseCertainties).toBe(0);
+    // truth high, predicted high → fine (a firm promise stays firm)
+    expect(scoreNote({ ...base, promises: [high] }, { ...base, promises: [high] }).falseCertainties).toBe(0);
+  });
+
   it('counts a missed promise as a false negative', () => {
     const expected = { ...base, promises: [promise('send the MSA')] };
     expect(scoreNote(expected, { ...base, promises: [] }).promises.fn).toBe(1);

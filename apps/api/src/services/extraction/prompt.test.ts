@@ -47,7 +47,7 @@ describe('extraction prompt', () => {
   });
 
   it('exposes a prompt version for logging', () => {
-    expect(PROMPT_VERSION).toBe('tovira-extract-v0.5');
+    expect(PROMPT_VERSION).toBe('tovira-extract-v0.6');
   });
 
   // v0.3: Rule 0 — code-switched Arabic/Hindi/Urdu ↔ English is normal input.

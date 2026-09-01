@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { runGate, runEval, softGate, extractForEval } from './gate.js';
+import { runGate, runEval, softGate, extractForEval, evaluateGate } from './gate.js';
+import type { AggregateMetrics } from './score.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import type { Extraction } from '../services/extraction/types.js';
 import type { ModelClient } from '../ports/model.js';
@@ -32,7 +33,29 @@ const guessing = scriptedModel((n) =>
 
 const dropping = scriptedModel((n) => ({ ...n.expected, promises: [] }));
 
+const cleanMetrics: AggregateMetrics = {
+  promises: { precision: 1, recall: 1 },
+  people: { precision: 1, recall: 1 },
+  fabricatedPromises: 0,
+  guessedDates: 0,
+  mergedPeople: 0,
+  falseCertainties: 0,
+  notes: 1,
+};
+
 describe('[P1-9] extraction quality gate', () => {
+  // v0.6: a promise the answer key marks low-confidence, returned high, is a false
+  // certainty — the hard gate blocks it (never present an unconfirmed guess as a fact).
+  it('HARD-FAILS on a false certainty (low expected, returned high)', () => {
+    const r = evaluateGate({ ...cleanMetrics, falseCertainties: 1 }, 'overconfident');
+    expect(r.passed).toBe(false);
+    expect(r.reasons.join(' ')).toMatch(/certaint|confiden/i);
+  });
+
+  it('PASSES clean metrics with zero false certainties', () => {
+    expect(evaluateGate(cleanMetrics, 'clean').passed).toBe(true);
+  });
+
   it('produces precision/recall numbers per field', async () => {
     const metrics = await runEval(perfect, 'perfect-stub');
     expect(metrics.promises).toHaveProperty('precision');

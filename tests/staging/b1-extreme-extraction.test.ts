@@ -57,7 +57,6 @@ describe('[PART B · B1] extreme extraction — dense trap note (certified key)'
     const c = await rep.http.post<{ id: string }>('/clients', { name: 'Gulf Petrochem' });
     expect(c.status).toBe(201);
     const ex = await extractB1(rep, c.body.id);
-    // eslint-disable-next-line no-console
     console.log(`  [B1] extraction: ${JSON.stringify(ex)}`);
 
     // ── THE PLANT: the ambiguous numeric date (03/04/2026) is NEVER silently resolved ──

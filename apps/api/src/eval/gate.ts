@@ -16,6 +16,7 @@ export const GATE_HARD = {
   maxFabricatedPromises: 0,
   maxGuessedDates: 0,
   maxMergedPeople: 0,
+  maxFalseCertainties: 0,
 };
 export const GATE_SOFT = {
   minPromisesRecall: 0.9,
@@ -78,6 +79,9 @@ export function evaluateGate(metrics: AggregateMetrics, modelId: string): GateRe
   }
   if (metrics.mergedPeople > GATE_HARD.maxMergedPeople) {
     reasons.push(`merged ${metrics.mergedPeople} pair(s) of distinct people into one`);
+  }
+  if (metrics.falseCertainties > GATE_HARD.maxFalseCertainties) {
+    reasons.push(`presented ${metrics.falseCertainties} uncertain item(s) as high-confidence — never present an unconfirmed guess as a fact`);
   }
   return { model: modelId, passed: reasons.length === 0, reasons, metrics };
 }

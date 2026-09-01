@@ -8,6 +8,7 @@ export interface NoteScore {
   fabricatedPromises: number; // predicted promises with no matching expected
   guessedDates: number; // predicted a specific date where the truth is null
   mergedPeople: number; // two people who must stay distinct were collapsed into one
+  falseCertainties: number; // a promise the key marks low-confidence returned as high — an unconfirmed guess presented as a fact
 }
 
 function tokens(s: string): Set<string> {
@@ -47,6 +48,7 @@ export function scoreNote(
     fabricatedPromises: 0,
     guessedDates: 0,
     mergedPeople: 0,
+    falseCertainties: 0,
   };
 
   const predicted = actual ?? {
@@ -69,6 +71,9 @@ export function scoreNote(
       score.promises.tp += 1;
       // Guessed date: truth says null but the model produced a specific date.
       if (expected.promises[idx]!.due_date === null && p.due_date !== null) score.guessedDates += 1;
+      // False certainty: truth is uncertain (low) but the model asserted it high —
+      // presenting an unconfirmed guess as a fact (spec principle, now gate-enforced).
+      if (expected.promises[idx]!.confidence === 'low' && p.confidence === 'high') score.falseCertainties += 1;
     } else {
       score.promises.fp += 1;
       score.fabricatedPromises += 1;
@@ -134,6 +139,7 @@ export interface AggregateMetrics {
   fabricatedPromises: number;
   guessedDates: number;
   mergedPeople: number;
+  falseCertainties: number;
   notes: number;
 }
 
@@ -145,6 +151,7 @@ export function aggregate(scores: NoteScore[]): AggregateMetrics {
     fabricatedPromises: sum((s) => s.fabricatedPromises),
     guessedDates: sum((s) => s.guessedDates),
     mergedPeople: sum((s) => s.mergedPeople),
+    falseCertainties: sum((s) => s.falseCertainties),
     notes: scores.length,
   };
 }
