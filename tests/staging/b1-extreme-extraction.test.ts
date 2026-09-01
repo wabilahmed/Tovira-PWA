@@ -40,7 +40,7 @@ async function extractB1(rep: Identity, clientId: string): Promise<Extraction> {
   // Trigger extraction; ignore the response (a heavy multilingual note can exceed the
   // gateway — the server-side extraction or the background sweep still completes).
   await rep.http.post(`/notes/${paste.body.id}/extract`).catch(() => undefined);
-  const deadline = Date.now() + 100_000;
+  const deadline = Date.now() + 150_000;
   for (;;) {
     const res = await rep.http.get<{ notes: Array<{ id: string; status: string; extracted: Extraction | null }> }>(`/clients/${clientId}/notes`);
     const note = res.body.notes.find((n) => n.id === paste.body.id);
@@ -53,6 +53,8 @@ async function extractB1(rep: Identity, clientId: string): Promise<Extraction> {
 
 describe('[PART B · B1] extreme extraction — dense trap note (certified key)', () => {
   it('extracts the certified facts and refuses every trap', async () => {
+    // Generous budget: a heavy multilingual note on a cold task (fresh deploy, cold
+    // prompt cache) can take ~2 min; extraction is ~20s warm. Asserts correctness, not latency.
     const rep = await h.factory.newRep();
     const c = await rep.http.post<{ id: string }>('/clients', { name: 'Gulf Petrochem' });
     expect(c.status).toBe(201);
@@ -131,5 +133,5 @@ describe('[PART B · B1] extreme extraction — dense trap note (certified key)'
       detail: findings.length ? findings.join('; ') : `all traps refused: promises=2 sow=${dated[0]?.due_date} 03/04=null renewal=${renewal?.date}`,
       stopTheLine: pricing?.date != null, // a silently-resolved ambiguous date is the fabrication class the doctrine targets
     });
-  });
+  }, 180_000);
 });

@@ -147,7 +147,38 @@ two one-off audits are worth doing properly:
 - **Budget-gated flows** (FLOW 7 / 22 / 18) can be promoted from PARTIAL to full PASS in a
   dedicated run with a raised model-cost budget.
 
-## Part B — not yet run
+## Part B — B1 done (drove engine v0.6); B2–B4 pending
 
-Part B (extreme extraction, B1–B4) is pending. Per the plan there is a **hard stop after
-B1** for the answer key to be certified before scoring the refusal set. Awaiting go-ahead.
+**B1 — dense trap note.** The certified answer key (`tests/staging/PART-B-B1-SPEC.md`)
+scored the live engine and surfaced **two findings**, both fixed in a certified engine
+bump rather than tuned away:
+
+1. **Ambiguous numeric date (fabrication class):** the v0.5 engine silently resolved
+   `03/04/2026` day-first → `2026-04-03`. A silently-wrong date is the worst failure in
+   the set (a reminder fires a month late, no visible error).
+2. **Conditional promise:** "loop in procurement once it's signed" was logged
+   high-confidence, so it sat on the open list looking overdue instead of routing to
+   confirmation.
+
+**Fix — engine v0.6 (certified, deployed):**
+- Prompt rules: a fully-numeric date with ambiguous day/month order (both ≤12) → null +
+  raw (the note's locale is unknowable); a commitment contingent on an unfired event →
+  logged but `confidence: low`.
+- New hard gate metric `falseCertainties` (a key-`low` item returned `high`) — putting
+  "never present an unconfirmed guess as a fact" into the engine gate, not just the app.
+- Two owner-certified eval fixtures added (`ambiguous-numeric-date`, `conditional-promise`).
+- **P1-9 re-certification PASS** — 3-run aggregate, both subsets:
+  `promises p=1.00 r=1.00 · people p=0.96 r=1.00 · guessed=0 fabricated=0 merged=0 · falseCertainties=0`.
+  The retroactive `unresolved-vague-date` check came back clean (no hidden v0.5 finding);
+  multilingual stayed clean under the new date rule (Arabic-Indic numerals).
+- **B1 rescored GREEN** against the corrected key on live v0.6: `03/04/2026` → null,
+  procurement promise → low, all other traps refused.
+
+**Governance note:** the P1-9 gate "stays certified" only by discipline until it runs on
+every change with a key in the store. Recommend wiring the gate into CI (key in the
+secret store) so a future engine change cannot skip it.
+
+**B2–B4 pending.** B3 is the scale test (≈10k code-switched lines through the async
+import → sweep; must drain the whole import, not finish early — watch `scheduled_job_runs`)
+and needs a raised model-cost budget; the three budget-limited Part A PARTIALs
+(FLOW 7/22/18) run in that same higher-budget session.
