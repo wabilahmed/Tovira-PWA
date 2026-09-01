@@ -360,4 +360,25 @@ export const EVAL_NOTES: EvalNote[] = [
     expected: { ...empty, summary: 'Rep will send the renewal quote.', promises: [{ text: 'Send the renewal quote', owner: 'rep', due_date: '2026-09-04', due_raw: 'this Friday', confidence: 'high' }] },
     forbidden: ['surgery', 'knee'],
   },
+  // DATE-FIXTURES (v0.7, certified 2026-09-02): reference date + no-past-due. Imported
+  // cases set `today` to the MESSAGE date (the eval feeds today directly), mirroring the
+  // referenceDateFor(note) fix. No new inference (Rule 2 holds), no new restriction.
+  { id: 'date-fresh-friday', today: '2026-09-01', clientName: 'Acme', source: 'paste',
+    note: "I'll send the deck this Friday.",
+    expected: { ...empty, summary: 'Rep will send the deck this Friday.', promises: [{ text: 'Send the deck', owner: 'rep', due_date: '2026-09-04', due_raw: 'this Friday', confidence: 'high' }] } },
+  { id: 'date-fresh-by-monday', today: '2026-09-02', clientName: 'Beacon', source: 'paste',
+    note: "I'll get the revised terms to you by Monday.",
+    expected: { ...empty, summary: 'Rep will send the revised terms by Monday.', promises: [{ text: 'Send the revised terms', owner: 'rep', due_date: '2026-09-07', due_raw: 'by Monday', confidence: 'high' }] } },
+  { id: 'date-fresh-backwards', today: '2026-09-02', clientName: 'Cirrus', source: 'paste',
+    note: 'I was supposed to send the contract last Friday.',
+    expected: { ...empty, summary: 'Rep notes the contract was due last Friday and not sent.', promises: [{ text: 'Send the contract', owner: 'rep', due_date: null, due_raw: 'last Friday', confidence: 'high' }] } },
+  { id: 'date-import-day-only', today: '2026-03-10', clientName: 'Delta', source: 'paste',
+    note: "I'll get you the report by the 20th.",
+    expected: { ...empty, summary: 'Rep committed to sending the report by the 20th.', promises: [{ text: 'Send the report', owner: 'rep', due_date: null, due_raw: 'the 20th', confidence: 'high' }] } },
+  { id: 'date-import-absolute', today: '2026-03-10', clientName: 'Delta', source: 'paste',
+    note: "I'll get you the report by 20 March 2026.",
+    expected: { ...empty, summary: 'Rep committed to sending the report by 20 March 2026.', promises: [{ text: 'Send the report', owner: 'rep', due_date: '2026-03-20', due_raw: '20 March 2026', confidence: 'high' }] } },
+  { id: 'date-import-relative', today: '2026-03-10', clientName: 'Delta', source: 'paste',
+    note: "I'll send the samples this Friday.",
+    expected: { ...empty, summary: 'Rep will send the samples this Friday.', promises: [{ text: 'Send the samples', owner: 'rep', due_date: '2026-03-13', due_raw: 'this Friday', confidence: 'high' }] } },
 ];
