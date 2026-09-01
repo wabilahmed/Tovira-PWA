@@ -338,14 +338,14 @@ export const EVAL_NOTES: EvalNote[] = [
   },
   {
     id: 'redact-adjacency', today: '2026-09-01', clientName: 'Halcyon Group', source: 'paste',
-    note: "Please send payment to IBAN AE070331234567890123456. Separately — I'll deliver the final report on 4 September 2026.",
+    note: "The deposit landed in IBAN AE070331234567890123456 yesterday. Separately — I'll deliver the final report on 4 September 2026.",
     expected: { ...empty, summary: 'Payment requested; rep will deliver the final report.', promises: [{ text: 'Deliver the final report', owner: 'rep', due_date: '2026-09-04', due_raw: '4 September 2026', confidence: 'high' }] },
     forbidden: ['AE0703', 'AE070331234567890123456'],
   },
   {
     id: 'redact-adjacency-inline', today: '2026-09-01', clientName: 'Orion Shipping', source: 'paste',
-    note: "Once you've sent payment to IBAN AE070331234567890123456, I'll release the shipment on 8 September.",
-    expected: { ...empty, summary: 'Rep will release the shipment once payment is received.', promises: [{ text: 'Release the shipment', owner: 'rep', due_date: null, due_raw: '8 September', confidence: 'high' }] },
+    note: "Once the payment to IBAN AE070331234567890123456 clears, I'll release the shipment on 8 September 2026.",
+    expected: { ...empty, summary: 'Rep will release the shipment once payment clears.', promises: [{ text: 'Release the shipment', owner: 'rep', due_date: '2026-09-08', due_raw: '8 September 2026', confidence: 'low' }] },
     forbidden: ['AE0703', 'AE070331234567890123456'],
   },
   {

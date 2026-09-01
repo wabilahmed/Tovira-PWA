@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ExtractionService } from './extraction-service.js';
 import { EXTRACTION_SYSTEM_PROMPT } from './prompt.js';
+import { referenceDateFor } from './extraction-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
@@ -135,6 +136,25 @@ describe('ExtractionService', () => {
     await service.extractNote('user-A', note.id, '2026-07-09');
     await service.extractNote('user-A', note.id, '2026-07-09');
     expect(await facts.listPromisesByNote('user-A', note.id)).toHaveLength(1);
+  });
+
+
+  it('[DATE-REF] resolves an imported chat against its latest message date, not now', () => {
+    const iso = referenceDateFor({ messages: [{ sentAt: '2026-03-05' }, { sentAt: '2026-03-10' }] }, '2026-09-01');
+    expect(iso).toBe('2026-03-10'); // message era, NOT the import date
+    const wa = referenceDateFor({ messages: [{ sentAt: '10/03/2026, 14:00' }] }, '2026-09-01');
+    expect(wa).toBe('2026-03-10'); // WhatsApp DD/MM/YYYY parsed
+    expect(referenceDateFor({ messages: null }, '2026-09-01')).toBe('2026-09-01'); // fresh → caller's today
+  });
+
+  it('[DATE-INVARIANT] nulls a promise dated before the note reference (fresh note cannot be past-due)', async () => {
+    const past = JSON.stringify({ ...JSON.parse(VALID), promises: [{ text: 'Send the quote', owner: 'rep', due_date: '2026-07-01', due_raw: 'Monday', confidence: 'high' }] });
+    const { service, notes, facts, note } = await setup(model(past)); // note today = 2026-07-09 (reference), due 2026-07-01 is BEFORE it
+    await service.extractNote('user-A', note.id, '2026-07-09');
+    const stored = (await notes.findByIdForUser('user-A', note.id))!.extracted as { promises: { due_date: string | null; confidence: string }[] };
+    expect(stored.promises[0]!.due_date).toBeNull();   // nulled
+    expect(stored.promises[0]!.confidence).toBe('low'); // queued to confirmation
+    expect((await facts.listPromisesByNote('user-A', note.id))[0]!.dueDate).toBeNull(); // spine agrees
   });
 
   // [P1-8] logging

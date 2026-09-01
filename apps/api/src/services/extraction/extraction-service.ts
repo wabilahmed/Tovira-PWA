@@ -28,6 +28,26 @@ interface Attempt {
   cacheReadTokens: number;
 }
 
+/** Parse a message timestamp (ISO or WhatsApp DD/MM/YYYY) to YYYY-MM-DD, or null. */
+function parseMsgDate(sentAt: string | null | undefined): string | null {
+  if (!sentAt) return null;
+  const iso = /(\d{4})-(\d{2})-(\d{2})/.exec(sentAt);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const wa = /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(sentAt); // DD/MM/YYYY (WhatsApp)
+  if (wa) return `${wa[3]}-${wa[2]!.padStart(2, '0')}-${wa[1]!.padStart(2, '0')}`;
+  return null;
+}
+
+/** DATE-REF: the reference date for resolving a note's relative dates is the date its
+ *  CONTENT was created — for an imported chat, the latest message's timestamp (NOT the
+ *  import date); for fresh capture, the note's creation date; falling back to `today`. */
+export function referenceDateFor(note: { messages?: { sentAt: string | null }[] | null }, today: string): string {
+  const msgDates = (note.messages ?? []).map((m) => parseMsgDate(m.sentAt)).filter((d): d is string => d !== null);
+  // An imported chat resolves against its latest message date; fresh capture against the
+  // caller's today (which IS the capture date). Never the import-time now for imports.
+  return msgDates.length ? msgDates.sort().at(-1)! : today;
+}
+
 /**
  * Turn a note's raw text into structured facts (P1-6). The prompt is [cacheable
  * prefix] → [variable message with today's date]. On malformed/invalid output we
@@ -72,8 +92,9 @@ export class ExtractionService {
     // Per-rep glossary from THIS user's corrections (P4-9). Tenant-scoped, so it
     // can never influence another rep; injected into the variable message only.
     const glossary = this.corrections ? buildGlossary(await this.corrections.listByUser(userId)) : [];
+    const referenceDate = referenceDateFor(note, today);
     const userMessage = buildUserMessage({
-      today,
+      today: referenceDate,
       clientName: client?.name ?? 'Unknown',
       source: note.source,
       text: note.rawText,
@@ -109,6 +130,19 @@ export class ExtractionService {
         embedding = await this.embedder.embed(note.rawText);
       } catch (err) {
         console.warn(`[extract] embedding failed for note ${noteId}; saving facts without a vector`, err);
+      }
+      // DATE-INVARIANT: a promise can never be due BEFORE its note's reference date (a
+      // fresh note cannot commit to the past; a historical import legitimately can, since
+      // its reference is the message date). Enforced here at write time — a model rule can
+      // slip, a write-time check cannot. On violation: null the date, keep the raw phrase,
+      // drop to low, route to confirmation; log so the rate is observable.
+      for (const promise of extraction.promises) {
+        if (promise.due_date !== null && promise.due_date < referenceDate) {
+          // eslint-disable-next-line no-console
+          console.warn(`[date-invariant] note ${noteId}: due_date ${promise.due_date} < reference ${referenceDate} — nulled, low, queued`);
+          promise.due_date = null;
+          promise.confidence = 'low';
+        }
       }
       await this.notes.update(userId, noteId, { extracted: extraction, status: 'extracted', embedding });
       await this.facts.saveExtraction(userId, {
