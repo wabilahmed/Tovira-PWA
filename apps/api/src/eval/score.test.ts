@@ -55,6 +55,13 @@ describe('scoreNote', () => {
     expect(scoreNote({ ...base, promises: [high] }, { ...base, promises: [high] }).falseCertainties).toBe(0);
   });
 
+
+  it('flags a leaked sensitive value/fragment in the output (REDACT-5)', () => {
+    const withValue = { ...base, summary: 'send to AE070331234567890123456 today' };
+    expect(scoreNote(base, withValue, [], ['AE0703']).leakedValues).toBe(1);
+    expect(scoreNote(base, { ...base, summary: 'nothing sensitive' }, [], ['AE0703']).leakedValues).toBe(0);
+  });
+
   it('counts a missed promise as a false negative', () => {
     const expected = { ...base, promises: [promise('send the MSA')] };
     expect(scoreNote(expected, { ...base, promises: [] }).promises.fn).toBe(1);

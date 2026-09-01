@@ -17,6 +17,7 @@ export const GATE_HARD = {
   maxGuessedDates: 0,
   maxMergedPeople: 0,
   maxFalseCertainties: 0,
+  maxLeakedValues: 0,
 };
 export const GATE_SOFT = {
   minPromisesRecall: 0.9,
@@ -37,6 +38,8 @@ export async function extractForEval(model: ModelClient, note: EvalNote): Promis
   try {
     const res = await model.complete({
       system: EXTRACTION_SYSTEM_PROMPT,
+      cacheSystemPrompt: true,
+      cacheTtl: '1h',
       messages: [{ role: 'user', content: buildUserMessage({ today: note.today, clientName: note.clientName, source: note.source, text: note.note }) }],
       maxTokens: 2048,
       // temperature intentionally unset — deprecated for claude-sonnet-5 (see
@@ -63,7 +66,7 @@ export async function runEval(
   const scores = [];
   for (const note of notes) {
     const actual = await extractForEval(model, note);
-    scores.push(scoreNote(note.expected, actual, note.mustNotMerge));
+    scores.push(scoreNote(note.expected, actual, note.mustNotMerge, note.forbidden));
   }
   return { model: modelId, ...aggregate(scores) };
 }
@@ -82,6 +85,9 @@ export function evaluateGate(metrics: AggregateMetrics, modelId: string): GateRe
   }
   if (metrics.falseCertainties > GATE_HARD.maxFalseCertainties) {
     reasons.push(`presented ${metrics.falseCertainties} uncertain item(s) as high-confidence — never present an unconfirmed guess as a fact`);
+  }
+  if (metrics.leakedValues > GATE_HARD.maxLeakedValues) {
+    reasons.push(`leaked ${metrics.leakedValues} sensitive value(s) into the output — a Tier-1 value must never reach any field`);
   }
   return { model: modelId, passed: reasons.length === 0, reasons, metrics };
 }

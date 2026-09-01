@@ -9,6 +9,7 @@ export interface NoteScore {
   guessedDates: number; // predicted a specific date where the truth is null
   mergedPeople: number; // two people who must stay distinct were collapsed into one
   falseCertainties: number; // a promise the key marks low-confidence returned as high — an unconfirmed guess presented as a fact
+  leakedValues: number; // REDACT-5: a forbidden sensitive value/fragment appeared in the model output
 }
 
 function tokens(s: string): Set<string> {
@@ -40,6 +41,7 @@ export function scoreNote(
   expected: Extraction,
   actual: Extraction | null,
   mustNotMerge: Array<[string, string]> = [],
+  forbidden: string[] = [],
 ): NoteScore {
   const score: NoteScore = {
     promises: { tp: 0, fp: 0, fn: 0 },
@@ -49,6 +51,7 @@ export function scoreNote(
     guessedDates: 0,
     mergedPeople: 0,
     falseCertainties: 0,
+    leakedValues: 0,
   };
 
   const predicted = actual ?? {
@@ -119,6 +122,11 @@ export function scoreNote(
     if (!(hasName(a) && hasName(b))) score.mergedPeople += 1;
   }
 
+  if (forbidden.length) {
+    const blob = JSON.stringify(predicted).toLowerCase();
+    for (const f of forbidden) if (blob.includes(f.toLowerCase())) score.leakedValues += 1;
+  }
+
   return score;
 }
 
@@ -140,6 +148,7 @@ export interface AggregateMetrics {
   guessedDates: number;
   mergedPeople: number;
   falseCertainties: number;
+  leakedValues: number;
   notes: number;
 }
 
@@ -152,6 +161,7 @@ export function aggregate(scores: NoteScore[]): AggregateMetrics {
     guessedDates: sum((s) => s.guessedDates),
     mergedPeople: sum((s) => s.mergedPeople),
     falseCertainties: sum((s) => s.falseCertainties),
+    leakedValues: sum((s) => s.leakedValues),
     notes: scores.length,
   };
 }

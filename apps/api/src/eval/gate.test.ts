@@ -40,6 +40,7 @@ const cleanMetrics: AggregateMetrics = {
   guessedDates: 0,
   mergedPeople: 0,
   falseCertainties: 0,
+  leakedValues: 0,
   notes: 1,
 };
 
