@@ -31,6 +31,24 @@
 --   ledger_events(user_id, client_id)     -> clients   [server-written]
 --   client_deal_values(user_id,client_id) -> clients   [handler-guarded: NO -> fixed in 1a]
 
+-- The migration runs as the tables' owner, but on RDS that role is NOT a superuser
+-- and lacks BYPASSRLS, so FORCE ROW LEVEL SECURITY applies to it too — with no
+-- app.user_id set, the cleanup DELETEs below would match ZERO rows and silently fail
+-- to remove a violating reference, making the composite FK ADD fail. Lift FORCE for
+-- the owner across the cleanup (RLS stays ENABLED, so the app role tovira_app is still
+-- isolated), then restore FORCE at the end. The whole migration is one transaction.
+ALTER TABLE clients            NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE notes              NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE promises           NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE meetings           NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE notifications      NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE extraction_logs    NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE corrections        NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE images             NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE key_dates          NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE ledger_events      NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE client_deal_values NO FORCE ROW LEVEL SECURITY;
+
 -- ---- 1b-i: find, COUNT, report, and remove orphaned cross-tenant references ----
 DO $$
 DECLARE
@@ -149,3 +167,16 @@ ALTER TABLE client_deal_values DROP CONSTRAINT IF EXISTS client_deal_values_clie
 ALTER TABLE client_deal_values DROP CONSTRAINT IF EXISTS client_deal_values_user_id_client_id_fkey;
 ALTER TABLE client_deal_values ADD  CONSTRAINT client_deal_values_user_id_client_id_fkey
   FOREIGN KEY (user_id, client_id) REFERENCES clients(user_id, id) ON DELETE CASCADE;
+
+-- ---- Restore FORCE ROW LEVEL SECURITY on every table we lifted it from ----
+ALTER TABLE clients            FORCE ROW LEVEL SECURITY;
+ALTER TABLE notes              FORCE ROW LEVEL SECURITY;
+ALTER TABLE promises           FORCE ROW LEVEL SECURITY;
+ALTER TABLE meetings           FORCE ROW LEVEL SECURITY;
+ALTER TABLE notifications      FORCE ROW LEVEL SECURITY;
+ALTER TABLE extraction_logs    FORCE ROW LEVEL SECURITY;
+ALTER TABLE corrections        FORCE ROW LEVEL SECURITY;
+ALTER TABLE images             FORCE ROW LEVEL SECURITY;
+ALTER TABLE key_dates          FORCE ROW LEVEL SECURITY;
+ALTER TABLE ledger_events      FORCE ROW LEVEL SECURITY;
+ALTER TABLE client_deal_values FORCE ROW LEVEL SECURITY;
