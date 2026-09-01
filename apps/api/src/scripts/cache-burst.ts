@@ -8,6 +8,7 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
 import { EXTRACTION_SYSTEM_PROMPT, buildUserMessage, estimateTokens } from '../services/extraction/prompt.js';
+import { ModelBudget } from '../services/metrics/model-budget.js';
 
 interface Usage {
   inputTokens: number;
@@ -16,7 +17,7 @@ interface Usage {
   cacheReadInputTokens?: number;
 }
 
-async function burst(label: string, model: ReturnType<typeof createModelClient>, ttl: '5m' | '1h', notes: { today: string; clientName: string; text: string }[]) {
+async function burst(label: string, model: ReturnType<typeof createModelClient>, ttl: '5m' | '1h', notes: { today: string; clientName: string; text: string }[], budget: ModelBudget) {
   let creation = 0;
   let read = 0;
   let plainInput = 0;
@@ -31,6 +32,8 @@ async function burst(label: string, model: ReturnType<typeof createModelClient>,
       maxTokens: 256,
     });
     const u = (res.usage ?? { inputTokens: 0, outputTokens: 0 }) as Usage;
+    budget.record('extraction', 'claude-sonnet-5', u);
+    budget.check(); // abort if the burst blows past its estimate
     creation += u.cacheCreationInputTokens ?? 0;
     read += u.cacheReadInputTokens ?? 0;
     plainInput += u.inputTokens;
@@ -51,15 +54,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const model = createModelClient(config, 'extraction');
-  console.log(`model=claude-sonnet-5  prefix≈${estimateTokens(EXTRACTION_SYSTEM_PROMPT)} tok  ttl=${config.extractionCacheTtl}\n`);
+  console.log(`model=claude-sonnet-5  prefix≈${estimateTokens(EXTRACTION_SYSTEM_PROMPT)} tok  ttl=${config.extractionCacheTtl}`);
+  // TEST-BUDGET: estimate before spending. 30 cached Sonnet calls, prefix read at 0.1x
+  // + small variable input/output ≈ a few cents; cap at $0.20 with a 25% margin.
+  const budget = new ModelBudget(0.2, 0.25);
+  console.log(`budget: estimate $${(0.2).toFixed(2)} (+25% margin); aborts if exceeded\n`);
 
   // Burst A: 20 DISTINCT notes, same client/date → prefix must cache despite varying message.
   const a = Array.from({ length: 20 }, (_, i) => ({ today: '2026-09-01', clientName: 'Acme', text: `Note ${i}: quick update on item ${i}, nothing firm, will circle back.` }));
-  const ra = await burst('A', model, config.extractionCacheTtl, a);
+  const ra = await burst('A', model, config.extractionCacheTtl, a, budget);
 
   // Burst B: different client, different date → prefix must STILL hit (no leak).
   const b = Array.from({ length: 10 }, (_, i) => ({ today: '2026-11-15', clientName: 'Globex', text: `Different client note ${i}: spoke to their team, keeping warm.` }));
-  const rb = await burst('B', model, config.extractionCacheTtl, b);
+  const rb = await burst('B', model, config.extractionCacheTtl, b, budget);
+
+  const bud = budget.report();
+  console.log(`\n[budget] actual $${bud.totalUsd.toFixed(4)} (AED ${bud.totalAed.toFixed(3)}) vs estimate $${bud.estimateUsd.toFixed(2)} · ${bud.perClass.map((c) => `${c.taskClass}: ${c.calls} calls, cached=${c.cachedTokens} uncached=${c.uncachedTokens}`).join(' · ')}`);
 
   const totalRead = ra.read + rb.read;
   const totalCreation = ra.creation + rb.creation;
