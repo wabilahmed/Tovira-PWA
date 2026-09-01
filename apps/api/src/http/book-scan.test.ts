@@ -51,7 +51,7 @@ describe('[P5-3b] Book Scan endpoint', () => {
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Sara Lee' }),
     })).json()) as { id: string }).id;
-    await fetch(`${base}/clients/${cid}/notes/import`, {
+    const imp = await fetch(`${base}/clients/${cid}/notes/import`, {
       method: 'POST',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -62,6 +62,9 @@ describe('[P5-3b] Book Scan endpoint', () => {
         ].join('\n'),
       }),
     });
+    // IMPORT-ASYNC: extraction is deferred to the sweep — drain it via /extract.
+    const noteId = ((await imp.json()) as { note: { id: string } }).note.id;
+    await fetch(`${base}/notes/${noteId}/extract`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
 
     const body = (await (await fetch(`${base}/book-scan`, {
       headers: { authorization: `Bearer ${token}` },

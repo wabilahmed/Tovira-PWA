@@ -221,7 +221,7 @@ export async function handleNoteRoute(
         return true;
       }
       // Tag each speaker as client/rep so the extractor can flag unanswered
-      // client questions (P1-6). Store + extract ONLY the new slice.
+      // client questions (P1-6). Store ONLY the new slice.
       const messages = assignSpeakerRoles(fresh, client.name);
       const note = await deps.notes.create(userId, {
         clientId,
@@ -232,12 +232,15 @@ export async function handleNoteRoute(
         messages,
       });
       await deps.clients.touch(userId, clientId);
-      // The chat is already stored; extraction may be refused by the trial
-      // seeding ceiling (cost guard #4). If so, the note is SAFE and pending —
-      // we signal it so the UI can explain the ceiling (never client-side math).
-      const outcome = await deps.extraction.extractNote(userId, note.id, todayIso());
-      const updated = await deps.notes.findByIdForUser(userId, note.id);
-      sendJson(res, 201, { note: updated, imported: fresh.length, ceilingReached: outcome.status === 'trial_limit' });
+      // IMPORT-ASYNC: the chat + its messages are now durably stored. Extraction is
+      // an unbounded LLM call — running it inline blew the ~30s gateway timeout (a
+      // 504) for anything past a tiny chat. So we return immediately with the note
+      // 'pending_extraction'; the NoteSweepService drains it in the background, the
+      // same seam paste uses. The client polls note status. A failed extraction
+      // never half-writes: messages stay stored, facts are written atomically on
+      // success, and the sweep retries. The trial ceiling is discovered by the
+      // sweep (the note simply stays pending), not computed here.
+      sendJson(res, 202, { note, imported: fresh.length, status: note.status });
       return true;
     }
 

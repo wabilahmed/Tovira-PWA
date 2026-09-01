@@ -53,28 +53,65 @@ function importChat(token: string, clientId: string, body: unknown): Promise<Res
   });
 }
 
+async function listNotes(token: string, cid: string): Promise<Array<{ id: string; source: string; status: string; extracted: { unanswered_questions?: Array<{ question: string }> } | null; messages: Array<{ sender: string; sentAt: string | null; body: string; media: boolean }> | null }>> {
+  return ((await (await fetch(`${base}/clients/${cid}/notes`, { headers: { authorization: `Bearer ${token}` } })).json()) as { notes: Array<{ id: string; source: string; status: string; extracted: { unanswered_questions?: Array<{ question: string }> } | null; messages: Array<{ sender: string; sentAt: string | null; body: string; media: boolean }> | null }> }).notes;
+}
+
+/** IMPORT-ASYNC: import defers extraction to the sweep; the tests model the sweep by
+ *  calling the same /extract seam on the imported note. */
+async function drainImport(token: string, cid: string): Promise<void> {
+  const note = (await listNotes(token, cid)).find((n) => n.source === 'whatsapp_export' && n.status === 'pending_extraction');
+  if (note) await fetch(`${base}/notes/${note.id}/extract`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+}
+
 describe('[P1-4b] import a WhatsApp chat export', () => {
-  it('imports messages with sender + timestamp in order, then runs extraction', async () => {
+  it('IMPORT-ASYNC: import persists messages and returns 202 pending WITHOUT extracting inline', async () => {
     const { token } = await signup('import@example.com');
     const cid = await createClient(token, 'Acme');
 
     const res = await importChat(token, cid, { content: EXPORT, consent: true });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as { note: { id: string; source: string }; imported: number };
+    // 202 Accepted — extraction is deferred, so a slow model can never 504 the upload.
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { note: { id: string; source: string }; imported: number; status: string };
     expect(body.imported).toBe(4); // 4 messages (the continuation line folds into #2)
     expect(body.note.source).toBe('whatsapp_export');
+    expect(body.status).toBe('pending_extraction');
 
-    // Fetch the stored note — messages persisted, speaker-attributed, in order.
-    const notes = (await (await fetch(`${base}/clients/${cid}/notes`, {
-      headers: { authorization: `Bearer ${token}` },
-    })).json()) as { notes: Array<{ id: string; source: string; status: string; messages: Array<{ sender: string; sentAt: string | null; body: string; media: boolean }> | null }> };
-    const imported = notes.notes.find((n) => n.source === 'whatsapp_export')!;
+    // Messages are durably persisted immediately, speaker-attributed, in order — but
+    // the note is still pending (no inline extraction happened).
+    const imported = (await listNotes(token, cid)).find((n) => n.source === 'whatsapp_export')!;
     expect(imported.messages).toHaveLength(4);
     expect(imported.messages![0]).toMatchObject({ sender: 'Sara Lee', sentAt: '2026-01-15T09:12:03' });
     expect(imported.messages![1]!.body).toContain('bulk discount'); // multi-line folded in
     expect(imported.messages![2]!.media).toBe(true); // media placeholder flagged
-    // Batch extraction ran → note reaches the extracted state.
-    expect(imported.status).toBe('extracted');
+    expect(imported.status).toBe('pending_extraction'); // NOT extracted inline
+    expect(imported.extracted).toBeNull();
+
+    // The background sweep (modeled by /extract) then advances it to extracted.
+    await drainImport(token, cid);
+    const after = (await listNotes(token, cid)).find((n) => n.source === 'whatsapp_export')!;
+    expect(after.status).toBe('extracted');
+  });
+
+  // IMPORT-ASYNC: the reported 504 scenario — a larger multi-message chat. It must
+  // return promptly (202) with every message persisted, no matter how slow the model
+  // is, because extraction no longer runs inside the request.
+  it('a larger multi-message import returns 202 promptly with all messages persisted', async () => {
+    const { token } = await signup('bigimport@example.com');
+    const cid = await createClient(token, 'Northwind');
+    const lines: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      const speaker = i % 2 === 0 ? 'Northwind' : 'Alex Rep';
+      lines.push(`[2026-04-${String((i % 27) + 1).padStart(2, '0')}, 09:${String(i % 60).padStart(2, '0')}:00] ${speaker}: message number ${i} about the deal`);
+    }
+    const res = await importChat(token, cid, { content: lines.join('\n'), consent: true });
+    expect(res.status).toBe(202); // never blocks on extraction
+    const body = (await res.json()) as { imported: number; status: string };
+    expect(body.imported).toBe(40);
+    expect(body.status).toBe('pending_extraction');
+    // All 40 messages durably stored before we return — nothing lost.
+    const note = (await listNotes(token, cid)).find((n) => n.source === 'whatsapp_export')!;
+    expect(note.messages).toHaveLength(40);
   });
 
   // NEGATIVE: consent is required before anything is imported.
@@ -108,12 +145,12 @@ describe('[P1-4b] import a WhatsApp chat export', () => {
     expect(notes.notes.some((n) => n.status === 'import_failed')).toBe(true);
   });
 
-  // P1-6: an unanswered client question in the imported thread is flagged.
+  // P1-6: an unanswered client question in the imported thread is flagged. Extraction
+  // is now async, so drain the sweep first, then read the extracted facts.
   async function importedExtract(token: string, cid: string): Promise<{ unanswered_questions: Array<{ question: string }> }> {
-    const notes = (await (await fetch(`${base}/clients/${cid}/notes`, {
-      headers: { authorization: `Bearer ${token}` },
-    })).json()) as { notes: Array<{ source: string; extracted: { unanswered_questions: Array<{ question: string }> } }> };
-    return notes.notes.find((n) => n.source === 'whatsapp_export')!.extracted;
+    await drainImport(token, cid);
+    const note = (await listNotes(token, cid)).find((n) => n.source === 'whatsapp_export')!;
+    return note.extracted as { unanswered_questions: Array<{ question: string }> };
   }
 
   it('flags a client question the thread went dead on (P1-6)', async () => {

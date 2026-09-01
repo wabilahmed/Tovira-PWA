@@ -75,7 +75,7 @@ describe('[P5-3] day-one seeding via WhatsApp export', () => {
       body: JSON.stringify({ name: 'Sara Lee' }),
     })).json()) as { id: string }).id;
     // history imported (P1-4b)
-    await fetch(`${base}/clients/${cid}/notes/import`, {
+    const imp = await fetch(`${base}/clients/${cid}/notes/import`, {
       method: 'POST',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -86,6 +86,10 @@ describe('[P5-3] day-one seeding via WhatsApp export', () => {
         ].join('\n'),
       }),
     });
+    // IMPORT-ASYNC: extraction runs in the background — drain it so the Book Scan
+    // has findings to render in this same session (via the /extract seam).
+    const noteId = ((await imp.json()) as { note: { id: string } }).note.id;
+    await fetch(`${base}/notes/${noteId}/extract`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
 
     const s = await status(token);
     expect(s.seeded).toBe(true);

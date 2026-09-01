@@ -34,9 +34,10 @@ const EXPORT = [
 ].join('\n');
 
 describe('[P5-1-CEILING] import stopped by the trial seeding ceiling', () => {
-  // The rep's data is SAFE even when the ceiling blocks extraction, and the
-  // server SIGNALS the ceiling so the UI can explain it (no client-side math).
-  it('saves the imported chat and reports ceilingReached when extraction is blocked', async () => {
+  // IMPORT-ASYNC + ceiling: the upload is accepted (202) and the chat is stored
+  // intact even when the trial ceiling will block extraction — nothing is lost. The
+  // ceiling itself is surfaced at extraction time (the next test), not at upload.
+  it('saves the imported chat pending, losing nothing, even when the ceiling will block extraction', async () => {
     const token = await signup('ceiling-import@example.com');
     const cid = await createClient(token, 'Sara Lee');
 
@@ -45,10 +46,10 @@ describe('[P5-1-CEILING] import stopped by the trial seeding ceiling', () => {
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({ content: EXPORT, consent: true }),
     });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as { imported: number; ceilingReached: boolean; note: { status: string } };
+    expect(res.status).toBe(202); // accepted; extraction deferred
+    const body = (await res.json()) as { imported: number; status: string; note: { id: string } };
     expect(body.imported).toBeGreaterThan(0); // the processed portion is surfaced
-    expect(body.ceilingReached).toBe(true);
+    expect(body.status).toBe('pending_extraction');
 
     // The chat is stored intact — nothing lost — just not yet analysed.
     const notes = (await (await fetch(`${base}/clients/${cid}/notes`, { headers: { authorization: `Bearer ${token}` } })).json()) as {
@@ -58,6 +59,10 @@ describe('[P5-1-CEILING] import stopped by the trial seeding ceiling', () => {
     expect(imported.messages).not.toBeNull();
     expect((imported.messages as unknown[]).length).toBeGreaterThan(0);
     expect(imported.status).toBe('pending_extraction'); // saved, waiting — not failed
+
+    // Draining the sweep (via /extract) surfaces the ceiling: the note stays pending.
+    const ex = await fetch(`${base}/notes/${body.note.id}/extract`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    expect(((await ex.json()) as { status: string }).status).toBe('trial_limit');
   });
 
   // The per-note extract endpoint surfaces the same ceiling signal (server-side),

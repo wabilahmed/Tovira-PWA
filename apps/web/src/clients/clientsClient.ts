@@ -37,7 +37,7 @@ export interface Stakeholder {
 }
 
 export type ImportResult =
-  | { ok: true; imported: number; ceilingReached?: boolean; duplicate?: boolean }
+  | { ok: true; imported: number; ceilingReached?: boolean; duplicate?: boolean; pending?: boolean }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
 
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
@@ -128,16 +128,18 @@ export class ClientsClient {
     } catch {
       return { ok: false, error: 'other', message: 'Network error — please try again.' };
     }
-    // 201 = new content stored; 200 = idempotent no-op (a fully-overlapping
-    // re-import). BOTH are successes — the refresh loop must never read a correct
-    // dedupe as a failure.
-    if (res.status === 201 || res.status === 200) {
-      const body = (await res.json().catch(() => ({}))) as { imported?: number; ceilingReached?: boolean; duplicate?: boolean };
+    // 202 = accepted, messages stored, extraction running in the background
+    // (IMPORT-ASYNC — the upload no longer blocks on a slow model); 201 = stored
+    // (legacy synchronous); 200 = idempotent no-op (a fully-overlapping re-import).
+    // ALL are successes — the refresh loop must never read a correct dedupe as a
+    // failure. The Book Scan populates as the sweep drains the pending note.
+    if (res.status === 202 || res.status === 201 || res.status === 200) {
+      const body = (await res.json().catch(() => ({}))) as { imported?: number; ceilingReached?: boolean; duplicate?: boolean; status?: string };
       const imported = body.imported ?? 0;
       if (body.duplicate) return { ok: true, imported, duplicate: true };
-      // Only attach the flag when the ceiling was actually hit — keeps the common
-      // success shape { ok, imported } clean.
-      return body.ceilingReached ? { ok: true, imported, ceilingReached: true } : { ok: true, imported };
+      // Only attach a flag when it applies — keeps the common { ok, imported } shape clean.
+      if (body.ceilingReached) return { ok: true, imported, ceilingReached: true };
+      return body.status === 'pending_extraction' ? { ok: true, imported, pending: true } : { ok: true, imported };
     }
     if (res.status === 400) return { ok: false, error: 'consent', message: 'Please confirm consent to import.' };
     if (res.status === 413) return { ok: false, error: 'too_large', message: 'That export is too large to import.' };
