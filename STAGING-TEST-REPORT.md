@@ -178,7 +178,28 @@ bump rather than tuned away:
 every change with a key in the store. Recommend wiring the gate into CI (key in the
 secret store) so a future engine change cannot skip it.
 
-**B2–B4 pending.** B3 is the scale test (≈10k code-switched lines through the async
+**B2 — the refusal set (certified key, `tests/staging/PART-B-B2-SPEC.md`): 8/9 pass, no
+stop-the-line.** Nine adversarial notes engineered to bait fabrication; the engine
+refused correctly on eight — zero-commitment, role-only (no null-named person), pressured
+urgency (no date from "soon"), garbled transcript (honest empty), prompt injection
+(ignored it AND kept the legitimate promise + person), wrong-client (no Dana/Vortex on
+Apex's tab AND kept the real Apex promise), hypothetical (no promise, Friday not
+resolved), and the supersession trap (live state = a low-confidence conditional "send the
+SOW once legal clears", no retracted Thursday date). No fabricated promise/date/person
+anywhere; the wrong-client stop-the-line trigger stayed clean.
+
+**Finding B2-9 (tracker-side, not extraction): cross-note promises are not deduplicated.**
+Two near-duplicate notes describing the same commitment (a voice memo + the client's
+confirming message) produce **two** rows in `GET /promises` — `"Send the integration
+timeline to Priya"` and `"Send the integration timeline"`, different `noteId`s, one real
+obligation. Extraction is correct (each note extracts the commitment exactly once:
+`n1=1, n2=1`); the duplication is at the **promises spine/tracker aggregation layer**.
+Real-world certain (rep voice-notes, then pastes the client's WhatsApp confirmation an
+hour later), it inflates the promises tracker and the ledger and erodes trust in the
+count. Fix belongs at the tracker/spine (per-client dedup or merge), NOT the prompt —
+reported as a finding, not worked around. B2-9's test stays red as the faithful record.
+
+**B3–B4 pending.** B3 is the scale test (≈10k code-switched lines through the async
 import → sweep; must drain the whole import, not finish early — watch `scheduled_job_runs`)
 and needs a raised model-cost budget; the three budget-limited Part A PARTIALs
 (FLOW 7/22/18) run in that same higher-budget session.
