@@ -113,45 +113,50 @@ describe('[STAGING-3] capture, extraction & seeding', () => {
     h.report.pass('A', 'FLOW 9', 'soft language → no fabricated promise');
   });
 
-  // ---- FLOW 4: import a valid export → parsed + extracted + Book Scan populated ----
-  // A small (single-note) export so extraction stays well under the ~30s gateway
-  // timeout; the larger-import timeout is captured as its own finding below.
-  it('a valid WhatsApp import parses messages, extracts facts, and populates Book Scan', async () => {
+  // ---- FLOW 4: import a valid export → 202 pending → parsed → extracted → Book Scan ----
+  // IMPORT-ASYNC contract: the upload no longer runs extraction inline, so it returns
+  // 202 with the note pending; the sweep (drained here via /extract) does the work.
+  it('a valid WhatsApp import returns 202 pending, persists messages, then extracts + populates Book Scan', async () => {
     const rep = await h.factory.newRep();
     const clientId = await createClient(rep, 'Northwind');
     const { text } = whatsappExportFromEval('Northwind', [TRAP_NOTES.firmPromise]);
-    const imp = await rep.http.post<{ imported: number; ceilingReached: boolean }>(`/clients/${clientId}/notes/import`, { content: text, consent: true });
-    if (imp.status >= 500) {
-      h.report.fail('A', 'FLOW 4', 'valid import', `import returned ${imp.status} (server/gateway error) — see import-latency finding`, rep.http.lastExchange());
-    }
-    expect(imp.status, `import: ${rep.http.lastExchange()}`).toBe(201);
+    const imp = await rep.http.post<{ imported: number; status: string; note: { id: string } }>(`/clients/${clientId}/notes/import`, { content: text, consent: true });
+    expect(imp.status, `import: ${rep.http.lastExchange()}`).toBe(202); // accepted, extraction deferred
     expect(imp.body.imported).toBeGreaterThan(0);
+    expect(imp.body.status).toBe('pending_extraction');
     const notes = await rep.http.get<{ notes: NoteRecord[] }>(`/clients/${clientId}/notes`);
     const chat = notes.body.notes.find((n) => n.source === 'whatsapp_export');
     expect(chat, 'a whatsapp_export note exists').toBeTruthy();
-    expect((chat!.messages ?? []).length).toBeGreaterThan(0); // messages parsed
+    expect((chat!.messages ?? []).length).toBeGreaterThan(0); // messages parsed + persisted immediately
+    // Drain the background sweep (same /extract seam) so findings populate.
+    await rep.http.post(`/notes/${imp.body.note.id}/extract`);
     const scan = await rep.http.get<{ isEmpty: boolean; chatsRead: number }>('/book-scan');
     expect(scan.status).toBe(200);
     expect(scan.body.chatsRead).toBeGreaterThanOrEqual(1); // book scan sees the imported chat
-    h.report.pass('A', 'FLOW 4', 'import parses + extracts + Book Scan populated', `imported=${imp.body.imported} chatsRead=${scan.body.chatsRead}`);
+    h.report.pass('A', 'FLOW 4', 'async import: 202 pending → persisted → extracted → Book Scan', `imported=${imp.body.imported} chatsRead=${scan.body.chatsRead}`);
   });
 
-  // FINDING (recorded, not fixed): synchronous import extraction can exceed the ~30s
-  // CloudFront/ALB timeout even for a small multi-message chat → the client sees a 504
-  // although the server likely completed the write. A reliability risk for real seeding.
-  it('a modest multi-message import completes within the gateway timeout (no 504)', async () => {
+  // IMPORT-ASYNC (the closed finding): the endpoint must return PROMPTLY no matter how
+  // slow the model is — extraction runs in the background sweep, not in the request. The
+  // 3-message chat that used to 504 at ~30s must now return 202 well under the timeout.
+  it('a multi-message import returns 202 promptly (no inline model call, no 504)', async () => {
     const rep = await h.factory.newRep();
     const clientId = await createClient(rep, 'Latency Co');
     const { text } = whatsappExportFromEval('Latency Co', [TRAP_NOTES.firmPromise, TRAP_NOTES.codeSwitch, TRAP_NOTES.roleOnly]);
-    const imp = await rep.http.post<{ imported: number }>(`/clients/${clientId}/notes/import`, { content: text, consent: true });
-    if (imp.status === 504 || imp.status >= 500) {
-      h.report.fail('A', 'FLOW 4', 'import latency vs 30s gateway timeout',
-        `import of a 3-message chat returned ${imp.status} after ${Math.round(rep.http.history[rep.http.history.length - 1]!.durationMs)}ms — synchronous extraction exceeds the gateway timeout (reliability risk for seeding)`,
-        rep.http.lastExchange());
-    } else {
-      h.report.pass('A', 'FLOW 4', 'modest import under gateway timeout', `status=${imp.status}`);
+    const imp = await rep.http.post<{ status: string; note: { id: string } }>(`/clients/${clientId}/notes/import`, { content: text, consent: true });
+    const ms = Math.round(rep.http.history[rep.http.history.length - 1]!.durationMs);
+    if (imp.status >= 500) {
+      h.report.fail('A', 'FLOW 4', 'import latency (async)', `import returned ${imp.status} after ${ms}ms — the async path is not holding`, rep.http.lastExchange());
     }
-    expect(imp.status, 'a 3-message import should not hit the 30s gateway timeout').toBe(201);
+    expect(imp.status, `import: ${rep.http.lastExchange()}`).toBe(202);
+    // Returned WITHOUT waiting for extraction — comfortably under the 30s gateway limit
+    // regardless of model latency (the old failure was a ~30s inline model call).
+    expect(ms, `import took ${ms}ms — should be prompt (no inline model call)`).toBeLessThan(15000);
+    expect(imp.body.status).toBe('pending_extraction');
+    // And it still completes in the background: draining /extract advances it.
+    const ex = await rep.http.post<{ status: string }>(`/notes/${imp.body.note.id}/extract`);
+    expect(['extracted', 'needs_review', 'trial_limit']).toContain(ex.body.status);
+    h.report.pass('A', 'FLOW 4', 'async import returns promptly then extracts in background', `${ms}ms → ${ex.body.status}`);
   });
 
   // ---- FLOW 20: dedupe on re-import; only-new-tail on extended import ----
@@ -160,10 +165,10 @@ describe('[STAGING-3] capture, extraction & seeding', () => {
     const clientId = await createClient(rep, 'Dedupe Co');
     const { text } = whatsappExportFromEval('Dedupe Co', [TRAP_NOTES.firmPromise, TRAP_NOTES.yearlessDate]);
     const first = await rep.http.post<{ imported: number }>(`/clients/${clientId}/notes/import`, { content: text, consent: true });
-    expect(first.status).toBe(201);
+    expect(first.status).toBe(202); // async: accepted, extraction deferred
     const firstImported = first.body.imported;
 
-    // Identical re-import → duplicate, zero new.
+    // Identical re-import → duplicate, zero new (dedupe holds across the async resume).
     const again = await rep.http.post<{ imported: number; duplicate?: boolean; note: unknown }>(`/clients/${clientId}/notes/import`, { content: text, consent: true });
     expect(again.status).toBe(200);
     expect(again.body.duplicate).toBe(true);
@@ -172,7 +177,7 @@ describe('[STAGING-3] capture, extraction & seeding', () => {
     // Extended export (append one new message) → only the new tail is imported.
     const extended = `${text}\n[10/06/2026, 09:00:00] Dedupe Co: One more thing — please send the deck by next Tuesday.`;
     const ext = await rep.http.post<{ imported: number }>(`/clients/${clientId}/notes/import`, { content: extended, consent: true });
-    expect(ext.status).toBe(201);
+    expect(ext.status).toBe(202);
     expect(ext.body.imported).toBe(1); // only the appended tail, not the whole file again
     h.report.pass('A', 'FLOW 20', 'dedupe (0 new) + extended import (tail only)', `first=${firstImported} tail=${ext.body.imported}`);
   });
@@ -203,22 +208,23 @@ describe('[STAGING-3] capture, extraction & seeding', () => {
   });
 
   // ---- FLOW 7: trial seeding ceiling (structural — full exhaustion is out of budget) ----
-  it('the import response exposes the trial ceiling contract (ceilingReached)', async () => {
+  it('the import is accepted (202) and nothing is lost; the ceiling now surfaces at extraction', async () => {
     const rep = await h.factory.newRep();
     const clientId = await createClient(rep, 'Ceiling Co');
     const { text } = whatsappExportFromEval('Ceiling Co', [TRAP_NOTES.firmPromise]);
-    const imp = await rep.http.post<{ ceilingReached?: boolean; note: unknown }>(`/clients/${clientId}/notes/import`, { content: text, consent: true });
-    expect(imp.status).toBe(201);
-    // Well under the 200-extraction ceiling, so this is false — but the field is
-    // present, and the "nothing lost" invariant is proven by the import_failed test.
-    expect(imp.body).toHaveProperty('ceilingReached');
-    expect(imp.body.ceilingReached).toBe(false);
+    const imp = await rep.http.post<{ status: string; note: { id: string } }>(`/clients/${clientId}/notes/import`, { content: text, consent: true });
+    expect(imp.status).toBe(202);
+    // Async: the chat is stored pending, nothing lost. The trial ceiling is no longer
+    // signalled at import time — it surfaces at extraction (the /extract → 'trial_limit'
+    // status), where the note simply stays pending. Driving to the real 200-extraction
+    // limit is out of this run's cost budget (rail #6).
+    expect(imp.body.status).toBe('pending_extraction');
     h.report.record({
       part: 'A',
       flow: 'FLOW 7',
       name: 'trial seeding ceiling',
       outcome: 'PARTIAL',
-      detail: 'ceilingReached contract present; driving to the real 200-extraction limit is out of this run\'s cost budget (rail #6). "Nothing lost" verified via the import_failed preservation test.',
+      detail: 'async import accepted (202), nothing lost; ceiling now surfaces at extraction (/extract → trial_limit). Real 200-extraction exhaustion out of cost budget (rail #6).',
     });
   });
 });

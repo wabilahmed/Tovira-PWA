@@ -3,9 +3,11 @@
 -- Titan Text Embeddings V2 emits 1024 dims by default and also supports 512/256. We
 -- standardise on 512 (the EMBED_DIM default): it HALVES vector storage and ANN-index
 -- RAM versus 1024, which matters on a t4g.small (2GB shared with Postgres), with
--- negligible retrieval-quality loss on Titan-v2. Projected raw-vector storage at 170
--- users: ~340MB @ 512 vs ~680MB @ 1024 (1000 notes/user); the gap roughly doubles once
--- an ANN index is added.
+-- negligible retrieval-quality loss on Titan-v2. Storage/RAM at 170 users, 1000
+-- notes/user: raw vectors ~340MB @ 512 vs ~680MB @ 1024 — but the pgvector ANN index
+-- keeps its own copy plus graph links, so the real resident WORKING SET is ~2x:
+-- ~680MB @ 512, ~1.4GB @ 1024, and it must sit alongside Postgres + shared buffers.
+-- Hence 512 dims AND a db.t4g.medium (4GB) target for real load (see db_instance_class).
 --
 -- Every existing embedding was produced by the STUB embedder (semantically
 -- meaningless) and is 1024-dim, so we simply drop and re-add the column at 512 — real

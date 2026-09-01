@@ -327,9 +327,10 @@ function parseSessionTtlHours(raw: string | undefined): number {
 
 /**
  * Embedding dimension. Titan-v2 supports 256/512/1024. Default 512: half the storage
- * and ANN-index RAM of 1024 on a t4g.small (2GB shared with Postgres), with negligible
- * retrieval-quality loss. MUST match the notes.embedding pgvector column — changing it
- * requires a migration to resize the column AND a full re-embed of every note.
+ * and ANN-index working set of 1024 (the pgvector index keeps its own vector copy plus
+ * graph links, so resident RAM is ~2x the raw bytes) — paired with a db.t4g.medium
+ * target for real load. Negligible retrieval-quality loss. MUST match the
+ * notes.embedding pgvector column — changing it needs a migration + full re-embed.
  */
 function parseEmbedDim(raw: string | undefined): number {
   const value = raw?.trim();

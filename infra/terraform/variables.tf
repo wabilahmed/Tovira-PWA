@@ -29,9 +29,14 @@ variable "azs" {
 }
 
 variable "db_instance_class" {
-  description = "Graviton, right-sized. Bump only when CloudWatch says so."
-  type        = string
-  default     = "db.t4g.micro"
+  # Graviton, right-sized. Bumped to t4g.medium (4GB) as the target for ~170 real
+  # users: pgvector's ANN index keeps its own copy of every vector PLUS graph links,
+  # so the working set is ~2x the raw vector bytes (~680MB @ 512 dims, 1000 notes/user
+  # at 170 users) and must be resident alongside Postgres, connections and shared
+  # buffers. On 1–2GB that gets discovered under load; 4GB removes the question for
+  # ~$20/mo. Drop back to db.t4g.micro via a tfvar for a truly idle env.
+  type    = string
+  default = "db.t4g.medium"
 }
 
 variable "db_name" {
