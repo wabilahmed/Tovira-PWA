@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { promiseDedupeKey } from './dedupe.js';
 import type {
   FactsRepository,
   PromiseRecord,
@@ -33,6 +34,7 @@ interface PromiseRow {
   done: boolean;
   done_at: Date | null;
   confirmed: boolean;
+  merged_into: string | null;
   created_at: Date;
 }
 
@@ -50,12 +52,13 @@ function toRecord(row: PromiseRow): PromiseRecord {
     done: row.done,
     doneAt: row.done_at ? row.done_at.getTime() : null,
     confirmed: row.confirmed,
+    mergedInto: row.merged_into,
     createdAt: row.created_at.getTime(),
   };
 }
 
 const COLUMNS =
-  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, done_at, confirmed, created_at';
+  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, done_at, confirmed, merged_into, created_at';
 
 /** Postgres-backed spine store; every method runs in a tenant tx (RLS enforced). */
 export class PgFactsRepository implements FactsRepository {
@@ -63,15 +66,38 @@ export class PgFactsRepository implements FactsRepository {
 
   async saveExtraction(userId: string, input: SaveExtractionInput): Promise<void> {
     await withTenant(this.pool, userId, async (c) => {
-      // Idempotent per note: replace this note's spine rows.
+      // Idempotent per note: replace this note's spine rows. The self-FK
+      // (merged_into … ON DELETE SET NULL, migration 0040) promotes any child of a
+      // removed canonical back to a canonical automatically.
       await c.query('DELETE FROM promises WHERE note_id = $1', [input.noteId]);
       await c.query('DELETE FROM key_dates WHERE note_id = $1', [input.noteId]);
+      // Load this client's OPEN canonicals for strict write-time dedup (B2-9).
+      const { rows: openRows } = await c.query(
+        'SELECT id, owner, text, due_date FROM promises WHERE client_id = $1 AND merged_into IS NULL AND done = false',
+        [input.clientId],
+      );
+      const canonicalByKey = new Map<string, { id: string; dueDate: Date | null }>();
+      for (const r of openRows as { id: string; owner: string; text: string; due_date: Date | null }[]) {
+        canonicalByKey.set(promiseDedupeKey(r.owner, r.text), { id: r.id, dueDate: r.due_date });
+      }
       for (const p of input.promises) {
-        await c.query(
-          `INSERT INTO promises (user_id, note_id, client_id, text, owner, due_date, due_raw, confidence)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [userId, input.noteId, input.clientId, p.text, p.owner, p.due_date, p.due_raw, p.confidence],
+        const key = promiseDedupeKey(p.owner, p.text);
+        const canonical = canonicalByKey.get(key);
+        const { rows: ins } = await c.query(
+          `INSERT INTO promises (user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, merged_into)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+          [userId, input.noteId, input.clientId, p.text, p.owner, p.due_date, p.due_raw, p.confidence, canonical ? canonical.id : null],
         );
+        if (canonical) {
+          // Specific date wins: fill the canonical's null date from this duplicate.
+          if (canonical.dueDate === null && p.due_date !== null) {
+            await c.query('UPDATE promises SET due_date = $1, due_raw = $2 WHERE id = $3', [p.due_date, p.due_raw, canonical.id]);
+            canonical.dueDate = new Date(p.due_date);
+          }
+        } else {
+          // A new canonical this same note's later promises can also dedup against.
+          canonicalByKey.set(key, { id: (ins as { id: string }[])[0]!.id, dueDate: p.due_date ? new Date(p.due_date) : null });
+        }
       }
       for (const d of input.keyDates ?? []) {
         await c.query(
@@ -117,7 +143,7 @@ export class PgFactsRepository implements FactsRepository {
   async listPromisesByUser(userId: string): Promise<PromiseRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `SELECT ${COLUMNS} FROM promises WHERE user_id = $1 ORDER BY created_at DESC`,
+        `SELECT ${COLUMNS} FROM promises WHERE user_id = $1 AND merged_into IS NULL ORDER BY created_at DESC`,
         [userId],
       );
       return (rows as unknown as PromiseRow[]).map(toRecord);

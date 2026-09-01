@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { promiseDedupeKey } from './dedupe.js';
 import type {
   FactsRepository,
   PromiseRecord,
@@ -13,8 +14,14 @@ export class InMemoryFactsRepository implements FactsRepository {
   private keyDates: KeyDateRecord[] = [];
 
   async saveExtraction(userId: string, input: SaveExtractionInput): Promise<void> {
-    // Idempotent per note: drop this note's existing spine rows, then insert.
+    // Idempotent per note: drop this note's existing spine rows first. Mirror the
+    // Postgres FK ON DELETE SET NULL — any promise that was merged INTO a row we are
+    // removing is promoted back to a canonical (its mergedInto → null).
+    const removed = new Set(
+      this.promises.filter((p) => p.userId === userId && p.noteId === input.noteId).map((p) => p.id),
+    );
     this.promises = this.promises.filter((p) => !(p.userId === userId && p.noteId === input.noteId));
+    for (const p of this.promises) if (p.mergedInto !== null && removed.has(p.mergedInto)) p.mergedInto = null;
     this.keyDates = this.keyDates.filter((d) => !(d.userId === userId && d.noteId === input.noteId));
     for (const kd of input.keyDates ?? []) {
       this.keyDates.push({
@@ -30,6 +37,18 @@ export class InMemoryFactsRepository implements FactsRepository {
       });
     }
     for (const promise of input.promises) {
+      // Strict write-time dedup: an OPEN canonical for this (user, client) with the
+      // same owner + normalized text is the same commitment. Link this note to it
+      // instead of creating a second tracker row; a done promise is not a target.
+      const key = promiseDedupeKey(promise.owner, promise.text);
+      const canonical = this.promises.find(
+        (p) =>
+          p.userId === userId &&
+          p.clientId === input.clientId &&
+          p.mergedInto === null &&
+          !p.done &&
+          promiseDedupeKey(p.owner, p.text) === key,
+      );
       this.promises.push({
         id: randomUUID(),
         userId,
@@ -43,8 +62,15 @@ export class InMemoryFactsRepository implements FactsRepository {
         done: false,
         doneAt: null,
         confirmed: false,
+        mergedInto: canonical ? canonical.id : null,
         createdAt: Date.now(),
       });
+      // Specific date wins: a duplicate that carries a resolved date fills the
+      // canonical's null date (the second source genuinely adds information).
+      if (canonical && canonical.dueDate === null && promise.due_date !== null) {
+        canonical.dueDate = promise.due_date;
+        canonical.dueRaw = promise.due_raw;
+      }
     }
   }
 
@@ -95,7 +121,9 @@ export class InMemoryFactsRepository implements FactsRepository {
   }
 
   async listPromisesByUser(userId: string): Promise<PromiseRecord[]> {
-    return this.promises.filter((p) => p.userId === userId);
+    // Tracker + every counting surface: canonicals only, so a deduped commitment
+    // appears once everywhere (B2-9).
+    return this.promises.filter((p) => p.userId === userId && p.mergedInto === null);
   }
 
   async listPromisesByNote(userId: string, noteId: string): Promise<PromiseRecord[]> {

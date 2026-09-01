@@ -19,6 +19,10 @@ export interface PromiseRecord {
   doneAt: number | null;
   /** Whether the rep has confirmed this (uncertain items start unconfirmed). */
   confirmed: boolean;
+  /** B2-9 dedup: the canonical promise this row is a duplicate of, or null if it IS
+   *  the canonical. The tracker (listPromisesByUser) shows only canonicals; a merged
+   *  child stays attached to its note so the receipt trail shows every source. */
+  mergedInto: string | null;
   createdAt: number;
 }
 
