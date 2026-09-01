@@ -188,16 +188,27 @@ resolved), and the supersession trap (live state = a low-confidence conditional 
 SOW once legal clears", no retracted Thursday date). No fabricated promise/date/person
 anywhere; the wrong-client stop-the-line trigger stayed clean.
 
-**Finding B2-9 (tracker-side, not extraction): cross-note promises are not deduplicated.**
-Two near-duplicate notes describing the same commitment (a voice memo + the client's
-confirming message) produce **two** rows in `GET /promises` — `"Send the integration
-timeline to Priya"` and `"Send the integration timeline"`, different `noteId`s, one real
-obligation. Extraction is correct (each note extracts the commitment exactly once:
-`n1=1, n2=1`); the duplication is at the **promises spine/tracker aggregation layer**.
-Real-world certain (rep voice-notes, then pastes the client's WhatsApp confirmation an
-hour later), it inflates the promises tracker and the ledger and erodes trust in the
-count. Fix belongs at the tracker/spine (per-client dedup or merge), NOT the prompt —
-reported as a finding, not worked around. B2-9's test stays red as the faithful record.
+**Finding B2-9 (tracker-side, not extraction): cross-note promises were not
+deduplicated — FIXED (strict, write-time), with a bounded remainder deferred.**
+Two near-duplicate notes describing the same commitment produced **two** rows in
+`GET /promises`; extraction was correct (`n1=1, n2=1`), so the duplication was at the
+**promises spine/tracker layer**. Fixed at the spine, write-time (migration 0040,
+`fix(B2-9)`): a duplicate is stored pointing at the canonical (`merged_into`), the
+tracker returns canonicals only, and every source note keeps its link (receipt trail).
+**Proven:** 7 unit tests (collapse, specific-date-wins, over-merge guard, owner/client
+distinct, re-extract-promote, done-not-a-target), the FK `ON DELETE SET NULL` promote
+validated live under FORCE RLS, and a live staging probe (two notes, cosmetic-only
+difference → one tracker row).
+
+**Match is strict by design** (client + owner + cosmetically-normalized text): merging
+two genuinely-distinct commitments (fabrication by omission) is worse than a visible
+duplicate. Consequence: when the model **rewords** the same commitment (B2-9's live pair:
+`"Send Priya the integration timeline"` vs `"Send the integration timeline"`), strict
+match correctly does not merge them — that is **semantic** merging, a separate and
+separately-certified step, deliberately out of scope here. B2-9's staging assertion
+therefore still shows two for the reworded pair; the shipped fix covers true
+exact/normalized duplicates (re-imports, identical extractions), which are the common
+real case. Semantic promise-merge is logged as the follow-up.
 
 **B3–B4 pending.** B3 is the scale test (≈10k code-switched lines through the async
 import → sweep; must drain the whole import, not finish early — watch `scheduled_job_runs`)
