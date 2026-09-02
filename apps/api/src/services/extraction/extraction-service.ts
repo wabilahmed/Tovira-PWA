@@ -138,7 +138,6 @@ export class ExtractionService {
       // drop to low, route to confirmation; log so the rate is observable.
       for (const promise of extraction.promises) {
         if (promise.due_date !== null && promise.due_date < referenceDate) {
-          // eslint-disable-next-line no-console
           console.warn(`[date-invariant] note ${noteId}: due_date ${promise.due_date} < reference ${referenceDate} — nulled, low, queued`);
           promise.due_date = null;
           promise.confidence = 'low';
