@@ -131,7 +131,9 @@ Input:
 "Spoke to the buyer at Northwind. I committed to sending over the signed MSA by this Friday. They confirmed budget is approved for Q3."
 
 Output:
-{"summary":"Call with Northwind buyer; rep committed to sending the signed MSA. Budget approved for Q3.","promises":[{"text":"Send the signed MSA","owner":"rep","due_date":null,"due_raw":"this Friday","confidence":"high"}],"people":[{"name":null,"role":"buyer","reports_to":null,"decision_role":"unknown","notes":"Buyer at Northwind"}],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"meeting":null}
+{"summary":"Call with the Northwind buyer; rep committed to sending the signed MSA, and Q3 budget is approved.","promises":[{"text":"Send the signed MSA","owner":"rep","due_date":null,"due_raw":"this Friday","confidence":"high"}],"people":[],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"meeting":null}
+
+Note: "the buyer" is a role with no name — per Rule 5 it is NOT a person, so "people" is empty. The buyer is captured in the summary; never emit a person with a null or empty name.
 
 Note: "this Friday" is resolvable against today's date at call time; keep the phrase in due_raw and resolve due_date to the actual YYYY-MM-DD.
 
