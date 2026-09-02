@@ -5,6 +5,7 @@ import {
   estimateTokens,
   PROMPT_VERSION,
 } from './prompt.js';
+import { asExtraction } from './validate.js';
 
 // [P1-6] The caching contract: a big, byte-identical prefix, with today's date
 // kept OUT of it (in the variable message) so the cache doesn't break daily.
@@ -79,6 +80,34 @@ describe('extraction prompt', () => {
   it('forbids emitting a person with no name (role-only references)', () => {
     expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/requires a stated name/i);
     expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/null or empty name/i);
+  });
+
+  // A worked example teaches harder than a written rule — Example D once emitted a
+  // null-named "buyer", overriding Rule 5 ~87% of the time and shipping that violation
+  // dark through three certifications. So every example output must itself satisfy the
+  // schema AND the rules it sits beside. This test parses them and checks.
+  it('every worked example satisfies the schema and the rules it sits beside', () => {
+    const outputs = EXTRACTION_SYSTEM_PROMPT.split('\n').filter((l) => l.trim().startsWith('{"summary"'));
+    expect(outputs.length, 'worked examples are present to check').toBeGreaterThan(5);
+    for (const line of outputs) {
+      const label = line.slice(0, 55);
+      let ex;
+      try {
+        ex = asExtraction(JSON.parse(line));
+      } catch (e) {
+        throw new Error(`example is not schema-valid JSON [${label}…]: ${(e as Error).message}`);
+      }
+      expect(ex, `example failed schema validation [${label}…]`).not.toBeNull();
+      // Rule 5: never a person with a null/empty name.
+      for (const p of ex!.people) {
+        expect((p.name ?? '').trim(), `example emits a null/empty-named person, contradicting Rule 5 [${label}…]`).not.toBe('');
+      }
+      // Rule 4/promises: owner is rep or client, confidence is high|low.
+      for (const p of ex!.promises) {
+        expect(['rep', 'client'], `example promise owner [${label}…]`).toContain(p.owner);
+        expect(['high', 'low'], `example promise confidence [${label}…]`).toContain(p.confidence);
+      }
+    }
   });
 
   // P4-9: the glossary goes in the VARIABLE message only — the cached prefix
