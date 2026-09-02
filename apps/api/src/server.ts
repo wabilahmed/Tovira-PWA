@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import type { Pool } from 'pg';
+import { PROMPT_VERSION } from './services/extraction/prompt.js';
 import type { AuthService } from './services/auth/auth-service.js';
 import type { RateLimiter } from './services/security/rate-limiter.js';
 import type { ClientRepository } from './ports/client-repository.js';
@@ -149,6 +150,18 @@ export function createApiServer(deps: ApiDeps): Server {
         request.url = stripped === '' ? '/' : stripped;
       }
       const url = (request.url ?? '/').split('?')[0];
+
+      // /version: what is actually deployed — the prompt version + build sha — so
+      // "what is staging running" is a curl, not an investigation (FAB-INVESTIGATE).
+      // Unauthenticated, no DB: a build identity read, safe to expose.
+      if (request.method === 'GET' && url === '/version') {
+        sendJson(response, 200, {
+          promptVersion: PROMPT_VERSION,
+          build: process.env.BUILD_SHA ?? process.env.GIT_SHA ?? 'unknown',
+          env: process.env.DEPLOY_ENV ?? process.env.NODE_ENV ?? 'unknown',
+        });
+        return;
+      }
 
       if (request.method === 'GET' && (url === '/health' || url === '/healthz')) {
         try {

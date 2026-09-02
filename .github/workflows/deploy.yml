@@ -96,6 +96,10 @@ jobs:
           task-definition: taskdef.json
           container-name: api # matches infra/terraform/ecs.tf
           image: ${{ steps.build.outputs.image }}
+          # Stamp the deployed commit so GET /version reports the real build (not "unknown").
+          # "What is staging running" should be a curl, not an investigation (FAB-INVESTIGATE).
+          environment-variables: |
+            BUILD_SHA=${{ env.IMAGE_SHA }}
 
       - name: Deploy to ECS (migrations run on boot) and wait for stability
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2

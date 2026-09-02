@@ -5,6 +5,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
 import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
 import { ModelMetricsRegistry, NA_BELOW_MIN } from '../services/metrics/model-metrics.js';
+import { PROMPT_VERSION } from '../services/extraction/prompt.js';
 
 // SWEEP-NEVER-RUNS: /health must surface the scheduled brain's last run per job, so a
 // scheduler that never fires is visible instead of looking like one with nothing to do.
@@ -50,6 +51,19 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
     const nightly = body.jobs.find((j) => j.name === 'priorities-nightly');
     expect(nightly!.ok).toBe(false);
     expect(nightly!.error).toBe('boom'); // a failing job is visible, with its reason
+  });
+
+  // "What is staging running" should never take an investigation (FAB-INVESTIGATE lesson):
+  // /version reports the deployed prompt version + build sha, unauthenticated, no DB.
+  it('GET /version reports the prompt version and build, prefix-stripped too', async () => {
+    for (const path of ['/version', '/api/version']) {
+      const res = await fetch(`${base}${path}`);
+      expect(res.status, path).toBe(200);
+      const body = (await res.json()) as { promptVersion: string; build: string; env: string };
+      expect(body.promptVersion).toBe(PROMPT_VERSION);
+      expect(typeof body.build).toBe('string'); // sha or 'unknown', never absent
+      expect(typeof body.env).toBe('string');
+    }
   });
 
   it('surfaces per-class cache hit rate over cacheable calls (n/a for uncacheable classes)', async () => {
