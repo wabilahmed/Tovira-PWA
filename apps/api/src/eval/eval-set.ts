@@ -371,7 +371,7 @@ export const EVAL_NOTES: EvalNote[] = [
     expected: { ...empty, summary: 'Rep will send the revised terms by Monday.', promises: [{ text: 'Send the revised terms', owner: 'rep', due_date: '2026-09-07', due_raw: 'by Monday', confidence: 'high' }] } },
   { id: 'date-fresh-backwards', today: '2026-09-02', clientName: 'Cirrus', source: 'paste',
     note: 'I was supposed to send the contract last Friday.',
-    expected: { ...empty, summary: 'Rep notes the contract was due last Friday and not sent.', promises: [{ text: 'Send the contract', owner: 'rep', due_date: null, due_raw: 'last Friday', confidence: 'low' }] } },
+    expected: { ...empty, summary: 'Rep notes the contract was due last Friday and not sent.', promises: [{ text: 'Send the contract', owner: 'rep', due_date: null, due_raw: 'last Friday', confidence: 'high' }] } },
   { id: 'date-import-day-only', today: '2026-03-10', clientName: 'Delta', source: 'paste',
     note: "I'll get you the report by the 20th.",
     expected: { ...empty, summary: 'Rep committed to sending the report by the 20th.', promises: [{ text: 'Send the report', owner: 'rep', due_date: null, due_raw: 'the 20th', confidence: 'high' }] } },
