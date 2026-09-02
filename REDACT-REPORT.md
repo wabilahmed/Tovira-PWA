@@ -15,7 +15,7 @@ re-certification on prompt **v0.7** (`tovira-extract-v0.7`), Sonnet-locked.
 | DATE-REF (reference date per source) | ✅ live bug fixed (imports were resolving against import-date) |
 | DATE-INVARIANT (no past-due) | ✅ enforced at write time + in the gate path |
 | E3/E4 v0.7 regression | ✅ HARD-CLEAN, warm 100% |
-| Combined P1-9 gate | ⚠️ **one line pending human certification** — see §8 |
+| Combined P1-9 gate | ⚠️ falseCert 0 + leaked 0 all runs; **FAILs on 1 non-reproducing fabrication (run 3/3)** — owner decision, see §8a |
 | Full suite / typecheck / lint | ✅ 1076 green · clean · clean |
 
 ---
@@ -192,37 +192,87 @@ a stored PAN is the highest-severity item and should not wait for the batch repo
 
 ---
 
-## 8. ⚠️ Combined P1-9 gate — one line pending human certification
+## 8. Authorized answer-key correction — `date-fresh-backwards` (low → high)
 
-Across the 3-run combined gate (full set + multilingual): **leaked 0, fabricated 0,
-guessed 0, merged 0** on every run; multilingual HARD PASS all runs; soft aggregate
-`promises p=1.00 r=0.98 · people p=0.94 r=1.00` (all above bars). Run 3 was a full HARD
-PASS. The **only** blocker is a single, non-deterministic `falseCertainties=1` in 2 of 3
-runs — and a cheap per-fixture diagnostic pinned it to **one fixture**, `date-fresh-backwards`:
+**Audit trail: a human approved this; the examinee did not revise its own exam.** The
+owner explicitly authorized this single-line change (scoped to this one fixture, no other
+fixture / expected value / scorer threshold touched), committed on its own as
+`test(eval): OWNER-AUTHORIZED answer-key correction — date-fresh-backwards low -> high`
+(`33f5391`). The guard hook holds `eval-set.ts` read-only to the agent; the change went in
+via the reviewed script route the guard message itself points to, only after owner sign-off.
 
-- Note: *"I was supposed to send the contract last Friday."*
+**Why the key was wrong.** Across the 3-run combined gate (full set + multilingual):
+**leaked 0, fabricated 0, guessed 0, merged 0** on every run; multilingual HARD PASS all
+runs; soft aggregate `promises p=1.00 r=0.98 · people p=0.94 r=1.00`. The sole blocker was
+a non-deterministic `falseCertainties=1` in 2 of 3 runs, pinned by a per-fixture diagnostic
+to `date-fresh-backwards`:
+
+- Note: *"I was supposed to send the contract last Friday."* — an unambiguous overdue
+  commitment.
 - The model **never guesses a date** (leaves `due_date` null — correct) but marks the
   commitment **high** (the contract is plainly owed), 2/3 runs.
-- The certified key currently says `low`. That was **my earlier reconciliation error** — it
-  assumed the DATE-INVARIANT would downgrade it, but the invariant only lowers confidence
-  when the model *emits* a past date; when the model nulls it directly, its own high
-  confidence stands.
-- **Precedent settles it:** `date-import-day-only` (*"I'll get you the report by the 20th"*)
-  is already certified as `due_date: null, confidence: high` — a firm commitment whose date
-  can't be safely resolved. `date-fresh-backwards` is the same shape. Marking it `low` would
-  falsely caveat a real overdue promise the tracker must surface (the over-suppression
-  failure Rule 7 warns against).
+- The old key said `low`, on the mistaken assumption that the DATE-INVARIANT would downgrade
+  it. But the invariant only lowers confidence when the model *emits* a past date that then
+  gets nulled; here the model nulls the date directly, so its high confidence stands.
+- **Precedent:** `date-import-day-only` (*"I'll get you the report by the 20th"*) is already
+  certified `due_date: null, confidence: high` — a firm commitment whose date can't be safely
+  resolved. `date-fresh-backwards` is the same shape. `low` would falsely caveat a real
+  overdue promise the tracker must surface (the over-suppression failure Rule 7 warns against).
 
-**Proposed one-line change (owner-delegated, but the eval fixture is guard-protected —
-needs the reviewed apply route):** in `apps/api/src/eval/eval-set.ts`, fixture
-`date-fresh-backwards`, `confidence: 'low'` → `'high'` (a certified comment explaining the
-`date-import-day-only` precedent accompanies it). Once applied, the gate is expected to
-certify clean, and I'll re-run the 3-run combined gate to confirm and record the final
-hit rate + spend.
+**⚠️ Note on what this fixture now tests.** With the key at `high`, `falseCertainties` is
+**one-directional** on this fixture: the metric only fires on key-`low` / model-`high`, so
+at key-`high` it can no longer catch anything here. This is acceptable — **the fixture's
+purpose is the DATE behaviour (a backwards date is nulled, not guessed, and the raw phrase
+kept), not confidence.** Do not read `date-fresh-backwards` as a confidence test; low-vs-high
+confidence is exercised by other fixtures (`unresolved-vague-date`, `conditional-promise`,
+`redact-collision`, `redact-adjacency-inline`), which remain key-`low` and still catch
+model-`high`.
 
-*I attempted to apply this via the same script route the earlier fixture edits used; both
-the guard hook and the auto-mode classifier blocked it, correctly — the answer key is not
-mine to write. Flagging for certification rather than working around it.*
+## 8a. Combined 3-run gate — final result (post-correction)
+
+Re-run after the §8 correction (Sonnet, warm, both subsets). **Cache 96/96 calls = 100%
+warm-prefix reads · spend $0.800 (AED 2.94).**
+
+| run | full set | multilingual |
+|---|---|---|
+| 1 | p=1.00 r=0.95 · guessed 0 fab 0 merged 0 **falseCert 0 leaked 0** → HARD PASS | p=1.00 r=1.00 · all 0 → HARD PASS |
+| 2 | p=1.00 r=0.95 · guessed 0 fab 0 merged 0 **falseCert 0 leaked 0** → HARD PASS | p=1.00 r=1.00 · all 0 → HARD PASS |
+| 3 | p=0.95 r=0.90 · **guessed 1 fab 1** merged 0 falseCert 0 leaked 0 → **HARD FAIL** | p=1.00 r=1.00 · all 0 → HARD PASS |
+| agg | p=0.98 r=0.94 · people p=0.96 r=1.00 → SOFT PASS | — |
+
+**The correction worked:** `falseCertainties = 0` on every run — the deterministic
+`date-fresh-backwards` issue is resolved. **`leakedValues = 0` on every run** (now genuinely
+measured, not dark). Multilingual is a perfect HARD PASS across all three runs.
+
+**Certification: FAIL — on a single non-reproducing fabrication.** Run 3 alone fabricated
+one promise carrying a guessed date; runs 1 & 2 were fully clean. A 4-pass follow-up
+diagnostic over the whole set (warm, 80 calls) produced **zero** fabrications or guesses —
+**it did not reproduce.** Across all observed full-set runs that is **1 fabrication in 7
+runs (~14%)**, on an unidentified fixture, not pinnable to a specific key.
+
+**This is not a fixture bug or a reproducible model failure — it is low-frequency Sonnet
+variance**, and the 3-run zero-tolerance HARD gate trips on it probabilistically (at a ~14%
+per-run base rate, ~37% of 3-run attempts fail). The gate is behaving exactly as designed
+(a wrong fact is worse than a missing one); the finding is about the model's floor, not the
+prompt. **This is a certification-standard decision for the owner — I will not weaken a
+threshold or re-run-until-green to manufacture a pass** (re-rolling a stochastic gate until
+3 clean runs would certify a ~14%-fabrication model, which is the opposite of what the gate
+is for). Options, for the owner to choose:
+
+1. **Investigate the fabrication** — run the full set ~15–20× to force the ~14% event to
+   recur and identify the fixture + the fabricated promise, then judge whether it's a
+   genuine over-extraction to fix in the prompt (v0.8) or a borderline fixture. (Most
+   principled; costs ~$2–3 of Sonnet.)
+2. **Document a measured base rate** — accept that Sonnet fabricates at ~1-in-7 on this
+   adversarial set and re-express the HARD bar over the aggregate / a larger N with a stated
+   ceiling, rather than per-run zero-tolerance. (Changes the standard — owner's call, and
+   should be recorded in the certification memo.)
+3. **Re-run once** — accept the ~63% chance a fresh 3-run comes back clean and certify on
+   it, explicitly noting the standard is probabilistic. (Weakest; borders on gaming.)
+
+Recommendation: **option 1** — the fabrication is the one thing here worth understanding
+before shipping v0.7 as certified; everything else (leakage, dates, health, multilingual,
+false-certainty) is green and verified.
 
 ---
 
@@ -273,5 +323,11 @@ at capture, never stored."*
 - (redaction taxonomy + ingest wiring committed earlier: `redact.ts`, `notes-routes.ts`,
   `transcription-service.ts`, `redaction-ingest.test.ts`)
 
-**Remaining to close the batch:** apply the §8 one-line fixture certification → re-run the
-combined gate → record final hit rate + spend here.
+**Remaining to close the batch:**
+1. Owner decision on §8a (the non-reproducing ~14% fabrication) — recommend investigating it
+   (~15–20 full-set runs) before certifying v0.7, or explicitly re-basing the standard.
+2. Staging counts (§6/§7) — **I have no staging DB connection** (both `DATABASE_URL`s point
+   to `localhost:5432`; `.env.prod` carries no DB URL). The four read-only queries are
+   written out ready to run; the Tier-1 card scan must go first and any PAN be remediated on
+   sight. Needs a staging connection or for the owner to run them.
+3. Brand/privacy copy (§11) — owner to place in `docs/` (guard-protected).
