@@ -9,7 +9,8 @@ re-certification on prompt **v0.7** (`tovira-extract-v0.7`), Sonnet-locked.
 
 | Area | State |
 |---|---|
-| Tier-1 redaction at ingest (paste/import/voice) | ✅ shipped + tested |
+| Tier-1 redaction at ingest (paste/import/voice) | ✅ shipped + tested + **live on staging** |
+| Tier-1 backfill (existing pre-redaction data) | ✅ **scanned staging 2026-09-03: 0 Tier-1 across 10 users / 0 stored notes — no PAN, no PCI exposure** (§7) |
 | Leakage into any extraction field | **0** across every gate + bake-off run |
 | Health dropped (enum + prompt + eval) | ✅ code done · migration **proposed, not run** |
 | DATE-REF (reference date per source) | ✅ live bug fixed (imports were resolving against import-date) |
@@ -189,6 +190,24 @@ WHERE raw_text ~ '\y784-?\d{4}' OR raw_text ~ '\yAE\d{21}\y'
 Report the count **split by type** (card / iban / emirates_id / swift / bank_account /
 passport / credential). **★ If staging holds any card numbers, remediate those on sight** —
 a stored PAN is the highest-severity item and should not wait for the batch report.
+
+### ✅ RESULT (2026-09-03) — scanned, clean, no remediation needed
+
+Private RDS has no bastion (Fargate + Secrets Manager), so the scan ran **inside the app** via
+a **temporary** auth-guarded endpoint (`GET /admin/tier1-scan`) that enumerated every tenant
+under its own RLS context and ran the **same Luhn-validating redactor** over each note's
+`raw_text` + message bodies, returning aggregate counts only (never a value, never which note).
+
+| type | count |
+|---|---|
+| card / iban / emirates_id / swift / bank_account / passport / credential | **0 / 0 / 0 / 0 / 0 / 0 / 0** |
+| users scanned | 10 · **notes stored: 0** |
+
+**Zero Tier-1 values — no stored PAN, no PCI-DSS exposure.** Verified the scan actually reads
+notes (planted one plain note → `notesScanned` went 0 → 1 → deleted), so the 0 is not a false
+zero from an RLS mis-scope. The temporary endpoint + its `tallyTier1` helper/tests were
+**removed** immediately after (commit `chore(TIER1-SCAN): remove …`). *Housekeeping: one
+throwaway staging signup (`tier1-scan-…@…`) with no data was left behind — safe to delete.*
 
 ---
 
