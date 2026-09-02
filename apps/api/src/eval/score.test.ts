@@ -56,6 +56,13 @@ describe('scoreNote', () => {
   });
 
 
+  it('flags a null/empty-named person (role-only) — Rule 5, now gate-scored', () => {
+    const named = { name: 'Priya', role: null, reports_to: null, decision_role: 'unknown' as const, notes: null };
+    const roleOnly = { name: '', role: 'the buyer', reports_to: null, decision_role: 'unknown' as const, notes: null };
+    expect(scoreNote(base, { ...base, people: [roleOnly] }).nullNamedPeople).toBe(1);
+    expect(scoreNote(base, { ...base, people: [named] }).nullNamedPeople).toBe(0);
+  });
+
   it('flags a leaked sensitive value/fragment in the output (REDACT-5)', () => {
     const withValue = { ...base, summary: 'send to AE070331234567890123456 today' };
     expect(scoreNote(base, withValue, [], ['AE0703']).leakedValues).toBe(1);

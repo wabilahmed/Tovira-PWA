@@ -1,6 +1,6 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
-import { extractForEval, evaluateGate, softGate } from './gate.js';
+import { extractForEval, evaluateGate, softGate, fabricationGate, GATE_FAB } from './gate.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { scoreNote, aggregate, type NoteScore } from './score.js';
 import type { Extraction } from '../services/extraction/types.js';
@@ -34,7 +34,7 @@ async function runOnce(model: ModelClient): Promise<Scored[]> {
 }
 
 function line(label: string, m: ReturnType<typeof aggregate>, verdict: string): void {
-  console.log(`[gate]   ${label}: promises p=${p(m.promises.precision)} r=${p(m.promises.recall)} · people p=${p(m.people.precision)} r=${p(m.people.recall)} · guessed=${m.guessedDates} fabricated=${m.fabricatedPromises} merged=${m.mergedPeople} falseCert=${m.falseCertainties} leaked=${m.leakedValues} → ${verdict}`);
+  console.log(`[gate]   ${label}: promises p=${p(m.promises.precision)} r=${p(m.promises.recall)} · people p=${p(m.people.precision)} r=${p(m.people.recall)} · guessed=${m.guessedDates} merged=${m.mergedPeople} falseCert=${m.falseCertainties} leaked=${m.leakedValues} nullNamed=${m.nullNamedPeople} · fab=${m.fabricatedPromises} (aggregate bar) → ${verdict}`);
 }
 
 function spuriousPeople(scored: Scored[]): void {
@@ -68,7 +68,10 @@ async function main(): Promise<void> {
   const allScores: NoteScore[] = [];
   let hardPassed = true;
 
-  for (const run of [1, 2, 3]) {
+  // Runs are configurable: 3 (default) is the cheap per-run/soft deploy gate; a fabrication
+  // CERTIFICATION needs GATE_RUNS high enough to clear GATE_FAB.minExtractions (~15 = 480).
+  const RUNS = Math.max(1, Number(process.env.GATE_RUNS ?? 3));
+  for (const run of Array.from({ length: RUNS }, (_, i) => i + 1)) {
     console.log(`\n[gate] === RUN ${run} — model: ${modelId} (default sampling; temperature deprecated) ===`);
     const scored = await runOnce(model);
     const full = aggregate(scored.map((s) => s.score));
@@ -84,16 +87,29 @@ async function main(): Promise<void> {
 
   const agg = aggregate(allScores);
   const soft = softGate(agg, modelId);
-  console.log('\n[gate] === 3-RUN AGGREGATE (soft bars) ===');
+  console.log(`\n[gate] === ${RUNS}-RUN AGGREGATE (soft bars + fabrication rate) ===`);
   line('AGGREGATE  ', agg, soft.passed ? 'SOFT PASS' : `SOFT FAIL: ${soft.reasons.join('; ')}`);
+
+  // Fabrication: aggregate rate bar (owner ruling). Only a non-provisional pass certifies.
+  const fab = fabricationGate(agg, modelId);
+  const fabState = fab.provisional
+    ? `PROVISIONAL (${agg.fabricatedPromises}/${fab.extractions} = ${fab.ratePct.toFixed(2)}% ≤ ${GATE_FAB.maxRatePct}%, but N<${GATE_FAB.minExtractions} — run GATE_RUNS=15 to certify)`
+    : fab.passed
+      ? `CERTIFIED (${agg.fabricatedPromises}/${fab.extractions} = ${fab.ratePct.toFixed(2)}% ≤ ${GATE_FAB.maxRatePct}% ceiling; published ~${GATE_FAB.certifiedRatePct}% from N=${GATE_FAB.justifyingN})`
+      : `FAIL: ${fab.reasons.join('; ')}`;
+  console.log(`[gate]   FABRICATION: ${fabState}`);
 
   const b = budget.report();
   const hitPct = calls > 0 ? (hits / calls) * 100 : 0;
   console.log(`\n[gate] cache: ${hits}/${calls} calls read the warm prefix (${hitPct.toFixed(0)}%) · spend $${b.totalUsd.toFixed(3)} (AED ${b.totalAed.toFixed(2)})`);
 
-  const certified = hardPassed && soft.passed;
-  console.log(`\n[gate] CERTIFICATION: ${certified ? 'PASS (hard per-run + soft aggregate)' : 'FAIL'}`);
-  if (!certified) process.exit(1);
+  // Deploy gate = per-run HARD + soft + fabrication not over ceiling. FULL CERTIFICATION
+  // additionally requires the fabrication verdict be non-provisional (enough extractions).
+  const deployPass = hardPassed && soft.passed && fab.passed;
+  const fullyCertified = deployPass && !fab.provisional;
+  console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + fabrication ≤ ceiling)' : 'FAIL'}`);
+  console.log(`[gate] FULL CERTIFICATION: ${fullyCertified ? 'PASS (fabrication rate certified over ≥ minExtractions)' : deployPass ? 'PROVISIONAL — deploy-safe, fabrication rate not yet certified at this N' : 'FAIL'}`);
+  if (!deployPass) process.exit(1);
 }
 
 main().catch((err: unknown) => {

@@ -10,6 +10,7 @@ export interface NoteScore {
   mergedPeople: number; // two people who must stay distinct were collapsed into one
   falseCertainties: number; // a promise the key marks low-confidence returned as high — an unconfirmed guess presented as a fact
   leakedValues: number; // REDACT-5: a forbidden sensitive value/fragment appeared in the model output
+  nullNamedPeople: number; // Rule 5: a person emitted with a null/empty name (a role-only reference) — never allowed
 }
 
 function tokens(s: string): Set<string> {
@@ -52,6 +53,7 @@ export function scoreNote(
     mergedPeople: 0,
     falseCertainties: 0,
     leakedValues: 0,
+    nullNamedPeople: 0,
   };
 
   const predicted = actual ?? {
@@ -112,6 +114,9 @@ export function scoreNote(
   }
   score.people.fn = expected.people.length - matchedPeople.size;
 
+  // Rule 5: a person with a null/empty name is a role-only reference — never allowed.
+  score.nullNamedPeople = predicted.people.filter((p) => (p.name ?? '').trim() === '').length;
+
   // Merges: each pair that must stay distinct is a violation unless BOTH names
   // appear as separate predicted people (collapsing two mentions into one fails).
   const hasName = (name: string): boolean => {
@@ -149,6 +154,7 @@ export interface AggregateMetrics {
   mergedPeople: number;
   falseCertainties: number;
   leakedValues: number;
+  nullNamedPeople: number;
   notes: number;
 }
 
@@ -162,6 +168,7 @@ export function aggregate(scores: NoteScore[]): AggregateMetrics {
     mergedPeople: sum((s) => s.mergedPeople),
     falseCertainties: sum((s) => s.falseCertainties),
     leakedValues: sum((s) => s.leakedValues),
+    nullNamedPeople: sum((s) => s.nullNamedPeople),
     notes: scores.length,
   };
 }
