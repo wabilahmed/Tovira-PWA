@@ -1,6 +1,7 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
-import { extractForEval, evaluateGate, softGate, fabricationGate, GATE_FAB } from './gate.js';
+import { extractForEval, evaluateGate, softGate, fabricationGate, tier1Residual, tier2Gate, GATE_FAB, GATE_TIER2 } from './gate.js';
+import { redactSensitive } from '../services/redaction/redact.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { scoreNote, aggregate, type NoteScore } from './score.js';
 import type { Extraction } from '../services/extraction/types.js';
@@ -92,17 +93,36 @@ async function main(): Promise<void> {
 
   // Fabrication: aggregate rate bar (owner ruling). Only a non-provisional pass certifies.
   const fab = fabricationGate(agg, modelId);
+  const runsToCertify = Math.ceil(GATE_FAB.minExtractions / EVAL_NOTES.length);
   const fabState = fab.provisional
-    ? `PROVISIONAL (${agg.fabricatedPromises}/${fab.extractions} = ${fab.ratePct.toFixed(2)}% ≤ ${GATE_FAB.maxRatePct}%, but N<${GATE_FAB.minExtractions} — run GATE_RUNS=15 to certify)`
+    ? `PROVISIONAL (${agg.fabricatedPromises}/${fab.extractions} = ${fab.ratePct.toFixed(2)}% ≤ ${GATE_FAB.maxRatePct}%, but N<${GATE_FAB.minExtractions} — run GATE_RUNS=${runsToCertify} to certify)`
     : fab.passed
-      ? `CERTIFIED (${agg.fabricatedPromises}/${fab.extractions} = ${fab.ratePct.toFixed(2)}% ≤ ${GATE_FAB.maxRatePct}% ceiling; published ~${GATE_FAB.certifiedRatePct}% from N=${GATE_FAB.justifyingN})`
+      ? `CERTIFIED (${agg.fabricatedPromises}/${fab.extractions} = ${fab.ratePct.toFixed(2)}% ≤ ${GATE_FAB.maxRatePct}% tripwire; published rate ${GATE_FAB.certifiedRatePct}% from N=${GATE_FAB.justifyingN})`
       : `FAIL: ${fab.reasons.join('; ')}`;
   console.log(`[gate]   FABRICATION: ${fabState}`);
 
-  // Rule 7 ISOLATION SIGNAL (non-gating, condition 1 of the leakage ruling): feed RAW
-  // values (no ingest redaction) to the model to measure how often IT reproduces a Tier-1
-  // value — the defense-in-depth layer for a pattern redact.ts doesn't yet recognise. This
-  // never gates (prod redacts at ingest first); it is reported so drift is a visible finding.
+  // LEAKAGE — reported as TWO distinct guarantees, never one number (owner condition).
+  // TIER-1 (format): deterministic, ingest-enforced, per-run ZERO. Verified without the model.
+  const tier1Bad = tier1Residual(EVAL_NOTES);
+  const tier1Pass = tier1Bad.length === 0;
+  console.log(`[gate]   TIER-1 LEAKAGE: ${tier1Pass ? '0 — deterministically enforced at ingest (redact.ts idempotent; no residual pattern)' : `FAIL — redact.ts left a residual Tier-1 pattern in: ${tier1Bad.join(', ')}`}`);
+
+  // TIER-2 (meaning: religion/health/…): model-enforced (Rule 7), stochastic → AGGREGATE bar.
+  // On the ingest-redacted path, any leakedValues are Tier-2 by construction. Exposures = the
+  // count of Tier-2-bearing fixtures (a forbidden value survives ingest redaction) × runs.
+  const t2Fixtures = EVAL_NOTES.filter((n) => (n.forbidden ?? []).some((f) => redactSensitive(n.note).redacted.includes(f)));
+  const tier2Exposures = t2Fixtures.length * RUNS;
+  const t2 = tier2Gate(agg, tier2Exposures, modelId);
+  const t2State = t2.provisional
+    ? `PROVISIONAL (${agg.leakedValues}/${tier2Exposures} = ${t2.ratePct.toFixed(2)}%, but exposures<${GATE_TIER2.minExposures})`
+    : t2.passed
+      ? `${t2.ratePct.toFixed(2)}% (${agg.leakedValues}/${tier2Exposures}) ≤ ${GATE_TIER2.maxRatePct}% ceiling — model-enforced (Rule 7), aggregate bar`
+      : `FAIL: ${t2.reasons.join('; ')}`;
+  console.log(`[gate]   TIER-2 LEAKAGE: ${t2State}`);
+
+  // Rule 7 ISOLATION SIGNAL (non-gating): feed RAW values (no ingest redaction) to measure how
+  // often the MODEL itself reproduces a Tier-1 value — the defense-in-depth layer for a pattern
+  // redact.ts doesn't recognise. Never gates (prod redacts at ingest first); tracked for drift.
   const redFixtures = EVAL_NOTES.filter((n) => (n.forbidden?.length ?? 0) > 0);
   let r7Leaks = 0;
   let r7Total = 0;
@@ -114,18 +134,18 @@ async function main(): Promise<void> {
     }
   }
   const r7Pct = r7Total ? (r7Leaks / r7Total) * 100 : 0;
-  console.log(`[gate]   RULE-7 ISOLATION (non-gating, defense-in-depth): ${r7Leaks}/${r7Total} raw extractions reproduced a Tier-1 value (${r7Pct.toFixed(2)}%) — prod redacts at ingest, so this never leaks; tracked for drift`);
+  console.log(`[gate]   RULE-7 ISOLATION (non-gating, defense-in-depth): ${r7Leaks}/${r7Total} raw extractions reproduced a value (${r7Pct.toFixed(2)}%) — prod redacts Tier-1 at ingest; tracked for drift`);
 
   const b = budget.report();
   const hitPct = calls > 0 ? (hits / calls) * 100 : 0;
   console.log(`\n[gate] cache: ${hits}/${calls} calls read the warm prefix (${hitPct.toFixed(0)}%) · spend $${b.totalUsd.toFixed(3)} (AED ${b.totalAed.toFixed(2)})`);
 
-  // Deploy gate = per-run HARD + soft + fabrication not over ceiling. FULL CERTIFICATION
-  // additionally requires the fabrication verdict be non-provisional (enough extractions).
-  const deployPass = hardPassed && soft.passed && fab.passed;
-  const fullyCertified = deployPass && !fab.provisional;
-  console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + fabrication ≤ ceiling)' : 'FAIL'}`);
-  console.log(`[gate] FULL CERTIFICATION: ${fullyCertified ? 'PASS (fabrication rate certified over ≥ minExtractions)' : deployPass ? 'PROVISIONAL — deploy-safe, fabrication rate not yet certified at this N' : 'FAIL'}`);
+  // Deploy gate = per-run HARD + soft + Tier-1 zero + fabrication & Tier-2 not over ceiling.
+  // FULL CERTIFICATION additionally requires the aggregate verdicts be non-provisional.
+  const deployPass = hardPassed && soft.passed && tier1Pass && fab.passed && t2.passed;
+  const fullyCertified = deployPass && !fab.provisional && !t2.provisional;
+  console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + fabrication & Tier-2 ≤ ceiling)' : 'FAIL'}`);
+  console.log(`[gate] FULL CERTIFICATION: ${fullyCertified ? 'PASS (aggregate rates certified over ≥ minimum sample)' : deployPass ? 'PROVISIONAL — deploy-safe, an aggregate rate not yet certified at this N' : 'FAIL'}`);
   if (!deployPass) process.exit(1);
 }
 

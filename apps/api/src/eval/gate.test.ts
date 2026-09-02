@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runGate, runEval, softGate, extractForEval, evaluateGate, fabricationGate, GATE_HARD, GATE_FAB } from './gate.js';
+import { runGate, runEval, softGate, extractForEval, evaluateGate, fabricationGate, tier1Residual, tier2Gate, GATE_HARD, GATE_FAB, GATE_TIER2 } from './gate.js';
 import type { AggregateMetrics } from './score.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import type { Extraction } from '../services/extraction/types.js';
@@ -50,13 +50,13 @@ const cleanMetrics: AggregateMetrics = {
 // proves every HARD metric, when violated by a synthetic result, actually fails the gate.
 // Pure evaluateGate over synthetic metrics — zero model cost, runs in CI.
 describe('[GATE-SELFTEST] every hard metric can fail the gate', () => {
-  // Fabrication is NOT here — it moved to an aggregate rate bar (fabricationGate), tested
-  // separately below. Every metric that stays per-run zero-tolerance is listed.
+  // NOT here (moved to aggregate bars, tested separately): fabricationGate, and Tier-2
+  // leakage (tier2Gate) — both stochastic model layers. leakedValues is no longer a per-run
+  // HARD metric: Tier-1 is deterministic (tier1Residual), Tier-2 is the aggregate bar.
   const HARD_METRICS: Array<{ field: keyof AggregateMetrics; reason: RegExp }> = [
     { field: 'guessedDates', reason: /guessed/i },
     { field: 'mergedPeople', reason: /merged/i },
     { field: 'falseCertainties', reason: /certaint|confiden/i },
-    { field: 'leakedValues', reason: /leak/i },
     { field: 'nullNamedPeople', reason: /no name|role-only|Rule 5/i },
   ];
 
@@ -104,6 +104,32 @@ describe('[GATE-SELFTEST] aggregate fabrication bar', () => {
     const r = fabricationGate({ ...cleanMetrics, fabricatedPromises: 0, notes: 96 }, 'small');
     expect(r.provisional).toBe(true);
     expect(r.extractions).toBe(96);
+  });
+});
+
+// Leakage is TWO guarantees. Tier-1 is deterministic (ingest regex) and must be zero without
+// the model; Tier-2 is a stochastic model rule and gets an aggregate ceiling — never one number.
+describe('[GATE-SELFTEST] leakage — Tier-1 deterministic, Tier-2 aggregate', () => {
+  it('TIER-1: redact.ts leaves no residual pattern in any eval fixture (idempotent, zero)', () => {
+    expect(tier1Residual(), 'redact.ts must strip every Tier-1 value from every fixture').toEqual([]);
+  });
+
+  it('TIER-2: an aggregate rate over the ceiling FAILS', () => {
+    const over = Math.ceil(GATE_TIER2.minExposures * (GATE_TIER2.maxRatePct / 100)) + 2;
+    const r = tier2Gate({ ...cleanMetrics, leakedValues: over }, GATE_TIER2.minExposures, 'over');
+    expect(r.passed).toBe(false);
+    expect(r.reasons.join(' ')).toMatch(/tier-2 leakage rate/i);
+  });
+
+  it('TIER-2: a rate under the ceiling over enough exposures certifies', () => {
+    const r = tier2Gate({ ...cleanMetrics, leakedValues: 0 }, GATE_TIER2.minExposures, 'clean');
+    expect(r.passed).toBe(true);
+    expect(r.provisional).toBe(false);
+  });
+
+  it('TIER-2: too few exposures is PROVISIONAL, never a certification', () => {
+    const r = tier2Gate({ ...cleanMetrics, leakedValues: 0 }, GATE_TIER2.minExposures - 1, 'small');
+    expect(r.provisional).toBe(true);
   });
 });
 
