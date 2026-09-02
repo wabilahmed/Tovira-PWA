@@ -15,7 +15,7 @@ re-certification on prompt **v0.7** (`tovira-extract-v0.7`), Sonnet-locked.
 | DATE-REF (reference date per source) | ✅ live bug fixed (imports were resolving against import-date) |
 | DATE-INVARIANT (no past-due) | ✅ enforced at write time + in the gate path |
 | E3/E4 v0.7 regression | ✅ HARD-CLEAN, warm 100% |
-| Combined P1-9 gate | ⚠️ falseCert 0 + leaked 0 all runs; **FAILs on 1 non-reproducing fabrication (run 3/3)** — owner decision, see §8a |
+| Combined P1-9 gate | ⚠️ falseCert 0 + leaked 0 all runs; FAILs on rare baseline fabrication — **investigated (not v0.7's fault), owner decision on the standard** — see §8a + `FAB-REPORT.md` |
 | Full suite / typecheck / lint | ✅ 1076 green · clean · clean |
 
 ---
@@ -273,6 +273,17 @@ is for). Options, for the owner to choose:
 Recommendation: **option 1** — the fabrication is the one thing here worth understanding
 before shipping v0.7 as certified; everything else (leakage, dates, health, multilingual,
 false-certainty) is green and verified.
+
+> **UPDATE — investigation done, see `FAB-REPORT.md`.** Option 1 was carried out (matched
+> v0.6/v0.7 sampling + targeted hammering, ~1,335 warm calls, ~$11.33). Result: **v0.7 did
+> NOT cause the fabrication** — in 15 matched runs v0.7 fabricated 0/480, v0.6 0/480 on
+> shared fixtures (v0.6's only events were redaction-fixture owner-misattributions v0.7 gets
+> right). The event is **scattered ultra-low-frequency baseline variance** (~0.2%/extraction,
+> low-single-digit %/run — the earlier "~14%" was a 3-run artifact with a huge CI), on the
+> third-party-intent promise boundary, **no fixture clusters** (the smoke's `ml-urdu` is 0/25
+> on repeat). So it is a **certification-standard** question, not a prompt/fixture fix. Owner
+> ruling pending; recommended fix is an aggregate fabrication bar with a stated tolerance
+> (optionally a v0.8 promise-boundary clause first). v0.7 remains **uncertified**.
 
 ---
 
