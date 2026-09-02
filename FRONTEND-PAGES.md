@@ -35,21 +35,16 @@ gates the whole app.
 ---
 
 ## 2. Clients  (`App.tsx` → `ClientsScreen`, list view)
-**Scope:** P1-1 (create client), P1-2 (fast selection), P4-5 (business-card scan).
+**Scope:** P1-1 (create client), P1-2 (fast selection). *(P4-5 business-card scan removed 2026-09-02 — feat(REMOVE-CARDSCAN).)*
 
 **Functionality**
 - **List clients**, most-recently-touched first.
 - **Search** clients by name (debounced reload as you type).
 - **Create a client** by name.
 - **Open a client** → Client detail.
-- **Business-card scan** (`CardScan`): pick a photo → the card is read into a
-  structured contact preview (name/title/email/phone) → **confirm to create the
-  client**. Never saves silently: no name detected → create disabled; not-a-card
-  and read-error states are shown.
 
 **How:** `ClientsClient.list(query)` → `GET /clients` / `GET /clients?q=`,
-`create(name)` → `POST /clients`. `CardsClient.scan(image)` → `POST /cards/scan`;
-the confirmed name is created via the same client-create call.
+`create(name, phone?, {title?, email?})` → `POST /clients` (title/email/phone settable manually).
 
 ---
 
@@ -311,7 +306,7 @@ uploader, outbox).
 | Page / screen | Component(s) | Stories | Primary endpoints |
 |---|---|---|---|
 | Login / Sign-up | `LoginScreen` | P0-3, P5-6 | `/auth/*`, `/me` |
-| Clients | `ClientsScreen`, `CardScan` | P1-1/1-2, P4-5 | `/clients`, `/cards/scan` |
+| Clients | `ClientsScreen` | P1-1/1-2 | `/clients` |
 | Client detail | `ClientDetail`, `StakeholderMap`, `ImportChat`, `FollowUpDraft`, `Gallery` | P1-3/1-4/1-4b/1-5, P2-1/2-2/2-3, P3-7, P4-2/4-3/4-4/4-6/4-7 | `/clients/:id/*`, `/notes/:id/*`, `/images/*` |
 | Get started | `GetStarted`, `SeedingBanner` | P5-3 | `/onboarding/status`, import |
 | Today | `HeroInsights` | P4b-1/2/3/4 | `/today`, `/hero/*` |

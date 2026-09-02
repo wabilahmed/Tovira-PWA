@@ -32,7 +32,7 @@ runs to its natural end. Step shape:
 | 13 | Today's register → act | home/today | HeroInsights | a promise/meeting/cold client |
 | 14 | Promises: done / confirm / reject | Promises view | PromisesTracker | extracted promises |
 | 15 | Meetings: NL → parse → confirm | Meetings view | Meetings | ≥1 client |
-| 16 | Business-card scan → create client | client-add | CardScan | none (creates first client) |
+| 16 | ~~Business-card scan → create client~~ **REMOVED 2026-09-02** — feat(REMOVE-CARDSCAN) | — | — | — |
 | 17 | Gallery: upload image | client detail | Gallery | an owned client |
 | 18 | Going-cold alert + silence budget | scan/scheduler | Alerts, push | cold clients (+ push sub for buzz) |
 | 19 | The Monday Statement | Monday view | MondayDigest | non-light week, else honest "clear week" |
@@ -293,16 +293,15 @@ A failing send never breaks the business action (isolated try/catch everywhere).
 **Trust rules:** parse **never writes** the calendar — only "Save meeting" does; vague time → `datetime` null, phrase kept, "(time unconfirmed)"; ambiguous client → asks which (server-side).
 **Cold start:** ≥1 client for name-match/select. **Discrepancy:** the web client casts the union to a flat `ParsedMeeting` and reads `clientId`/`title`; the `ambiguous_client`/`no_client` kinds are never surfaced — see Open questions.
 
-### FLOW 16 — Business-card scan → preview → confirm → client created
-1. Client-add → "Scan a business card" → pick/snap photo → "Reading the card…" · [cards/CardScan.tsx] · [POST /cards/scan (raw bytes)] · [P4-5]
-2. Server sniffs media type from magic bytes → vision model + strict prompt → `parseCardScan` → `{isCard, contact}` · [cards-routes.ts → adapters/vision/anthropic-card-scanner.ts] · [—] · [P4-5]
-3. Preview: name (bold), title, email, editable Phone (prefilled) · [CardScan.tsx] · [—] · [P4-5]
-4. "Create client from card" → `POST /clients {name, phone?}` → 201 · [App.tsx onCreateClient] · [POST /clients] · [P4-5/P4-7]
-5. "Contact created."; new client prepended · [App.tsx] · [—] · [P4-5]
-
-**Happy end:** client created from `contact.name` (+trimmed phone if present); preview cleared.
-**What can go wrong:** trial ended unpaid → **`POST /cards/scan` 402** → the scanner renders the shared **`<Locked>`** state, not the scan error (fix(LOCKED-EMBEDDED)); scan null (non-200/network) → "Couldn't read that image — try again."; `isCard===false`/no contact (non-card, blur, garbage) → "That doesn't look like a business card."; blurry fields → null; name null → "(no name found)", Save disabled, "No name detected — add it manually instead."; empty upload → 400; vision failure → typed `ModelError` → non-card.
-**Trust rules:** any field not read with confidence = null, never guessed/pattern-completed; values verbatim (no normalising phone/email); non-card reported as such; nothing saved until explicit confirm (scan returns a proposal only).
+### FLOW 16 — Business-card scan → create client  ·  **REMOVED 2026-09-02**
+Removed in `feat(REMOVE-CARDSCAN)` (owner decision). Reason: the weakest capture path — reps
+paste and talk far more than they photograph cards — and it carried a vision adapter, its own
+model cost, and an **image-based sensitive-data vector that text redaction cannot cover**. The
+`CardScan` component, `POST /cards/scan`, the `CardScanner` port + stub/Anthropic-vision
+adapters, and the `card_scan` model task class are all gone. **Unaffected:** client
+`title`/`email`/`phone` (still settable manually; phone drives the `wa.me` deep link, FLOW 17),
+the gallery (P4-6), and the Book-Scan share card (P5-6). *(The number is kept, nothing
+renumbered, so the audit trail survives.)*
 **Cold start:** none — a client-creation entry point. **Discrepancy:** scanned title/email are shown then **discarded** on create (only name+phone sent) — see Open questions.
 
 ### FLOW 17 — Gallery: upload an image to a client
@@ -512,7 +511,7 @@ Walk top to bottom in one sitting. **⚠ = cannot be fully verified locally.**
 12. [ ] Ask a typed question → answer + receipts; ask something absent → "I don't have that on record."; Voice (if supported) (FLOW 12)
 13. [ ] Promises → mark done, confirm, reject (FLOW 14)
 14. [ ] Meetings → "meeting with <client> next Tuesday 3pm" → parse → preview → save (FLOW 15)
-15. [ ] Scan a business card → preview → create client (FLOW 16) — ⚠ needs a real key for vision
+15. [ ] ~~Scan a business card → preview → create client (FLOW 16)~~ — **REMOVED 2026-09-02** (feat(REMOVE-CARDSCAN))
 16. [ ] Gallery → upload an image to a client (FLOW 17)
 17. [ ] Today's register → shows ranked items; Refresh (twice → rate-limit) (FLOW 13)
 18. [ ] The Monday Statement → sections or honest "clear week" (FLOW 19)
@@ -528,7 +527,7 @@ Walk top to bottom in one sitting. **⚠ = cannot be fully verified locally.**
 27a. [ ] Lifecycle emails land: trial-ending (~2d out) + trial-ended (job), payment-failed / confirmed / canceled (webhook) — ⚠ real mailer + scheduler; verify idempotency (no duplicate on re-run/replay)
 28. [ ] Export my data → download JSON (FLOW 26)
 29. [ ] Delete my account → confirm → **deletion email arrives BEFORE the purge** → cascade → logged out (FLOW 27) — ⚠ real mailer for the live email
-30. [ ] Embedded Locked: let the trial lapse (or force a 402) → brief panel, follow-up draft, and card scan each show the shared **Locked** state with Subscribe → Billing (FLOWS 10/11/16, fix(LOCKED-EMBEDDED))
+30. [ ] Embedded Locked: let the trial lapse (or force a 402) → brief panel and follow-up draft each show the shared **Locked** state with Subscribe → Billing (FLOWS 10/11, fix(LOCKED-EMBEDDED))
 
 **Locally unverifiable:** iOS push delivery (needs an installed PWA on a device),
 real Stripe Checkout/webhooks (test-mode keys + a tunnel), the Android
@@ -556,7 +555,7 @@ Subscribe to reopen your book."
 | `GET /monday-digest` | **yes** | added |
 | `GET /today`, `/hero/status`, `/hero/patterns`, `/hero/risk`, `POST /today/refresh` | **yes** | added |
 | `POST /notes/:id/follow-up` | **yes** | added (capture stays free) |
-| `POST /cards/scan` | **yes** | added |
+| ~~`POST /cards/scan`~~ | — | **REMOVED 2026-09-02** (feat(REMOVE-CARDSCAN)) |
 
 Enforced server-side via `requireEntitled` (402, no data in the body). The web
 shows the one `<Locked>` state on the primary gated views (Today, Ask, the Monday
@@ -605,9 +604,9 @@ Original descriptions kept for record:
    `ambiguous_client` candidates and `no_client` name are never surfaced. The web
    "Couldn't read a meeting" error fires only on transport failure, not on the
    parser's ambiguity kinds. (FLOW 15.)
-4. **Card scan drops fields on create.** The preview shows scanned `title` and
-   `email`, but `onCreateClient` sends only `name` (+`phone`) to `POST /clients`;
-   title and email are displayed then discarded. (FLOW 16.)
+4. **~~Card scan drops fields on create.~~** RESOLVED 2026-09-02 by removing the
+   business-card scan entirely (feat(REMOVE-CARDSCAN)). `title`/`email` remain
+   settable manually via `POST /clients` (clientsClient still sends them). (FLOW 16 removed.)
 5. **Voice pipeline is client-orchestrated, not a worker.** `pending_transcription
    → pending_extraction → extracted` is advanced by the browser (`App.tsx refresh()`).
    If the rep never revisits the client-detail/Capture screen, a voice note can sit
