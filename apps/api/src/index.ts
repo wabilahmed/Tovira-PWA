@@ -39,7 +39,6 @@ import {
   createPushSender,
   createPushBudgetRepository,
   createPushDispatchService,
-  createCardScanner,
   createAccountEmailService,
   createImageRepository,
   createHeroService,
@@ -128,7 +127,6 @@ async function main(): Promise<void> {
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
   const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications, createPushBudgetRepository(config, appPool));
-  const cardScanner = createCardScanner(config);
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
@@ -205,7 +203,6 @@ async function main(): Promise<void> {
     pushSubscriptions,
     pushSender,
     pushDispatch,
-    cardScanner,
     images,
     hero,
     priorities,
@@ -233,7 +230,7 @@ async function main(): Promise<void> {
     // breakpoint is set — so a broken/absent cache is visible at boot, not inferred.
     const prefixTok = estimateTokens(EXTRACTION_SYSTEM_PROMPT);
     console.log(`[cache] extraction: model=${config.models.extraction} prefix≈${prefixTok}tok breakpoint=on ttl=${config.extractionCacheTtl} (Sonnet min ~1024)`);
-    console.log(`[cache] recall/priorities/brief/followup/cardScan: model=${config.models.recall} breakpoint=off (system prompts below the cacheable minimum — uncacheable by design)`);
+    console.log(`[cache] recall/priorities/brief/followup: model=${config.models.recall} breakpoint=off (system prompts below the cacheable minimum — uncacheable by design)`);
     // Start the scheduled brain once the server is up (migrations have already run,
     // so scheduled_job_runs exists). start() runs one pass immediately.
     scheduledBrain.start();

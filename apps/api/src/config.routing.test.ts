@@ -7,10 +7,9 @@ const base = { DATABASE_URL: 'x' };
 // setting, config-overridable per class with NO code change. Extraction stays
 // on Sonnet 5 (P1-9 gate lock); every other class defaults to Haiku 4.5.
 describe('hybrid model routing config (per AI task class)', () => {
-  it('exposes a setting for all eight task classes', () => {
+  it('exposes a setting for all seven task classes', () => {
     expect([...AI_TASK_CLASSES].sort()).toEqual([
       'brief',
-      'card_scan',
       'drafts',
       'extraction',
       'patterns',
@@ -47,9 +46,9 @@ describe('hybrid model routing config (per AI task class)', () => {
   });
 
   it('a per-class MODEL_<CLASS> override switches ONE class with no code change', () => {
-    const { models } = loadConfig({ ...base, MODEL_RECALL: 'claude-opus-4-8', MODEL_CARD_SCAN: 'some-vision-model' });
+    const { models } = loadConfig({ ...base, MODEL_RECALL: 'claude-opus-4-8', MODEL_DRAFTS: 'some-other-model' });
     expect(models.recall).toBe('claude-opus-4-8');
-    expect(models.card_scan).toBe('some-vision-model');
+    expect(models.drafts).toBe('some-other-model');
     // Untouched classes keep their family default.
     expect(models.priorities).toBe('claude-haiku-4-5-20251001');
     expect(models.extraction).toBe('claude-sonnet-5');

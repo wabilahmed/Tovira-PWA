@@ -223,7 +223,6 @@
 .clients-add button { min-height: 48px; padding-inline: 1.35rem; white-space: nowrap; }
 
 /* Scan-a-card: a real secondary button, not a raw file input. */
-.clients-scan { margin: 0 0 1.15rem; }
 .tov-filebtn {
   display: inline-flex;
   align-items: center;

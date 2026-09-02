@@ -110,7 +110,6 @@ describe('[STAGING-5] proactive, money & isolation', () => {
       ['POST', '/recall', { question: 'anything' }],
       ['GET', '/monday-digest'],
       ['GET', '/hero/patterns'],
-      ['POST', '/cards/scan'],
     ];
     for (const [m, path, body] of gated) {
       const res = await rep.http.request(m, path, body);

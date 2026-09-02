@@ -48,7 +48,6 @@ import { InMemoryPushSubscriptionRepository } from '../adapters/push/in-memory-p
 import { InMemoryPushBudgetRepository } from '../adapters/push/in-memory-push-budget-repository.js';
 import { StubPushSender } from '../adapters/push/stub-sender.js';
 import { PushDispatchService } from '../services/push/push-dispatch-service.js';
-import { StubCardScanner } from '../adapters/vision/stub-card-scanner.js';
 import { InMemoryImageRepository } from '../adapters/images/in-memory-image-repository.js';
 import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
 import { ModelMetricsRegistry } from '../services/metrics/model-metrics.js';
@@ -129,7 +128,6 @@ export function buildInMemoryDeps(
     pushSubscriptions,
     pushSender,
     pushDispatch,
-    cardScanner: new StubCardScanner(),
     images,
     hero,
     priorities: new PrioritiesService(hero, new StubModelClient(), new InMemoryPrioritiesRepository()),

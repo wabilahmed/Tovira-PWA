@@ -21,7 +21,6 @@ import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import type { PushDispatchService } from './services/push/push-dispatch-service.js';
 import type { JobRun, JobRunStore } from './ports/scheduled-jobs.js';
 import type { ModelMetricsRegistry } from './services/metrics/model-metrics.js';
-import type { CardScanner } from './ports/card-scanner.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
 import type { PrioritiesService } from './services/hero/priorities-service.js';
@@ -38,7 +37,6 @@ import { handleFactsRoute } from './http/facts-routes.js';
 import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
 import { handleInsightsRoute } from './http/insights-routes.js';
-import { handleCardRoute } from './http/cards-routes.js';
 import { handleImageRoute } from './http/images-routes.js';
 import { handleHeroRoute } from './http/hero-routes.js';
 import { handleBookScanRoute } from './http/book-scan-routes.js';
@@ -90,7 +88,6 @@ export interface ApiDeps {
   pushSubscriptions: PushSubscriptionRepository;
   pushSender: PushSender;
   pushDispatch: PushDispatchService;
-  cardScanner: CardScanner;
   images: ImageRepository;
   hero: HeroService;
   priorities: PrioritiesService;
@@ -247,7 +244,6 @@ export function createApiServer(deps: ApiDeps): Server {
         return;
       if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing, activation: deps.activation, meetings: deps.meetings, ledger: deps.ledger })) return;
       if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes })) return;
-      if (await handleCardRoute(request, response, { auth: deps.auth, scanner: deps.cardScanner, billing: deps.billing })) return;
       if (
         await handleMeetingRoute(request, response, {
           auth: deps.auth,

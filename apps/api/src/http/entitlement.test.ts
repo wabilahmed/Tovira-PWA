@@ -37,7 +37,6 @@ const GATED: Array<[string, (t: string) => Promise<Response>]> = [
   ['GET /book-scan', (t) => GET('/book-scan', t)],
   ['GET /monday-digest', (t) => GET('/monday-digest', t)],
   ['POST /recall', (t) => POST('/recall', t, { question: 'what did they say?' })],
-  ['POST /cards/scan', (t) => fetch(`${base}/cards/scan`, { method: 'POST', headers: { authorization: `Bearer ${t}` }, body: new Uint8Array([1, 2, 3]) })],
   ['POST /notes/:id/follow-up', (t) => POST('/notes/any-note-id/follow-up', t, {})],
 ];
 

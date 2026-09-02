@@ -32,7 +32,6 @@ export const AI_TASK_CLASSES = [
   'summaries',
   'patterns',
   'drafts',
-  'card_scan',
 ] as const;
 export type AiTaskClass = (typeof AI_TASK_CLASSES)[number];
 
@@ -269,7 +268,7 @@ export function describeAdapters(config: AppConfig): Record<'model' | 'embedder'
 /**
  * Resolve the per-class model map. Extraction inherits ANTHROPIC_MODEL (Sonnet by
  * default — the P1-9 gate lock); every other class inherits HAIKU_MODEL (Haiku
- * 4.5 by default). A `MODEL_<CLASS>` var (e.g. MODEL_RECALL, MODEL_CARD_SCAN)
+ * 4.5 by default). A `MODEL_<CLASS>` var (e.g. MODEL_RECALL, MODEL_DRAFTS)
  * overrides a single class with no code change and beats the family default.
  */
 function resolveModels(env: Env): Record<AiTaskClass, string> {

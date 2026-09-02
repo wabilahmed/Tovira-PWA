@@ -30,8 +30,8 @@ describe('ClientsClient', () => {
     expect((init as RequestInit).credentials).toBe('include');
   });
 
-  // [FLOWS-9] a scanned card's title + email travel with create (never discarded).
-  it('sends the scanned title and email with create', async () => {
+  // A client's title + email (settable manually) travel with create, never discarded.
+  it('sends the title and email with create', async () => {
     fetchMock.mockResolvedValueOnce(json(201, { id: '2', name: 'Jane', phone: '+971501234567', title: 'CTO', email: 'jane@x.ae', createdAt: 2 }));
     const created = await new ClientsClient('http://api.test').create('Jane', '+971501234567', { title: 'CTO', email: 'jane@x.ae' });
     expect(created.title).toBe('CTO');

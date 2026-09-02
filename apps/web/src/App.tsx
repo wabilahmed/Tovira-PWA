@@ -28,8 +28,6 @@ import { Billing } from './billing/Billing.js';
 import { TrialIncentive } from './billing/TrialIncentive.js';
 import { AccountClient } from './account/accountClient.js';
 import { AccountControls } from './account/AccountControls.js';
-import { CardsClient } from './cards/cardsClient.js';
-import { CardScan } from './cards/CardScan.js';
 import { ImagesClient } from './gallery/imagesClient.js';
 import { Gallery } from './gallery/Gallery.js';
 import { FollowUpDraft } from './followup/FollowUpDraft.js';
@@ -76,7 +74,6 @@ const proactiveApi = new ProactiveClient(API_BASE);
 const meetingsApi = new MeetingsClient(API_BASE);
 const billingApi = new BillingClient(API_BASE);
 const accountApi = new AccountClient(API_BASE);
-const cardsApi = new CardsClient(API_BASE);
 const imagesApi = new ImagesClient(API_BASE);
 const recallApi = new RecallClient(API_BASE);
 const corpusApi = new CorpusClient(API_BASE);
@@ -407,20 +404,6 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             <button type="submit" className="tov-primary" disabled={busy}>Add</button>
           </form>
           {error && <p style={{ color: 'var(--claret)', margin: '0 0 0.9rem' }}>{error}</p>}
-
-          <div className="clients-scan">
-            <CardScan
-              api={cardsApi}
-              onSubscribe={() => setView('settings')}
-              onCreateClient={async (n, phone, extras) => {
-                // Persist the scanned title/email directly on the client record
-                // (stored verbatim, never guessed) — nothing scanned is discarded.
-                const created = await clientsApi.create(n, phone, extras);
-                setClients((prev) => [created, ...prev]);
-                return created;
-              }}
-            />
-          </div>
 
           <input
             type="search"

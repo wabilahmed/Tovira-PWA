@@ -8,7 +8,6 @@
  * it's stubbed on staging, on-topic recall is recorded as a LIMITATION, not a fail.
  */
 import { describe, it, expect } from 'vitest';
-import { deflateSync } from 'node:zlib';
 import { randomUUID } from 'node:crypto';
 import { useHarness } from './lib/harness.js';
 import { evalNote, TRAP_NOTES } from './lib/fixtures.js';
@@ -25,39 +24,6 @@ async function pasteExtract(rep: Identity, clientId: string, text: string): Prom
   const p = await rep.http.post<{ id: string }>(`/clients/${clientId}/notes/paste`, { text });
   expect(p.status).toBe(201);
   await rep.http.post(`/notes/${p.body.id}/extract`);
-}
-
-// ---- minimal valid PNG encoder (solid gray) for the non-card scan test ----
-function crc32(buf: Buffer): number {
-  let c = ~0;
-  for (const byte of buf) {
-    c ^= byte;
-    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
-  }
-  return ~c >>> 0;
-}
-function pngChunk(type: string, data: Buffer): Buffer {
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length, 0);
-  const typeAndData = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(typeAndData), 0);
-  return Buffer.concat([len, typeAndData, crc]);
-}
-function solidGrayPng(size = 48): Buffer {
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 2; // color type RGB
-  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(size * 3, 0x88)]); // filter 0 + gray pixels
-  const raw = Buffer.concat(Array.from({ length: size }, () => row));
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    pngChunk('IHDR', ihdr),
-    pngChunk('IDAT', deflateSync(raw)),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
 }
 
 describe('[STAGING-4] intelligence', () => {
@@ -204,20 +170,6 @@ describe('[STAGING-4] intelligence', () => {
     const after = await rep.http.get<{ meetings: unknown[] }>('/meetings');
     expect(after.body.meetings).toHaveLength(1);
     h.report.pass('A', 'FLOW 15', 'meetings ask-not-guess; nothing saved until confirm');
-  });
-
-  // ---- FLOW 16: Card scan ----
-  it('a non-card image is reported as non-card with no fabricated contact', async () => {
-    const rep = await h.factory.newRep();
-    const png = solidGrayPng();
-    const res = await rep.http.request<{ isCard: boolean; contact: unknown | null }>('POST', '/cards/scan', undefined, {
-      raw: png.toString('binary'),
-      rawContentType: 'image/png',
-    });
-    // The vision model should say it is not a card; nothing is invented/saved.
-    expect(res.status).toBe(200);
-    expect(res.body.isCard).toBe(false);
-    h.report.pass('A', 'FLOW 16', 'non-card image → isCard:false, no contact fabricated');
   });
 
   // ---- FLOW 22: Hero volume gate (under threshold refuses; over-threshold = cost) ----
