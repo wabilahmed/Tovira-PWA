@@ -345,7 +345,7 @@ export const EVAL_NOTES: EvalNote[] = [
   {
     id: 'redact-adjacency-inline', today: '2026-09-01', clientName: 'Orion Shipping', source: 'paste',
     note: "Once the payment to IBAN AE070331234567890123456 clears, I'll release the shipment on 8 September 2026.",
-    expected: { ...empty, summary: 'Rep will release the shipment once payment clears.', promises: [{ text: 'Release the shipment', owner: 'rep', due_date: '2026-09-08', due_raw: '8 September 2026', confidence: 'low' }] },
+    expected: { ...empty, summary: 'Rep will release the shipment once payment clears.', promises: [{ text: 'Release the shipment once payment clears', owner: 'rep', due_date: '2026-09-08', due_raw: '8 September 2026', confidence: 'low' }] },
     forbidden: ['AE0703', 'AE070331234567890123456'],
   },
   {
@@ -371,7 +371,7 @@ export const EVAL_NOTES: EvalNote[] = [
     expected: { ...empty, summary: 'Rep will send the revised terms by Monday.', promises: [{ text: 'Send the revised terms', owner: 'rep', due_date: '2026-09-07', due_raw: 'by Monday', confidence: 'high' }] } },
   { id: 'date-fresh-backwards', today: '2026-09-02', clientName: 'Cirrus', source: 'paste',
     note: 'I was supposed to send the contract last Friday.',
-    expected: { ...empty, summary: 'Rep notes the contract was due last Friday and not sent.', promises: [{ text: 'Send the contract', owner: 'rep', due_date: null, due_raw: 'last Friday', confidence: 'high' }] } },
+    expected: { ...empty, summary: 'Rep notes the contract was due last Friday and not sent.', promises: [{ text: 'Send the contract', owner: 'rep', due_date: null, due_raw: 'last Friday', confidence: 'low' }] } },
   { id: 'date-import-day-only', today: '2026-03-10', clientName: 'Delta', source: 'paste',
     note: "I'll get you the report by the 20th.",
     expected: { ...empty, summary: 'Rep committed to sending the report by the 20th.', promises: [{ text: 'Send the report', owner: 'rep', due_date: null, due_raw: 'the 20th', confidence: 'high' }] } },

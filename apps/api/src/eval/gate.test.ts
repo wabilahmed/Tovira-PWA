@@ -27,7 +27,7 @@ const fabricating = scriptedModel((n) =>
 
 const guessing = scriptedModel((n) =>
   n.id === 'unresolved-vague-date'
-    ? { ...n.expected, promises: [{ ...n.expected.promises[0]!, due_date: '2026-01-05' }] }
+    ? { ...n.expected, promises: [{ ...n.expected.promises[0]!, due_date: '2026-08-01' }] }
     : n.expected,
 );
 

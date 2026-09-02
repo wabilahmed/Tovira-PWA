@@ -51,11 +51,23 @@ export async function extractForEval(model: ModelClient, note: EvalNote): Promis
   }
   const parsed = extractJsonObject(text);
   if (parsed === null) return null;
+  let ex: Extraction | null;
   try {
-    return asExtraction(parsed);
+    ex = asExtraction(parsed);
   } catch {
     return null;
   }
+  if (ex === null) return null;
+  // Apply the production DATE-INVARIANT (extractNote enforces it at write time): a
+  // promise cannot be due before the note's reference date. The gate must score the
+  // full pipeline, not the raw prompt output — else an invariant-backed key can't pass.
+  for (const promise of ex.promises) {
+    if (promise.due_date !== null && promise.due_date < note.today) {
+      promise.due_date = null;
+      promise.confidence = 'low';
+    }
+  }
+  return ex;
 }
 
 export async function runEval(
