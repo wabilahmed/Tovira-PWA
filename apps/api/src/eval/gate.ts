@@ -46,8 +46,8 @@ export const GATE_HARD = {
  * in its output are Tier-2 by construction — that is what GATE_TIER2 measures.
  *
  * GATE_TIER2 numbers, from measurement (re-derived each cert; see FAB-REPORT):
- *   certifiedRatePct = 2.5%  — PUBLISHED Tier-2 rate: 2/80 on the prod path, ALL on
- *       health-exclusion (special-category was clean 0/40). The model records a health detail
+ *   certifiedRatePct = 2.94%  — PUBLISHED Tier-2 rate: 5/170 cumulative on the prod path
+ *       (measurement 2/80 + cert-final 3/90), ALL on health-exclusion. The model records a health detail
  *       ~1 in 20 times despite Rule 7. Higher than fabrication and worth attention — but it is
  *       a low-confidence extraction the confirmation queue surfaces, and there is no
  *       deterministic backstop (you cannot regex "a surgery"), so the defence is Rule 7 alone.
@@ -59,15 +59,16 @@ export const GATE_HARD = {
 export const GATE_TIER2 = {
   maxRatePct: 8,
   minExposures: 60,
-  certifiedRatePct: 2.5,
-  justifyingN: 80,
+  certifiedRatePct: 2.94,
+  justifyingN: 170,
 };
 /**
  * Aggregate fabrication bar. Two DIFFERENT numbers — never conflate them:
  *
- *   certifiedRatePct = 0.56%  — the PUBLISHED rate for the shipping prompt (v0.8): fabrication
- *       measured at 8 / 1,440 extractions across the v0.8 certifications (cert1 0/480, cert2
- *       3/480, cert3 5/480). ≈ one low-confidence, queued item per rep every ~6–8 weeks —
+ *   certifiedRatePct = 0.50%  — the PUBLISHED rate for the shipping prompt (v0.8): fabrication
+ *       measured at 12 / 2,400 extractions cumulative across the v0.8 certifications (cert1
+ *       0/480, cert2 3/480, cert3 5/480, cert-final 4/960). ≈ one low-confidence, queued item
+ *       per rep every ~7 weeks —
  *       never an asserted fact; the rep dismisses it in a tap. This is the number to quote.
  *       (v0.7 measured 0.22% on a DIFFERENT prompt and is NOT pooled — the earlier 0.27%
  *       mixed versions and rode two lucky 0/480 v0.8 samples; the honest v0.8 rate is 0.56%.)
@@ -91,8 +92,8 @@ export const GATE_TIER2 = {
 export const GATE_FAB = {
   maxRatePct: 1.2,
   minExtractions: 960,
-  certifiedRatePct: 0.56,
-  justifyingN: 1440,
+  certifiedRatePct: 0.5,
+  justifyingN: 2400,
 };
 export const GATE_SOFT = {
   minPromisesRecall: 0.9,
