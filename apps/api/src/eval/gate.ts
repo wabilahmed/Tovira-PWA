@@ -5,6 +5,7 @@ import { extractJsonObject } from '../services/extraction/parse.js';
 import type { Extraction } from '../services/extraction/types.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { aggregate, scoreNote, type AggregateMetrics } from './score.js';
+import { redactSensitive } from '../services/redaction/redact.js';
 
 /**
  * The certification standard (redefined once temperature proved unpinnable for
@@ -55,15 +56,22 @@ export interface GateResult {
   metrics: AggregateMetrics;
 }
 
-/** Run one note through a model and return the parsed+validated extraction. */
-export async function extractForEval(model: ModelClient, note: EvalNote): Promise<Extraction | null> {
+/** Run one note through a model and return the parsed+validated extraction.
+ *  `redactIngest` (default true) mirrors production: strip Tier-1 values before extraction.
+ *  Pass false ONLY to measure Rule 7's isolation miss-rate (the defense-in-depth signal). */
+export async function extractForEval(model: ModelClient, note: EvalNote, opts: { redactIngest?: boolean } = {}): Promise<Extraction | null> {
   let text: string;
+  // Ingest redaction FIRST — production strips Tier-1 values before extraction, so the
+  // model never sees them. The gate tests that shipped guarantee (the leakage bar now
+  // measures redact.ts, deterministic), not the model's Rule-7 willingness to decline a
+  // value it was handed. Rule 7's isolation miss-rate is measured separately (non-gating).
+  const redactedNote = opts.redactIngest === false ? note.note : redactSensitive(note.note).redacted;
   try {
     const res = await model.complete({
       system: EXTRACTION_SYSTEM_PROMPT,
       cacheSystemPrompt: true,
       cacheTtl: '1h',
-      messages: [{ role: 'user', content: buildUserMessage({ today: note.today, clientName: note.clientName, source: note.source, text: note.note }) }],
+      messages: [{ role: 'user', content: buildUserMessage({ today: note.today, clientName: note.clientName, source: note.source, text: redactedNote }) }],
       maxTokens: 2048,
       // temperature intentionally unset — deprecated for claude-sonnet-5 (see
       // extraction-service). The gate certifies determinism by running twice.

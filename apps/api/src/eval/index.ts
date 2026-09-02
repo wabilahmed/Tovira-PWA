@@ -99,6 +99,23 @@ async function main(): Promise<void> {
       : `FAIL: ${fab.reasons.join('; ')}`;
   console.log(`[gate]   FABRICATION: ${fabState}`);
 
+  // Rule 7 ISOLATION SIGNAL (non-gating, condition 1 of the leakage ruling): feed RAW
+  // values (no ingest redaction) to the model to measure how often IT reproduces a Tier-1
+  // value — the defense-in-depth layer for a pattern redact.ts doesn't yet recognise. This
+  // never gates (prod redacts at ingest first); it is reported so drift is a visible finding.
+  const redFixtures = EVAL_NOTES.filter((n) => (n.forbidden?.length ?? 0) > 0);
+  let r7Leaks = 0;
+  let r7Total = 0;
+  for (let i = 0; i < RUNS; i++) {
+    for (const note of redFixtures) {
+      const raw = await extractForEval(model, note, { redactIngest: false });
+      r7Total += 1;
+      if (scoreNote(note.expected, raw, note.mustNotMerge, note.forbidden).leakedValues > 0) r7Leaks += 1;
+    }
+  }
+  const r7Pct = r7Total ? (r7Leaks / r7Total) * 100 : 0;
+  console.log(`[gate]   RULE-7 ISOLATION (non-gating, defense-in-depth): ${r7Leaks}/${r7Total} raw extractions reproduced a Tier-1 value (${r7Pct.toFixed(2)}%) — prod redacts at ingest, so this never leaks; tracked for drift`);
+
   const b = budget.report();
   const hitPct = calls > 0 ? (hits / calls) * 100 : 0;
   console.log(`\n[gate] cache: ${hits}/${calls} calls read the warm prefix (${hitPct.toFixed(0)}%) · spend $${b.totalUsd.toFixed(3)} (AED ${b.totalAed.toFixed(2)})`);

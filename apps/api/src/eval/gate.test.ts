@@ -188,6 +188,21 @@ describe('[P1-9] extraction quality gate', () => {
     expect(seenToday).toBe(note.today);
   });
 
+  // Leakage bar tests the PRODUCTION pipeline (owner ruling): notes are ingest-redacted
+  // before extraction, so a Tier-1 value never reaches the model — the guarantee we ship,
+  // not the model's stochastic willingness to decline it. extractForEval must redact first.
+  it('redacts Tier-1 at ingest before the model sees it (prod pipeline)', async () => {
+    let seen = '';
+    const capture: ModelClient = {
+      complete: async (req) => { seen = req.messages[req.messages.length - 1]!.content; return { text: '{}' }; },
+    };
+    const EMPTY: Extraction = { summary: '', promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null };
+    const note: EvalNote = { id: 'redact-pipe', today: '2026-09-02', clientName: 'C', source: 'paste', note: 'pay to AE070331234567890123456 today', expected: EMPTY };
+    await extractForEval(capture, note);
+    expect(seen).not.toContain('AE070331234567890123456'); // the model never sees the raw value
+    expect(seen).toContain('[IBAN redacted]');
+  });
+
   it('records the model decision (which model, pass/fail)', async () => {
     const result = await runGate(perfect, 'haiku-4-5');
     expect(result.model).toBe('haiku-4-5');
