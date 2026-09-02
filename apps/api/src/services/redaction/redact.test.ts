@@ -45,3 +45,58 @@ describe('[REDACT-1] redactSensitive — Tier-1 values never survive', () => {
     expect(r.total).toBe(0);
   });
 });
+
+// ADVERSARIAL: redact.ts now carries the whole leakage gate (the eval tests the prod
+// pipeline — values are stripped before the model). So the regex is the single point of
+// failure and must survive real-world obfuscation, especially from WhatsApp exports and
+// this multilingual market. A Tier-1 value in any of these forms must NOT survive.
+describe('[REDACT-1] adversarial evasions — the deterministic layer must hold', () => {
+  const cardDigits = '4539148803436467'; // Luhn-valid test card (same as the fixtures)
+
+  it('catches a dashed card (last 4 kept by design)', () => {
+    const r = redactSensitive('card 4539-1488-0343-6467 ok');
+    expect(r.redacted).not.toMatch(/4539|1488|0343/); // 6467 is the kept last-4
+    expect(r.redacted).toContain('[card ending 6467]');
+    expect(r.counts.card).toBe(1);
+  });
+
+  it('catches a card written with non-standard single separators (WhatsApp)', () => {
+    // Realistic single separators a paste may carry: space, dot, NBSP, non-breaking hyphen.
+    for (const sep of [' ', '.', ' ', '‑']) {
+      const grouped = cardDigits.match(/.{1,4}/g)!.join(sep);
+      const r = redactSensitive(`paid with ${grouped} today`);
+      expect(r.redacted, `separator U+${sep.charCodeAt(0).toString(16)}`).not.toContain('4539');
+    }
+  });
+
+  it('catches a UAE IBAN written in the usual 4-char groups', () => {
+    const r = redactSensitive('transfer to AE07 0331 2345 6789 0123 456 please');
+    expect(r.redacted).not.toMatch(/AE07 0331|0331 2345|2345 6789/);
+    expect(r.counts.iban).toBe(1);
+  });
+
+  it('catches a UAE IBAN broken across a line', () => {
+    const r = redactSensitive('IBAN AE0703312345678\n90123456 is where to pay');
+    expect(r.redacted).not.toContain('AE0703312345678');
+    expect(r.counts.iban).toBe(1);
+  });
+
+  it('catches a lowercase IBAN', () => {
+    const r = redactSensitive('send to ae070331234567890123456 now');
+    expect(r.redacted).not.toMatch(/ae0703|AE0703/i);
+    expect(r.counts.iban).toBe(1);
+  });
+
+  it('catches an Emirates ID written in Arabic-Indic numerals', () => {
+    // ٤ etc. = 784-1990-1234567-1 in Arabic-Indic digits
+    const eid = '٧٨٤-١٩٩٠-١٢٣٤٥٦٧-١';
+    const r = redactSensitive(`ID ${eid} thanks`);
+    expect(r.redacted).toContain('[Emirates ID redacted]');
+    expect(r.counts.emirates_id).toBe(1);
+  });
+
+  it('still does NOT over-redact after hardening (order qty / price / ref survive)', () => {
+    const r = redactSensitive('ordered 100000 units at AED 45000, ref ORD-20260901-0042');
+    expect(r.total).toBe(0);
+  });
+});
