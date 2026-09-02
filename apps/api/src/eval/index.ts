@@ -5,6 +5,7 @@ import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { scoreNote, aggregate, type NoteScore } from './score.js';
 import type { Extraction } from '../services/extraction/types.js';
 import type { ModelClient } from '../ports/model.js';
+import { ModelBudget } from '../services/metrics/model-budget.js';
 
 /**
  * The P1-9 quality gate under the redefined standard (temperature is deprecated
@@ -25,13 +26,15 @@ async function runOnce(model: ModelClient): Promise<Scored[]> {
   const out: Scored[] = [];
   for (const note of EVAL_NOTES) {
     const actual = await extractForEval(model, note);
-    out.push({ note, actual, score: scoreNote(note.expected, actual, note.mustNotMerge) });
+    // Thread `forbidden` so the gate actually measures leakedValues (REDACT-5 bar = 0);
+    // without it the leakage metric is dark and the HARD leak check can never fire.
+    out.push({ note, actual, score: scoreNote(note.expected, actual, note.mustNotMerge, note.forbidden) });
   }
   return out;
 }
 
 function line(label: string, m: ReturnType<typeof aggregate>, verdict: string): void {
-  console.log(`[gate]   ${label}: promises p=${p(m.promises.precision)} r=${p(m.promises.recall)} · people p=${p(m.people.precision)} r=${p(m.people.recall)} · guessed=${m.guessedDates} fabricated=${m.fabricatedPromises} merged=${m.mergedPeople} → ${verdict}`);
+  console.log(`[gate]   ${label}: promises p=${p(m.promises.precision)} r=${p(m.promises.recall)} · people p=${p(m.people.precision)} r=${p(m.people.recall)} · guessed=${m.guessedDates} fabricated=${m.fabricatedPromises} merged=${m.mergedPeople} falseCert=${m.falseCertainties} leaked=${m.leakedValues} → ${verdict}`);
 }
 
 function spuriousPeople(scored: Scored[]): void {
@@ -46,7 +49,22 @@ function spuriousPeople(scored: Scored[]): void {
 async function main(): Promise<void> {
   const config = loadConfig();
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  const model = createModelClient(config);
+  // Wrap the real client so the gate reports its own cache health + spend (the discipline:
+  // warm the prefix, then confirm it's actually being read, and know what the run cost).
+  const realModel = createModelClient(config);
+  const budget = new ModelBudget(2.0, 0.5);
+  let calls = 0;
+  let hits = 0;
+  const model: ModelClient = {
+    complete: async (req) => {
+      const res = await realModel.complete(req);
+      const u = res.usage ?? { inputTokens: 0, outputTokens: 0 };
+      budget.record('extraction', modelId, u);
+      calls += 1;
+      if ((u.cacheReadInputTokens ?? 0) > 0) hits += 1;
+      return res;
+    },
+  };
   const allScores: NoteScore[] = [];
   let hardPassed = true;
 
@@ -68,6 +86,10 @@ async function main(): Promise<void> {
   const soft = softGate(agg, modelId);
   console.log('\n[gate] === 3-RUN AGGREGATE (soft bars) ===');
   line('AGGREGATE  ', agg, soft.passed ? 'SOFT PASS' : `SOFT FAIL: ${soft.reasons.join('; ')}`);
+
+  const b = budget.report();
+  const hitPct = calls > 0 ? (hits / calls) * 100 : 0;
+  console.log(`\n[gate] cache: ${hits}/${calls} calls read the warm prefix (${hitPct.toFixed(0)}%) · spend $${b.totalUsd.toFixed(3)} (AED ${b.totalAed.toFixed(2)})`);
 
   const certified = hardPassed && soft.passed;
   console.log(`\n[gate] CERTIFICATION: ${certified ? 'PASS (hard per-run + soft aggregate)' : 'FAIL'}`);
