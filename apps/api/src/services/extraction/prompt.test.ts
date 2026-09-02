@@ -47,7 +47,18 @@ describe('extraction prompt', () => {
   });
 
   it('exposes a prompt version for logging', () => {
-    expect(PROMPT_VERSION).toBe('tovira-extract-v0.7');
+    expect(PROMPT_VERSION).toBe('tovira-extract-v0.8');
+  });
+
+  // v0.8: a THIRD PARTY's stated action (the client's own manager / internal team) is
+  // not a promise — the boundary FAB-INVESTIGATE identified. Rule 4 now names whose
+  // intention counts as a commitment.
+  it('rules a third-party stated action out of promises (owns the promise boundary)', () => {
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/third party/i);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/internal process/i);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/do not manufacture a promise/i);
+    // Still carries no date — the cache contract holds.
+    expect(EXTRACTION_SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
   // v0.3: Rule 0 — code-switched Arabic/Hindi/Urdu ↔ English is normal input.
