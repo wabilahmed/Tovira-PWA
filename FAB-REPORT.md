@@ -185,3 +185,47 @@ credit-exhaustion 400) before the retry-robust harness; those failed fast at neg
 - [x] No prompt, fixture, or threshold changed; **v0.7 remains uncertified** pending the
       owner ruling.
 - [x] Total spend reported, warm/cold split.
+
+---
+
+# Part 2 — D-then-A: the fabrication fix, the leakage split, and certification
+
+**v0.8 is CERTIFIED.** The confirmed standard, in two guarantees that are NEVER collapsed:
+
+- **Certified fabrication rate 0.50% (12/2,400); gate tripwire 1.2% at N≥960.**
+- **Tier-1 leakage: 0, deterministically enforced at ingest. Tier-2 leakage: 2.94% (5/170), model-enforced, aggregate bar (tripwire 8% at ≥60 exposures).**
+
+The ceiling is never the rate; the rate is never the other tier's. Both rates are re-measured each certification (cumulative denominator), never inherited.
+
+## The standard (what CI now enforces)
+
+| Class | Mechanism | Bar | cert-final |
+|---|---|---|---|
+| Guessed dates, merges, false-certainty, null-named | per-run | **zero, every run** | 0 / 30 runs |
+| **Tier-1 leakage** (card/IBAN/EID/credentials) | regex, stripped at ingest | **zero, deterministic** | 0 (`tier1Residual` = []) |
+| **Tier-2 leakage** (religion/health/…) | Rule 7 (model), stochastic | **aggregate ≤ 8% @ ≥60** | 3.33% (3/90) ✓ |
+| **Fabrication** | model, stochastic | **aggregate ≤ 1.2% @ ≥960** | 0.42% (4/960) ✓ |
+
+cert-final (30 runs, N=960): DEPLOY GATE **PASS**, FULL CERTIFICATION **PASS**. Cache 100%, spend $9.87.
+
+## D — the third-party promise-boundary clause (v0.8)
+Rule 4 now names whose intention is a promise: a third party's stated action the rep isn't party to ("his manager will approve") is not a promise. **It did NOT reduce fabrication** — v0.8 (0.50%) is not below v0.7 (0.22%); the boundary event was already rare and this was never shown to move the rate. It stays because it is principled and costless (it correctly rules third-party intent out of promises), and it is **credited with no fabrication reduction it did not produce.**
+
+## A — fabrication as an aggregate bar
+Per-run zero-tolerance on a ~0.5% stochastic floor fails ~a third of 3-run attempts and trains re-rolling. Fabrication moved to an aggregate rate ceiling; every other hard metric stays per-run zero. My first published estimate (0.27%) was optimistic — it rode two lucky 0/480 samples and mixed in v0.7. The honest v0.8 rate is **0.50%** (≈ one low-confidence, queued item per rep every ~7 weeks — a tap to dismiss, never an asserted fact). Tripwire derivation (recorded beside `GATE_FAB`): at N=960 and p≈0.5%, ≥12 fabrications (1.25%) is the ~99th percentile → 1.2% tripwire, ~0.9% false-fail, vs 37% for per-run-zero.
+
+## The leakage split (Tier-1 deterministic, Tier-2 aggregate)
+The "test the prod pipeline" ruling only solved half the problem:
+- **Tier-1 is format** — regex-stripped at ingest, the model never sees it. Verified WITHOUT the model (`redact.ts` idempotency). **0, guaranteed.** Adversarial coverage added (Arabic-Indic digits, space-grouped/newline IBANs, dotted/nbsp card separators) — `redact.ts` now carries the whole Tier-1 gate, so it is hardened where the real risk lives.
+- **Tier-2 is meaning** — no regex exists, so Rule 7 (stochastic) is the only defence. Gating per-run-zero would gate a stochastic layer as if deterministic. Aggregate bar instead.
+
+**★ The notable finding: Tier-2 health leakage is 2.94%, all on `health-exclusion`.** The model records a health detail ~1 in 34 exposures despite Rule 7 — higher than fabrication, and with no deterministic backstop. It surfaces as a low-confidence queued item, not an asserted fact, but it is the highest-risk number in this batch and worth future investment to reduce. Two caveats: the eval has only ~3 Tier-2 fixtures (≤90 exposures/cert), so the bar is coarse — **recommend adding more Tier-2 fixtures** to tighten it; and the Rule 7 isolation signal (1.43% raw) is tracked for drift.
+
+## Three metrics shipped dark — the coverage guard now forbids it
+`leakedValues` (threaded but unused), the confidence metric, and now **null-named** — Rule 5's prohibition was never enforced in P1-9, and worked Example D was actively teaching the violation (`{"name":null,"role":"buyer"}`, ~87% of runs). All three found and closed. A worked example teaches harder than a written rule, so a new test parses every example and asserts it satisfies the schema + Rule 5 + Rule 4. The GATE-SELFTEST coverage guard fails if any hard metric lacks a self-test — no metric can ship dark again.
+
+## Condition 4 — production monitoring (the free, larger sample)
+The confirmation-queue rejection rate is the live proxy: fabricated and Tier-2 items arrive as low-confidence "to confirm" entries, and a rep rejecting them at a rate implying materially more than the certified 0.50% / 2.94% is real signal at a sample far larger than any gate. **Status:** the queue exists (`brief.needsConfirmation`), but the confirm/reject *decision* is not yet captured. **Needed (flagged, not built this batch):** record the rep's accept/reject on to-confirm items and surface the rejection rate in `/health` (the model-metrics pattern), split fabrication-suspected vs Tier-2-suspected where derivable. Until then, monitoring is gate-sampling only.
+
+## Spend (Part 2)
+cert1 $4.04 · cert2 $4.99 · cert3 $5.03 · Tier-2 measurement $1 (est) · cert-final $9.87 · smaller probes ~$1 → **~$26** for the D→A certification cycle, all warm (100% cache).

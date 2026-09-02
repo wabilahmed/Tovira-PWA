@@ -15,7 +15,7 @@ re-certification on prompt **v0.7** (`tovira-extract-v0.7`), Sonnet-locked.
 | DATE-REF (reference date per source) | ✅ live bug fixed (imports were resolving against import-date) |
 | DATE-INVARIANT (no past-due) | ✅ enforced at write time + in the gate path |
 | E3/E4 v0.7 regression | ✅ HARD-CLEAN, warm 100% |
-| Combined P1-9 gate | ⚠️ falseCert 0 + leaked 0 all runs; FAILs on rare baseline fabrication — **investigated (not v0.7's fault), owner decision on the standard** — see §8a + `FAB-REPORT.md` |
+| Combined P1-9 gate | ✅ **v0.8 CERTIFIED** — fabrication 0.50% ≤ 1.2% tripwire; Tier-1 leakage 0 (deterministic); Tier-2 leakage 2.94% ≤ 8% (model-enforced); per-run HARD 0. See `FAB-REPORT.md` Part 2 |
 | Full suite / typecheck / lint | ✅ 1076 green · clean · clean |
 
 ---
