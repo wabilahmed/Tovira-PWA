@@ -44,6 +44,18 @@ describe('scoreNote', () => {
     expect(scoreNote(expected, actual).guessedDates).toBe(1);
   });
 
+  it('a fabricated promise with a date counts as fabrication only, NOT a separate guessed date', () => {
+    // A phantom promise's date is part of the fabrication (aggregate bar), not a
+    // date-resolution error on a real commitment (guessedDates, per-run zero). Counting it
+    // twice would let any dated fabrication re-fail the per-run guessed bar, undoing the
+    // owner ruling that fabrication is aggregate-only.
+    const expected = { ...base, promises: [] };
+    const actual = { ...base, promises: [promise('loop in finance', '2026-03-01')] };
+    const s = scoreNote(expected, actual);
+    expect(s.fabricatedPromises).toBe(1);
+    expect(s.guessedDates).toBe(0);
+  });
+
   it('flags a false certainty (truth low-confidence, prediction high) on a matched promise', () => {
     const low = { ...promise('circle back on the contract', null), confidence: 'low' as const };
     const high = { ...promise('circle back on the contract', null), confidence: 'high' as const };

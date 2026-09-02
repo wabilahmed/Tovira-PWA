@@ -82,7 +82,10 @@ export function scoreNote(
     } else {
       score.promises.fp += 1;
       score.fabricatedPromises += 1;
-      if (p.due_date !== null) score.guessedDates += 1; // fabricated promise with a date
+      // A fabricated promise's date is part of the fabrication (scored by the aggregate
+      // fabrication bar), NOT a separate guessed date. Double-counting it here would let a
+      // dated phantom re-fail the per-run-zero guessed bar, undoing the ruling that
+      // fabrication is aggregate-only. guessedDates is reserved for MATCHED promises.
     }
   }
   score.promises.fn = expected.promises.length - matchedExpected.size;
