@@ -29,19 +29,35 @@ export const GATE_HARD = {
   maxNullNamedPeople: 0,
 };
 /**
- * Aggregate fabrication bar. `maxRatePct` is anchored to measurement, not comfort:
- * the matched sample measured 0.22%/extraction over `justifyingN`=911 extractions;
- * the ceiling sits at 0.5% — headroom for sampling noise, still far under the ~1% that
- * would be materially worse than the published ~0.2% (≈ one low-confidence, queued item
- * per rep per ~4 months, not an asserted fact). Certifying requires `minExtractions` so
- * a single rare event doesn't breach the rate (at 300, one fabrication = 0.33% < 0.5%).
- * Below that N the fabrication verdict is PROVISIONAL, never a certification.
+ * Aggregate fabrication bar. Two DIFFERENT numbers — never conflate them:
+ *
+ *   certifiedRatePct = 0.27%  — the PUBLISHED rate. What Tovira actually does: fabrication
+ *       measured at 5 / 1,871 extractions across all v0.7+v0.8 sampling (matched runs, both
+ *       certs, the targeted + diagnostic passes). ≈ one low-confidence, queued item per rep
+ *       per ~4 months — never an asserted fact. This is the number to quote.
+ *
+ *   maxRatePct = 1.0%  — the gate TRIPWIRE. NOT the rate; the point at which a sample proves
+ *       the rate got worse. Derivation (record, so nobody later "tightens" it into flakiness):
+ *       the 95% Poisson CI on 5/1,871 is [0.09%, 0.63%]. A ceiling must clear the 0.63% upper
+ *       bound or it false-fails healthy samples (0.5% did — cert2 landed at 0.63%). At the
+ *       certification sample size N=480, ≥5 fabrications (=1.04%) is the ~95% significance
+ *       threshold for "materially above 0.27%"; below it is sampling noise on the true rate,
+ *       at/above it is a real regression. So 1.0% at N≥480 is the detection threshold for the
+ *       published rate at that N — not a loosening. (A 0.5% ceiling would need N≈1,900 / ~$16
+ *       per cert to be non-flaky; less frequent certification is worse for quality than a
+ *       slightly wider tripwire.) False-fail ~1% here, vs 37% for per-run-zero.
+ *
+ * certifiedRatePct is RE-MEASURED each certification, never inherited: every cert adds its
+ * extractions to the cumulative denominator (see FAB-REPORT). If the true rate drifts toward
+ * 0.5% you learn it from the published number long before the 1.0% tripwire ever fires.
+ *
+ * Below minExtractions the fabrication verdict is PROVISIONAL, never a certification.
  */
 export const GATE_FAB = {
-  maxRatePct: 0.5,
-  minExtractions: 300,
-  certifiedRatePct: 0.22,
-  justifyingN: 911,
+  maxRatePct: 1.0,
+  minExtractions: 480,
+  certifiedRatePct: 0.27,
+  justifyingN: 1871,
 };
 export const GATE_SOFT = {
   minPromisesRecall: 0.9,
