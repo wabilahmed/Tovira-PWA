@@ -54,6 +54,7 @@ import type { ReferralService } from './services/referral/referral-service.js';
 import { handleBillingRoute } from './http/billing-routes.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
+import { handleTier1ScanRoute } from './http/admin-tier1-routes.js';
 import { sendJson } from './http/helpers.js';
 
 /** Shape each job's last-run for /health: ISO time + age so "is it alive" is at a glance. */
@@ -159,6 +160,8 @@ export function createApiServer(deps: ApiDeps): Server {
         });
         return;
       }
+
+      if (await handleTier1ScanRoute(request, response, { auth: deps.auth, pool: deps.pool })) return;
 
       if (request.method === 'GET' && (url === '/health' || url === '/healthz')) {
         try {
