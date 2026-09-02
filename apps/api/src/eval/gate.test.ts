@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runGate, runEval, softGate, extractForEval, evaluateGate } from './gate.js';
+import { runGate, runEval, softGate, extractForEval, evaluateGate, GATE_HARD } from './gate.js';
 import type { AggregateMetrics } from './score.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import type { Extraction } from '../services/extraction/types.js';
@@ -43,6 +43,39 @@ const cleanMetrics: AggregateMetrics = {
   leakedValues: 0,
   notes: 1,
 };
+
+// GATE-SELFTEST: a metric that cannot fail the gate is not a metric. `leakedValues` was
+// once dark (threaded but unused) — the gate reported a bar it wasn't enforcing. This
+// proves every HARD metric, when violated by a synthetic result, actually fails the gate.
+// Pure evaluateGate over synthetic metrics — zero model cost, runs in CI.
+describe('[GATE-SELFTEST] every hard metric can fail the gate', () => {
+  const HARD_METRICS: Array<{ field: keyof AggregateMetrics; reason: RegExp }> = [
+    { field: 'fabricatedPromises', reason: /fabricat/i },
+    { field: 'guessedDates', reason: /guessed/i },
+    { field: 'mergedPeople', reason: /merged/i },
+    { field: 'falseCertainties', reason: /certaint|confiden/i },
+    { field: 'leakedValues', reason: /leak/i },
+  ];
+
+  it('PASSES a fully clean synthetic result (control)', () => {
+    expect(evaluateGate(cleanMetrics, 'clean').passed).toBe(true);
+  });
+
+  for (const { field, reason } of HARD_METRICS) {
+    it(`HARD-FAILS when ${field} is violated (=1), and names it`, () => {
+      const r = evaluateGate({ ...cleanMetrics, [field]: 1 }, `violate-${field}`);
+      expect(r.passed, `${field}=1 must fail the gate — a metric that cannot fail is not a metric`).toBe(false);
+      expect(r.reasons.join(' ')).toMatch(reason);
+    });
+  }
+
+  it('covers every GATE_HARD threshold (no hard rule left unexercised)', () => {
+    // If someone adds a GATE_HARD.maxX, this forces a matching self-test above.
+    const covered = new Set(HARD_METRICS.map((m) => m.field as string));
+    const hardFields = Object.keys(GATE_HARD).map((k) => k.replace(/^max/, '').replace(/^./, (c) => c.toLowerCase()));
+    for (const f of hardFields) expect(covered, `GATE_HARD.${f} has no GATE-SELFTEST — add one`).toContain(f);
+  });
+});
 
 describe('[P1-9] extraction quality gate', () => {
   // v0.6: a promise the answer key marks low-confidence, returned high, is a false
