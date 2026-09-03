@@ -19,6 +19,7 @@ import {
   createAuthService,
   createClientRepository,
   createInventoryRepository,
+  createInventoryService,
   createNoteRepository,
   createStorage,
   createTranscriptionService,
@@ -99,7 +100,8 @@ async function main(): Promise<void> {
   const accountEmail = createAccountEmailService(config, appPool);
   const emailFor = (userId: string): Promise<string | null> => auth.getPublicUser(userId).then((u) => u?.email ?? null);
   const clients = createClientRepository(config, appPool);
-  const inventory = createInventoryRepository(config, appPool);
+  const inventoryRepo = createInventoryRepository(config, appPool);
+  const inventory = createInventoryService(inventoryRepo, config);
   const notes = createNoteRepository(config, appPool);
   const storage = createStorage(config);
   const transcription = createTranscriptionService(config, notes, storage);

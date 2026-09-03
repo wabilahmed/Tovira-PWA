@@ -38,6 +38,7 @@ const GATED: Array<[string, (t: string) => Promise<Response>]> = [
   ['GET /monday-digest', (t) => GET('/monday-digest', t)],
   ['POST /recall', (t) => POST('/recall', t, { question: 'what did they say?' })],
   ['POST /notes/:id/follow-up', (t) => POST('/notes/any-note-id/follow-up', t, {})],
+  ['GET /inventory', (t) => GET('/inventory', t)],
 ];
 
 describe('[P5-1/P5-2 ENTITLEMENT] premium surfaces gate on a lapsed trial', () => {
@@ -69,6 +70,8 @@ describe('[P5-1/P5-2 ENTITLEMENT] premium surfaces gate on a lapsed trial', () =
     (await subs.get(userId))!.trialEndsAt = Date.now() - 1000; // lapse it
     // capture a paste note — allowed
     expect((await POST(`/clients/${client.id}/notes/paste`, token, { text: 'a message' })).status).toBe(201);
+    // add an inventory item — managing your own data stays open on a lapsed account
+    expect((await POST('/inventory', token, { title: 'a listing', description: 'details' })).status).toBe(201);
     // export the whole book — allowed
     expect((await GET('/account/export', token)).status).toBe(200);
     // and the login/settings/billing surfaces are reachable (billing status)

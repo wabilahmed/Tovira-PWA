@@ -9,6 +9,8 @@ import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingCli
 import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
 import { BookScan } from './bookscan/BookScan.js';
+import { Inventory } from './inventory/Inventory.js';
+import { InventoryClient } from './inventory/inventoryClient.js';
 import { ImportChat } from './import/ImportChat.js';
 import { consumeSharedChat, idbSharedChatStore } from './pwa/sharedChat.js';
 import { resumePendingNotes } from './capture/resume.js';
@@ -68,6 +70,7 @@ const auth = new AuthClient(API_BASE);
 const clientsApi = new ClientsClient(API_BASE);
 const onboardingApi = new OnboardingClient(API_BASE);
 const bookScanApi = new BookScanClient(API_BASE);
+const inventoryApi = new InventoryClient(API_BASE);
 const promisesApi = new PromisesClient(API_BASE);
 const heroApi = new HeroClient(API_BASE);
 const proactiveApi = new ProactiveClient(API_BASE);
@@ -361,6 +364,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       )}
 
       {view === 'ledger' && <Ledger api={ledgerApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
+
+      {view === 'inventory' && <Inventory api={inventoryApi} onSubscribe={() => setView('settings')} />}
 
       {view === 'settings' && (
         <>

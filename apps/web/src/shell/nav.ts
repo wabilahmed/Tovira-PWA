@@ -9,6 +9,7 @@ export type View =
   | 'alerts'
   | 'bookscan'
   | 'ledger'
+  | 'inventory'
   | 'capture'
   | 'getstarted'
   | 'settings';
@@ -33,6 +34,7 @@ export const OVERFLOW: NavItem[] = [
   { view: 'promises', label: 'Promises' },
   { view: 'meetings', label: 'Meetings' },
   { view: 'alerts', label: 'Alerts' },
+  { view: 'inventory', label: 'Inventory' },
   { view: 'ledger', label: 'The Ledger' },
   { view: 'settings', label: 'Settings' },
 ];
@@ -48,6 +50,7 @@ export const SIDEBAR: NavItem[] = [
   { view: 'meetings', label: 'Meetings' },
   { view: 'alerts', label: 'Alerts' },
   { view: 'bookscan', label: 'Book Scan' },
+  { view: 'inventory', label: 'Inventory' },
   { view: 'ledger', label: 'The Ledger' },
   { view: 'settings', label: 'Settings' },
 ];

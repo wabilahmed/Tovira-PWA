@@ -42,6 +42,7 @@ import { PgClientRepository } from './adapters/clients/pg-client-repository.js';
 import type { InventoryRepository } from './ports/inventory-repository.js';
 import { InMemoryInventoryRepository } from './adapters/inventory/in-memory-inventory-repository.js';
 import { PgInventoryRepository } from './adapters/inventory/pg-inventory-repository.js';
+import { InventoryService } from './services/inventory/inventory-service.js';
 import type { NoteRepository } from './ports/note-repository.js';
 import { InMemoryNoteRepository } from './adapters/notes/in-memory-note-repository.js';
 import { PgNoteRepository } from './adapters/notes/pg-note-repository.js';
@@ -210,6 +211,11 @@ export function createInventoryRepository(config: AppConfig, pool?: Pool): Inven
     return new PgInventoryRepository(pool);
   }
   return new InMemoryInventoryRepository();
+}
+
+/** Build the inventory service (repo + embedder — embeds each item on save; no Claude). */
+export function createInventoryService(repo: InventoryRepository, config: AppConfig): InventoryService {
+  return new InventoryService(repo, createEmbedder(config));
 }
 
 /** Build the note repository, selecting the store from config (RLS-backed on pg). */

@@ -370,3 +370,22 @@
 .tov-setting-line { color: var(--text-secondary); font-size: 0.9rem; }
 .tov-verified { color: var(--brass); }
 .tov-unverified { color: var(--amber); }
+
+/* Inventory (feat(INVENTORY-1)). Ledger-first; disabled items are muted (AA), never
+   claret and never a warning — the state is told by the swapped action, not by dimming. */
+.tov-inv-add { display: flex; flex-direction: column; gap: 0.5rem; margin: 0 0 1.25rem; }
+.tov-inv-add input, .tov-inv-add textarea,
+.tov-inv-item__edit input, .tov-inv-item__edit textarea {
+  width: 100%; padding: 0.5rem 0.6rem; border: 1px solid var(--hairline);
+  border-radius: var(--radius-input, 8px); background: var(--surface-base); color: var(--text-primary);
+  font: inherit;
+}
+.tov-inv-add__row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.tov-filter { display: flex; gap: 1.1rem; margin: 0 0 0.9rem; }
+.tov-filter .tov-link--on { color: var(--text-primary); border-bottom: 2px solid var(--brass); }
+.tov-list-plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+.tov-inv-item__head { display: flex; align-items: baseline; gap: 0.6rem; }
+.tov-inv-item__title { font-weight: 600; flex: 1 1 auto; }
+.tov-inv-item__qty { margin-inline-start: auto; color: var(--text-secondary); }
+.tov-inv-item__edit { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.4rem; }
+.tov-inv-item__actions { margin-top: 0.2rem; }

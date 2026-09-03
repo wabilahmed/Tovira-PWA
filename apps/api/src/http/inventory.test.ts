@@ -31,7 +31,7 @@ describe('[INV-DATA] inventory tenant isolation', () => {
     const tokenA = await signup(base, 'a@example.com');
     const tokenB = await signup(base, 'b@example.com');
     const userIdA = (await deps.auth.authenticate(tokenA))!.userId;
-    const item = await deps.inventory.create(userIdA, { title: 'Marina 2-bed', description: 'sea view', quantity: 1, embedding: null });
+    const item = await deps.inventory.create(userIdA, { title: 'Marina 2-bed', description: 'sea view', quantity: 1 });
 
     const foreign = await fetch(`${base}/inventory/${item.id}`, { headers: { authorization: `Bearer ${tokenB}` } });
     const unknown = await fetch(`${base}/inventory/${randomUUID()}`, { headers: { authorization: `Bearer ${tokenB}` } });
@@ -51,8 +51,8 @@ describe('[INV-DATA] inventory tenant isolation', () => {
     const tokenB = await signup(base, 'b2@example.com');
     const userIdA = (await deps.auth.authenticate(tokenA))!.userId;
     const userIdB = (await deps.auth.authenticate(tokenB))!.userId;
-    await deps.inventory.create(userIdA, { title: 'A item', description: 'x', quantity: 2, embedding: [0.1, 0.2] });
-    await deps.inventory.create(userIdB, { title: 'B item', description: 'y', quantity: 1, embedding: null });
+    await deps.inventory.create(userIdA, { title: 'A item', description: 'x', quantity: 2 });
+    await deps.inventory.create(userIdB, { title: 'B item', description: 'y', quantity: 1 });
 
     const res = await fetch(`${base}/inventory`, { headers: { authorization: `Bearer ${tokenA}` } });
     const body = await res.json() as { items: Array<Record<string, unknown>> };
