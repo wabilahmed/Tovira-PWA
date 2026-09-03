@@ -74,7 +74,11 @@ export interface AppConfig {
   groqModel: string;
   // --- proactive scan (P3) ---
   coldThresholdDays: number;
-  nudgeLeadHours: number;
+  // Pre-meeting nudge window (NUDGE-SCHED): fire when a meeting's start is within
+  // (lead + tolerance) of now. 2h ± 15m — the tolerance absorbs a missed tick/restart
+  // and lets a meeting logged <2h out still nudge, without double-sending.
+  meetingNudgeLeadMinutes: number;
+  meetingNudgeToleranceMinutes: number;
   reminderWindowDays: number;
   chatRefreshStaleDays: number;
   heroMinClients: number;
@@ -155,7 +159,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     groqBaseUrl: env.GROQ_BASE_URL?.trim() || 'https://api.groq.com',
     groqModel: env.GROQ_MODEL?.trim() || 'whisper-large-v3',
     coldThresholdDays: parsePositive(env.COLD_THRESHOLD_DAYS, 30, 'COLD_THRESHOLD_DAYS'),
-    nudgeLeadHours: parsePositive(env.NUDGE_LEAD_HOURS, 24, 'NUDGE_LEAD_HOURS'),
+    meetingNudgeLeadMinutes: parsePositive(env.MEETING_NUDGE_LEAD_MINUTES, 120, 'MEETING_NUDGE_LEAD_MINUTES'),
+    meetingNudgeToleranceMinutes: parsePositive(env.MEETING_NUDGE_TOLERANCE_MINUTES, 15, 'MEETING_NUDGE_TOLERANCE_MINUTES'),
     reminderWindowDays: parsePositive(env.REMINDER_WINDOW_DAYS, 7, 'REMINDER_WINDOW_DAYS'),
     chatRefreshStaleDays: parsePositive(env.CHAT_REFRESH_STALE_DAYS, 21, 'CHAT_REFRESH_STALE_DAYS'),
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),

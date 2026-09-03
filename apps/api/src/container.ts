@@ -447,10 +447,19 @@ export function createActivationService(config: AppConfig, pool?: Pool): Activat
   return new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics());
 }
 
+/**
+ * The pre-meeting nudge window in ms = lead + tolerance (NUDGE-SCHED, default 2h + 15m).
+ * A meeting whose start is within this of now (and still future) is due for its one nudge.
+ * Used by both the frequent MeetingNudgeService and the (idempotent) daily scan path.
+ */
+export function meetingNudgeWindowMs(config: AppConfig): number {
+  return (config.meetingNudgeLeadMinutes + config.meetingNudgeToleranceMinutes) * 60 * 1000;
+}
+
 export function scanConfigFrom(config: AppConfig): ScanConfig {
   return {
     coldThresholdDays: config.coldThresholdDays,
-    nudgeLeadMs: config.nudgeLeadHours * 60 * 60 * 1000,
+    nudgeLeadMs: meetingNudgeWindowMs(config),
     reminderWindowDays: config.reminderWindowDays,
     chatRefreshStaleDays: config.chatRefreshStaleDays,
   };
