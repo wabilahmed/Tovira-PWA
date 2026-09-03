@@ -28,6 +28,9 @@ export interface RecallAnswer {
 export interface RecallConfig {
   topK: number;
   minSimilarity: number;
+  /** [RECALL-TOPK] Hard cap on the TOTAL retrieved token budget, independent of item count —
+   *  five long notes can exceed twenty short ones, so top-k alone is not a cost bound. */
+  maxRetrievalTokens: number;
 }
 
 const NO_ANSWER = "I don't have that on record.";
@@ -37,6 +40,20 @@ const SYSTEM = `You answer a salesperson's question using ONLY the excerpts from
 
 function isoDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
+}
+
+/** Keep receipts whose cumulative excerpt tokens stay within `budget`; always keep at least the
+ *  first (the closest match) so a huge single note still yields a grounded, bounded answer. */
+function capByTokenBudget(receipts: Receipt[], budget: number): Receipt[] {
+  const kept: Receipt[] = [];
+  let used = 0;
+  for (const r of receipts) {
+    const cost = estimateTokens(`(${r.date}) ${r.quote}`);
+    if (kept.length > 0 && used + cost > budget) break;
+    kept.push(r);
+    used += cost;
+  }
+  return kept;
 }
 
 function toReceipt(m: SimilarNote): Receipt {
@@ -54,7 +71,7 @@ export class RecallService {
     private readonly embedder: Embedder,
     private readonly notes: NoteRepository,
     private readonly model: ModelClient,
-    private readonly config: RecallConfig = { topK: 5, minSimilarity: 0.2 },
+    private readonly config: RecallConfig = { topK: 5, minSimilarity: 0.2, maxRetrievalTokens: 1200 },
     /** [RECALL-METRICS] per-turn cost recorder. Optional — recall runs unchanged without it. */
     private readonly metrics?: RecallMetrics,
     /** Model id for pricing the recorded turn (recall runs on Haiku). */
@@ -91,7 +108,10 @@ export class RecallService {
     const relevant = matches.filter((m) => m.similarity >= this.config.minSimilarity && (m.note.rawText ?? '').trim());
     if (relevant.length === 0) return { answer: NO_ANSWER, receipts: [] };
 
-    const receipts = relevant.map(toReceipt);
+    // [RECALL-TOPK] top-k caps the ITEM count (the DB LIMIT); this caps the total TOKEN budget so
+    // a few long notes can't blow up the context. Greedily keep receipts within the budget (always
+    // at least the top one), so retrieval cost is bounded regardless of book size or note length.
+    const receipts = capByTokenBudget(relevant.map(toReceipt), this.config.maxRetrievalTokens);
     const excerpts = receipts.map((r, i) => `[${i + 1}] (${r.date}) ${r.quote}`).join('\n');
     let answer: string;
     try {
