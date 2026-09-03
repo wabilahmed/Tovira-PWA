@@ -27,6 +27,7 @@ import {
   createExtractionService,
   createExtractionModelRouter,
   createRecallService,
+  createRecallSessionRepository,
   createLedgerService,
   createFollowUpService,
   createExtractionLogRepository,
@@ -196,10 +197,11 @@ async function main(): Promise<void> {
         run: async () => { await meetingNudge.run(Date.now()); } },
     ],
   });
-  const account = createAccountService(auth, clients, notes, facts, meetings, images, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined));
+  const recallSessions = createRecallSessionRepository(config, appPool);
+  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined));
   const activation = createActivationService(config, appPool);
   const recallMetrics = new RecallMetrics();
-  const recall = createRecallService(config, notes, recallMetrics);
+  const recall = createRecallService(config, notes, recallMetrics, recallSessions);
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch);
   const ledger = createLedgerService(config, appPool);

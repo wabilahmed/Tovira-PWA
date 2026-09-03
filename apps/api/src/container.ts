@@ -59,6 +59,9 @@ import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
 import { RecallService } from './services/recall/recall-service.js';
 import type { RecallMetrics } from './services/metrics/recall-metrics.js';
+import type { RecallSessionRepository } from './ports/recall-session-repository.js';
+import { PgRecallSessionRepository } from './adapters/recall/pg-recall-session-repository.js';
+import { InMemoryRecallSessionRepository } from './adapters/recall/in-memory-recall-session-repository.js';
 import { LedgerService } from './services/ledger/ledger-service.js';
 import type { PrioritiesRepository } from './ports/priorities-repository.js';
 import { InMemoryPrioritiesRepository } from './adapters/priorities/in-memory-priorities-repository.js';
@@ -139,8 +142,12 @@ export function createLedgerService(config: AppConfig, pool?: Pool): LedgerServi
 }
 
 /** Conversational recall (P4-8): embed + retrieve top-k + grounded answer. */
-export function createRecallService(config: AppConfig, notes: NoteRepository, metrics?: RecallMetrics): RecallService {
-  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall);
+export function createRecallSessionRepository(config: AppConfig, pool: Pool): RecallSessionRepository {
+  return config.authStore === 'postgres' ? new PgRecallSessionRepository(pool) : new InMemoryRecallSessionRepository();
+}
+
+export function createRecallService(config: AppConfig, notes: NoteRepository, metrics?: RecallMetrics, sessions?: RecallSessionRepository): RecallService {
+  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions);
 }
 
 /**
@@ -437,9 +444,10 @@ export function createBillingService(config: AppConfig, pool?: Pool, emailHook?:
   return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook);
 }
 
-export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, onDeleted?: (userId: string, email: string) => Promise<void>): AccountService {
-  // On Postgres, deleting the user cascades all data (FKs) — no explicit purge list.
-  return new AccountService(auth, clients, notes, facts, meetings, images, [], onDeleted);
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>): AccountService {
+  // On Postgres, deleting the user cascades all data (FKs) — no explicit purge list. Recall sessions
+  // are purged explicitly (also cascade-backed) so account delete works on the in-memory store too.
+  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [], onDeleted);
 }
 
 export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {

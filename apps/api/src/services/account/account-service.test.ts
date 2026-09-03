@@ -10,8 +10,9 @@ function make(onDeleted?: (userId: string, email: string) => Promise<void>) {
     deleteUser: vi.fn(async () => { order.push('deleteUser'); }),
   };
   const purge = { purgeUser: vi.fn(async () => { order.push('purge'); }) };
+  const recallSessions = { exportForUser: async () => [], purgeUser: async () => {} } as never;
   const wrapped = onDeleted ? async (u: string, e: string) => { order.push('email'); await onDeleted(u, e); } : undefined;
-  const svc = new AccountService(auth as never, {} as never, {} as never, {} as never, {} as never, {} as never, [purge], wrapped);
+  const svc = new AccountService(auth as never, {} as never, {} as never, {} as never, {} as never, {} as never, recallSessions, [purge], wrapped);
   return { svc, auth, purge, order };
 }
 

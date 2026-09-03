@@ -4,6 +4,7 @@ import type { NoteRepository } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { ImageRepository } from '../../ports/image-repository.js';
+import type { RecallSessionRepository } from '../../ports/recall-session-repository.js';
 
 export interface UserPurgeable {
   purgeUser(userId: string): Promise<void>;
@@ -22,6 +23,8 @@ export class AccountService {
     private readonly facts: FactsRepository,
     private readonly meetings: MeetingRepository,
     private readonly images: ImageRepository,
+    /** Ask conversation sessions (ASK-SESSION) — the rep's own data: exported + purged. */
+    private readonly recallSessions: RecallSessionRepository,
     private readonly purgeables: UserPurgeable[],
     /** Sends the deletion confirmation. Called BEFORE the purge (the address is
      *  about to be erased); a failing send never blocks or rolls back delete. */
@@ -46,6 +49,7 @@ export class AccountService {
       keyDates: await this.facts.listKeyDatesByUser(userId),
       meetings: await this.meetings.listByUser(userId),
       images,
+      recallSessions: await this.recallSessions.exportForUser(userId),
     };
   }
 
@@ -60,6 +64,7 @@ export class AccountService {
         console.warn(`[account] delete-confirmation email failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
+    await this.recallSessions.purgeUser(userId); // pg also cascades on the users FK; explicit for in-memory
     for (const p of this.purgeables) await p.purgeUser(userId);
     await this.auth.deleteUser(userId);
   }

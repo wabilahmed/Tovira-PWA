@@ -34,6 +34,7 @@ import { PrioritiesService } from '../services/hero/priorities-service.js';
 import { InMemoryPrioritiesRepository } from '../adapters/priorities/in-memory-priorities-repository.js';
 import { BookScanService } from '../services/book-scan/book-scan-service.js';
 import { RecallService } from '../services/recall/recall-service.js';
+import { InMemoryRecallSessionRepository } from '../adapters/recall/in-memory-recall-session-repository.js';
 import { CorpusStatsService } from '../services/corpus/corpus-service.js';
 import { MondayDigestService } from '../services/monday/monday-service.js';
 import { LedgerService } from '../services/ledger/ledger-service.js';
@@ -112,6 +113,7 @@ export function buildInMemoryDeps(
   const pushSender = new StubPushSender();
   const pushDispatch = new PushDispatchService(pushSender, pushSubscriptions, notifications, new InMemoryPushBudgetRepository());
   const images = new InMemoryImageRepository();
+  const recallSessions = new InMemoryRecallSessionRepository();
   const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
   return {
@@ -141,10 +143,10 @@ export function buildInMemoryDeps(
     hero,
     priorities: new PrioritiesService(hero, new StubModelClient(), new InMemoryPrioritiesRepository()),
     billing,
-    account: new AccountService(auth, clients, notes, facts, meetings, images, [clients, notes, facts, meetings, inventoryRepo]),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo]),
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
-    recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }),
+    recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions),
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
     ledger,
