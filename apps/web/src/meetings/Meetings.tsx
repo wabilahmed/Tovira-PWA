@@ -7,6 +7,7 @@ export interface MeetingsApi {
   parse(text: string): Promise<ParseResult | null>;
   createForClient(clientId: string, meeting: { datetime: string | null; datetimeRaw: string; title: string | null }): Promise<Meeting | null>;
   remove(id: string): Promise<boolean>;
+  confirm(id: string): Promise<Meeting | null>;
 }
 
 /** A proposal ready to save — either the parser's own proposal, or one the rep
@@ -99,6 +100,13 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
     if (await api.remove(id)) setMeetings((prev) => prev.filter((m) => m.id !== id));
   }
 
+  // NUDGE-UNCONFIRMED: an extraction-proposed meeting is shown "unconfirmed — is this right?"
+  // and never nudges until the rep confirms it here (Tovira never acts on its own inference).
+  async function confirmMeeting(id: string): Promise<void> {
+    const done = await api.confirm(id);
+    if (done) { hapticTick(); setMeetings((prev) => prev.map((m) => (m.id === id ? { ...m, confirmed: true } : m))); }
+  }
+
   return (
     <section aria-label="Meetings">
       <h2 style={{ marginTop: 0 }}>Meetings</h2>
@@ -171,8 +179,14 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
             <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem' }}>
               <span>
                 {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small className="tov-stamp">{m.datetime ?? m.datetimeRaw}</small>
+                {m.confirmed === false && (
+                  <span style={{ color: 'var(--amber)', marginLeft: '0.5rem' }}> · unconfirmed — is this right?</span>
+                )}
               </span>
-              <button onClick={() => void remove(m.id)}>Remove</button>
+              <span style={{ display: 'flex', gap: '0.5rem' }}>
+                {m.confirmed === false && <button onClick={() => void confirmMeeting(m.id)}>Confirm</button>}
+                <button onClick={() => void remove(m.id)}>Remove</button>
+              </span>
             </li>
           ))}
         </ul>

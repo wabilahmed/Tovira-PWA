@@ -118,6 +118,39 @@ describe('[P3-1] add a meeting', () => {
   });
 });
 
+describe('[NUDGE-UNCONFIRMED] a proposed meeting is confirmable via the queue', () => {
+  async function meId(token: string): Promise<string> {
+    return ((await (await fetch(`${base}/me`, { headers: auth(token) })).json()) as { user: { id: string } }).user.id;
+  }
+  it('an unconfirmed meeting shows in /confirmations; confirming clears it (and never nudges until then)', async () => {
+    const token = await signup('unconf@example.com');
+    const clientId = await createClient(token, 'Meridian');
+    const userId = await meId(token);
+    const m = await deps.meetings.create(userId, {
+      clientId, datetime: new Date('2026-07-14T11:00:00.000Z').toISOString(), datetimeRaw: 'next Tuesday 3pm', title: null, confirmed: false, noteId: null,
+    });
+    // unconfirmed → never nudge-eligible
+    expect(await deps.meetings.dueForNudge(userId, '2026-07-14T00:00:00.000Z', '2026-07-14T23:59:59.000Z')).toHaveLength(0);
+    // surfaced in the confirmation queue as a pending meeting
+    let q = (await (await fetch(`${base}/confirmations`, { headers: auth(token) })).json()) as { meetings: { id: string }[] };
+    expect(q.meetings.map((x) => x.id)).toContain(m.id);
+    // one-tap confirm
+    const c = await fetch(`${base}/meetings/${m.id}/confirm`, { method: 'POST', headers: auth(token) });
+    expect(c.status).toBe(200);
+    expect(((await c.json()) as { confirmed: boolean }).confirmed).toBe(true);
+    // gone from the queue, and now nudge-eligible
+    q = (await (await fetch(`${base}/confirmations`, { headers: auth(token) })).json()) as { meetings: { id: string }[] };
+    expect(q.meetings.map((x) => x.id)).not.toContain(m.id);
+    expect(await deps.meetings.dueForNudge(userId, '2026-07-14T00:00:00.000Z', '2026-07-14T23:59:59.000Z')).toHaveLength(1);
+  });
+
+  it('confirming an unknown meeting is 404, and confirm requires auth (401)', async () => {
+    const token = await signup('unconf404@example.com');
+    expect((await fetch(`${base}/meetings/does-not-exist/confirm`, { method: 'POST', headers: auth(token) })).status).toBe(404);
+    expect((await fetch(`${base}/meetings/x/confirm`, { method: 'POST' })).status).toBe(401);
+  });
+});
+
 describe('[NUDGE-TZ] a wall-clock meeting time is resolved in the rep\'s timezone', () => {
   async function signupTz(email: string, timezone: string): Promise<string> {
     const res = await fetch(`${base}/auth/signup`, {

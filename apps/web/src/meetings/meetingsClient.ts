@@ -72,4 +72,15 @@ export class MeetingsClient {
       return false;
     }
   }
+
+  /** Confirm a proposed (extraction-suggested) meeting → confirmed, nudge-eligible. */
+  async confirm(id: string): Promise<Meeting | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/meetings/${id}/confirm`, { method: 'POST', credentials: 'include' });
+      if (res.status !== 200) return null;
+      return (await res.json()) as Meeting;
+    } catch {
+      return null;
+    }
+  }
 }

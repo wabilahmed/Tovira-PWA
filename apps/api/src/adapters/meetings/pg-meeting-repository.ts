@@ -10,6 +10,7 @@ interface Row {
   datetime_raw: string;
   title: string | null;
   confirmed: boolean;
+  note_id: string | null;
   nudged_at: Date | null;
   created_at: Date;
 }
@@ -23,12 +24,13 @@ function toRecord(row: Row): MeetingRecord {
     datetimeRaw: row.datetime_raw,
     title: row.title,
     confirmed: row.confirmed,
+    noteId: row.note_id,
     nudgedAt: row.nudged_at ? row.nudged_at.getTime() : null,
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, datetime, datetime_raw, title, confirmed, nudged_at, created_at';
+const COLUMNS = 'id, user_id, client_id, datetime, datetime_raw, title, confirmed, note_id, nudged_at, created_at';
 
 export class PgMeetingRepository implements MeetingRepository {
   constructor(private readonly pool: Pool) {}
@@ -36,11 +38,38 @@ export class PgMeetingRepository implements MeetingRepository {
   async create(userId: string, meeting: NewMeeting): Promise<MeetingRecord> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO meetings (user_id, client_id, datetime, datetime_raw, title, confirmed)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${COLUMNS}`,
-        [userId, meeting.clientId, meeting.datetime, meeting.datetimeRaw, meeting.title, meeting.confirmed],
+        `INSERT INTO meetings (user_id, client_id, datetime, datetime_raw, title, confirmed, note_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING ${COLUMNS}`,
+        [userId, meeting.clientId, meeting.datetime, meeting.datetimeRaw, meeting.title, meeting.confirmed, meeting.noteId ?? null],
       );
       return toRecord(rows[0] as unknown as Row);
+    });
+  }
+
+  async findByNoteId(userId: string, noteId: string): Promise<MeetingRecord | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${COLUMNS} FROM meetings WHERE note_id = $1`, [noteId]);
+      return rows[0] ? toRecord(rows[0] as unknown as Row) : null;
+    });
+  }
+
+  async listUnconfirmedByUser(userId: string): Promise<MeetingRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS} FROM meetings WHERE user_id = $1 AND confirmed = false ORDER BY datetime NULLS LAST`,
+        [userId],
+      );
+      return (rows as unknown as Row[]).map(toRecord);
+    });
+  }
+
+  async confirm(userId: string, id: string): Promise<MeetingRecord | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `UPDATE meetings SET confirmed = true WHERE id = $1 RETURNING ${COLUMNS}`,
+        [id],
+      );
+      return rows[0] ? toRecord(rows[0] as unknown as Row) : null;
     });
   }
 

@@ -123,10 +123,12 @@ async function main(): Promise<void> {
     (uid) => extractionLogs.listByUser(uid).then((rows) => rows.length),
     config.trialExtractionCeiling,
   );
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter);
+  const meetings = createMeetingRepository(config, appPool);
+  // NUDGE-UNCONFIRMED: extraction persists proposed meetings (confirmed:false) so they can be
+  // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId));
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
-  const meetings = createMeetingRepository(config, appPool);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
   const scan = createScanService(clients, meetings, facts, notifications, notes);

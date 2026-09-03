@@ -6,6 +6,7 @@ import { InMemoryClientRepository } from '../../adapters/clients/in-memory-clien
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
+import { InMemoryMeetingRepository } from '../../adapters/meetings/in-memory-meeting-repository.js';
 import { StubEmbedder } from '../../adapters/embedding/stub.js';
 import type { ModelClient } from '../../ports/model.js';
 import type { Embedder } from '../../ports/embedder.js';
@@ -19,6 +20,12 @@ const VALID = JSON.stringify({
   concerns: [],
   next_steps: [],
   meeting: null,
+});
+
+const WITH_MEETING = JSON.stringify({
+  summary: 'Client proposed a meeting next Tuesday.',
+  promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [],
+  meeting: { datetime: '2026-07-14T15:00', datetime_raw: 'next Tuesday 3pm', confirmed: false },
 });
 
 function model(...responses: string[]): ModelClient {
@@ -60,6 +67,33 @@ describe('ExtractionService', () => {
     const promises = await facts.listPromisesByNote('user-A', note.id);
     expect(promises).toHaveLength(1);
     expect(promises[0]!.owner).toBe('rep');
+  });
+
+  it('[NUDGE-UNCONFIRMED] persists a proposed meeting (confirmed:false) idempotently, on the rep\'s clock', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const meetings = new InMemoryMeetingRepository();
+    const client = await clients.create('user-A', 'Meridian Corp');
+    const note = await notes.create('user-A', { clientId: client.id, source: 'paste', rawText: 'meeting next Tuesday 3pm', audioKey: null, status: 'pending_extraction' });
+    const logs = new InMemoryExtractionLogRepository();
+    const svc = new ExtractionService(model(WITH_MEETING), clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined, undefined, undefined, meetings, async () => 'Asia/Dubai');
+
+    await svc.extractNote('user-A', note.id, '2026-07-09');
+    const persisted = await meetings.findByNoteId('user-A', note.id);
+    expect(persisted?.confirmed).toBe(false); // waits for the rep — never booked silently
+    expect(persisted?.datetime).toBe('2026-07-14T11:00:00.000Z'); // 15:00 Dubai → 11:00Z
+    expect(persisted?.datetimeRaw).toBe('next Tuesday 3pm');
+    expect(persisted?.noteId).toBe(note.id);
+    // an unconfirmed meeting is NOT nudge-eligible
+    expect(await meetings.dueForNudge('user-A', '2026-07-14T00:00:00.000Z', '2026-07-14T23:59:59.000Z')).toHaveLength(0);
+    // confirming makes it nudge-eligible
+    await meetings.confirm('user-A', persisted!.id);
+    expect(await meetings.dueForNudge('user-A', '2026-07-14T00:00:00.000Z', '2026-07-14T23:59:59.000Z')).toHaveLength(1);
+    // idempotent: no duplicate meeting for the same note
+    await notes.update('user-A', note.id, { status: 'pending_extraction' });
+    await svc.extractNote('user-A', note.id, '2026-07-09');
+    expect((await meetings.listByUser('user-A')).filter((m) => m.noteId === note.id)).toHaveLength(1);
   });
 
   // Embedding is best-effort: if the embedder throws (e.g. Bedrock model access not

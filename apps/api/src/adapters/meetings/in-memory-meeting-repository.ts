@@ -15,11 +15,29 @@ export class InMemoryMeetingRepository implements MeetingRepository {
       datetimeRaw: meeting.datetimeRaw,
       title: meeting.title,
       confirmed: meeting.confirmed,
+      noteId: meeting.noteId ?? null,
       nudgedAt: null,
       createdAt: Date.now() + this.seq++,
     };
     this.byId.set(record.id, record);
     return record;
+  }
+
+  async findByNoteId(userId: string, noteId: string): Promise<MeetingRecord | null> {
+    return [...this.byId.values()].find((m) => m.userId === userId && m.noteId === noteId) ?? null;
+  }
+
+  async listUnconfirmedByUser(userId: string): Promise<MeetingRecord[]> {
+    return [...this.byId.values()]
+      .filter((m) => m.userId === userId && !m.confirmed)
+      .sort((a, b) => (a.datetime ?? '').localeCompare(b.datetime ?? ''));
+  }
+
+  async confirm(userId: string, id: string): Promise<MeetingRecord | null> {
+    const m = this.byId.get(id);
+    if (!m || m.userId !== userId) return null;
+    m.confirmed = true;
+    return m;
   }
 
   async listByUser(userId: string): Promise<MeetingRecord[]> {

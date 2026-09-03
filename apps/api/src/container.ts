@@ -293,9 +293,11 @@ export function createExtractionService(
   corrections?: CorrectionRepository,
   router?: ModelRouter,
   limiter?: ExtractionLimiter,
+  meetings?: MeetingRepository,
+  timezoneFor?: (userId: string) => Promise<string>,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor);
 }
 
 /**

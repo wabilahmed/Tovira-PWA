@@ -15,6 +15,7 @@ export interface MeetingRouteDeps {
 
 const CREATE_FOR_CLIENT_RE = /^\/clients\/([^/]+)\/meetings$/;
 const MEETING_ID_RE = /^\/meetings\/([^/]+)$/;
+const CONFIRM_RE = /^\/meetings\/([^/]+)\/confirm$/;
 
 export async function handleMeetingRoute(
   req: IncomingMessage,
@@ -29,7 +30,8 @@ export async function handleMeetingRoute(
   const isCreate = method === 'POST' && path === '/meetings';
   const isList = method === 'GET' && path === '/meetings';
   const delMatch = method === 'DELETE' ? MEETING_ID_RE.exec(path) : null;
-  if (!forClient && !isParse && !isCreate && !isList && !delMatch) return false;
+  const confirmMatch = method === 'POST' ? CONFIRM_RE.exec(path) : null;
+  if (!forClient && !isParse && !isCreate && !isList && !delMatch && !confirmMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -96,6 +98,13 @@ export async function handleMeetingRoute(
 
     if (isList) {
       sendJson(res, 200, { meetings: await deps.meetings.listByUser(userId) });
+      return true;
+    }
+
+    // NUDGE-UNCONFIRMED: one-tap confirm of a proposed meeting → confirmed:true, nudge-eligible.
+    if (confirmMatch) {
+      const meeting = await deps.meetings.confirm(userId, decodeURIComponent(confirmMatch[1]!));
+      sendJson(res, meeting ? 200 : 404, meeting ?? { error: 'not_found' });
       return true;
     }
 

@@ -242,6 +242,7 @@ export function createApiServer(deps: ApiDeps): Server {
           corrections: deps.corrections,
           extractionLog: deps.extractionLog,
           ledger: deps.ledger,
+          meetings: deps.meetings,
         })
       )
         return;

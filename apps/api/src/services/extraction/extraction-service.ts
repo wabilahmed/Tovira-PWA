@@ -5,6 +5,9 @@ import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
+import type { MeetingRepository } from '../../ports/meeting-repository.js';
+import type { Meeting } from './types.js';
+import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
 import type { ModelRouter } from './model-router.js';
 import type { ExtractionLimiter } from './limiter.js';
@@ -75,7 +78,33 @@ export class ExtractionService {
     /** Prompt-cache lifetime for the (byte-identical) system prefix. Defaults to
      *  the cheaper-write 5-minute tier; production passes config ('1h'). */
     private readonly cacheTtl: CacheTtl = '5m',
+    /** NUDGE-UNCONFIRMED: persist an extraction-proposed meeting (confirmed from the proposal),
+     *  idempotently per note. Optional — extraction runs unchanged without it. */
+    private readonly meetings?: Pick<MeetingRepository, 'findByNoteId' | 'create'>,
+    /** Rep timezone, to resolve a proposed meeting's wall-clock to an absolute instant. */
+    private readonly meetingTimezone?: (userId: string) => Promise<string>,
   ) {}
+
+  /** Persist a proposed meeting for a note (idempotent per note). `confirmed` comes from the
+   *  proposal: a "locked in" meeting is confirmed:true (immediately nudgeable); a mere proposal is
+   *  confirmed:false and waits for the rep. The wall-clock time is resolved on the rep's clock. */
+  private async persistProposedMeeting(userId: string, noteId: string, clientId: string, meeting: Meeting): Promise<void> {
+    if (!this.meetings) return;
+    if (await this.meetings.findByNoteId(userId, noteId)) return; // already persisted — idempotent
+    let datetime = meeting.datetime;
+    if (datetime) {
+      const tz = this.meetingTimezone ? await this.meetingTimezone(userId) : 'Asia/Dubai';
+      try { datetime = zonedWallClockToInstant(datetime, tz).toISOString(); } catch { /* keep raw */ }
+    }
+    await this.meetings.create(userId, {
+      clientId,
+      datetime,
+      datetimeRaw: meeting.datetime_raw,
+      title: null,
+      confirmed: meeting.confirmed,
+      noteId,
+    });
+  }
 
   async extractNote(userId: string, noteId: string, today: string): Promise<ExtractOutcome> {
     const note = await this.notes.findByIdForUser(userId, noteId);
@@ -150,6 +179,15 @@ export class ExtractionService {
         promises: extraction.promises,
         keyDates: extraction.key_dates,
       });
+      // NUDGE-UNCONFIRMED: persist a proposed meeting so it can be confirmed and nudged.
+      // Best-effort — a failure here must never lose the extracted facts (never lose a recording).
+      if (this.meetings && extraction.meeting) {
+        try {
+          await this.persistProposedMeeting(userId, noteId, note.clientId, extraction.meeting);
+        } catch (err) {
+          console.warn(`[extract] proposed-meeting persist failed for note ${noteId}`, err);
+        }
+      }
       status = 'extracted';
     }
 

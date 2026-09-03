@@ -13,6 +13,7 @@ function makeApi(over: Partial<MeetingsApi> = {}): MeetingsApi {
     parse: vi.fn().mockResolvedValue({ kind: 'proposal', clientId: 'c1', clientName: 'Acme', datetime: '2026-08-01T15:00', datetimeRaw: 'Tue 3pm' }),
     createForClient: vi.fn().mockResolvedValue(meeting),
     remove: vi.fn().mockResolvedValue(true),
+    confirm: vi.fn().mockResolvedValue({ ...meeting, confirmed: true }),
     ...over,
   };
 }
@@ -21,6 +22,17 @@ describe('<Meetings>', () => {
   it('lists existing meetings with the client name', async () => {
     render(<Meetings api={makeApi({ list: vi.fn().mockResolvedValue([meeting]) })} clients={clients} />);
     expect(await screen.findByTestId('meeting')).toHaveTextContent(/review with acme/i);
+  });
+
+  it('[NUDGE-UNCONFIRMED] shows an unconfirmed meeting as pending and confirms it on tap', async () => {
+    const unconfirmed: Meeting = { ...meeting, id: 'm2', confirmed: false };
+    const confirm = vi.fn().mockResolvedValue({ ...unconfirmed, confirmed: true });
+    render(<Meetings api={makeApi({ list: vi.fn().mockResolvedValue([unconfirmed]), confirm })} clients={clients} />);
+    expect(await screen.findByTestId('meeting')).toHaveTextContent(/unconfirmed — is this right\?/i);
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith('m2'));
+    // the pending label clears once confirmed
+    await waitFor(() => expect(screen.queryByText(/unconfirmed — is this right\?/i)).toBeNull());
   });
 
   it('shows an empty state when there are no meetings', async () => {

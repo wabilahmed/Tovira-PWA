@@ -4,6 +4,7 @@ import type { FactsRepository, PromisePatch } from '../ports/facts-repository.js
 import type { CorrectionRepository } from '../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../ports/extraction-log-repository.js';
 import type { LedgerService } from '../services/ledger/ledger-service.js';
+import type { MeetingRepository } from '../ports/meeting-repository.js';
 import { pendingConfirmations } from '../services/facts/confirmation.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
@@ -13,6 +14,8 @@ export interface FactsRouteDeps {
   corrections: CorrectionRepository;
   extractionLog: ExtractionLogRepository;
   ledger?: LedgerService;
+  /** NUDGE-UNCONFIRMED: unconfirmed proposed meetings ride the same confirmation queue. */
+  meetings?: MeetingRepository;
 }
 
 const CONFIRM_RE = /^\/promises\/([^/]+)\/confirm$/;
@@ -51,7 +54,9 @@ export async function handleFactsRoute(
 
   if (isConfirmations) {
     const promises = await deps.facts.listPromisesByUser(userId);
-    sendJson(res, 200, { promises: pendingConfirmations(promises) });
+    // Unconfirmed proposed meetings sit in the same queue — "unconfirmed — is this right?".
+    const meetings = deps.meetings ? await deps.meetings.listUnconfirmedByUser(userId) : [];
+    sendJson(res, 200, { promises: pendingConfirmations(promises), meetings });
     return true;
   }
 
