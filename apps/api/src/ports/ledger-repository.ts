@@ -6,7 +6,7 @@
  * never estimated. Tenant-scoped (RLS on pg).
  */
 
-export type LedgerEventType = 'thread_reopened' | 'promise_kept' | 'brief_before_meeting';
+export type LedgerEventType = 'thread_reopened' | 'promise_kept' | 'brief_before_meeting' | 'inventory_suggested_bought';
 
 export interface LedgerEvent {
   type: LedgerEventType;

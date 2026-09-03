@@ -213,9 +213,10 @@ export function createInventoryRepository(config: AppConfig, pool?: Pool): Inven
   return new InMemoryInventoryRepository();
 }
 
-/** Build the inventory service (repo + embedder — embeds each item on save; no Claude). */
-export function createInventoryService(repo: InventoryRepository, config: AppConfig): InventoryService {
-  return new InventoryService(repo, createEmbedder(config));
+/** Build the inventory service (repo + embedder — embeds each item on save; no Claude — plus
+ *  the ledger for the suggested-then-bought credit). */
+export function createInventoryService(repo: InventoryRepository, ledger: LedgerService, config: AppConfig): InventoryService {
+  return new InventoryService(repo, createEmbedder(config), ledger);
 }
 
 /** Build the note repository, selecting the store from config (RLS-backed on pg). */

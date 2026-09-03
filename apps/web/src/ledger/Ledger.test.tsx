@@ -10,7 +10,7 @@ function makeApi(summary: LedgerSummary | null, over: Partial<LedgerApi> = {}): 
 
 const withValue: LedgerSummary = {
   totalTouched: 3,
-  byType: { promise_kept: 2, thread_reopened: 1, brief_before_meeting: 0 },
+  byType: { promise_kept: 2, thread_reopened: 1, brief_before_meeting: 0, inventory_suggested_bought: 0 },
   aed: 500000,
   items: [],
 };
@@ -46,7 +46,7 @@ describe('<Ledger>', () => {
   });
 
   it('shows an empty state when nothing has been touched', async () => {
-    render(<Ledger api={makeApi({ totalTouched: 0, byType: { promise_kept: 0, thread_reopened: 0, brief_before_meeting: 0 }, aed: null, items: [] })} clients={clients} />);
+    render(<Ledger api={makeApi({ totalTouched: 0, byType: { promise_kept: 0, thread_reopened: 0, brief_before_meeting: 0, inventory_suggested_bought: 0 }, aed: null, items: [] })} clients={clients} />);
     expect(await screen.findByText(/nothing yet/i)).toBeInTheDocument();
   });
 

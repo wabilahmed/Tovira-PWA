@@ -86,7 +86,8 @@ export function buildInMemoryDeps(
   const facts = new InMemoryFactsRepository();
   const transcription = new TranscriptionService(new StubTranscriber('clear transcript'), notes, storage);
   const embedder = new StubEmbedder(8);
-  const inventory = new InventoryService(inventoryRepo, embedder);
+  const ledger = new LedgerService(new InMemoryLedgerRepository());
+  const inventory = new InventoryService(inventoryRepo, embedder, ledger);
   const extractionLog = new InMemoryExtractionLogRepository();
   const corrections = new InMemoryCorrectionRepository();
   const extraction = new ExtractionService(
@@ -146,7 +147,7 @@ export function buildInMemoryDeps(
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1 }),
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
-    ledger: new LedgerService(new InMemoryLedgerRepository()),
+    ledger,
     referral: new ReferralService(new InMemoryReferralRepository(), billing, (code) => auth.findUserIdByReferralCode(code)),
     accountEmail: new AccountEmailService(new StubEmailSender(), new InMemoryEmailLogRepository()),
     appBaseUrl: 'http://localhost:5173',

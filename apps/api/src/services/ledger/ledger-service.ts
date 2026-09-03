@@ -44,7 +44,7 @@ export class LedgerService {
     const events = await this.repo.listByUser(userId);
     const deals = await this.repo.listDealValues(userId);
 
-    const byType: Record<LedgerEventType, number> = { thread_reopened: 0, promise_kept: 0, brief_before_meeting: 0 };
+    const byType: Record<LedgerEventType, number> = { thread_reopened: 0, promise_kept: 0, brief_before_meeting: 0, inventory_suggested_bought: 0 };
     const touchedClients = new Set<string>();
     for (const e of events) {
       byType[e.type] += 1;

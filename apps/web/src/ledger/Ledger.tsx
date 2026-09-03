@@ -10,6 +10,7 @@ const LABEL: Record<LedgerEventType, string> = {
   promise_kept: 'promise kept on time',
   thread_reopened: 'thread reopened',
   brief_before_meeting: 'brief before a meeting',
+  inventory_suggested_bought: 'a suggested item was marked bought',
 };
 
 /**

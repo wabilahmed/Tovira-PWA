@@ -1,4 +1,5 @@
 import type { Embedder } from '../../ports/embedder.js';
+import type { LedgerService } from '../ledger/ledger-service.js';
 import type {
   InventoryRepository,
   InventoryItemRecord,
@@ -38,6 +39,7 @@ export class InventoryService {
   constructor(
     private readonly repo: InventoryRepository,
     private readonly embedder: Embedder,
+    private readonly ledger: LedgerService,
   ) {}
 
   async create(userId: string, input: CreateItemInput): Promise<InventoryItemRecord> {
@@ -122,6 +124,19 @@ export class InventoryService {
         const patch: Parameters<InventoryRepository['update']>[2] = { quantity: newQty };
         if (newQty === 0 && item.status === 'active') { patch.status = 'disabled'; patch.disabledReason = 'sold_out'; }
         await this.repo.update(userId, item.id, patch);
+      }
+      // Ledger credit (spec §11.5): ONLY when the rep acted on a Tovira suggestion — never a
+      // share they made independently. Language stays "touched", no causal claim, no AED
+      // unless the rep entered a deal value. Nothing sets confirmed_suggestion until Batch 2,
+      // so this path is built + tested but dormant.
+      if (share.outcomeSetBy === 'confirmed_suggestion') {
+        await this.ledger.record(userId, {
+          type: 'inventory_suggested_bought',
+          clientId: share.clientId,
+          sourceId: share.id,
+          dedupeKey: `inventory_share:${share.id}`,
+          occurredAt: Date.now(),
+        });
       }
     }
     return updated;

@@ -101,7 +101,6 @@ async function main(): Promise<void> {
   const emailFor = (userId: string): Promise<string | null> => auth.getPublicUser(userId).then((u) => u?.email ?? null);
   const clients = createClientRepository(config, appPool);
   const inventoryRepo = createInventoryRepository(config, appPool);
-  const inventory = createInventoryService(inventoryRepo, config);
   const notes = createNoteRepository(config, appPool);
   const storage = createStorage(config);
   const transcription = createTranscriptionService(config, notes, storage);
@@ -177,6 +176,7 @@ async function main(): Promise<void> {
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch);
   const ledger = createLedgerService(config, appPool);
+  const inventory = createInventoryService(inventoryRepo, ledger, config);
   const referral = new ReferralService(
     config.authStore === 'postgres' ? new PgReferralRepository(appPool) : new InMemoryReferralRepository(),
     billing,
