@@ -59,6 +59,55 @@ describe('[TZ-BOUNDARY] MondayDigestService computes the week on the rep\'s cloc
   });
 });
 
+describe('[TZ-SCHED] scheduled Monday digest fires on each rep\'s local Monday, idempotent per rep-week', () => {
+  function sched(tzByUser: Record<string, string>) {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const notifications = new InMemoryNotificationRepository();
+    const subs = new InMemoryPushSubscriptionRepository();
+    const budget = new InMemoryPushBudgetRepository();
+    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications, budget);
+    const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch, async (u) => tzByUser[u] ?? 'Etc/UTC');
+    const digests = async (u: string) => (await notifications.listByUser(u)).filter((n) => n.type === 'monday_digest').length;
+    return { svc, digests };
+  }
+  // 2026-08-03 is a Monday. 05:00Z = Mon 05:00 UTC, but Mon 09:00 in Dubai (+4).
+  const MON_EARLY = Date.parse('2026-08-03T05:00:00Z');
+
+  it('fires for a rep whose LOCAL Monday morning has arrived, not one whose has not (same instant)', async () => {
+    const h = sched({ dubai: 'Asia/Dubai', utc: 'Etc/UTC' });
+    expect(await h.svc.runScheduled(['dubai', 'utc'], MON_EARLY)).toBe(1); // only Dubai (09:00 Mon) — UTC is 05:00, before 08:00
+    expect(await h.digests('dubai')).toBe(1);
+    expect(await h.digests('utc')).toBe(0);
+    // later, when it IS the UTC rep's Monday morning, they get theirs
+    expect(await h.svc.runScheduled(['dubai', 'utc'], Date.parse('2026-08-03T08:00:00Z'))).toBe(1);
+    expect(await h.digests('utc')).toBe(1);
+  });
+
+  it('a restart / extra tick the same Monday does not double-send (idempotent per rep-week)', async () => {
+    const h = sched({ dubai: 'Asia/Dubai' });
+    expect(await h.svc.runScheduled(['dubai'], MON_EARLY)).toBe(1);
+    expect(await h.svc.runScheduled(['dubai'], Date.parse('2026-08-03T06:00:00Z'))).toBe(0); // still Mon, already sent
+    expect(await h.digests('dubai')).toBe(1);
+  });
+
+  it('a rep changing timezone within the same local week does not get a second digest', async () => {
+    const tz: Record<string, string> = { r: 'Asia/Dubai' };
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const notifications = new InMemoryNotificationRepository();
+    const subs = new InMemoryPushSubscriptionRepository();
+    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications, new InMemoryPushBudgetRepository());
+    const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch, async () => tz.r!);
+    expect(await svc.runScheduled(['r'], MON_EARLY)).toBe(1); // Dubai Monday → sent
+    tz.r = 'Asia/Riyadh'; // +3 — same local date 2026-08-03, same weekOf
+    expect(await svc.runScheduled(['r'], Date.parse('2026-08-03T07:00:00Z'))).toBe(0); // same week → no second digest
+    expect((await notifications.listByUser('r')).filter((n) => n.type === 'monday_digest')).toHaveLength(1);
+  });
+});
+
 describe('MondayDigestService (P3-8)', () => {
   it('digests exactly this week\'s due promises and cooling clients', async () => {
     const { clients, facts, svc } = make();

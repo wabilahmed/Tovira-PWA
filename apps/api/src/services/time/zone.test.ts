@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_TIME_ZONE, isValidTimeZone, normalizeTimeZone, zonedTodayIso, zonedWallClockToInstant } from './zone.js';
+import { DEFAULT_TIME_ZONE, isValidTimeZone, normalizeTimeZone, zonedTodayIso, zonedWallClockToInstant, zonedWeekdayHour } from './zone.js';
 
 describe('[NUDGE-TZ] IANA timezone helpers', () => {
   it('the default is Asia/Dubai (launch ICP)', () => {
@@ -41,6 +41,15 @@ describe('[NUDGE-TZ] IANA timezone helpers', () => {
     const lateUtc = new Date('2026-07-09T23:30:00.000Z');
     expect(zonedTodayIso('Asia/Dubai', lateUtc)).toBe('2026-07-10');
     expect(zonedTodayIso('Etc/UTC', lateUtc)).toBe('2026-07-09');
+  });
+
+  it('reports the rep-local weekday + hour (for firing a job on their clock)', () => {
+    // 2026-08-02 22:00 UTC is Sunday 22:00 in UTC, but Monday 02:00 in Dubai (+4).
+    const t = new Date('2026-08-02T22:00:00Z');
+    expect(zonedWeekdayHour('Etc/UTC', t)).toEqual({ weekday: 0, hour: 22 }); // Sun 22:00
+    expect(zonedWeekdayHour('Asia/Dubai', t)).toEqual({ weekday: 1, hour: 2 }); // Mon 02:00
+    // 2026-08-03 05:00 UTC is Monday 09:00 in Dubai
+    expect(zonedWeekdayHour('Asia/Dubai', new Date('2026-08-03T05:00:00Z'))).toEqual({ weekday: 1, hour: 9 });
   });
 
   it('accepts an already-absolute ISO instant (with Z / offset) unchanged', () => {

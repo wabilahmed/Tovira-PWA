@@ -34,6 +34,18 @@ export function zonedTodayIso(tz: string, now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: normalizeTimeZone(tz), year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
 
+const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+/** The rep's local weekday (0=Sun..6=Sat) and hour (0-23) at an instant — for firing a scheduled
+ *  job on the rep's local clock (e.g. the Monday digest on their local Monday morning). */
+export function zonedWeekdayHour(tz: string, now: Date = new Date()): { weekday: number; hour: number } {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: normalizeTimeZone(tz), weekday: 'short', hour: '2-digit', hour12: false }).formatToParts(now);
+  const wd = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
+  let hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+  if (hour === 24) hour = 0;
+  return { weekday: WEEKDAY_INDEX[wd] ?? 0, hour };
+}
+
 /** The UTC offset (ms) that `tz` had at a given absolute instant. */
 function zoneOffsetMsAt(tz: string, instant: Date): number {
   const parts = new Intl.DateTimeFormat('en-US', {

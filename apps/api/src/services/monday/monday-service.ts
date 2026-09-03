@@ -4,7 +4,7 @@ import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { PushDispatchService } from '../push/push-dispatch-service.js';
 import type { UnansweredQuestion } from '../import/unanswered.js';
-import { zonedTodayIso } from '../time/zone.js';
+import { zonedTodayIso, zonedWeekdayHour } from '../time/zone.js';
 
 /**
  * Monday Morning Scan (P3-8): a weekly digest that sets up the rep's week —
@@ -103,5 +103,23 @@ export class MondayDigestService {
     const isNew = await this.notifications.createIfAbsent(userId, alert);
     if (isNew) await this.pushDispatch.dispatch(userId, [alert], nowMs);
     return isNew;
+  }
+
+  /**
+   * [TZ-SCHED] The scheduled Monday-digest driver. Runs frequently (hourly); fires a rep's digest
+   * on THEIR local Monday morning, not 00:00 UTC. Idempotent per rep-local-week via the
+   * monday:<weekOf> dedupe key — a restart mid-run, an extra tick, or a later tick the same Monday
+   * all resolve to at most one digest per rep per local week.
+   */
+  async runScheduled(userIds: string[], nowMs: number, opts: { digestHour?: number } = {}): Promise<number> {
+    const digestHour = opts.digestHour ?? 8; // ~08:00 local Monday, never 04:00 (or 00:00) local
+    let sent = 0;
+    for (const userId of userIds) {
+      const tz = this.timezoneFor ? await this.timezoneFor(userId) : 'Etc/UTC';
+      const { weekday, hour } = zonedWeekdayHour(tz, new Date(nowMs));
+      if (weekday !== 1 || hour < digestHour) continue; // the rep's local Monday, morning onward
+      if (await this.notifyMonday(userId, nowMs)) sent += 1;
+    }
+    return sent;
   }
 }

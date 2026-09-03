@@ -189,13 +189,21 @@ async function main(): Promise<void> {
       // Frequent + cheap-when-idle: deferred imports must extract within ~a minute.
       { name: 'notes-sweep', lockKey: 4711001, intervalMs: 15_000,
         run: async () => { await noteSweep.sweep(new Date().toISOString().slice(0, 10)); } },
-      { name: 'priorities-nightly', lockKey: 4711002, intervalMs: 24 * 60 * 60 * 1000,
+      // [TZ-SCHED] Priorities precompute runs HOURLY, not once/24h: with the cache keyed on the
+      // rep's LOCAL day, each rep is warmed on the first tick after THEIR midnight (idempotent —
+      // precompute skips if their local-day row exists), so the list is fresh for their morning
+      // regardless of timezone. The (userId, localDay) row is the per-rep-day idempotency record.
+      { name: 'priorities-nightly', lockKey: 4711002, intervalMs: 60 * 60 * 1000,
         run: async () => { await priorities.precomputeAll(await auth.allUserIds(), Date.now()); } },
       { name: 'trial-emails', lockKey: 4711003, intervalMs: 24 * 60 * 60 * 1000,
         run: async () => { await trialEmail.run(Date.now()); } },
       // Pre-meeting nudges: every minute so a meeting is caught inside its 2h ± 15m window.
       { name: 'meeting-nudges', lockKey: 4711004, intervalMs: 60_000,
         run: async () => { await meetingNudge.run(Date.now()); } },
+      // [TZ-SCHED] Monday digest: HOURLY; fires each rep's digest on THEIR local Monday morning,
+      // idempotent per rep-local-week via the monday:<weekOf> dedupe.
+      { name: 'monday-digest', lockKey: 4711005, intervalMs: 60 * 60 * 1000,
+        run: async () => { await monday.runScheduled(await auth.allUserIds(), Date.now()); } },
     ],
   });
   const recallSessions = createRecallSessionRepository(config, appPool);
