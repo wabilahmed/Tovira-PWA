@@ -4,6 +4,7 @@ import { PROMPT_VERSION } from './services/extraction/prompt.js';
 import type { AuthService } from './services/auth/auth-service.js';
 import type { RateLimiter } from './services/security/rate-limiter.js';
 import type { ClientRepository } from './ports/client-repository.js';
+import type { InventoryRepository } from './ports/inventory-repository.js';
 import type { NoteRepository } from './ports/note-repository.js';
 import type { Storage } from './ports/storage.js';
 import type { TranscriptionService } from './services/transcription/transcription-service.js';
@@ -32,6 +33,7 @@ import type { AccountEmailService } from './services/email/account-email-service
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
+import { handleInventoryRoute } from './http/inventory-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
 import { handleFactsRoute } from './http/facts-routes.js';
 import { handleBriefRoute } from './http/brief-routes.js';
@@ -71,6 +73,7 @@ export interface ApiDeps {
   pool: Pool;
   auth: AuthService;
   clients: ClientRepository;
+  inventory: InventoryRepository;
   notes: NoteRepository;
   storage: Storage;
   transcription: TranscriptionService;
@@ -276,6 +279,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
+      if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory })) return;
 
       if (request.method === 'GET' && url === '/') {
         sendJson(response, 200, { name: 'tovira-api', status: 'ok' });

@@ -39,6 +39,9 @@ import { ScryptHasher } from './services/auth/password.js';
 import type { ClientRepository } from './ports/client-repository.js';
 import { InMemoryClientRepository } from './adapters/clients/in-memory-client-repository.js';
 import { PgClientRepository } from './adapters/clients/pg-client-repository.js';
+import type { InventoryRepository } from './ports/inventory-repository.js';
+import { InMemoryInventoryRepository } from './adapters/inventory/in-memory-inventory-repository.js';
+import { PgInventoryRepository } from './adapters/inventory/pg-inventory-repository.js';
 import type { NoteRepository } from './ports/note-repository.js';
 import { InMemoryNoteRepository } from './adapters/notes/in-memory-note-repository.js';
 import { PgNoteRepository } from './adapters/notes/pg-note-repository.js';
@@ -198,6 +201,15 @@ export function createClientRepository(config: AppConfig, pool?: Pool): ClientRe
     return new PgClientRepository(pool);
   }
   return new InMemoryClientRepository();
+}
+
+/** Build the inventory repository, selecting the store from config (RLS-backed on pg). */
+export function createInventoryRepository(config: AppConfig, pool?: Pool): InventoryRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgInventoryRepository(pool);
+  }
+  return new InMemoryInventoryRepository();
 }
 
 /** Build the note repository, selecting the store from config (RLS-backed on pg). */

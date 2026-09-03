@@ -10,6 +10,7 @@ import { AccountEmailService } from '../services/email/account-email-service.js'
 import { StubEmailSender } from '../adapters/email/stub-email-sender.js';
 import { InMemoryEmailLogRepository } from '../adapters/email/in-memory-email-log-repository.js';
 import { InMemoryClientRepository } from '../adapters/clients/in-memory-client-repository.js';
+import { InMemoryInventoryRepository } from '../adapters/inventory/in-memory-inventory-repository.js';
 import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-repository.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { StubTranscriber } from '../adapters/transcription/stub.js';
@@ -56,6 +57,7 @@ export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
   notes: InMemoryNoteRepository;
   clients: InMemoryClientRepository;
+  inventory: InMemoryInventoryRepository;
 }
 
 /**
@@ -78,6 +80,7 @@ export function buildInMemoryDeps(
   const notes = new InMemoryNoteRepository();
   const storage = new InMemoryStorage();
   const clients = new InMemoryClientRepository();
+  const inventory = new InMemoryInventoryRepository();
   const facts = new InMemoryFactsRepository();
   const transcription = new TranscriptionService(new StubTranscriber('clear transcript'), notes, storage);
   const embedder = new StubEmbedder(8);
@@ -111,6 +114,7 @@ export function buildInMemoryDeps(
     pool: stubPool,
     auth,
     clients,
+    inventory,
     notes,
     storage,
     transcription,
@@ -132,7 +136,7 @@ export function buildInMemoryDeps(
     hero,
     priorities: new PrioritiesService(hero, new StubModelClient(), new InMemoryPrioritiesRepository()),
     billing,
-    account: new AccountService(auth, clients, notes, facts, meetings, images, [clients, notes, facts, meetings]),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, [clients, notes, facts, meetings, inventory]),
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1 }),
