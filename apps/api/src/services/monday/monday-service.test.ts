@@ -27,6 +27,38 @@ function make() {
   return { clients, notes, facts, notifications, subs, budget, sender, pushDispatch, svc };
 }
 
+describe('[TZ-BOUNDARY] MondayDigestService computes the week on the rep\'s clock', () => {
+  // 2026-08-02 22:00 UTC is still SUNDAY in UTC, but already MONDAY 02:00 in Dubai (+4).
+  const NOW_SUN = Date.parse('2026-08-02T22:00:00Z');
+
+  function withTz(tz: string) {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const notifications = new InMemoryNotificationRepository();
+    const subs = new InMemoryPushSubscriptionRepository();
+    const budget = new InMemoryPushBudgetRepository();
+    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications, budget);
+    const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch, async () => tz);
+    return { clients, facts, svc };
+  }
+
+  it('a Dubai rep gets the NEW week; a UTC rep is still in the old week — same instant', async () => {
+    expect((await withTz('Etc/UTC').svc.build('u', NOW_SUN)).weekOf).toBe('2026-07-27'); // Monday of the UTC (Sun) week
+    expect((await withTz('Asia/Dubai').svc.build('u', NOW_SUN)).weekOf).toBe('2026-08-03'); // Monday where the rep is
+  });
+
+  it('the this-week window follows the rep\'s local today: a promise due on the UTC date is out of the Dubai week', async () => {
+    const utc = withTz('Etc/UTC'); const dubai = withTz('Asia/Dubai');
+    for (const h of [utc, dubai]) {
+      const c = await h.clients.create('u', 'Acme');
+      await h.facts.saveExtraction('u', { noteId: 'n', clientId: c.id, promises: [{ text: 'due today-UTC', owner: 'rep', due_date: '2026-08-02', due_raw: null, confidence: 'high' }] });
+    }
+    expect((await utc.svc.build('u', NOW_SUN)).promisesDue.map((p) => p.text)).toContain('due today-UTC');
+    expect((await dubai.svc.build('u', NOW_SUN)).promisesDue.map((p) => p.text)).not.toContain('due today-UTC'); // 08-02 < Dubai today 08-03
+  });
+});
+
 describe('MondayDigestService (P3-8)', () => {
   it('digests exactly this week\'s due promises and cooling clients', async () => {
     const { clients, facts, svc } = make();

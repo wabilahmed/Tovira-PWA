@@ -1,5 +1,6 @@
 import type { PushBudgetRepository, PushSender, PushSubscriptionRepository } from '../../ports/push.js';
 import type { NotificationRepository, NotificationType } from '../../ports/notification-repository.js';
+import { zonedTodayIso } from '../time/zone.js';
 
 /**
  * The silence budget (P4-SILENCE). A rep gets at most {@link DAILY_PUSH_CAP} NON-MEETING
@@ -54,7 +55,14 @@ export class PushDispatchService {
     private readonly notifications: NotificationRepository,
     private readonly budget: PushBudgetRepository,
     private readonly cap: number = DAILY_PUSH_CAP,
+    /** [TZ-BOUNDARY] the 2/day silence budget resets on the REP's day, not 00:00 UTC. */
+    private readonly timezoneFor?: (userId: string) => Promise<string>,
   ) {}
+
+  private async dayFor(userId: string, nowMs: number): Promise<string> {
+    if (!this.timezoneFor) return dayKey(nowMs);
+    return zonedTodayIso(await this.timezoneFor(userId), new Date(nowMs));
+  }
 
   /**
    * Record every candidate as an in-app alert (idempotent), then push the
@@ -79,7 +87,7 @@ export class PushDispatchService {
       .filter((c) => c.type !== MEETING)
       .sort((a, b) => rankOf(a.type) - rankOf(b.type));
 
-    const day = dayKey(nowMs);
+    const day = await this.dayFor(userId, nowMs);
     const devices = await this.subs.listByUser(userId);
     const hasDevices = devices.length > 0;
 

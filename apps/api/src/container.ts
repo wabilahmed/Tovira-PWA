@@ -386,8 +386,9 @@ export function createScanService(
   facts: FactsRepository,
   notifications: NotificationRepository,
   notes: NoteRepository,
+  timezoneFor?: (userId: string) => Promise<string>,
 ): ScanService {
-  return new ScanService(clients, meetings, facts, notifications, notes);
+  return new ScanService(clients, meetings, facts, notifications, notes, timezoneFor);
 }
 
 /** Web Push subscriptions (P3-6), RLS-backed on pg. */
@@ -428,8 +429,9 @@ export function createPushDispatchService(
   subs: PushSubscriptionRepository,
   notifications: NotificationRepository,
   budget: PushBudgetRepository,
+  timezoneFor?: (userId: string) => Promise<string>,
 ): PushDispatchService {
-  return new PushDispatchService(sender, subs, notifications, budget);
+  return new PushDispatchService(sender, subs, notifications, budget, undefined, timezoneFor);
 }
 
 /** Per-client gallery images (P4-6), RLS-backed on pg. */

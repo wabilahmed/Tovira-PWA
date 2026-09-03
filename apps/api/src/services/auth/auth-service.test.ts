@@ -225,14 +225,26 @@ describe('[EMAIL-VERIFY] soft email verification', () => {
     await expect(service.resendVerification(user.id)).rejects.toBeInstanceOf(VerificationRateLimitError);
   });
 
-  it('the daily resend budget resets the next UTC day', async () => {
-    let clock = Date.parse('2026-08-16T23:00:00Z');
+  it('[TZ-BOUNDARY] the daily resend budget resets on the rep\'s LOCAL next day', async () => {
+    // A new user defaults to Asia/Dubai (+4). 10:00Z is 14:00 Dubai on the 16th.
+    let clock = Date.parse('2026-08-16T10:00:00Z');
     const { service } = makeService({ now: () => clock });
     const { user } = await service.signup('rep@example.com', 'password1');
     for (let i = 0; i < VERIFY_RESEND_LIMIT; i++) await service.resendVerification(user.id);
     await expect(service.resendVerification(user.id)).rejects.toBeInstanceOf(VerificationRateLimitError);
-    clock = Date.parse('2026-08-17T00:30:00Z'); // next UTC day
+    // 21:00Z is 01:00 Dubai on the 17th — a new LOCAL day, so the budget resets…
+    clock = Date.parse('2026-08-16T21:00:00Z');
     await expect(service.resendVerification(user.id)).resolves.toEqual(expect.any(String));
+  });
+
+  it('[TZ-BOUNDARY] the resend budget does NOT reset merely because UTC ticked over, if the rep\'s day has not', async () => {
+    // 23:00Z on the 16th is already 03:00 Dubai on the 17th; 00:30Z is still the 17th in Dubai.
+    let clock = Date.parse('2026-08-16T23:00:00Z');
+    const { service } = makeService({ now: () => clock });
+    const { user } = await service.signup('rep2@example.com', 'password1');
+    for (let i = 0; i < VERIFY_RESEND_LIMIT; i++) await service.resendVerification(user.id);
+    clock = Date.parse('2026-08-17T00:30:00Z'); // next UTC day, SAME Dubai day → still capped
+    await expect(service.resendVerification(user.id)).rejects.toBeInstanceOf(VerificationRateLimitError);
   });
 
   it('a resent token verifies the account', async () => {

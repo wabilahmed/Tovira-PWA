@@ -20,6 +20,34 @@ function heroWith(actionsByUser: Record<string, TodayAction[]>): { today(userId:
   return { today: async (userId) => actionsByUser[userId] ?? [] };
 }
 
+describe('[TZ-BOUNDARY] priorities cache buckets by the rep\'s LOCAL day', () => {
+  // 2026-08-05 22:00 UTC is 2026-08-06 02:00 in Dubai — a different calendar day for the rep.
+  const NOW_LATE = Date.parse('2026-08-05T22:00:00Z');
+
+  it('the (userId, localDay) cache row is the per-rep-day idempotency record', async () => {
+    const { model, calls } = countingModel();
+    const repo = new InMemoryPrioritiesRepository();
+    const svc = new PrioritiesService(heroWith({ u: [action(0), action(1)] }), model, repo, { timezoneFor: async () => 'Asia/Dubai' });
+    await svc.precompute('u', NOW_LATE);               // computes for the Dubai day 2026-08-06
+    expect(await repo.get('u', '2026-08-06')).toBeTruthy(); // bucketed on the rep's local day, not 08-05
+    expect(await repo.get('u', '2026-08-05')).toBeNull();
+    // idempotent per rep-day: a second precompute at the same instant does not recompute
+    expect(await svc.precompute('u', NOW_LATE)).toBe(false);
+    expect(calls()).toBe(1);
+  });
+
+  it('two reps in different zones at the same instant land in different day buckets', async () => {
+    const { model } = countingModel();
+    const repo = new InMemoryPrioritiesRepository();
+    const dubai = new PrioritiesService(heroWith({ a: [action(0)] }), model, repo, { timezoneFor: async () => 'Asia/Dubai' });
+    const la = new PrioritiesService(heroWith({ b: [action(0)] }), model, repo, { timezoneFor: async () => 'America/Los_Angeles' });
+    await dubai.getForToday('a', NOW_LATE); // Dubai: 2026-08-06
+    await la.getForToday('b', NOW_LATE);    // LA (−7): 2026-08-05 15:00 → 2026-08-05
+    expect(await repo.get('a', '2026-08-06')).toBeTruthy();
+    expect(await repo.get('b', '2026-08-05')).toBeTruthy();
+  });
+});
+
 describe('PrioritiesService (P4b-3, cost-guard #3)', () => {
   // CALL-COUNT: opening /today 10 times in a day = exactly ONE computation.
   it('serves the cache on reads — 10 opens after a precompute = ZERO extra model calls', async () => {

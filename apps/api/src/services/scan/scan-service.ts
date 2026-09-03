@@ -4,6 +4,7 @@ import type { FactsRepository, KeyDateRecord } from '../../ports/facts-repositor
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { PushableAlert } from '../push/push-dispatch-service.js';
+import { zonedTodayIso } from '../time/zone.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECURRING_TYPES = new Set(['birthday', 'anniversary']);
@@ -26,26 +27,24 @@ export interface ScanSummary {
   pushables: PushableAlert[];
 }
 
-function startOfDayUtc(ms: number): number {
-  const d = new Date(ms);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-}
-
 /**
  * The next date a key-date should remind, or null. Unresolved dates never fire
  * (no misfire). Recurring types (birthday/anniversary) roll to this/next year;
  * one-off types in the past don't re-fire. Only returns a date inside the window.
  */
-export function nextReminderDate(d: KeyDateRecord, nowMs: number, windowDays: number): string | null {
+export function nextReminderDate(d: KeyDateRecord, todayIso: string, windowDays: number): string | null {
   if (!d.date) return null;
   const [y, mo, da] = d.date.split('-').map(Number) as [number, number, number];
-  const todayUtc = startOfDayUtc(nowMs);
+  // [TZ-BOUNDARY] `todayIso` is the REP's local calendar date — "is this birthday within N days of
+  // *their* today, this year vs next" is a calendar decision on the rep's clock, not UTC.
+  const [ty, tm, td] = todayIso.split('-').map(Number) as [number, number, number];
+  const todayUtc = Date.UTC(ty, tm - 1, td);
   const windowEnd = todayUtc + windowDays * DAY_MS;
 
   let occ: number;
   if (RECURRING_TYPES.has(d.type)) {
-    const thisYear = Date.UTC(new Date(nowMs).getUTCFullYear(), mo - 1, da);
-    occ = thisYear >= todayUtc ? thisYear : Date.UTC(new Date(nowMs).getUTCFullYear() + 1, mo - 1, da);
+    const thisYear = Date.UTC(ty, mo - 1, da);
+    occ = thisYear >= todayUtc ? thisYear : Date.UTC(ty + 1, mo - 1, da);
   } else {
     occ = Date.UTC(y, mo - 1, da);
     if (occ < todayUtc) return null; // past one-off → don't re-fire
@@ -66,7 +65,14 @@ export class ScanService {
     private readonly facts: FactsRepository,
     private readonly notifications: NotificationRepository,
     private readonly notes: NoteRepository,
+    /** [TZ-BOUNDARY] resolve date-reminder "today" on the rep's calendar. */
+    private readonly timezoneFor?: (userId: string) => Promise<string>,
   ) {}
+
+  private async localToday(userId: string, nowMs: number): Promise<string> {
+    if (!this.timezoneFor) return new Date(nowMs).toISOString().slice(0, 10);
+    return zonedTodayIso(await this.timezoneFor(userId), new Date(nowMs));
+  }
 
   /**
    * Overdue promises (the LOUDEST alert): a commitment the rep owns, not yet
@@ -144,9 +150,10 @@ export class ScanService {
 
   async dateReminders(userId: string, nowMs: number, windowDays: number, sink?: PushableAlert[]): Promise<number> {
     const dates = await this.facts.listKeyDatesByUser(userId);
+    const todayIso = await this.localToday(userId, nowMs);
     let created = 0;
     for (const d of dates) {
-      const due = nextReminderDate(d, nowMs, windowDays);
+      const due = nextReminderDate(d, todayIso, windowDays);
       if (!due) continue;
       const entry = {
         type: 'date_reminder' as const,

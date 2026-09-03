@@ -134,15 +134,15 @@ async function main(): Promise<void> {
   const brief = createBriefService(config, clients, notes, facts);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
-  const scan = createScanService(clients, meetings, facts, notifications, notes);
+  const scan = createScanService(clients, meetings, facts, notifications, notes, (userId) => auth.timezoneFor(userId));
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
-  const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications, createPushBudgetRepository(config, appPool));
+  const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications, createPushBudgetRepository(config, appPool), (userId) => auth.timezoneFor(userId));
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
   // (cost-guard #3, P4b-3). Uses the priorities-class model (see routing).
-  const priorities = new PrioritiesService(hero, createModelClient(config, 'priorities'), createPrioritiesRepository(config, appPool));
+  const priorities = new PrioritiesService(hero, createModelClient(config, 'priorities'), createPrioritiesRepository(config, appPool), { timezoneFor: (userId) => auth.timezoneFor(userId) });
   // Note sweep (FLOWS-7): advance any rep's stuck pending notes so a voice note or a
   // deferred import (IMPORT-ASYNC) never stalls; bounded retries → terminal
   // needs_review, never lost.
@@ -206,7 +206,7 @@ async function main(): Promise<void> {
   const askCapture = createAskCaptureService(config, notes, clients, facts, extraction);
   const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients);
   const corpus = new CorpusStatsService(clients, notes);
-  const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch);
+  const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId));
   const ledger = createLedgerService(config, appPool);
   const inventory = createInventoryService(inventoryRepo, ledger, config);
   const referral = new ReferralService(

@@ -100,21 +100,21 @@ describe('[P3-4] date reminders', () => {
   });
 
   it('reminds for a birthday one day out', () => {
-    expect(nextReminderDate(kd({ date: '2000-07-10', type: 'birthday' }), NOW, 3)).toBe('2026-07-10');
+    expect(nextReminderDate(kd({ date: '2000-07-10', type: 'birthday' }), '2026-07-09', 3)).toBe('2026-07-10');
   });
 
   // NEGATIVE: a null resolved date never misfires.
   it('never fires for an unresolved (null) date', () => {
-    expect(nextReminderDate(kd({ date: null, dateRaw: 'after the holidays' }), NOW, 30)).toBeNull();
+    expect(nextReminderDate(kd({ date: null, dateRaw: 'after the holidays' }), '2026-07-09', 30)).toBeNull();
   });
 
   // NEGATIVE: a past one-off does not re-fire.
   it('does not re-fire a past one-off date', () => {
-    expect(nextReminderDate(kd({ date: '2026-01-01', type: 'launch' }), NOW, 30)).toBeNull();
+    expect(nextReminderDate(kd({ date: '2026-01-01', type: 'launch' }), '2026-07-09', 30)).toBeNull();
   });
 
   it('reminds for a future one-off within the window', () => {
-    expect(nextReminderDate(kd({ date: '2026-07-11', type: 'deadline' }), NOW, 5)).toBe('2026-07-11');
+    expect(nextReminderDate(kd({ date: '2026-07-11', type: 'deadline' }), '2026-07-09', 5)).toBe('2026-07-11');
   });
 
   it('generates a reminder notification idempotently', async () => {

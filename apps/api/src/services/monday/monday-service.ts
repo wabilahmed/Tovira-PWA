@@ -4,6 +4,7 @@ import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { PushDispatchService } from '../push/push-dispatch-service.js';
 import type { UnansweredQuestion } from '../import/unanswered.js';
+import { zonedTodayIso } from '../time/zone.js';
 
 /**
  * Monday Morning Scan (P3-8): a weekly digest that sets up the rep's week —
@@ -27,11 +28,17 @@ function isoDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-function mondayOf(nowMs: number): string {
-  const d = new Date(nowMs);
-  const start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  const offset = (new Date(start).getUTCDay() + 6) % 7; // days since Monday
-  return isoDate(start - offset * DAY_MS);
+/** Date-string arithmetic on a YYYY-MM-DD (positional, no timezone drift — the input is already the
+ *  rep's local calendar date). */
+function addDaysIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return isoDate(Date.UTC(y!, m! - 1, d!) + days * DAY_MS);
+}
+/** The Monday (YYYY-MM-DD) of the week containing the given local date. */
+function mondayOfIso(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const offset = (new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay() + 6) % 7; // days since Monday
+  return addDaysIso(iso, -offset);
 }
 
 export class MondayDigestService {
@@ -42,11 +49,14 @@ export class MondayDigestService {
     private readonly notifications: NotificationRepository,
     private readonly coldThresholdDays: number,
     private readonly pushDispatch: PushDispatchService,
+    /** [TZ-BOUNDARY] resolve "this week" on the REP's calendar — Monday is Monday where they are. */
+    private readonly timezoneFor?: (userId: string) => Promise<string>,
   ) {}
 
   async build(userId: string, nowMs: number): Promise<MondayDigest> {
-    const today = isoDate(nowMs);
-    const weekEnd = isoDate(nowMs + 7 * DAY_MS);
+    // The rep's LOCAL date drives the week — a Dubai rep's "Monday" is not 00:00 UTC Monday.
+    const today = this.timezoneFor ? zonedTodayIso(await this.timezoneFor(userId), new Date(nowMs)) : isoDate(nowMs);
+    const weekEnd = addDaysIso(today, 7);
 
     const promisesDue = (await this.facts.listPromisesByUser(userId))
       .filter((p) => !p.done && p.dueDate && p.dueDate >= today && p.dueDate <= weekEnd)
@@ -70,7 +80,7 @@ export class MondayDigestService {
     }
 
     const isLight = promisesDue.length === 0 && coolingClients.length === 0 && upcomingDates.length === 0 && unansweredQuestions.length === 0;
-    return { weekOf: mondayOf(nowMs), promisesDue, coolingClients, unansweredQuestions, upcomingDates, isLight };
+    return { weekOf: mondayOfIso(today), promisesDue, coolingClients, unansweredQuestions, upcomingDates, isLight };
   }
 
   /** Emit the weekly digest notification once per week (idempotent). */

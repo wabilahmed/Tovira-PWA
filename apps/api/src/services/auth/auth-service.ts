@@ -4,7 +4,7 @@ import type { SessionRepository } from '../../ports/session-repository.js';
 import type { PasswordResetRepository } from '../../ports/password-reset-repository.js';
 import type { EmailVerificationRepository } from '../../ports/email-verification-repository.js';
 import type { PasswordHasher } from './password.js';
-import { normalizeTimeZone } from '../time/zone.js';
+import { normalizeTimeZone, zonedTodayIso, zonedWallClockToInstant } from '../time/zone.js';
 
 export class AuthError extends Error {
   readonly status: number;
@@ -255,9 +255,10 @@ export class AuthService {
    */
   async resendVerification(userId: string): Promise<string> {
     const now = this.now();
-    const d = new Date(now);
-    const startOfDayUtc = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-    const usedToday = await this.deps.emailVerifications.countCreatedSince(userId, startOfDayUtc);
+    // [TZ-BOUNDARY] the "3 per day" resets at the REP's local midnight, not 00:00 UTC.
+    const tz = normalizeTimeZone((await this.deps.users.findById(userId))?.timezone);
+    const startOfLocalDay = zonedWallClockToInstant(`${zonedTodayIso(tz, new Date(now))}T00:00`, tz).getTime();
+    const usedToday = await this.deps.emailVerifications.countCreatedSince(userId, startOfLocalDay);
     if (usedToday >= VERIFY_RESEND_LIMIT) throw new VerificationRateLimitError();
     return this.createEmailVerification(userId);
   }
