@@ -2,22 +2,27 @@ import type { PushBudgetRepository, PushSender, PushSubscriptionRepository } fro
 import type { NotificationRepository, NotificationType } from '../../ports/notification-repository.js';
 
 /**
- * The silence budget (P4-SILENCE). A rep gets at most {@link DAILY_PUSH_CAP}
- * pushes per day — capture friction, and interruption friction, kill the
- * product. When more alerts qualify than the budget allows, the LOUDEST ones win
- * (an overdue promise outranks a "going quiet" nudge outranks a meeting reminder
- * outranks a date outranks a refresh nudge), and the rest are SUPPRESSED FROM
- * PUSH ONLY — every alert still lands in the in-app Alerts list, so nothing is
- * lost, it just doesn't buzz the phone. The cap is enforced here, at the single
- * send path, and counts alerts (not per-device fan-out).
+ * The silence budget (P4-SILENCE). A rep gets at most {@link DAILY_PUSH_CAP} NON-MEETING
+ * pushes per day — capture friction, and interruption friction, kill the product. When more
+ * qualify than the budget allows, the LOUDEST win and the rest are SUPPRESSED FROM PUSH ONLY —
+ * every alert still lands in the in-app Alerts list, so nothing is lost, it just doesn't buzz
+ * the phone. The cap counts alerts (not per-device fan-out).
+ *
+ * [NUDGE-RANK] Pre-meeting nudges are the ONE exception to brand §10's 2/day cap — the first
+ * documented one. They are the only alert with a deadline (a brief is worthless after the
+ * meeting), so a rep with three meetings gets three nudges: meeting nudges are always sent,
+ * never suppressed by the cap, and never consume it. Everything else still shares the cap of 2.
  */
 export const DAILY_PUSH_CAP = 2;
 
-/** Push priority, lowest number = loudest. Types outside this map never preempt. */
+const MEETING = 'pre_meeting_nudge';
+
+/** Push priority, lowest number = loudest. Time-critical beats important, so the meeting
+ *  nudge outranks all. Types outside this map never preempt. */
 const RANK: Record<string, number> = {
-  overdue_promise: 0,
-  going_cold: 1,
-  pre_meeting_nudge: 2,
+  pre_meeting_nudge: 0,
+  overdue_promise: 1,
+  going_cold: 2,
   date_reminder: 3,
   chat_refresh: 4,
   monday_digest: 5,
@@ -68,21 +73,32 @@ export class PushDispatchService {
       });
     }
 
-    // 2. Rank, then spend only what today's budget allows.
-    const ranked = [...candidates].sort((a, b) => rankOf(a.type) - rankOf(b.type));
+    // 2. Split: meeting nudges are exempt from the cap; everything else shares it.
+    const meetings = candidates.filter((c) => c.type === MEETING);
+    const others = candidates
+      .filter((c) => c.type !== MEETING)
+      .sort((a, b) => rankOf(a.type) - rankOf(b.type));
+
     const day = dayKey(nowMs);
-    const remaining = Math.max(0, this.cap - (await this.budget.countSent(userId, day)));
     const devices = await this.subs.listByUser(userId);
-    const canSend = devices.length > 0 ? remaining : 0;
-    const sent = ranked.slice(0, canSend);
-    const suppressed = ranked.slice(sent.length);
+    const hasDevices = devices.length > 0;
+
+    // Non-meeting alerts spend today's budget; meetings never touch it.
+    const remaining = Math.max(0, this.cap - (await this.budget.countSent(userId, day)));
+    const othersToSend = hasDevices ? others.slice(0, remaining) : [];
+    const meetingsToSend = hasDevices ? meetings : [];
+
+    // Loudest first for the returned order (meetings rank 0, so ahead of the rest).
+    const sent = [...meetingsToSend, ...othersToSend].sort((a, b) => rankOf(a.type) - rankOf(b.type));
+    const suppressed = others.slice(othersToSend.length); // meetings are never suppressed by the cap
 
     for (const alert of sent) {
       for (const device of devices) {
         await this.sender.send(device, { title: alert.title, body: alert.body, ...(alert.url ? { url: alert.url } : {}) });
       }
     }
-    if (sent.length > 0) await this.budget.recordSent(userId, day, sent.length);
+    // Only NON-meeting sends consume the daily budget (the documented brand §10 exception).
+    if (othersToSend.length > 0) await this.budget.recordSent(userId, day, othersToSend.length);
 
     return { sent, suppressed };
   }

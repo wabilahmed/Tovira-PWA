@@ -329,10 +329,10 @@ renumbered, so the audit trail survives.)*
 7. "Rescan" → re-run then reload · [Alerts.tsx] · [POST /scan → GET /notifications, /cold] · [P3-5]
 8. (Follow-on) capturing a note on a flagged client records a `thread_reopened` ledger event · [notes-routes.ts] · [—] · [P4-11]
 
-**Ranking:** `overdue_promise(0) > going_cold(1) > pre_meeting_nudge(2) > date_reminder(3) > chat_refresh(4) > monday_digest(5)`. **Cap:** `DAILY_PUSH_CAP = 2`.
-**Happy end:** every qualifying alert exists in-app; the phone buzzed for at most 2 (highest-ranked); today's budget decremented; cold clients listed with silence duration.
-**What can go wrong:** no push subscription → nothing pushed but ALL alerts in-app (`pushed:0`); budget exhausted → all suppressed-from-push, still in-app; >2 qualify → top-2 pushed, rest suppressed but in-app; unauthed → 401; `/cold?days=` invalid → falls back to `coldThresholdDays`; nothing to show → "…this is what quiet looks like."
-**Trust rules:** cap = 2/rep/day at the single send path, counting **alerts not device fan-out**; suppressed ≠ lost — in-app recording happens **before** the budget check; loudest wins by fixed rank; idempotent dedupe keys prevent double-send across re-scans.
+**Ranking (NUDGE-RANK):** `pre_meeting_nudge(0) > overdue_promise(1) > going_cold(2) > date_reminder(3) > chat_refresh(4) > monday_digest(5)` — time-critical beats important; a pre-meeting brief is worthless after the meeting. **Cap:** `DAILY_PUSH_CAP = 2` for NON-meeting alerts. **Documented brand §10 exception (the first):** pre-meeting nudges are exempt from the 2/day cap — a rep with three meetings gets three nudges — and never consume it; everything else still shares the cap of 2.
+**Happy end:** every qualifying alert exists in-app; the phone buzzed for every meeting nudge plus at most 2 non-meeting alerts (highest-ranked); today's non-meeting budget decremented; cold clients listed with silence duration.
+**What can go wrong:** no push subscription → nothing pushed but ALL alerts in-app (`pushed:0`); non-meeting budget exhausted → those suppressed-from-push, still in-app (meetings still push); >2 non-meeting qualify → top-2 pushed, rest suppressed but in-app; unauthed → 401; `/cold?days=` invalid → falls back to `coldThresholdDays`; nothing to show → "…this is what quiet looks like."
+**Trust rules:** cap = 2 non-meeting/rep/day at the single send path, counting **alerts not device fan-out**; meeting nudges exempt (deadline-bound); suppressed ≠ lost — in-app recording happens **before** the budget check; loudest wins by fixed rank; idempotent dedupe keys prevent double-send across re-scans.
 **Cold start:** a push subscription for the phone to buzz; clients past `coldThresholdDays` for the cold list.
 
 ### FLOW 19 — The Monday Statement
