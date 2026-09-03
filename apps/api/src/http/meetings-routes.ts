@@ -17,6 +17,12 @@ const CREATE_FOR_CLIENT_RE = /^\/clients\/([^/]+)\/meetings$/;
 const MEETING_ID_RE = /^\/meetings\/([^/]+)$/;
 const CONFIRM_RE = /^\/meetings\/([^/]+)\/confirm$/;
 
+/** Resolve a wall-clock time to an absolute instant in the rep's zone; an already-absolute value
+ *  passes through. An unparseable string is kept as-is (it just won't be nudge-eligible). */
+function tryResolve(datetime: string, tz: string): string {
+  try { return zonedWallClockToInstant(datetime, tz).toISOString(); } catch { return datetime; }
+}
+
 export async function handleMeetingRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -31,7 +37,8 @@ export async function handleMeetingRoute(
   const isList = method === 'GET' && path === '/meetings';
   const delMatch = method === 'DELETE' ? MEETING_ID_RE.exec(path) : null;
   const confirmMatch = method === 'POST' ? CONFIRM_RE.exec(path) : null;
-  if (!forClient && !isParse && !isCreate && !isList && !delMatch && !confirmMatch) return false;
+  const editMatch = method === 'PATCH' ? MEETING_ID_RE.exec(path) : null;
+  if (!forClient && !isParse && !isCreate && !isList && !delMatch && !confirmMatch && !editMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -76,14 +83,7 @@ export async function handleMeetingRoute(
       // NUDGE-TZ: a wall-clock time ("3pm") is meaningless without a zone. Resolve it to an
       // absolute instant IN THE REP'S ZONE so the meeting — and its 2h-ahead nudge — land on
       // the rep's clock, not the server's. An already-absolute value (Z/offset) passes through.
-      let datetime = datetimeInput;
-      if (datetime) {
-        try {
-          datetime = zonedWallClockToInstant(datetime, await deps.auth.timezoneFor(userId)).toISOString();
-        } catch {
-          // Unparseable time — keep the raw string; it simply won't be nudge-eligible.
-        }
-      }
+      const datetime = datetimeInput ? tryResolve(datetimeInput, await deps.auth.timezoneFor(userId)) : datetimeInput;
       const meeting = await deps.meetings.create(userId, {
         clientId,
         datetime,
@@ -98,6 +98,24 @@ export async function handleMeetingRoute(
 
     if (isList) {
       sendJson(res, 200, { meetings: await deps.meetings.listByUser(userId) });
+      return true;
+    }
+
+    // MEETING-CREATE: reschedule/edit. A start-time change re-resolves on the rep's clock; the
+    // repo leaves nudged_at alone, so a not-yet-nudged meeting follows the new time and an
+    // already-nudged one never re-fires (one nudge per meeting). Moving into the past drops it.
+    if (editMatch) {
+      const body = (await readJsonBody(req)) as { datetime?: unknown; datetimeRaw?: unknown; title?: unknown };
+      const patch: { datetime?: string | null; datetimeRaw?: string; title?: string | null } = {};
+      if (typeof body.datetime === 'string' || body.datetime === null) {
+        patch.datetime = typeof body.datetime === 'string'
+          ? tryResolve(body.datetime, await deps.auth.timezoneFor(userId))
+          : null;
+      }
+      if (typeof body.datetimeRaw === 'string') patch.datetimeRaw = body.datetimeRaw;
+      if (typeof body.title === 'string' || body.title === null) patch.title = body.title;
+      const meeting = await deps.meetings.update(userId, decodeURIComponent(editMatch[1]!), patch);
+      sendJson(res, meeting ? 200 : 404, meeting ?? { error: 'not_found' });
       return true;
     }
 

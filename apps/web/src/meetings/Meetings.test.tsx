@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Meetings, type MeetingsApi } from './Meetings.js';
 import type { Meeting } from './meetingsClient.js';
@@ -22,6 +22,21 @@ describe('<Meetings>', () => {
   it('lists existing meetings with the client name', async () => {
     render(<Meetings api={makeApi({ list: vi.fn().mockResolvedValue([meeting]) })} clients={clients} />);
     expect(await screen.findByTestId('meeting')).toHaveTextContent(/review with acme/i);
+  });
+
+  it('[MEETING-CREATE] the direct form needs a client, then saves with the chosen date/time', async () => {
+    const createForClient = vi.fn().mockResolvedValue(meeting);
+    render(<Meetings api={makeApi({ createForClient })} clients={clients} />);
+    // no client chosen → refuses and does not call the API
+    await userEvent.click(await screen.findByRole('button', { name: 'Add meeting' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/choose a client/i);
+    expect(createForClient).not.toHaveBeenCalled();
+    // choose client + date + time → saves
+    await userEvent.selectOptions(screen.getByLabelText('Client'), 'c2');
+    fireEvent.change(screen.getByLabelText('Meeting date'), { target: { value: '2026-08-01' } });
+    fireEvent.change(screen.getByLabelText('Meeting time'), { target: { value: '15:00' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Add meeting' }));
+    await waitFor(() => expect(createForClient).toHaveBeenCalledWith('c2', { datetime: '2026-08-01T15:00', datetimeRaw: '2026-08-01 15:00', title: null }));
   });
 
   it('[NUDGE-UNCONFIRMED] shows an unconfirmed meeting as pending and confirms it on tap', async () => {

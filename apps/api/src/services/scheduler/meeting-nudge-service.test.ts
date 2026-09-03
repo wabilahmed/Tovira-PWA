@@ -94,6 +94,42 @@ describe('[NUDGE-SCHED] meeting-nudges on the frequent brain', () => {
     expect(h.dispatched[0]?.userId).toBe('a');
   });
 
+  it('reschedule BEFORE the nudge fires → the nudge follows the new time', async () => {
+    const h = harness();
+    const id = await h.meeting('u', NOW + 5 * HOUR); // outside the window
+    await h.svc.run(NOW);
+    expect(h.dispatched).toHaveLength(0);
+    await h.meetings.update('u', id, { datetime: new Date(NOW + 2 * HOUR).toISOString() }); // now within window
+    await h.svc.run(NOW);
+    expect(h.dispatched).toHaveLength(1);
+  });
+
+  it('reschedule AFTER the nudge fired → no second nudge (one per meeting)', async () => {
+    const h = harness();
+    const id = await h.meeting('u', NOW + 2 * HOUR);
+    await h.svc.run(NOW);
+    expect(h.dispatched).toHaveLength(1);
+    await h.meetings.update('u', id, { datetime: new Date(NOW + 2 * HOUR + 30 * MIN).toISOString() }); // moved same day
+    await h.svc.run(NOW + MIN);
+    expect(h.dispatched).toHaveLength(1); // still just the one
+  });
+
+  it('deleting a meeting cancels a pending nudge', async () => {
+    const h = harness();
+    const id = await h.meeting('u', NOW + 2 * HOUR);
+    await h.meetings.delete('u', id);
+    await h.svc.run(NOW);
+    expect(h.dispatched).toHaveLength(0);
+  });
+
+  it('moving a meeting into the past cancels the nudge', async () => {
+    const h = harness();
+    const id = await h.meeting('u', NOW + 2 * HOUR);
+    await h.meetings.update('u', id, { datetime: new Date(NOW - 30 * MIN).toISOString() });
+    await h.svc.run(NOW);
+    expect(h.dispatched).toHaveLength(0);
+  });
+
   it('carries composed content (client · time · top item + deep link) when signalsFor is provided', async () => {
     const clients = new InMemoryClientRepository();
     const meetings = new InMemoryMeetingRepository();

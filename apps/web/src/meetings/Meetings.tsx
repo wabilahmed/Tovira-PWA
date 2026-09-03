@@ -28,6 +28,12 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
   const [clientId, setClientId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Direct form (MEETING-CREATE): client + date + time + optional title, no NL parse.
+  const [dClient, setDClient] = useState('');
+  const [dDate, setDDate] = useState('');
+  const [dTime, setDTime] = useState('');
+  const [dTitle, setDTitle] = useState('');
+  const [dError, setDError] = useState<string | null>(null);
 
   const nameOf = (id: string): string => clients.find((c) => c.id === id)?.name ?? 'a client';
 
@@ -100,6 +106,25 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
     if (await api.remove(id)) setMeetings((prev) => prev.filter((m) => m.id !== id));
   }
 
+  /** Direct creation: a rep entered it deliberately, so it saves confirmed (server-side) and
+   *  is immediately nudge-eligible. Client is REQUIRED — a meeting with no client can't produce
+   *  a brief, which is the point of the nudge. Time is in the rep's timezone (resolved server-side). */
+  async function directSave(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    setDError(null);
+    if (!dClient) { setDError('Choose a client — a meeting needs one to prepare a brief.'); return; }
+    if (!dDate || !dTime) { setDError('A date and time are both needed.'); return; }
+    const created = await api.createForClient(dClient, {
+      datetime: `${dDate}T${dTime}`, // naive wall-clock; the server resolves it on the rep's zone
+      datetimeRaw: `${dDate} ${dTime}`,
+      title: dTitle.trim() || null,
+    });
+    if (!created) { setDError('Could not save the meeting.'); return; }
+    hapticTick();
+    setDDate(''); setDTime(''); setDTitle('');
+    void load();
+  }
+
   // NUDGE-UNCONFIRMED: an extraction-proposed meeting is shown "unconfirmed — is this right?"
   // and never nudges until the rep confirms it here (Tovira never acts on its own inference).
   async function confirmMeeting(id: string): Promise<void> {
@@ -122,6 +147,23 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
         <button type="submit" disabled={!text.trim()}>Parse</button>
       </form>
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
+
+      {/* Direct entry (MEETING-CREATE): for anything not in a chat — a call just booked, a site
+          visit agreed by phone. Confirmed by definition (the rep entered it), so no parse step. */}
+      <form onSubmit={directSave} aria-label="Add a meeting directly" style={{ ...box, display: 'grid', gap: '0.5rem' }}>
+        <span className="tov-stamp">Or add one directly</span>
+        <select value={dClient} onChange={(e) => setDClient(e.target.value)} aria-label="Client">
+          <option value="">Choose a client…</option>
+          {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <input type="date" value={dDate} onChange={(e) => setDDate(e.target.value)} aria-label="Meeting date" />
+          <input type="time" value={dTime} onChange={(e) => setDTime(e.target.value)} aria-label="Meeting time" />
+        </div>
+        <input value={dTitle} onChange={(e) => setDTitle(e.target.value)} placeholder="Title (optional)" aria-label="Meeting title" />
+        <button type="submit">Add meeting</button>
+        {dError && <p role="alert" style={{ color: 'var(--claret)', margin: 0 }}>{dError}</p>}
+      </form>
 
       {/* A clear proposal (parser's, or one built from a chosen candidate) → confirm. */}
       {proposal && (

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { MeetingRecord, MeetingRepository, NewMeeting } from '../../ports/meeting-repository.js';
+import type { MeetingRecord, MeetingRepository, MeetingPatch, NewMeeting } from '../../ports/meeting-repository.js';
 
 /** In-memory calendar for tests. */
 export class InMemoryMeetingRepository implements MeetingRepository {
@@ -21,6 +21,15 @@ export class InMemoryMeetingRepository implements MeetingRepository {
     };
     this.byId.set(record.id, record);
     return record;
+  }
+
+  async update(userId: string, id: string, patch: MeetingPatch): Promise<MeetingRecord | null> {
+    const m = this.byId.get(id);
+    if (!m || m.userId !== userId) return null;
+    if (patch.datetime !== undefined) m.datetime = patch.datetime;
+    if (patch.datetimeRaw !== undefined) m.datetimeRaw = patch.datetimeRaw;
+    if (patch.title !== undefined) m.title = patch.title;
+    return m; // nudgedAt + confirmed intentionally untouched
   }
 
   async findByNoteId(userId: string, noteId: string): Promise<MeetingRecord | null> {

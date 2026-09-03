@@ -118,6 +118,58 @@ describe('[P3-1] add a meeting', () => {
   });
 });
 
+describe('[MEETING-CREATE] rep-created meetings + reschedule on the rep\'s clock', () => {
+  async function signupTz(email: string, timezone: string): Promise<string> {
+    const res = await fetch(`${base}/auth/signup`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password: 'password123', timezone }),
+    });
+    return ((await res.json()) as { token: string }).token;
+  }
+  async function meId(token: string): Promise<string> {
+    return ((await (await fetch(`${base}/me`, { headers: auth(token) })).json()) as { user: { id: string } }).user.id;
+  }
+
+  it('a rep-created meeting is confirmed:true and immediately nudge-eligible (no confirm step)', async () => {
+    const token = await signupTz('repmade@example.com', 'Asia/Dubai');
+    const clientId = await createClient(token, 'Meridian');
+    const res = await fetch(`${base}/clients/${clientId}/meetings`, {
+      method: 'POST', headers: auth(token), body: JSON.stringify({ datetime: '2026-07-09T15:00', datetimeRaw: '3pm', title: 'Site visit' }),
+    });
+    expect(res.status).toBe(201);
+    const created = (await res.json()) as { id: string; confirmed: boolean; datetime: string };
+    expect(created.confirmed).toBe(true);
+    const userId = await meId(token);
+    expect(await deps.meetings.dueForNudge(userId, '2026-07-09T00:00:00.000Z', '2026-07-09T23:59:59.000Z')).toHaveLength(1);
+  });
+
+  it('a meeting with no client cannot be saved (404)', async () => {
+    const token = await signupTz('noclient@example.com', 'Asia/Dubai');
+    const res = await fetch(`${base}/meetings`, {
+      method: 'POST', headers: auth(token), body: JSON.stringify({ clientId: '', datetime: '2026-07-09T15:00', datetimeRaw: '3pm' }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('rescheduling (PATCH) re-resolves the wall-clock on the rep\'s zone', async () => {
+    const token = await signupTz('resched@example.com', 'Asia/Dubai');
+    const clientId = await createClient(token, 'Meridian');
+    const m = (await (await fetch(`${base}/clients/${clientId}/meetings`, {
+      method: 'POST', headers: auth(token), body: JSON.stringify({ datetime: '2026-07-09T15:00', datetimeRaw: '3pm' }),
+    })).json()) as { id: string };
+    const patched = await fetch(`${base}/meetings/${m.id}`, {
+      method: 'PATCH', headers: auth(token), body: JSON.stringify({ datetime: '2026-07-09T17:00', datetimeRaw: '5pm' }),
+    });
+    expect(patched.status).toBe(200);
+    expect(((await patched.json()) as { datetime: string }).datetime).toBe('2026-07-09T13:00:00.000Z'); // 17:00 Dubai
+  });
+
+  it('rescheduling an unknown meeting is 404', async () => {
+    const token = await signupTz('resched404@example.com', 'Asia/Dubai');
+    expect((await fetch(`${base}/meetings/nope/`.replace(/\/$/, ''), { method: 'PATCH', headers: auth(token), body: JSON.stringify({ title: 'x' }) })).status).toBe(404);
+  });
+});
+
 describe('[NUDGE-UNCONFIRMED] a proposed meeting is confirmable via the queue', () => {
   async function meId(token: string): Promise<string> {
     return ((await (await fetch(`${base}/me`, { headers: auth(token) })).json()) as { user: { id: string } }).user.id;

@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { MeetingRecord, MeetingRepository, NewMeeting } from '../../ports/meeting-repository.js';
+import type { MeetingRecord, MeetingRepository, MeetingPatch, NewMeeting } from '../../ports/meeting-repository.js';
 import { withTenant } from '../../db/tenant.js';
 
 interface Row {
@@ -43,6 +43,27 @@ export class PgMeetingRepository implements MeetingRepository {
         [userId, meeting.clientId, meeting.datetime, meeting.datetimeRaw, meeting.title, meeting.confirmed, meeting.noteId ?? null],
       );
       return toRecord(rows[0] as unknown as Row);
+    });
+  }
+
+  async update(userId: string, id: string, patch: MeetingPatch): Promise<MeetingRecord | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      // COALESCE keeps a field when the patch omits it (undefined → NULL param → keep existing).
+      // nudged_at + confirmed are deliberately not in the SET list.
+      const { rows } = await c.query(
+        `UPDATE meetings SET
+           datetime = CASE WHEN $2::boolean THEN $3::timestamptz ELSE datetime END,
+           datetime_raw = COALESCE($4, datetime_raw),
+           title = CASE WHEN $5::boolean THEN $6::text ELSE title END
+         WHERE id = $1 RETURNING ${COLUMNS}`,
+        [
+          id,
+          patch.datetime !== undefined, patch.datetime ?? null,
+          patch.datetimeRaw ?? null,
+          patch.title !== undefined, patch.title ?? null,
+        ],
+      );
+      return rows[0] ? toRecord(rows[0] as unknown as Row) : null;
     });
   }
 

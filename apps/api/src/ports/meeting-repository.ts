@@ -26,8 +26,18 @@ export interface NewMeeting {
   noteId?: string | null;
 }
 
+/** Reschedule/edit. Only provided fields change; nudgedAt and confirmed are left as-is, so a
+ *  not-yet-nudged meeting re-evaluates at its new time while an already-nudged one never re-fires
+ *  (one nudge per meeting), and moving the start into the past simply drops it out of the window. */
+export interface MeetingPatch {
+  datetime?: string | null;
+  datetimeRaw?: string;
+  title?: string | null;
+}
+
 export interface MeetingRepository {
   create(userId: string, meeting: NewMeeting): Promise<MeetingRecord>;
+  update(userId: string, id: string, patch: MeetingPatch): Promise<MeetingRecord | null>;
   listByUser(userId: string): Promise<MeetingRecord[]>;
   findByIdForUser(userId: string, id: string): Promise<MeetingRecord | null>;
   /** The proposed meeting already persisted for a note (idempotent extraction), or null. */
