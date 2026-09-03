@@ -53,6 +53,53 @@ prove the contract (byte-identical 404 for foreign/unknown ids, tenant-scoped li
 and inventory rows in the entitlement table. `FRONTEND-PAGES.md` — a new §14 Inventory + the
 page-map row. (PROJECT-STATUS.md does not exist; FRONTEND-PAGES.md is its agent-owned equivalent.)
 
+## `test(INV-ISOLATION)` — isolation EXECUTED, not just declared
+
+The Batch-1 report above said isolation was proven "at the DB" but rested on a *static* test that
+asserts 0041 **declares** RLS FORCE + composite FKs by reading the SQL file. Declared ≠ enforced —
+that exact gap produced the deal-value IDOR. This adds the missing half: the declared SQL is now
+**executed** against a real Postgres with the real migrations `0001–0041`, as the non-superuser
+`tovira_app` role, and every isolation claim is asserted against what Postgres actually does.
+
+**Where it lives:** `test/integration/inventory-isolation.integration.test.ts` — inside the existing
+integration suite (`test/integration/**`, `npm run test:integration`), beside `rls.integration.test.ts`.
+Excluded from the unit run; gated on `INTEGRATION_DATABASE_URL` so it skips when no real DB is named.
+No production code and **no change to migration 0041** — this batch only observes.
+
+**How it was run.** The Docker daemon was unavailable in this environment (the suite's sibling
+`rls.integration.test.ts` self-provisions via `docker compose`; this test instead runs the real
+migration set through the real runner against any Postgres named by `INTEGRATION_DATABASE_URL`). It
+was executed against a throwaway **Postgres 17 + pgvector** cluster:
+
+```
+INTEGRATION_DATABASE_URL=postgres://postgres@127.0.0.1:PORT/<db> \
+  npx vitest run --config vitest.integration.config.ts test/integration/inventory-isolation.integration.test.ts
+```
+
+**Result: 7/7 passed** (RLS FORCE / WITH CHECK / composite-FK semantics are identical on pg16 and pg17).
+
+| # | Assertion (negative) | Positive control | Observed |
+|---|---|---|---|
+| 1 | Insert `inventory_shares` as B with **A's client_id** → FK violation | B → B's own client+item **succeeds** (rowCount 1) | **PASS** — pg `23503`, constraint matches `/client/` (an FK error, not null/check/handler) |
+| 2 | Insert `inventory_shares` as B with **A's item_id** → FK violation | (control shares the row inserted in #1) | **PASS** — pg `23503`, constraint matches `/item/` |
+| 3 | As B, raw `SELECT ... WHERE id = A.row` with **no user_id predicate** on `inventory_items` and `inventory_shares` → 0 rows | As A, same query → **1 row** (proves RLS filters, not an empty table) | **PASS** — 0 rows for B, 1 for A, both tables |
+| 4 | `pg_class`: FORCE ROW LEVEL SECURITY in effect | — (catalog fact) | **PASS** — `relrowsecurity` and `relforcerowsecurity` both `true` for both tables |
+| 5 | As B, UPDATE and DELETE targeting **A's item by exact id** → 0 rows affected | As A, item's `quantity` still `5` (unchanged) | **PASS** — UPDATE 0, DELETE 0, A's row intact |
+| 6 | As B, INSERT `inventory_items` carrying **A's user_id** → rejected | — (the RLS WITH CHECK is the point) | **PASS** — pg `42501` (policy / WITH CHECK violation) |
+| 7 | **Cascade:** delete A's client that has a share | item survives | **PASS** — share count 1 → 0, **inventory item survives** (rowCount 1) |
+
+**Cascade behavior (observed, reported explicitly).** Deleting a client removes its `inventory_shares`
+row via the declared `ON DELETE CASCADE`, and the `inventory_items` row is **untouched**. This matches
+0041's declaration and the product rule "never delete inventory items" — only the share record is lost,
+never the item.
+
+**Drift between 0041's declaration and Postgres enforcement: none.** Every property the static test
+asserts as *declared* — RLS enabled + FORCED on both tables, the two composite FKs
+`(user_id,item_id)`/`(user_id,client_id)`, the WITH CHECK policy, the cascade — is exactly what the
+running database enforces.
+
+> **Verdict: inventory tenant isolation is now DEMONSTRATED against real Postgres, not merely declared.**
+
 ## Deferred to Batch 2 (explicitly NOT in this batch)
 The extraction `requirements` field → prompt **v0.9** → **full P1-9 re-certification**; the
 matching engine (both trigger directions, conservative threshold, receipts); the "N clients want
