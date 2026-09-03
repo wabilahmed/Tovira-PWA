@@ -66,15 +66,26 @@ notification, open the deep link). Correct but only exercisable on a real device
 "Extraction never persists meetings" (A1) means **FLOW 15's natural-language path and the meeting
 parts of the Book Scan have effectively never reached the calendar since they were built** — yet
 their acceptance tests passed, because they ran against the **in-memory** path. This is the **fourth
-instance** of the same shape — *a test proving something the deployed system did not do*:
-1. migrations validated only live (in-memory + fake runner in the suite);
-2. the scheduled brain — sweep/priorities/trial-emails silently never ran in prod (stub Lambda);
-3. the RLS/composite-FK isolation — *declared* but unexecuted until the INV-ISOLATION integration proof;
-4. this — extraction-proposed meetings never persisted.
-The common cause is a suite that exercises in-memory adapters + fake runners while the deployed path
-(real Postgres, real scheduler, real persistence) goes unexercised. The INV-ISOLATION integration
-suite (`test/integration`, real Postgres) is the countermeasure; it should grow to cover the seams
-above, not just isolation.
+instance** of the same shape — *a test proving something the deployed system did not do*: **dark
+metrics** (a broken cache went unnoticed because nothing reported the hit rate), **the scheduler
+that never ran** (the stub EventBridge Lambda — sweep/priorities/trial-emails silent in prod), **the
+import-date reference** (a promise resolved against the import date, not the message date), and now
+**meetings never persisting**.
+
+**Why it keeps happening — it is one testing-boundary problem, not four bugs.** The suite exercises
+**in-memory adapters and fake runners**; the deployed path (real Postgres, the real scheduler, real
+persistence, the real service worker) is a *different code path that the tests never touch*. So a
+feature can be fully unit-tested and simultaneously **absent in production** — the in-memory path
+passes green while the real path does not exist. Green tests are evidence the *logic* is right; they
+are **not** evidence the *wired system* runs, and the two have been silently conflated. The failure
+is invisible precisely because a not-running job and a running-with-nothing-to-do job look identical,
+and an in-memory pass and a deployed pass read the same in CI.
+
+**The countermeasure** is to test across the boundary, not only inside it: the INV-ISOLATION
+integration suite (`test/integration`, real Postgres + real migrations) is the first of these, and
+it should grow to cover the deployed seams — scheduler ticks, extraction→persistence, the service
+worker — so "tested" and "runs in production" stop being conflated. Until a seam has a real-path
+test, its green unit tests should be read as "the logic is correct *if* it runs", not "it runs".
 
 ---
 
