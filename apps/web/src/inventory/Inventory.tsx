@@ -239,9 +239,8 @@ function ItemCard({ item, clients, api, editing, onEditToggle, onSave, onShare, 
         </ul>
       )}
 
-      {/* Batch 2 (matching): "N clients want something like this" — stubbed and hidden until the
-          requirements field + matching engine ship. Rendered as nothing so nothing lands early. */}
-      {false && <p className="tov-inv-item__match" hidden>clients want something like this</p>}
+      {/* Batch 2 (matching): the "N clients want something like this" line lands here once the
+          requirements field + matching engine ship. Deliberately not rendered until then. */}
     </li>
   );
 }
