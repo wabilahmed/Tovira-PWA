@@ -58,6 +58,7 @@ import { StubEmbedder } from './adapters/embedding/stub.js';
 import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
 import { RecallService } from './services/recall/recall-service.js';
+import type { RecallMetrics } from './services/metrics/recall-metrics.js';
 import { LedgerService } from './services/ledger/ledger-service.js';
 import type { PrioritiesRepository } from './ports/priorities-repository.js';
 import { InMemoryPrioritiesRepository } from './adapters/priorities/in-memory-priorities-repository.js';
@@ -138,8 +139,8 @@ export function createLedgerService(config: AppConfig, pool?: Pool): LedgerServi
 }
 
 /** Conversational recall (P4-8): embed + retrieve top-k + grounded answer. */
-export function createRecallService(config: AppConfig, notes: NoteRepository): RecallService {
-  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'));
+export function createRecallService(config: AppConfig, notes: NoteRepository, metrics?: RecallMetrics): RecallService {
+  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall);
 }
 
 /**

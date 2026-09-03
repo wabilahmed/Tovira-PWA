@@ -3,6 +3,7 @@ import { RecallService } from './recall-service.js';
 import type { Embedder } from '../../ports/embedder.js';
 import type { NoteRepository, NoteRecord, SimilarNote } from '../../ports/note-repository.js';
 import type { ModelClient } from '../../ports/model.js';
+import { RecallMetrics } from '../metrics/recall-metrics.js';
 
 const embedder: Embedder = { dimension: 8, embed: async () => [1, 0, 0, 0, 0, 0, 0, 0] };
 const model = (text: string): ModelClient => ({ complete: async () => ({ text }) });
@@ -27,6 +28,23 @@ describe('RecallService (P4-8)', () => {
     expect(receipts).toHaveLength(1);
     expect(n.rawText!).toContain(receipts[0]!.quote); // verbatim — a substring of the stored note
     expect(receipts[0]!.date).toBe('2026-01-16');
+  });
+
+  // [RECALL-METRICS] recall used to discard res.usage entirely — now each turn's cost is recorded.
+  it('records the turn cost + shape (single-shot today: turn 1, no history)', async () => {
+    const n = note('n1', 'Ahmed said the pricing is too high.');
+    const repo = notesRepo([{ note: n, similarity: 0.9 }]);
+    const withUsage: ModelClient = { complete: async () => ({ text: 'ok', usage: { inputTokens: 400, outputTokens: 120, cacheReadInputTokens: 0 } }) };
+    const metrics = new RecallMetrics();
+    const svc = new RecallService(embedder, repo, withUsage, { topK: 5, minSimilarity: 0.2 }, metrics, 'claude-haiku-4-5-20251001');
+    await svc.ask('u1', 'pricing?');
+    const s = metrics.snapshot();
+    expect(s.turns).toBe(1);
+    expect(s.curve[1]?.calls).toBe(1);
+    expect(s.curve[1]!.avgInputTokens).toBe(400);
+    expect(s.curve[1]!.avgHistoryTokens).toBe(0); // stateless
+    expect(s.curve[1]!.avgRetrievalTokens).toBeGreaterThan(0);
+    expect(metrics.perUserRollingAed('u1')).toBeGreaterThan(0); // Haiku: (400·1 + 120·5)/1e6 · 3.6725
   });
 
   // TRUST RULE: nothing relevant → honest "I don't have that", no fabrication.

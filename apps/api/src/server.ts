@@ -21,6 +21,7 @@ import type { ScanService, ScanConfig } from './services/scan/scan-service.js';
 import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import type { PushDispatchService } from './services/push/push-dispatch-service.js';
 import type { JobRun, JobRunStore } from './ports/scheduled-jobs.js';
+import type { RecallMetrics } from './services/metrics/recall-metrics.js';
 import type { ModelMetricsRegistry } from './services/metrics/model-metrics.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
@@ -111,6 +112,8 @@ export interface ApiDeps {
   jobRuns?: JobRunStore;
   /** Per-task-class prompt-cache metrics, surfaced in /health (CACHE-1). */
   modelMetrics?: ModelMetricsRegistry;
+  /** Rolling per-turn recall cost, surfaced in /health (RECALL-METRICS). */
+  recallMetrics?: RecallMetrics;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -179,6 +182,9 @@ export function createApiServer(deps: ApiDeps): Server {
             // cache: per-task-class prompt-cache hit rate (over cacheable calls), so
             // "caching is working" is checkable, not assumed (CACHE-1).
             ...(deps.modelMetrics ? { cache: deps.modelMetrics.snapshot() } : {}),
+            // recall: rolling per-turn recall cost + the growth curve by turn index
+            // (RECALL-METRICS) — so cost is measured, not modelled.
+            ...(deps.recallMetrics ? { recall: deps.recallMetrics.snapshot() } : {}),
           });
         } catch {
           sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' });

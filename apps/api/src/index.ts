@@ -57,6 +57,7 @@ import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
 import { MeetingNudgeService } from './services/scheduler/meeting-nudge-service.js';
 import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
+import { RecallMetrics } from './services/metrics/recall-metrics.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -197,7 +198,8 @@ async function main(): Promise<void> {
   });
   const account = createAccountService(auth, clients, notes, facts, meetings, images, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined));
   const activation = createActivationService(config, appPool);
-  const recall = createRecallService(config, notes);
+  const recallMetrics = new RecallMetrics();
+  const recall = createRecallService(config, notes, recallMetrics);
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch);
   const ledger = createLedgerService(config, appPool);
@@ -250,6 +252,7 @@ async function main(): Promise<void> {
     adapterModes: describeAdapters(config),
     jobRuns: jobRunStore,
     modelMetrics,
+    recallMetrics,
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),

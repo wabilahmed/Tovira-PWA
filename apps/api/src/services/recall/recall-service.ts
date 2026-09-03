@@ -1,6 +1,9 @@
 import type { Embedder } from '../../ports/embedder.js';
 import type { NoteRepository, SimilarNote } from '../../ports/note-repository.js';
-import type { ModelClient } from '../../ports/model.js';
+import type { ModelClient, ModelUsage } from '../../ports/model.js';
+import type { RecallMetrics } from '../metrics/recall-metrics.js';
+import { callCostUsd, USD_TO_AED } from '../metrics/model-budget.js';
+import { estimateTokens } from '../extraction/prompt.js';
 
 /**
  * Conversational recall (P4-8): answer a rep's question from their own notes.
@@ -52,7 +55,33 @@ export class RecallService {
     private readonly notes: NoteRepository,
     private readonly model: ModelClient,
     private readonly config: RecallConfig = { topK: 5, minSimilarity: 0.2 },
+    /** [RECALL-METRICS] per-turn cost recorder. Optional — recall runs unchanged without it. */
+    private readonly metrics?: RecallMetrics,
+    /** Model id for pricing the recorded turn (recall runs on Haiku). */
+    private readonly modelId: string = 'claude-haiku-4-5-20251001',
   ) {}
+
+  /** [RECALL-METRICS] record this turn's shape + cost. Recall used to discard res.usage entirely. */
+  private recordTurn(userId: string, excerpts: string, turnIndex: number, historyTokens: number, usage?: ModelUsage): void {
+    if (!this.metrics) return;
+    const u = usage ?? { inputTokens: 0, outputTokens: 0 };
+    const costAed = callCostUsd(this.modelId, {
+      inputTokens: u.inputTokens,
+      outputTokens: u.outputTokens,
+      cacheCreationInputTokens: u.cacheCreationInputTokens,
+      cacheReadInputTokens: u.cacheReadInputTokens,
+    }) * USD_TO_AED;
+    this.metrics.record({
+      userId,
+      turnIndex,
+      retrievalTokens: estimateTokens(excerpts),
+      historyTokens,
+      inputTokens: u.inputTokens,
+      outputTokens: u.outputTokens,
+      cachedTokens: u.cacheReadInputTokens ?? 0,
+      costAed,
+    });
+  }
 
   async ask(userId: string, question: string): Promise<RecallAnswer> {
     if (!question.trim()) return { answer: NO_ANSWER, receipts: [] };
@@ -72,6 +101,8 @@ export class RecallService {
         maxTokens: 512,
       });
       answer = res.text.trim() || NO_ANSWER;
+      // Ask is single-shot today → turnIndex 1, no history. ASK-CONVO fills both.
+      this.recordTurn(userId, excerpts, 1, 0, res.usage);
     } catch {
       // Never fabricate on a model failure — fall back to the verbatim receipts.
       answer = 'Here is what I found in your notes.';
