@@ -4,6 +4,7 @@ import type { SessionRepository } from '../../ports/session-repository.js';
 import type { PasswordResetRepository } from '../../ports/password-reset-repository.js';
 import type { EmailVerificationRepository } from '../../ports/email-verification-repository.js';
 import type { PasswordHasher } from './password.js';
+import { normalizeTimeZone } from '../time/zone.js';
 
 export class AuthError extends Error {
   readonly status: number;
@@ -40,6 +41,8 @@ export interface PublicUser {
   /** Soft email verification (EMAIL-VERIFY) — NEVER gates access; only drives the
    *  quiet in-app "confirm your email" banner and the Settings verified state. */
   emailVerified: boolean;
+  /** The rep's IANA timezone (NUDGE-TZ) — drives nudge timing and Settings. */
+  timezone: string;
 }
 
 export interface AuthResult {
@@ -111,7 +114,7 @@ export class AuthService {
    * always does — see the route), it is stored WITH a timestamp against the
    * user (P5-4), so consent is auditable ("agreed to <version> at <time>").
    */
-  async signup(emailRaw: string, password: string, consentVersion?: string): Promise<AuthResult> {
+  async signup(emailRaw: string, password: string, consentVersion?: string, timezone?: string): Promise<AuthResult> {
     const email = normalizeEmail(emailRaw);
     if (!EMAIL_RE.test(email)) throw new AuthValidationError('A valid email is required.');
     if (!password || password.length < 8) {
@@ -126,6 +129,7 @@ export class AuthService {
       email,
       passwordHash,
       referralCode,
+      timezone: normalizeTimeZone(timezone), // browser-supplied, validated → default if absent/bad
       ...(consentVersion ? { consentAt: this.now(), consentVersion } : {}),
     });
     return this.issue(user);
@@ -167,7 +171,21 @@ export class AuthService {
 
   async getPublicUser(userId: string): Promise<PublicUser | null> {
     const user = await this.deps.users.findById(userId);
-    return user ? { id: user.id, email: user.email, referralCode: user.referralCode, emailVerified: user.emailVerified } : null;
+    return user ? toPublic(user) : null;
+  }
+
+  /** The rep's IANA timezone, or the default if the user is missing. Drives nudge timing. */
+  async timezoneFor(userId: string): Promise<string> {
+    const user = await this.deps.users.findById(userId);
+    return normalizeTimeZone(user?.timezone);
+  }
+
+  /** Update the rep's timezone (Settings); the raw value is validated to a real IANA
+   *  zone (or the default) before it is stored. Returns the normalized value. */
+  async updateTimezone(userId: string, timezoneRaw: string): Promise<string> {
+    const timezone = normalizeTimeZone(timezoneRaw);
+    await this.deps.users.updateTimezone(userId, timezone);
+    return timezone;
   }
 
   /**
@@ -181,7 +199,7 @@ export class AuthService {
     if (!user) return null;
     const token = randomBytes(32).toString('base64url');
     await this.deps.passwordResets.create({ tokenHash: hashToken(token), userId: user.id, expiresAt: this.now() + RESET_TTL_MS });
-    return { user: { id: user.id, email: user.email, referralCode: user.referralCode, emailVerified: user.emailVerified }, token };
+    return { user: toPublic(user), token };
   }
 
   /**
@@ -258,8 +276,12 @@ export class AuthService {
     const token = randomBytes(32).toString('base64url');
     const expiresAt = this.now() + this.deps.sessionTtlMs;
     await this.deps.sessions.create({ token, userId: user.id, expiresAt });
-    return { user: { id: user.id, email: user.email, referralCode: user.referralCode, emailVerified: user.emailVerified }, token, expiresAt };
+    return { user: toPublic(user), token, expiresAt };
   }
+}
+
+function toPublic(user: UserRecord): PublicUser {
+  return { id: user.id, email: user.email, referralCode: user.referralCode, emailVerified: user.emailVerified, timezone: user.timezone };
 }
 
 function normalizeEmail(email: string): string {

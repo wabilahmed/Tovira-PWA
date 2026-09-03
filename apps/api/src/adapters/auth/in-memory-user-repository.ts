@@ -30,6 +30,7 @@ export class InMemoryUserRepository implements UserRepository {
       consentAt: input.consentAt ?? null,
       consentVersion: input.consentVersion ?? null,
       emailVerified: false,
+      timezone: input.timezone ?? 'Asia/Dubai',
       createdAt: Date.now(),
     };
     this.byId.set(record.id, record);
@@ -41,6 +42,11 @@ export class InMemoryUserRepository implements UserRepository {
   async updatePassword(id: string, passwordHash: string): Promise<void> {
     const rec = this.byId.get(id);
     if (rec) rec.passwordHash = passwordHash;
+  }
+
+  async updateTimezone(id: string, timezone: string): Promise<void> {
+    const rec = this.byId.get(id);
+    if (rec) rec.timezone = timezone;
   }
 
   async markEmailVerified(id: string): Promise<void> {

@@ -117,3 +117,46 @@ describe('[P3-1] add a meeting', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('[NUDGE-TZ] a wall-clock meeting time is resolved in the rep\'s timezone', () => {
+  async function signupTz(email: string, timezone: string): Promise<string> {
+    const res = await fetch(`${base}/auth/signup`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password: 'password123', timezone }),
+    });
+    return ((await res.json()) as { token: string }).token;
+  }
+  async function createMeeting(token: string, clientId: string, datetime: string): Promise<string> {
+    const res = await fetch(`${base}/clients/${clientId}/meetings`, {
+      method: 'POST', headers: auth(token), body: JSON.stringify({ datetime, datetimeRaw: '3pm' }),
+    });
+    return ((await res.json()) as { datetime: string }).datetime;
+  }
+
+  it('stores 15:00 for a Dubai rep as 11:00Z (regardless of the server clock)', async () => {
+    const token = await signupTz('dubai@example.com', 'Asia/Dubai');
+    const clientId = await createClient(token, 'Meridian');
+    expect(await createMeeting(token, clientId, '2026-07-09T15:00')).toBe('2026-07-09T11:00:00.000Z');
+    // and /me reports the stored IANA zone (not an offset)
+    const me = (await (await fetch(`${base}/me`, { headers: auth(token) })).json()) as { user: { timezone: string } };
+    expect(me.user.timezone).toBe('Asia/Dubai');
+  });
+
+  it('a rep in another timezone gets their own local resolution (15:00 New York = 19:00Z in July)', async () => {
+    const token = await signupTz('ny@example.com', 'America/New_York');
+    const clientId = await createClient(token, 'Meridian');
+    expect(await createMeeting(token, clientId, '2026-07-09T15:00')).toBe('2026-07-09T19:00:00.000Z');
+  });
+
+  it('an invalid timezone at signup falls back to the default (Asia/Dubai), and Settings can change it', async () => {
+    const token = await signupTz('bad-tz@example.com', '+04:00'); // an offset, not IANA → rejected
+    let me = (await (await fetch(`${base}/me`, { headers: auth(token) })).json()) as { user: { timezone: string } };
+    expect(me.user.timezone).toBe('Asia/Dubai');
+    // edit it in Settings
+    const put = await fetch(`${base}/me/timezone`, { method: 'PUT', headers: auth(token), body: JSON.stringify({ timezone: 'Europe/London' }) });
+    expect(put.status).toBe(200);
+    expect(((await put.json()) as { timezone: string }).timezone).toBe('Europe/London');
+    me = (await (await fetch(`${base}/me`, { headers: auth(token) })).json()) as { user: { timezone: string } };
+    expect(me.user.timezone).toBe('Europe/London');
+  });
+});

@@ -13,6 +13,8 @@ export interface UserRecord {
   consentAt: number | null;
   consentVersion: string | null;
   emailVerified: boolean;
+  /** IANA timezone (NUDGE-TZ) — "2 hours before" needs a clock. Defaults to Asia/Dubai. */
+  timezone: string;
   createdAt: number;
 }
 
@@ -22,6 +24,8 @@ export interface CreateUserInput {
   referralCode: string;
   consentAt?: number | null;
   consentVersion?: string | null;
+  /** IANA timezone captured from the browser at signup; normalized to a valid zone or the default. */
+  timezone?: string;
 }
 
 export interface UserRepository {
@@ -32,6 +36,8 @@ export interface UserRepository {
   create(input: CreateUserInput): Promise<UserRecord>;
   /** Set a new password hash (password reset). */
   updatePassword(id: string, passwordHash: string): Promise<void>;
+  /** Update the rep's IANA timezone (Settings). Caller normalizes to a valid zone. */
+  updateTimezone(id: string, timezone: string): Promise<void>;
   /** Mark the email verified (soft verification). */
   markEmailVerified(id: string): Promise<void>;
   /** Delete the user (and, on Postgres, cascade all their data). */

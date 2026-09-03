@@ -51,6 +51,7 @@ import { PushClient } from './push/pushClient.js';
 import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
 import { ThemeToggle } from './settings/ThemeToggle.js';
+import { TimezoneSetting } from './settings/TimezoneSetting.js';
 import { formatMonthYear, formatBody } from './format/dates.js';
 import { AppShell } from './shell/AppShell.js';
 import { InstallBanner } from './pwa/InstallBanner.js';
@@ -388,6 +389,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {!session.user.emailVerified && <VerifyBanner api={auth} />}
           <Billing api={billingApi} />
           <ThemeToggle />
+          <TimezoneSetting current={session.user.timezone} api={auth} />
           <NotificationSetup state={readPushState()} api={notificationApi} />
           <AccountControls api={accountApi} onDeleted={onLogout} />
         </>

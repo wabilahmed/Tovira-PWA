@@ -1,5 +1,5 @@
 export interface Session {
-  user: { id: string; email: string; referralCode: string; emailVerified: boolean };
+  user: { id: string; email: string; referralCode: string; emailVerified: boolean; timezone: string };
 }
 
 /**
@@ -41,6 +41,19 @@ export class AuthClient {
   async logout(): Promise<void> {
     setAuthHint(false);
     await fetch(this.url('/auth/logout'), { method: 'POST', credentials: 'include' });
+  }
+
+  /** Update the rep's IANA timezone (Settings). Returns the value the server stored
+   *  (validated to a real zone, or the default). */
+  async updateTimezone(timezone: string): Promise<string> {
+    const res = await fetch(this.url('/me/timezone'), {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ timezone }),
+    });
+    if (!res.ok) throw new Error('Could not update the timezone.');
+    return ((await res.json()) as { timezone: string }).timezone;
   }
 
   /** Request a reset link. Resolves either way — the UI never reveals whether
@@ -126,6 +139,11 @@ export class AuthClient {
     const body: Record<string, unknown> = { email, password };
     if (ref) body.ref = ref;
     if (consent !== undefined) body.consent = consent;
+    // NUDGE-TZ: capture the browser's IANA zone at signup so nudge timing is on the rep's
+    // clock from the first meeting (the server validates it, falling back to the default).
+    if (path === '/auth/signup') {
+      try { body.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* zone unavailable → server default */ }
+    }
     const res = await fetch(this.url(path), {
       method: 'POST',
       credentials: 'include',

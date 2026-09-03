@@ -101,6 +101,11 @@ describe('AuthClient', () => {
     expect(String(url)).toBe('http://api.test/auth/signup');
     expect((init as RequestInit).method).toBe('POST');
     expect((init as RequestInit).credentials).toBe('include');
-    expect((init as RequestInit).body).toBe(JSON.stringify({ email: 'new@example.com', password: 'password123' }));
+    // Signup carries email + password and (NUDGE-TZ) the browser's IANA zone for nudge timing.
+    const body = JSON.parse((init as RequestInit).body as string) as { email: string; password: string; timezone?: string };
+    expect(body.email).toBe('new@example.com');
+    expect(body.password).toBe('password123');
+    expect(typeof body.timezone).toBe('string');
+    expect(body.timezone!.length).toBeGreaterThan(0);
   });
 });

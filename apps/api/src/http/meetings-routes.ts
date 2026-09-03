@@ -4,6 +4,7 @@ import type { ClientRepository } from '../ports/client-repository.js';
 import type { MeetingRepository } from '../ports/meeting-repository.js';
 import type { MeetingParser } from '../services/meetings/meeting-parser.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
+import { zonedTodayIso, zonedWallClockToInstant } from '../services/time/zone.js';
 
 export interface MeetingRouteDeps {
   auth: AuthService;
@@ -14,10 +15,6 @@ export interface MeetingRouteDeps {
 
 const CREATE_FOR_CLIENT_RE = /^\/clients\/([^/]+)\/meetings$/;
 const MEETING_ID_RE = /^\/meetings\/([^/]+)$/;
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export async function handleMeetingRoute(
   req: IncomingMessage,
@@ -49,7 +46,9 @@ export async function handleMeetingRoute(
         sendJson(res, 400, { error: 'validation', message: 'Say what to schedule.' });
         return true;
       }
-      sendJson(res, 200, await deps.parser.parse(userId, text, todayIso()));
+      // NUDGE-TZ: resolve "tomorrow 3pm" against the REP's today, not the server's.
+      const tz = await deps.auth.timezoneFor(userId);
+      sendJson(res, 200, await deps.parser.parse(userId, text, zonedTodayIso(tz)));
       return true;
     }
 
@@ -66,11 +65,22 @@ export async function handleMeetingRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const datetime = typeof body.datetime === 'string' ? body.datetime : null;
-      const datetimeRaw = typeof body.datetimeRaw === 'string' && body.datetimeRaw ? body.datetimeRaw : datetime ?? '';
-      if (!datetime && !datetimeRaw) {
+      const datetimeInput = typeof body.datetime === 'string' ? body.datetime : null;
+      const datetimeRaw = typeof body.datetimeRaw === 'string' && body.datetimeRaw ? body.datetimeRaw : datetimeInput ?? '';
+      if (!datetimeInput && !datetimeRaw) {
         sendJson(res, 400, { error: 'validation', message: 'A meeting time is required.' });
         return true;
+      }
+      // NUDGE-TZ: a wall-clock time ("3pm") is meaningless without a zone. Resolve it to an
+      // absolute instant IN THE REP'S ZONE so the meeting — and its 2h-ahead nudge — land on
+      // the rep's clock, not the server's. An already-absolute value (Z/offset) passes through.
+      let datetime = datetimeInput;
+      if (datetime) {
+        try {
+          datetime = zonedWallClockToInstant(datetime, await deps.auth.timezoneFor(userId)).toISOString();
+        } catch {
+          // Unparseable time — keep the raw string; it simply won't be nudge-eligible.
+        }
       }
       const meeting = await deps.meetings.create(userId, {
         clientId,

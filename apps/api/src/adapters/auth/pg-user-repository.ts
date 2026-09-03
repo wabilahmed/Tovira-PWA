@@ -9,6 +9,7 @@ interface UserRow {
   consent_at: Date | null;
   consent_version: string | null;
   email_verified: boolean;
+  timezone: string;
   created_at: Date;
 }
 
@@ -21,6 +22,7 @@ function toRecord(row: UserRow): UserRecord {
     consentAt: row.consent_at ? row.consent_at.getTime() : null,
     consentVersion: row.consent_version,
     emailVerified: row.email_verified,
+    timezone: row.timezone,
     createdAt: row.created_at.getTime(),
   };
 }
@@ -31,7 +33,7 @@ export class PgUserRepository implements UserRepository {
 
   async findByEmail(email: string): Promise<UserRecord | null> {
     const { rows } = await this.pool.query<UserRow>(
-      'SELECT id, email, password_hash, referral_code, consent_at, consent_version, email_verified, created_at FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, referral_code, consent_at, consent_version, email_verified, timezone, created_at FROM users WHERE email = $1',
       [email],
     );
     return rows[0] ? toRecord(rows[0]) : null;
@@ -39,7 +41,7 @@ export class PgUserRepository implements UserRepository {
 
   async findById(id: string): Promise<UserRecord | null> {
     const { rows } = await this.pool.query<UserRow>(
-      'SELECT id, email, password_hash, referral_code, consent_at, consent_version, email_verified, created_at FROM users WHERE id = $1',
+      'SELECT id, email, password_hash, referral_code, consent_at, consent_version, email_verified, timezone, created_at FROM users WHERE id = $1',
       [id],
     );
     return rows[0] ? toRecord(rows[0]) : null;
@@ -47,7 +49,7 @@ export class PgUserRepository implements UserRepository {
 
   async findByReferralCode(code: string): Promise<UserRecord | null> {
     const { rows } = await this.pool.query<UserRow>(
-      'SELECT id, email, password_hash, referral_code, consent_at, consent_version, email_verified, created_at FROM users WHERE referral_code = $1',
+      'SELECT id, email, password_hash, referral_code, consent_at, consent_version, email_verified, timezone, created_at FROM users WHERE referral_code = $1',
       [code],
     );
     return rows[0] ? toRecord(rows[0]) : null;
@@ -55,16 +57,20 @@ export class PgUserRepository implements UserRepository {
 
   async create(input: CreateUserInput): Promise<UserRecord> {
     const { rows } = await this.pool.query<UserRow>(
-      `INSERT INTO users (email, password_hash, referral_code, consent_at, consent_version)
-       VALUES ($1, $2, $3, CASE WHEN $4::bigint IS NULL THEN NULL ELSE to_timestamp($4 / 1000.0) END, $5)
-       RETURNING id, email, password_hash, referral_code, consent_at, consent_version, email_verified, created_at`,
-      [input.email, input.passwordHash, input.referralCode, input.consentAt ?? null, input.consentVersion ?? null],
+      `INSERT INTO users (email, password_hash, referral_code, consent_at, consent_version, timezone)
+       VALUES ($1, $2, $3, CASE WHEN $4::bigint IS NULL THEN NULL ELSE to_timestamp($4 / 1000.0) END, $5, COALESCE($6, 'Asia/Dubai'))
+       RETURNING id, email, password_hash, referral_code, consent_at, consent_version, email_verified, timezone, created_at`,
+      [input.email, input.passwordHash, input.referralCode, input.consentAt ?? null, input.consentVersion ?? null, input.timezone ?? null],
     );
     return toRecord(rows[0]!);
   }
 
   async updatePassword(id: string, passwordHash: string): Promise<void> {
     await this.pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [id, passwordHash]);
+  }
+
+  async updateTimezone(id: string, timezone: string): Promise<void> {
+    await this.pool.query('UPDATE users SET timezone = $2 WHERE id = $1', [id, timezone]);
   }
 
   async markEmailVerified(id: string): Promise<void> {

@@ -65,7 +65,9 @@ export async function handleAuthRoute(
       // The web sends consent:true (an explicit tick). Record which policy
       // version they agreed to; absent consent (non-web clients) is unchanged.
       const consentVersion = body.consent === true ? CONSENT_POLICY_VERSION : undefined;
-      const result = await auth.signup(email, password, consentVersion);
+      // NUDGE-TZ: the browser sends its IANA zone; the service validates it (→ default if absent/bad).
+      const timezone = typeof body.timezone === 'string' ? body.timezone : undefined;
+      const result = await auth.signup(email, password, consentVersion, timezone);
       await opts.onSignup?.(result.user.id, result.user.email);
       const ref = typeof body.ref === 'string' ? body.ref.trim() : '';
       if (ref) {
@@ -204,6 +206,21 @@ export async function handleAuthRoute(
         return true;
       }
       sendJson(res, 200, { user });
+      return true;
+    }
+
+    // NUDGE-TZ: edit the rep's timezone from Settings. The value is validated to a
+    // real IANA zone (or the default) server-side, so a bad string can never be stored.
+    if (method === 'PUT' && url === '/me/timezone') {
+      const identity = await auth.authenticate(extractToken(req));
+      if (!identity) {
+        sendJson(res, 401, { error: 'unauthorized' });
+        return true;
+      }
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const timezone = typeof body.timezone === 'string' ? body.timezone : '';
+      const stored = await auth.updateTimezone(identity.userId, timezone);
+      sendJson(res, 200, { timezone: stored });
       return true;
     }
 
