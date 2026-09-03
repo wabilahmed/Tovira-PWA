@@ -95,6 +95,15 @@ describe('[ASK-CAPTURE] certified-path capture, held out of the vault until conf
     expect(await h.notes.listByClient('u', h.client.id)).toHaveLength(1); // appears once confirmed
   });
 
+  it('captures are tenant-isolated: another rep can neither see nor confirm/reject them', async () => {
+    const h = await harness();
+    const p = await h.capture.capture('u', h.client.id, 'Sarah moved to Meridian Capital', '2026-07-09');
+    expect(await h.capture.listPending('intruder')).toHaveLength(0); // can't see A's pending capture
+    expect(await h.capture.confirm('intruder', p!.noteId)).toBe(false); // can't confirm it
+    expect(await h.capture.reject('intruder', p!.noteId)).toBe(false); // can't reject it
+    expect(await h.capture.listPending('u')).toHaveLength(1); // A's capture untouched
+  });
+
   it('capture against an unknown client stores nothing', async () => {
     const h = await harness();
     expect(await h.capture.capture('u', 'no-such-client', 'x moved', '2026-07-09')).toBeNull();
