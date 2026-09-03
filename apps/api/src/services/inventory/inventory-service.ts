@@ -3,7 +3,14 @@ import type {
   InventoryRepository,
   InventoryItemRecord,
   InventoryStatus,
+  InventoryShareRecord,
+  ShareSetBy,
+  ShareOutcome,
 } from '../../ports/inventory-repository.js';
+
+export type ShareResult =
+  | { ok: true; share: InventoryShareRecord; warning: InventoryShareRecord[] | null }
+  | { ok: false; reason: 'not_found' | 'disabled' };
 
 export interface CreateItemInput {
   title: string;
@@ -71,6 +78,53 @@ export class InventoryService {
 
   get(userId: string, id: string): Promise<InventoryItemRecord | null> {
     return this.repo.findByIdForUser(userId, id);
+  }
+
+  sharesForItem(userId: string, itemId: string): Promise<InventoryShareRecord[]> {
+    return this.repo.listSharesByItem(userId, itemId);
+  }
+  sharesForClient(userId: string, clientId: string): Promise<InventoryShareRecord[]> {
+    return this.repo.listSharesByClient(userId, clientId);
+  }
+
+  /**
+   * Record a share (spec §11.2–3). Sharing NEVER reserves and never decrements — it only
+   * logs intent, outcome `pending`. `warning` carries the prior pending shares when the item
+   * is now over-shared (active pending shares meet or exceed quantity), so the rep sees
+   * "already shared with …" — contextual, never blocking. The caller validates the client.
+   */
+  async share(userId: string, itemId: string, clientId: string, outcomeSetBy?: ShareSetBy): Promise<ShareResult> {
+    const item = await this.repo.findByIdForUser(userId, itemId);
+    if (!item) return { ok: false, reason: 'not_found' };
+    if (item.status !== 'active') return { ok: false, reason: 'disabled' };
+    const priorPending = (await this.repo.listSharesByItem(userId, itemId)).filter((s) => s.outcome === 'pending');
+    const share = await this.repo.createShare(userId, { itemId, clientId, outcomeSetBy });
+    // Warn only when re-sharing an already-committed item: there IS a prior pending share, and
+    // this one takes the pending count to meet-or-exceed quantity. No warning on the first share.
+    const warning = priorPending.length >= 1 && priorPending.length + 1 >= item.quantity ? priorPending : null;
+    return { ok: true, share, warning };
+  }
+
+  /**
+   * Set a share's outcome. On `bought` ONLY, decrement the item's quantity by the entered
+   * amount (default 1); reaching 0 disables it as `sold_out` — the arithmetic auto-disable,
+   * never inference. `declined`/`no_response`/`pending` never touch quantity.
+   */
+  async setOutcome(userId: string, shareId: string, outcome: ShareOutcome, quantityBought?: number): Promise<InventoryShareRecord | null> {
+    const share = await this.repo.findShareForUser(userId, shareId);
+    if (!share) return null;
+    const bought = outcome === 'bought';
+    const updated = await this.repo.updateShareOutcome(userId, shareId, { outcome, quantityBought: bought ? quantityBought ?? 1 : null });
+    if (bought) {
+      const item = await this.repo.findByIdForUser(userId, share.itemId);
+      if (item) {
+        const newQty = Math.max(0, item.quantity - (quantityBought ?? 1));
+        const patch: Parameters<InventoryRepository['update']>[2] = { quantity: newQty };
+        if (newQty === 0 && item.status === 'active') { patch.status = 'disabled'; patch.disabledReason = 'sold_out'; }
+        await this.repo.update(userId, item.id, patch);
+      }
+    }
+    return updated;
   }
 
   /** Embed title + description; best-effort — null on failure, never throws. */

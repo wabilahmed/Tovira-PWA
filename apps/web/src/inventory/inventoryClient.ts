@@ -13,6 +13,21 @@ export interface InventoryItem {
 
 export type InventoryFilter = 'active' | 'disabled';
 
+export interface InventoryShare {
+  id: string;
+  itemId: string;
+  clientId: string;
+  sharedAt: number;
+  outcome: 'pending' | 'bought' | 'declined' | 'no_response';
+  outcomeSetBy: 'rep' | 'confirmed_suggestion' | null;
+  quantityBought: number | null;
+}
+/** A share plus (when re-sharing an over-committed item) the prior pending shares to flag. */
+export interface ShareResult {
+  share: InventoryShare;
+  warning: InventoryShare[] | null;
+}
+
 /** Talks to /inventory. Reads are gated (402 → LOCKED); create/edit stay open on a lapse. */
 export class InventoryClient {
   constructor(private readonly baseUrl: string = '') {}
@@ -46,4 +61,19 @@ export class InventoryClient {
     if (res.status !== 200) return null;
     return (await res.json()) as InventoryItem;
   }
+
+  /** Record a share of an item to a client. Never reserves; returns the share + any warning. */
+  async share(itemId: string, clientId: string): Promise<ShareResult | null> {
+    const res = await fetch(this.url(`/inventory/${itemId}/shares`), {
+      method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ clientId }),
+    });
+    if (res.status !== 201) return null;
+    return (await res.json()) as ShareResult;
+  }
+}
+
+/** The template WhatsApp draft for an item share — no model call (Tovira never sends). */
+export function shareDraft(clientName: string, title: string, description: string): string {
+  return `Hi ${clientName}, I've got ${title} — ${description}. Thought it might be a fit. Want the details?`;
 }

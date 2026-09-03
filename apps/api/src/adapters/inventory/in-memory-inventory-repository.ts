@@ -5,11 +5,15 @@ import type {
   InventoryItemPatch,
   InventoryRepository,
   InventoryStatus,
+  InventoryShareRecord,
+  ShareInput,
+  ShareOutcomePatch,
 } from '../../ports/inventory-repository.js';
 
 /** In-memory inventory store mirroring the RLS isolation contract, for tests. */
 export class InMemoryInventoryRepository implements InventoryRepository {
   private readonly byId = new Map<string, InventoryItemRecord & { hasVector: boolean }>();
+  private readonly shares = new Map<string, InventoryShareRecord>();
   private clock = 0;
 
   private tick(): number {
@@ -61,5 +65,36 @@ export class InMemoryInventoryRepository implements InventoryRepository {
 
   async purgeUser(userId: string): Promise<void> {
     for (const [id, r] of this.byId) if (r.userId === userId) this.byId.delete(id);
+    for (const [id, s] of this.shares) if (s.userId === userId) this.shares.delete(id);
+  }
+
+  async createShare(userId: string, input: ShareInput): Promise<InventoryShareRecord> {
+    const record: InventoryShareRecord = {
+      id: randomUUID(), userId, itemId: input.itemId, clientId: input.clientId,
+      sharedAt: this.tick(), outcome: 'pending', outcomeSetBy: input.outcomeSetBy ?? 'rep', quantityBought: null,
+    };
+    this.shares.set(record.id, record);
+    return { ...record };
+  }
+
+  async listSharesByItem(userId: string, itemId: string): Promise<InventoryShareRecord[]> {
+    return [...this.shares.values()].filter((s) => s.userId === userId && s.itemId === itemId).sort((a, b) => b.sharedAt - a.sharedAt).map((s) => ({ ...s }));
+  }
+
+  async listSharesByClient(userId: string, clientId: string): Promise<InventoryShareRecord[]> {
+    return [...this.shares.values()].filter((s) => s.userId === userId && s.clientId === clientId).sort((a, b) => b.sharedAt - a.sharedAt).map((s) => ({ ...s }));
+  }
+
+  async findShareForUser(userId: string, shareId: string): Promise<InventoryShareRecord | null> {
+    const s = this.shares.get(shareId);
+    return s && s.userId === userId ? { ...s } : null;
+  }
+
+  async updateShareOutcome(userId: string, shareId: string, patch: ShareOutcomePatch): Promise<InventoryShareRecord | null> {
+    const s = this.shares.get(shareId);
+    if (!s || s.userId !== userId) return null;
+    s.outcome = patch.outcome;
+    if (patch.quantityBought !== undefined) s.quantityBought = patch.quantityBought;
+    return { ...s };
   }
 }

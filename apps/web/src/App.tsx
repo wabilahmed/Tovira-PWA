@@ -365,7 +365,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'ledger' && <Ledger api={ledgerApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
 
-      {view === 'inventory' && <Inventory api={inventoryApi} onSubscribe={() => setView('settings')} />}
+      {view === 'inventory' && <Inventory api={inventoryApi} clients={clients.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? null }))} onSubscribe={() => setView('settings')} />}
 
       {view === 'settings' && (
         <>

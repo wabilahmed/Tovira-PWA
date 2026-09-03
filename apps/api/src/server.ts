@@ -279,7 +279,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
-      if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, billing: deps.billing })) return;
+      if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing })) return;
 
       if (request.method === 'GET' && url === '/') {
         sendJson(response, 200, { name: 'tovira-api', status: 'ok' });

@@ -1,21 +1,29 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
+import type { ClientRepository } from '../ports/client-repository.js';
 import type { InventoryService } from '../services/inventory/inventory-service.js';
-import type { InventoryItemRecord } from '../ports/inventory-repository.js';
+import type { InventoryItemRecord, InventoryShareRecord, ShareOutcome } from '../ports/inventory-repository.js';
 import { BadJsonError, extractToken, readJsonBody, requireEntitled, sendJson } from './helpers.js';
 
 export interface InventoryRouteDeps {
   auth: AuthService;
   inventory: InventoryService;
+  clients: ClientRepository;
   billing: BillingService;
 }
 
 const ITEM_RE = /^\/inventory\/([^/]+)$/;
+const SHARES_RE = /^\/inventory\/([^/]+)\/shares$/;         // POST create + GET history
+const SHARE_OUTCOME_RE = /^\/inventory\/shares\/([^/]+)$/;  // PATCH outcome
+const OUTCOMES: ShareOutcome[] = ['bought', 'declined', 'no_response'];
 
 /** API shape — never exposes user_id or the raw embedding. */
 export function itemDto(r: InventoryItemRecord): Omit<InventoryItemRecord, 'userId' | 'embedded'> {
   return { id: r.id, title: r.title, description: r.description, quantity: r.quantity, status: r.status, disabledReason: r.disabledReason, createdAt: r.createdAt, updatedAt: r.updatedAt };
+}
+export function shareDto(s: InventoryShareRecord): Omit<InventoryShareRecord, 'userId'> {
+  return { id: s.id, itemId: s.itemId, clientId: s.clientId, sharedAt: s.sharedAt, outcome: s.outcome, outcomeSetBy: s.outcomeSetBy, quantityBought: s.quantityBought };
 }
 
 const isNonEmpty = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
@@ -60,6 +68,39 @@ export async function handleInventoryRoute(
     return true;
   }
 
+  // ---- Record a share — OPEN. Never reserves, never decrements; outcome starts pending. ----
+  const sharesMatch = SHARES_RE.exec(path);
+  if (sharesMatch && method === 'POST') {
+    const itemId = decodeURIComponent(sharesMatch[1]!);
+    let body: { clientId?: unknown };
+    try { body = (await readJsonBody(req)) as typeof body; }
+    catch (e) { if (e instanceof BadJsonError) { sendJson(res, 400, { error: 'validation', message: 'Invalid JSON.' }); return true; } throw e; }
+    if (!isNonEmpty(body.clientId)) { sendJson(res, 400, { error: 'validation', message: 'A client is required.' }); return true; }
+    if (!(await deps.clients.findByIdForUser(userId, body.clientId))) { sendJson(res, 404, { error: 'not_found' }); return true; } // foreign/unknown client
+    const result = await deps.inventory.share(userId, itemId, body.clientId);
+    if (!result.ok) {
+      if (result.reason === 'disabled') { sendJson(res, 409, { error: 'item_disabled', message: 'Out of stock — set a quantity to share this.' }); return true; }
+      sendJson(res, 404, { error: 'not_found' }); return true;
+    }
+    sendJson(res, 201, { share: shareDto(result.share), warning: result.warning ? result.warning.map(shareDto) : null });
+    return true;
+  }
+
+  // ---- Set a share's outcome — bought decrements the item (→ sold_out at 0). ----
+  const outcomeMatch = SHARE_OUTCOME_RE.exec(path);
+  if (outcomeMatch && method === 'PATCH') {
+    const shareId = decodeURIComponent(outcomeMatch[1]!);
+    let body: { outcome?: unknown; quantityBought?: unknown };
+    try { body = (await readJsonBody(req)) as typeof body; }
+    catch (e) { if (e instanceof BadJsonError) { sendJson(res, 400, { error: 'validation', message: 'Invalid JSON.' }); return true; } throw e; }
+    if (!OUTCOMES.includes(body.outcome as ShareOutcome)) { sendJson(res, 400, { error: 'validation', message: 'Outcome must be bought, declined, or no_response.' }); return true; }
+    if (body.quantityBought !== undefined && !isQuantity(body.quantityBought)) { sendJson(res, 400, { error: 'validation', message: 'Quantity bought must be a whole number, zero or more.' }); return true; }
+    const updated = await deps.inventory.setOutcome(userId, shareId, body.outcome as ShareOutcome, body.quantityBought as number | undefined);
+    if (!updated) { sendJson(res, 404, { error: 'not_found' }); return true; }
+    sendJson(res, 200, shareDto(updated));
+    return true;
+  }
+
   const idMatch = ITEM_RE.exec(path);
   const id = idMatch ? decodeURIComponent(idMatch[1]!) : null;
 
@@ -94,6 +135,14 @@ export async function handleInventoryRoute(
       const filter = status === 'active' || status === 'disabled' ? status : undefined;
       const items = await deps.inventory.list(userId, filter);
       sendJson(res, 200, { items: items.map(itemDto) });
+      return true;
+    }
+    const sharesGet = SHARES_RE.exec(path);
+    if (sharesGet) {
+      const itemId = decodeURIComponent(sharesGet[1]!);
+      if (!(await deps.inventory.get(userId, itemId))) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      const shares = await deps.inventory.sharesForItem(userId, itemId);
+      sendJson(res, 200, { shares: shares.map(shareDto) });
       return true;
     }
     if (id) {

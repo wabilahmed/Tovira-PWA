@@ -41,6 +41,32 @@ export interface InventoryItemPatch {
   embedding?: number[] | null;
 }
 
+export type ShareOutcome = 'pending' | 'bought' | 'declined' | 'no_response';
+export type ShareSetBy = 'rep' | 'confirmed_suggestion';
+
+export interface InventoryShareRecord {
+  id: string;
+  userId: string;
+  itemId: string;
+  clientId: string;
+  sharedAt: number;
+  outcome: ShareOutcome;
+  /** Whether the rep set the outcome directly, or confirmed a Tovira suggestion (Batch 2). */
+  outcomeSetBy: ShareSetBy | null;
+  /** How many were bought — null until the outcome is `bought`. */
+  quantityBought: number | null;
+}
+
+export interface ShareInput {
+  itemId: string;
+  clientId: string;
+  outcomeSetBy?: ShareSetBy | null;
+}
+export interface ShareOutcomePatch {
+  outcome: ShareOutcome;
+  quantityBought?: number | null;
+}
+
 export interface InventoryRepository {
   create(userId: string, input: InventoryItemInput): Promise<InventoryItemRecord>;
   /** Newest first. `status` filters active/disabled; omitted returns all. */
@@ -50,4 +76,13 @@ export interface InventoryRepository {
   update(userId: string, id: string, patch: InventoryItemPatch): Promise<InventoryItemRecord | null>;
   /** Delete every item for a user — account deletion only (nothing else deletes). */
   purgeUser(userId: string): Promise<void>;
+
+  // ---- shares (feat(INV-SHARE)) ----
+  createShare(userId: string, input: ShareInput): Promise<InventoryShareRecord>;
+  /** All shares of an item, newest first (share history). */
+  listSharesByItem(userId: string, itemId: string): Promise<InventoryShareRecord[]>;
+  /** All shares to a client, newest first (client-detail inventory section). */
+  listSharesByClient(userId: string, clientId: string): Promise<InventoryShareRecord[]>;
+  findShareForUser(userId: string, shareId: string): Promise<InventoryShareRecord | null>;
+  updateShareOutcome(userId: string, shareId: string, patch: ShareOutcomePatch): Promise<InventoryShareRecord | null>;
 }

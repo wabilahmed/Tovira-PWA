@@ -5,8 +5,26 @@ import type {
   InventoryItemPatch,
   InventoryRepository,
   InventoryStatus,
+  InventoryShareRecord,
+  ShareInput,
+  ShareOutcomePatch,
 } from '../../ports/inventory-repository.js';
 import { withTenant } from '../../db/tenant.js';
+
+interface ShareRow {
+  id: string;
+  user_id: string;
+  item_id: string;
+  client_id: string;
+  shared_at: Date;
+  outcome: InventoryShareRecord['outcome'];
+  outcome_set_by: InventoryShareRecord['outcomeSetBy'];
+  quantity_bought: number | null;
+}
+function toShare(row: ShareRow): InventoryShareRecord {
+  return { id: row.id, userId: row.user_id, itemId: row.item_id, clientId: row.client_id, sharedAt: row.shared_at.getTime(), outcome: row.outcome, outcomeSetBy: row.outcome_set_by, quantityBought: row.quantity_bought === null ? null : Number(row.quantity_bought) };
+}
+const SHARE_COLUMNS = 'id, user_id, item_id, client_id, shared_at, outcome, outcome_set_by, quantity_bought';
 
 interface InventoryRow {
   id: string;
@@ -97,7 +115,50 @@ export class PgInventoryRepository implements InventoryRepository {
 
   async purgeUser(userId: string): Promise<void> {
     await withTenant(this.pool, userId, async (c) => {
+      // inventory_shares cascade off inventory_items (FK ON DELETE CASCADE).
       await c.query('DELETE FROM inventory_items WHERE user_id = $1', [userId]);
+    });
+  }
+
+  async createShare(userId: string, input: ShareInput): Promise<InventoryShareRecord> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `INSERT INTO inventory_shares (user_id, item_id, client_id, outcome_set_by)
+         VALUES ($1, $2, $3, $4) RETURNING ${SHARE_COLUMNS}`,
+        [userId, input.itemId, input.clientId, input.outcomeSetBy ?? 'rep'],
+      );
+      return toShare(rows[0] as unknown as ShareRow);
+    });
+  }
+
+  async listSharesByItem(userId: string, itemId: string): Promise<InventoryShareRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${SHARE_COLUMNS} FROM inventory_shares WHERE user_id = $1 AND item_id = $2 ORDER BY shared_at DESC`, [userId, itemId]);
+      return (rows as unknown as ShareRow[]).map(toShare);
+    });
+  }
+
+  async listSharesByClient(userId: string, clientId: string): Promise<InventoryShareRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${SHARE_COLUMNS} FROM inventory_shares WHERE user_id = $1 AND client_id = $2 ORDER BY shared_at DESC`, [userId, clientId]);
+      return (rows as unknown as ShareRow[]).map(toShare);
+    });
+  }
+
+  async findShareForUser(userId: string, shareId: string): Promise<InventoryShareRecord | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${SHARE_COLUMNS} FROM inventory_shares WHERE id = $1`, [shareId]);
+      return rows.length ? toShare(rows[0] as unknown as ShareRow) : null;
+    });
+  }
+
+  async updateShareOutcome(userId: string, shareId: string, patch: ShareOutcomePatch): Promise<InventoryShareRecord | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `UPDATE inventory_shares SET outcome = $2, quantity_bought = $3 WHERE id = $1 RETURNING ${SHARE_COLUMNS}`,
+        [shareId, patch.outcome, patch.quantityBought ?? null],
+      );
+      return rows.length ? toShare(rows[0] as unknown as ShareRow) : null;
     });
   }
 }

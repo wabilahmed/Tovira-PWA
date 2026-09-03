@@ -389,3 +389,4 @@
 .tov-inv-item__qty { margin-inline-start: auto; color: var(--text-secondary); }
 .tov-inv-item__edit { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.4rem; }
 .tov-inv-item__actions { margin-top: 0.2rem; }
+.tov-inv-warn { margin: 0 0 0.7rem; font-size: 0.9rem; }

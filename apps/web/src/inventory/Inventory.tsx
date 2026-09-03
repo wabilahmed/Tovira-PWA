@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import { LOCKED, type Locked } from '../billing/gated.js';
 import { Locked as LockedCard } from '../billing/Locked.js';
-import type { InventoryItem, InventoryFilter } from './inventoryClient.js';
+import { whatsappLink } from '../whatsapp/waLink.js';
+import { shareDraft, type InventoryItem, type InventoryFilter, type ShareResult } from './inventoryClient.js';
+
+export interface InventoryClientRef { id: string; name: string; phone: string | null }
 
 export interface InventoryApi {
   list(status?: InventoryFilter): Promise<InventoryItem[] | Locked>;
   create(title: string, description: string, quantity: number): Promise<InventoryItem>;
   edit(id: string, patch: Partial<{ title: string; description: string; quantity: number }>): Promise<InventoryItem | null>;
+  share(itemId: string, clientId: string): Promise<ShareResult | null>;
 }
 
 const STATUS_TAG: Record<NonNullable<InventoryItem['disabledReason']>, string> = {
@@ -14,7 +18,12 @@ const STATUS_TAG: Record<NonNullable<InventoryItem['disabledReason']>, string> =
   unlisted: 'UNLISTED',
 };
 
-export function Inventory({ api, onSubscribe }: { api: InventoryApi; onSubscribe: () => void }): JSX.Element {
+export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => window.open(url, '_blank', 'noopener') }: {
+  api: InventoryApi;
+  clients?: InventoryClientRef[];
+  onSubscribe: () => void;
+  openLink?: (url: string) => void;
+}): JSX.Element {
   const [filter, setFilter] = useState<InventoryFilter>('active');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [locked, setLocked] = useState(false);
@@ -23,6 +32,21 @@ export function Inventory({ api, onSubscribe }: { api: InventoryApi; onSubscribe
   const [quantity, setQuantity] = useState('1');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  const clientName = (id: string): string => clients.find((c) => c.id === id)?.name ?? 'a client';
+
+  async function shareItem(item: InventoryItem, clientId: string): Promise<void> {
+    setWarning(null);
+    const res = await api.share(item.id, clientId);
+    if (!res) return;
+    if (res.warning && res.warning.length) {
+      const names = res.warning.map((w) => `${clientName(w.clientId)}, ${new Date(w.sharedAt).toLocaleDateString()}`).join('; ');
+      setWarning(`Already shared with ${names}.`);
+    }
+    const client = clients.find((c) => c.id === clientId);
+    openLink(whatsappLink(shareDraft(client?.name ?? 'there', item.title, item.description), client?.phone ?? undefined));
+  }
 
   async function load(f: InventoryFilter): Promise<void> {
     const res = await api.list(f);
@@ -71,6 +95,8 @@ export function Inventory({ api, onSubscribe }: { api: InventoryApi; onSubscribe
         ))}
       </div>
 
+      {warning && <p role="status" className="tov-inv-warn" style={{ color: 'var(--text-secondary)' }}>{warning}</p>}
+
       {items.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>
           {filter === 'active' ? 'Nothing listed yet. Add your first item above.' : 'Nothing disabled.'}
@@ -78,8 +104,10 @@ export function Inventory({ api, onSubscribe }: { api: InventoryApi; onSubscribe
       ) : (
         <ul className="tov-list-plain">
           {items.map((item) => (
-            <ItemCard key={item.id} item={item} editing={editing === item.id} onEditToggle={() => setEditing(editing === item.id ? null : item.id)}
-              onSave={async (patch) => { await api.edit(item.id, patch); setEditing(null); await load(filter); }} />
+            <ItemCard key={item.id} item={item} clients={clients} editing={editing === item.id}
+              onEditToggle={() => setEditing(editing === item.id ? null : item.id)}
+              onSave={async (patch) => { await api.edit(item.id, patch); setEditing(null); await load(filter); }}
+              onShare={(clientId) => shareItem(item, clientId)} />
           ))}
         </ul>
       )}
@@ -117,16 +145,20 @@ function AddForm(p: FormProps): JSX.Element {
   );
 }
 
-function ItemCard({ item, editing, onEditToggle, onSave }: {
+function ItemCard({ item, clients, editing, onEditToggle, onSave, onShare }: {
   item: InventoryItem;
+  clients: InventoryClientRef[];
   editing: boolean;
   onEditToggle: () => void;
   onSave: (patch: Partial<{ title: string; description: string; quantity: number }>) => Promise<void>;
+  onShare: (clientId: string) => void;
 }): JSX.Element {
   const disabled = item.status === 'disabled';
   const [t, setT] = useState(item.title);
   const [d, setD] = useState(item.description);
   const [q, setQ] = useState(String(item.quantity));
+  const [picking, setPicking] = useState(false);
+  const [pick, setPick] = useState(clients[0]?.id ?? '');
 
   return (
     <li className="tov-card tov-inv-item">
@@ -147,10 +179,24 @@ function ItemCard({ item, editing, onEditToggle, onSave }: {
             <button className="tov-link" onClick={onEditToggle}>Cancel</button>
           </div>
         </div>
+      ) : picking ? (
+        <div className="tov-inv-add__row">
+          <select aria-label="Share with client" value={pick} onChange={(e) => setPick(e.target.value)}>
+            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <button className="tov-primary" disabled={!pick} onClick={() => { onShare(pick); setPicking(false); }}>Send via WhatsApp</button>
+          <button className="tov-link" onClick={() => setPicking(false)}>Cancel</button>
+        </div>
       ) : (
         <div className="tov-inv-item__actions">
-          {/* Share (active) lands in feat(INV-SHARE); Edit / Set quantity is the interaction now. */}
-          <button className="tov-link" onClick={onEditToggle}>{disabled ? 'Set quantity' : 'Edit'}</button>
+          {disabled ? (
+            <button className="tov-link" onClick={onEditToggle}>Set quantity</button>
+          ) : (
+            <>
+              <button className="tov-primary" disabled={clients.length === 0} onClick={() => setPicking(true)}>Share</button>
+              <button className="tov-link" onClick={onEditToggle}>Edit</button>
+            </>
+          )}
         </div>
       )}
     </li>
