@@ -15,6 +15,7 @@ export function GetStarted({
   importApi,
   onSeeded,
   onFallback,
+  onAddInventory,
   sharedContent = '',
 }: {
   seeding: SeedingStatus;
@@ -23,6 +24,8 @@ export function GetStarted({
   importApi: ImportApi;
   onSeeded: () => void;
   onFallback: (kind: string) => void;
+  /** Jump to the Inventory tab — a second, export-free way to seed (spec §11.6). */
+  onAddInventory?: () => void;
   /** A chat shared into the app (Android share-target) to prefill the import. */
   sharedContent?: string;
 }): JSX.Element {
@@ -34,7 +37,17 @@ export function GetStarted({
   const [error, setError] = useState<string | null>(null);
 
   if (step === 'guide') {
-    return <SeedingBanner status={seeding} onStartImport={() => setStep('import')} onFallback={onFallback} />;
+    return (
+      <>
+        <SeedingBanner status={seeding} onStartImport={() => setStep('import')} onFallback={onFallback} />
+        {onAddInventory && (
+          <p className="tov-seed-inv" style={{ color: 'var(--text-secondary)', marginTop: '1rem' }}>
+            Or tell Tovira what you have to sell — a few items, no export needed.{' '}
+            <button className="tov-link" onClick={onAddInventory}>Add inventory</button>
+          </p>
+        )}
+      </>
+    );
   }
 
   async function createAndSelect(e: React.FormEvent): Promise<void> {

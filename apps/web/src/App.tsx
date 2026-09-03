@@ -307,6 +307,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           }}
           importApi={clientsApi}
           sharedContent={sharedContent}
+          onAddInventory={() => setView('inventory')}
           onSeeded={() => {
             loadSeeding();
             setSharedContent('');

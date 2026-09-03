@@ -247,6 +247,26 @@ server-side by triggers on the done/brief/capture paths.)
 
 ---
 
+## 14. Inventory  (`inventory/Inventory.tsx` + `inventory/ClientInventory.tsx`)
+
+**Scope:** INVENTORY-1 Batch 1 — the store, without matching. A paid surface (reads gated
+402 → `Locked`; create/edit/export stay open on a lapsed account).
+
+**Functionality**
+- **Add / edit** items (title, description, quantity) — Ledger-first, mono quantities.
+- **Active vs disabled**: disabled items are muted (`--text-secondary`, AA in both themes),
+  never claret, never a warning — the state is told by the status stamp (**UNLISTED** /
+  **OUT OF STOCK**) and the swapped action (**Set quantity**), not by dimming. Filter tabs.
+- **Share** an active item → pick a client → records the share and opens a WhatsApp draft
+  (template, no model call; Tovira never sends); duplicate-share warning is inline.
+- **History** per item (client · date · outcome); mark a pending share **Bought** (decrements;
+  0 → `sold_out`, kept visible) or **Declined**.
+- Client detail gains an **Inventory shared** section (renders nothing when empty).
+- The "N clients want something like this" match line is stubbed + hidden until **Batch 2**.
+
+**How:** `InventoryClient` → `/inventory*`. Embedding happens server-side on save (Bedrock,
+no Claude). Onboarding nudges "add what you're selling" (no reveal — Batch 2).
+
 ## 13. Settings  (`billing/Billing.tsx` + `push/NotificationSetup.tsx` + `account/AccountControls.tsx`)
 **Scope:** P5-1/P5-2/P5-5 (trial & billing), P3-6 (notifications), P5-4 (data control).
 
@@ -318,5 +338,6 @@ uploader, outbox).
 | Book Scan | `BookScan`, `ShareCard` | P5-3b, P5-6 | `/book-scan`, `/share-card` |
 | Value | `Ledger` | P4-11 | `/ledger`, `/clients/:id/deal-value` |
 | Settings | `Billing`, `NotificationSetup`, `AccountControls` | P5-1/2/5, P3-6, P5-4 | `/billing/*`, `/push/*`, `/account*` |
+| Inventory | `Inventory`, `ClientInventory` | INVENTORY-1 (Batch 1) | `/inventory*`, `/inventory/:id/shares`, `/inventory/by-client/:id` |
 | Header badge | `CorpusBadge` | P4-10 | `/corpus-stats` |
 | PWA shell | `pwa/*`, `capture/*` | P0-5, P5-3 | (offline / manifest / SW) |

@@ -489,6 +489,17 @@ renumbered, so the audit trail survives.)*
 
 ---
 
+### FLOW 29 — Inventory: add → share → outcome → disable/reactivate  (feat(INVENTORY-1))
+1. Inventory tab (More / sidebar) → add form: title + description + quantity → `POST /inventory` → 201, item listed active · [inventory/Inventory.tsx] · [P?-inventory]
+2. On an active item → **Share** → pick a client → `POST /inventory/:id/shares` (never reserves/decrements) → opens WhatsApp with a template draft (Tovira never sends); if re-sharing an over-committed item, the duplicate warning names the prior share · [Inventory.tsx → waLink] · [POST /inventory/:id/shares]
+3. **History** on an item → its shares (client · date · outcome); a **pending** share → **Bought** (decrements by the amount; 0 → disabled `sold_out`, stays visible) or **Declined** (never touches quantity) · [PATCH /inventory/shares/:id]
+4. Edit an item's quantity to **0** → disabled `unlisted` (kept, visible under the Disabled filter); edit back **above 0** → reactivated, same id/created + share history intact · [PATCH /inventory/:id]
+5. Client detail → **Inventory shared** section lists items shared with that client (absent when none) · [ClientInventory.tsx → GET /inventory/by-client/:id]
+
+**Trust rules:** nothing is ever deleted (disabling is the only removal); auto-disable is only arithmetic (quantity 0), never inferred; sharing never sends; reads are a paid surface (402 → Locked) but create/edit/export stay open on a lapsed account. **Batch 2** (not built): the extraction `requirements` field → v0.9 re-certification → matching → the "N clients want this" line + the seeding reveal.
+
+---
+
 ## Manual-test checklist (landing page first; shortest paths first)
 
 Walk top to bottom in one sitting. **⚠ = cannot be fully verified locally.**
@@ -528,6 +539,8 @@ Walk top to bottom in one sitting. **⚠ = cannot be fully verified locally.**
 28. [ ] Export my data → download JSON (FLOW 26)
 29. [ ] Delete my account → confirm → **deletion email arrives BEFORE the purge** → cascade → logged out (FLOW 27) — ⚠ real mailer for the live email
 30. [ ] Embedded Locked: let the trial lapse (or force a 402) → brief panel and follow-up draft each show the shared **Locked** state with Subscribe → Billing (FLOWS 10/11, fix(LOCKED-EMBEDDED))
+31. [ ] Inventory: add an item → Share to a client → WhatsApp draft opens (never sends); History → mark a pending share Bought → quantity decrements, hits 0 → **OUT OF STOCK**, still visible under Disabled; edit quantity back above 0 → reactivated (FLOW 29)
+32. [ ] Inventory entitlement: lapse the trial → the Inventory tab shows **Locked**, but adding an item still works (create stays open); duplicate-share warning fires when a 1-of item is shared twice (FLOW 29)
 
 **Locally unverifiable:** iOS push delivery (needs an installed PWA on a device),
 real Stripe Checkout/webhooks (test-mode keys + a tunnel), the Android
@@ -549,6 +562,8 @@ Subscribe to reopen your book."
 | `GET /account/export`, `DELETE /account` | **no** | never trap a rep's data or exit |
 | `GET/POST /billing/*`, Settings | no | must be able to subscribe |
 | `POST /clients`, `GET /clients`, gallery, meetings, promises, ledger, alerts | no | not premium features |
+| `POST /inventory`, `PATCH /inventory/*`, `POST /inventory/:id/shares` | **no** | managing/sharing your own data stays open |
+| `GET /inventory`, `GET /inventory/:id`, `GET /inventory/:id/shares`, `GET /inventory/by-client/:id` | **yes** | the Inventory tab is a paid surface |
 | `GET /clients/:id/brief` | **yes** | was already gated |
 | `POST /recall` | **yes** | added |
 | `GET /book-scan` | **yes** | added |
