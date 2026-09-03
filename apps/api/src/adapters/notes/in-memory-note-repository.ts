@@ -39,8 +39,12 @@ export class InMemoryNoteRepository implements NoteRepository {
   }
 
   async listByClient(userId: string, clientId: string): Promise<NoteRecord[]> {
+    // [ASK-CAPTURE] pending-confirmation notes are held OUT of the vault at this single choke point
+    // — every surface that lists a client's notes (brief, corpus, Monday, Book Scan, client detail)
+    // excludes them here, so none can leak an unconfirmed statement. The capture queue reads them via
+    // listByStatusForUser instead.
     return [...this.byId.values()]
-      .filter((n) => n.userId === userId && n.clientId === clientId)
+      .filter((n) => n.userId === userId && n.clientId === clientId && n.status !== 'pending_confirmation')
       .sort((a, b) => b.createdAt - a.createdAt);
   }
 
@@ -50,9 +54,23 @@ export class InMemoryNoteRepository implements NoteRepository {
       .sort((a, b) => a.createdAt - b.createdAt);
   }
 
+  async listByStatusForUser(userId: string, status: string): Promise<NoteRecord[]> {
+    return [...this.byId.values()]
+      .filter((n) => n.userId === userId && n.status === status)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
   async findByIdForUser(userId: string, id: string): Promise<NoteRecord | null> {
     const note = this.byId.get(id);
     return note && note.userId === userId ? note : null;
+  }
+
+  async delete(userId: string, id: string): Promise<boolean> {
+    const note = this.byId.get(id);
+    if (!note || note.userId !== userId) return false;
+    this.byId.delete(id);
+    this.embeddings.delete(id);
+    return true;
   }
 
   async update(userId: string, id: string, patch: NotePatch): Promise<void> {

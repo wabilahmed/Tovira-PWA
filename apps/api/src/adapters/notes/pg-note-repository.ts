@@ -60,8 +60,10 @@ export class PgNoteRepository implements NoteRepository {
 
   async listByClient(userId: string, clientId: string): Promise<NoteRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
+      // [ASK-CAPTURE] exclude pending-confirmation notes at this single choke point (brief, corpus,
+      // Monday, Book Scan, client detail all read here) — an unconfirmed statement never leaks.
       const { rows } = await c.query(
-        `SELECT ${COLUMNS} FROM notes WHERE client_id = $1 ORDER BY created_at DESC`,
+        `SELECT ${COLUMNS} FROM notes WHERE client_id = $1 AND status <> 'pending_confirmation' ORDER BY created_at DESC`,
         [clientId],
       );
       return (rows as unknown as NoteRow[]).map(toRecord);
@@ -77,10 +79,27 @@ export class PgNoteRepository implements NoteRepository {
     });
   }
 
+  async listByStatusForUser(userId: string, status: string): Promise<NoteRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS} FROM notes WHERE status = $1 ORDER BY created_at DESC`,
+        [status],
+      );
+      return (rows as unknown as NoteRow[]).map(toRecord);
+    });
+  }
+
   async findByIdForUser(userId: string, id: string): Promise<NoteRecord | null> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(`SELECT ${COLUMNS} FROM notes WHERE id = $1`, [id]);
       return rows[0] ? toRecord(rows[0] as unknown as NoteRow) : null;
+    });
+  }
+
+  async delete(userId: string, id: string): Promise<boolean> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('DELETE FROM notes WHERE id = $1 RETURNING id', [id]);
+      return rows.length > 0;
     });
   }
 

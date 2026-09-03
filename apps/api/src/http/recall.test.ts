@@ -70,3 +70,32 @@ describe('[P4-8] conversational recall', () => {
     expect(body.receipts).toEqual([]); // B sees none of A's notes
   });
 });
+
+describe('[ASK-CAPTURE] capture queue + confirm/reject', () => {
+  async function meId(token: string): Promise<string> {
+    return ((await (await fetch(`${base}/me`, { headers: auth(token) })).json()) as { user: { id: string } }).user.id;
+  }
+  async function client(token: string, name: string): Promise<string> {
+    return ((await (await fetch(`${base}/clients`, { method: 'POST', headers: auth(token), body: JSON.stringify({ name }) })).json()) as { id: string }).id;
+  }
+
+  it('lists pending captures with their receipt; confirm clears the queue', async () => {
+    const token = await signup('cap@example.com');
+    const cid = await client(token, 'Sarah');
+    const pending = await deps.askCapture!.capture(await meId(token), cid, 'Sarah moved to Meridian Capital', '2026-07-09');
+    const q = (await (await fetch(`${base}/captures`, { headers: auth(token) })).json()) as { captures: { noteId: string; statement: string; clientName: string }[] };
+    expect(q.captures).toHaveLength(1);
+    expect(q.captures[0]).toMatchObject({ statement: 'Sarah moved to Meridian Capital', clientName: 'Sarah' });
+    expect((await fetch(`${base}/captures/${pending!.noteId}/confirm`, { method: 'POST', headers: auth(token) })).status).toBe(200);
+    expect(((await (await fetch(`${base}/captures`, { headers: auth(token) })).json()) as { captures: unknown[] }).captures).toHaveLength(0);
+  });
+
+  it('reject clears a pending capture; an unknown id is 404; unauthed is 401', async () => {
+    const token = await signup('cap2@example.com');
+    const cid = await client(token, 'Ahmed');
+    const pending = await deps.askCapture!.capture(await meId(token), cid, 'Ahmed signed the LOI', '2026-07-09');
+    expect((await fetch(`${base}/captures/${pending!.noteId}/reject`, { method: 'POST', headers: auth(token) })).status).toBe(200);
+    expect((await fetch(`${base}/captures/does-not-exist/confirm`, { method: 'POST', headers: auth(token) })).status).toBe(404);
+    expect((await fetch(`${base}/captures`, { method: 'GET' })).status).toBe(401);
+  });
+});

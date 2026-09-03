@@ -20,7 +20,7 @@ export const PROMPT_VERSION = 'tovira-extract-v0.8';
 export interface ExtractionPromptInput {
   today: string; // YYYY-MM-DD
   clientName: string;
-  source: 'voice' | 'paste' | 'whatsapp_export';
+  source: 'voice' | 'paste' | 'whatsapp_export' | 'ask_conversation';
   text: string;
   /** Per-rep glossary (P4-9). Injected here in the VARIABLE section — NEVER the
    *  cached prefix — so caching stays intact. Optional; omitted → no block. */
@@ -231,6 +231,7 @@ const SOURCE_LABEL: Record<ExtractionPromptInput['source'], string> = {
   voice: 'voice_note',
   paste: 'pasted_message',
   whatsapp_export: 'whatsapp_chat_export',
+  ask_conversation: 'ask_conversation_statement',
 };
 
 export function buildUserMessage(input: ExtractionPromptInput): string {

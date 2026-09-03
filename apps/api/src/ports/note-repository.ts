@@ -3,7 +3,7 @@
  * enforces isolation at the DB via RLS.
  */
 
-export type NoteSource = 'voice' | 'paste' | 'whatsapp_export';
+export type NoteSource = 'voice' | 'paste' | 'whatsapp_export' | 'ask_conversation';
 
 /** One speaker-attributed message from an imported chat export (P1-4b). */
 export interface ImportedMessage {
@@ -60,8 +60,12 @@ export interface NoteRepository {
    *  — the resume path so a pending note is never stuck if that client's screen
    *  is never reopened. */
   listPendingByUser(userId: string): Promise<NoteRecord[]>;
+  /** Notes in a given status (e.g. 'pending_confirmation' for the Ask-capture queue), newest first. */
+  listByStatusForUser(userId: string, status: string): Promise<NoteRecord[]>;
   findByIdForUser(userId: string, id: string): Promise<NoteRecord | null>;
   update(userId: string, id: string, patch: NotePatch): Promise<void>;
+  /** Hard-delete a note (Ask-capture reject/expire). The training log survives (0045). */
+  delete(userId: string, id: string): Promise<boolean>;
   /** Semantic search over a client's notes by embedding similarity. */
   searchSimilar(userId: string, clientId: string, queryEmbedding: number[], limit: number): Promise<SimilarNote[]>;
   /** Semantic search across ALL of the rep's notes — powers conversational recall (P4-8). */

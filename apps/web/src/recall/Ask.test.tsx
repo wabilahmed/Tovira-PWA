@@ -6,6 +6,34 @@ import type { RecallAnswer } from './recallClient.js';
 
 const api = (answer: RecallAnswer | null): RecallApi => ({ ask: vi.fn().mockResolvedValue(answer) });
 
+describe('[ASK-CAPTURE] <Ask> capture prompt', () => {
+  it('shows a confirm prompt with the rep\'s verbatim words for a captured statement, and confirms it', async () => {
+    const user = userEvent.setup();
+    const confirmCapture = vi.fn().mockResolvedValue(true);
+    const answer: RecallAnswer = {
+      answer: 'Noted.', receipts: [],
+      capture: { status: 'captured', statement: 'Sarah moved to Meridian Capital', clientName: 'Sarah', noteId: 'n1' },
+    };
+    render(<Ask api={{ ask: vi.fn().mockResolvedValue(answer), confirmCapture, rejectCapture: vi.fn() }} />);
+    await user.type(screen.getByLabelText('Your question'), 'about sarah');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    await screen.findByText(/Add to Sarah record\?/i);
+    expect(screen.getByText(/Sarah moved to Meridian Capital/)).toBeTruthy(); // verbatim, not a paraphrase
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(confirmCapture).toHaveBeenCalledWith('n1'));
+    await screen.findByText(/Added to Sarah record\./i);
+  });
+
+  it('shows NO capture prompt for an ordinary question (nothing to confirm)', async () => {
+    const user = userEvent.setup();
+    render(<Ask api={api({ answer: "I don't have that on record.", receipts: [] })} />);
+    await user.type(screen.getByLabelText('Your question'), 'did sarah move?');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    await screen.findByTestId('answer');
+    expect(screen.queryByText(/Add to .* record\?/i)).toBeNull();
+  });
+});
+
 describe('<Ask>', () => {
   it('asks and renders the answer with its receipts', async () => {
     const user = userEvent.setup();

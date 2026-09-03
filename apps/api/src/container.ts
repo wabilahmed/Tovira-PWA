@@ -62,6 +62,8 @@ import type { RecallMetrics } from './services/metrics/recall-metrics.js';
 import type { RecallSessionRepository } from './ports/recall-session-repository.js';
 import { PgRecallSessionRepository } from './adapters/recall/pg-recall-session-repository.js';
 import { InMemoryRecallSessionRepository } from './adapters/recall/in-memory-recall-session-repository.js';
+import { AskCaptureService } from './services/recall/ask-capture-service.js';
+import { ModelStatementDetector } from './services/recall/statement-detector.js';
 import { LedgerService } from './services/ledger/ledger-service.js';
 import type { PrioritiesRepository } from './ports/priorities-repository.js';
 import { InMemoryPrioritiesRepository } from './adapters/priorities/in-memory-priorities-repository.js';
@@ -146,8 +148,27 @@ export function createRecallSessionRepository(config: AppConfig, pool: Pool): Re
   return config.authStore === 'postgres' ? new PgRecallSessionRepository(pool) : new InMemoryRecallSessionRepository();
 }
 
-export function createRecallService(config: AppConfig, notes: NoteRepository, metrics?: RecallMetrics, sessions?: RecallSessionRepository): RecallService {
-  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions);
+/** [ASK-CAPTURE] The certified-path capture pipeline. `extraction` MUST be the certified engine
+ *  (Sonnet, v0.8) — recall runs on Haiku (disqualified for extraction), which only DETECTS. */
+export function createAskCaptureService(config: AppConfig, notes: NoteRepository, clients: ClientRepository, facts: FactsRepository, extraction: ExtractionService): AskCaptureService {
+  return new AskCaptureService({ notes, clients, facts, embedder: createEmbedder(config), extraction });
+}
+
+export function createRecallService(
+  config: AppConfig,
+  notes: NoteRepository,
+  metrics?: RecallMetrics,
+  sessions?: RecallSessionRepository,
+  capture?: AskCaptureService,
+  clients?: ClientRepository,
+): RecallService {
+  // Detection runs on the cheap recall model (Haiku); it only classifies (statement vs question),
+  // never extracts. The capture pipeline routes a detected statement to the CERTIFIED engine.
+  const detector = capture ? new ModelStatementDetector(createModelClient(config, 'recall')) : undefined;
+  const clientDirectory = capture && clients
+    ? async (userId: string) => (await clients.listByUser(userId)).map((c) => ({ id: c.id, name: c.name }))
+    : undefined;
+  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory);
 }
 
 /**

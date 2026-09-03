@@ -106,7 +106,7 @@ export class ExtractionService {
     });
   }
 
-  async extractNote(userId: string, noteId: string, today: string): Promise<ExtractOutcome> {
+  async extractNote(userId: string, noteId: string, today: string, opts?: { holdForConfirmation?: boolean }): Promise<ExtractOutcome> {
     const note = await this.notes.findByIdForUser(userId, noteId);
     if (!note) return { status: 'not_found' };
     if (!note.rawText || !note.rawText.trim()) return { status: note.status };
@@ -154,11 +154,19 @@ export class ExtractionService {
       // down or denied (e.g. Bedrock model access not yet granted), we must still save
       // the extracted facts — "never lose a recording". The note is 'extracted' with a
       // null vector; recall for it is degraded until a re-embed. Best-effort, never fatal.
+      // [ASK-CAPTURE] hold-for-confirmation: an Ask-captured statement is extracted by the CERTIFIED
+      // engine (facts computed, training-log row written below) but held OUT of the vault — no
+      // embedding (so recall retrieval, which requires a vector, can never surface it), no facts
+      // spine, no meeting persist. It stays 'pending_confirmation' until the rep confirms; only then
+      // is it embedded + committed. This is how "nothing enters the vault until confirmed" holds.
+      const hold = opts?.holdForConfirmation === true;
       let embedding: number[] | null = null;
-      try {
-        embedding = await this.embedder.embed(note.rawText);
-      } catch (err) {
-        console.warn(`[extract] embedding failed for note ${noteId}; saving facts without a vector`, err);
+      if (!hold) {
+        try {
+          embedding = await this.embedder.embed(note.rawText);
+        } catch (err) {
+          console.warn(`[extract] embedding failed for note ${noteId}; saving facts without a vector`, err);
+        }
       }
       // DATE-INVARIANT: a promise can never be due BEFORE its note's reference date (a
       // fresh note cannot commit to the past; a historical import legitimately can, since
@@ -172,23 +180,25 @@ export class ExtractionService {
           promise.confidence = 'low';
         }
       }
-      await this.notes.update(userId, noteId, { extracted: extraction, status: 'extracted', embedding });
-      await this.facts.saveExtraction(userId, {
-        noteId,
-        clientId: note.clientId,
-        promises: extraction.promises,
-        keyDates: extraction.key_dates,
-      });
-      // NUDGE-UNCONFIRMED: persist a proposed meeting so it can be confirmed and nudged.
-      // Best-effort — a failure here must never lose the extracted facts (never lose a recording).
-      if (this.meetings && extraction.meeting) {
-        try {
-          await this.persistProposedMeeting(userId, noteId, note.clientId, extraction.meeting);
-        } catch (err) {
-          console.warn(`[extract] proposed-meeting persist failed for note ${noteId}`, err);
+      await this.notes.update(userId, noteId, { extracted: extraction, status: hold ? 'pending_confirmation' : 'extracted', embedding });
+      if (!hold) {
+        await this.facts.saveExtraction(userId, {
+          noteId,
+          clientId: note.clientId,
+          promises: extraction.promises,
+          keyDates: extraction.key_dates,
+        });
+        // NUDGE-UNCONFIRMED: persist a proposed meeting so it can be confirmed and nudged.
+        // Best-effort — a failure here must never lose the extracted facts (never lose a recording).
+        if (this.meetings && extraction.meeting) {
+          try {
+            await this.persistProposedMeeting(userId, noteId, note.clientId, extraction.meeting);
+          } catch (err) {
+            console.warn(`[extract] proposed-meeting persist failed for note ${noteId}`, err);
+          }
         }
       }
-      status = 'extracted';
+      status = hold ? 'pending_confirmation' : 'extracted';
     }
 
     // Exactly one log row per extraction, success or failure.

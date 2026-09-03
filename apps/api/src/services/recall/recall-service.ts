@@ -3,8 +3,22 @@ import type { NoteRepository, SimilarNote } from '../../ports/note-repository.js
 import type { ModelClient, ModelUsage } from '../../ports/model.js';
 import type { RecallMetrics } from '../metrics/recall-metrics.js';
 import type { RecallMessage, RecallSessionRepository } from '../../ports/recall-session-repository.js';
+import type { StatementDetector } from './statement-detector.js';
+import type { AskCaptureService } from './ask-capture-service.js';
 import { callCostUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { estimateTokens } from '../extraction/prompt.js';
+
+/** [ASK-CAPTURE] What the recall turn detected about the rep's own message (detection only). */
+export interface CaptureOutcome {
+  /** captured = routed to the certified extractor, pending confirmation; needs_client = a statement
+   *  with no clear client (ask which, stored nothing); none = not a statement. */
+  status: 'captured' | 'needs_client' | 'none';
+  statement?: string;
+  clientName?: string;
+  noteId?: string;
+}
+
+export interface ClientRef { id: string; name: string }
 
 /**
  * Conversational recall (P4-8): answer a rep's question from their own notes.
@@ -24,6 +38,8 @@ export interface Receipt {
 export interface RecallAnswer {
   answer: string;
   receipts: Receipt[];
+  /** [ASK-CAPTURE] present only when the rep's turn was a factual statement about a client. */
+  capture?: CaptureOutcome;
 }
 
 export interface RecallConfig {
@@ -91,7 +107,32 @@ export class RecallService {
     private readonly modelId: string = 'claude-haiku-4-5-20251001',
     /** [ASK-SESSION] Conversation store. Optional — recall is single-shot without it. */
     private readonly sessions?: RecallSessionRepository,
+    /** [ASK-CAPTURE] statement detector (cheap, recall model). Optional — no capture without it. */
+    private readonly detector?: StatementDetector,
+    /** [ASK-CAPTURE] the certified-path capture pipeline. Optional. */
+    private readonly capture?: AskCaptureService,
+    /** The rep's client book, to resolve a detected client name → id (explicit attribution). */
+    private readonly clientDirectory?: (userId: string) => Promise<ClientRef[]>,
   ) {}
+
+  /** [ASK-CAPTURE] Detect whether the rep's turn stated a fact about a client and, if so, route it
+   *  to the certified extractor (pending confirmation). Detection is conservative; attribution is
+   *  explicit — an ambiguous/absent client asks which and stores nothing. Never throws into recall. */
+  private async detectAndCapture(userId: string, turn: string, nowMs: number): Promise<CaptureOutcome | undefined> {
+    if (!this.detector || !this.capture || !this.clientDirectory) return undefined;
+    try {
+      const dir = await this.clientDirectory(userId);
+      const det = await this.detector.detect(turn, dir.map((c) => c.name));
+      if (!det.isStatement) return { status: 'none' };
+      const matches = det.clientRef ? dir.filter((c) => c.name.toLowerCase() === det.clientRef!.toLowerCase()) : [];
+      if (matches.length !== 1) return { status: 'needs_client', statement: det.text }; // ask which; store nothing
+      const today = new Date(nowMs).toISOString().slice(0, 10);
+      const pending = await this.capture.capture(userId, matches[0]!.id, det.text, today);
+      return { status: 'captured', statement: det.text, clientName: matches[0]!.name, noteId: pending?.noteId };
+    } catch {
+      return undefined; // capture must never break the answer
+    }
+  }
 
   /** [RECALL-METRICS] record this turn's shape + cost. Recall used to discard res.usage entirely. */
   private recordTurn(userId: string, excerpts: string, turnIndex: number, historyTokens: number, usage?: ModelUsage): void {
@@ -167,6 +208,9 @@ export class RecallService {
       await this.sessions.appendMessage(userId, sessionId, 'user', question, nowMs);
       await this.sessions.appendMessage(userId, sessionId, 'assistant', answer, nowMs);
     }
-    return { answer, receipts };
+
+    // [ASK-CAPTURE] separately from answering, see if the rep STATED a fact worth capturing.
+    const capture = await this.detectAndCapture(userId, question, nowMs);
+    return capture && capture.status !== 'none' ? { answer, receipts, capture } : { answer, receipts };
   }
 }

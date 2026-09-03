@@ -35,6 +35,7 @@ import { InMemoryPrioritiesRepository } from '../adapters/priorities/in-memory-p
 import { BookScanService } from '../services/book-scan/book-scan-service.js';
 import { RecallService } from '../services/recall/recall-service.js';
 import { InMemoryRecallSessionRepository } from '../adapters/recall/in-memory-recall-session-repository.js';
+import { AskCaptureService } from '../services/recall/ask-capture-service.js';
 import { CorpusStatsService } from '../services/corpus/corpus-service.js';
 import { MondayDigestService } from '../services/monday/monday-service.js';
 import { LedgerService } from '../services/ledger/ledger-service.js';
@@ -114,6 +115,7 @@ export function buildInMemoryDeps(
   const pushDispatch = new PushDispatchService(pushSender, pushSubscriptions, notifications, new InMemoryPushBudgetRepository());
   const images = new InMemoryImageRepository();
   const recallSessions = new InMemoryRecallSessionRepository();
+  const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction });
   const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
   return {
@@ -147,6 +149,7 @@ export function buildInMemoryDeps(
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions),
+    askCapture,
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
     ledger,

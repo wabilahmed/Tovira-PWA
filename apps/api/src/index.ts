@@ -28,6 +28,7 @@ import {
   createExtractionModelRouter,
   createRecallService,
   createRecallSessionRepository,
+  createAskCaptureService,
   createLedgerService,
   createFollowUpService,
   createExtractionLogRepository,
@@ -201,7 +202,9 @@ async function main(): Promise<void> {
   const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined));
   const activation = createActivationService(config, appPool);
   const recallMetrics = new RecallMetrics();
-  const recall = createRecallService(config, notes, recallMetrics, recallSessions);
+  // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
+  const askCapture = createAskCaptureService(config, notes, clients, facts, extraction);
+  const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients);
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch);
   const ledger = createLedgerService(config, appPool);
@@ -245,6 +248,7 @@ async function main(): Promise<void> {
     activation,
     bookScan,
     recall,
+    askCapture,
     corpus,
     monday,
     ledger,
