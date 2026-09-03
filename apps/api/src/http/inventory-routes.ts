@@ -14,8 +14,9 @@ export interface InventoryRouteDeps {
 }
 
 const ITEM_RE = /^\/inventory\/([^/]+)$/;
-const SHARES_RE = /^\/inventory\/([^/]+)\/shares$/;         // POST create + GET history
-const SHARE_OUTCOME_RE = /^\/inventory\/shares\/([^/]+)$/;  // PATCH outcome
+const SHARES_RE = /^\/inventory\/([^/]+)\/shares$/;             // POST create + GET history
+const SHARE_OUTCOME_RE = /^\/inventory\/shares\/([^/]+)$/;      // PATCH outcome
+const BY_CLIENT_RE = /^\/inventory\/by-client\/([^/]+)$/;       // GET a client's shared items
 const OUTCOMES: ShareOutcome[] = ['bought', 'declined', 'no_response'];
 
 /** API shape — never exposes user_id or the raw embedding. */
@@ -143,6 +144,14 @@ export async function handleInventoryRoute(
       if (!(await deps.inventory.get(userId, itemId))) { sendJson(res, 404, { error: 'not_found' }); return true; }
       const shares = await deps.inventory.sharesForItem(userId, itemId);
       sendJson(res, 200, { shares: shares.map(shareDto) });
+      return true;
+    }
+    const byClient = BY_CLIENT_RE.exec(path);
+    if (byClient) {
+      const clientId = decodeURIComponent(byClient[1]!);
+      if (!(await deps.clients.findByIdForUser(userId, clientId))) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      const rows = await deps.inventory.sharesForClientDetailed(userId, clientId);
+      sendJson(res, 200, { shares: rows.map((r) => ({ ...shareDto(r.share), itemTitle: r.itemTitle, itemStatus: r.itemStatus })) });
       return true;
     }
     if (id) {

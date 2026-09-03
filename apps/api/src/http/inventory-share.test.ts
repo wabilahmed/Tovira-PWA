@@ -83,6 +83,19 @@ describe('[INV-SHARE] sharing and lifecycle', () => {
     expect((await (await fetch(`${t.base}/inventory/${itemId}/shares`, { headers: H(t.token) })).json() as { shares: unknown[] }).shares).toHaveLength(0);
   });
 
+  it('GET /inventory/by-client/:clientId returns items shared with that client (enriched); foreign → 404', async () => {
+    const t = await boot();
+    const itemId = await t.item(2);
+    await t.share(itemId);
+    const res = await fetch(`${t.base}/inventory/by-client/${t.client.id}`, { headers: H(t.token) });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { shares: Array<{ itemTitle: string; itemStatus: string; outcome: string }> };
+    expect(body.shares).toHaveLength(1);
+    expect(body.shares[0]!.itemTitle).toBe('t');
+    expect(body.shares[0]!.itemStatus).toBe('active');
+    expect((await fetch(`${t.base}/inventory/by-client/${randomUUID()}`, { headers: H(t.token) })).status).toBe(404);
+  });
+
   it('declined/no_response never touch quantity; share history is preserved', async () => {
     const t = await boot();
     const itemId = await t.item(4);

@@ -390,3 +390,9 @@
 .tov-inv-item__edit { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.4rem; }
 .tov-inv-item__actions { margin-top: 0.2rem; }
 .tov-inv-warn { margin: 0 0 0.7rem; font-size: 0.9rem; }
+.tov-client-inv { margin: 1.1rem 0; }
+.tov-inv-history { margin-top: 0.6rem; }
+.tov-inv-shared { display: flex; align-items: baseline; gap: 0.6rem; }
+.tov-inv-shared__title { flex: 1 1 auto; }
+.tov-inv-shared__date { color: var(--text-secondary); }
+.tov-inv-shared__set { display: inline-flex; gap: 0.6rem; }

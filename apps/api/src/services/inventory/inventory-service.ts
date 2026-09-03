@@ -89,6 +89,17 @@ export class InventoryService {
     return this.repo.listSharesByClient(userId, clientId);
   }
 
+  /** Client-detail section: what has been shared with this client, with the item's title/status. */
+  async sharesForClientDetailed(userId: string, clientId: string): Promise<Array<{ share: InventoryShareRecord; itemTitle: string; itemStatus: InventoryStatus }>> {
+    const shares = await this.repo.listSharesByClient(userId, clientId);
+    const out: Array<{ share: InventoryShareRecord; itemTitle: string; itemStatus: InventoryStatus }> = [];
+    for (const share of shares) {
+      const item = await this.repo.findByIdForUser(userId, share.itemId);
+      out.push({ share, itemTitle: item?.title ?? '(removed)', itemStatus: item?.status ?? 'disabled' });
+    }
+    return out;
+  }
+
   /**
    * Record a share (spec §11.2–3). Sharing NEVER reserves and never decrements — it only
    * logs intent, outcome `pending`. `warning` carries the prior pending shares when the item

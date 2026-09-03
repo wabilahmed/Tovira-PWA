@@ -11,6 +11,7 @@ import { GetStarted } from './onboarding/GetStarted.js';
 import { BookScan } from './bookscan/BookScan.js';
 import { Inventory } from './inventory/Inventory.js';
 import { InventoryClient } from './inventory/inventoryClient.js';
+import { ClientInventory } from './inventory/ClientInventory.js';
 import { ImportChat } from './import/ImportChat.js';
 import { consumeSharedChat, idbSharedChatStore } from './pwa/sharedChat.js';
 import { resumePendingNotes } from './capture/resume.js';
@@ -597,6 +598,8 @@ function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; 
       )}
 
       <Gallery clientId={client.id} api={imagesApi} />
+
+      <ClientInventory api={inventoryApi} clientId={client.id} />
 
       <h2 style={{ fontSize: '1rem', marginTop: '1.5rem' }}>Notes</h2>
       <NotesTimeline

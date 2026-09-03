@@ -10,19 +10,25 @@ const item = (over: Partial<InventoryItem>): InventoryItem => ({
   status: 'active', disabledReason: null, createdAt: 1, updatedAt: 1, ...over,
 });
 
+const makeApi = (over: Partial<InventoryApi> = {}): InventoryApi => ({
+  list: vi.fn().mockResolvedValue([]),
+  create: vi.fn(),
+  edit: vi.fn(),
+  share: vi.fn(),
+  sharesForItem: vi.fn().mockResolvedValue([]),
+  setOutcome: vi.fn(),
+  ...over,
+});
+
 describe('<Inventory>', () => {
   it('lists active items with their quantity', async () => {
-    const api: InventoryApi = { list: vi.fn().mockResolvedValue([item({})]), create: vi.fn(), edit: vi.fn(), share: vi.fn() };
-    render(<Inventory api={api} onSubscribe={vi.fn()} />);
+    render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue([item({})]) })} onSubscribe={vi.fn()} />);
     expect(await screen.findByText('Marina 402')).toBeInTheDocument();
     expect(screen.getByLabelText('Quantity')).toBeTruthy();
   });
 
-  it('a disabled item shows its status stamp (UNLISTED / OUT OF STOCK) and a "Set quantity" action', async () => {
-    const api: InventoryApi = {
-      list: vi.fn().mockImplementation((s?: string) => Promise.resolve(s === 'disabled' ? [item({ id: 'd1', title: 'Sold villa', status: 'disabled', disabledReason: 'sold_out', quantity: 0 })] : [])),
-      create: vi.fn(), edit: vi.fn(), share: vi.fn(),
-    };
+  it('a disabled item shows its status stamp and a "Set quantity" action', async () => {
+    const api = makeApi({ list: vi.fn().mockImplementation((s?: string) => Promise.resolve(s === 'disabled' ? [item({ id: 'd1', title: 'Sold villa', status: 'disabled', disabledReason: 'sold_out', quantity: 0 })] : [])) });
     const user = userEvent.setup();
     render(<Inventory api={api} onSubscribe={vi.fn()} />);
     await user.click(await screen.findByRole('tab', { name: 'Disabled' }));
@@ -31,7 +37,7 @@ describe('<Inventory>', () => {
   });
 
   it('adding an item calls create with the entered fields', async () => {
-    const api: InventoryApi = { list: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue(item({})), edit: vi.fn(), share: vi.fn() };
+    const api = makeApi({ create: vi.fn().mockResolvedValue(item({})) });
     const user = userEvent.setup();
     render(<Inventory api={api} onSubscribe={vi.fn()} />);
     await user.type(screen.getByLabelText('Item title'), 'New listing');
@@ -44,7 +50,7 @@ describe('<Inventory>', () => {
 
   it('sharing an item: pick a client, record the share, open a WhatsApp draft (Tovira never sends)', async () => {
     const share = vi.fn().mockResolvedValue({ share: { id: 's1' }, warning: null });
-    const api: InventoryApi = { list: vi.fn().mockResolvedValue([item({})]), create: vi.fn(), edit: vi.fn(), share };
+    const api = makeApi({ list: vi.fn().mockResolvedValue([item({})]), share });
     const openLink = vi.fn();
     const user = userEvent.setup();
     render(<Inventory api={api} clients={[{ id: 'c1', name: 'Ahmed', phone: '+971501234567' }]} onSubscribe={vi.fn()} openLink={openLink} />);
@@ -56,7 +62,7 @@ describe('<Inventory>', () => {
 
   it('a duplicate-share warning is shown when the API flags prior pending shares', async () => {
     const share = vi.fn().mockResolvedValue({ share: { id: 's2' }, warning: [{ id: 'p1', clientId: 'c1', sharedAt: Date.now(), itemId: 'i1', outcome: 'pending', outcomeSetBy: 'rep', quantityBought: null }] });
-    const api: InventoryApi = { list: vi.fn().mockResolvedValue([item({ quantity: 1 })]), create: vi.fn(), edit: vi.fn(), share };
+    const api = makeApi({ list: vi.fn().mockResolvedValue([item({ quantity: 1 })]), share });
     const user = userEvent.setup();
     render(<Inventory api={api} clients={[{ id: 'c1', name: 'Meridian', phone: null }]} onSubscribe={vi.fn()} openLink={vi.fn()} />);
     await user.click(await screen.findByRole('button', { name: 'Share' }));
@@ -64,10 +70,21 @@ describe('<Inventory>', () => {
     expect(await screen.findByText(/already shared with Meridian/i)).toBeInTheDocument();
   });
 
+  it('shows an item\'s share history and lets the rep mark a pending share bought', async () => {
+    const share = { id: 'sh1', itemId: 'i1', clientId: 'c1', sharedAt: Date.now(), outcome: 'pending' as const, outcomeSetBy: 'rep' as const, quantityBought: null };
+    const setOutcome = vi.fn().mockResolvedValue({ ...share, outcome: 'bought' });
+    const api = makeApi({ list: vi.fn().mockResolvedValue([item({})]), sharesForItem: vi.fn().mockResolvedValue([share]), setOutcome });
+    const user = userEvent.setup();
+    render(<Inventory api={api} clients={[{ id: 'c1', name: 'Ahmed', phone: null }]} onSubscribe={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: 'History' }));
+    expect(await screen.findByText('Ahmed')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Bought' }));
+    await waitFor(() => expect(setOutcome).toHaveBeenCalledWith('sh1', 'bought'));
+  });
+
   it('a lapsed trial (402 → LOCKED) shows the Locked card but keeps the add form usable', async () => {
-    const api: InventoryApi = { list: vi.fn().mockResolvedValue(LOCKED), create: vi.fn(), edit: vi.fn(), share: vi.fn() };
-    render(<Inventory api={api} onSubscribe={vi.fn()} />);
+    render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue(LOCKED) })} onSubscribe={vi.fn()} />);
     await waitFor(() => expect(screen.getByRole('button', { name: /subscribe/i })).toBeInTheDocument());
-    expect(screen.getByLabelText('Item title')).toBeInTheDocument(); // create stays available
+    expect(screen.getByLabelText('Item title')).toBeInTheDocument();
   });
 });

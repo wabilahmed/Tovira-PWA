@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { LOCKED, type Locked } from '../billing/gated.js';
 import { Locked as LockedCard } from '../billing/Locked.js';
 import { whatsappLink } from '../whatsapp/waLink.js';
-import { shareDraft, type InventoryItem, type InventoryFilter, type ShareResult } from './inventoryClient.js';
+import { shareDraft, type InventoryItem, type InventoryFilter, type ShareResult, type InventoryShare } from './inventoryClient.js';
 
 export interface InventoryClientRef { id: string; name: string; phone: string | null }
 
@@ -11,7 +11,11 @@ export interface InventoryApi {
   create(title: string, description: string, quantity: number): Promise<InventoryItem>;
   edit(id: string, patch: Partial<{ title: string; description: string; quantity: number }>): Promise<InventoryItem | null>;
   share(itemId: string, clientId: string): Promise<ShareResult | null>;
+  sharesForItem(itemId: string): Promise<InventoryShare[]>;
+  setOutcome(shareId: string, outcome: 'bought' | 'declined' | 'no_response', quantityBought?: number): Promise<InventoryShare | null>;
 }
+
+const OUTCOME_LABEL: Record<InventoryShare['outcome'], string> = { pending: 'AWAITING', bought: 'BOUGHT', declined: 'DECLINED', no_response: 'NO REPLY' };
 
 const STATUS_TAG: Record<NonNullable<InventoryItem['disabledReason']>, string> = {
   sold_out: 'OUT OF STOCK',
@@ -104,10 +108,11 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
       ) : (
         <ul className="tov-list-plain">
           {items.map((item) => (
-            <ItemCard key={item.id} item={item} clients={clients} editing={editing === item.id}
+            <ItemCard key={item.id} item={item} clients={clients} api={api} editing={editing === item.id}
               onEditToggle={() => setEditing(editing === item.id ? null : item.id)}
               onSave={async (patch) => { await api.edit(item.id, patch); setEditing(null); await load(filter); }}
-              onShare={(clientId) => shareItem(item, clientId)} />
+              onShare={(clientId) => shareItem(item, clientId)}
+              onChanged={() => load(filter)} />
           ))}
         </ul>
       )}
@@ -145,13 +150,15 @@ function AddForm(p: FormProps): JSX.Element {
   );
 }
 
-function ItemCard({ item, clients, editing, onEditToggle, onSave, onShare }: {
+function ItemCard({ item, clients, api, editing, onEditToggle, onSave, onShare, onChanged }: {
   item: InventoryItem;
   clients: InventoryClientRef[];
+  api: InventoryApi;
   editing: boolean;
   onEditToggle: () => void;
   onSave: (patch: Partial<{ title: string; description: string; quantity: number }>) => Promise<void>;
   onShare: (clientId: string) => void;
+  onChanged: () => void;
 }): JSX.Element {
   const disabled = item.status === 'disabled';
   const [t, setT] = useState(item.title);
@@ -159,6 +166,17 @@ function ItemCard({ item, clients, editing, onEditToggle, onSave, onShare }: {
   const [q, setQ] = useState(String(item.quantity));
   const [picking, setPicking] = useState(false);
   const [pick, setPick] = useState(clients[0]?.id ?? '');
+  const [history, setHistory] = useState<InventoryShare[] | null>(null);
+  const clientName = (id: string): string => clients.find((c) => c.id === id)?.name ?? 'a client';
+  async function toggleHistory(): Promise<void> {
+    if (history) { setHistory(null); return; }
+    setHistory(await api.sharesForItem(item.id));
+  }
+  async function outcome(shareId: string, o: 'bought' | 'declined'): Promise<void> {
+    await api.setOutcome(shareId, o);
+    setHistory(await api.sharesForItem(item.id));
+    onChanged(); // a bought outcome may have decremented / disabled the item
+  }
 
   return (
     <li className="tov-card tov-inv-item">
@@ -197,8 +215,33 @@ function ItemCard({ item, clients, editing, onEditToggle, onSave, onShare }: {
               <button className="tov-link" onClick={onEditToggle}>Edit</button>
             </>
           )}
+          <button className="tov-link" onClick={() => void toggleHistory()}>{history ? 'Hide history' : 'History'}</button>
         </div>
       )}
+
+      {history && (
+        <ul className="tov-list-plain tov-inv-history">
+          {history.length === 0 ? (
+            <li style={{ color: 'var(--text-secondary)' }}>Not shared yet.</li>
+          ) : history.map((s) => (
+            <li key={s.id} className="tov-inv-shared">
+              <span className="tov-inv-shared__title">{clientName(s.clientId)}</span>
+              <span className="tov-stamp">{OUTCOME_LABEL[s.outcome]}</span>
+              <span className="tov-mono tov-inv-shared__date">{new Date(s.sharedAt).toLocaleDateString()}</span>
+              {s.outcome === 'pending' && (
+                <span className="tov-inv-shared__set">
+                  <button className="tov-link" onClick={() => void outcome(s.id, 'bought')}>Bought</button>
+                  <button className="tov-link" onClick={() => void outcome(s.id, 'declined')}>Declined</button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Batch 2 (matching): "N clients want something like this" — stubbed and hidden until the
+          requirements field + matching engine ship. Rendered as nothing so nothing lands early. */}
+      {false && <p className="tov-inv-item__match" hidden>clients want something like this</p>}
     </li>
   );
 }

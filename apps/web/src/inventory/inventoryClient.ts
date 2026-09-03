@@ -71,6 +71,34 @@ export class InventoryClient {
     if (res.status !== 201) return null;
     return (await res.json()) as ShareResult;
   }
+
+  /** An item's share history (newest first). */
+  async sharesForItem(itemId: string): Promise<InventoryShare[]> {
+    const res = await fetch(this.url(`/inventory/${itemId}/shares`), { credentials: 'include' });
+    if (res.status !== 200) return [];
+    return ((await res.json()) as { shares: InventoryShare[] }).shares;
+  }
+
+  /** Items shared with a client (client-detail section), enriched with the item's title/status. */
+  async sharesForClient(clientId: string): Promise<SharedWithClient[]> {
+    const res = await fetch(this.url(`/inventory/by-client/${clientId}`), { credentials: 'include' });
+    if (res.status !== 200) return [];
+    return ((await res.json()) as { shares: SharedWithClient[] }).shares;
+  }
+
+  async setOutcome(shareId: string, outcome: 'bought' | 'declined' | 'no_response', quantityBought?: number): Promise<InventoryShare | null> {
+    const res = await fetch(this.url(`/inventory/shares/${shareId}`), {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ outcome, ...(quantityBought !== undefined ? { quantityBought } : {}) }),
+    });
+    if (res.status !== 200) return null;
+    return (await res.json()) as InventoryShare;
+  }
+}
+
+export interface SharedWithClient extends InventoryShare {
+  itemTitle: string;
+  itemStatus: 'active' | 'disabled';
 }
 
 /** The template WhatsApp draft for an item share — no model call (Tovira never sends). */
