@@ -93,4 +93,28 @@ describe('[NUDGE-SCHED] meeting-nudges on the frequent brain', () => {
     expect(h.dispatched).toHaveLength(1);
     expect(h.dispatched[0]?.userId).toBe('a');
   });
+
+  it('carries composed content (client · time · top item + deep link) when signalsFor is provided', async () => {
+    const clients = new InMemoryClientRepository();
+    const meetings = new InMemoryMeetingRepository();
+    const facts = new InMemoryFactsRepository();
+    const notifications = new InMemoryNotificationRepository();
+    const notes = new InMemoryNoteRepository();
+    const scan = new ScanService(clients, meetings, facts, notifications, notes);
+    const alerts: PushableAlert[] = [];
+    const c = await clients.create('u', 'Meridian');
+    await meetings.create('u', { clientId: c.id, datetime: new Date(NOW + 2 * HOUR).toISOString(), datetimeRaw: '3pm', title: null, confirmed: true });
+    const svc = new MeetingNudgeService({
+      allUserIds: async () => ['u'],
+      generate: (u, now, win, sink, compose) => scan.nudges(u, now, win, sink, compose),
+      signalsFor: async (_u, m) => ({ clientName: 'Meridian', clientId: m.clientId, whenLabel: 'today at 3:00 PM', topPromise: 'send the quote' }),
+      dispatch: async (_u, a) => { alerts.push(...a); },
+      windowMs: WINDOW,
+    });
+    await svc.run(NOW);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.title).toBe('Meridian');
+    expect(alerts[0]?.body).toBe('today at 3:00 PM · Open promise — send the quote');
+    expect(alerts[0]?.url).toBe(`/app?client=${c.id}`);
+  });
 });

@@ -246,6 +246,25 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     void clientsApi.list(query.trim() || undefined).then(setClients);
   }, [query]);
 
+  // Deep link (NUDGE-CONTENT): a pre-meeting nudge opens `/app?client=<id>`. Once the book has
+  // loaded, open that client's brief directly (not home), then strip the param so a refresh is clean.
+  const [deepClientId, setDeepClientId] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('client') : null,
+  );
+  useEffect(() => {
+    if (!deepClientId || !session) return;
+    const match = clients.find((c) => c.id === deepClientId);
+    if (!match) return;
+    setOpen(match);
+    setView('clients');
+    setDeepClientId(null);
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('client');
+      window.history.replaceState({}, '', `${u.pathname}${u.search}`);
+    }
+  }, [deepClientId, clients, session]);
+
   // Mobile pushes the client detail full-screen; desktop keeps it beside the
   // list rail (the §8 split view), so the push only happens off desktop.
   if (open && !isDesktop)

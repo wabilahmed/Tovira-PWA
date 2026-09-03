@@ -1,5 +1,5 @@
 import type { ClientRepository } from '../../ports/client-repository.js';
-import type { MeetingRepository } from '../../ports/meeting-repository.js';
+import type { MeetingRepository, MeetingRecord } from '../../ports/meeting-repository.js';
 import type { FactsRepository, KeyDateRecord } from '../../ports/facts-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
@@ -93,18 +93,30 @@ export class ScanService {
     return created;
   }
 
-  async nudges(userId: string, nowMs: number, leadMs: number, sink?: PushableAlert[]): Promise<number> {
+  async nudges(
+    userId: string,
+    nowMs: number,
+    leadMs: number,
+    sink?: PushableAlert[],
+    /** NUDGE-CONTENT: optional richer content (client + time + top actionable item + deep link).
+     *  When absent (e.g. the daily scan), fall back to the bare meeting line. */
+    compose?: (m: MeetingRecord) => Promise<{ clientId: string; title: string; body: string; url?: string }>,
+  ): Promise<number> {
     const from = new Date(nowMs).toISOString();
     const to = new Date(nowMs + leadMs).toISOString();
     const due = await this.meetings.dueForNudge(userId, from, to);
     let created = 0;
     for (const m of due) {
-      const entry = {
-        type: 'pre_meeting_nudge' as const,
+      const content = compose
+        ? await compose(m)
+        : { clientId: m.clientId, title: 'Upcoming meeting', body: `Meeting soon — ${m.datetimeRaw}` };
+      const entry: PushableAlert = {
+        type: 'pre_meeting_nudge',
         dedupeKey: `nudge:${m.id}`,
-        clientId: m.clientId,
-        title: 'Upcoming meeting',
-        body: `Meeting soon — ${m.datetimeRaw}`,
+        clientId: content.clientId,
+        title: content.title,
+        body: content.body,
+        ...('url' in content && content.url ? { url: content.url } : {}),
       };
       const ok = await this.notifications.createIfAbsent(userId, entry);
       await this.meetings.markNudged(userId, m.id, nowMs);

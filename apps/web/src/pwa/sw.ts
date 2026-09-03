@@ -41,6 +41,31 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+// Push (P3-6 / NUDGE-CONTENT): show the notification, and on tap open the deep link the
+// server put in the payload (a pre-meeting nudge points at the client's brief, not home).
+// Without these handlers a delivered push shows nothing and a tap goes nowhere.
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload: { title?: string; body?: string; url?: string; tag?: string };
+  try { payload = event.data.json() as typeof payload; } catch { payload = { body: event.data.text() }; }
+  const { title = 'Tovira', body = '', url = '/app', tag } = payload;
+  event.waitUntil(self.registration.showNotification(title, { body, data: { url }, ...(tag ? { tag } : {}) }));
+});
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data as { url?: string } | undefined)?.url ?? '/app';
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of wins) {
+      // Reuse an open tab where possible, navigating it to the deep link.
+      await c.focus();
+      if ('navigate' in c) { await (c as WindowClient).navigate(target).catch(() => undefined); }
+      return;
+    }
+    await self.clients.openWindow(target);
+  })());
+});
+
 // The share-target handler the manifest advertises.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);

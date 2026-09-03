@@ -1,4 +1,9 @@
 import type { PushableAlert } from '../push/push-dispatch-service.js';
+import type { MeetingRecord } from '../../ports/meeting-repository.js';
+import { composeNudgeContent } from './nudge-content.js';
+import type { NudgeSignals } from './nudge-content.js';
+
+type Compose = (m: MeetingRecord) => Promise<{ clientId: string; title: string; body: string; url?: string }>;
 
 export interface MeetingNudgeDeps {
   /** Every rep to consider this tick (same seam as the notes sweep). */
@@ -7,9 +12,12 @@ export interface MeetingNudgeDeps {
    * Generate + mark the due nudges for one rep into `sink`; returns the count.
    * Delegates to ScanService.nudges so there is ONE nudge generator: it selects
    * confirmed, un-nudged meetings whose start is in [now, now+windowMs] and calls
-   * markNudged on each (idempotency lives on the meeting row, not in memory).
+   * markNudged on each (idempotency lives on the meeting row, not in memory). The
+   * optional `compose` fills the nudge with the client + time + top actionable item.
    */
-  generate: (userId: string, nowMs: number, windowMs: number, sink: PushableAlert[]) => Promise<number>;
+  generate: (userId: string, nowMs: number, windowMs: number, sink: PushableAlert[], compose?: Compose) => Promise<number>;
+  /** NUDGE-CONTENT: gather the client's signals for a meeting; when absent, nudges are bare. */
+  signalsFor?: (userId: string, meeting: MeetingRecord, nowMs: number) => Promise<NudgeSignals>;
   /** Deliver a rep's nudges through the silence budget (ranked, capped) + in-app record. */
   dispatch: (userId: string, alerts: PushableAlert[], nowMs: number) => Promise<void>;
   /**
@@ -39,7 +47,11 @@ export class MeetingNudgeService {
     let sent = 0;
     for (const userId of await this.deps.allUserIds()) {
       const sink: PushableAlert[] = [];
-      await this.deps.generate(userId, nowMs, this.deps.windowMs, sink);
+      const signalsFor = this.deps.signalsFor;
+      const compose: Compose | undefined = signalsFor
+        ? async (m) => composeNudgeContent(await signalsFor(userId, m, nowMs))
+        : undefined;
+      await this.deps.generate(userId, nowMs, this.deps.windowMs, sink, compose);
       if (sink.length > 0) {
         await this.deps.dispatch(userId, sink, nowMs);
         sent += sink.length;

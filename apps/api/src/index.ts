@@ -55,6 +55,7 @@ import {
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
 import { MeetingNudgeService } from './services/scheduler/meeting-nudge-service.js';
+import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 
@@ -160,9 +161,17 @@ async function main(): Promise<void> {
   // NUDGE-SCHED: the pre-meeting nudge runs here (every ~minute), NOT on the daily scan —
   // a daily job cannot produce a 2-hour-ahead nudge. Same advisory-lock seam as the sweep;
   // idempotent per meeting (nudged_at on the row), delivered through the silence budget.
+  const nudgeSignals = new NudgeSignalsProvider({
+    clients,
+    facts,
+    notes,
+    timezoneFor: (userId) => auth.timezoneFor(userId),
+    coldThresholdDays: config.coldThresholdDays,
+  });
   const meetingNudge = new MeetingNudgeService({
     allUserIds: () => auth.allUserIds(),
-    generate: (userId, nowMs, windowMs, sink) => scan.nudges(userId, nowMs, windowMs, sink),
+    generate: (userId, nowMs, windowMs, sink, compose) => scan.nudges(userId, nowMs, windowMs, sink, compose),
+    signalsFor: (userId, meeting, nowMs) => nudgeSignals.signalsFor(userId, meeting, nowMs),
     dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs).then(() => undefined),
     windowMs: meetingNudgeWindowMs(config),
   });
