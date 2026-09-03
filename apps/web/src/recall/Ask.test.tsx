@@ -24,6 +24,20 @@ describe('[ASK-CAPTURE] <Ask> capture prompt', () => {
     await screen.findByText(/Added to Sarah record\./i);
   });
 
+  it('[ASK-VOICE] a spoken statement follows the same detect→capture pipeline as a typed one', async () => {
+    const user = userEvent.setup();
+    const ask = vi.fn().mockResolvedValue({
+      answer: 'Noted.', receipts: [],
+      capture: { status: 'captured', statement: 'Sarah moved to Meridian Capital', clientName: 'Sarah', noteId: 'n1' },
+    } satisfies RecallAnswer);
+    const listen = vi.fn().mockResolvedValue('Sarah moved to Meridian Capital'); // the transcript
+    render(<Ask api={{ ask, confirmCapture: vi.fn().mockResolvedValue(true), rejectCapture: vi.fn() }} listen={listen} />);
+    await user.click(screen.getByRole('button', { name: 'Ask by voice' })); // fills the box from speech
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    expect(ask).toHaveBeenCalledWith('Sarah moved to Meridian Capital'); // the spoken words asked verbatim
+    await screen.findByText(/Add to Sarah record\?/i); // same capture prompt — no separate voice path
+  });
+
   it('shows NO capture prompt for an ordinary question (nothing to confirm)', async () => {
     const user = userEvent.setup();
     render(<Ask api={api({ answer: "I don't have that on record.", receipts: [] })} />);
