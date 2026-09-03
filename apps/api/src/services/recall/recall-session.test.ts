@@ -18,8 +18,9 @@ function repo(matches: SimilarNote[]): NoteRepository {
 }
 function capturing() {
   let last: ModelMessage[] | null = null;
-  const client: ModelClient = { complete: async (req) => { last = req.messages; return { text: 'ok', usage: { inputTokens: 10, outputTokens: 5 } }; } };
-  return { client, last: (): ModelMessage[] => last ?? [] };
+  let lastSystem: string | undefined;
+  const client: ModelClient = { complete: async (req) => { last = req.messages; lastSystem = typeof req.system === 'string' ? req.system : JSON.stringify(req.system); return { text: 'ok', usage: { inputTokens: 10, outputTokens: 5 } }; } };
+  return { client, last: (): ModelMessage[] => last ?? [], lastSystem: (): string | undefined => lastSystem };
 }
 const oneMatch = repo([{ note: note('n1', 'the villa pricing was discussed'), similarity: 0.9 }]);
 
@@ -100,6 +101,20 @@ describe('[ASK-SESSION] the 20-message conversation window', () => {
     expect(dump[0]!.messages[0]).toMatchObject({ role: 'user', content: 'what about pricing?' });
     await sessions.purgeUser('u'); // what account delete calls
     expect(await sessions.exportForUser('u')).toHaveLength(0);
+  });
+
+  it('[ASK-BUDGET] the system prefix stays byte-identical across turns; the window rides the variable messages', async () => {
+    const cap = capturing();
+    const svc = new RecallService(embedder, oneMatch, cap.client, cfg, undefined, 'h', new InMemoryRecallSessionRepository());
+    await svc.ask('u', 'first question about the villa', T);
+    const sys1 = cap.lastSystem();
+    await svc.ask('u', 'a completely different second question', T + MIN);
+    const sys2 = cap.lastSystem();
+    expect(sys2).toBe(sys1); // cacheable prefix identical regardless of history/question
+    expect(sys1).not.toContain('first question'); // history never leaks into the prefix
+    expect(sys1).not.toContain('villa');
+    // the growing part is the messages array, not the system prefix
+    expect(cap.last().length).toBe(3);
   });
 
   it('isolates sessions per rep', async () => {
