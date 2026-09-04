@@ -38,6 +38,7 @@ export interface Stakeholder {
 
 export type ImportResult =
   | { ok: true; imported: number; ceilingReached?: boolean; duplicate?: boolean; pending?: boolean }
+  | { ok: false; error: 'misfile'; message: string; counterparts: string[]; suggestion: { id: string; name: string } | null }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
 
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
@@ -118,7 +119,7 @@ export class ClientsClient {
   /** Import a WhatsApp chat export under a client (P1-4b / IMPORT-ZIP). Accepts either pasted text
    *  (a string, or `{ content }`) or a file's raw bytes (`{ contentBase64 }` — for the .zip iOS
    *  exports, or a .txt read as bytes). The server detects zip vs text by content, not filename. */
-  async importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string }, consent: boolean): Promise<ImportResult> {
+  async importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean }, consent: boolean): Promise<ImportResult> {
     const payload = typeof input === 'string' ? { content: input } : input;
     let res: Response;
     try {
@@ -143,6 +144,12 @@ export class ClientsClient {
       // Only attach a flag when it applies — keeps the common { ok, imported } shape clean.
       if (body.ceilingReached) return { ok: true, imported, ceilingReached: true };
       return body.status === 'pending_extraction' ? { ok: true, imported, pending: true } : { ok: true, imported };
+    }
+    if (res.status === 409) {
+      // MISFILE-DETECT: the transcript's counterpart does not look like this client. Surface the
+      // suggestion; the rep confirms (re-submit with misfileAck) or files elsewhere. Never blocked.
+      const body = (await res.json().catch(() => ({}))) as { message?: string; counterparts?: string[]; suggestion?: { id: string; name: string } | null };
+      return { ok: false, error: 'misfile', message: body.message ?? 'This chat may be filed under the wrong client.', counterparts: body.counterparts ?? [], suggestion: body.suggestion ?? null };
     }
     if (res.status === 400) return { ok: false, error: 'consent', message: 'Please confirm consent to import.' };
     if (res.status === 413) return { ok: false, error: 'too_large', message: 'That export is too large to import.' };

@@ -158,6 +158,16 @@ describe('ClientsClient', () => {
     expect(await new ClientsClient('http://api.test').importWhatsApp('c1', 'x', true)).toMatchObject({ ok: false, error: 'other' });
   });
 
+  it('maps 409 → misfile, carrying the message + suggestion (MISFILE-DETECT)', async () => {
+    fetchMock.mockResolvedValueOnce(json(409, { error: 'misfile_suspected', message: "This looks like Ahmed, but you're filing under Meridian.", counterparts: ['Ahmed'], suggestion: { id: 'a', name: 'Ahmed' } }));
+    const r = await new ClientsClient('http://api.test').importWhatsApp('c1', 'chat', true);
+    expect(r).toMatchObject({ ok: false, error: 'misfile' });
+    if (!r.ok && r.error === 'misfile') {
+      expect(r.counterparts).toContain('Ahmed');
+      expect(r.suggestion).toEqual({ id: 'a', name: 'Ahmed' });
+    }
+  });
+
   // --- brief + promise actions ---
   it('returns the brief on 200 and null on a non-200', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { clientName: 'Acme', empty: true }));

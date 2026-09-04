@@ -4,7 +4,7 @@ import type { ImportResult } from '../clients/clientsClient.js';
 import { CeilingNotice } from './CeilingNotice.js';
 
 export interface ImportApi {
-  importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string }, consent: boolean): Promise<ImportResult>;
+  importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean }, consent: boolean): Promise<ImportResult>;
 }
 
 /** Base64-encode raw file bytes in chunks (spreading a whole Uint8Array into fromCharCode
@@ -67,14 +67,15 @@ export function ImportChat({
     reader.readAsArrayBuffer(file);
   }
 
-  async function submit(e: React.FormEvent): Promise<void> {
-    e.preventDefault();
-    if (!canSubmit) return;
+  const [misfile, setMisfile] = useState<{ message: string; suggestion: { id: string; name: string } | null } | null>(null);
+
+  async function doImport(ack: boolean): Promise<void> {
     setBusy(true);
     setError(null);
     setCeilingCount(null);
     setNotice(null);
-    const result = await api.importWhatsApp(clientId, fileB64 ? { contentBase64: fileB64 } : { content }, consent);
+    const payload = fileB64 ? { contentBase64: fileB64, misfileAck: ack } : { content, misfileAck: ack };
+    const result = await api.importWhatsApp(clientId, payload, consent);
     setBusy(false);
     if (result.ok) {
       hapticTick(); // the chat is saved — a genuine commit
@@ -82,6 +83,7 @@ export function ImportChat({
       setFileB64('');
       setFileName('');
       setConsent(false);
+      setMisfile(null);
       // A fully-overlapping re-import is a correct no-op, not a failure — say so
       // calmly so the rep keeps re-exporting (that's what keeps the bank fed).
       if (result.duplicate) setNotice("Already up to date — no new messages in that export.");
@@ -90,9 +92,19 @@ export function ImportChat({
       // note). Either way the timeline refreshes via onImported.
       else if (result.ceilingReached) setCeilingCount(result.imported);
       onImported(result.imported);
+    } else if (result.error === 'misfile') {
+      // MISFILE-DETECT: confirm, never block. Show the suggestion; the rep continues anyway or
+      // files under the right client from the client screen. We never auto-reassign.
+      setMisfile({ message: result.message, suggestion: result.suggestion });
     } else {
       setError(result.message);
     }
+  }
+
+  async function submit(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    if (!canSubmit) return;
+    await doImport(false);
   }
 
   return (
@@ -137,6 +149,22 @@ export function ImportChat({
       {error && <p role="alert" style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
       {notice && <p role="status" style={{ color: 'var(--text-secondary)', margin: 0 }}>{notice}</p>}
       {ceilingCount !== null && <CeilingNotice imported={ceilingCount} />}
+
+      {misfile && (
+        // Confirm, never block. The rep continues here, or cancels and files it under the right
+        // client from the clients screen. Tovira never moves it on its own.
+        <div role="alert" style={{ border: '1px solid var(--claret)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+          <span>{misfile.message}</span>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button type="button" onClick={() => void doImport(true)} disabled={busy}>
+              {busy ? 'Importing…' : 'Import here anyway'}
+            </button>
+            <button type="button" onClick={() => { setMisfile(null); setFileB64(''); setFileName(''); setContent(''); }} disabled={busy}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <button type="submit" disabled={!canSubmit}>
         {busy ? 'Importing…' : 'Import chat'}

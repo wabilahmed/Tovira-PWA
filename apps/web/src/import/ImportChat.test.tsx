@@ -45,7 +45,7 @@ describe('<ImportChat>', () => {
     await user.click(screen.getByRole('button', { name: /import chat/i }));
 
     await waitFor(() => expect(onImported).toHaveBeenCalledWith(42));
-    expect(api.importWhatsApp).toHaveBeenCalledWith('c1', { content: 'Sara: hi there' }, true);
+    expect(api.importWhatsApp).toHaveBeenCalledWith('c1', { content: 'Sara: hi there', misfileAck: false }, true);
   });
 
   // [P5-1-CEILING-UI] a ceiling-limited import still succeeds (data saved) and
@@ -134,6 +134,32 @@ describe('<ImportChat>', () => {
     expect(screen.getByText(/selected: shared chat/i)).toBeInTheDocument();
     await user.click(screen.getByLabelText(/consent to import/i));
     await user.click(screen.getByRole('button', { name: /import chat/i }));
-    await waitFor(() => expect(api.importWhatsApp).toHaveBeenCalledWith('c1', { contentBase64: btoa('PKzipbytes') }, true));
+    await waitFor(() => expect(api.importWhatsApp).toHaveBeenCalledWith('c1', { contentBase64: btoa('PKzipbytes'), misfileAck: false }, true));
+  });
+
+  // MISFILE-DETECT: a suspected misfile shows a confirm prompt (never blocks); "Import here anyway"
+  // re-submits with misfileAck. It never reports success until the rep confirms.
+  it('shows the misfile prompt and imports anyway only after the rep confirms', async () => {
+    const user = userEvent.setup();
+    const onImported = vi.fn();
+    const api: ImportApi & { importWhatsApp: ReturnType<typeof vi.fn> } = {
+      importWhatsApp: vi.fn()
+        .mockResolvedValueOnce({ ok: false, error: 'misfile', message: "This looks like Ahmed, but you're filing under Meridian.", counterparts: ['Ahmed'], suggestion: { id: 'a', name: 'Ahmed' } })
+        .mockResolvedValueOnce({ ok: true, imported: 5 }),
+    };
+    render(<ImportChat clientId="meridian" api={api} onImported={onImported} />);
+
+    await user.type(screen.getByLabelText(/pasted chat export/i), 'Ahmed: hi there');
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /import chat/i }));
+
+    // The prompt appears; nothing reported yet.
+    expect(await screen.findByText(/filing under Meridian/i)).toBeInTheDocument();
+    expect(onImported).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /import here anyway/i }));
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith(5));
+    // the second call carried the acknowledgement
+    expect(api.importWhatsApp).toHaveBeenLastCalledWith('meridian', { content: 'Ahmed: hi there', misfileAck: true }, true);
   });
 });

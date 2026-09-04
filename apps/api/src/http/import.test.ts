@@ -272,3 +272,50 @@ describe('[IMPORT-ZIP] accept what WhatsApp actually exports', () => {
     expect(res.status).toBe(202);
   });
 });
+
+// --- MISFILE-DETECT (B1): confirm, never block; suggest, never auto-reassign ---
+const AHMED_CHAT = [
+  '[2026-03-15, 14:22] Ahmed: still looking for a 3-bed in Mirdif?',
+  '[2026-03-15, 14:25] Me: yes, sending options today',
+].join('\n');
+
+describe('[MISFILE-DETECT] a chat filed under the wrong client', () => {
+  it('imports without a prompt when the counterpart matches the client', async () => {
+    const { token } = await signup('mf-ok@example.com');
+    const cid = await createClient(token, 'Ahmed');
+    const res = await importChat(token, cid, { content: AHMED_CHAT, consent: true });
+    expect(res.status).toBe(202);
+  });
+
+  it('holds the import (409) and suggests the right client on a clear mismatch', async () => {
+    const { token } = await signup('mf-mismatch@example.com');
+    await createClient(token, 'Ahmed'); // the likely-correct client
+    const meridian = await createClient(token, 'Meridian');
+    const res = await importChat(token, meridian, { content: AHMED_CHAT, consent: true });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string; counterparts: string[]; suggestion: { name: string } | null; message: string };
+    expect(body.error).toBe('misfile_suspected');
+    expect(body.counterparts).toContain('Ahmed');
+    expect(body.suggestion?.name).toBe('Ahmed');
+    expect(body.message).toMatch(/filing it under Meridian/i);
+    // NEVER auto-reassigned: nothing was stored under Meridian.
+    const notes = await listNotes(token, meridian);
+    expect(notes.filter((n) => n.source === 'whatsapp_export')).toHaveLength(0);
+  });
+
+  it('proceeds and records the override when the rep acknowledges', async () => {
+    const { token } = await signup('mf-override@example.com');
+    await createClient(token, 'Ahmed');
+    const meridian = await createClient(token, 'Meridian');
+    const first = await importChat(token, meridian, { content: AHMED_CHAT, consent: true });
+    expect(first.status).toBe(409);
+    // Rep insists: file it under Meridian anyway.
+    const res = await importChat(token, meridian, { content: AHMED_CHAT, consent: true, misfileAck: true });
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { imported: number; misfileOverridden?: boolean };
+    expect(body.imported).toBeGreaterThan(0);
+    expect(body.misfileOverridden).toBe(true);
+    const notes = await listNotes(token, meridian);
+    expect(notes.some((n) => n.source === 'whatsapp_export')).toBe(true);
+  });
+});

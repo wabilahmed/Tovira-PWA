@@ -12,6 +12,7 @@ import type { LedgerService } from '../services/ledger/ledger-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { resolveTranscript } from '../services/import/resolve.js';
+import { detectMisfileAtImport } from '../services/import/misfile.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
@@ -29,6 +30,16 @@ function redactForStore(text: string, noteHint: string): string {
 
 const MAX_PASTE_CHARS = 100_000;
 const MAX_IMPORT_CHARS = 5_000_000; // a full multi-year chat export
+
+/** MISFILE-DETECT: the known-people (stakeholder map) names across a client's stored notes. */
+function knownPeopleFrom(notes: Array<{ extracted: unknown }>): string[] {
+  const names = new Set<string>();
+  for (const n of notes) {
+    const ex = n.extracted as { people?: Array<{ name?: unknown }> } | null;
+    for (const p of ex?.people ?? []) if (typeof p.name === 'string' && p.name.trim()) names.add(p.name.trim());
+  }
+  return [...names];
+}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -190,7 +201,7 @@ export async function handleNoteRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const body = (await readJsonBody(req)) as { content?: unknown; contentBase64?: unknown; consent?: unknown };
+      const body = (await readJsonBody(req)) as { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown };
       // A full export contains everything in the chat — require explicit consent.
       if (body.consent !== true) {
         sendJson(res, 400, {
@@ -266,6 +277,35 @@ export async function handleNoteRoute(
         sendJson(res, 200, { note: null, imported: 0, duplicate: true });
         return true;
       }
+      // MISFILE-DETECT (B1): does the transcript's counterpart actually match this client? Checked
+      // deterministically (names + stakeholder map + stored phone), no model call. CONFIRM, never
+      // block; SUGGEST the right client, never auto-reassign. On a suspected misfile we hold the
+      // import (409) until the rep acknowledges; the ack proceeds and is recorded.
+      const misfileAck = body.misfileAck === true;
+      const others = (await deps.clients.listByUser(userId))
+        .filter((c) => c.id !== clientId)
+        .map((c) => ({ id: c.id, name: c.name, phone: c.phone, knownPeople: [] as string[] }));
+      const detection = detectMisfileAtImport({
+        messages: parsed.messages,
+        selected: { id: client.id, name: client.name, phone: client.phone },
+        knownPeople: knownPeopleFrom(priorNotes),
+        others,
+      });
+      if (detection.status === 'mismatch' && !misfileAck) {
+        const who = detection.counterparts[0] ?? 'someone else';
+        const suggest = detection.suggestion ? ` It looks like ${detection.suggestion.name}.` : '';
+        sendJson(res, 409, {
+          error: 'misfile_suspected',
+          counterparts: detection.counterparts,
+          suggestion: detection.suggestion,
+          message: `This chat looks like it's with ${who}, but you're filing it under ${client.name}.${suggest} Continue, or choose a different client?`,
+        });
+        return true;
+      }
+      const misfileOverridden = detection.status === 'mismatch' && misfileAck;
+      if (misfileOverridden) {
+        console.info(`[misfile] override: rep imported a chat under ${clientId} despite a suspected misfile (counterparts: ${detection.counterparts.join(', ') || 'phone-only'})`);
+      }
       // Tag each speaker as client/rep so the extractor can flag unanswered
       // client questions (P1-6). Store ONLY the new slice.
       const messages = assignSpeakerRoles(fresh, client.name);
@@ -286,7 +326,7 @@ export async function handleNoteRoute(
       // never half-writes: messages stay stored, facts are written atomically on
       // success, and the sweep retries. The trial ceiling is discovered by the
       // sweep (the note simply stays pending), not computed here.
-      sendJson(res, 202, { note, imported: fresh.length, status: note.status });
+      sendJson(res, 202, { note, imported: fresh.length, status: note.status, ...(misfileOverridden ? { misfileOverridden: true } : {}) });
       return true;
     }
 
