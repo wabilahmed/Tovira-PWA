@@ -24,7 +24,9 @@ async function signup(email: string): Promise<{ token: string; userId: string }>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password: 'password123' }),
   });
-  const body = (await res.json()) as { token: string; user: { id: string } };
+  const text = await res.text();
+  if (res.status !== 201) throw new Error(`signup(${email}) → ${res.status}: ${text}`);
+  const body = JSON.parse(text) as { token: string; user: { id: string } };
   return { token: body.token, userId: body.user.id };
 }
 
@@ -317,5 +319,64 @@ describe('[MISFILE-DETECT] a chat filed under the wrong client', () => {
     expect(body.misfileOverridden).toBe(true);
     const notes = await listNotes(token, meridian);
     expect(notes.some((n) => n.source === 'whatsapp_export')).toBe(true);
+  });
+});
+
+describe('[NOTE-MOVE/IMPORT-UNDO] move and undo routes (B3/B4)', () => {
+  async function importedNote(token: string, cid: string): Promise<string> {
+    await importChat(token, cid, { content: AHMED_CHAT, consent: true, misfileAck: true });
+    return (await listNotes(token, cid)).find((n) => n.source === 'whatsapp_export')!.id;
+  }
+
+  it('previews, then moves a note (and its messages) to another client', async () => {
+    const { token } = await signup('move@example.com');
+    const ahmed = await createClient(token, 'Ahmed');
+    const meridian = await createClient(token, 'Meridian');
+    const noteId = await importedNote(token, meridian); // misfiled under Meridian
+
+    const preview = await fetch(`${base}/notes/${noteId}/move-preview`, { headers: { authorization: `Bearer ${token}` } });
+    expect(preview.status).toBe(200);
+    expect(((await preview.json()) as { counts: { messages: number } }).counts.messages).toBeGreaterThan(0);
+
+    const move = await fetch(`${base}/notes/${noteId}/move`, {
+      method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ toClientId: ahmed }),
+    });
+    expect(move.status).toBe(200);
+    // It now lives under Ahmed, and no longer under Meridian.
+    expect((await listNotes(token, ahmed)).some((n) => n.id === noteId)).toBe(true);
+    expect((await listNotes(token, meridian)).some((n) => n.id === noteId)).toBe(false);
+  });
+
+  it('rejects a move to a nonexistent client and a same-client move', async () => {
+    const { token } = await signup('move-bad@example.com');
+    const meridian = await createClient(token, 'Meridian');
+    const noteId = await importedNote(token, meridian);
+    const toNowhere = await fetch(`${base}/notes/${noteId}/move`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ toClientId: 'nope' }) });
+    expect(toNowhere.status).toBe(404);
+    const toSame = await fetch(`${base}/notes/${noteId}/move`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ toClientId: meridian }) });
+    expect(toSame.status).toBe(409);
+  });
+
+  it('undoes an import (removes the note) and is idempotent', async () => {
+    const { token } = await signup('undo@example.com');
+    const meridian = await createClient(token, 'Meridian');
+    const noteId = await importedNote(token, meridian);
+    const undo = await fetch(`${base}/notes/${noteId}/undo`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    expect(undo.status).toBe(200);
+    expect((await listNotes(token, meridian)).some((n) => n.id === noteId)).toBe(false);
+    // A second undo is a no-op (already gone).
+    const again = await fetch(`${base}/notes/${noteId}/undo`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    expect(again.status).toBe(404);
+  });
+
+  it('a re-import after undo is treated as new, not a duplicate', async () => {
+    const { token } = await signup('reimport-undo@example.com');
+    const meridian = await createClient(token, 'Meridian');
+    const noteId = await importedNote(token, meridian);
+    await fetch(`${base}/notes/${noteId}/undo`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    const re = await importChat(token, meridian, { content: AHMED_CHAT, consent: true, misfileAck: true });
+    expect(re.status).toBe(202); // not 200/duplicate — the undo cleared the prior messages
+    expect(((await re.json()) as { imported: number }).imported).toBeGreaterThan(0);
   });
 });

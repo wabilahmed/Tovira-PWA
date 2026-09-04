@@ -36,6 +36,18 @@ export class InMemoryMeetingRepository implements MeetingRepository {
     return [...this.byId.values()].find((m) => m.userId === userId && m.noteId === noteId) ?? null;
   }
 
+  async reassignByNote(userId: string, noteId: string, toClientId: string): Promise<number> {
+    let n = 0;
+    for (const m of this.byId.values()) if (m.userId === userId && m.noteId === noteId) { m.clientId = toClientId; n += 1; }
+    return n;
+  }
+
+  async deleteByNote(userId: string, noteId: string): Promise<number> {
+    let n = 0;
+    for (const [id, m] of [...this.byId.entries()]) if (m.userId === userId && m.noteId === noteId) { this.byId.delete(id); n += 1; }
+    return n;
+  }
+
   async listUnconfirmedByUser(userId: string): Promise<MeetingRecord[]> {
     return [...this.byId.values()]
       .filter((m) => m.userId === userId && !m.confirmed)

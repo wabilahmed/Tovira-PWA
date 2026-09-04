@@ -42,6 +42,10 @@ export interface MeetingRepository {
   findByIdForUser(userId: string, id: string): Promise<MeetingRecord | null>;
   /** The proposed meeting already persisted for a note (idempotent extraction), or null. */
   findByNoteId(userId: string, noteId: string): Promise<MeetingRecord | null>;
+  /** NOTE-MOVE (B3): re-file a note's meeting(s) under another client. Returns how many moved. */
+  reassignByNote(userId: string, noteId: string, toClientId: string): Promise<number>;
+  /** IMPORT-UNDO (B4): delete a note's meeting(s). Returns how many were removed. */
+  deleteByNote(userId: string, noteId: string): Promise<number>;
   /** Unconfirmed meetings — surfaced as "unconfirmed — is this right?" and in the queue. */
   listUnconfirmedByUser(userId: string): Promise<MeetingRecord[]>;
   /** Confirm a proposed meeting → confirmed = true, making it nudge-eligible. Returns the row, or null. */

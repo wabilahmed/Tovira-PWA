@@ -50,6 +50,11 @@ export class InMemoryClientRepository implements ClientRepository {
     if (client && client.userId === userId) client.lastTouchedAt = this.tick();
   }
 
+  async setLastTouched(userId: string, id: string, ms: number): Promise<void> {
+    const client = this.byId.get(id);
+    if (client && client.userId === userId) client.lastTouchedAt = ms;
+  }
+
   async purgeUser(userId: string): Promise<void> {
     for (const [id, c] of this.byId) if (c.userId === userId) this.byId.delete(id);
   }

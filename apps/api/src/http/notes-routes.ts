@@ -10,6 +10,7 @@ import type { FollowUpService } from '../services/followup/follow-up-service.js'
 import type { NotificationRepository } from '../ports/notification-repository.js';
 import type { LedgerService } from '../services/ledger/ledger-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
+import type { NoteMoveService } from '../services/import/note-move-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { resolveTranscript } from '../services/import/resolve.js';
 import { detectMisfileAtImport } from '../services/import/misfile.js';
@@ -56,6 +57,7 @@ export interface NoteRouteDeps {
   notifications?: NotificationRepository;
   ledger?: LedgerService;
   billing?: BillingService;
+  noteMove?: NoteMoveService;
 }
 
 /** Ledger (P4-11): capturing a note for a client that a scan flagged (going cold
@@ -100,6 +102,9 @@ const AUDIO_RE = /^\/notes\/([^/]+)\/audio$/;
 const TRANSCRIBE_RE = /^\/notes\/([^/]+)\/transcribe$/;
 const EXTRACT_RE = /^\/notes\/([^/]+)\/extract$/;
 const FOLLOWUP_RE = /^\/notes\/([^/]+)\/follow-up$/;
+const MOVE_PREVIEW_RE = /^\/notes\/([^/]+)\/move-preview$/; // GET — what a move/undo will carry
+const MOVE_RE = /^\/notes\/([^/]+)\/move$/; // POST { toClientId }
+const UNDO_RE = /^\/notes\/([^/]+)\/undo$/; // POST — undo an import
 
 /** Handle /clients/:id/notes* and /notes/:id/audio. Returns true if handled. */
 export async function handleNoteRoute(
@@ -119,7 +124,10 @@ export async function handleNoteRoute(
   const transcribeMatch = method === 'POST' ? TRANSCRIBE_RE.exec(path) : null;
   const extractMatch = method === 'POST' ? EXTRACT_RE.exec(path) : null;
   const followUpMatch = method === 'POST' ? FOLLOWUP_RE.exec(path) : null;
-  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch) return false;
+  const movePreviewMatch = method === 'GET' ? MOVE_PREVIEW_RE.exec(path) : null;
+  const moveMatch = method === 'POST' ? MOVE_RE.exec(path) : null;
+  const undoMatch = method === 'POST' ? UNDO_RE.exec(path) : null;
+  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch && !movePreviewMatch && !moveMatch && !undoMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -327,6 +335,39 @@ export async function handleNoteRoute(
       // success, and the sweep retries. The trial ceiling is discovered by the
       // sweep (the note simply stays pending), not computed here.
       sendJson(res, 202, { note, imported: fresh.length, status: note.status, ...(misfileOverridden ? { misfileOverridden: true } : {}) });
+      return true;
+    }
+
+    // NOTE-MOVE / IMPORT-UNDO (B3/B4): preview what a move/undo carries, move a note to another
+    // client, or undo an import. All require the rep to own the note (enforced by the service).
+    if (movePreviewMatch) {
+      if (!deps.noteMove) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      const preview = await deps.noteMove.preview(userId, decodeURIComponent(movePreviewMatch[1]!));
+      if (!preview) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      sendJson(res, 200, preview);
+      return true;
+    }
+    if (moveMatch) {
+      if (!deps.noteMove) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      const body = (await readJsonBody(req)) as { toClientId?: unknown };
+      if (typeof body.toClientId !== 'string' || !body.toClientId) {
+        sendJson(res, 400, { error: 'validation', message: 'toClientId is required.' });
+        return true;
+      }
+      const result = await deps.noteMove.move(userId, decodeURIComponent(moveMatch[1]!), body.toClientId);
+      if (!result.ok) {
+        const code = result.error === 'note_not_found' || result.error === 'target_not_found' ? 404 : 409;
+        sendJson(res, code, { error: result.error });
+        return true;
+      }
+      sendJson(res, 200, { ok: true, counts: result.counts });
+      return true;
+    }
+    if (undoMatch) {
+      if (!deps.noteMove) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      const result = await deps.noteMove.undo(userId, decodeURIComponent(undoMatch[1]!));
+      if (!result.ok) { sendJson(res, 404, { error: result.error }); return true; }
+      sendJson(res, 200, { ok: true, counts: result.counts });
       return true;
     }
 

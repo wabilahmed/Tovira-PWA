@@ -46,6 +46,10 @@ import { InventoryService } from './services/inventory/inventory-service.js';
 import type { NoteRepository } from './ports/note-repository.js';
 import { InMemoryNoteRepository } from './adapters/notes/in-memory-note-repository.js';
 import { PgNoteRepository } from './adapters/notes/pg-note-repository.js';
+import { InMemoryNoteMoveAuditRepository } from './adapters/notes/in-memory-note-move-audit-repository.js';
+import { PgNoteMoveAuditRepository } from './adapters/notes/pg-note-move-audit-repository.js';
+import type { NoteMoveAuditRepository } from './ports/note-move-audit-repository.js';
+import { NoteMoveService } from './services/import/note-move-service.js';
 import type { Transcriber } from './ports/transcriber.js';
 import { StubTranscriber } from './adapters/transcription/stub.js';
 import { GroqTranscriber } from './adapters/transcription/groq.js';
@@ -255,6 +259,27 @@ export function createNoteRepository(config: AppConfig, pool?: Pool): NoteReposi
     return new PgNoteRepository(pool);
   }
   return new InMemoryNoteRepository();
+}
+
+/** NOTE-MOVE audit trail store (RLS-backed on pg). */
+export function createNoteMoveAuditRepository(config: AppConfig, pool?: Pool): NoteMoveAuditRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgNoteMoveAuditRepository(pool);
+  }
+  return new InMemoryNoteMoveAuditRepository();
+}
+
+/** [NOTE-MOVE/IMPORT-UNDO] the service that moves a misfiled note (+ everything derived) or undoes
+ *  an import — atomic per the class doc, audited, recomputing last-contact on both clients. */
+export function createNoteMoveService(
+  notes: NoteRepository,
+  facts: FactsRepository,
+  meetings: MeetingRepository,
+  clients: ClientRepository,
+  audit: NoteMoveAuditRepository,
+): NoteMoveService {
+  return new NoteMoveService(notes, facts, meetings, clients, audit);
 }
 
 /** Blob storage for audio + images (filesystem locally, S3 in prod). */

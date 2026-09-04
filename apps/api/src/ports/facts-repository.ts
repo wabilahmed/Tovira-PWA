@@ -58,6 +58,12 @@ export interface FactsRepository {
   /** Mark a promise done (timestamped). Returns false if not found/owned. */
   markPromiseDone(userId: string, id: string): Promise<boolean>;
   listKeyDatesByUser(userId: string): Promise<KeyDateRecord[]>;
+  listKeyDatesByNote(userId: string, noteId: string): Promise<KeyDateRecord[]>;
+  /** NOTE-MOVE (B3): re-file this note's spine rows (promises + key dates) under another client.
+   *  Only clientId changes — done/confirmed/doneAt and every other field are preserved. */
+  reassignNote(userId: string, noteId: string, toClientId: string): Promise<{ promises: number; keyDates: number }>;
+  /** IMPORT-UNDO (B4): delete this note's spine rows. Returns how many were removed. */
+  deleteByNote(userId: string, noteId: string): Promise<{ promises: number; keyDates: number }>;
 }
 
 export interface PromisePatch {

@@ -157,6 +157,44 @@ export class PgFactsRepository implements FactsRepository {
     });
   }
 
+  async listKeyDatesByNote(userId: string, noteId: string): Promise<KeyDateRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `SELECT id, user_id, note_id, client_id, description, date, date_raw, type, created_at
+         FROM key_dates WHERE note_id = $1`,
+        [noteId],
+      );
+      return (rows as unknown as KeyDateRow[]).map((r) => ({
+        id: r.id,
+        userId: r.user_id,
+        noteId: r.note_id,
+        clientId: r.client_id,
+        description: r.description,
+        date: r.date ? r.date.toISOString().slice(0, 10) : null,
+        dateRaw: r.date_raw,
+        type: r.type,
+        createdAt: r.created_at.getTime(),
+      }));
+    });
+  }
+
+  async reassignNote(userId: string, noteId: string, toClientId: string): Promise<{ promises: number; keyDates: number }> {
+    return withTenant(this.pool, userId, async (c) => {
+      // Only client_id changes — done/confirmed/done_at and every other field are preserved.
+      const p = await c.query('UPDATE promises SET client_id = $1 WHERE note_id = $2 RETURNING id', [toClientId, noteId]);
+      const k = await c.query('UPDATE key_dates SET client_id = $1 WHERE note_id = $2 RETURNING id', [toClientId, noteId]);
+      return { promises: p.rows.length, keyDates: k.rows.length };
+    });
+  }
+
+  async deleteByNote(userId: string, noteId: string): Promise<{ promises: number; keyDates: number }> {
+    return withTenant(this.pool, userId, async (c) => {
+      const p = await c.query('DELETE FROM promises WHERE note_id = $1 RETURNING id', [noteId]);
+      const k = await c.query('DELETE FROM key_dates WHERE note_id = $1 RETURNING id', [noteId]);
+      return { promises: p.rows.length, keyDates: k.rows.length };
+    });
+  }
+
   async confirmPromise(userId: string, id: string): Promise<boolean> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query('UPDATE promises SET confirmed = true WHERE id = $1 RETURNING id', [id]);

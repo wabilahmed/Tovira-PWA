@@ -36,6 +36,7 @@ import { handlePushRoute } from './http/push-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
 import { handleInventoryRoute } from './http/inventory-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
+import type { NoteMoveService } from './services/import/note-move-service.js';
 import { handleFactsRoute } from './http/facts-routes.js';
 import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
@@ -103,6 +104,8 @@ export interface ApiDeps {
   recall: RecallService;
   /** [ASK-CAPTURE] pending-capture queue + confirm/reject. */
   askCapture?: AskCaptureService;
+  /** [NOTE-MOVE/IMPORT-UNDO] move a misfiled note or undo an import (B3/B4). */
+  noteMove?: NoteMoveService;
   corpus: CorpusStatsService;
   monday: MondayDigestService;
   ledger: LedgerService;
@@ -233,6 +236,7 @@ export function createApiServer(deps: ApiDeps): Server {
           notifications: deps.notifications,
           ledger: deps.ledger,
           billing: deps.billing,
+          noteMove: deps.noteMove,
         })
       )
         return;

@@ -30,6 +30,9 @@ export interface ClientRepository {
   findByIdForUser(userId: string, id: string): Promise<ClientRecord | null>;
   /** Bump a client's recency (e.g. when a note is filed under it). */
   touch(userId: string, id: string): Promise<void>;
+  /** NOTE-MOVE (B3): set a client's last-contact to a specific instant — used to RECOMPUTE the
+   *  going-cold clock on both clients after a note moves (a misfile wrongly reset it). */
+  setLastTouched(userId: string, id: string, ms: number): Promise<void>;
   /** Clients not touched since `cutoffMs` — the going-cold list. */
   listGoingCold(userId: string, cutoffMs: number): Promise<ClientRecord[]>;
 }

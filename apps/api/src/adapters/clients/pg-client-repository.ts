@@ -89,6 +89,12 @@ export class PgClientRepository implements ClientRepository {
     });
   }
 
+  async setLastTouched(userId: string, id: string, ms: number): Promise<void> {
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query('UPDATE clients SET last_touched_at = to_timestamp($2 / 1000.0) WHERE id = $1', [id, ms]);
+    });
+  }
+
   async listGoingCold(userId: string, cutoffMs: number): Promise<ClientRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(

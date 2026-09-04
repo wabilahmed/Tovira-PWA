@@ -129,4 +129,27 @@ export class InMemoryFactsRepository implements FactsRepository {
   async listPromisesByNote(userId: string, noteId: string): Promise<PromiseRecord[]> {
     return this.promises.filter((p) => p.userId === userId && p.noteId === noteId);
   }
+
+  async listKeyDatesByNote(userId: string, noteId: string): Promise<KeyDateRecord[]> {
+    return this.keyDates.filter((d) => d.userId === userId && d.noteId === noteId);
+  }
+
+  async reassignNote(userId: string, noteId: string, toClientId: string): Promise<{ promises: number; keyDates: number }> {
+    let promises = 0;
+    let keyDates = 0;
+    for (const p of this.promises) if (p.userId === userId && p.noteId === noteId) { p.clientId = toClientId; promises += 1; }
+    for (const d of this.keyDates) if (d.userId === userId && d.noteId === noteId) { d.clientId = toClientId; keyDates += 1; }
+    return { promises, keyDates };
+  }
+
+  async deleteByNote(userId: string, noteId: string): Promise<{ promises: number; keyDates: number }> {
+    const removed = new Set(this.promises.filter((p) => p.userId === userId && p.noteId === noteId).map((p) => p.id));
+    const promises = removed.size;
+    this.promises = this.promises.filter((p) => !(p.userId === userId && p.noteId === noteId));
+    // Mirror ON DELETE SET NULL: promote back any promise merged into a row we removed.
+    for (const p of this.promises) if (p.mergedInto !== null && removed.has(p.mergedInto)) p.mergedInto = null;
+    const before = this.keyDates.length;
+    this.keyDates = this.keyDates.filter((d) => !(d.userId === userId && d.noteId === noteId));
+    return { promises, keyDates: before - this.keyDates.length };
+  }
 }

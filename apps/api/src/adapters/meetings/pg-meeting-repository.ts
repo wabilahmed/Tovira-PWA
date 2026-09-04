@@ -74,6 +74,20 @@ export class PgMeetingRepository implements MeetingRepository {
     });
   }
 
+  async reassignByNote(userId: string, noteId: string, toClientId: string): Promise<number> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('UPDATE meetings SET client_id = $1 WHERE note_id = $2 RETURNING id', [toClientId, noteId]);
+      return rows.length;
+    });
+  }
+
+  async deleteByNote(userId: string, noteId: string): Promise<number> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('DELETE FROM meetings WHERE note_id = $1 RETURNING id', [noteId]);
+      return rows.length;
+    });
+  }
+
   async listUnconfirmedByUser(userId: string): Promise<MeetingRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
