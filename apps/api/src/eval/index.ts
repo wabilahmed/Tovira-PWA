@@ -55,6 +55,20 @@ function spuriousPeople(scored: Scored[]): void {
   }
 }
 
+// REQ-CERT: name every requirement false positive — the concern↔requirement leak — so the
+// baseline is diagnostic, not just a number. A note whose score has requirements.fp>0 has a
+// predicted requirement that matched no expected one; print each so we can see WHICH fixture and
+// WHAT phrase the model wrongly promoted to a stated need (a concern, question or speculation).
+function spuriousRequirements(scored: Scored[]): void {
+  for (const { note, actual, score } of scored) {
+    if (score.requirements.fp === 0) continue;
+    const expected = (note.expected.requirements ?? []).map((r) => r.requirement_raw);
+    for (const r of actual?.requirements ?? []) {
+      console.log(`[gate]   requirement fp in "${note.id}": predicted "${r.text}" ⟵ raw "${r.requirement_raw}" — expected reqs: [${expected.join(' | ') || '∅ (boundary: should be none)'}]`);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const config = loadConfig();
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
@@ -89,7 +103,7 @@ async function main(): Promise<void> {
     const mlGate = evaluateGate(ml, modelId);
     line('FULL SET   ', full, fullGate.passed ? 'HARD PASS' : `HARD FAIL: ${fullGate.reasons.join('; ')}`);
     line('MULTILINGUAL', ml, mlGate.passed ? 'HARD PASS' : `HARD FAIL: ${mlGate.reasons.join('; ')}`);
-    if (run === 1) spuriousPeople(scored);
+    if (run === 1) { spuriousPeople(scored); spuriousRequirements(scored); }
     allScores.push(...scored.map((s) => s.score));
     hardPassed &&= fullGate.passed && mlGate.passed;
   }
