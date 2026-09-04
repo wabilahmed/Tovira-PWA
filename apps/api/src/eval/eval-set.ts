@@ -468,4 +468,36 @@ export const EVAL_NOTES: EvalNote[] = [
       requirements: [{ text: "A 3-bed with a maid's room in Mirdif", requirement_raw: 'We are looking for a 3-bed with a maids room in Mirdif', stated_on: '2026-03-15', confidence: 'high' }],
     },
   },
+  // ==== REQ-PRECISION — the v0.9.2 do-vs-find fixtures, CERTIFIED by the owner 2026-09-04. ====
+  // From the A1 diagnosis: 98% of requirement FPs were next-step→requirement, 2% past-purchase, and
+  // 0 concern/question/speculation (those boundaries already held). One fixture per class found,
+  // plus a recall guard. Every expected value traces to explicit text.
+  {
+    id: 'req-next-step-not-requirement', today: '2026-07-09', clientName: 'Palm Realty', source: 'voice',
+    note: 'Faisal wants the floor plans and the service-charge breakdown sent over before he decides.',
+    expected: { ...empty,
+      summary: 'Faisal wants the floor plans and the service-charge breakdown sent over before he decides.',
+      people: [{ name: 'Faisal', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+      next_steps: ['Send the floor plans and the service-charge breakdown'],
+      requirements: [], // he asked us to DO something (send), not to FIND a property — a next step
+    },
+  },
+  {
+    id: 'req-past-purchase-not-requirement', today: '2026-07-09', clientName: 'Rashid', source: 'paste',
+    note: 'Rashid bought the JLT 1-bed we showed him last month. He mentioned his brother is looking for something similar in the same building.',
+    expected: { ...empty,
+      summary: 'Rashid bought the JLT 1-bed shown last month and mentioned his brother is looking for something similar in the same building.',
+      requirements: [], // a past purchase is not a forward need; the brother's need is a THIRD PARTY's, reported by the client — not the client's own stated requirement
+    },
+  },
+  {
+    id: 'req-recall-guard', today: '2026-07-09', clientName: 'Arabian Ranches Homes', source: 'voice',
+    note: 'Mariam is looking for a 3-bed in Arabian Ranches with a garden. She also wants the brochure emailed over today.',
+    expected: { ...empty,
+      summary: 'Mariam is looking for a 3-bed in Arabian Ranches with a garden; she also wants the brochure emailed over today.',
+      people: [{ name: 'Mariam', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+      next_steps: ['Email the brochure over today'],
+      requirements: [{ text: 'A 3-bed in Arabian Ranches with a garden', requirement_raw: 'looking for a 3-bed in Arabian Ranches with a garden', stated_on: '2026-07-09', confidence: 'high' }],
+    },
+  },
 ];

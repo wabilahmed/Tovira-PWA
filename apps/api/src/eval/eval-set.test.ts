@@ -93,6 +93,14 @@ describe('eval set — requirements coverage (REQ-CERT)', () => {
   });
 
   // Every expected requirement is well-formed and traces to a verbatim phrase.
+  // REQ-PRECISION (v0.9.2): the over-suppression guard — a real requirement sitting beside a
+  // deliverable request must BOTH be captured (tightening the do-vs-find split must not blind the
+  // model to the find).
+  it('carries a recall-guard fixture: a requirement AND a next-step in the same note', () => {
+    const guard = req.filter((n) => (n.expected.requirements ?? []).length > 0 && n.expected.next_steps.length > 0);
+    expect(guard.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('every expected requirement is well-formed', () => {
     for (const n of req) for (const r of n.expected.requirements ?? []) {
       expect(typeof r.text).toBe('string');
