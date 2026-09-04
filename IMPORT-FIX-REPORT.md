@@ -106,11 +106,16 @@ Rules honoured:
 - **Tenant isolation holds** — a note can only move between two clients of the *same* rep (every repo
   call is user-scoped; composite `(user_id, client_id)` FKs back it at the DB).
 
-**Atomicity (honest status):** the move groups its mutations so that in production they MUST run inside
-**one DB transaction** — one rep, both clients, enforced by RLS + the composite FKs — so a partial move
-is impossible. The in-memory suite asserts the end state (per the repo's "migrations validated live"
-discipline); wrapping the repo calls in a single `withTenant` transaction is the remaining live-only
-step and is flagged here rather than left implicit.
+**Atomicity — CLOSED (`fix(MOVE-ATOMIC)`, 2026-09-05).** The gap flagged here is closed, not carried.
+A `NoteMoveTx` port now owns the mutation: the **Postgres adapter runs the whole move/undo — note,
+every derived row, both clients' last-contact recompute, and the audit insert — inside ONE
+`withTenant` transaction** (BEGIN/COMMIT, ROLLBACK on any error), so a fault mid-move rolls back at the
+DB and a partial move is impossible; the **in-memory adapter snapshot-restores** the (reversible) move
+and writes the audit only on full success. Tenant isolation holds because `withTenant` sets
+`app.user_id` and RLS + the composite `(user_id, client_id)` FKs enforce that a note can only move
+between two clients of the same rep. **A fault-injection test is the proof, not the claim:** it throws
+after the promises are reassigned and asserts the note, promises, key-dates and BOTH clients' clocks are
+unchanged and no audit row was written — nothing partial survives.
 
 ### B4 — undo an import
 `POST /notes/:id/undo` removes everything a single import created — the note, its messages, its
