@@ -1,7 +1,7 @@
 /**
- * The extraction prompt (v0.8 — v0.7 + Rule 4 promise-boundary clause: a third party's
- * stated action the rep isn't party to is not a promise (FAB-INVESTIGATE); v0.7 added the
- * sensitive-data redaction rule (no card/ID/credential values; no health/special-category facts)), split on the
+ * The extraction prompt (v0.9 — v0.8 + the `requirements` field: what the client has STATED they
+ * are looking for, for inventory matching (REQ-FIELD, Rule 8, Example N). v0.8 = v0.7 + Rule 4
+ * promise-boundary clause; v0.7 added the sensitive-data redaction rule), split on the
  * caching boundary from the spec:
  *  - EXTRACTION_SYSTEM_PROMPT: the CACHEABLE prefix — role + schema + rules +
  *    examples. Byte-identical every call, ≥4,096 tokens (the Haiku cache floor).
@@ -15,7 +15,7 @@
 
 import { renderGlossary, type GlossaryEntry } from './glossary.js';
 
-export const PROMPT_VERSION = 'tovira-extract-v0.8';
+export const PROMPT_VERSION = 'tovira-extract-v0.9';
 
 export interface ExtractionPromptInput {
   today: string; // YYYY-MM-DD
@@ -76,6 +76,14 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
   "next_steps": [
     "an action item that is not a firm promise (softer 'should probably...' items)"
   ],
+  "requirements": [
+    {
+      "text": "what the client is looking for, in their words",
+      "requirement_raw": "the verbatim phrase",
+      "stated_on": "YYYY-MM-DD | null",
+      "confidence": "high | low"
+    }
+  ],
   "meeting": {
     "datetime": "YYYY-MM-DDTHH:MM | null",
     "datetime_raw": "original phrase",
@@ -93,7 +101,8 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
 5. People: use names exactly as stated. Do not merge two mentions into one person unless clearly the same person. If a note mentions "Sarah" and "Sara" without making clear they are the same person, keep them as two separate people. Do not assume a decision role that wasn't indicated - use "unknown". A person entry requires a stated name: a role with no name — "the buyer", "their CFO", "the procurement lead", "someone in finance" — is NOT a person and must NEVER be output as a person with a null or empty name. If an unnamed role carries a decision-relevant fact, keep it in concerns or next_steps, not in people.
 6. The note is about the client named in the message below. Attribute facts to the right person; the main contact may be that client, but notes can mention others.
 7. Sensitive data — protection wins on a genuine conflict, but only on a genuine conflict. Never copy account numbers, card numbers, IBANs, government identifiers (Emirates ID, passport, visa, licence), passwords, PINs, OTPs, or credentials into ANY field — not summary, concerns, personal_facts, next_steps, or notes. Refer to such a value only in general terms ("sent their bank details", "shared a card") and never reproduce the value or any of its digits. Never record religion, ethnicity, political opinion, sexual orientation, criminal history, or ANYTHING about a person's health (illness, injury, treatment, medication, appointment) as a personal fact or in any other field — extract the rest of the note normally and say nothing about the health matter. Do NOT over-suppress: a legitimate fact (a promise, a date, a person) that merely sits near sensitive content is unaffected — extract it fully and at its normal confidence, because dropping it protects nothing. The two only conflict when the commitment's object IS the sensitive value ("send the payment to that IBAN", "confirm the card ending 4421"): then describe it in general terms without reproducing the value — e.g. "make the payment to their bank account", "send the ID document" — keeping the original DIRECTION and ACTOR of the commitment (redaction removes a value, never a meaning: never let it change who is doing what to whom), with confidence "low" so the rep confirms from the source.
-8. Output only valid JSON matching the schema. No prose, no explanation, no markdown, no code fences. Nothing before or after the JSON object.
+8. Requirements. Record only what the client has STATED they are looking for or need ("looking for a 2-bed near the marina", "needs cover for two vehicles"). Never infer a requirement from a preference, a complaint, or something the rep speculates about. A concern, objection, or complaint — a worry about price, timeline, or risk ("the pricing is above budget") — is NOT a requirement: it belongs in concerns. A requirement is a positive statement of what the client wants, not a problem they raised. A question the client asks ("do you have anything with parking?") is not a requirement — it is an inquiry, not a stated need. Keep the verbatim phrase in requirement_raw. Set stated_on to the date the client said it when that is fixed by the note plus today's date, else null (same date discipline as Rule 2). If the client's need is conditional or vague ("if the budget clears, we'd want two units"), mark "confidence": "low".
+9. Output only valid JSON matching the schema. No prose, no explanation, no markdown, no code fences. Nothing before or after the JSON object.
 
 ## Worked examples
 
@@ -103,7 +112,7 @@ Input:
 "Okay just wrapped with Sarah at Meridian. She's still nervous about the implementation timeline, that's the big blocker. I told her I'd get her a revised rollout plan by end of next week. Her boss Jordan - he's the VP of ops, he's really the one who signs off, Sarah just influences. Oh and her kid just started at UCLA so she's a bit distracted this month. We should probably get their IT lead on the next call. Following up in two weeks."
 
 Output:
-{"summary":"Debrief after meeting Sarah at Meridian. Timeline concerns remain the main blocker; rep committed to a revised rollout plan.","promises":[{"text":"Send Sarah a revised rollout plan","owner":"rep","due_date":null,"due_raw":"end of next week","confidence":"high"}],"people":[{"name":"Sarah","role":null,"reports_to":"Jordan","decision_role":"influencer","notes":"Main contact at Meridian"},{"name":"Jordan","role":"VP of Operations","reports_to":null,"decision_role":"decision_maker","notes":"Signs off on the deal"}],"personal_facts":[{"subject":"Sarah","fact":"Child just started at UCLA; distracted this month","category":"family"}],"key_dates":[],"concerns":["Nervous about the implementation timeline - main blocker"],"next_steps":["Get Meridian's IT lead on the next call","Follow up in two weeks"],"meeting":null}
+{"summary":"Debrief after meeting Sarah at Meridian. Timeline concerns remain the main blocker; rep committed to a revised rollout plan.","promises":[{"text":"Send Sarah a revised rollout plan","owner":"rep","due_date":null,"due_raw":"end of next week","confidence":"high"}],"people":[{"name":"Sarah","role":null,"reports_to":"Jordan","decision_role":"influencer","notes":"Main contact at Meridian"},{"name":"Jordan","role":"VP of Operations","reports_to":null,"decision_role":"decision_maker","notes":"Signs off on the deal"}],"personal_facts":[{"subject":"Sarah","fact":"Child just started at UCLA; distracted this month","category":"family"}],"key_dates":[],"concerns":["Nervous about the implementation timeline - main blocker"],"next_steps":["Get Meridian's IT lead on the next call","Follow up in two weeks"],"requirements":[],"meeting":null}
 
 Note: "end of next week" stays in due_raw with due_date null because resolving it needs today's date - the model does that at call time using TODAY'S DATE. "Following up in two weeks" is a soft next step, not a firm promise, so it is not logged as a promise.
 
@@ -113,7 +122,7 @@ Input:
 "hey following up - thanks for the samples! the team liked them. one thing, the pricing on the enterprise tier is still higher than what we budgeted. can we do a call thursday 3pm to go through it? also my anniversary is next monday so I'm offline that day"
 
 Output:
-{"summary":"Client followed up positively on samples but flagged enterprise-tier pricing as over budget, and proposed a call to discuss.","promises":[],"people":[],"personal_facts":[],"key_dates":[{"description":"Client's wedding anniversary (offline that day)","date":null,"date_raw":"next monday","type":"anniversary"}],"concerns":["Enterprise-tier pricing is higher than their budget"],"next_steps":[],"meeting":{"datetime":null,"datetime_raw":"thursday 3pm","confirmed":false}}
+{"summary":"Client followed up positively on samples but flagged enterprise-tier pricing as over budget, and proposed a call to discuss.","promises":[],"people":[],"personal_facts":[],"key_dates":[{"description":"Client's wedding anniversary (offline that day)","date":null,"date_raw":"next monday","type":"anniversary"}],"concerns":["Enterprise-tier pricing is higher than their budget"],"next_steps":[],"requirements":[],"meeting":{"datetime":null,"datetime_raw":"thursday 3pm","confirmed":false}}
 
 ### Example C - a pure catch-up note with no commitments
 
@@ -121,7 +130,7 @@ Input:
 "Quick coffee with Tom at Acme. Nothing new on the deal really, just keeping warm. He mentioned he's heading to Portugal for a golf trip next month. Good mood. That's it."
 
 Output:
-{"summary":"Relationship catch-up with Tom at Acme; no business movement.","promises":[],"people":[{"name":"Tom","role":null,"reports_to":null,"decision_role":"unknown","notes":"Main contact at Acme"}],"personal_facts":[{"subject":"Tom","fact":"Heading to Portugal for a golf trip next month","category":"hobby"}],"key_dates":[],"concerns":[],"next_steps":[],"meeting":null}
+{"summary":"Relationship catch-up with Tom at Acme; no business movement.","promises":[],"people":[{"name":"Tom","role":null,"reports_to":null,"decision_role":"unknown","notes":"Main contact at Acme"}],"personal_facts":[{"subject":"Tom","fact":"Heading to Portugal for a golf trip next month","category":"hobby"}],"key_dates":[],"concerns":[],"next_steps":[],"requirements":[],"meeting":null}
 
 Note: there is no promise here. Do not invent one. Keeping-warm chats often have zero promises and zero next steps - that is correct output.
 
@@ -131,7 +140,7 @@ Input:
 "Spoke to the buyer at Northwind. I committed to sending over the signed MSA by this Friday. They confirmed budget is approved for Q3."
 
 Output:
-{"summary":"Call with the Northwind buyer; rep committed to sending the signed MSA, and Q3 budget is approved.","promises":[{"text":"Send the signed MSA","owner":"rep","due_date":null,"due_raw":"this Friday","confidence":"high"}],"people":[],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"meeting":null}
+{"summary":"Call with the Northwind buyer; rep committed to sending the signed MSA, and Q3 budget is approved.","promises":[{"text":"Send the signed MSA","owner":"rep","due_date":null,"due_raw":"this Friday","confidence":"high"}],"people":[],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"requirements":[],"meeting":null}
 
 Note: "the buyer" is a role with no name — per Rule 5 it is NOT a person, so "people" is empty. The buyer is captured in the summary; never emit a person with a null or empty name.
 
@@ -143,7 +152,7 @@ Input:
 "Left the Blueharbor meeting. Someone needs to pull together the security questionnaire answers before procurement will move - not sure if that's on us or them honestly. We might want to bring in a solutions engineer at some point."
 
 Output:
-{"summary":"Post-meeting note for Blueharbor; a security questionnaire is blocking procurement, ownership unclear.","promises":[{"text":"Pull together the security questionnaire answers","owner":"rep","due_date":null,"due_raw":null,"confidence":"low"}],"people":[],"personal_facts":[],"key_dates":[],"concerns":["Security questionnaire is blocking procurement"],"next_steps":["Consider bringing in a solutions engineer"],"meeting":null}
+{"summary":"Post-meeting note for Blueharbor; a security questionnaire is blocking procurement, ownership unclear.","promises":[{"text":"Pull together the security questionnaire answers","owner":"rep","due_date":null,"due_raw":null,"confidence":"low"}],"people":[],"personal_facts":[],"key_dates":[],"concerns":["Security questionnaire is blocking procurement"],"next_steps":["Consider bringing in a solutions engineer"],"requirements":[],"meeting":null}
 
 Note: ownership of the questionnaire is unclear, so the promise is marked confidence "low" for the rep to confirm. "We might want to... at some point" is a soft next step, not a promise.
 
@@ -153,7 +162,7 @@ Input:
 "Call with Priya at Vertex. Their new product launches on March 3rd and they want our integration live before then. Also it's her daughter's birthday next Tuesday, she was excited. She's the one who decides on vendors."
 
 Output:
-{"summary":"Vertex is launching a new product and wants our integration live before then; Priya is the vendor decision-maker.","promises":[],"people":[{"name":"Priya","role":null,"reports_to":null,"decision_role":"decision_maker","notes":"Decides on vendors at Vertex"}],"personal_facts":[{"subject":"Priya","fact":"Daughter's birthday next Tuesday","category":"family"}],"key_dates":[{"description":"Vertex new product launch; integration wanted live before then","date":null,"date_raw":"March 3rd","type":"launch"}],"concerns":[],"next_steps":[],"meeting":null}
+{"summary":"Vertex is launching a new product and wants our integration live before then; Priya is the vendor decision-maker.","promises":[],"people":[{"name":"Priya","role":null,"reports_to":null,"decision_role":"decision_maker","notes":"Decides on vendors at Vertex"}],"personal_facts":[{"subject":"Priya","fact":"Daughter's birthday next Tuesday","category":"family"}],"key_dates":[{"description":"Vertex new product launch; integration wanted live before then","date":null,"date_raw":"March 3rd","type":"launch"}],"concerns":[],"next_steps":[],"requirements":[],"meeting":null}
 
 ### Example G - two similarly-named people, do not merge
 
@@ -161,7 +170,7 @@ Input:
 "Met the team at Halcyon. Sarah walked us through requirements. Later a Sara from their finance side joined - didn't catch if it's the same person, seemed different. No commitments today."
 
 Output:
-{"summary":"Requirements meeting at Halcyon with Sarah; a Sara from finance also joined.","promises":[],"people":[{"name":"Sarah","role":null,"reports_to":null,"decision_role":"unknown","notes":"Walked through requirements"},{"name":"Sara","role":"finance","reports_to":null,"decision_role":"unknown","notes":"From the finance side"}],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"meeting":null}
+{"summary":"Requirements meeting at Halcyon with Sarah; a Sara from finance also joined.","promises":[],"people":[{"name":"Sarah","role":null,"reports_to":null,"decision_role":"unknown","notes":"Walked through requirements"},{"name":"Sara","role":"finance","reports_to":null,"decision_role":"unknown","notes":"From the finance side"}],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"requirements":[],"meeting":null}
 
 Note: "Sarah" and "Sara" are kept as two separate people because the note does not confirm they are the same person. Never silently merge people.
 
@@ -171,7 +180,7 @@ Input:
 "Client says they'll circle back on the contract sometime after the holidays. No firm date. They also raised that our SLA doesn't cover their peak season."
 
 Output:
-{"summary":"Client will revisit the contract after the holidays (no firm date) and raised an SLA gap for peak season.","promises":[{"text":"Circle back on the contract","owner":"client","due_date":null,"due_raw":"sometime after the holidays","confidence":"low"}],"people":[],"personal_facts":[],"key_dates":[],"concerns":["SLA does not cover their peak season"],"next_steps":[],"meeting":null}
+{"summary":"Client will revisit the contract after the holidays (no firm date) and raised an SLA gap for peak season.","promises":[{"text":"Circle back on the contract","owner":"client","due_date":null,"due_raw":"sometime after the holidays","confidence":"low"}],"people":[],"personal_facts":[],"key_dates":[],"concerns":["SLA does not cover their peak season"],"next_steps":[],"requirements":[],"meeting":null}
 
 Note: "sometime after the holidays" is vague - due_date is null and the phrase is preserved in due_raw. Never guess a specific date for vague timing.
 
@@ -181,7 +190,7 @@ Input:
 "Good call with Devlin at Ironside. I'll send the updated SOW tomorrow, and I promised to introduce them to our implementation partner by Wednesday. On their side, Devlin committed to getting us the list of stakeholders by end of week. He also said budget sign-off sits with their CFO, Marguerite, who he reports to."
 
 Output:
-{"summary":"Productive call with Devlin at Ironside; mutual commitments made and CFO Marguerite identified as budget approver.","promises":[{"text":"Send the updated SOW","owner":"rep","due_date":null,"due_raw":"tomorrow","confidence":"high"},{"text":"Introduce Ironside to our implementation partner","owner":"rep","due_date":null,"due_raw":"by Wednesday","confidence":"high"},{"text":"Provide the list of stakeholders","owner":"client","due_date":null,"due_raw":"end of week","confidence":"high"}],"people":[{"name":"Devlin","role":null,"reports_to":"Marguerite","decision_role":"influencer","notes":"Main contact at Ironside"},{"name":"Marguerite","role":"CFO","reports_to":null,"decision_role":"decision_maker","notes":"Holds budget sign-off"}],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"meeting":null}
+{"summary":"Productive call with Devlin at Ironside; mutual commitments made and CFO Marguerite identified as budget approver.","promises":[{"text":"Send the updated SOW","owner":"rep","due_date":null,"due_raw":"tomorrow","confidence":"high"},{"text":"Introduce Ironside to our implementation partner","owner":"rep","due_date":null,"due_raw":"by Wednesday","confidence":"high"},{"text":"Provide the list of stakeholders","owner":"client","due_date":null,"due_raw":"end of week","confidence":"high"}],"people":[{"name":"Devlin","role":null,"reports_to":"Marguerite","decision_role":"influencer","notes":"Main contact at Ironside"},{"name":"Marguerite","role":"CFO","reports_to":null,"decision_role":"decision_maker","notes":"Holds budget sign-off"}],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"requirements":[],"meeting":null}
 
 Note: each distinct commitment is its own promise with the correct owner. The rep owns two; the client owns one. Keep each due_raw verbatim and resolve due_date against today's date at call time.
 
@@ -191,7 +200,7 @@ Input:
 "Confirmed - we're locked in for a demo on Friday the 14th at 10am with the Castellan team. They need the security review done before their board meeting on the 20th or the whole thing slips a quarter. Priya's assistant will send a calendar invite."
 
 Output:
-{"summary":"Demo confirmed with Castellan for the 14th at 10am; a security review is needed before their board meeting on the 20th.","promises":[],"people":[{"name":"Priya","role":null,"reports_to":null,"decision_role":"unknown","notes":"Has an assistant sending the invite"}],"personal_facts":[],"key_dates":[{"description":"Castellan board meeting - security review must be done before it","date":null,"date_raw":"the 20th","type":"deadline"}],"concerns":["If the security review isn't done before the board meeting the deal slips a quarter"],"next_steps":[],"meeting":{"datetime":null,"datetime_raw":"Friday the 14th at 10am","confirmed":true}}
+{"summary":"Demo confirmed with Castellan for the 14th at 10am; a security review is needed before their board meeting on the 20th.","promises":[],"people":[{"name":"Priya","role":null,"reports_to":null,"decision_role":"unknown","notes":"Has an assistant sending the invite"}],"personal_facts":[],"key_dates":[{"description":"Castellan board meeting - security review must be done before it","date":null,"date_raw":"the 20th","type":"deadline"}],"concerns":["If the security review isn't done before the board meeting the deal slips a quarter"],"next_steps":[],"requirements":[],"meeting":{"datetime":null,"datetime_raw":"Friday the 14th at 10am","confirmed":true}}
 
 Note: this meeting is confirmed (they said "locked in"), so confirmed is true. Still keep datetime_raw verbatim and resolve datetime against today's date at call time.
 
@@ -201,7 +210,7 @@ Input:
 "Rough one at Meridian. Their head of security, Klaus, is dead set against any cloud vendor and he's blocking the whole evaluation. Sarah's trying to work around him. Separately, Sarah mentioned she's been off with a back injury and working from home most days."
 
 Output:
-{"summary":"Security lead Klaus at Meridian is blocking the cloud evaluation; Sarah is trying to work around him.","promises":[],"people":[{"name":"Klaus","role":"Head of Security","reports_to":null,"decision_role":"blocker","notes":"Opposed to cloud vendors; blocking the evaluation"},{"name":"Sarah","role":null,"reports_to":null,"decision_role":"influencer","notes":"Trying to work around Klaus"}],"personal_facts":[{"subject":"Sarah","fact":"Recovering from a back injury; working from home most days","category":"health"}],"key_dates":[],"concerns":["Head of security is opposed to cloud vendors and is blocking the evaluation"],"next_steps":[],"meeting":null}
+{"summary":"Security lead Klaus at Meridian is blocking the cloud evaluation; Sarah is trying to work around him.","promises":[],"people":[{"name":"Klaus","role":"Head of Security","reports_to":null,"decision_role":"blocker","notes":"Opposed to cloud vendors; blocking the evaluation"},{"name":"Sarah","role":null,"reports_to":null,"decision_role":"influencer","notes":"Trying to work around Klaus"}],"personal_facts":[{"subject":"Sarah","fact":"Recovering from a back injury; working from home most days","category":"health"}],"key_dates":[],"concerns":["Head of security is opposed to cloud vendors and is blocking the evaluation"],"next_steps":[],"requirements":[],"meeting":null}
 
 Note: Klaus is clearly a blocker - that role is stated. A health detail is sensitive but explicitly stated, so it is captured factually under the correct subject.
 
@@ -211,7 +220,7 @@ Input:
 "Dinner with the Orion folks. Purely social. Their VP, Ade, is vegetarian and really into natural wine - worth remembering for the next dinner. No deal talk at all."
 
 Output:
-{"summary":"Social dinner with the Orion team; no business discussed.","promises":[],"people":[{"name":"Ade","role":"VP","reports_to":null,"decision_role":"unknown","notes":"At Orion"}],"personal_facts":[{"subject":"Ade","fact":"Vegetarian; enjoys natural wine","category":"preference"}],"key_dates":[],"concerns":[],"next_steps":[],"meeting":null}
+{"summary":"Social dinner with the Orion team; no business discussed.","promises":[],"people":[{"name":"Ade","role":"VP","reports_to":null,"decision_role":"unknown","notes":"At Orion"}],"personal_facts":[{"subject":"Ade","fact":"Vegetarian; enjoys natural wine","category":"preference"}],"key_dates":[],"concerns":[],"next_steps":[],"requirements":[],"meeting":null}
 
 Note: no promises, no next steps, no concerns. A social dinner can legitimately produce only a personal fact. Do not manufacture deal activity that wasn't there.
 
@@ -221,9 +230,19 @@ Input:
 "Northwind's procurement lead, Bianca, says she'll get us on the approved-vendor list by the end of the month. But she flagged that our data-residency story is weak for their EU entities and that could stall things."
 
 Output:
-{"summary":"Northwind's procurement lead Bianca will add us to the approved-vendor list but flagged weak EU data residency as a risk.","promises":[{"text":"Add us to the approved-vendor list","owner":"client","due_date":null,"due_raw":"end of the month","confidence":"high"}],"people":[{"name":"Bianca","role":"Procurement lead","reports_to":null,"decision_role":"influencer","notes":"Controls approved-vendor list at Northwind"}],"personal_facts":[],"key_dates":[],"concerns":["Data-residency story is weak for their EU entities and could stall the deal"],"next_steps":[],"meeting":null}
+{"summary":"Northwind's procurement lead Bianca will add us to the approved-vendor list but flagged weak EU data residency as a risk.","promises":[{"text":"Add us to the approved-vendor list","owner":"client","due_date":null,"due_raw":"end of the month","confidence":"high"}],"people":[{"name":"Bianca","role":"Procurement lead","reports_to":null,"decision_role":"influencer","notes":"Controls approved-vendor list at Northwind"}],"personal_facts":[],"key_dates":[],"concerns":["Data-residency story is weak for their EU entities and could stall the deal"],"next_steps":[],"requirements":[],"meeting":null}
 
 Note: the promise is owned by the client (Bianca), not the rep. Owner matters - reminders and the promises tracker depend on it.
+
+### Example N - a stated requirement, and a concern that is NOT one
+
+Input:
+"Call with Layla at Marina Estates. She's looking for a 2-bed near the marina, and wants to move in before the summer. She did say the service charges on the last place we showed were too high. If the budget clears she'd take two units."
+
+Output:
+{"summary":"Layla at Marina Estates wants a 2-bed near the marina before summer; flagged high service charges on the last property.","promises":[],"people":[{"name":"Layla","role":null,"reports_to":null,"decision_role":"unknown","notes":"Contact at Marina Estates"}],"personal_facts":[],"key_dates":[],"concerns":["Service charges on the last property shown were too high"],"next_steps":[],"requirements":[{"text":"A 2-bed near the marina","requirement_raw":"looking for a 2-bed near the marina","stated_on":null,"confidence":"high"},{"text":"To move in before the summer","requirement_raw":"wants to move in before the summer","stated_on":null,"confidence":"high"},{"text":"Two units","requirement_raw":"if the budget clears she'd take two units","stated_on":null,"confidence":"low"}],"meeting":null}
+
+Note: the marina 2-bed and the move-in timing are stated NEEDS → requirements, kept verbatim in requirement_raw. The high service charges are a COMPLAINT about a past option → a concern, NOT a requirement. The two-units line is conditional ("if the budget clears") → captured at confidence "low". stated_on is null because no explicit date was given for when she said it.
 
 Follow these rules and the shape of these examples exactly. Output only the JSON object.`;
 

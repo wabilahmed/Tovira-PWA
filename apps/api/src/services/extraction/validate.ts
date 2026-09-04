@@ -46,6 +46,22 @@ export function validateExtraction(value: unknown): ValidationResult {
     });
   }
 
+  // [REQ-FIELD, v0.9] requirements: optional container (older output omits it → defaulted in
+  // asExtraction), but when present every entry must be well-formed.
+  if (value.requirements !== undefined) {
+    if (!Array.isArray(value.requirements)) {
+      errors.push('requirements must be an array');
+    } else {
+      value.requirements.forEach((r, i) => {
+        if (!isObj(r)) return errors.push(`requirements[${i}] must be an object`);
+        if (typeof r.text !== 'string') errors.push(`requirements[${i}].text must be a string`);
+        if (typeof r.requirement_raw !== 'string') errors.push(`requirements[${i}].requirement_raw must be a string`);
+        if (r.stated_on !== null && typeof r.stated_on !== 'string') errors.push(`requirements[${i}].stated_on must be string|null`);
+        if (!CONFIDENCES.has(r.confidence as string)) errors.push(`requirements[${i}].confidence must be high|low`);
+      });
+    }
+  }
+
   if (value.meeting !== null) {
     if (!isObj(value.meeting)) {
       errors.push('meeting must be an object or null');
@@ -64,5 +80,5 @@ export function validateExtraction(value: unknown): ValidationResult {
 export function asExtraction(value: unknown): Extraction | null {
   if (!validateExtraction(value).ok) return null;
   const v = value as Extraction;
-  return { ...v, unanswered_questions: v.unanswered_questions ?? [] };
+  return { ...v, requirements: v.requirements ?? [], unanswered_questions: v.unanswered_questions ?? [] };
 }
