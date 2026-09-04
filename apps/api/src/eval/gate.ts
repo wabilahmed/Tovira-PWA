@@ -101,6 +101,51 @@ export const GATE_SOFT = {
   minPeopleRecall: 0.8,
 };
 
+/**
+ * Requirements precision bar (REQ-GATE, v0.9.3). PRECISION is gated; RECALL is measured and
+ * reported, not gated — a missed requirement is an invisible non-event (a suggestion that never
+ * appears), a FALSE one is a wrong pitch in a meeting, in front of a client (inventory spec §4:
+ * precision over everything). Two numbers, never conflated:
+ *
+ *   certifiedPct = 100.0 — the PUBLISHED precision for v0.9.3: 0 false positives / 240 scored
+ *       requirements at this cert (8 requirement-bearing fixtures × 30 runs). Re-measured each
+ *       cert, never inherited (like the fabrication rate): v0.9.1 62%, v0.9.2 86% (next-step leak),
+ *       v0.9.3 100% (third-party leak closed).
+ *   floorPct = 95.0 — the GATED floor, NOT the rate. Derivation (recorded so nobody later
+ *       "tightens" it into flakiness): 0/240 observed FPs gives, by the rule of three, a 95% lower
+ *       bound of ~98.75% on the true precision. A floor at 95% sits below that bound, so a healthy
+ *       prompt false-fails <0.1% (it would need ~12 FPs in 240, unreachable at a true FP rate
+ *       ≤1.25%), while a genuine regression below the product's stated 0.95 precision bar (spec §4 /
+ *       the REQ-3P DoD) is caught. Deliberately not tighter than 0.95: with 0 FPs observed we lack
+ *       the sample to justify a tighter bar without risking false-fails on a true rate not yet
+ *       pinned. It tightens as scored-N accumulates across certs.
+ *
+ * Below minScored the precision verdict is PROVISIONAL (too few requirements scored to gate).
+ */
+export const GATE_REQ = {
+  floorPct: 95.0,
+  minScored: 100,
+  certifiedPct: 100.0,
+  justifyingN: 240,
+};
+
+export function requirementsGate(
+  agg: AggregateMetrics,
+  modelId: string,
+): { model: string; passed: boolean; provisional: boolean; precisionPct: number; recallPct: number; scored: number; reasons: string[] } {
+  const scored = agg.requirementTp + agg.requirementFalsePositives;
+  const precisionPct = scored === 0 ? 100 : (agg.requirementTp / scored) * 100;
+  const recallPct = agg.requirements.recall * 100;
+  if (scored < GATE_REQ.minScored) {
+    return { model: modelId, passed: true, provisional: true, precisionPct, recallPct, scored, reasons: [] };
+  }
+  const reasons: string[] = [];
+  if (precisionPct < GATE_REQ.floorPct) {
+    reasons.push(`requirements precision ${precisionPct.toFixed(1)}% < ${GATE_REQ.floorPct}% floor (${agg.requirementFalsePositives} FP / ${scored} scored)`);
+  }
+  return { model: modelId, passed: reasons.length === 0, provisional: false, precisionPct, recallPct, scored, reasons };
+}
+
 export interface GateResult {
   model: string;
   passed: boolean;

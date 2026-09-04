@@ -200,6 +200,7 @@ export interface AggregateMetrics {
   falseCertainties: number;
   leakedValues: number;
   nullNamedPeople: number;
+  requirementTp: number; // matched requirements — with requirementFalsePositives gives scored = tp+fp
   requirementFalsePositives: number;
   requirementDateErrors: number;
   requirementConfInflation: number;
@@ -218,6 +219,7 @@ export function aggregate(scores: NoteScore[]): AggregateMetrics {
     falseCertainties: sum((s) => s.falseCertainties),
     leakedValues: sum((s) => s.leakedValues),
     nullNamedPeople: sum((s) => s.nullNamedPeople),
+    requirementTp: sum((s) => s.requirements.tp),
     requirementFalsePositives: sum((s) => s.requirementFalsePositives),
     requirementDateErrors: sum((s) => s.requirementDateErrors),
     requirementConfInflation: sum((s) => s.requirementConfInflation),

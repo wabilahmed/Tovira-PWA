@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runGate, runEval, softGate, extractForEval, evaluateGate, fabricationGate, tier1Residual, tier2Gate, GATE_HARD, GATE_FAB, GATE_TIER2 } from './gate.js';
+import { runGate, runEval, softGate, extractForEval, evaluateGate, fabricationGate, tier1Residual, tier2Gate, requirementsGate, GATE_HARD, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
 import type { AggregateMetrics } from './score.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import type { Extraction } from '../services/extraction/types.js';
@@ -43,6 +43,7 @@ const cleanMetrics: AggregateMetrics = {
   falseCertainties: 0,
   leakedValues: 0,
   nullNamedPeople: 0,
+  requirementTp: 0,
   requirementFalsePositives: 0,
   requirementDateErrors: 0,
   requirementConfInflation: 0,
@@ -237,5 +238,49 @@ describe('[P1-9] extraction quality gate', () => {
     const result = await runGate(perfect, 'haiku-4-5');
     expect(result.model).toBe('haiku-4-5');
     expect(typeof result.passed).toBe('boolean');
+  });
+});
+
+// REQ-GATE self-test: a precision bar that cannot fail is not a bar. Precision is gated; recall is
+// reported, never gated (a missed requirement is invisible; a false one is a wrong pitch).
+describe('[REQ-GATE] requirements precision bar', () => {
+  const reqMetrics = (tp: number, fp: number, recall = 1): AggregateMetrics => ({
+    ...cleanMetrics,
+    requirements: { precision: tp + fp === 0 ? 1 : tp / (tp + fp), recall },
+    requirementTp: tp,
+    requirementFalsePositives: fp,
+  });
+
+  it('PASSES at the certified precision (0 FP over a large scored N)', () => {
+    const g = requirementsGate(reqMetrics(240, 0), 'sonnet-5');
+    expect(g.provisional).toBe(false);
+    expect(g.passed).toBe(true);
+    expect(g.precisionPct).toBe(100);
+  });
+
+  it('FAILS when precision falls below the floor (the bar has teeth)', () => {
+    // 200 tp / 40 fp = 83.3% precision, below the 95% floor.
+    const g = requirementsGate(reqMetrics(200, 40), 'sonnet-5');
+    expect(g.provisional).toBe(false);
+    expect(g.passed).toBe(false);
+    expect(g.reasons[0]).toMatch(/precision .* < .* floor/);
+  });
+
+  it('is PROVISIONAL below the minimum scored (too few to gate)', () => {
+    const g = requirementsGate(reqMetrics(3, 1), 'sonnet-5'); // scored 4 < minScored
+    expect(g.provisional).toBe(true);
+    expect(g.passed).toBe(true); // provisional never fails the deploy gate
+  });
+
+  it('reports recall but never gates on it', () => {
+    // Low recall, perfect precision → still PASSES (recall is measured, not gated).
+    const g = requirementsGate(reqMetrics(120, 0, 0.5), 'sonnet-5');
+    expect(g.passed).toBe(true);
+    expect(g.recallPct).toBe(50);
+  });
+
+  it('the floor is a floor below the published rate, not the rate itself', () => {
+    expect(GATE_REQ.floorPct).toBeLessThan(GATE_REQ.certifiedPct); // 95 < 100
+    expect(GATE_REQ.floorPct).toBe(95);
   });
 });

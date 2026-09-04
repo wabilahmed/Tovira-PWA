@@ -1,6 +1,6 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
-import { extractForEval, evaluateGate, softGate, fabricationGate, tier1Residual, tier2Gate, GATE_FAB, GATE_TIER2 } from './gate.js';
+import { extractForEval, evaluateGate, softGate, fabricationGate, tier1Residual, tier2Gate, requirementsGate, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
 import { redactSensitive } from '../services/redaction/redact.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { scoreNote, aggregate, type NoteScore } from './score.js';
@@ -38,12 +38,14 @@ function line(label: string, m: ReturnType<typeof aggregate>, verdict: string): 
   console.log(`[gate]   ${label}: promises p=${p(m.promises.precision)} r=${p(m.promises.recall)} · people p=${p(m.people.precision)} r=${p(m.people.recall)} · guessed=${m.guessedDates} merged=${m.mergedPeople} falseCert=${m.falseCertainties} leaked=${m.leakedValues} nullNamed=${m.nullNamedPeople} · fab=${m.fabricatedPromises} (aggregate bar) → ${verdict}`);
 }
 
-// REQ-CERT: the new `requirements` field, MEASURED not gated on this first cert (establishing the
-// v0.9.1 baseline — the same introduction discipline used for fabrication and Tier-2: never gate a
-// new stochastic metric before its floor is known). reqFP is the concern↔requirement leak; dateErr
-// is the Rule 8 / DATE-REF stated_on check; confInfl is a conditional need returned as firm.
+// REQ-GATE (v0.9.3): requirements PRECISION is gated (floor GATE_REQ.floorPct), recall is measured
+// and reported — a false requirement is a wrong pitch in front of a client (§4), a missed one is
+// invisible. dateErr is the Rule 8 / DATE-REF stated_on check; confInfl is a conditional need
+// returned as firm; reqFP is the false-positive count that precision is computed from.
 function reqLine(label: string, m: ReturnType<typeof aggregate>): void {
-  console.log(`[gate]   ${label} requirements (measured, not gating): p=${p(m.requirements.precision)} r=${p(m.requirements.recall)} · reqFP=${m.requirementFalsePositives} (concern↔req leak) · dateErr=${m.requirementDateErrors} (stated_on) · confInfl=${m.requirementConfInflation}`);
+  const g = requirementsGate(m, 'agg');
+  const verdict = g.provisional ? `PROVISIONAL (scored ${g.scored}<${GATE_REQ.minScored})` : g.passed ? `PASS (≥${GATE_REQ.floorPct}% floor)` : `FAIL: ${g.reasons.join('; ')}`;
+  console.log(`[gate]   ${label} requirements: precision ${g.precisionPct.toFixed(1)}% (GATED, floor ${GATE_REQ.floorPct}%) · recall ${g.recallPct.toFixed(1)}% (measured) · reqFP=${m.requirementFalsePositives} · dateErr=${m.requirementDateErrors} · confInfl=${m.requirementConfInflation} → ${verdict}`);
 }
 
 function spuriousPeople(scored: Scored[]): void {
@@ -171,8 +173,13 @@ async function main(): Promise<void> {
   // the periodic large-N run (GATE_RUNS≥30 => FULL CERTIFICATION), not on every push.
   const fabGates = fab.provisional || fab.passed;
   const t2Gates = t2.provisional || t2.passed;
-  const deployPass = hardPassed && soft.passed && tier1Pass && fabGates && t2Gates;
-  const fullyCertified = hardPassed && soft.passed && tier1Pass && fab.passed && !fab.provisional && t2.passed && !t2.provisional;
+  // REQ-GATE: requirements precision gates like fabrication/Tier-2 — enforced once non-provisional,
+  // reported below the floor. Recall is measured, never gated (a missed requirement is invisible;
+  // a false one is a wrong pitch in front of a client).
+  const reqGate = requirementsGate(agg, modelId);
+  const reqGates = reqGate.provisional || reqGate.passed;
+  const deployPass = hardPassed && soft.passed && tier1Pass && fabGates && t2Gates && reqGates;
+  const fullyCertified = hardPassed && soft.passed && tier1Pass && fab.passed && !fab.provisional && t2.passed && !t2.provisional && reqGate.passed && !reqGate.provisional;
   console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + fabrication & Tier-2 ≤ ceiling)' : 'FAIL'}`);
   console.log(`[gate] FULL CERTIFICATION: ${fullyCertified ? 'PASS (aggregate rates certified over ≥ minimum sample)' : deployPass ? 'PROVISIONAL — deploy-safe, an aggregate rate not yet certified at this N' : 'FAIL'}`);
   if (!deployPass) process.exit(1);
