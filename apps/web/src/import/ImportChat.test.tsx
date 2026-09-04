@@ -45,7 +45,7 @@ describe('<ImportChat>', () => {
     await user.click(screen.getByRole('button', { name: /import chat/i }));
 
     await waitFor(() => expect(onImported).toHaveBeenCalledWith(42));
-    expect(api.importWhatsApp).toHaveBeenCalledWith('c1', 'Sara: hi there', true);
+    expect(api.importWhatsApp).toHaveBeenCalledWith('c1', { content: 'Sara: hi there' }, true);
   });
 
   // [P5-1-CEILING-UI] a ceiling-limited import still succeeds (data saved) and
@@ -104,12 +104,36 @@ describe('<ImportChat>', () => {
     expect(onImported).not.toHaveBeenCalled();
   });
 
-  // Reading a .txt file populates the content (so consent alone then enables submit).
-  it('reads an uploaded .txt file into the content', async () => {
+  // An uploaded file is read as BYTES and sent base64 (so a .zip survives). It never lands in the
+  // paste box; a "Selected:" line confirms it and, with consent, submit sends { contentBase64 }.
+  it('reads an uploaded file as bytes and imports it as base64, not text', async () => {
     const user = userEvent.setup();
-    render(<ImportChat clientId="c1" api={makeApi({ ok: true, imported: 1 })} onImported={vi.fn()} />);
-    const file = new File(['[2026-01-15, 09:00:00] Sara: hello'], 'chat.txt', { type: 'text/plain' });
+    const api = makeApi({ ok: true, imported: 1 });
+    render(<ImportChat clientId="c1" api={api} onImported={vi.fn()} />);
+    const text = '[2026-01-15, 09:00:00] Sara: hello';
+    const file = new File([text], 'chat.txt', { type: 'text/plain' });
     await user.upload(screen.getByLabelText(/chat export file/i), file);
-    await waitFor(() => expect(screen.getByLabelText(/pasted chat export/i)).toHaveValue('[2026-01-15, 09:00:00] Sara: hello'));
+    await waitFor(() => expect(screen.getByText(/selected: chat\.txt/i)).toBeInTheDocument());
+    // the paste box stays empty — the bytes did not get stringified into it
+    expect(screen.getByLabelText(/pasted chat export/i)).toHaveValue('');
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /import chat/i }));
+    await waitFor(() => expect(api.importWhatsApp).toHaveBeenCalledTimes(1));
+    const [cid, payload, consent] = api.importWhatsApp.mock.calls[0]!;
+    expect(cid).toBe('c1');
+    expect(consent).toBe(true);
+    expect(typeof (payload as { contentBase64?: string }).contentBase64).toBe('string');
+    expect(atob((payload as { contentBase64: string }).contentBase64)).toBe(text);
+  });
+
+  // A .zip shared via the Android share-target arrives as initialContentBase64 (pre-selected file).
+  it('imports a shared file (initialContentBase64) as base64', async () => {
+    const user = userEvent.setup();
+    const api = makeApi({ ok: true, imported: 3 });
+    render(<ImportChat clientId="c1" api={api} onImported={vi.fn()} initialContentBase64={btoa('PKzipbytes')} />);
+    expect(screen.getByText(/selected: shared chat/i)).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /import chat/i }));
+    await waitFor(() => expect(api.importWhatsApp).toHaveBeenCalledWith('c1', { contentBase64: btoa('PKzipbytes') }, true));
   });
 });

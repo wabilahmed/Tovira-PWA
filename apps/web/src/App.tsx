@@ -210,6 +210,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
   const [entitled, setEntitled] = useState(true); // default open; the server 402s regardless
   const [sharedContent, setSharedContent] = useState('');
+  const [sharedContentB64, setSharedContentB64] = useState('');
   // Quiet "confirm your email" nudge (EMAIL-VERIFY) — dismissible for the session,
   // never blocks anything. Absent once the account is verified.
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -229,7 +230,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // (stashed by the service worker); pick it up once and open seeding prefilled.
   useEffect(() => {
     void consumeSharedChat(idbSharedChatStore, (chat) => {
-      setSharedContent(chat.text);
+      setSharedContent(chat.text ?? '');
+      setSharedContentB64(chat.base64 ?? '');
       setView('getstarted');
     });
   }, []);
@@ -327,6 +329,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           }}
           importApi={clientsApi}
           sharedContent={sharedContent}
+          sharedContentB64={sharedContentB64}
           onAddInventory={() => setView('inventory')}
           onSeeded={() => {
             loadSeeding();

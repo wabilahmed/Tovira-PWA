@@ -17,6 +17,7 @@ export function GetStarted({
   onFallback,
   onAddInventory,
   sharedContent = '',
+  sharedContentB64 = '',
 }: {
   seeding: SeedingStatus;
   clients: ClientSummary[];
@@ -26,11 +27,13 @@ export function GetStarted({
   onFallback: (kind: string) => void;
   /** Jump to the Inventory tab — a second, export-free way to seed (spec §11.6). */
   onAddInventory?: () => void;
-  /** A chat shared into the app (Android share-target) to prefill the import. */
+  /** A chat shared into the app (Android share-target) to prefill the import — text… */
   sharedContent?: string;
+  /** …or a shared file's bytes, base64 (a .zip export). */
+  sharedContentB64?: string;
 }): JSX.Element {
-  // A shared chat jumps straight past the guide to the import step, prefilled.
-  const [step, setStep] = useState<'guide' | 'import'>(sharedContent ? 'import' : 'guide');
+  // A shared chat (text or file) jumps straight past the guide to the import step, prefilled.
+  const [step, setStep] = useState<'guide' | 'import'>(sharedContent || sharedContentB64 ? 'import' : 'guide');
   const [target, setTarget] = useState<ClientSummary | null>(clients[0] ?? null);
   const [newName, setNewName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -86,7 +89,7 @@ export function GetStarted({
   return (
     <section aria-label="Import for client">
       <h2>Import {target.name}'s chat</h2>
-      <ImportChat clientId={target.id} api={importApi} onImported={onSeeded} initialContent={sharedContent} />
+      <ImportChat clientId={target.id} api={importApi} onImported={onSeeded} initialContent={sharedContent} initialContentBase64={sharedContentB64} />
     </section>
   );
 }

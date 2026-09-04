@@ -115,15 +115,18 @@ export class ClientsClient {
     return (await res.json()) as NoteSummary;
   }
 
-  /** Import a WhatsApp chat export (.txt content) under a client (P1-4b). */
-  async importWhatsApp(clientId: string, content: string, consent: boolean): Promise<ImportResult> {
+  /** Import a WhatsApp chat export under a client (P1-4b / IMPORT-ZIP). Accepts either pasted text
+   *  (a string, or `{ content }`) or a file's raw bytes (`{ contentBase64 }` — for the .zip iOS
+   *  exports, or a .txt read as bytes). The server detects zip vs text by content, not filename. */
+  async importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string }, consent: boolean): Promise<ImportResult> {
+    const payload = typeof input === 'string' ? { content: input } : input;
     let res: Response;
     try {
       res = await fetch(this.url(`/clients/${clientId}/notes/import`), {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content, consent }),
+        body: JSON.stringify({ ...payload, consent }),
       });
     } catch {
       return { ok: false, error: 'other', message: 'Network error — please try again.' };

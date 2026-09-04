@@ -19,8 +19,10 @@ export const manifest = {
     { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
     { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
   ],
-  // Android: let WhatsApp "Export chat" share the .txt straight into Tovira
-  // (P5-3). iOS PWAs can't be share targets — that path is Files→upload instead.
+  // Android: let WhatsApp "Export chat" share the export straight into Tovira (P5-3 / IMPORT-ZIP).
+  // Accept the .zip WhatsApp actually produces as well as a .txt — and application/octet-stream,
+  // because Android often hands a shared file that generic MIME. iOS PWAs can't be share targets;
+  // that path is Files→upload instead.
   share_target: {
     action: '/share-target',
     method: 'POST',
@@ -28,7 +30,7 @@ export const manifest = {
     params: {
       title: 'title',
       text: 'text',
-      files: [{ name: 'file', accept: ['text/plain', '.txt'] }],
+      files: [{ name: 'file', accept: ['text/plain', '.txt', 'application/zip', 'application/x-zip-compressed', 'application/octet-stream', '.zip'] }],
     },
   },
 } as const;

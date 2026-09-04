@@ -30,9 +30,13 @@ describe('PWA manifest', () => {
   });
 
   // [P5-3] Android share target: WhatsApp "Export chat" can share the .txt in.
-  it('declares a share target that accepts a text file', () => {
+  it('declares a share target that accepts a text file AND the .zip WhatsApp exports', () => {
     expect(manifest.share_target.method).toBe('POST');
     const accept = manifest.share_target.params.files.flatMap((f) => f.accept);
     expect(accept).toContain('text/plain');
+    // IMPORT-ZIP: iOS exports a .zip; Android often reports a generic octet-stream.
+    expect(accept).toContain('application/zip');
+    expect(accept).toContain('.zip');
+    expect(accept).toContain('application/octet-stream');
   });
 });

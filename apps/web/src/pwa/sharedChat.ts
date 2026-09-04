@@ -10,7 +10,11 @@
  */
 
 export interface SharedChat {
-  text: string;
+  /** A shared TEXT chat (some share sheets send text, not a file). */
+  text: string | null;
+  /** A shared FILE's raw bytes, base64 (IMPORT-ZIP — a .zip on iOS-style shares, or a .txt). The
+   *  server detects zip vs text by content, so both ride this field. */
+  base64: string | null;
   title: string | null;
 }
 
@@ -20,21 +24,27 @@ export interface SharedChatStore {
   take(): Promise<SharedChat | null>;
 }
 
-/** Extract the shared chat from a share-target POST's form data, or null when
- *  nothing usable was shared. Prefers the attached .txt file; falls back to a
- *  plain `text` field (some share sheets send text instead of a file). */
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  return btoa(binary);
+}
+
+/** Extract the shared chat from a share-target POST's form data, or null when nothing usable was
+ *  shared. Prefers the attached file, read as BYTES (base64) so a .zip survives intact; falls back
+ *  to a plain `text` field. Never `.text()` on the file — that would corrupt a zip. */
 export async function readSharedChat(form: FormData): Promise<SharedChat | null> {
   const file = form.get('file');
-  let text: string | null = null;
-  if (file && typeof (file as Blob).text === 'function') {
-    text = await (file as Blob).text();
-  } else {
-    const t = form.get('text');
-    if (typeof t === 'string') text = t;
-  }
-  if (!text || text.trim() === '') return null;
   const title = form.get('title');
-  return { text, title: typeof title === 'string' && title.trim() !== '' ? title : null };
+  const titleStr = typeof title === 'string' && title.trim() !== '' ? title : null;
+  if (file && typeof (file as Blob).arrayBuffer === 'function') {
+    const buf = await (file as Blob).arrayBuffer();
+    if (buf.byteLength > 0) return { text: null, base64: toBase64(new Uint8Array(buf)), title: titleStr };
+  }
+  const t = form.get('text');
+  if (typeof t === 'string' && t.trim() !== '') return { text: t, base64: null, title: titleStr };
+  return null;
 }
 
 /** Deliver a pending shared chat to the app exactly once (take-and-clear). Best
