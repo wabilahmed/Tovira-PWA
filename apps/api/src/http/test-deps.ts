@@ -14,6 +14,7 @@ import { InMemoryInventoryRepository } from '../adapters/inventory/in-memory-inv
 import { InventoryService } from '../services/inventory/inventory-service.js';
 import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-repository.js';
 import { InMemoryNoteMoveAuditRepository } from '../adapters/notes/in-memory-note-move-audit-repository.js';
+import { InMemoryNoteMoveTx } from '../adapters/notes/in-memory-note-move-tx.js';
 import { NoteMoveService } from '../services/import/note-move-service.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { StubTranscriber } from '../adapters/transcription/stub.js';
@@ -109,7 +110,7 @@ export function buildInMemoryDeps(
   const brief = new BriefService(clients, notes, facts, embedder);
   const followUp = new FollowUpService(new StubModelClient(), notes);
   const meetings = new InMemoryMeetingRepository();
-  const noteMove = new NoteMoveService(notes, facts, meetings, clients, new InMemoryNoteMoveAuditRepository());
+  const noteMove = new NoteMoveService(notes, facts, meetings, new InMemoryNoteMoveTx(notes, facts, meetings, clients, new InMemoryNoteMoveAuditRepository()));
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
   const notifications = new InMemoryNotificationRepository();
   const scan = new ScanService(clients, meetings, facts, notifications, notes);

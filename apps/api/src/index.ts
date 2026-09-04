@@ -36,6 +36,7 @@ import {
   createCorrectionRepository,
   createMeetingRepository,
   createNoteMoveAuditRepository,
+  createNoteMoveTx,
   createNoteMoveService,
   createMeetingParser,
   createNotificationRepository,
@@ -131,7 +132,8 @@ async function main(): Promise<void> {
   );
   const meetings = createMeetingRepository(config, appPool);
   const noteMoveAudit = createNoteMoveAuditRepository(config, appPool);
-  const noteMove = createNoteMoveService(notes, facts, meetings, clients, noteMoveAudit);
+  const noteMoveTx = createNoteMoveTx(config, appPool, notes, facts, meetings, clients, noteMoveAudit);
+  const noteMove = createNoteMoveService(notes, facts, meetings, noteMoveTx);
   // NUDGE-UNCONFIRMED: extraction persists proposed meetings (confirmed:false) so they can be
   // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
   const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId));

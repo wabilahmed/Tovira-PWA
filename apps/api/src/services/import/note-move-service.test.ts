@@ -5,16 +5,18 @@ import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repo
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryMeetingRepository } from '../../adapters/meetings/in-memory-meeting-repository.js';
 import { InMemoryNoteMoveAuditRepository } from '../../adapters/notes/in-memory-note-move-audit-repository.js';
+import { InMemoryNoteMoveTx, type MoveStep } from '../../adapters/notes/in-memory-note-move-tx.js';
 
 const USER = 'user-A';
 
-async function fixture() {
+async function fixture(fault?: (step: MoveStep) => void) {
   const clients = new InMemoryClientRepository();
   const notes = new InMemoryNoteRepository();
   const facts = new InMemoryFactsRepository();
   const meetings = new InMemoryMeetingRepository();
   const audit = new InMemoryNoteMoveAuditRepository();
-  const service = new NoteMoveService(notes, facts, meetings, clients, audit);
+  const tx = new InMemoryNoteMoveTx(notes, facts, meetings, clients, audit, fault);
+  const service = new NoteMoveService(notes, facts, meetings, tx);
 
   const meridian = await clients.create(USER, 'Meridian'); // the WRONG client (misfiled here)
   const ahmed = await clients.create(USER, 'Ahmed'); // the RIGHT client
@@ -49,7 +51,7 @@ async function fixture() {
   await facts.confirmPromise(USER, promises[1]!.id); // one is CONFIRMED — must survive too
   await meetings.create(USER, { clientId: meridian.id, noteId: note.id, datetime: null, datetimeRaw: 'thu', title: null, confirmed: false });
 
-  return { clients, notes, facts, meetings, audit, service, meridian, ahmed, note };
+  return { clients, notes, facts, meetings, audit, tx, service, meridian, ahmed, note };
 }
 
 describe('[NOTE-MOVE] B3 — move a note and everything derived from it', () => {
@@ -110,6 +112,27 @@ describe('[NOTE-MOVE] B3 — move a note and everything derived from it', () => 
     expect(await service.move(USER, 'nope', ahmed.id)).toMatchObject({ ok: false, error: 'note_not_found' });
     expect(await service.move(USER, note.id, 'nope')).toMatchObject({ ok: false, error: 'target_not_found' });
     expect(await service.move(USER, note.id, meridian.id)).toMatchObject({ ok: false, error: 'same_client' });
+  });
+
+  // MOVE-ATOMIC (B1): the point of the task — a fault partway through a move leaves NOTHING changed
+  // on either client. Inject a throw after the promises are reassigned and assert full rollback.
+  it('is atomic: a fault mid-move rolls everything back (nothing changed on either client)', async () => {
+    const { service, notes, facts, clients, audit, meridian, ahmed, note } = await fixture((step) => {
+      if (step === 'facts') throw new Error('injected fault after promises reassigned');
+    });
+    const fromLastBefore = (await clients.findByIdForUser(USER, meridian.id))!.lastTouchedAt;
+    const toLastBefore = (await clients.findByIdForUser(USER, ahmed.id))!.lastTouchedAt;
+
+    await expect(service.move(USER, note.id, ahmed.id)).rejects.toThrow(/injected fault/);
+
+    // The note, its promises, and both clients' clocks are exactly as before — no partial move.
+    expect((await notes.findByIdForUser(USER, note.id))!.clientId).toBe(meridian.id);
+    for (const p of await facts.listPromisesByNote(USER, note.id)) expect(p.clientId).toBe(meridian.id);
+    for (const d of await facts.listKeyDatesByNote(USER, note.id)) expect(d.clientId).toBe(meridian.id);
+    expect((await clients.findByIdForUser(USER, meridian.id))!.lastTouchedAt).toBe(fromLastBefore);
+    expect((await clients.findByIdForUser(USER, ahmed.id))!.lastTouchedAt).toBe(toLastBefore);
+    // And no audit row was written for a move that did not happen.
+    expect(await audit.listByUser(USER)).toHaveLength(0);
   });
 });
 

@@ -50,6 +50,9 @@ import { InMemoryNoteMoveAuditRepository } from './adapters/notes/in-memory-note
 import { PgNoteMoveAuditRepository } from './adapters/notes/pg-note-move-audit-repository.js';
 import type { NoteMoveAuditRepository } from './ports/note-move-audit-repository.js';
 import { NoteMoveService } from './services/import/note-move-service.js';
+import { InMemoryNoteMoveTx } from './adapters/notes/in-memory-note-move-tx.js';
+import { PgNoteMoveTx } from './adapters/notes/pg-note-move-tx.js';
+import type { NoteMoveTx } from './ports/note-move-tx.js';
 import type { Transcriber } from './ports/transcriber.js';
 import { StubTranscriber } from './adapters/transcription/stub.js';
 import { GroqTranscriber } from './adapters/transcription/groq.js';
@@ -270,16 +273,32 @@ export function createNoteMoveAuditRepository(config: AppConfig, pool?: Pool): N
   return new InMemoryNoteMoveAuditRepository();
 }
 
-/** [NOTE-MOVE/IMPORT-UNDO] the service that moves a misfiled note (+ everything derived) or undoes
- *  an import — atomic per the class doc, audited, recomputing last-contact on both clients. */
-export function createNoteMoveService(
+/** [MOVE-ATOMIC] the atomic move/undo operation — one pg transaction, or the in-memory double. */
+export function createNoteMoveTx(
+  config: AppConfig,
+  pool: Pool | undefined,
   notes: NoteRepository,
   facts: FactsRepository,
   meetings: MeetingRepository,
   clients: ClientRepository,
   audit: NoteMoveAuditRepository,
+): NoteMoveTx {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgNoteMoveTx(pool);
+  }
+  return new InMemoryNoteMoveTx(notes, facts, meetings, clients, audit);
+}
+
+/** [NOTE-MOVE/IMPORT-UNDO] the service that moves a misfiled note (+ everything derived) or undoes
+ *  an import — atomic (delegated to the tx), audited, recomputing last-contact on both clients. */
+export function createNoteMoveService(
+  notes: NoteRepository,
+  facts: FactsRepository,
+  meetings: MeetingRepository,
+  tx: NoteMoveTx,
 ): NoteMoveService {
-  return new NoteMoveService(notes, facts, meetings, clients, audit);
+  return new NoteMoveService(notes, facts, meetings, tx);
 }
 
 /** Blob storage for audio + images (filesystem locally, S3 in prod). */
