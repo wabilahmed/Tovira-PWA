@@ -57,6 +57,7 @@ import {
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
 import { MeetingNudgeService } from './services/scheduler/meeting-nudge-service.js';
+import { ScanRunnerService } from './services/scheduler/scan-runner-service.js';
 import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
 import { RecallMetrics } from './services/metrics/recall-metrics.js';
@@ -180,6 +181,12 @@ async function main(): Promise<void> {
     dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs).then(() => undefined),
     windowMs: meetingNudgeWindowMs(config),
   });
+  // [SCAN-WIRING] iterate reps, run all scan generators, dispatch through the silence budget.
+  const scanRunner = new ScanRunnerService({
+    allUserIds: () => auth.allUserIds(),
+    runAll: (userId, nowMs) => scan.runAll(userId, nowMs, scanConfigFrom(config)),
+    dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs).then(() => undefined),
+  });
   const jobRunStore = createJobRunStore(config, appPool);
   const scheduledBrain = new ScheduledBrain({
     store: jobRunStore,
@@ -204,6 +211,11 @@ async function main(): Promise<void> {
       // idempotent per rep-local-week via the monday:<weekOf> dedupe.
       { name: 'monday-digest', lockKey: 4711005, intervalMs: 60 * 60 * 1000,
         run: async () => { await monday.runScheduled(await auth.allUserIds(), Date.now()); } },
+      // [SCAN-WIRING] The daily proactive scan (overdue promises / going cold / date reminders /
+      // chat-refresh) — the automated trigger the stub EventBridge Lambda never provided. Every few
+      // hours; generators are idempotent (deduped) and the 2/day silence budget bounds pushes.
+      { name: 'daily-scan', lockKey: 4711006, intervalMs: 3 * 60 * 60 * 1000,
+        run: async () => { await scanRunner.run(Date.now()); } },
     ],
   });
   const recallSessions = createRecallSessionRepository(config, appPool);
