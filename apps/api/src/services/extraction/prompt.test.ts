@@ -48,7 +48,7 @@ describe('extraction prompt', () => {
   });
 
   it('exposes a prompt version for logging', () => {
-    expect(PROMPT_VERSION).toBe('tovira-extract-v0.9');
+    expect(PROMPT_VERSION).toBe('tovira-extract-v0.9.1');
   });
 
   // v0.8: a THIRD PARTY's stated action (the client's own manager / internal team) is

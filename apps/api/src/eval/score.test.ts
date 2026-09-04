@@ -100,4 +100,48 @@ describe('scoreNote', () => {
     expect(agg.promises.recall).toBeCloseTo(0.5); // 1 of 2 caught
     expect(agg.promises.precision).toBe(1); // no false positives
   });
+
+  // REQ-CERT: the new requirements metric must be able to FAIL, or it isn't a metric.
+  const req = (text: string, raw: string, stated_on: string | null = '2026-07-09', confidence: 'high' | 'low' = 'high') =>
+    ({ text, requirement_raw: raw, stated_on, confidence });
+
+  it('counts a matched requirement as a true positive', () => {
+    const s = scoreNote(
+      { ...base, requirements: [req('A 2-bed near the marina', 'looking for a 2-bed near the marina')] },
+      { ...base, requirements: [req('2-bed apartment near marina', 'wants a 2-bed near the marina')] },
+    );
+    expect(s.requirements.tp).toBe(1);
+    expect(s.requirementFalsePositives).toBe(0);
+  });
+
+  it('flags a concern emitted as a requirement as a false positive (the concern↔requirement leak)', () => {
+    const s = scoreNote(
+      { ...base, requirements: [], concerns: ['Pricing is above her budget'] },
+      { ...base, requirements: [req('Lower pricing', 'the pricing is above her budget')] },
+    );
+    expect(s.requirements.fp).toBe(1);
+    expect(s.requirementFalsePositives).toBe(1);
+  });
+
+  it('flags stated_on ≠ the key on a matched requirement (Rule 8 / DATE-REF)', () => {
+    const s = scoreNote(
+      { ...base, requirements: [req('A 3-bed in Mirdif', 'looking for a 3-bed in Mirdif', '2026-03-15')] },
+      { ...base, requirements: [req('A 3-bed in Mirdif', 'looking for a 3-bed in Mirdif', '2026-07-09')] },
+    );
+    expect(s.requirements.tp).toBe(1);
+    expect(s.requirementDateErrors).toBe(1);
+  });
+
+  it('flags a conditional requirement (key low) returned high as confidence inflation', () => {
+    const s = scoreNote(
+      { ...base, requirements: [req('Two units', 'if the budget clears she would take two units', '2026-07-09', 'low')] },
+      { ...base, requirements: [req('Two units', 'if the budget clears she would take two units', '2026-07-09', 'high')] },
+    );
+    expect(s.requirementConfInflation).toBe(1);
+  });
+
+  it('counts a missed requirement as a false negative', () => {
+    const s = scoreNote({ ...base, requirements: [req('A 1-bed in JLT', 'a 1-bed in JLT')] }, { ...base, requirements: [] });
+    expect(s.requirements.fn).toBe(1);
+  });
 });

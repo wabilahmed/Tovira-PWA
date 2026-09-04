@@ -36,12 +36,16 @@ const dropping = scriptedModel((n) => ({ ...n.expected, promises: [] }));
 const cleanMetrics: AggregateMetrics = {
   promises: { precision: 1, recall: 1 },
   people: { precision: 1, recall: 1 },
+  requirements: { precision: 1, recall: 1 },
   fabricatedPromises: 0,
   guessedDates: 0,
   mergedPeople: 0,
   falseCertainties: 0,
   leakedValues: 0,
   nullNamedPeople: 0,
+  requirementFalsePositives: 0,
+  requirementDateErrors: 0,
+  requirementConfInflation: 0,
   notes: 1,
 };
 

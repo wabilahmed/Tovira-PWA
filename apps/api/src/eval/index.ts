@@ -38,6 +38,14 @@ function line(label: string, m: ReturnType<typeof aggregate>, verdict: string): 
   console.log(`[gate]   ${label}: promises p=${p(m.promises.precision)} r=${p(m.promises.recall)} · people p=${p(m.people.precision)} r=${p(m.people.recall)} · guessed=${m.guessedDates} merged=${m.mergedPeople} falseCert=${m.falseCertainties} leaked=${m.leakedValues} nullNamed=${m.nullNamedPeople} · fab=${m.fabricatedPromises} (aggregate bar) → ${verdict}`);
 }
 
+// REQ-CERT: the new `requirements` field, MEASURED not gated on this first cert (establishing the
+// v0.9.1 baseline — the same introduction discipline used for fabrication and Tier-2: never gate a
+// new stochastic metric before its floor is known). reqFP is the concern↔requirement leak; dateErr
+// is the Rule 8 / DATE-REF stated_on check; confInfl is a conditional need returned as firm.
+function reqLine(label: string, m: ReturnType<typeof aggregate>): void {
+  console.log(`[gate]   ${label} requirements (measured, not gating): p=${p(m.requirements.precision)} r=${p(m.requirements.recall)} · reqFP=${m.requirementFalsePositives} (concern↔req leak) · dateErr=${m.requirementDateErrors} (stated_on) · confInfl=${m.requirementConfInflation}`);
+}
+
 function spuriousPeople(scored: Scored[]): void {
   for (const { note, actual } of scored) {
     const expected = new Set((note.expected.people ?? []).map((x) => (x.name ?? '').trim().toLowerCase()).filter(Boolean));
@@ -90,6 +98,7 @@ async function main(): Promise<void> {
   const soft = softGate(agg, modelId);
   console.log(`\n[gate] === ${RUNS}-RUN AGGREGATE (soft bars + fabrication rate) ===`);
   line('AGGREGATE  ', agg, soft.passed ? 'SOFT PASS' : `SOFT FAIL: ${soft.reasons.join('; ')}`);
+  reqLine('AGGREGATE  ', agg);
 
   // Fabrication: aggregate rate bar (owner ruling). Only a non-provisional pass certifies.
   const fab = fabricationGate(agg, modelId);

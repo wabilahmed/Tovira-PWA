@@ -10,7 +10,7 @@ export interface EvalNote {
   id: string;
   today: string;
   clientName: string;
-  source: 'voice' | 'paste';
+  source: 'voice' | 'paste' | 'whatsapp_export';
   note: string;
   expected: Extraction;
   /** Code-switched Arabic/Hindi/Urdu ↔ English — a locked P1-9 requirement. */
@@ -20,6 +20,11 @@ export interface EvalNote {
   mustNotMerge?: Array<[string, string]>;
   /** REDACT-5: values/fragments that must appear NOWHERE in the model output (leakage). */
   forbidden?: string[];
+  /** REQ-CERT (JC1): for an imported chat, the in-transcript date on which the requirement
+   *  was stated — distinct from `today` (the import/reference date). The expected requirements'
+   *  stated_on must equal this and differ from today; that is what proves stated_on tracks the
+   *  note's reference date, not the clock (the DATE-REF regression class). Asserted in the test. */
+  importMessageDate?: string;
 }
 
 const empty = {
@@ -381,4 +386,86 @@ export const EVAL_NOTES: EvalNote[] = [
   { id: 'date-import-relative', today: '2026-03-10', clientName: 'Delta', source: 'paste',
     note: "I'll send the samples this Friday.",
     expected: { ...empty, summary: 'Rep will send the samples this Friday.', promises: [{ text: 'Send the samples', owner: 'rep', due_date: '2026-03-13', due_raw: 'this Friday', confidence: 'high' }] } },
+  // ==== REQ-CERT — the requirements field (v0.9.1), CERTIFIED by the owner 2026-09-04. ====
+  // Corrections applied: (A) fixture req-clear keeps "budget around 4 million" — adding a
+  // currency ("AED") is an inference the note does not state. (B) fixture req-beside-tier1
+  // emits the "has a son" personal fact AND keeps "for his son" in the requirement text — a
+  // second over-suppression guard next to a redacted Emirates ID. Rulings: a client question
+  // is NOT a requirement; a concern/complaint/speculation is NOT a requirement; stated_on = the
+  // note's reference date (= today for a fresh note). Every expected value traces to explicit text.
+  {
+    id: 'req-clear', today: '2026-07-09', clientName: 'Palm Realty', source: 'paste',
+    note: 'Omar at Palm Realty is looking for a 3-bed villa in Arabian Ranches, budget around 4 million.',
+    expected: { ...empty,
+      summary: 'Omar at Palm Realty is looking for a 3-bed villa in Arabian Ranches, budget around 4 million.',
+      people: [{ name: 'Omar', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+      requirements: [{ text: 'A 3-bed villa in Arabian Ranches (budget around 4 million)', requirement_raw: 'looking for a 3-bed villa in Arabian Ranches, budget around 4 million', stated_on: '2026-07-09', confidence: 'high' }],
+    },
+  },
+  {
+    id: 'req-concern-boundary', today: '2026-07-09', clientName: 'Marina Estates', source: 'voice',
+    note: 'Spoke to Layla at Marina Estates. She said the pricing on the units we showed is above her budget.',
+    expected: { ...empty,
+      summary: 'Layla at Marina Estates said the pricing on the units shown is above her budget.',
+      people: [{ name: 'Layla', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+      concerns: ['Pricing on the units shown is above her budget'],
+      requirements: [],
+    },
+  },
+  {
+    id: 'req-rep-speculation', today: '2026-07-09', clientName: 'Nassar Family', source: 'voice',
+    note: "Met the Nassar family. I think they'd probably want the corner unit, but they didn't actually say.",
+    expected: { ...empty,
+      summary: 'Met the Nassar family; the rep suspects they would want the corner unit, but they did not say so.',
+      requirements: [],
+    },
+  },
+  {
+    id: 'req-client-question', today: '2026-07-09', clientName: 'Ahmed', source: 'paste',
+    note: 'Ahmed messaged asking: do you have anything with parking?',
+    expected: { ...empty,
+      summary: 'Ahmed asked whether there is anything available with parking.',
+      requirements: [],
+    },
+  },
+  {
+    id: 'req-conditional', today: '2026-07-09', clientName: 'Fatima', source: 'voice',
+    note: "Fatima said if the mortgage clears, they'd want two units side by side in the same tower.",
+    expected: { ...empty,
+      summary: 'Fatima said that, if the mortgage clears, they would want two units side by side in the same tower.',
+      requirements: [{ text: 'Two units side by side in the same tower', requirement_raw: "if the mortgage clears, they'd want two units side by side in the same tower", stated_on: '2026-07-09', confidence: 'low' }],
+    },
+  },
+  {
+    id: 'req-code-switched', today: '2026-07-09', clientName: 'Downtown Living', source: 'paste', multilingual: true,
+    note: 'يدور على شقة قريبة من المترو، two bedrooms.',
+    expected: { ...empty,
+      summary: 'Client is looking for a two-bedroom apartment near the metro.',
+      requirements: [{ text: 'A two-bedroom apartment near the metro', requirement_raw: 'يدور على شقة قريبة من المترو، two bedrooms', stated_on: '2026-07-09', confidence: 'high' }],
+    },
+  },
+  {
+    id: 'req-beside-tier1', today: '2026-07-09', clientName: 'Ravi', source: 'paste',
+    note: 'Ravi is looking for a 1-bed in JLT for his son. He shared his Emirates ID 784-1990-1234567-1 for the paperwork.',
+    expected: { ...empty,
+      summary: 'Ravi is looking for a 1-bed in JLT for his son; he shared his Emirates ID for the paperwork.',
+      personal_facts: [{ subject: 'Ravi', fact: 'Has a son', category: 'family' }],
+      requirements: [{ text: 'A 1-bed in JLT (for his son)', requirement_raw: 'looking for a 1-bed in JLT for his son', stated_on: '2026-07-09', confidence: 'high' }],
+    },
+    forbidden: ['784-1990-1234567-1', '784-1990', '1234567', '784 1990 1234567 1', '7841990'],
+  },
+  // JC1 — the 8th, import-dated fixture. The transcript spans March→July; TODAY'S DATE (the
+  // import/reference date) is 2026-07-09, but the need was stated on the 15/03/2026 line, so
+  // stated_on = 2026-03-15 (≠ today). 15 > 12 forces DD/MM, so the date is unambiguous. If the
+  // model sets stated_on to today's injected date instead of the message's own date, this fails
+  // — the only fixture that can catch stated_on regressing to the reference clock (Rule 8).
+  {
+    id: 'req-import-dated', today: '2026-07-09', clientName: 'Mirdif Holdings', source: 'whatsapp_export',
+    importMessageDate: '2026-03-15',
+    note: '[15/03/2026, 14:22] Client: We are looking for a 3-bed with a maids room in Mirdif\n[09/07/2026, 10:05] Client: Any update on that?',
+    expected: { ...empty,
+      summary: "Client is looking for a 3-bed with a maid's room in Mirdif; later followed up asking for an update.",
+      requirements: [{ text: "A 3-bed with a maid's room in Mirdif", requirement_raw: 'We are looking for a 3-bed with a maids room in Mirdif', stated_on: '2026-03-15', confidence: 'high' }],
+    },
+  },
 ];

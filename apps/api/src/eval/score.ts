@@ -1,9 +1,10 @@
-import type { Extraction, ExtractedPromise, ExtractedPerson } from '../services/extraction/types.js';
+import type { Extraction, ExtractedPromise, ExtractedPerson, Requirement } from '../services/extraction/types.js';
 
 /** Per-note scoring counts for the quality gate. */
 export interface NoteScore {
   promises: { tp: number; fp: number; fn: number };
   people: { tp: number; fp: number; fn: number };
+  requirements: { tp: number; fp: number; fn: number }; // REQ-CERT: the new `requirements` field
   dates: { resolvedExpected: number; expectedResolvable: number };
   fabricatedPromises: number; // predicted promises with no matching expected
   guessedDates: number; // predicted a specific date where the truth is null
@@ -11,6 +12,10 @@ export interface NoteScore {
   falseCertainties: number; // a promise the key marks low-confidence returned as high — an unconfirmed guess presented as a fact
   leakedValues: number; // REDACT-5: a forbidden sensitive value/fragment appeared in the model output
   nullNamedPeople: number; // Rule 5: a person emitted with a null/empty name (a role-only reference) — never allowed
+  // REQ-CERT diagnostics (the requirements regression risks, tracked distinctly):
+  requirementFalsePositives: number; // a concern/complaint/question/speculation emitted AS a requirement — the flagged concern↔requirement leak. Alias of requirements.fp, surfaced by name.
+  requirementDateErrors: number; // a MATCHED requirement whose stated_on ≠ the key's (Rule 8 / DATE-REF: stated_on must be the note's reference date, not today's real clock)
+  requirementConfInflation: number; // a MATCHED requirement the key marks low returned as high — a conditional/vague need presented as firm (Rule 8 false certainty)
 }
 
 function tokens(s: string): Set<string> {
@@ -36,6 +41,14 @@ function personMatches(p: ExtractedPerson, e: ExtractedPerson): boolean {
   return !!e.name && (p.name ?? '').trim().toLowerCase() === e.name.trim().toLowerCase();
 }
 
+/** A predicted requirement matches an expected one on the meaning of the need. We compare
+ *  the verbatim `requirement_raw` (the phrase the rule pins) OR the normalised `text`, taking
+ *  the stronger of the two — the model may phrase `text` differently but should quote the same
+ *  raw span. 0.34 mirrors the promise threshold. */
+function requirementMatches(p: Requirement, e: Requirement): boolean {
+  return Math.max(jaccard(p.requirement_raw, e.requirement_raw), jaccard(p.text, e.text)) >= 0.34;
+}
+
 /** Score one predicted extraction against the known-correct expected. `mustNotMerge`
  *  lists name pairs that must appear as two DISTINCT people (never collapsed). */
 export function scoreNote(
@@ -47,6 +60,7 @@ export function scoreNote(
   const score: NoteScore = {
     promises: { tp: 0, fp: 0, fn: 0 },
     people: { tp: 0, fp: 0, fn: 0 },
+    requirements: { tp: 0, fp: 0, fn: 0 },
     dates: { resolvedExpected: 0, expectedResolvable: 0 },
     fabricatedPromises: 0,
     guessedDates: 0,
@@ -54,6 +68,9 @@ export function scoreNote(
     falseCertainties: 0,
     leakedValues: 0,
     nullNamedPeople: 0,
+    requirementFalsePositives: 0,
+    requirementDateErrors: 0,
+    requirementConfInflation: 0,
   };
 
   const predicted = actual ?? {
@@ -64,6 +81,7 @@ export function scoreNote(
     key_dates: [],
     concerns: [],
     next_steps: [],
+    requirements: [],
     meeting: null,
   };
 
@@ -130,6 +148,29 @@ export function scoreNote(
     if (!(hasName(a) && hasName(b))) score.mergedPeople += 1;
   }
 
+  // Requirements (REQ-CERT). tp/fp/fn drive precision/recall; fp is the concern↔requirement leak
+  // (a complaint, question or rep speculation emitted as a stated need) — the flagged regression.
+  const expectedReqs = expected.requirements ?? [];
+  const predictedReqs = predicted.requirements ?? [];
+  const matchedReqs = new Set<number>();
+  for (const p of predictedReqs) {
+    const idx = expectedReqs.findIndex((e, i) => !matchedReqs.has(i) && requirementMatches(p, e));
+    if (idx >= 0) {
+      matchedReqs.add(idx);
+      score.requirements.tp += 1;
+      const e = expectedReqs[idx]!;
+      // Rule 8: stated_on must be the note's reference date. A matched requirement with the wrong
+      // stated_on is the DATE-REF regression the 8th (import-dated) fixture exists to catch.
+      if ((p.stated_on ?? null) !== (e.stated_on ?? null)) score.requirementDateErrors += 1;
+      // A conditional/vague need (key = low) returned high is a requirement false certainty.
+      if (e.confidence === 'low' && p.confidence === 'high') score.requirementConfInflation += 1;
+    } else {
+      score.requirements.fp += 1;
+    }
+  }
+  score.requirements.fn = expectedReqs.length - matchedReqs.size;
+  score.requirementFalsePositives = score.requirements.fp;
+
   if (forbidden.length) {
     const blob = JSON.stringify(predicted).toLowerCase();
     for (const f of forbidden) if (blob.includes(f.toLowerCase())) score.leakedValues += 1;
@@ -152,12 +193,16 @@ function metrics(tp: number, fp: number, fn: number): FieldMetrics {
 export interface AggregateMetrics {
   promises: FieldMetrics;
   people: FieldMetrics;
+  requirements: FieldMetrics;
   fabricatedPromises: number;
   guessedDates: number;
   mergedPeople: number;
   falseCertainties: number;
   leakedValues: number;
   nullNamedPeople: number;
+  requirementFalsePositives: number;
+  requirementDateErrors: number;
+  requirementConfInflation: number;
   notes: number;
 }
 
@@ -166,12 +211,16 @@ export function aggregate(scores: NoteScore[]): AggregateMetrics {
   return {
     promises: metrics(sum((s) => s.promises.tp), sum((s) => s.promises.fp), sum((s) => s.promises.fn)),
     people: metrics(sum((s) => s.people.tp), sum((s) => s.people.fp), sum((s) => s.people.fn)),
+    requirements: metrics(sum((s) => s.requirements.tp), sum((s) => s.requirements.fp), sum((s) => s.requirements.fn)),
     fabricatedPromises: sum((s) => s.fabricatedPromises),
     guessedDates: sum((s) => s.guessedDates),
     mergedPeople: sum((s) => s.mergedPeople),
     falseCertainties: sum((s) => s.falseCertainties),
     leakedValues: sum((s) => s.leakedValues),
     nullNamedPeople: sum((s) => s.nullNamedPeople),
+    requirementFalsePositives: sum((s) => s.requirementFalsePositives),
+    requirementDateErrors: sum((s) => s.requirementDateErrors),
+    requirementConfInflation: sum((s) => s.requirementConfInflation),
     notes: scores.length,
   };
 }

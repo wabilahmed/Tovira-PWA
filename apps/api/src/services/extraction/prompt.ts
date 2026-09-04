@@ -15,7 +15,7 @@
 
 import { renderGlossary, type GlossaryEntry } from './glossary.js';
 
-export const PROMPT_VERSION = 'tovira-extract-v0.9';
+export const PROMPT_VERSION = 'tovira-extract-v0.9.1';
 
 export interface ExtractionPromptInput {
   today: string; // YYYY-MM-DD
@@ -242,7 +242,7 @@ Input:
 Output:
 {"summary":"Layla at Marina Estates wants a 2-bed near the marina before summer; flagged high service charges on the last property.","promises":[],"people":[{"name":"Layla","role":null,"reports_to":null,"decision_role":"unknown","notes":"Contact at Marina Estates"}],"personal_facts":[],"key_dates":[],"concerns":["Service charges on the last property shown were too high"],"next_steps":[],"requirements":[{"text":"A 2-bed near the marina","requirement_raw":"looking for a 2-bed near the marina","stated_on":null,"confidence":"high"},{"text":"To move in before the summer","requirement_raw":"wants to move in before the summer","stated_on":null,"confidence":"high"},{"text":"Two units","requirement_raw":"if the budget clears she'd take two units","stated_on":null,"confidence":"low"}],"meeting":null}
 
-Note: the marina 2-bed and the move-in timing are stated NEEDS → requirements, kept verbatim in requirement_raw. The high service charges are a COMPLAINT about a past option → a concern, NOT a requirement. The two-units line is conditional ("if the budget clears") → captured at confidence "low". stated_on is null because no explicit date was given for when she said it.
+Note: the marina 2-bed and the move-in timing are stated NEEDS → requirements, kept verbatim in requirement_raw. The high service charges are a COMPLAINT about a past option → a concern, NOT a requirement. The two-units line is conditional ("if the budget clears") → captured at confidence "low". On stated_on: for a need stated in the current note you MUST set stated_on to TODAY'S DATE given below — it is printed as null in this static example only because the example carries no injected date (the same reason due_date reads null for "this Friday" in the examples above); resolve it to today's date in real output. Emit null only when the note attributes the need to an earlier, undated time.
 
 Follow these rules and the shape of these examples exactly. Output only the JSON object.`;
 

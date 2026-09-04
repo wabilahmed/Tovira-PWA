@@ -61,3 +61,44 @@ describe('eval set — multilingual coverage (P1-9)', () => {
     expect(hasNullDatePromise).toBe(true);
   });
 });
+
+// REQ-CERT (2026-09-04): the certified `requirements` fixtures self-enforce their own point.
+describe('eval set — requirements coverage (REQ-CERT)', () => {
+  const req = EVAL_NOTES.filter((n) => n.id.startsWith('req-'));
+
+  it('includes the certified requirements fixtures', () => {
+    expect(req.length).toBeGreaterThanOrEqual(8);
+  });
+
+  // The flagged regression guard: at least one fixture proves a concern is NOT a requirement
+  // (concerns non-empty, requirements empty).
+  it('carries a concern-not-requirement boundary fixture', () => {
+    const boundary = req.filter((n) => n.expected.concerns.length > 0 && (n.expected.requirements ?? []).length === 0);
+    expect(boundary.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // JC1: an import-dated fixture whose stated_on tracks the message date, NOT today — the only
+  // way this set can catch stated_on regressing to the reference clock (the DATE-REF class).
+  it('proves stated_on tracks the reference date, not today (import fixture)', () => {
+    const imported = req.filter((n) => n.importMessageDate);
+    expect(imported.length).toBeGreaterThanOrEqual(1);
+    for (const n of imported) {
+      const reqs = n.expected.requirements ?? [];
+      expect(reqs.length).toBeGreaterThanOrEqual(1);
+      for (const r of reqs) {
+        expect(r.stated_on).toBe(n.importMessageDate); // stated_on = the message's own date
+        expect(r.stated_on).not.toBe(n.today); // and it genuinely differs from the injected TODAY
+      }
+    }
+  });
+
+  // Every expected requirement is well-formed and traces to a verbatim phrase.
+  it('every expected requirement is well-formed', () => {
+    for (const n of req) for (const r of n.expected.requirements ?? []) {
+      expect(typeof r.text).toBe('string');
+      expect(r.requirement_raw.length).toBeGreaterThan(0);
+      expect(r.stated_on === null || typeof r.stated_on === 'string').toBe(true);
+      expect(['high', 'low']).toContain(r.confidence);
+    }
+  });
+});
