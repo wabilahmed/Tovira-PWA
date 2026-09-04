@@ -212,3 +212,63 @@ describe('[P1-4b] import a WhatsApp chat export', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// --- IMPORT-ZIP: what WhatsApp actually exports (a .zip), uploaded as base64 bytes ---
+const zu16 = (n: number) => { const x = Buffer.alloc(2); x.writeUInt16LE(n); return x; };
+const zu32 = (n: number) => { const x = Buffer.alloc(4); x.writeUInt32LE(n); return x; };
+function makeZip(entries: Array<{ name: string; data: Buffer }>): Buffer {
+  const locals: Buffer[] = []; const centrals: Buffer[] = []; let offset = 0;
+  for (const e of entries) {
+    const nb = Buffer.from(e.name, 'utf8');
+    const lfh = Buffer.concat([zu32(0x04034b50), zu16(20), zu16(0), zu16(0), zu16(0), zu16(0), zu32(0), zu32(e.data.length), zu32(e.data.length), zu16(nb.length), zu16(0), nb, e.data]);
+    locals.push(lfh);
+    centrals.push(Buffer.concat([zu32(0x02014b50), zu16(20), zu16(20), zu16(0), zu16(0), zu16(0), zu16(0), zu32(0), zu32(e.data.length), zu32(e.data.length), zu16(nb.length), zu16(0), zu16(0), zu16(0), zu16(0), zu32(0), zu32(offset), nb]));
+    offset += lfh.length;
+  }
+  const cd = Buffer.concat(centrals); const all = Buffer.concat(locals);
+  const eocd = Buffer.concat([zu32(0x06054b50), zu16(0), zu16(0), zu16(entries.length), zu16(entries.length), zu32(cd.length), zu32(all.length), zu16(0)]);
+  return Buffer.concat([all, cd, eocd]);
+}
+
+describe('[IMPORT-ZIP] accept what WhatsApp actually exports', () => {
+  it('imports an iOS-shaped zip (_chat.txt + media) uploaded as base64', async () => {
+    const { token } = await signup('zip-ios@example.com');
+    const cid = await createClient(token, 'Sara Lee');
+    const zip = makeZip([
+      { name: '_chat.txt', data: Buffer.from(EXPORT) },
+      { name: 'IMG-20260115.jpg', data: Buffer.from([0x00, 0xff, 0xd8, 0x00]) },
+    ]);
+    const res = await importChat(token, cid, { contentBase64: zip.toString('base64'), consent: true });
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { imported: number };
+    expect(body.imported).toBeGreaterThan(0);
+    const notes = await listNotes(token, cid);
+    expect(notes.some((n) => n.source === 'whatsapp_export' && (n.messages?.length ?? 0) > 0)).toBe(true);
+  });
+
+  it('imports a zip whose transcript has a localised (non _chat) filename — detection is by content', async () => {
+    const { token } = await signup('zip-loc@example.com');
+    const cid = await createClient(token, 'Sara Lee');
+    const zip = makeZip([{ name: 'Discussion WhatsApp avec Sara.txt', data: Buffer.from(EXPORT) }]);
+    const res = await importChat(token, cid, { contentBase64: zip.toString('base64'), consent: true });
+    expect(res.status).toBe(202);
+  });
+
+  it('rejects a zip with no transcript, naming what was found (422)', async () => {
+    const { token } = await signup('zip-empty@example.com');
+    const cid = await createClient(token, 'Sara Lee');
+    const zip = makeZip([{ name: 'readme.txt', data: Buffer.from('nothing chat-shaped here') }]);
+    const res = await importChat(token, cid, { contentBase64: zip.toString('base64'), consent: true });
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { reason: string };
+    expect(body.reason).toMatch(/no whatsapp transcript/i);
+    expect(body.reason).toContain('readme.txt');
+  });
+
+  it('still accepts a bare .txt uploaded as base64 (the picker path)', async () => {
+    const { token } = await signup('txt-b64@example.com');
+    const cid = await createClient(token, 'Sara Lee');
+    const res = await importChat(token, cid, { contentBase64: Buffer.from(EXPORT).toString('base64'), consent: true });
+    expect(res.status).toBe(202);
+  });
+});

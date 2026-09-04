@@ -11,6 +11,7 @@ import type { NotificationRepository } from '../ports/notification-repository.js
 import type { LedgerService } from '../services/ledger/ledger-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
+import { resolveTranscript } from '../services/import/resolve.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
@@ -189,7 +190,7 @@ export async function handleNoteRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const body = (await readJsonBody(req)) as { content?: unknown; consent?: unknown };
+      const body = (await readJsonBody(req)) as { content?: unknown; contentBase64?: unknown; consent?: unknown };
       // A full export contains everything in the chat — require explicit consent.
       if (body.consent !== true) {
         sendJson(res, 400, {
@@ -198,7 +199,28 @@ export async function handleNoteRoute(
         });
         return true;
       }
-      const content = typeof body.content === 'string' ? body.content : '';
+      // IMPORT-ZIP: a file upload arrives as base64 bytes (iOS exports a .zip; the picker also
+      // sends bare .txt this way). Detect the format by CONTENT, not filename or MIME — mobile
+      // browsers routinely report the wrong MIME. A zip is unpacked and the transcript chosen by
+      // which entry parses. A pasted chat still arrives as `content` text (path unchanged).
+      let content: string;
+      if (typeof body.contentBase64 === 'string' && body.contentBase64.length > 0) {
+        // Cap the raw upload before decoding (a compressed chat export is small; this bounds the
+        // base64 blow-up and the buffer we hold). Decompression caps live in the zip reader.
+        if (body.contentBase64.length > MAX_IMPORT_CHARS * 2) {
+          sendJson(res, 413, { error: 'too_large', message: 'The upload is too large.' });
+          return true;
+        }
+        const buf = Buffer.from(body.contentBase64, 'base64');
+        const resolved = resolveTranscript(buf);
+        if (!resolved.ok) {
+          sendJson(res, 422, { error: 'import_failed', reason: resolved.reason });
+          return true;
+        }
+        content = resolved.text;
+      } else {
+        content = typeof body.content === 'string' ? body.content : '';
+      }
       if (!content.trim()) {
         sendJson(res, 400, { error: 'validation', message: 'The export file is empty.' });
         return true;
