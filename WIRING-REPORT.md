@@ -44,9 +44,15 @@ rep tapped Rescan by hand — the proactive product, not firing proactively.
 
 Fixed in `fix(SCAN-WIRING)`: a `daily-scan` brain job (peer of `meeting-nudges`/`monday-digest`, every
 3h) via a testable `ScanRunnerService`, idempotent (dedupe keys) and bounded by the 2/day silence
-budget. **Behavior change, flagged:** production reps now begin receiving automated
-overdue/cooling/date/chat-refresh alerts (in-app always; ≤2/day pushed) — held-behind-a-flag is one
-word away if you'd rather gate the onset.
+budget.
+
+**The honest summary these six findings add up to:** combined with the Monday digest and the meeting
+nudges — both also unwired until this week — **essentially the entire proactive layer had been
+manual-only.** Nothing pushed, nudged, or digested on its own; every proactive output waited for a rep
+to tap a button or open a screen. That reframes what "the proactive layer works" meant in every prior
+status report: the logic worked, the *automation* did not. As of this week it actually runs.
+(Deployed without a flag: there are no production reps yet, so there is no one to surprise, and a flag
+would be debt guarding an empty population.)
 
 ## The guard (B2) — coverage + allow-list
 `wiring-guard.test.ts` makes the audit self-enforcing at zero model cost:
