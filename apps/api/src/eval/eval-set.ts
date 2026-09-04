@@ -500,4 +500,35 @@ export const EVAL_NOTES: EvalNote[] = [
       requirements: [{ text: 'A 3-bed in Arabian Ranches with a garden', requirement_raw: 'looking for a 3-bed in Arabian Ranches with a garden', stated_on: '2026-07-09', confidence: 'high' }],
     },
   },
+  // ==== REQ-3P — the v0.9.3 actor-distinction fixtures, CERTIFIED by the owner 2026-09-05. ====
+  // The v0.9.2 residual (30/30 FPs) was one class: a need the client REPORTS for a third party.
+  // The test is who is doing the LOOKING, not who benefits. Every expected value traces to text.
+  {
+    id: 'req-third-party-referral', today: '2026-07-09', clientName: 'Omar', source: 'voice',
+    note: 'Quick call with Omar. He mentioned his colleague is looking for a 2-bed in the Marina, budget around 3 million.',
+    expected: { ...empty,
+      summary: 'Quick call with Omar; he mentioned his colleague is looking for a 2-bed in the Marina, budget around 3 million.',
+      next_steps: ["Follow up on the colleague's interest in a 2-bed in the Marina, budget around 3 million"],
+      requirements: [], // the COLLEAGUE is looking; Omar is reporting → a referral, recorded faithfully (budget kept) in next_steps, not a requirement
+    },
+  },
+  {
+    id: 'req-on-behalf-of', today: '2026-07-09', clientName: 'Layla', source: 'voice',
+    note: 'Layla is looking for a 3-bed in Mirdif for her elderly parents, ground floor.',
+    expected: { ...empty,
+      summary: 'Layla is looking for a 3-bed in Mirdif for her elderly parents, ground floor.',
+      requirements: [{ text: 'A 3-bed in Mirdif for her elderly parents (ground floor)', requirement_raw: 'looking for a 3-bed in Mirdif for her elderly parents, ground floor', stated_on: '2026-07-09', confidence: 'high' }],
+      // LAYLA is the one looking, on her parents' behalf → her requirement, high (who is looking, not who benefits) — the on-behalf-of recall guard.
+    },
+  },
+  {
+    id: 'req-actor-split', today: '2026-07-09', clientName: 'Faisal', source: 'voice',
+    note: 'Faisal is looking for a 2-bed in Downtown for himself. He also said his brother is after a villa in the Springs.',
+    expected: { ...empty,
+      summary: 'Faisal is looking for a 2-bed in Downtown for himself; he said his brother is after a villa in the Springs.',
+      next_steps: ["Follow up on the brother's interest in a villa in the Springs"],
+      requirements: [{ text: 'A 2-bed in Downtown', requirement_raw: 'looking for a 2-bed in Downtown for himself', stated_on: '2026-07-09', confidence: 'high' }],
+      // Faisal looking (own → requirement) vs brother looking (reported → next step) in ONE note — the discrimination test.
+    },
+  },
 ];

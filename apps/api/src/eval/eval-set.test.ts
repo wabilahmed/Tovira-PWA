@@ -101,6 +101,16 @@ describe('eval set — requirements coverage (REQ-CERT)', () => {
     expect(guard.length).toBeGreaterThanOrEqual(1);
   });
 
+  // REQ-3P (v0.9.3): the actor-distinction fixtures — a reported third-party need is a referral
+  // (next_steps), an on-behalf-of need is the client's own requirement, and both split correctly
+  // in one note.
+  it('carries the actor-distinction fixtures (third-party referral, on-behalf-of, actor-split)', () => {
+    const ids = new Set(req.map((n) => n.id));
+    expect(ids.has('req-third-party-referral')).toBe(true);
+    expect(ids.has('req-on-behalf-of')).toBe(true);
+    expect(ids.has('req-actor-split')).toBe(true);
+  });
+
   it('every expected requirement is well-formed', () => {
     for (const n of req) for (const r of n.expected.requirements ?? []) {
       expect(typeof r.text).toBe('string');
