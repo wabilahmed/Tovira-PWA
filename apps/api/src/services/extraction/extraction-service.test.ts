@@ -240,4 +240,35 @@ describe('ExtractionService', () => {
     expect(called).toBe(0); // never called the model
     expect((await notes.findByIdForUser('u', note.id))!.status).toBe('pending_extraction'); // note untouched
   });
+
+  // MISFILE-POST (B2): after extraction, a note whose people belong only to another client gets a
+  // soft move-suggestion; a correctly-filed note gets none.
+  it('stores a move-suggestion when a note mentions only another client\'s people', async () => {
+    const person = (name: string) => ({ name, role: null, reports_to: null, decision_role: 'unknown', notes: null });
+    const extraction = JSON.stringify({ summary: 'Talked to Sarah and Jordan.', promises: [], people: [person('Sarah'), person('Jordan')], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null });
+
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const meridian = await clients.create('user-A', 'Meridian');
+    const newco = await clients.create('user-A', 'Newco');
+    // Seed Meridian's record with Sarah + Jordan (a prior extracted note).
+    const prior = await notes.create('user-A', { clientId: meridian.id, source: 'paste', rawText: 'x', audioKey: null, status: 'pending_extraction' });
+    await notes.update('user-A', prior.id, { status: 'extracted', extracted: JSON.parse(extraction) });
+
+    // A voice note filed under NEWCO mentioning only Sarah + Jordan → suggest moving to Meridian.
+    const misfiled = await notes.create('user-A', { clientId: newco.id, source: 'voice', rawText: 'talked to Sarah and Jordan', audioKey: null, status: 'pending_extraction' });
+    const svc = new ExtractionService(model(extraction), clients, notes, facts, new StubEmbedder(8), logs, 'stub');
+    await svc.extractNote('user-A', misfiled.id, '2026-07-09');
+    const stored = await notes.findByIdForUser('user-A', misfiled.id);
+    expect(stored?.moveSuggestion?.toClientId).toBe(meridian.id);
+    expect(stored?.moveSuggestion?.mentioned).toEqual(expect.arrayContaining(['Sarah', 'Jordan']));
+
+    // A note correctly filed under Meridian (overlap with its record) → NO suggestion.
+    const ok = await notes.create('user-A', { clientId: meridian.id, source: 'voice', rawText: 'x', audioKey: null, status: 'pending_extraction' });
+    const svc2 = new ExtractionService(model(extraction), clients, notes, facts, new StubEmbedder(8), logs, 'stub');
+    await svc2.extractNote('user-A', ok.id, '2026-07-09');
+    expect((await notes.findByIdForUser('user-A', ok.id))?.moveSuggestion ?? null).toBeNull();
+  });
 });

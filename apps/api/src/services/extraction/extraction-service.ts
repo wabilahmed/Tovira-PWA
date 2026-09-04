@@ -15,6 +15,7 @@ import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './pr
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
+import { detectMisfilePostExtraction } from '../import/misfile.js';
 import type { Extraction } from './types.js';
 
 export interface ExtractOutcome {
@@ -88,6 +89,37 @@ export class ExtractionService {
   /** Persist a proposed meeting for a note (idempotent per note). `confirmed` comes from the
    *  proposal: a "locked in" meeting is confirmed:true (immediately nudgeable); a mere proposal is
    *  confirmed:false and waits for the rep. The wall-clock time is resolved on the rep's clock. */
+  /** MISFILE-POST (B2): store a soft move-suggestion when this note's people point only at another
+   *  client. Deterministic (extracted people vs known people), conservative (needs zero overlap
+   *  with the filed client AND a positive match elsewhere). Runs after `extracted` is persisted, so
+   *  this note's own people are excluded from the filed client's set. */
+  private async detectAndStoreMisfile(userId: string, noteId: string, clientId: string, extraction: Extraction): Promise<void> {
+    const notePeople = (extraction.people ?? [])
+      .map((p) => p.name)
+      .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
+    if (notePeople.length === 0) return;
+    const namesOf = (notes: Array<{ id: string; extracted: unknown }>, excludeNoteId?: string): string[] => {
+      const out = new Set<string>();
+      for (const n of notes) {
+        if (n.id === excludeNoteId) continue;
+        const ex = n.extracted as { people?: Array<{ name?: unknown }> } | null;
+        for (const p of ex?.people ?? []) if (typeof p.name === 'string' && p.name.trim()) out.add(p.name.trim());
+      }
+      return [...out];
+    };
+    const filedOther = namesOf(await this.notes.listByClient(userId, clientId), noteId);
+    const otherClients = (await this.clients.listByUser(userId)).filter((c) => c.id !== clientId);
+    const others: Array<{ id: string; name: string; people: string[] }> = [];
+    for (const c of otherClients) {
+      others.push({ id: c.id, name: c.name, people: namesOf(await this.notes.listByClient(userId, c.id)) });
+    }
+    const result = detectMisfilePostExtraction({ notePeople, filedClient: { id: clientId, name: '' }, filedClientOtherPeople: filedOther, others });
+    const suggestion = result.status === 'suggest_move'
+      ? { toClientId: result.to?.id ?? null, toClientName: result.to?.name ?? null, mentioned: result.mentioned, reason: result.reason, createdAt: this.now() }
+      : null;
+    await this.notes.update(userId, noteId, { moveSuggestion: suggestion });
+  }
+
   private async persistProposedMeeting(userId: string, noteId: string, clientId: string, meeting: Meeting): Promise<void> {
     if (!this.meetings) return;
     if (await this.meetings.findByNoteId(userId, noteId)) return; // already persisted — idempotent
@@ -196,6 +228,14 @@ export class ExtractionService {
           } catch (err) {
             console.warn(`[extract] proposed-meeting persist failed for note ${noteId}`, err);
           }
+        }
+        // MISFILE-POST (B2): now the people are extracted, check — deterministically, no model
+        // call — whether this note actually looks like it belongs to another client, and store a
+        // soft suggestion for the confirmation queue. Best-effort; never loses the facts.
+        try {
+          await this.detectAndStoreMisfile(userId, noteId, note.clientId, extraction);
+        } catch (err) {
+          console.warn(`[misfile-post] detection failed for note ${noteId}`, err);
         }
       }
       status = hold ? 'pending_confirmation' : 'extracted';

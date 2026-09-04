@@ -15,6 +15,17 @@ export interface ImportedMessage {
   role: 'client' | 'rep' | 'unknown';
 }
 
+/** MISFILE-POST (B2): a soft, deterministic suggestion that this note may belong to another
+ *  client (it mentions only people on that client's record). Surfaced in the confirmation queue;
+ *  the rep decides. Null once acted on (moved) or when there is no suggestion. */
+export interface MoveSuggestion {
+  toClientId: string | null; // the single likely client, or null when several match
+  toClientName: string | null;
+  mentioned: string[]; // the people that pointed elsewhere
+  reason: string;
+  createdAt: number;
+}
+
 export interface NoteRecord {
   id: string;
   userId: string;
@@ -27,6 +38,7 @@ export interface NoteRecord {
   sweepAttempts: number;
   extracted: unknown | null;
   messages: ImportedMessage[] | null;
+  moveSuggestion?: MoveSuggestion | null;
   createdAt: number;
 }
 
@@ -46,6 +58,9 @@ export interface NotePatch {
   extracted?: unknown | null;
   embedding?: number[] | null;
   messages?: ImportedMessage[] | null;
+  moveSuggestion?: MoveSuggestion | null;
+  /** MISFILE / NOTE-MOVE (B3): re-file this note under another of the rep's clients. */
+  clientId?: string;
 }
 
 export interface SimilarNote {
@@ -62,6 +77,8 @@ export interface NoteRepository {
   listPendingByUser(userId: string): Promise<NoteRecord[]>;
   /** Notes in a given status (e.g. 'pending_confirmation' for the Ask-capture queue), newest first. */
   listByStatusForUser(userId: string, status: string): Promise<NoteRecord[]>;
+  /** MISFILE-POST (B2): notes across all the rep's clients that carry a pending move-suggestion. */
+  listMoveSuggestionsByUser(userId: string): Promise<NoteRecord[]>;
   findByIdForUser(userId: string, id: string): Promise<NoteRecord | null>;
   update(userId: string, id: string, patch: NotePatch): Promise<void>;
   /** Hard-delete a note (Ask-capture reject/expire). The training log survives (0045). */

@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { ImportedMessage, NewNote, NotePatch, NoteRecord, NoteRepository, NoteSource, SimilarNote } from '../../ports/note-repository.js';
+import type { ImportedMessage, MoveSuggestion, NewNote, NotePatch, NoteRecord, NoteRepository, NoteSource, SimilarNote } from '../../ports/note-repository.js';
 import { withTenant } from '../../db/tenant.js';
 
 interface NoteRow {
@@ -13,6 +13,7 @@ interface NoteRow {
   sweep_attempts: number;
   extracted: unknown | null;
   messages: ImportedMessage[] | null;
+  move_suggestion: MoveSuggestion | null;
   created_at: Date;
 }
 
@@ -28,11 +29,12 @@ function toRecord(row: NoteRow): NoteRecord {
     sweepAttempts: row.sweep_attempts,
     extracted: row.extracted,
     messages: row.messages,
+    moveSuggestion: row.move_suggestion ?? null,
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, created_at';
+const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, move_suggestion, created_at';
 
 /** Postgres-backed note store; every method runs in a tenant tx (RLS enforced). */
 export class PgNoteRepository implements NoteRepository {
@@ -84,6 +86,15 @@ export class PgNoteRepository implements NoteRepository {
       const { rows } = await c.query(
         `SELECT ${COLUMNS} FROM notes WHERE status = $1 ORDER BY created_at DESC`,
         [status],
+      );
+      return (rows as unknown as NoteRow[]).map(toRecord);
+    });
+  }
+
+  async listMoveSuggestionsByUser(userId: string): Promise<NoteRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS} FROM notes WHERE move_suggestion IS NOT NULL AND status <> 'pending_confirmation' ORDER BY created_at DESC`,
       );
       return (rows as unknown as NoteRow[]).map(toRecord);
     });
@@ -171,6 +182,14 @@ export class PgNoteRepository implements NoteRepository {
       if (patch.messages !== undefined) {
         params.push(patch.messages === null ? null : JSON.stringify(patch.messages));
         sets.push(`messages = $${params.length}::jsonb`);
+      }
+      if (patch.moveSuggestion !== undefined) {
+        params.push(patch.moveSuggestion === null ? null : JSON.stringify(patch.moveSuggestion));
+        sets.push(`move_suggestion = $${params.length}::jsonb`);
+      }
+      if (patch.clientId !== undefined) {
+        params.push(patch.clientId);
+        sets.push(`client_id = $${params.length}`);
       }
       if (sets.length === 0) return;
       params.push(id);

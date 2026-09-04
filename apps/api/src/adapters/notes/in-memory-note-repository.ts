@@ -32,6 +32,7 @@ export class InMemoryNoteRepository implements NoteRepository {
       sweepAttempts: 0,
       extracted: null,
       messages: note.messages ?? null,
+      moveSuggestion: null,
       createdAt: Date.now() + this.seq++,
     };
     this.byId.set(record.id, record);
@@ -60,6 +61,12 @@ export class InMemoryNoteRepository implements NoteRepository {
       .sort((a, b) => b.createdAt - a.createdAt);
   }
 
+  async listMoveSuggestionsByUser(userId: string): Promise<NoteRecord[]> {
+    return [...this.byId.values()]
+      .filter((n) => n.userId === userId && n.moveSuggestion != null && n.status !== 'pending_confirmation')
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
   async findByIdForUser(userId: string, id: string): Promise<NoteRecord | null> {
     const note = this.byId.get(id);
     return note && note.userId === userId ? note : null;
@@ -81,6 +88,8 @@ export class InMemoryNoteRepository implements NoteRepository {
     if (patch.sweepAttempts !== undefined) note.sweepAttempts = patch.sweepAttempts;
     if (patch.extracted !== undefined) note.extracted = patch.extracted;
     if (patch.messages !== undefined) note.messages = patch.messages;
+    if (patch.moveSuggestion !== undefined) note.moveSuggestion = patch.moveSuggestion;
+    if (patch.clientId !== undefined) note.clientId = patch.clientId;
     if (patch.embedding !== undefined) {
       if (patch.embedding === null) this.embeddings.delete(id);
       else this.embeddings.set(id, patch.embedding);

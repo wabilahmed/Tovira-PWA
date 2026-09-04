@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { FactsRepository, PromisePatch } from '../ports/facts-repository.js';
+import type { NoteRepository } from '../ports/note-repository.js';
 import type { CorrectionRepository } from '../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../ports/extraction-log-repository.js';
 import type { LedgerService } from '../services/ledger/ledger-service.js';
@@ -16,6 +17,8 @@ export interface FactsRouteDeps {
   ledger?: LedgerService;
   /** NUDGE-UNCONFIRMED: unconfirmed proposed meetings ride the same confirmation queue. */
   meetings?: MeetingRepository;
+  /** MISFILE-POST (B2): notes with a pending move-suggestion ride the same queue. */
+  notes?: NoteRepository;
 }
 
 const CONFIRM_RE = /^\/promises\/([^/]+)\/confirm$/;
@@ -56,7 +59,18 @@ export async function handleFactsRoute(
     const promises = await deps.facts.listPromisesByUser(userId);
     // Unconfirmed proposed meetings sit in the same queue — "unconfirmed — is this right?".
     const meetings = deps.meetings ? await deps.meetings.listUnconfirmedByUser(userId) : [];
-    sendJson(res, 200, { promises: pendingConfirmations(promises), meetings });
+    // MISFILE-POST (B2): a note that looks like it belongs to another client rides here too — a
+    // soft "Move it?" the rep resolves. Never auto-applied.
+    const moveNotes = deps.notes ? await deps.notes.listMoveSuggestionsByUser(userId) : [];
+    const moveSuggestions = moveNotes.map((n) => ({
+      noteId: n.id,
+      fromClientId: n.clientId,
+      toClientId: n.moveSuggestion?.toClientId ?? null,
+      toClientName: n.moveSuggestion?.toClientName ?? null,
+      mentioned: n.moveSuggestion?.mentioned ?? [],
+      reason: n.moveSuggestion?.reason ?? '',
+    }));
+    sendJson(res, 200, { promises: pendingConfirmations(promises), meetings, moveSuggestions });
     return true;
   }
 
