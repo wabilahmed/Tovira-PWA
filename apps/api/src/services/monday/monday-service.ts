@@ -4,7 +4,14 @@ import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { PushDispatchService } from '../push/push-dispatch-service.js';
 import type { UnansweredQuestion } from '../import/unanswered.js';
-import { zonedTodayIso, zonedWeekdayHour } from '../time/zone.js';
+import { zonedTodayIso, zonedWeekdayHour, zonedWallClockToInstant } from '../time/zone.js';
+
+/** The slice of the matching engine the digest needs — the week's still-unacted strong suggestions. */
+export interface MondayMatchSource {
+  suggestionsSurfacedSince(userId: string, sinceMs: number): Promise<Array<{
+    itemTitle: string; clientId: string; receipt: { requirementRaw: string; statedOn: string | null; noteId: string };
+  }>>;
+}
 
 /**
  * Monday Morning Scan (P3-8): a weekly digest that sets up the rep's week —
@@ -21,6 +28,9 @@ export interface MondayDigest {
   coolingClients: Array<{ id: string; name: string; lastTouchedAt: number }>;
   unansweredQuestions: Array<{ clientId: string; question: string; date: string | null }>;
   upcomingDates: Array<{ clientId: string; description: string; date: string }>;
+  /** [INV-MATCH] Strong inventory suggestions surfaced this week the rep has not acted on (neither
+   *  shared nor dismissed) — a retrospective nudge, each carrying the client's quoted requirement. */
+  surfacedNotActed: Array<{ clientId: string; itemTitle: string; requirementRaw: string; statedOn: string | null; noteId: string }>;
   isLight: boolean;
 }
 
@@ -51,12 +61,20 @@ export class MondayDigestService {
     private readonly pushDispatch: PushDispatchService,
     /** [TZ-BOUNDARY] resolve "this week" on the REP's calendar — Monday is Monday where they are. */
     private readonly timezoneFor?: (userId: string) => Promise<string>,
+    /** [INV-MATCH] optional — supplies the week's still-unacted strong suggestions for the digest. */
+    private readonly matching?: MondayMatchSource,
   ) {}
 
   async build(userId: string, nowMs: number): Promise<MondayDigest> {
     // The rep's LOCAL date drives the week — a Dubai rep's "Monday" is not 00:00 UTC Monday.
-    const today = this.timezoneFor ? zonedTodayIso(await this.timezoneFor(userId), new Date(nowMs)) : isoDate(nowMs);
+    const tz = this.timezoneFor ? await this.timezoneFor(userId) : null;
+    const today = tz ? zonedTodayIso(tz, new Date(nowMs)) : isoDate(nowMs);
     const weekEnd = addDaysIso(today, 7);
+    const weekOf = mondayOfIso(today);
+    // Start-of-week as an INSTANT (rep-local Monday 00:00 → epoch ms) to compare against match createdAt.
+    const weekStartMs = tz
+      ? zonedWallClockToInstant(`${weekOf}T00:00`, tz).getTime()
+      : Date.parse(`${weekOf}T00:00:00Z`);
 
     const promisesDue = (await this.facts.listPromisesByUser(userId))
       .filter((p) => !p.done && p.dueDate && p.dueDate >= today && p.dueDate <= weekEnd)
@@ -79,8 +97,18 @@ export class MondayDigestService {
       }
     }
 
+    // [INV-MATCH] Strong suggestions surfaced this week the rep never acted on (seeing ≠ acting).
+    const surfacedNotActed = this.matching
+      ? (await this.matching.suggestionsSurfacedSince(userId, weekStartMs)).map((s) => ({
+          clientId: s.clientId, itemTitle: s.itemTitle,
+          requirementRaw: s.receipt.requirementRaw, statedOn: s.receipt.statedOn, noteId: s.receipt.noteId,
+        }))
+      : [];
+
+    // A "light" week is judged on OBLIGATIONS only — promises, cooling clients, questions, dates. A
+    // week clear of duties still shows any surfaced opportunities as their own (non-obligatory) section.
     const isLight = promisesDue.length === 0 && coolingClients.length === 0 && upcomingDates.length === 0 && unansweredQuestions.length === 0;
-    return { weekOf: mondayOfIso(today), promisesDue, coolingClients, unansweredQuestions, upcomingDates, isLight };
+    return { weekOf, promisesDue, coolingClients, unansweredQuestions, upcomingDates, surfacedNotActed, isLight };
   }
 
   /** Emit the weekly digest notification once per week (idempotent). */

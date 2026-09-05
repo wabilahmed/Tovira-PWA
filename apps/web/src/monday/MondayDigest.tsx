@@ -34,7 +34,11 @@ export function MondayDigest({ api, now = Date.now() }: { api: MondayApi; now?: 
   const mondayMs = digest.weekOf ? Date.parse(digest.weekOf) : now - (((new Date(now).getDay() + 6) % 7) * 86_400_000);
   const week = formatRange(mondayMs, mondayMs + 6 * 86_400_000);
 
-  if (digest.isLight) {
+  const surfaced = digest.surfacedNotActed ?? [];
+
+  // "Clear" means clear of OBLIGATIONS. If the only thing waiting is an unacted suggestion, the week
+  // is still light — but we show that section rather than claim there is nothing at all.
+  if (digest.isLight && surfaced.length === 0) {
     return (
       <section aria-label="The Monday Statement">
         <header className="tov-screenhead">
@@ -47,7 +51,7 @@ export function MondayDigest({ api, now = Date.now() }: { api: MondayApi; now?: 
   }
 
   const entries =
-    digest.promisesDue.length + digest.coolingClients.length + digest.unansweredQuestions.length + digest.upcomingDates.length;
+    digest.promisesDue.length + digest.coolingClients.length + digest.unansweredQuestions.length + digest.upcomingDates.length + surfaced.length;
 
   return (
     <section aria-label="The Monday Statement">
@@ -80,6 +84,18 @@ export function MondayDigest({ api, now = Date.now() }: { api: MondayApi; now?: 
         {digest.upcomingDates.map((d2, i) => (
           <Row key={i} left={d2.description} right={formatBody(d2.date)} />
         ))}
+      </Section>
+
+      {/* [INV-MATCH] Surfaced this week, not yet acted on — item to offer + the client's own words. */}
+      <Section testid="surfaced" label="Surfaced, not yet acted" count={surfaced.length}>
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
+          {surfaced.map((s, i) => (
+            <div key={i}>
+              <div>{s.itemTitle}</div>
+              <Receipt quote={s.requirementRaw} date={s.statedOn} />
+            </div>
+          ))}
+        </div>
       </Section>
     </section>
   );

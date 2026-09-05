@@ -233,3 +233,41 @@ describe('[INV-MATCH] trust rules (SPEC-DERIVED, not owner-certified)', () => {
     expect(forMid?.confidence).toBe('possible');
   });
 });
+
+// The Monday "surfaced but not acted this week" review — seeing is not acting.
+describe('[INV-MATCH] suggestionsSurfacedSince (Monday review)', () => {
+  it('returns strong matches surfaced on/after the boundary, with their receipts', async () => {
+    const { svc, req } = await fx();
+    const t0 = Date.now();
+    await svc.matchRequirement(USER, req, V_EXACT);
+    const out = await svc.suggestionsSurfacedSince(USER, t0);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.receipt.requirementRaw.length).toBeGreaterThan(0);
+  });
+
+  it('excludes matches surfaced before the boundary', async () => {
+    const { svc, req } = await fx();
+    await svc.matchRequirement(USER, req, V_EXACT);
+    expect(await svc.suggestionsSurfacedSince(USER, Date.now() + 1_000_000)).toHaveLength(0);
+  });
+
+  it('a merely SEEN suggestion still counts as unacted (viewedAt is ignored)', async () => {
+    const { svc, req } = await fx();
+    const t0 = Date.now();
+    await svc.matchRequirement(USER, req, V_EXACT);
+    await svc.markBadgeViewed(USER); // the rep saw it — but seeing is not acting
+    expect(await svc.suggestionsSurfacedSince(USER, t0)).toHaveLength(1);
+  });
+
+  it('excludes a dismissed (acted-on) match and never a possible one', async () => {
+    const { svc, req, matches, requirements, inventory } = await fx();
+    const t0 = Date.now();
+    const made = await svc.matchRequirement(USER, req, V_EXACT);
+    await matches.dismiss(USER, made[0]!.id); // acted on → gone from the review
+    // A possible-band pairing must never enter this strong-only review.
+    await inventory.create(USER, { title: 'maybe', description: 'x', quantity: 1, embedding: V_EXACT });
+    const [midReq] = await requirements.saveForNote(USER, 'n9', CID, [reqInput('possible match', V_POSSIBLE)]);
+    await svc.matchRequirement(USER, midReq!, V_POSSIBLE);
+    expect(await svc.suggestionsSurfacedSince(USER, t0)).toHaveLength(0);
+  });
+});

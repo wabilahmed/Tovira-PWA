@@ -107,6 +107,14 @@ export class MatchingService {
     return this.hydrate(userId, await this.matches.listOpenStrongByUser(userId));
   }
 
+  /** Strong matches SURFACED on/after `sinceMs` that are still open — neither shared (a share
+   *  dismisses the match) nor dismissed. The Monday "surfaced but not acted this week" review:
+   *  merely SEEING a suggestion does not count as acting on it, so viewedAt is deliberately ignored. */
+  async suggestionsSurfacedSince(userId: string, sinceMs: number): Promise<MatchSuggestion[]> {
+    const recent = (await this.matches.listOpenStrongByUser(userId)).filter((m) => m.createdAt >= sinceMs);
+    return this.hydrate(userId, recent);
+  }
+
   /** The Inventory-tab badge: how many STRONG, OPEN matches the rep has not yet seen. Filters on
    *  strong+open BEFORE the seen comparison (a flood of possibles never lights it; a dismissed match
    *  never counts), and counts only matches that would actually surface (requirement open, item

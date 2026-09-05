@@ -92,4 +92,19 @@ describe('<HeroInsights>', () => {
     await user.click(screen.getByRole('button', { name: /^refresh$/i }));
     await waitFor(() => expect(screen.getByRole('button', { name: /^refresh$/i })).toBeDisabled());
   });
+
+  // INV-MATCH: a match enters the register carrying its receipt (the client's quoted words + date)
+  // in the subline, and is NOT counted as "need acting on" — a suggestion ranks below every fact.
+  it('renders an inventory match row with its receipt, not flagged as needing action', async () => {
+    render(<HeroInsights api={makeApi({ today: [
+      { kind: 'match', priority: 0, text: 'Marina Heights 402 may suit Ahmed', clientId: 'c1', subline: 'asked: "a 2-bed near the marina" · 14 Mar 2026' },
+    ] })} />);
+    expect(await screen.findByText(/marina heights 402 may suit ahmed/i)).toBeInTheDocument();
+    expect(screen.getByText(/a 2-bed near the marina/)).toBeInTheDocument();
+    // One entry, and it is a suggestion — "need acting on" (cold/risk only) must stay absent.
+    expect(screen.getByText(/^1 entry$/)).toBeInTheDocument();
+    expect(screen.queryByText(/need acting on/i)).toBeNull();
+    // No claret dot on a suggestion (claret is for overdue/cooling facts).
+    expect(document.querySelector('.tov-dot--claret')).toBeNull();
+  });
 });

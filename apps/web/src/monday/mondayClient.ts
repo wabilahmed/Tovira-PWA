@@ -6,6 +6,9 @@ export interface MondayDigest {
   coolingClients: Array<{ id: string; name: string; lastTouchedAt?: number }>;
   unansweredQuestions: Array<{ clientId: string; question: string; date: string | null }>;
   upcomingDates: Array<{ clientId: string; description: string; date: string }>;
+  /** [INV-MATCH] Strong inventory suggestions surfaced this week the rep hasn't acted on. Optional
+   *  for forward-compat with older payloads (treated as empty). */
+  surfacedNotActed?: Array<{ clientId: string; itemTitle: string; requirementRaw: string; statedOn: string | null; noteId: string }>;
   isLight: boolean;
 }
 

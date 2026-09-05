@@ -22,7 +22,9 @@ export interface RiskItem {
 }
 
 export interface TodayAction {
-  kind: 'promise' | 'meeting' | 'cold' | 'risk';
+  // 'match' (INV-MATCH) enters at priority 0 — below every fact — carrying the client's quoted
+  // requirement + date in its subline (a suggestion never appears on the register without its receipt).
+  kind: 'promise' | 'meeting' | 'cold' | 'risk' | 'match';
   priority: number;
   text: string;
   clientId: string | null;

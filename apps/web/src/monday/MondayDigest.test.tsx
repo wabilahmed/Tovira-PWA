@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MondayDigest, type MondayApi } from './MondayDigest.js';
 import type { MondayDigest as Digest } from './mondayClient.js';
 
@@ -38,5 +38,22 @@ describe('<MondayDigest>', () => {
   it('shows an error when it cannot load', async () => {
     render(<MondayDigest api={api(null)} />);
     expect(await screen.findByRole('alert')).toBeInTheDocument();
+  });
+
+  // INV-MATCH: the "surfaced but not acted this week" section — item + the client's quoted words.
+  it('lists suggestions surfaced this week but not acted on, with the receipt', async () => {
+    const surfaced = [{ clientId: 'c1', itemTitle: 'Marina Heights 402', requirementRaw: 'a 2-bed near the marina', statedOn: '2026-03-14', noteId: 'n1' }];
+    render(<MondayDigest api={api({ ...full, surfacedNotActed: surfaced })} />);
+    const sec = await screen.findByTestId('surfaced');
+    expect(sec).toHaveTextContent(/marina heights 402/i);
+    expect(within(sec).getByTestId('receipt')).toHaveTextContent(/a 2-bed near the marina/);
+  });
+
+  // A week clear of obligations but holding a suggestion is NOT a bare "clear week".
+  it('shows the surfaced section even when the week is otherwise light', async () => {
+    const surfaced = [{ clientId: 'c1', itemTitle: 'Marina Heights 402', requirementRaw: 'a 2-bed', statedOn: null, noteId: 'n1' }];
+    render(<MondayDigest api={api({ ...full, promisesDue: [], coolingClients: [], unansweredQuestions: [], upcomingDates: [], isLight: true, surfacedNotActed: surfaced })} />);
+    expect(await screen.findByTestId('surfaced')).toHaveTextContent(/marina heights 402/i);
+    expect(screen.queryByTestId('clear-week')).toBeNull();
   });
 });

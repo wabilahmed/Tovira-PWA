@@ -238,7 +238,7 @@ async function main(): Promise<void> {
   const askCapture = createAskCaptureService(config, notes, clients, facts, extraction);
   const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients);
   const corpus = new CorpusStatsService(clients, notes);
-  const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId));
+  const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId), matching);
   const ledger = createLedgerService(config, appPool);
   const inventory = createInventoryService(inventoryRepo, ledger, config, matching);
   const referral = new ReferralService(

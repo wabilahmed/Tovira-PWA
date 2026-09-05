@@ -187,3 +187,42 @@ describe('MondayDigestService (P3-8)', () => {
     expect(digest.isLight).toBe(true);
   });
 });
+
+describe('[INV-MATCH] the digest carries this week\'s unacted strong suggestions', () => {
+  function withMatching(surfaced: Array<{ itemTitle: string; clientId: string; receipt: { requirementRaw: string; statedOn: string | null; noteId: string } }>) {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const notifications = new InMemoryNotificationRepository();
+    const subs = new InMemoryPushSubscriptionRepository();
+    const budget = new InMemoryPushBudgetRepository();
+    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications, budget);
+    const suggestionsSurfacedSince = vi.fn().mockResolvedValue(surfaced);
+    const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch, undefined, { suggestionsSurfacedSince });
+    return { svc, suggestionsSurfacedSince };
+  }
+
+  const surfaced = [{ itemTitle: 'Marina Heights 402', clientId: 'c1', receipt: { requirementRaw: 'a 2-bed near the marina', statedOn: '2026-03-14', noteId: 'n1' } }];
+
+  it('maps the suggestions into the digest and queries from the week\'s start instant', async () => {
+    const { svc, suggestionsSurfacedSince } = withMatching(surfaced);
+    const d = await svc.build('u', NOW);
+    expect(d.surfacedNotActed).toEqual([
+      { clientId: 'c1', itemTitle: 'Marina Heights 402', requirementRaw: 'a 2-bed near the marina', statedOn: '2026-03-14', noteId: 'n1' },
+    ]);
+    // Boundary is the rep-local Monday 00:00 as an instant (no tz here → UTC).
+    expect(suggestionsSurfacedSince).toHaveBeenCalledWith('u', Date.parse('2026-08-03T00:00:00Z'));
+  });
+
+  it('a week clear of obligations but holding a suggestion stays light, yet still carries it', async () => {
+    const { svc } = withMatching(surfaced);
+    const d = await svc.build('u', NOW);
+    expect(d.isLight).toBe(true); // clear of promises/cooling/questions/dates
+    expect(d.surfacedNotActed).toHaveLength(1); // but the opportunity is not hidden
+  });
+
+  it('is empty when no matching source is wired', async () => {
+    const { svc } = make();
+    expect((await svc.build('u', NOW)).surfacedNotActed).toEqual([]);
+  });
+});
