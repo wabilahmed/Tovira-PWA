@@ -53,6 +53,9 @@ import { NoteMoveService } from './services/import/note-move-service.js';
 import { InMemoryNoteMoveTx } from './adapters/notes/in-memory-note-move-tx.js';
 import { PgNoteMoveTx } from './adapters/notes/pg-note-move-tx.js';
 import type { NoteMoveTx } from './ports/note-move-tx.js';
+import { InMemoryRequirementRepository } from './adapters/requirements/in-memory-requirement-repository.js';
+import { PgRequirementRepository } from './adapters/requirements/pg-requirement-repository.js';
+import type { RequirementRepository } from './ports/requirement-repository.js';
 import type { Transcriber } from './ports/transcriber.js';
 import { StubTranscriber } from './adapters/transcription/stub.js';
 import { GroqTranscriber } from './adapters/transcription/groq.js';
@@ -368,9 +371,19 @@ export function createExtractionService(
   limiter?: ExtractionLimiter,
   meetings?: MeetingRepository,
   timezoneFor?: (userId: string) => Promise<string>,
+  requirements?: RequirementRepository,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements);
+}
+
+/** The requirements spine store (INV-MATCH), RLS-backed on pg. */
+export function createRequirementRepository(config: AppConfig, pool?: Pool): RequirementRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgRequirementRepository(pool);
+  }
+  return new InMemoryRequirementRepository();
 }
 
 /**

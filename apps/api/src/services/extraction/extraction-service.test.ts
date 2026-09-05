@@ -7,6 +7,7 @@ import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repo
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryMeetingRepository } from '../../adapters/meetings/in-memory-meeting-repository.js';
+import { InMemoryRequirementRepository } from '../../adapters/requirements/in-memory-requirement-repository.js';
 import { StubEmbedder } from '../../adapters/embedding/stub.js';
 import type { ModelClient } from '../../ports/model.js';
 import type { Embedder } from '../../ports/embedder.js';
@@ -270,5 +271,46 @@ describe('ExtractionService', () => {
     const svc2 = new ExtractionService(model(extraction), clients, notes, facts, new StubEmbedder(8), logs, 'stub');
     await svc2.extractNote('user-A', ok.id, '2026-07-09');
     expect((await notes.findByIdForUser('user-A', ok.id))?.moveSuggestion ?? null).toBeNull();
+  });
+
+  // INV-MATCH (A4): extraction persists the requirements spine, each with its own embedding.
+  it('persists extracted requirements as spine rows with their own embedding', async () => {
+    const withReq = JSON.stringify({
+      summary: 'Client is looking for a 2-bed near the marina.',
+      promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [],
+      requirements: [{ text: 'A 2-bed near the marina', requirement_raw: 'looking for a 2-bed near the marina', stated_on: '2026-07-09', confidence: 'high' }],
+      meeting: null,
+    });
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const requirements = new InMemoryRequirementRepository();
+    const client = await clients.create('u', 'Marina Estates');
+    const note = await notes.create('u', { clientId: client.id, source: 'voice', rawText: 'looking for a 2-bed near the marina', audioKey: null, status: 'pending_extraction' });
+    const svc = new ExtractionService(model(withReq), clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined, undefined, undefined, undefined, undefined, requirements);
+    await svc.extractNote('u', note.id, '2026-07-09');
+
+    const stored = await requirements.listByClient('u', client.id);
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.requirementRaw).toBe('looking for a 2-bed near the marina');
+    expect(stored[0]!.status).toBe('open');
+    expect(stored[0]!.embedded).toBe(true); // has its own vector — matching is precise, not note-blended
+    expect(stored[0]!.statedOn).toBe('2026-07-09');
+    // searchable by vector (the reverse match direction will use this)
+    expect(await requirements.searchByEmbedding('u', (await new StubEmbedder(8).embed('looking for a 2-bed near the marina')), 5)).toHaveLength(1);
+  });
+
+  it('persists no requirement rows for a note that states none', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const requirements = new InMemoryRequirementRepository();
+    const client = await clients.create('u', 'Acme');
+    const note = await notes.create('u', { clientId: client.id, source: 'paste', rawText: "I'll send the revised quote by Friday", audioKey: null, status: 'pending_extraction' });
+    const svc = new ExtractionService(model(VALID), clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined, undefined, undefined, undefined, undefined, requirements);
+    await svc.extractNote('u', note.id, '2026-07-09');
+    expect(await requirements.listByClient('u', client.id)).toHaveLength(0);
   });
 });

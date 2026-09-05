@@ -16,6 +16,7 @@ import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-reposit
 import { InMemoryNoteMoveAuditRepository } from '../adapters/notes/in-memory-note-move-audit-repository.js';
 import { InMemoryNoteMoveTx } from '../adapters/notes/in-memory-note-move-tx.js';
 import { NoteMoveService } from '../services/import/note-move-service.js';
+import { InMemoryRequirementRepository } from '../adapters/requirements/in-memory-requirement-repository.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { StubTranscriber } from '../adapters/transcription/stub.js';
 import { TranscriptionService } from '../services/transcription/transcription-service.js';
@@ -95,6 +96,7 @@ export function buildInMemoryDeps(
   const inventory = new InventoryService(inventoryRepo, embedder, ledger);
   const extractionLog = new InMemoryExtractionLogRepository();
   const corrections = new InMemoryCorrectionRepository();
+  const requirements = new InMemoryRequirementRepository();
   const extraction = new ExtractionService(
     new StubModelClient(),
     clients,
@@ -104,8 +106,12 @@ export function buildInMemoryDeps(
     extractionLog,
     'stub',
     corrections,
-    undefined,
+    undefined, // router
     opts.extractionLimiter,
+    undefined, // cacheTtl
+    undefined, // meetings
+    undefined, // meetingTimezone
+    requirements,
   );
   const brief = new BriefService(clients, notes, facts, embedder);
   const followUp = new FollowUpService(new StubModelClient(), notes);

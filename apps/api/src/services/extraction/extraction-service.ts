@@ -6,7 +6,8 @@ import type { Embedder } from '../../ports/embedder.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
-import type { Meeting } from './types.js';
+import type { RequirementRepository, RequirementInput } from '../../ports/requirement-repository.js';
+import type { Meeting, Requirement } from './types.js';
 import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
 import type { ModelRouter } from './model-router.js';
@@ -84,7 +85,27 @@ export class ExtractionService {
     private readonly meetings?: Pick<MeetingRepository, 'findByNoteId' | 'create'>,
     /** Rep timezone, to resolve a proposed meeting's wall-clock to an absolute instant. */
     private readonly meetingTimezone?: (userId: string) => Promise<string>,
+    /** INV-MATCH: the requirements spine. Optional — extraction runs unchanged without it. */
+    private readonly requirements?: RequirementRepository,
   ) {}
+
+  /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding. The
+   *  embedding is Titan (cheap, one call per requirement), never Claude, and best-effort — a
+   *  requirement with no vector is simply not matchable, never lost. Idempotent per note. */
+  private async persistRequirements(userId: string, noteId: string, clientId: string, reqs: Requirement[]): Promise<void> {
+    if (!this.requirements) return;
+    const inputs: RequirementInput[] = [];
+    for (const r of reqs) {
+      let embedding: number[] | null = null;
+      try {
+        embedding = await this.embedder.embed(r.requirement_raw || r.text);
+      } catch (err) {
+        console.warn(`[requirements] embed failed for note ${noteId}; requirement stored without a vector`, err);
+      }
+      inputs.push({ text: r.text, requirementRaw: r.requirement_raw, statedOn: r.stated_on, confidence: r.confidence, embedding });
+    }
+    await this.requirements.saveForNote(userId, noteId, clientId, inputs);
+  }
 
   /** Persist a proposed meeting for a note (idempotent per note). `confirmed` comes from the
    *  proposal: a "locked in" meeting is confirmed:true (immediately nudgeable); a mere proposal is
@@ -227,6 +248,16 @@ export class ExtractionService {
             await this.persistProposedMeeting(userId, noteId, note.clientId, extraction.meeting);
           } catch (err) {
             console.warn(`[extract] proposed-meeting persist failed for note ${noteId}`, err);
+          }
+        }
+        // INV-MATCH (A4): persist the requirements spine — each requirement as a row with its OWN
+        // embedding (Titan, one call each — never a per-pairing model call), so matching is precise
+        // and requirements have identity + lifecycle. Best-effort; never blocks the facts.
+        if (this.requirements) {
+          try {
+            await this.persistRequirements(userId, noteId, note.clientId, extraction.requirements ?? []);
+          } catch (err) {
+            console.warn(`[extract] requirements persist failed for note ${noteId}`, err);
           }
         }
         // MISFILE-POST (B2): now the people are extracted, check — deterministically, no model
