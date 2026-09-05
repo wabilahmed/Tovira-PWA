@@ -28,6 +28,21 @@ export interface ShareResult {
   warning: InventoryShare[] | null;
 }
 
+/** A requirement↔inventory match suggestion (INV-MATCH). Confidence is a WORD; no number. */
+export interface MatchReceipt {
+  requirementRaw: string;
+  statedOn: string | null;
+  noteId: string;
+}
+export interface MatchSuggestion {
+  matchId: string;
+  itemId: string;
+  itemTitle: string;
+  clientId: string;
+  confidence: 'strong' | 'possible';
+  receipt: MatchReceipt;
+}
+
 /** Talks to /inventory. Reads are gated (402 → LOCKED); create/edit stay open on a lapse. */
 export class InventoryClient {
   constructor(private readonly baseUrl: string = '') {}
@@ -93,6 +108,47 @@ export class InventoryClient {
     });
     if (res.status !== 200) return null;
     return (await res.json()) as InventoryShare;
+  }
+
+  // ---- INV-MATCH suggestions (A5) ----
+  /** A client's suggestions (for the brief) or, with no clientId, the rep's strong ones + the badge. */
+  async matches(clientId?: string): Promise<{ suggestions: MatchSuggestion[]; badge: number }> {
+    try {
+      const res = await fetch(this.url(`/inventory/matches${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ''}`), { credentials: 'include' });
+      if (res.status !== 200) return { suggestions: [], badge: 0 };
+      return (await res.json()) as { suggestions: MatchSuggestion[]; badge: number };
+    } catch {
+      return { suggestions: [], badge: 0 };
+    }
+  }
+
+  /** Reverse direction: the clients who asked for something like this item. */
+  async itemMatches(itemId: string): Promise<MatchSuggestion[]> {
+    try {
+      const res = await fetch(this.url(`/inventory/${itemId}/matches`), { credentials: 'include' });
+      if (res.status !== 200) return [];
+      return ((await res.json()) as { suggestions: MatchSuggestion[] }).suggestions;
+    } catch {
+      return [];
+    }
+  }
+
+  /** Dismiss a match — one row, so it disappears from every surface at once. */
+  async dismissMatch(matchId: string): Promise<boolean> {
+    const res = await fetch(this.url(`/inventory/matches/${matchId}/dismiss`), { method: 'POST', credentials: 'include' });
+    return res.status === 200;
+  }
+
+  /** Act on a suggestion → a share the ledger credits as suggestion-originated. */
+  async shareFromSuggestion(matchId: string): Promise<ShareResult | null> {
+    const res = await fetch(this.url(`/inventory/matches/${matchId}/share`), { method: 'POST', credentials: 'include' });
+    if (res.status !== 200) return null;
+    return (await res.json()) as ShareResult;
+  }
+
+  /** Clear the strong-unseen badge (opening the Inventory tab). Best-effort. */
+  async markMatchesSeen(): Promise<void> {
+    await fetch(this.url('/inventory/matches/seen'), { method: 'POST', credentials: 'include' }).catch(() => undefined);
   }
 }
 

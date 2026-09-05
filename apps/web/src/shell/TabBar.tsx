@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { PRIMARY, OVERFLOW, type NavItem, type View } from './nav.js';
 import { BottomSheet } from './BottomSheet.js';
+import { NavBadge } from './NavBadge.js';
 import { Spring } from '../motion/spring.js';
 import { usePrefersReducedMotion } from '../motion/prefers.js';
 
@@ -14,10 +15,12 @@ const MARKER_SPRING = { damping: 0.9, response: 0.4 } as const;
  * and placed instantly (no glide) on first paint or under reduced motion. More
  * opens a fluid, draggable bottom sheet of the remaining sections.
  */
-export function TabBar({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }): JSX.Element {
+export function TabBar({ view, onNavigate, badges }: { view: View; onNavigate: (v: View) => void; badges?: Partial<Record<View, number>> }): JSX.Element {
   const [moreOpen, setMoreOpen] = useState(false);
   const activeOverflow = OVERFLOW.find((i) => i.view === view);
   const tabs: NavItem[] = activeOverflow ? [PRIMARY[0]!, PRIMARY[1]!, PRIMARY[2]!, activeOverflow] : PRIMARY;
+  // A badge sitting in the More overflow surfaces on the More button itself (its section is hidden).
+  const moreCount = OVERFLOW.reduce((n, i) => (i.view === activeOverflow?.view ? n : n + (badges?.[i.view] ?? 0)), 0);
 
   const navRef = useRef<HTMLElement>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -41,6 +44,7 @@ export function TabBar({ view, onNavigate }: { view: View; onNavigate: (v: View)
             onClick={() => go(i.view)}
           >
             {i.label}
+            <NavBadge count={badges?.[i.view]} />
           </button>
         ))}
       </BottomSheet>
@@ -59,6 +63,7 @@ export function TabBar({ view, onNavigate }: { view: View; onNavigate: (v: View)
             onClick={() => go(i.view)}
           >
             {i.label}
+            <NavBadge count={badges?.[i.view]} />
           </button>
         ))}
         <button
@@ -69,6 +74,7 @@ export function TabBar({ view, onNavigate }: { view: View; onNavigate: (v: View)
           onClick={() => setMoreOpen((s) => !s)}
         >
           More
+          <NavBadge count={moreCount} />
         </button>
       </nav>
     </>

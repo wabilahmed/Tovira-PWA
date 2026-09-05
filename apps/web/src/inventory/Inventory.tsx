@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { LOCKED, type Locked } from '../billing/gated.js';
 import { Locked as LockedCard } from '../billing/Locked.js';
 import { whatsappLink } from '../whatsapp/waLink.js';
-import { shareDraft, type InventoryItem, type InventoryFilter, type ShareResult, type InventoryShare } from './inventoryClient.js';
+import { shareDraft, type InventoryItem, type InventoryFilter, type ShareResult, type InventoryShare, type MatchSuggestion as Match } from './inventoryClient.js';
+import { ItemMatches } from './ItemMatches.js';
 
 export interface InventoryClientRef { id: string; name: string; phone: string | null }
 
@@ -13,6 +14,11 @@ export interface InventoryApi {
   share(itemId: string, clientId: string): Promise<ShareResult | null>;
   sharesForItem(itemId: string): Promise<InventoryShare[]>;
   setOutcome(shareId: string, outcome: 'bought' | 'declined' | 'no_response', quantityBought?: number): Promise<InventoryShare | null>;
+  // INV-MATCH (A5) — optional so existing partial test mocks keep compiling; the reverse
+  // "clients who asked for this" section renders only when the engine is wired.
+  itemMatches?(itemId: string): Promise<Match[]>;
+  shareFromSuggestion?(matchId: string): Promise<ShareResult | null>;
+  dismissMatch?(matchId: string): Promise<boolean>;
 }
 
 const OUTCOME_LABEL: Record<InventoryShare['outcome'], string> = { pending: 'AWAITING', bought: 'BOUGHT', declined: 'DECLINED', no_response: 'NO REPLY' };
@@ -239,8 +245,14 @@ function ItemCard({ item, clients, api, editing, onEditToggle, onSave, onShare, 
         </ul>
       )}
 
-      {/* Batch 2 (matching): the "N clients want something like this" line lands here once the
-          requirements field + matching engine ship. Deliberately not rendered until then. */}
+      {/* INV-MATCH reverse direction: the clients who asked for something like this item. */}
+      {api.itemMatches && api.shareFromSuggestion && api.dismissMatch && (
+        <ItemMatches
+          api={{ itemMatches: api.itemMatches.bind(api), shareFromSuggestion: api.shareFromSuggestion.bind(api), dismissMatch: api.dismissMatch.bind(api) }}
+          itemId={item.id}
+          clientName={clientName}
+        />
+      )}
     </li>
   );
 }

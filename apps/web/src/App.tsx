@@ -12,6 +12,7 @@ import { BookScan } from './bookscan/BookScan.js';
 import { Inventory } from './inventory/Inventory.js';
 import { InventoryClient } from './inventory/inventoryClient.js';
 import { ClientInventory } from './inventory/ClientInventory.js';
+import { BriefMatches } from './inventory/BriefMatches.js';
 import { ImportChat } from './import/ImportChat.js';
 import { consumeSharedChat, idbSharedChatStore } from './pwa/sharedChat.js';
 import { resumePendingNotes } from './capture/resume.js';
@@ -214,6 +215,9 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // Quiet "confirm your email" nudge (EMAIL-VERIFY) — dismissible for the session,
   // never blocks anything. Absent once the account is verified.
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  // INV-MATCH: the strong-match unseen count on the Inventory tab (server-computed, per-rep
+  // last-viewed). Fetched on load; cleared the moment the rep opens Inventory (marks it seen).
+  const [matchBadge, setMatchBadge] = useState(0);
   const isDesktop = useIsDesktop();
 
   const loadSeeding = (): void => void onboardingApi.status().then(setSeeding);
@@ -225,6 +229,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     void billingApi.status().then((e) => setEntitled(e?.entitled ?? true));
   }, []);
   const gated = (node: JSX.Element): JSX.Element => (entitled ? node : <Locked onSubscribe={() => setView('settings')} />);
+
+  // INV-MATCH badge: load the strong-unseen count, and clear it (marking seen) when Inventory opens.
+  useEffect(() => {
+    void inventoryApi.matches().then((r) => setMatchBadge(r.badge));
+  }, []);
+  useEffect(() => {
+    if (view !== 'inventory' || matchBadge === 0) return;
+    void inventoryApi.markMatchesSeen();
+    setMatchBadge(0);
+  }, [view]);
 
   // A chat shared into the app via the Android share-target lands in IndexedDB
   // (stashed by the service worker); pick it up once and open seeding prefilled.
@@ -304,6 +318,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       view={view}
       onNavigate={setView}
       needsSeeding={needsSeeding}
+      badges={{ inventory: matchBadge }}
       sidebarFooter={
         <span>
           {session.user.email}
@@ -571,7 +586,7 @@ function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; 
       {brief === LOCKED ? (
         <Locked onSubscribe={onSubscribe} />
       ) : (
-        brief && <BriefPanel brief={brief} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />
+        brief && <BriefPanel brief={brief} clientId={client.id} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />
       )}
 
       <details style={{ margin: '1rem 0' }}>
@@ -723,7 +738,7 @@ function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Elem
   );
 }
 
-function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void }): JSX.Element {
+function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: string; onChange: () => void }): JSX.Element {
   if (brief.empty) {
     return (
       <section style={briefBox}>
@@ -756,6 +771,8 @@ function BriefPanel({ brief, onChange }: { brief: Brief; onChange: () => void })
           </ul>
         </div>
       )}
+      {/* [INV-MATCH] The inventory suggestions — the primary surface. Receipt visible, share + dismiss inline. */}
+      {clientId && <BriefMatches api={inventoryApi} clientId={clientId} />}
       {brief.keyPeople.length > 0 && (
         <div style={briefSection}>
           <div className="tov-stamp">People</div>

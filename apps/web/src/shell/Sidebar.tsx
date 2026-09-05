@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { SIDEBAR, type View } from './nav.js';
 import { Wordmark } from '../components/Wordmark.js';
+import { NavBadge } from './NavBadge.js';
 
 /**
  * The desktop nav (≥1180px): the Fraunces wordmark over the full section list,
@@ -11,11 +12,13 @@ export function Sidebar({
   onNavigate,
   needsSeeding,
   footer,
+  badges,
 }: {
   view: View;
   onNavigate: (v: View) => void;
   needsSeeding: boolean;
   footer?: ReactNode;
+  badges?: Partial<Record<View, number>>;
 }): JSX.Element {
   return (
     <aside className="tov-sidebar" aria-label="Sections">
@@ -42,6 +45,7 @@ export function Sidebar({
             onClick={() => onNavigate(i.view)}
           >
             {i.label}
+            <NavBadge count={badges?.[i.view]} />
           </button>
         ))}
       </nav>

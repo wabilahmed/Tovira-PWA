@@ -82,6 +82,23 @@
   pointer-events: none;
 }
 
+/* A quiet unseen-count chip on a nav item (INV-MATCH). Brass — a discovery, not an alarm
+   (claret is reserved for overdue/risk). Never shown at zero (NavBadge returns null). */
+.tov-navbadge {
+  display: inline-block;
+  min-width: 1.1em;
+  margin-inline-start: 0.4em;
+  padding: 0 0.35em;
+  border-radius: 999px;
+  background: var(--brass);
+  color: var(--surface-base);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  line-height: 1.5;
+  text-align: center;
+  vertical-align: middle;
+}
+
 /* The overflow menu is a real draggable bottom sheet (see BottomSheet.tsx):
    fixed to the foot, glass, grabbable; the transform + scrim opacity are driven
    per-frame by the spring/gesture code. The glass + reduced-transparency rules

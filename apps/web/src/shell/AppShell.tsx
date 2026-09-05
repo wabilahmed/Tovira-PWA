@@ -15,12 +15,15 @@ export function AppShell({
   onNavigate,
   needsSeeding,
   sidebarFooter,
+  badges,
   children,
 }: {
   view: View;
   onNavigate: (v: View) => void;
   needsSeeding: boolean;
   sidebarFooter?: ReactNode;
+  /** Per-view unseen counts (INV-MATCH: the strong-match badge on Inventory). */
+  badges?: Partial<Record<View, number>>;
   children: ReactNode;
 }): JSX.Element {
   const isDesktop = useIsDesktop();
@@ -28,7 +31,7 @@ export function AppShell({
   if (isDesktop) {
     return (
       <div className="tov-shell">
-        <Sidebar view={view} onNavigate={onNavigate} needsSeeding={needsSeeding} footer={sidebarFooter} />
+        <Sidebar view={view} onNavigate={onNavigate} needsSeeding={needsSeeding} footer={sidebarFooter} badges={badges} />
         <div className="tov-content">
           <ScreenTransition viewKey={view}>{children}</ScreenTransition>
         </div>
@@ -46,7 +49,7 @@ export function AppShell({
           Get started
         </button>
       )}
-      <TabBar view={view} onNavigate={onNavigate} />
+      <TabBar view={view} onNavigate={onNavigate} badges={badges} />
     </div>
   );
 }
