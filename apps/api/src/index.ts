@@ -67,6 +67,7 @@ import { ScanRunnerService } from './services/scheduler/scan-runner-service.js';
 import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
 import { RecallMetrics } from './services/metrics/recall-metrics.js';
+import { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -142,7 +143,9 @@ async function main(): Promise<void> {
   const noteMove = createNoteMoveService(notes, facts, meetings, noteMoveTx);
   // NUDGE-UNCONFIRMED: extraction persists proposed meetings (confirmed:false) so they can be
   // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching);
+  // COST-IMPORT-METRIC: a rolling per-rep import cost, recorded at extraction time for imports.
+  const importCost = new ImportCostMetrics();
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost);
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
   const meetingParser = createMeetingParser(config, clients);
@@ -293,6 +296,7 @@ async function main(): Promise<void> {
     jobRuns: jobRunStore,
     modelMetrics,
     recallMetrics,
+    importCost,
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),

@@ -23,6 +23,7 @@ import type { PushSender, PushSubscriptionRepository } from './ports/push.js';
 import type { PushDispatchService } from './services/push/push-dispatch-service.js';
 import type { JobRun, JobRunStore } from './ports/scheduled-jobs.js';
 import type { RecallMetrics } from './services/metrics/recall-metrics.js';
+import type { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import type { ModelMetricsRegistry } from './services/metrics/model-metrics.js';
 import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
@@ -123,6 +124,8 @@ export interface ApiDeps {
   modelMetrics?: ModelMetricsRegistry;
   /** Rolling per-turn recall cost, surfaced in /health (RECALL-METRICS). */
   recallMetrics?: RecallMetrics;
+  /** Rolling per-rep import cost, surfaced in /health (COST-IMPORT-METRIC). */
+  importCost?: ImportCostMetrics;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -194,6 +197,9 @@ export function createApiServer(deps: ApiDeps): Server {
             // recall: rolling per-turn recall cost + the growth curve by turn index
             // (RECALL-METRICS) — so cost is measured, not modelled.
             ...(deps.recallMetrics ? { recall: deps.recallMetrics.snapshot() } : {}),
+            // imports: rolling per-rep import cost (the heaviest single Claude call) — the one
+            // spend the ceiling question turns on, measured going forward (COST-IMPORT-METRIC).
+            ...(deps.importCost ? { imports: deps.importCost.snapshot() } : {}),
           });
         } catch {
           sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' });

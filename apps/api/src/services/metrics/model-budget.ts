@@ -20,6 +20,18 @@ export const PRICING: Record<string, ModelPricing> = {
 const FALLBACK: ModelPricing = PRICING['claude-sonnet-5']!;
 export const USD_TO_AED = 3.6725;
 
+/** Amazon Titan Text Embeddings V2 — list price (USD per MTok) and its input cap. The embedder
+ *  adapter returns only a vector (no token count), so import embedding cost is ESTIMATED from
+ *  character length; it is provably negligible (a whole-transcript embed is capped at 8192 tokens). */
+export const EMBED_PRICING = { titanV2PerMTok: 0.02, maxInputTokens: 8192 };
+
+/** Estimated embedding cost of one import: one note embed (capped) + N short requirement embeds. */
+export function estimateEmbedUsd(noteChars: number, requirementCount: number): number {
+  const noteTok = Math.min(Math.ceil(noteChars / 4), EMBED_PRICING.maxInputTokens);
+  const reqTok = Math.max(0, requirementCount) * 24; // a short requirement clause
+  return ((noteTok + reqTok) * EMBED_PRICING.titanV2PerMTok) / 1_000_000;
+}
+
 export interface CallUsage {
   inputTokens: number;
   outputTokens: number;

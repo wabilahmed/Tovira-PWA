@@ -18,6 +18,8 @@ import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
 import { detectMisfilePostExtraction } from '../import/misfile.js';
+import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
+import type { ImportCostRecord } from '../metrics/import-cost-metrics.js';
 import type { Extraction } from './types.js';
 
 export interface ExtractOutcome {
@@ -90,6 +92,8 @@ export class ExtractionService {
     private readonly requirements?: RequirementRepository,
     /** INV-MATCH: the matching engine, triggered on a new requirement (direction 1). Optional. */
     private readonly matching?: MatchingService,
+    /** [COST-IMPORT-METRIC] rolling per-rep import cost sink. Optional — extraction runs unchanged. */
+    private readonly importCost?: { record(r: ImportCostRecord): void },
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -206,8 +210,16 @@ export class ExtractionService {
     const start = this.now();
     let last: Attempt = { parsed: null, raw: null, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
     let extraction: Extraction | null = null;
+    // Total spend across attempts (a retry bills a second call) — the log keeps the final row's
+    // tokens; the import-cost metric wants the whole import's spend.
+    const spend = { calls: 0, input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
     for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
       last = await this.call(route.model, userMessage);
+      spend.calls += 1;
+      spend.input += last.inputTokens;
+      spend.output += last.outputTokens;
+      spend.cacheWrite += last.cacheCreationTokens;
+      spend.cacheRead += last.cacheReadTokens;
       extraction = last.parsed ? asExtraction(last.parsed) : null;
     }
 
@@ -302,6 +314,27 @@ export class ExtractionService {
       cacheCreationTokens: last.cacheCreationTokens,
       cacheReadTokens: last.cacheReadTokens,
     });
+
+    // [COST-IMPORT-METRIC] A chat import is one heavy extraction call over the whole transcript;
+    // record its real cost (extraction + a negligible embedding estimate), attributed to the rep,
+    // so per-rep import spend is observable rather than estimated. Only imports — a daily note's
+    // cost is already dominated by the cached prefix and is not the ceiling concern.
+    if (note.source === 'whatsapp_export' && this.importCost) {
+      const embedded = extraction !== null && opts?.holdForConfirmation !== true;
+      const reqCount = embedded ? (extraction!.requirements?.length ?? 0) : 0;
+      const extractionUsd = callCostUsd(route.modelId, {
+        inputTokens: spend.input, outputTokens: spend.output,
+        cacheCreationInputTokens: spend.cacheWrite, cacheReadInputTokens: spend.cacheRead,
+      });
+      const embedUsd = embedded ? estimateEmbedUsd(note.rawText.length, reqCount) : 0;
+      this.importCost.record({
+        userId, clientId: note.clientId, calls: spend.calls,
+        inputTokens: spend.input, outputTokens: spend.output,
+        cachedTokens: spend.cacheRead, cacheWriteTokens: spend.cacheWrite,
+        embeddingCalls: embedded ? 1 + reqCount : 0,
+        costAed: (extractionUsd + embedUsd) * USD_TO_AED,
+      });
+    }
 
     return extraction ? { status } : { status, flagged: true };
   }

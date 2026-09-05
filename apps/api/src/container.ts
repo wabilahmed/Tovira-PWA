@@ -73,6 +73,7 @@ import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
 import { RecallService } from './services/recall/recall-service.js';
 import type { RecallMetrics } from './services/metrics/recall-metrics.js';
+import type { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import type { RecallSessionRepository } from './ports/recall-session-repository.js';
 import { PgRecallSessionRepository } from './adapters/recall/pg-recall-session-repository.js';
 import { InMemoryRecallSessionRepository } from './adapters/recall/in-memory-recall-session-repository.js';
@@ -393,9 +394,10 @@ export function createExtractionService(
   timezoneFor?: (userId: string) => Promise<string>,
   requirements?: RequirementRepository,
   matching?: MatchingService,
+  importCost?: ImportCostMetrics,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost);
 }
 
 /** The requirements spine store (INV-MATCH), RLS-backed on pg. */

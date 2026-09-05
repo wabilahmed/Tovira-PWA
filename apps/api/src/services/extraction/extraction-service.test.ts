@@ -12,6 +12,7 @@ import { InMemoryInventoryRepository } from '../../adapters/inventory/in-memory-
 import { InMemoryInventoryMatchRepository } from '../../adapters/inventory/in-memory-inventory-match-repository.js';
 import { MatchingService } from '../inventory/matching-service.js';
 import { StubEmbedder } from '../../adapters/embedding/stub.js';
+import { ImportCostMetrics } from '../metrics/import-cost-metrics.js';
 import type { ModelClient } from '../../ports/model.js';
 import type { Embedder } from '../../ports/embedder.js';
 
@@ -351,5 +352,45 @@ describe('ExtractionService', () => {
     const svc = new ExtractionService(model(VALID), clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined, undefined, undefined, undefined, undefined, requirements);
     await svc.extractNote('u', note.id, '2026-07-09');
     expect(await requirements.listByClient('u', client.id)).toHaveLength(0);
+  });
+});
+
+// [COST-IMPORT-METRIC] per-import cost is recorded for imports, attributed to the rep, never for
+// a daily note (whose cost is prefix-dominated and not the ceiling concern).
+describe('ExtractionService — import cost metric', () => {
+  const usageModel = (text: string, usage: NonNullable<Awaited<ReturnType<ModelClient['complete']>>['usage']>): ModelClient =>
+    ({ complete: async () => ({ text, usage }) });
+  // A big warm import: ~50k transcript tokens billed as input, prefix served from cache.
+  const IMPORT_USAGE = { inputTokens: 50_000, outputTokens: 400, cacheReadInputTokens: 9743, cacheCreationInputTokens: 0 };
+
+  async function run(source: 'whatsapp_export' | 'paste') {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const importCost = new ImportCostMetrics();
+    const client = await clients.create('u', 'Acme');
+    const note = await notes.create('u', { clientId: client.id, source, rawText: 'a long imported thread…', audioKey: null, status: 'pending_extraction' });
+    const svc = new ExtractionService(
+      usageModel(VALID, IMPORT_USAGE), clients, notes, facts, new StubEmbedder(8), logs, 'claude-sonnet-5',
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, importCost,
+    );
+    await svc.extractNote('u', note.id, '2026-07-09');
+    return { importCost };
+  }
+
+  it('records a positive per-rep import cost for a whatsapp_export note', async () => {
+    const { importCost } = await run('whatsapp_export');
+    // 50000·$3 + 400·$15 + 9743·$0.3 per MTok = $0.157929 → ×3.6725 ≈ AED 0.58.
+    expect(importCost.perUserRollingAed('u')).toBeCloseTo(0.58, 1);
+    const snap = importCost.snapshot();
+    expect(snap.imports).toBe(1);
+    expect(snap.totalUncachedInputTokens).toBe(50_000);
+  });
+
+  it('records nothing for a paste (daily-note) extraction', async () => {
+    const { importCost } = await run('paste');
+    expect(importCost.snapshot().imports).toBe(0);
+    expect(importCost.perUserRollingAed('u')).toBe(0);
   });
 });
