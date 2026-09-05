@@ -101,8 +101,35 @@ export class MatchingService {
     return this.hydrate(userId, await this.matches.listOpenByItem(userId, itemId));
   }
 
+  /** All the rep's STRONG suggestions (with receipts) — the data behind Today's register (§11.4:
+   *  strong only enter the register; possibles never clutter it). */
+  async suggestionsForUser(userId: string): Promise<MatchSuggestion[]> {
+    return this.hydrate(userId, await this.matches.listOpenStrongByUser(userId));
+  }
+
+  /** The Inventory-tab badge: how many STRONG, OPEN matches the rep has not yet seen. Filters on
+   *  strong+open BEFORE the seen comparison (a flood of possibles never lights it; a dismissed match
+   *  never counts), and counts only matches that would actually surface (requirement open, item
+   *  active) so the number never exceeds what the tab shows. */
+  async badgeCount(userId: string): Promise<number> {
+    const viewedAt = (await this.matches.getBadgeViewedAt(userId)) ?? 0;
+    const unseen = (await this.matches.listOpenStrongByUser(userId)).filter((m) => m.createdAt > viewedAt);
+    if (unseen.length === 0) return 0;
+    return (await this.hydrate(userId, unseen)).length;
+  }
+
+  /** Opening the Inventory tab clears the badge (a later strong match relights it). */
+  async markBadgeViewed(userId: string, at: number = Date.now()): Promise<void> {
+    await this.matches.setBadgeViewedAt(userId, at);
+  }
+
   async dismiss(userId: string, matchId: string): Promise<void> {
     await this.matches.dismiss(userId, matchId);
+  }
+
+  /** One match by id (for acting on a suggestion — share-from-suggestion). */
+  getMatch(userId: string, matchId: string): Promise<MatchRecord | null> {
+    return this.matches.findById(userId, matchId);
   }
 
   /** Turn stored matches into surfaced suggestions, dropping any whose requirement is no longer open

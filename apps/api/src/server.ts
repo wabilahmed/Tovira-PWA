@@ -5,6 +5,7 @@ import type { AuthService } from './services/auth/auth-service.js';
 import type { RateLimiter } from './services/security/rate-limiter.js';
 import type { ClientRepository } from './ports/client-repository.js';
 import type { InventoryService } from './services/inventory/inventory-service.js';
+import type { MatchingService } from './services/inventory/matching-service.js';
 import type { NoteRepository } from './ports/note-repository.js';
 import type { Storage } from './ports/storage.js';
 import type { TranscriptionService } from './services/transcription/transcription-service.js';
@@ -77,6 +78,8 @@ export interface ApiDeps {
   auth: AuthService;
   clients: ClientRepository;
   inventory: InventoryService;
+  /** INV-MATCH surfacing (A5): suggestions, badge, dismiss, share-from-suggestion. */
+  matching?: MatchingService;
   notes: NoteRepository;
   storage: Storage;
   transcription: TranscriptionService;
@@ -294,7 +297,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
-      if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing })) return;
+      if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing, matching: deps.matching })) return;
 
       if (request.method === 'GET' && url === '/') {
         sendJson(response, 200, { name: 'tovira-api', status: 'ok' });

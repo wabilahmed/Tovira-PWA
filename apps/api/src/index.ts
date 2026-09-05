@@ -152,7 +152,7 @@ async function main(): Promise<void> {
   const pushSender = createPushSender(config);
   const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications, createPushBudgetRepository(config, appPool), (userId) => auth.timezoneFor(userId));
   const images = createImageRepository(config, appPool);
-  const hero = createHeroService(config, clients, facts, meetings, notes);
+  const hero = createHeroService(config, clients, facts, meetings, notes, matching);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
   // (cost-guard #3, P4b-3). Uses the priorities-class model (see routing).
   const priorities = new PrioritiesService(hero, createModelClient(config, 'priorities'), createPrioritiesRepository(config, appPool), { timezoneFor: (userId) => auth.timezoneFor(userId) });
@@ -255,6 +255,7 @@ async function main(): Promise<void> {
     auth,
     clients,
     inventory,
+    matching,
     notes,
     storage,
     transcription,

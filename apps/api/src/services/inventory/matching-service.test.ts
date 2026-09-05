@@ -167,6 +167,61 @@ describe('[INV-MATCH] trust rules (SPEC-DERIVED, not owner-certified)', () => {
     }
   });
 
+  // Badge #a — only STRONG matches count; possibles never light it (owner ruling).
+  it('the badge counts strong matches only — possibles never light it', async () => {
+    const { svc, requirements, req } = await fx();
+    await svc.matchRequirement(USER, req, V_EXACT); // one STRONG match (req ↔ fx item)
+    // A possible-band requirement against the same item → a POSSIBLE match, which must not count.
+    const [midReq] = await requirements.saveForNote(USER, 'nposs', CID, [reqInput('possible', V_POSSIBLE)]);
+    await svc.matchRequirement(USER, midReq!, V_POSSIBLE);
+    expect(await svc.badgeCount(USER)).toBe(1); // only the strong one
+    // With the strong one dismissed, only the possible remains → the badge is dark.
+    const [m] = await svc.suggestionsForClient(USER, CID);
+    await svc.dismiss(USER, m!.matchId);
+    expect(await svc.badgeCount(USER)).toBe(0);
+  });
+
+  // Badge #b — a dismissed match never counts as unseen (owner ruling: else the badge lies).
+  it('a dismissed strong match does not count toward the badge', async () => {
+    const { svc, req } = await fx();
+    const [m] = await svc.matchRequirement(USER, req, V_EXACT);
+    expect(await svc.badgeCount(USER)).toBe(1);
+    await svc.dismiss(USER, m!.id);
+    expect(await svc.badgeCount(USER)).toBe(0);
+  });
+
+  // Badge #c — opening the tab (markBadgeViewed) clears it; a later strong match relights it.
+  it('markBadgeViewed clears the badge; a newer strong match relights it', async () => {
+    const { svc, requirements, req } = await fx();
+    const [m1] = await svc.matchRequirement(USER, req, V_EXACT);
+    expect(await svc.badgeCount(USER)).toBe(1);
+    await svc.markBadgeViewed(USER, m1!.createdAt); // seen up to this match
+    expect(await svc.badgeCount(USER)).toBe(0);
+    // A strong match created AFTER the view (higher createdAt) relights the badge.
+    const [req2] = await requirements.saveForNote(USER, 'n-new', CID, [reqInput('another 2-bed', V_EXACT)]);
+    await svc.matchRequirement(USER, req2!, V_EXACT);
+    expect(await svc.badgeCount(USER)).toBe(1);
+  });
+
+  // Badge #d — the count never exceeds what the tab shows: a match whose requirement went dormant
+  // is open in the table but does not surface, so it must not inflate the badge.
+  it('the badge does not count a strong match whose requirement is no longer open', async () => {
+    const { svc, requirements, req } = await fx();
+    await svc.matchRequirement(USER, req, V_EXACT);
+    await requirements.setStatus(USER, req.id, 'dormant');
+    expect(await svc.badgeCount(USER)).toBe(0);
+  });
+
+  // Today's register data — strong suggestions with receipts across the rep.
+  it('suggestionsForUser returns strong suggestions with receipts (Today\'s register data)', async () => {
+    const { svc, req } = await fx();
+    await svc.matchRequirement(USER, req, V_EXACT);
+    const all = await svc.suggestionsForUser(USER);
+    expect(all).toHaveLength(1);
+    expect(all[0]!.confidence).toBe('strong');
+    expect(all[0]!.receipt.requirementRaw.length).toBeGreaterThan(0);
+  });
+
   // A 'possible' pairing is labelled possible, not strong (words map to the right band).
   it('a mid-similarity pairing is labelled possible, not strong', async () => {
     const { svc, requirements, inventory } = await fx();

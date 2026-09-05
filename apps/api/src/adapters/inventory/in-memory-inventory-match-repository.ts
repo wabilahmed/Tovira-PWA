@@ -8,7 +8,15 @@ import type {
 /** In-memory match store mirroring the RLS + unique-pairing contract, for tests. */
 export class InMemoryInventoryMatchRepository implements InventoryMatchRepository {
   private rows: MatchRecord[] = [];
-  private seq = 0;
+  private badgeViewedAt = new Map<string, number>();
+  private clock = 0;
+
+  /** Monotonic AND tracking real time — so createdAt never drifts ahead of Date.now() (which would
+   *  keep the "seen" badge permanently lit), yet a later insert always sorts after an earlier one. */
+  private tick(): number {
+    this.clock = Math.max(Date.now(), this.clock + 1);
+    return this.clock;
+  }
 
   private find(userId: string, requirementId: string, itemId: string): MatchRecord | undefined {
     return this.rows.find((r) => r.userId === userId && r.requirementId === requirementId && r.itemId === itemId);
@@ -32,7 +40,7 @@ export class InMemoryInventoryMatchRepository implements InventoryMatchRepositor
       similarity: m.similarity,
       confidence: m.confidence,
       status: 'open',
-      createdAt: Date.now() + this.seq++,
+      createdAt: this.tick(),
       dismissedAt: null,
     };
     this.rows.push(row);
@@ -41,6 +49,11 @@ export class InMemoryInventoryMatchRepository implements InventoryMatchRepositor
 
   async findPairing(userId: string, requirementId: string, itemId: string): Promise<MatchRecord | null> {
     const r = this.find(userId, requirementId, itemId);
+    return r ? { ...r } : null;
+  }
+
+  async findById(userId: string, matchId: string): Promise<MatchRecord | null> {
+    const r = this.rows.find((x) => x.userId === userId && x.id === matchId);
     return r ? { ...r } : null;
   }
 
@@ -58,11 +71,26 @@ export class InMemoryInventoryMatchRepository implements InventoryMatchRepositor
       .map((r) => ({ ...r }));
   }
 
+  async listOpenStrongByUser(userId: string): Promise<MatchRecord[]> {
+    return this.rows
+      .filter((r) => r.userId === userId && r.status === 'open' && r.confidence === 'strong')
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((r) => ({ ...r }));
+  }
+
+  async getBadgeViewedAt(userId: string): Promise<number | null> {
+    return this.badgeViewedAt.get(userId) ?? null;
+  }
+
+  async setBadgeViewedAt(userId: string, at: number): Promise<void> {
+    this.badgeViewedAt.set(userId, at);
+  }
+
   async dismiss(userId: string, matchId: string): Promise<void> {
     const r = this.rows.find((x) => x.userId === userId && x.id === matchId);
     if (r && r.status === 'open') {
       r.status = 'dismissed';
-      r.dismissedAt = Date.now() + this.seq++;
+      r.dismissedAt = this.tick();
     }
   }
 

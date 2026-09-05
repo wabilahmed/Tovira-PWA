@@ -521,8 +521,8 @@ export function createImageRepository(config: AppConfig, pool?: Pool): ImageRepo
   return new InMemoryImageRepository();
 }
 
-export function createHeroService(config: AppConfig, clients: ClientRepository, facts: FactsRepository, meetings: MeetingRepository, notes: NoteRepository): HeroService {
-  return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays);
+export function createHeroService(config: AppConfig, clients: ClientRepository, facts: FactsRepository, meetings: MeetingRepository, notes: NoteRepository, matching?: MatchingService): HeroService {
+  return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays, matching);
 }
 
 export function createBillingService(config: AppConfig, pool?: Pool, emailHook?: BillingEmailHook): BillingService {

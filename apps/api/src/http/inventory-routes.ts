@@ -3,6 +3,7 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import type { InventoryService } from '../services/inventory/inventory-service.js';
+import type { MatchingService } from '../services/inventory/matching-service.js';
 import type { InventoryItemRecord, InventoryShareRecord, ShareOutcome } from '../ports/inventory-repository.js';
 import { BadJsonError, extractToken, readJsonBody, requireEntitled, sendJson } from './helpers.js';
 
@@ -11,8 +12,15 @@ export interface InventoryRouteDeps {
   inventory: InventoryService;
   clients: ClientRepository;
   billing: BillingService;
+  /** INV-MATCH surfacing (A5): match suggestions, the badge, dismiss, and share-from-suggestion. */
+  matching?: MatchingService;
 }
 
+const MATCHES_RE = /^\/inventory\/matches$/;                    // GET rep/client suggestions + badge
+const MATCH_SEEN_RE = /^\/inventory\/matches\/seen$/;           // POST clear the badge
+const MATCH_DISMISS_RE = /^\/inventory\/matches\/([^/]+)\/dismiss$/; // POST dismiss (everywhere)
+const MATCH_SHARE_RE = /^\/inventory\/matches\/([^/]+)\/share$/;     // POST act on a suggestion
+const ITEM_MATCHES_RE = /^\/inventory\/([^/]+)\/matches$/;      // GET reverse (per item)
 const ITEM_RE = /^\/inventory\/([^/]+)$/;
 const SHARES_RE = /^\/inventory\/([^/]+)\/shares$/;             // POST create + GET history
 const SHARE_OUTCOME_RE = /^\/inventory\/shares\/([^/]+)$/;      // PATCH outcome
@@ -51,6 +59,55 @@ export async function handleInventoryRoute(
     return true;
   }
   const userId = identity.userId;
+
+  // ---- INV-MATCH surfacing (A5). Matched BEFORE /inventory/:id so "matches" isn't read as an id.
+  // A match is a suggestion: reads are trial-included (§11.6, not gated); dismiss/share/seen are
+  // the rep acting on their own data (OPEN on a lapsed account, like create/edit). ----
+  if (deps.matching) {
+    if (method === 'GET' && MATCHES_RE.test(path)) {
+      // ?clientId= → a client's suggestions (brief); otherwise the rep's strong ones (Today). Plus
+      // the badge count (strong + unseen). Every suggestion carries its receipt.
+      const clientId = new URL(req.url ?? '', 'http://x').searchParams.get('clientId');
+      const suggestions = clientId
+        ? await deps.matching.suggestionsForClient(userId, clientId)
+        : await deps.matching.suggestionsForUser(userId);
+      const badge = await deps.matching.badgeCount(userId);
+      sendJson(res, 200, { suggestions, badge });
+      return true;
+    }
+    if (method === 'POST' && MATCH_SEEN_RE.test(path)) {
+      await deps.matching.markBadgeViewed(userId, Date.now());
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+    const dm = method === 'POST' ? MATCH_DISMISS_RE.exec(path) : null;
+    if (dm) {
+      // One row, so dismissing here removes it from EVERY surface (brief, Today, tab, Monday, badge).
+      await deps.matching.dismiss(userId, decodeURIComponent(dm[1]!));
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+    const sm = method === 'POST' ? MATCH_SHARE_RE.exec(path) : null;
+    if (sm) {
+      // Act on a suggestion → a share the LEDGER credits as suggestion-originated. Only this path
+      // sets outcome_set_by='confirmed_suggestion'; an independent share of the same item credits
+      // nothing — that distinction is the ledger's honesty.
+      const m = await deps.matching.getMatch(userId, decodeURIComponent(sm[1]!));
+      if (!m || m.status !== 'open') { sendJson(res, 404, { error: 'not_found' }); return true; }
+      const result = await deps.inventory.share(userId, m.itemId, m.clientId, 'confirmed_suggestion');
+      if (!result.ok) { sendJson(res, 409, { error: result.reason }); return true; }
+      await deps.matching.dismiss(userId, m.id); // acted on — resolve the open suggestion
+      sendJson(res, 200, { share: shareDto(result.share), warning: result.warning?.map(shareDto) ?? null });
+      return true;
+    }
+    const im = method === 'GET' ? ITEM_MATCHES_RE.exec(path) : null;
+    if (im) {
+      // Reverse direction — "N clients asked for something like this", with names + their quotes.
+      const suggestions = await deps.matching.suggestionsForItem(userId, decodeURIComponent(im[1]!));
+      sendJson(res, 200, { suggestions });
+      return true;
+    }
+  }
 
   // ---- Create — OPEN on a lapsed account (managing your own data) ----
   if (method === 'POST' && path === '/inventory') {

@@ -130,3 +130,40 @@ describe('[P4b-3] what should I do today', () => {
     expect((await ctx.hero.today('u', NOW)).length).toBeGreaterThan(0);
   });
 });
+
+describe('[INV-MATCH] strong matches enter Today\'s register below every fact', () => {
+  it('adds a match action at the lowest priority with the receipt inline', async () => {
+    const clients = new InMemoryClientRepository();
+    const facts = new InMemoryFactsRepository();
+    const meetings = new InMemoryMeetingRepository();
+    const notes = new InMemoryNoteRepository();
+    const { InMemoryInventoryRepository } = await import('../../adapters/inventory/in-memory-inventory-repository.js');
+    const { InMemoryInventoryMatchRepository } = await import('../../adapters/inventory/in-memory-inventory-match-repository.js');
+    const { InMemoryRequirementRepository } = await import('../../adapters/requirements/in-memory-requirement-repository.js');
+    const { MatchingService } = await import('../inventory/matching-service.js');
+    const inv = new InMemoryInventoryRepository();
+    const reqs = new InMemoryRequirementRepository();
+    const matchRepo = new InMemoryInventoryMatchRepository();
+    const matching = new MatchingService(matchRepo, reqs, inv);
+    const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, matching);
+
+    const client = await clients.create('u', 'Ahmed');
+    // An OVERDUE promise (priority 4) — a fact that must rank ABOVE the match.
+    await facts.saveExtraction('u', { noteId: 'np', clientId: client.id, promises: [{ text: 'send the deck', owner: 'rep', due_date: '2026-07-01', due_raw: '', confidence: 'high' }] });
+    // A strong match.
+    const item = await inv.create('u', { title: 'Marina Heights 402', description: '2-bed near the marina', quantity: 1, embedding: [1, 0, 0] });
+    const [req] = await reqs.saveForNote('u', 'nr', client.id, [{ text: 'A 2-bed', requirementRaw: 'looking for a 2-bed near the marina', statedOn: '2026-03-14', confidence: 'high', embedding: [1, 0, 0] }]);
+    await matching.matchRequirement('u', req!, [1, 0, 0]);
+    void item;
+
+    const actions = await hero.today('u', NOW);
+    const match = actions.find((a) => a.kind === 'match');
+    expect(match).toBeDefined();
+    expect(match!.priority).toBe(0); // below every fact
+    expect(match!.text).toContain('Marina Heights 402');
+    expect(match!.subline).toContain('looking for a 2-bed near the marina'); // the receipt, inline
+    expect(match!.subline).toContain('14 Mar 2026'); // …with the date
+    // Ordering: the overdue promise (a fact) comes before the match (a guess).
+    expect(actions.findIndex((a) => a.kind === 'promise')).toBeLessThan(actions.findIndex((a) => a.kind === 'match'));
+  });
+});

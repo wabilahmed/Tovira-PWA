@@ -36,9 +36,17 @@ export interface InventoryMatchRepository {
    *  confidence refreshed; a new one is created open. Returns the resulting record. */
   upsert(userId: string, m: MatchUpsert): Promise<MatchRecord>;
   findPairing(userId: string, requirementId: string, itemId: string): Promise<MatchRecord | null>;
+  findById(userId: string, matchId: string): Promise<MatchRecord | null>;
   listOpenByClient(userId: string, clientId: string): Promise<MatchRecord[]>;
   listOpenByItem(userId: string, itemId: string): Promise<MatchRecord[]>;
+  /** All open STRONG matches across the rep — Today's register + the badge (possibles never enter
+   *  either). Newest first. */
+  listOpenStrongByUser(userId: string): Promise<MatchRecord[]>;
   dismiss(userId: string, matchId: string): Promise<void>;
+  /** Badge seen-tracking: one timestamp per rep. The badge counts strong open matches created after
+   *  it; opening the Inventory tab bumps it. Null before the rep has ever viewed. */
+  getBadgeViewedAt(userId: string): Promise<number | null>;
+  setBadgeViewedAt(userId: string, at: number): Promise<void>;
   /** NOTE-MOVE: re-file the matches of moved requirements under the new client — the pairing +
    *  dismissal are preserved (the requirement's vector is unchanged), only the client attribution
    *  moves, which fixes BOTH the client- and item-side views (one row, two views). Returns count. */

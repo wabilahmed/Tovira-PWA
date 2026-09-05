@@ -34,7 +34,7 @@ const LEDGER_WIRING: Record<LedgerEventType, Wiring> = {
   thread_reopened: { triggeredBy: "type: 'thread_reopened'" }, // notes-routes on note capture
   promise_kept: { triggeredBy: "type: 'promise_kept'" }, // facts-routes on promise done-on-time
   brief_before_meeting: { triggeredBy: "type: 'brief_before_meeting'" }, // brief-routes
-  inventory_suggested_bought: { dormant: 'Batch 2: credited only when outcome_set_by=confirmed_suggestion, which no production path sets until the matching engine ships (inventory-service.ts).' },
+  inventory_suggested_bought: { triggeredBy: "'confirmed_suggestion'" }, // INV-MATCH A5: the share-from-suggestion route sets it; the ledger credits it on bought
 };
 
 // Every job that must be registered on the ScheduledBrain (asserted present in index.ts).
@@ -83,8 +83,8 @@ describe('[WIRING-GUARD] every registered emitter is reachable in production', (
       ...Object.entries(NOTIFICATION_WIRING),
       ...Object.entries(LEDGER_WIRING),
     ].filter(([, w]) => 'dormant' in w);
-    // If this grows, each addition is a deliberate, reviewed decision — not a silent gap.
-    expect(dormant.length).toBeLessThanOrEqual(1);
-    expect(dormant.map(([t]) => t)).toEqual(['inventory_suggested_bought']);
+    // If this grows, each addition is a deliberate, reviewed decision — not a silent gap. As of
+    // INV-MATCH A5 there are NONE: inventory_suggested_bought is now wired (share-from-suggestion).
+    expect(dormant.length).toBe(0);
   });
 });

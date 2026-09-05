@@ -1,6 +1,7 @@
 import type { ClientRepository } from '../../ports/client-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
+import type { MatchingService } from '../inventory/matching-service.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import { extractedOf } from '../insights/insights.js';
 import { evaluateGate, type GateState, type VolumeGateConfig } from './volume-gate.js';
@@ -41,7 +42,7 @@ export interface RiskItem {
 }
 
 export interface TodayAction {
-  kind: 'promise' | 'meeting' | 'cold' | 'risk';
+  kind: 'promise' | 'meeting' | 'cold' | 'risk' | 'match';
   priority: number;
   text: string;
   /** A one-line fact with a date/elapsed count — the reason this is on the
@@ -62,6 +63,8 @@ export class HeroService {
     private readonly deps: HeroDeps,
     private readonly gateConfig: VolumeGateConfig,
     private readonly coldThresholdDays: number,
+    /** INV-MATCH (§11.4): STRONG matches enter Today's register, below every fact. Optional. */
+    private readonly matching?: MatchingService,
   ) {}
 
   async status(userId: string): Promise<GateState> {
@@ -177,6 +180,22 @@ export class HeroService {
     for (const s of sig) {
       if (s.silentDays > this.coldThresholdDays) {
         actions.push({ kind: 'cold', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days` });
+      }
+    }
+    // INV-MATCH: STRONG matches enter the register at priority 0 — BELOW every fact (overdue
+    // promises, cooling clients, meetings), because a match is a guess and a guess ranks under a
+    // fact. Each carries its receipt inline (the client's quoted words + date) — never a bare match.
+    if (this.matching) {
+      for (const s of await this.matching.suggestionsForUser(userId)) {
+        const client = await this.deps.clients.findByIdForUser(userId, s.clientId);
+        const when = s.receipt.statedOn ? ` · ${bodyDate(s.receipt.statedOn)}` : '';
+        actions.push({
+          kind: 'match',
+          priority: 0,
+          text: `${s.itemTitle} may suit ${client?.name ?? 'a client'}`,
+          clientId: s.clientId,
+          subline: `asked: "${s.receipt.requirementRaw}"${when}`,
+        });
       }
     }
     return actions.sort((a, b) => b.priority - a.priority).slice(0, 10);

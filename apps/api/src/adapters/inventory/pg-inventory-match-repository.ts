@@ -72,6 +72,13 @@ export class PgInventoryMatchRepository implements InventoryMatchRepository {
     });
   }
 
+  async findById(userId: string, matchId: string): Promise<MatchRecord | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${COLUMNS} FROM inventory_matches WHERE id = $1`, [matchId]);
+      return rows[0] ? toRecord(rows[0] as unknown as Row) : null;
+    });
+  }
+
   async listOpenByClient(userId: string, clientId: string): Promise<MatchRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(`SELECT ${COLUMNS} FROM inventory_matches WHERE client_id = $1 AND status = 'open' ORDER BY similarity DESC`, [clientId]);
@@ -83,6 +90,30 @@ export class PgInventoryMatchRepository implements InventoryMatchRepository {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(`SELECT ${COLUMNS} FROM inventory_matches WHERE item_id = $1 AND status = 'open' ORDER BY similarity DESC`, [itemId]);
       return (rows as unknown as Row[]).map(toRecord);
+    });
+  }
+
+  async listOpenStrongByUser(userId: string): Promise<MatchRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${COLUMNS} FROM inventory_matches WHERE user_id = $1 AND status = 'open' AND confidence = 'strong' ORDER BY created_at DESC`, [userId]);
+      return (rows as unknown as Row[]).map(toRecord);
+    });
+  }
+
+  async getBadgeViewedAt(userId: string): Promise<number | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('SELECT last_viewed_at FROM inventory_match_badge_views WHERE user_id = $1', [userId]);
+      return rows[0] ? (rows[0] as { last_viewed_at: Date }).last_viewed_at.getTime() : null;
+    });
+  }
+
+  async setBadgeViewedAt(userId: string, at: number): Promise<void> {
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query(
+        `INSERT INTO inventory_match_badge_views (user_id, last_viewed_at) VALUES ($1, to_timestamp($2 / 1000.0))
+         ON CONFLICT (user_id) DO UPDATE SET last_viewed_at = EXCLUDED.last_viewed_at`,
+        [userId, at],
+      );
     });
   }
 
