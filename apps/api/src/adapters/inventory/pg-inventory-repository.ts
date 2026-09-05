@@ -8,6 +8,7 @@ import type {
   InventoryShareRecord,
   ShareInput,
   ShareOutcomePatch,
+  SimilarItem,
 } from '../../ports/inventory-repository.js';
 import { withTenant } from '../../db/tenant.js';
 
@@ -92,6 +93,19 @@ export class PgInventoryRepository implements InventoryRepository {
       // No app-layer user_id filter here — RLS alone scopes the row (same as clients).
       const { rows } = await c.query(`SELECT ${COLUMNS} FROM inventory_items WHERE id = $1`, [id]);
       return rows.length ? toRecord(rows[0] as unknown as InventoryRow) : null;
+    });
+  }
+
+  async searchByEmbedding(userId: string, queryEmbedding: number[], limit: number): Promise<SimilarItem[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS}, 1 - (embedding <=> $1::vector) AS similarity
+         FROM inventory_items
+         WHERE status = 'active' AND embedding IS NOT NULL
+         ORDER BY embedding <=> $1::vector LIMIT $2`,
+        [vec(queryEmbedding), limit],
+      );
+      return (rows as unknown as Array<InventoryRow & { similarity: number }>).map((row) => ({ item: toRecord(row), similarity: row.similarity }));
     });
   }
 

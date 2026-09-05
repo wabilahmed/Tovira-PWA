@@ -36,6 +36,8 @@ import {
   createCorrectionRepository,
   createMeetingRepository,
   createRequirementRepository,
+  createInventoryMatchRepository,
+  createMatchingService,
   createNoteMoveAuditRepository,
   createNoteMoveTx,
   createNoteMoveService,
@@ -133,12 +135,14 @@ async function main(): Promise<void> {
   );
   const meetings = createMeetingRepository(config, appPool);
   const requirements = createRequirementRepository(config, appPool);
+  const inventoryMatches = createInventoryMatchRepository(config, appPool);
+  const matching = createMatchingService(inventoryMatches, requirements, inventoryRepo);
   const noteMoveAudit = createNoteMoveAuditRepository(config, appPool);
   const noteMoveTx = createNoteMoveTx(config, appPool, notes, facts, meetings, clients, noteMoveAudit);
   const noteMove = createNoteMoveService(notes, facts, meetings, noteMoveTx);
   // NUDGE-UNCONFIRMED: extraction persists proposed meetings (confirmed:false) so they can be
   // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching);
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
   const meetingParser = createMeetingParser(config, clients);
@@ -236,7 +240,7 @@ async function main(): Promise<void> {
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId));
   const ledger = createLedgerService(config, appPool);
-  const inventory = createInventoryService(inventoryRepo, ledger, config);
+  const inventory = createInventoryService(inventoryRepo, ledger, config, matching);
   const referral = new ReferralService(
     config.authStore === 'postgres' ? new PgReferralRepository(appPool) : new InMemoryReferralRepository(),
     billing,

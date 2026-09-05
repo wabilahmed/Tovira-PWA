@@ -56,6 +56,10 @@ import type { NoteMoveTx } from './ports/note-move-tx.js';
 import { InMemoryRequirementRepository } from './adapters/requirements/in-memory-requirement-repository.js';
 import { PgRequirementRepository } from './adapters/requirements/pg-requirement-repository.js';
 import type { RequirementRepository } from './ports/requirement-repository.js';
+import { InMemoryInventoryMatchRepository } from './adapters/inventory/in-memory-inventory-match-repository.js';
+import { PgInventoryMatchRepository } from './adapters/inventory/pg-inventory-match-repository.js';
+import type { InventoryMatchRepository } from './ports/inventory-match-repository.js';
+import { MatchingService } from './services/inventory/matching-service.js';
 import type { Transcriber } from './ports/transcriber.js';
 import { StubTranscriber } from './adapters/transcription/stub.js';
 import { GroqTranscriber } from './adapters/transcription/groq.js';
@@ -253,9 +257,23 @@ export function createInventoryRepository(config: AppConfig, pool?: Pool): Inven
 }
 
 /** Build the inventory service (repo + embedder — embeds each item on save; no Claude — plus
- *  the ledger for the suggested-then-bought credit). */
-export function createInventoryService(repo: InventoryRepository, ledger: LedgerService, config: AppConfig): InventoryService {
-  return new InventoryService(repo, createEmbedder(config), ledger);
+ *  the ledger for the suggested-then-bought credit, and the matching engine for direction 2). */
+export function createInventoryService(repo: InventoryRepository, ledger: LedgerService, config: AppConfig, matching?: MatchingService): InventoryService {
+  return new InventoryService(repo, createEmbedder(config), ledger, matching);
+}
+
+/** INV-MATCH match store (RLS-backed on pg). */
+export function createInventoryMatchRepository(config: AppConfig, pool?: Pool): InventoryMatchRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgInventoryMatchRepository(pool);
+  }
+  return new InMemoryInventoryMatchRepository();
+}
+
+/** INV-MATCH: the matching engine — pure vector retrieval, no model call per pairing. */
+export function createMatchingService(matches: InventoryMatchRepository, requirements: RequirementRepository, inventory: InventoryRepository): MatchingService {
+  return new MatchingService(matches, requirements, inventory);
 }
 
 /** Build the note repository, selecting the store from config (RLS-backed on pg). */
@@ -372,9 +390,10 @@ export function createExtractionService(
   meetings?: MeetingRepository,
   timezoneFor?: (userId: string) => Promise<string>,
   requirements?: RequirementRepository,
+  matching?: MatchingService,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching);
 }
 
 /** The requirements spine store (INV-MATCH), RLS-backed on pg. */

@@ -17,6 +17,8 @@ import { InMemoryNoteMoveAuditRepository } from '../adapters/notes/in-memory-not
 import { InMemoryNoteMoveTx } from '../adapters/notes/in-memory-note-move-tx.js';
 import { NoteMoveService } from '../services/import/note-move-service.js';
 import { InMemoryRequirementRepository } from '../adapters/requirements/in-memory-requirement-repository.js';
+import { InMemoryInventoryMatchRepository } from '../adapters/inventory/in-memory-inventory-match-repository.js';
+import { MatchingService } from '../services/inventory/matching-service.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { StubTranscriber } from '../adapters/transcription/stub.js';
 import { TranscriptionService } from '../services/transcription/transcription-service.js';
@@ -93,10 +95,11 @@ export function buildInMemoryDeps(
   const transcription = new TranscriptionService(new StubTranscriber('clear transcript'), notes, storage);
   const embedder = new StubEmbedder(8);
   const ledger = new LedgerService(new InMemoryLedgerRepository());
-  const inventory = new InventoryService(inventoryRepo, embedder, ledger);
+  const requirements = new InMemoryRequirementRepository();
+  const matching = new MatchingService(new InMemoryInventoryMatchRepository(), requirements, inventoryRepo);
+  const inventory = new InventoryService(inventoryRepo, embedder, ledger, matching); // direction 2 trigger
   const extractionLog = new InMemoryExtractionLogRepository();
   const corrections = new InMemoryCorrectionRepository();
-  const requirements = new InMemoryRequirementRepository();
   const extraction = new ExtractionService(
     new StubModelClient(),
     clients,
@@ -112,6 +115,7 @@ export function buildInMemoryDeps(
     undefined, // meetings
     undefined, // meetingTimezone
     requirements,
+    matching, // direction 1 trigger
   );
   const brief = new BriefService(clients, notes, facts, embedder);
   const followUp = new FollowUpService(new StubModelClient(), notes);

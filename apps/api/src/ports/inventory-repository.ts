@@ -67,6 +67,11 @@ export interface ShareOutcomePatch {
   quantityBought?: number | null;
 }
 
+export interface SimilarItem {
+  item: InventoryItemRecord;
+  similarity: number; // cosine in [-1, 1]
+}
+
 export interface InventoryRepository {
   create(userId: string, input: InventoryItemInput): Promise<InventoryItemRecord>;
   /** Newest first. `status` filters active/disabled; omitted returns all. */
@@ -74,6 +79,10 @@ export interface InventoryRepository {
   findByIdForUser(userId: string, id: string): Promise<InventoryItemRecord | null>;
   /** Patch an item; returns the updated record, or null if it isn't the caller's. */
   update(userId: string, id: string, patch: InventoryItemPatch): Promise<InventoryItemRecord | null>;
+  /** INV-MATCH: ACTIVE items whose vector is nearest the query (a requirement's vector) — the
+   *  forward match direction. Disabled / out-of-stock items are excluded (never suggested). Vector
+   *  cosine only, no model call. */
+  searchByEmbedding(userId: string, queryEmbedding: number[], limit: number): Promise<SimilarItem[]>;
   /** Delete every item for a user — account deletion only (nothing else deletes). */
   purgeUser(userId: string): Promise<void>;
 

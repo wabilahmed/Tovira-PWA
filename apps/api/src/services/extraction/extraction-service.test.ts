@@ -8,6 +8,9 @@ import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-re
 import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryMeetingRepository } from '../../adapters/meetings/in-memory-meeting-repository.js';
 import { InMemoryRequirementRepository } from '../../adapters/requirements/in-memory-requirement-repository.js';
+import { InMemoryInventoryRepository } from '../../adapters/inventory/in-memory-inventory-repository.js';
+import { InMemoryInventoryMatchRepository } from '../../adapters/inventory/in-memory-inventory-match-repository.js';
+import { MatchingService } from '../inventory/matching-service.js';
 import { StubEmbedder } from '../../adapters/embedding/stub.js';
 import type { ModelClient } from '../../ports/model.js';
 import type { Embedder } from '../../ports/embedder.js';
@@ -299,6 +302,42 @@ describe('ExtractionService', () => {
     expect(stored[0]!.statedOn).toBe('2026-07-09');
     // searchable by vector (the reverse match direction will use this)
     expect(await requirements.searchByEmbedding('u', (await new StubEmbedder(8).embed('looking for a 2-bed near the marina')), 5)).toHaveLength(1);
+  });
+
+  // INV-MATCH (A4b) #9, end-to-end: extraction triggers matching, which is RETRIEVAL — it must add
+  // ZERO model (Claude) calls beyond the one extraction call. (SPEC-DERIVED, §9.)
+  it('matching triggered by extraction adds no Claude call — retrieval, not inference', async () => {
+    const raw = 'looking for a 2-bed near the marina';
+    const withReq = JSON.stringify({
+      summary: 'x', promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [],
+      requirements: [{ text: 'A 2-bed near the marina', requirement_raw: raw, stated_on: '2026-07-09', confidence: 'high' }],
+      meeting: null,
+    });
+    let modelCalls = 0;
+    const spyModel: ModelClient = { complete: async () => { modelCalls += 1; return { text: withReq }; } };
+
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const requirements = new InMemoryRequirementRepository();
+    const inventory = new InMemoryInventoryRepository();
+    const matching = new MatchingService(new InMemoryInventoryMatchRepository(), requirements, inventory);
+    const embedder = new StubEmbedder(8);
+    // Seed a matching item: same text → identical stub vector → cosine 1.0 → a strong match.
+    await inventory.create('u', { title: 'Marina Heights 402', description: raw, quantity: 1, embedding: await embedder.embed(raw) });
+
+    const client = await clients.create('u', 'Marina Estates');
+    const note = await notes.create('u', { clientId: client.id, source: 'voice', rawText: raw, audioKey: null, status: 'pending_extraction' });
+    const svc = new ExtractionService(spyModel, clients, notes, facts, embedder, logs, 'stub', undefined, undefined, undefined, undefined, undefined, undefined, requirements, matching);
+    await svc.extractNote('u', note.id, '2026-07-09');
+
+    expect(modelCalls).toBe(1); // ONLY the extraction — matching made no model call
+    // …and matching actually ran: the requirement produced a surfaced suggestion with a receipt.
+    const sugg = await matching.suggestionsForClient('u', client.id);
+    expect(sugg).toHaveLength(1);
+    expect(sugg[0]!.confidence).toBe('strong');
+    expect(sugg[0]!.receipt.requirementRaw).toBe(raw);
   });
 
   it('persists no requirement rows for a note that states none', async () => {

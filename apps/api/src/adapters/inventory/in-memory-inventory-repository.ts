@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { cosine } from '../vector.js';
 import type {
   InventoryItemRecord,
   InventoryItemInput,
@@ -8,11 +9,13 @@ import type {
   InventoryShareRecord,
   ShareInput,
   ShareOutcomePatch,
+  SimilarItem,
 } from '../../ports/inventory-repository.js';
 
-/** In-memory inventory store mirroring the RLS isolation contract, for tests. */
+/** In-memory inventory store mirroring the RLS isolation contract, for tests. Retains item vectors
+ *  (unlike before) so the forward match direction can search them. */
 export class InMemoryInventoryRepository implements InventoryRepository {
-  private readonly byId = new Map<string, InventoryItemRecord & { hasVector: boolean }>();
+  private readonly byId = new Map<string, InventoryItemRecord & { vector: number[] | null }>();
   private readonly shares = new Map<string, InventoryShareRecord>();
   private clock = 0;
 
@@ -27,11 +30,12 @@ export class InMemoryInventoryRepository implements InventoryRepository {
 
   async create(userId: string, input: InventoryItemInput): Promise<InventoryItemRecord> {
     const now = this.tick();
-    const record: InventoryItemRecord & { hasVector: boolean } = {
+    const hasVec = (input.embedding?.length ?? 0) > 0;
+    const record: InventoryItemRecord & { vector: number[] | null } = {
       id: randomUUID(), userId,
       title: input.title, description: input.description, quantity: input.quantity,
       status: 'active', disabledReason: null,
-      embedded: (input.embedding?.length ?? 0) > 0, hasVector: (input.embedding?.length ?? 0) > 0,
+      embedded: hasVec, vector: hasVec ? input.embedding! : null,
       createdAt: now, updatedAt: now,
     };
     this.byId.set(record.id, record);
@@ -58,9 +62,17 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     if (patch.quantity !== undefined) r.quantity = patch.quantity;
     if (patch.status !== undefined) r.status = patch.status;
     if (patch.disabledReason !== undefined) r.disabledReason = patch.disabledReason;
-    if (patch.embedding !== undefined) { r.embedded = (patch.embedding?.length ?? 0) > 0; r.hasVector = r.embedded; }
+    if (patch.embedding !== undefined) { const has = (patch.embedding?.length ?? 0) > 0; r.embedded = has; r.vector = has ? patch.embedding! : null; }
     r.updatedAt = this.tick();
     return this.view(r);
+  }
+
+  async searchByEmbedding(userId: string, queryEmbedding: number[], limit: number): Promise<SimilarItem[]> {
+    return [...this.byId.values()]
+      .filter((r) => r.userId === userId && r.status === 'active' && r.vector !== null) // disabled/out-of-stock excluded
+      .map((r) => ({ item: this.view(r), similarity: cosine(queryEmbedding, r.vector!) }))
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
   }
 
   async purgeUser(userId: string): Promise<void> {

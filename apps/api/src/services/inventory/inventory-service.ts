@@ -1,5 +1,6 @@
 import type { Embedder } from '../../ports/embedder.js';
 import type { LedgerService } from '../ledger/ledger-service.js';
+import type { MatchingService } from './matching-service.js';
 import type {
   InventoryRepository,
   InventoryItemRecord,
@@ -40,11 +41,26 @@ export class InventoryService {
     private readonly repo: InventoryRepository,
     private readonly embedder: Embedder,
     private readonly ledger: LedgerService,
+    /** INV-MATCH: the matching engine, triggered on a new/edited item (direction 2). Optional. */
+    private readonly matching?: MatchingService,
   ) {}
 
   async create(userId: string, input: CreateItemInput): Promise<InventoryItemRecord> {
     const embedding = await this.embed(input.title, input.description);
-    return this.repo.create(userId, { title: input.title, description: input.description, quantity: input.quantity, embedding });
+    const item = await this.repo.create(userId, { title: input.title, description: input.description, quantity: input.quantity, embedding });
+    await this.match(userId, item, embedding);
+    return item;
+  }
+
+  /** INV-MATCH: trigger direction 2 (new item → existing open requirements) with the fresh vector.
+   *  Pure vector retrieval, never a model call. Best-effort — a match failure never blocks a save. */
+  private async match(userId: string, item: InventoryItemRecord, embedding: number[] | null): Promise<void> {
+    if (!this.matching) return;
+    try {
+      await this.matching.matchItem(userId, item, embedding);
+    } catch (err) {
+      console.warn(`[inv-match] item-side match failed for item ${item.id}`, err);
+    }
   }
 
   async edit(userId: string, id: string, patch: EditItemInput): Promise<InventoryItemRecord | null> {
@@ -57,8 +73,10 @@ export class InventoryService {
     if (patch.quantity !== undefined) repoPatch.quantity = patch.quantity;
 
     // Re-embed only when the matching surface (title/description) actually changed.
+    let reEmbedded: number[] | null | undefined;
     if (patch.title !== undefined || patch.description !== undefined) {
-      repoPatch.embedding = await this.embed(patch.title ?? existing.title, patch.description ?? existing.description);
+      reEmbedded = await this.embed(patch.title ?? existing.title, patch.description ?? existing.description);
+      repoPatch.embedding = reEmbedded;
     }
 
     // Arithmetic disable/reactivate — rep-initiated, never inferred.
@@ -71,7 +89,11 @@ export class InventoryService {
         repoPatch.disabledReason = null; // reactivation preserves id/created/history — same item returning
       }
     }
-    return this.repo.update(userId, id, repoPatch);
+    const updated = await this.repo.update(userId, id, repoPatch);
+    // Re-match on a changed matching surface (a re-listed or re-described item may now answer open
+    // requirements). matchItem itself skips a disabled/out-of-stock item.
+    if (updated && reEmbedded !== undefined) await this.match(userId, updated, reEmbedded);
+    return updated;
   }
 
   list(userId: string, status?: InventoryStatus): Promise<InventoryItemRecord[]> {

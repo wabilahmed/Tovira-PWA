@@ -7,6 +7,7 @@ import type { ExtractionLogRepository } from '../../ports/extraction-log-reposit
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { RequirementRepository, RequirementInput } from '../../ports/requirement-repository.js';
+import type { MatchingService } from '../inventory/matching-service.js';
 import type { Meeting, Requirement } from './types.js';
 import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
@@ -87,14 +88,19 @@ export class ExtractionService {
     private readonly meetingTimezone?: (userId: string) => Promise<string>,
     /** INV-MATCH: the requirements spine. Optional — extraction runs unchanged without it. */
     private readonly requirements?: RequirementRepository,
+    /** INV-MATCH: the matching engine, triggered on a new requirement (direction 1). Optional. */
+    private readonly matching?: MatchingService,
   ) {}
 
-  /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding. The
-   *  embedding is Titan (cheap, one call per requirement), never Claude, and best-effort — a
-   *  requirement with no vector is simply not matchable, never lost. Idempotent per note. */
+  /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
+   *  trigger matching direction 1 (new requirement → existing stock) with the fresh vectors — pure
+   *  vector retrieval, never a per-pairing model call. The embedding is Titan (one call per
+   *  requirement), never Claude, and best-effort — a requirement with no vector is simply not
+   *  matchable, never lost. Idempotent per note. */
   private async persistRequirements(userId: string, noteId: string, clientId: string, reqs: Requirement[]): Promise<void> {
     if (!this.requirements) return;
     const inputs: RequirementInput[] = [];
+    const vectors: Array<number[] | null> = [];
     for (const r of reqs) {
       let embedding: number[] | null = null;
       try {
@@ -103,8 +109,18 @@ export class ExtractionService {
         console.warn(`[requirements] embed failed for note ${noteId}; requirement stored without a vector`, err);
       }
       inputs.push({ text: r.text, requirementRaw: r.requirement_raw, statedOn: r.stated_on, confidence: r.confidence, embedding });
+      vectors.push(embedding);
     }
-    await this.requirements.saveForNote(userId, noteId, clientId, inputs);
+    const saved = await this.requirements.saveForNote(userId, noteId, clientId, inputs);
+    if (this.matching) {
+      for (let i = 0; i < saved.length; i++) {
+        try {
+          await this.matching.matchRequirement(userId, saved[i]!, vectors[i] ?? null);
+        } catch (err) {
+          console.warn(`[inv-match] requirement-side match failed for note ${noteId}`, err);
+        }
+      }
+    }
   }
 
   /** Persist a proposed meeting for a note (idempotent per note). `confirmed` comes from the
