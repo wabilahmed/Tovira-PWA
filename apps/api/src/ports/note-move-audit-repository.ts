@@ -8,6 +8,7 @@ export interface NoteMoveCounts {
   promises: number;
   keyDates: number;
   meetings: number;
+  requirements: number;
 }
 
 export interface NoteMoveAuditEntry {

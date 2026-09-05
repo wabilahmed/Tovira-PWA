@@ -303,12 +303,14 @@ export function createNoteMoveTx(
   meetings: MeetingRepository,
   clients: ClientRepository,
   audit: NoteMoveAuditRepository,
+  requirements?: RequirementRepository,
+  matches?: InventoryMatchRepository,
 ): NoteMoveTx {
   if (config.authStore === 'postgres') {
     if (!pool) throw new Error('authStore=postgres requires a database pool');
     return new PgNoteMoveTx(pool);
   }
-  return new InMemoryNoteMoveTx(notes, facts, meetings, clients, audit);
+  return new InMemoryNoteMoveTx(notes, facts, meetings, clients, audit, requirements, matches);
 }
 
 /** [NOTE-MOVE/IMPORT-UNDO] the service that moves a misfiled note (+ everything derived) or undoes

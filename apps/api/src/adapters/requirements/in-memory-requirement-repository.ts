@@ -81,6 +81,18 @@ export class InMemoryRequirementRepository implements RequirementRepository {
       .slice(0, limit);
   }
 
+  async reassignByNote(userId: string, noteId: string, toClientId: string): Promise<string[]> {
+    const ids: string[] = [];
+    for (const r of this.rows) if (r.userId === userId && r.noteId === noteId) { r.clientId = toClientId; ids.push(r.id); }
+    return ids;
+  }
+
+  async deleteByNote(userId: string, noteId: string): Promise<string[]> {
+    const ids = this.rows.filter((r) => r.userId === userId && r.noteId === noteId).map((r) => r.id);
+    this.rows = this.rows.filter((r) => !(r.userId === userId && r.noteId === noteId));
+    return ids;
+  }
+
   async markDormantBefore(userId: string, cutoffMs: number): Promise<number> {
     let n = 0;
     for (const r of this.rows) {

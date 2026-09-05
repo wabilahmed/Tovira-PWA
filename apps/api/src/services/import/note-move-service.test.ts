@@ -6,6 +6,10 @@ import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-re
 import { InMemoryMeetingRepository } from '../../adapters/meetings/in-memory-meeting-repository.js';
 import { InMemoryNoteMoveAuditRepository } from '../../adapters/notes/in-memory-note-move-audit-repository.js';
 import { InMemoryNoteMoveTx, type MoveStep } from '../../adapters/notes/in-memory-note-move-tx.js';
+import { InMemoryRequirementRepository } from '../../adapters/requirements/in-memory-requirement-repository.js';
+import { InMemoryInventoryMatchRepository } from '../../adapters/inventory/in-memory-inventory-match-repository.js';
+import { InMemoryInventoryRepository } from '../../adapters/inventory/in-memory-inventory-repository.js';
+import { MatchingService } from '../inventory/matching-service.js';
 
 const USER = 'user-A';
 
@@ -15,7 +19,10 @@ async function fixture(fault?: (step: MoveStep) => void) {
   const facts = new InMemoryFactsRepository();
   const meetings = new InMemoryMeetingRepository();
   const audit = new InMemoryNoteMoveAuditRepository();
-  const tx = new InMemoryNoteMoveTx(notes, facts, meetings, clients, audit, fault);
+  const requirements = new InMemoryRequirementRepository();
+  const matches = new InMemoryInventoryMatchRepository();
+  const inventoryRepo = new InMemoryInventoryRepository();
+  const tx = new InMemoryNoteMoveTx(notes, facts, meetings, clients, audit, requirements, matches, fault);
   const service = new NoteMoveService(notes, facts, meetings, tx);
 
   const meridian = await clients.create(USER, 'Meridian'); // the WRONG client (misfiled here)
@@ -50,8 +57,12 @@ async function fixture(fault?: (step: MoveStep) => void) {
   await facts.markPromiseDone(USER, promises[0]!.id); // one is DONE — state must survive the move
   await facts.confirmPromise(USER, promises[1]!.id); // one is CONFIRMED — must survive too
   await meetings.create(USER, { clientId: meridian.id, noteId: note.id, datetime: null, datetimeRaw: 'thu', title: null, confirmed: false });
+  // A requirements spine row for the note (mirrors the JSONB), with a match hanging off it.
+  const [reqRow] = await requirements.saveForNote(USER, note.id, meridian.id, [{ text: 'A 3-bed', requirementRaw: 'a 3-bed', statedOn: null, confidence: 'high', embedding: [1, 0, 0] }]);
+  const item = await inventoryRepo.create(USER, { title: 'A 3-bed villa', description: 'a 3-bed', quantity: 1, embedding: [1, 0, 0] });
+  await matches.upsert(USER, { requirementId: reqRow!.id, itemId: item.id, clientId: meridian.id, similarity: 1, confidence: 'strong' });
 
-  return { clients, notes, facts, meetings, audit, tx, service, meridian, ahmed, note };
+  return { clients, notes, facts, meetings, audit, requirements, matches, inventoryRepo, reqRow: reqRow!, item, tx, service, meridian, ahmed, note };
 }
 
 describe('[NOTE-MOVE] B3 — move a note and everything derived from it', () => {
@@ -104,7 +115,33 @@ describe('[NOTE-MOVE] B3 — move a note and everything derived from it', () => 
     const log = await audit.listByUser(USER);
     expect(log).toHaveLength(1);
     expect(log[0]).toMatchObject({ kind: 'move', fromClientId: meridian.id, toClientId: ahmed.id });
-    expect(log[0]!.counts).toEqual({ messages: 2, promises: 2, keyDates: 1, meetings: 1 });
+    expect(log[0]!.counts).toEqual({ messages: 2, promises: 2, keyDates: 1, meetings: 1, requirements: 1 });
+  });
+
+  // INV-MATCH: a moved note carries its requirements + their matches to the right client, so
+  // suggestions surface where they belong — and dismissals survive the move (reassign, not re-run).
+  it('carries requirements + matches to the target client; suggestions follow, dismissals survive', async () => {
+    const { service, requirements, matches, inventoryRepo, reqRow, ahmed, meridian, note } = await fixture();
+    const matching = new MatchingService(matches, requirements, inventoryRepo);
+    // Before the move: the match belongs to Meridian (the wrong client).
+    expect(await matching.suggestionsForClient(USER, meridian.id)).toHaveLength(1);
+
+    await service.move(USER, note.id, ahmed.id);
+
+    // The requirement and its match now belong to Ahmed; nothing lingers under Meridian.
+    expect((await requirements.findByIdForUser(USER, reqRow.id))!.clientId).toBe(ahmed.id);
+    expect(await matching.suggestionsForClient(USER, ahmed.id)).toHaveLength(1);
+    expect(await matching.suggestionsForClient(USER, meridian.id)).toHaveLength(0);
+  });
+
+  it('a dismissed match stays dismissed after the note moves (reassign, not re-run)', async () => {
+    const { service, requirements, matches, inventoryRepo, ahmed, note } = await fixture();
+    const matching = new MatchingService(matches, requirements, inventoryRepo);
+    const [m] = await matching.suggestionsForClient(USER, (await requirements.listByClient(USER, note.clientId))[0]!.clientId);
+    await matching.dismiss(USER, m!.matchId);
+    await service.move(USER, note.id, ahmed.id);
+    // The dismissal is preserved across the move — it does not resurface under the new client.
+    expect(await matching.suggestionsForClient(USER, ahmed.id)).toHaveLength(0);
   });
 
   it('rejects a missing note, a missing target, and a same-client no-op', async () => {
@@ -134,18 +171,36 @@ describe('[NOTE-MOVE] B3 — move a note and everything derived from it', () => 
     // And no audit row was written for a move that did not happen.
     expect(await audit.listByUser(USER)).toHaveLength(0);
   });
+
+  // INV-MATCH: a fault AFTER the requirements + matches were reassigned must roll THEM back too — a
+  // move that strands requirements under the wrong client is worse than not moving.
+  it('is atomic across requirements + matches: a fault after them rolls them back', async () => {
+    const { service, requirements, matches, reqRow, meridian, ahmed, note } = await fixture((step) => {
+      if (step === 'requirements') throw new Error('injected fault after requirements + matches reassigned');
+    });
+    await expect(service.move(USER, note.id, ahmed.id)).rejects.toThrow(/injected fault/);
+    // The requirement and its match are back under Meridian — nothing partial survived.
+    expect((await requirements.findByIdForUser(USER, reqRow.id))!.clientId).toBe(meridian.id);
+    const openForMeridian = await matches.listOpenByClient(USER, meridian.id);
+    const openForAhmed = await matches.listOpenByClient(USER, ahmed.id);
+    expect(openForMeridian).toHaveLength(1); // still Meridian's
+    expect(openForAhmed).toHaveLength(0); // nothing leaked to Ahmed
+  });
 });
 
 describe('[IMPORT-UNDO] B4 — undo an import', () => {
   it('removes exactly the note and everything it produced', async () => {
-    const { service, notes, facts, meetings, note } = await fixture();
+    const { service, notes, facts, meetings, requirements, matches, meridian, note } = await fixture();
     const r = await service.undo(USER, note.id);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.counts).toEqual({ messages: 2, promises: 2, keyDates: 1, meetings: 1 });
+    if (r.ok) expect(r.counts).toEqual({ messages: 2, promises: 2, keyDates: 1, meetings: 1, requirements: 1 });
     expect(await notes.findByIdForUser(USER, note.id)).toBeNull();
     expect(await facts.listPromisesByNote(USER, note.id)).toHaveLength(0);
     expect(await facts.listKeyDatesByNote(USER, note.id)).toHaveLength(0);
     expect(await meetings.findByNoteId(USER, note.id)).toBeNull();
+    // Requirements + their matches go too (an undone import leaves no matchable ghost).
+    expect(await requirements.listByClient(USER, meridian.id)).toHaveLength(0);
+    expect(await matches.listOpenByClient(USER, meridian.id)).toHaveLength(0);
   });
 
   it('leaves other notes untouched', async () => {

@@ -92,6 +92,22 @@ export class PgInventoryMatchRepository implements InventoryMatchRepository {
     });
   }
 
+  async reassignByRequirements(userId: string, requirementIds: string[], toClientId: string): Promise<number> {
+    if (requirementIds.length === 0) return 0;
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('UPDATE inventory_matches SET client_id = $1 WHERE requirement_id = ANY($2::uuid[]) RETURNING id', [toClientId, requirementIds]);
+      return rows.length;
+    });
+  }
+
+  async deleteByRequirements(userId: string, requirementIds: string[]): Promise<number> {
+    if (requirementIds.length === 0) return 0;
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('DELETE FROM inventory_matches WHERE requirement_id = ANY($1::uuid[]) RETURNING id', [requirementIds]);
+      return rows.length;
+    });
+  }
+
   async purgeUser(userId: string): Promise<void> {
     await withTenant(this.pool, userId, async (c) => {
       await c.query('DELETE FROM inventory_matches WHERE user_id = $1', [userId]);

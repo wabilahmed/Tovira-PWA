@@ -58,5 +58,11 @@ export interface RequirementRepository {
   searchByEmbedding(userId: string, queryEmbedding: number[], limit: number): Promise<SimilarRequirement[]>;
   /** Move open requirements not mentioned since `cutoffMs` to dormant (§11.1). Returns the count. */
   markDormantBefore(userId: string, cutoffMs: number): Promise<number>;
+  /** NOTE-MOVE: re-file a note's requirements under another client (the vector/text is unchanged, so
+   *  their matches stay valid — only the client attribution moves). Returns the reassigned ids so
+   *  the caller can move their matches too. */
+  reassignByNote(userId: string, noteId: string, toClientId: string): Promise<string[]>;
+  /** IMPORT-UNDO: delete a note's requirements. Returns the removed ids (their matches follow). */
+  deleteByNote(userId: string, noteId: string): Promise<string[]>;
   purgeUser(userId: string): Promise<void>;
 }

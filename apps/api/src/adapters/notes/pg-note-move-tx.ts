@@ -27,11 +27,16 @@ export class PgNoteMoveTx implements NoteMoveTx {
       const p = await c.query('UPDATE promises SET client_id = $1 WHERE note_id = $2 RETURNING id', [toClientId, noteId]);
       const k = await c.query('UPDATE key_dates SET client_id = $1 WHERE note_id = $2 RETURNING id', [toClientId, noteId]);
       const m = await c.query('UPDATE meetings SET client_id = $1 WHERE note_id = $2 RETURNING id', [toClientId, noteId]);
+      // INV-MATCH: requirements + their inventory matches follow the note (pairing/dismissal
+      // preserved — only the client attribution moves, correcting both match views).
+      const rq = await c.query('UPDATE requirements SET client_id = $1 WHERE note_id = $2 RETURNING id', [toClientId, noteId]);
+      const reqIds = (rq.rows as unknown as Array<{ id: string }>).map((r) => r.id);
+      if (reqIds.length > 0) await c.query('UPDATE inventory_matches SET client_id = $1 WHERE requirement_id = ANY($2::uuid[])', [toClientId, reqIds]);
       await c.query('UPDATE notes SET client_id = $1, move_suggestion = NULL WHERE id = $2', [toClientId, noteId]);
       // Recompute last-contact on BOTH clients from the notes they now own (created_at is the signal).
       await this.recompute(c, from);
       await this.recompute(c, toClientId);
-      const counts: NoteMoveCounts = { messages: Array.isArray(messages) ? messages.length : 0, promises: p.rows.length, keyDates: k.rows.length, meetings: m.rows.length };
+      const counts: NoteMoveCounts = { messages: Array.isArray(messages) ? messages.length : 0, promises: p.rows.length, keyDates: k.rows.length, meetings: m.rows.length, requirements: rq.rows.length };
       await c.query(
         `INSERT INTO note_move_audit (user_id, note_id, kind, from_client_id, to_client_id, counts)
          VALUES ($1, $2, 'move', $3, $4, $5::jsonb)`,
@@ -50,9 +55,11 @@ export class PgNoteMoveTx implements NoteMoveTx {
       const p = await c.query('DELETE FROM promises WHERE note_id = $1 RETURNING id', [noteId]);
       const k = await c.query('DELETE FROM key_dates WHERE note_id = $1 RETURNING id', [noteId]);
       const m = await c.query('DELETE FROM meetings WHERE note_id = $1 RETURNING id', [noteId]);
+      // Requirements go too; their inventory matches cascade via the FK (0049 ON DELETE CASCADE).
+      const rq = await c.query('DELETE FROM requirements WHERE note_id = $1 RETURNING id', [noteId]);
       await c.query('DELETE FROM notes WHERE id = $1', [noteId]); // training log survives (0045, no FK)
       await this.recompute(c, from);
-      const counts: NoteMoveCounts = { messages: Array.isArray(messages) ? messages.length : 0, promises: p.rows.length, keyDates: k.rows.length, meetings: m.rows.length };
+      const counts: NoteMoveCounts = { messages: Array.isArray(messages) ? messages.length : 0, promises: p.rows.length, keyDates: k.rows.length, meetings: m.rows.length, requirements: rq.rows.length };
       await c.query(
         `INSERT INTO note_move_audit (user_id, note_id, kind, from_client_id, to_client_id, counts)
          VALUES ($1, $2, 'undo', $3, NULL, $4::jsonb)`,

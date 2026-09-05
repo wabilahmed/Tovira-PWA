@@ -28,7 +28,7 @@ import type { NoteMoveTx, MoveOutcome, UndoOutcome } from '../../ports/note-move
 export interface MovePreview {
   noteId: string;
   fromClientId: string;
-  counts: NoteMoveCounts & { people: number; requirements: number };
+  counts: NoteMoveCounts & { people: number };
 }
 
 export type MoveResult = MoveOutcome;

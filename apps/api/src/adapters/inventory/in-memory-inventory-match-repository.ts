@@ -66,6 +66,20 @@ export class InMemoryInventoryMatchRepository implements InventoryMatchRepositor
     }
   }
 
+  async reassignByRequirements(userId: string, requirementIds: string[], toClientId: string): Promise<number> {
+    const ids = new Set(requirementIds);
+    let n = 0;
+    for (const r of this.rows) if (r.userId === userId && ids.has(r.requirementId)) { r.clientId = toClientId; n += 1; }
+    return n;
+  }
+
+  async deleteByRequirements(userId: string, requirementIds: string[]): Promise<number> {
+    const ids = new Set(requirementIds);
+    const before = this.rows.length;
+    this.rows = this.rows.filter((r) => !(r.userId === userId && ids.has(r.requirementId)));
+    return before - this.rows.length;
+  }
+
   async purgeUser(userId: string): Promise<void> {
     this.rows = this.rows.filter((r) => r.userId !== userId);
   }

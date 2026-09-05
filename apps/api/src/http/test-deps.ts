@@ -96,7 +96,8 @@ export function buildInMemoryDeps(
   const embedder = new StubEmbedder(8);
   const ledger = new LedgerService(new InMemoryLedgerRepository());
   const requirements = new InMemoryRequirementRepository();
-  const matching = new MatchingService(new InMemoryInventoryMatchRepository(), requirements, inventoryRepo);
+  const inventoryMatches = new InMemoryInventoryMatchRepository();
+  const matching = new MatchingService(inventoryMatches, requirements, inventoryRepo);
   const inventory = new InventoryService(inventoryRepo, embedder, ledger, matching); // direction 2 trigger
   const extractionLog = new InMemoryExtractionLogRepository();
   const corrections = new InMemoryCorrectionRepository();
@@ -120,7 +121,7 @@ export function buildInMemoryDeps(
   const brief = new BriefService(clients, notes, facts, embedder);
   const followUp = new FollowUpService(new StubModelClient(), notes);
   const meetings = new InMemoryMeetingRepository();
-  const noteMove = new NoteMoveService(notes, facts, meetings, new InMemoryNoteMoveTx(notes, facts, meetings, clients, new InMemoryNoteMoveAuditRepository()));
+  const noteMove = new NoteMoveService(notes, facts, meetings, new InMemoryNoteMoveTx(notes, facts, meetings, clients, new InMemoryNoteMoveAuditRepository(), requirements, inventoryMatches));
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
   const notifications = new InMemoryNotificationRepository();
   const scan = new ScanService(clients, meetings, facts, notifications, notes);

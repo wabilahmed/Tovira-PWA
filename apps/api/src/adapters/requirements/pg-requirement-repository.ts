@@ -118,6 +118,20 @@ export class PgRequirementRepository implements RequirementRepository {
     });
   }
 
+  async reassignByNote(userId: string, noteId: string, toClientId: string): Promise<string[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('UPDATE requirements SET client_id = $1 WHERE note_id = $2 RETURNING id', [toClientId, noteId]);
+      return (rows as unknown as Array<{ id: string }>).map((r) => r.id);
+    });
+  }
+
+  async deleteByNote(userId: string, noteId: string): Promise<string[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('DELETE FROM requirements WHERE note_id = $1 RETURNING id', [noteId]);
+      return (rows as unknown as Array<{ id: string }>).map((r) => r.id);
+    });
+  }
+
   async markDormantBefore(userId: string, cutoffMs: number): Promise<number> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(

@@ -39,5 +39,11 @@ export interface InventoryMatchRepository {
   listOpenByClient(userId: string, clientId: string): Promise<MatchRecord[]>;
   listOpenByItem(userId: string, itemId: string): Promise<MatchRecord[]>;
   dismiss(userId: string, matchId: string): Promise<void>;
+  /** NOTE-MOVE: re-file the matches of moved requirements under the new client — the pairing +
+   *  dismissal are preserved (the requirement's vector is unchanged), only the client attribution
+   *  moves, which fixes BOTH the client- and item-side views (one row, two views). Returns count. */
+  reassignByRequirements(userId: string, requirementIds: string[], toClientId: string): Promise<number>;
+  /** IMPORT-UNDO: delete the matches of removed requirements. Returns count. */
+  deleteByRequirements(userId: string, requirementIds: string[]): Promise<number>;
   purgeUser(userId: string): Promise<void>;
 }
