@@ -91,6 +91,8 @@ export interface AppConfig {
   spendCapAed: number;
   spendWarnFraction: number;
   recallDailyCapAtCap: number;
+  /** Ops token for the /ops/* endpoints (cap override). Unset → the ops routes are disabled (403). */
+  opsToken: string | undefined;
   stripeWebhookSecret: string;
   stripeSecretKey: string | undefined;
   stripePriceId: string;
@@ -175,6 +177,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     spendCapAed: parsePositive(env.SPEND_CAP_AED, 45, 'SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),
+    opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET?.trim() || 'whsec_test',
     stripeSecretKey: isBlank(env.STRIPE_SECRET_KEY) ? undefined : env.STRIPE_SECRET_KEY!.trim(),
     stripePriceId: env.STRIPE_PRICE_ID?.trim() || 'price_test',

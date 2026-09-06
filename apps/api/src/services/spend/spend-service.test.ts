@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SpendService } from './spend-service.js';
 import { InMemorySpendLedgerRepository } from '../../adapters/spend/in-memory-spend-ledger-repository.js';
+import { InMemorySpendOverrideRepository } from '../../adapters/spend/in-memory-spend-override-repository.js';
 
 const SONNET = 'claude-sonnet-5';
 // A period key fixed for one rep so the test controls the window.
@@ -95,5 +96,30 @@ describe('[SPEND-CAP] SpendService — the 80% warn (CAP-WARN)', () => {
     await svc.recordAed('rep-A', 'recall', 35);
     expect(warns).toHaveLength(0);
     expect((await svc.status('rep-A')).state).toBe('ok');
+  });
+});
+
+describe('[SPEND-CAP] SpendService honours a per-account override (CAP-OVERRIDE)', () => {
+  function makeOverride() {
+    const ledger = new InMemorySpendLedgerRepository();
+    const overrides = new InMemorySpendOverrideRepository();
+    const svc = new SpendService(ledger, period, { capAed: 45, warnFraction: 0.8 }, () => 0, (u, pk) => overrides.effectiveCap(u, pk));
+    return { svc, overrides };
+  }
+
+  it('a capped rep becomes uncapped when ops raises the cap for the period', async () => {
+    const { svc, overrides } = makeOverride();
+    await svc.recordAed('rep-A', 'import', 50); // over the 45 cap
+    expect(await svc.canSpend('rep-A')).toBe(false);
+    await overrides.set({ userId: 'rep-A', periodKey: 'p:2026-09', capAed: 90, raisedBy: 'ops', reason: 'onboarding a large brokerage' });
+    expect(await svc.canSpend('rep-A')).toBe(true); // released — the queue can drain
+    expect((await svc.status('rep-A')).capAed).toBe(90);
+  });
+
+  it('the override is scoped to the period it was set for', async () => {
+    const { svc, overrides } = makeOverride();
+    await overrides.set({ userId: 'rep-A', periodKey: 'other-period', capAed: 200, raisedBy: 'ops', reason: 'x' });
+    await svc.recordAed('rep-A', 'import', 50);
+    expect(await svc.canSpend('rep-A')).toBe(false); // this period still uses the config cap
   });
 });

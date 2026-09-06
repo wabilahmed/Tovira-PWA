@@ -99,6 +99,9 @@ import { PgOpsAlertRepository } from './adapters/spend/pg-ops-alert-repository.j
 import type { RecallDailyCounter } from './ports/recall-daily-counter.js';
 import { InMemoryRecallDailyCounter } from './adapters/spend/in-memory-recall-daily-counter.js';
 import { PgRecallDailyCounter } from './adapters/spend/pg-recall-daily-counter.js';
+import type { SpendOverrideRepository } from './ports/spend-override-repository.js';
+import { InMemorySpendOverrideRepository } from './adapters/spend/in-memory-spend-override-repository.js';
+import { PgSpendOverrideRepository } from './adapters/spend/pg-spend-override-repository.js';
 import { BriefService } from './services/brief/brief-service.js';
 import { FollowUpService } from './services/followup/follow-up-service.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
@@ -413,6 +416,14 @@ export function createRecallDailyCounter(config: AppConfig, appPool?: Pool): Rec
     return new PgRecallDailyCounter(appPool);
   }
   return new InMemoryRecallDailyCounter();
+}
+
+export function createSpendOverrideRepository(config: AppConfig, rootPool?: Pool): SpendOverrideRepository {
+  if (config.authStore === 'postgres') {
+    if (!rootPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgSpendOverrideRepository(rootPool);
+  }
+  return new InMemorySpendOverrideRepository();
 }
 
 export function createExtractionService(

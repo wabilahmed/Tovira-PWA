@@ -48,6 +48,7 @@ import { handleHeroRoute } from './http/hero-routes.js';
 import { handleBookScanRoute } from './http/book-scan-routes.js';
 import type { BookScanService } from './services/book-scan/book-scan-service.js';
 import { handleRecallRoute } from './http/recall-routes.js';
+import { handleOpsRoute, type OpsRouteDeps } from './http/ops-routes.js';
 import type { RecallService } from './services/recall/recall-service.js';
 import type { AskCaptureService } from './services/recall/ask-capture-service.js';
 import { handleCorpusRoute } from './http/corpus-routes.js';
@@ -130,6 +131,8 @@ export interface ApiDeps {
   spend?: { snapshot(): { capAed: number; warnFraction: number } };
   /** Recent ops alerts (e.g. spend warnings), surfaced in /health for the operator (SPEND-CAP). */
   opsAlerts?: { listRecent(limit: number): Promise<Array<{ kind: string; userId: string; detail: Record<string, unknown>; createdAt: number }>> };
+  /** Ops-only cap-override endpoints (CAP-OVERRIDE). Absent → /ops/* is not served. */
+  opsRoute?: OpsRouteDeps;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -214,6 +217,9 @@ export function createApiServer(deps: ApiDeps): Server {
         }
         return;
       }
+
+      // [SPEND-CAP · CAP-OVERRIDE] Ops-only, token-gated (not a rep session), before auth routing.
+      if (deps.opsRoute && (await handleOpsRoute(request, response, deps.opsRoute))) return;
 
       if (await handleAuthRoute(request, response, deps.auth, {
         cookieSecure,
