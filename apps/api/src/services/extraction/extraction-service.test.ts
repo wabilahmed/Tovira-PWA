@@ -394,3 +394,43 @@ describe('ExtractionService — import cost metric', () => {
     expect(importCost.perUserRollingAed('u')).toBe(0);
   });
 });
+
+// [SPEND-CAP] Over the cap, extraction DEFERS: no model call, the note is left pending and intact,
+// and it processes on release. Server-side — there is no client input that disables the gate.
+describe('ExtractionService — spend cap defers extraction (CAP-ENFORCE)', () => {
+  async function setupCapped(canSpend: () => Promise<boolean>) {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    let calls = 0;
+    const spyModel: ModelClient = { complete: async () => { calls += 1; return { text: VALID, usage: { inputTokens: 10, outputTokens: 2 } }; } };
+    const client = await clients.create('u', 'Acme');
+    const note = await notes.create('u', { clientId: client.id, source: 'paste', rawText: "I'll send the quote Friday", audioKey: null, status: 'pending_extraction' });
+    const svc = new ExtractionService(
+      spyModel, clients, notes, facts, new StubEmbedder(8), logs, 'stub',
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { canSpend },
+    );
+    return { svc, notes, note, callsRef: () => calls };
+  }
+
+  it('returns spend_capped without a model call, leaving the note pending and intact', async () => {
+    const { svc, notes, note, callsRef } = await setupCapped(async () => false);
+    const outcome = await svc.extractNote('u', note.id, '2026-07-09');
+    expect(outcome).toEqual({ status: 'spend_capped', flagged: true });
+    expect(callsRef()).toBe(0); // never spent
+    const after = await notes.findByIdForUser('u', note.id);
+    expect(after?.status).toBe('pending_extraction'); // queued, not needs_review, not extracted
+    expect(after?.extracted ?? null).toBeNull(); // no facts written
+  });
+
+  it('processes the same note once the rep is back under the cap (resume on release)', async () => {
+    let capped = true;
+    const { svc, notes, note } = await setupCapped(async () => !capped);
+    await svc.extractNote('u', note.id, '2026-07-09'); // deferred
+    capped = false; // an ops override / new period releases the queue
+    const outcome = await svc.extractNote('u', note.id, '2026-07-09');
+    expect(outcome.status).toBe('extracted');
+    expect((await notes.findByIdForUser('u', note.id))?.status).toBe('extracted');
+  });
+});

@@ -56,4 +56,31 @@ describe('[FLOWS-7] NoteSweepService — advance stuck notes, bounded, never los
     expect(r).toEqual({ advanced: 0, flagged: 0 });
     expect(calls.transcribe).toEqual([]);
   });
+
+  // [SPEND-CAP] A capped rep's queue waits, untouched — no attempt bump, no needs_review, not lost.
+  it('leaves a capped rep\'s pending notes untouched, and drains an uncapped rep normally', async () => {
+    const capped = new Set(['poor']);
+    const { svc, calls } = make(
+      { poor: [note('x', 'pending_extraction')], rich: [note('y', 'pending_extraction')] },
+      { canSpend: async (u) => !capped.has(u) },
+    );
+    const r = await svc.sweep('2026-08-01');
+    expect(calls.extract).toEqual(['y']); // only the uncapped rep advanced
+    expect(calls.attempts).toEqual([['y', 1]]); // the capped note's retry budget is NOT spent
+    expect(calls.review).toEqual([]); // never flagged
+    expect(r.advanced).toBe(1);
+  });
+
+  it('resumes a previously-capped rep once they are under the cap again', async () => {
+    let capped = true;
+    const { svc, calls } = make(
+      { poor: [note('x', 'pending_extraction')] },
+      { canSpend: async () => !capped },
+    );
+    await svc.sweep('2026-08-01');
+    expect(calls.extract).toEqual([]); // deferred
+    capped = false;
+    await svc.sweep('2026-08-02');
+    expect(calls.extract).toEqual(['x']); // released, intact (attempts fresh)
+  });
 });

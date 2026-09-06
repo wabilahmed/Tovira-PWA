@@ -34,6 +34,7 @@ import {
   createExtractionLogRepository,
   createSpendLedgerRepository,
   createOpsAlertRepository,
+  createRecallDailyCounter,
   createBriefService,
   createCorrectionRepository,
   createMeetingRepository,
@@ -73,6 +74,7 @@ import { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import { SpendService } from './services/spend/spend-service.js';
 import { periodKeyFrom } from './services/spend/period.js';
 import { setSpendSink } from './adapters/model/metered.js';
+import { RecallSpendGate } from './services/spend/recall-spend-gate.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -152,6 +154,8 @@ async function main(): Promise<void> {
   };
   const spend = new SpendService(spendLedger, spendPeriodFor, { capAed: config.spendCapAed, warnFraction: config.spendWarnFraction }, () => Date.now(), undefined, onSpendWarn);
   setSpendSink(spend); // every metered model call now records its AED against the rep's period
+  // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
+  const recallGate = new RecallSpendGate(spend, createRecallDailyCounter(config, appPool), config.recallDailyCapAtCap);
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
   const extractionLimiter = new TrialExtractionLimiter(
     (uid, now) => billing.entitlement(uid, now).then((e) => e.status),
@@ -169,7 +173,7 @@ async function main(): Promise<void> {
   // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
   // COST-IMPORT-METRIC: a rolling per-rep import cost, recorded at extraction time for imports.
   const importCost = new ImportCostMetrics();
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend);
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
   const meetingParser = createMeetingParser(config, clients);
@@ -193,6 +197,7 @@ async function main(): Promise<void> {
     extract: (u, id, today) => extraction.extractNote(u, id, today).then(() => undefined),
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
+    canSpend: (u) => spend.canSpend(u), // SPEND-CAP: a capped rep's queue waits, untouched
   });
   // Trial-ending (2 days out) + trial-ended emails (EMAIL-HOOKS 1a), idempotent.
   const trialEmail = new TrialEmailService({ listTrialing: () => billing.listTrialing() }, emailFor, accountEmail);
@@ -263,7 +268,7 @@ async function main(): Promise<void> {
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
   const askCapture = createAskCaptureService(config, notes, clients, facts, extraction);
-  const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients);
+  const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients, recallGate);
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId), matching);
   const ledger = createLedgerService(config, appPool);

@@ -96,6 +96,9 @@ import { PgSpendLedgerRepository } from './adapters/spend/pg-spend-ledger-reposi
 import type { OpsAlertRepository } from './ports/ops-alert-repository.js';
 import { InMemoryOpsAlertRepository } from './adapters/spend/in-memory-ops-alert-repository.js';
 import { PgOpsAlertRepository } from './adapters/spend/pg-ops-alert-repository.js';
+import type { RecallDailyCounter } from './ports/recall-daily-counter.js';
+import { InMemoryRecallDailyCounter } from './adapters/spend/in-memory-recall-daily-counter.js';
+import { PgRecallDailyCounter } from './adapters/spend/pg-recall-daily-counter.js';
 import { BriefService } from './services/brief/brief-service.js';
 import { FollowUpService } from './services/followup/follow-up-service.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
@@ -182,6 +185,7 @@ export function createRecallService(
   sessions?: RecallSessionRepository,
   capture?: AskCaptureService,
   clients?: ClientRepository,
+  recallGate?: { check(userId: string, day: string): Promise<{ allowed: boolean }> },
 ): RecallService {
   // Detection runs on the cheap recall model (Haiku); it only classifies (statement vs question),
   // never extracts. The capture pipeline routes a detected statement to the CERTIFIED engine.
@@ -189,7 +193,7 @@ export function createRecallService(
   const clientDirectory = capture && clients
     ? async (userId: string) => (await clients.listByUser(userId)).map((c) => ({ id: c.id, name: c.name }))
     : undefined;
-  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory);
+  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, recallGate);
 }
 
 /**
@@ -403,6 +407,14 @@ export function createOpsAlertRepository(config: AppConfig, rootPool?: Pool): Op
   return new InMemoryOpsAlertRepository();
 }
 
+export function createRecallDailyCounter(config: AppConfig, appPool?: Pool): RecallDailyCounter {
+  if (config.authStore === 'postgres') {
+    if (!appPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgRecallDailyCounter(appPool);
+  }
+  return new InMemoryRecallDailyCounter();
+}
+
 export function createExtractionService(
   config: AppConfig,
   clients: ClientRepository,
@@ -417,9 +429,10 @@ export function createExtractionService(
   requirements?: RequirementRepository,
   matching?: MatchingService,
   importCost?: ImportCostMetrics,
+  spendGate?: { canSpend(userId: string): Promise<boolean> },
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, spendGate);
 }
 
 /** The requirements spine store (INV-MATCH), RLS-backed on pg. */

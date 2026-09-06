@@ -63,6 +63,9 @@ const HISTORY_DIRECTIVE =
   'The conversation so far is provided for context only — use it to understand what the latest question refers to. Answer only the latest question. Do not revisit, re-answer, or summarise earlier turns, and do not volunteer answers to questions that were already answered.';
 
 const NO_ANSWER = "I don't have that on record.";
+// [SPEND-CAP] Honest, non-punitive — never an accusation. Shown only while over the cap, past the
+// day's recall limit; everything else keeps working.
+const RECALL_DAILY_LIMIT = "You've reached today's limit for Ask. It's back tomorrow — your notes and everything else are unaffected.";
 const MAX_QUOTE = 280;
 
 const SYSTEM = `You answer a salesperson's question using ONLY the excerpts from their own notes provided below. Quote what was actually said and when. If the excerpts do not contain the answer, reply exactly "I don't have that on record." Never invent facts, names, dates, or commitments that are not in the excerpts.`;
@@ -113,6 +116,8 @@ export class RecallService {
     private readonly capture?: AskCaptureService,
     /** The rep's client book, to resolve a detected client name → id (explicit attribution). */
     private readonly clientDirectory?: (userId: string) => Promise<ClientRef[]>,
+    /** [SPEND-CAP] recall's at-cap daily gate. Optional — recall is unlimited without it. */
+    private readonly recallGate?: { check(userId: string, day: string): Promise<{ allowed: boolean }> },
   ) {}
 
   /** [ASK-CAPTURE] Detect whether the rep's turn stated a fact about a client and, if so, route it
@@ -158,6 +163,15 @@ export class RecallService {
 
   async ask(userId: string, question: string, nowMs: number = Date.now()): Promise<RecallAnswer> {
     if (!question.trim()) return { answer: NO_ANSWER, receipts: [] };
+
+    // [SPEND-CAP] Recall keeps working at the spend cap (interactive; already on the cheap model),
+    // but is limited to N/day WHILE over the cap. Enforced server-side, before any retrieval or model
+    // call, so a crafted client request cannot bypass it. Below the cap this never runs.
+    if (this.recallGate) {
+      const day = new Date(nowMs).toISOString().slice(0, 10);
+      const gate = await this.recallGate.check(userId, day);
+      if (!gate.allowed) return { answer: RECALL_DAILY_LIMIT, receipts: [] };
+    }
 
     // [ASK-SESSION] Resolve the rep's active conversation (idle → fresh session) and load the
     // verbatim window. History is continuity only — it interprets the current turn, never a source

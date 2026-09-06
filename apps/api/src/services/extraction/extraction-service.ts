@@ -94,6 +94,8 @@ export class ExtractionService {
     private readonly matching?: MatchingService,
     /** [COST-IMPORT-METRIC] rolling per-rep import cost sink. Optional — extraction runs unchanged. */
     private readonly importCost?: { record(r: ImportCostRecord): void },
+    /** [SPEND-CAP] over-cap gate: when canSpend is false, extraction defers (note stays pending). */
+    private readonly spendGate?: { canSpend(userId: string): Promise<boolean> },
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -188,6 +190,13 @@ export class ExtractionService {
     // breaks — the note stays pending and the route explains the ceiling.
     if (this.limiter && !(await this.limiter.allow(userId))) {
       return { status: 'trial_limit', flagged: true };
+    }
+    // [SPEND-CAP] Over the per-account spend cap: DEFER extraction (the expensive, deferrable path).
+    // Return before any model call — the raw note is already stored and simply stays pending; the
+    // sweep drains it once the rep is under cap (next billing period, or an ops override). Never a
+    // model call, never a lost note.
+    if (this.spendGate && !(await this.spendGate.canSpend(userId))) {
+      return { status: 'spend_capped', flagged: true };
     }
 
     const client = await this.clients.findByIdForUser(userId, note.clientId);

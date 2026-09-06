@@ -112,4 +112,27 @@ describe('RecallService (P4-8)', () => {
     const svc = new RecallService(embedder, notesRepo([]), model('x'));
     expect((await svc.ask('u1', '   ')).receipts).toEqual([]);
   });
+
+  // [SPEND-CAP] Over the cap, past the day's recall limit: refuse server-side with honest,
+  // non-punitive copy — before any retrieval or model call, so a crafted request can't bypass it.
+  it('at the cap past the daily limit, refuses with non-punitive copy and no model call', async () => {
+    const complete = vi.fn();
+    const spy: ModelClient = { complete };
+    const denyGate = { check: async () => ({ allowed: false }) };
+    const svc = new RecallService(embedder, notesRepo([{ note: note('n1', 'x'), similarity: 0.9 }]), spy,
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, denyGate);
+    const { answer, receipts } = await svc.ask('u1', 'anything?');
+    expect(complete).not.toHaveBeenCalled(); // never spent
+    expect(receipts).toEqual([]);
+    expect(answer).toMatch(/back tomorrow/i);
+    expect(answer).not.toMatch(/[!]/); // no exclamation — never punitive
+    expect(answer.toLowerCase()).not.toMatch(/limit exceeded|too many|abuse|blocked/);
+  });
+
+  it('below the cap (gate allows), recall runs normally', async () => {
+    const allowGate = { check: async () => ({ allowed: true }) };
+    const svc = new RecallService(embedder, notesRepo([{ note: note('n1', 'Ahmed said pricing is high.'), similarity: 0.9 }]),
+      model('Ahmed felt pricing was high.'), undefined, undefined, undefined, undefined, undefined, undefined, undefined, allowGate);
+    expect((await svc.ask('u1', 'pricing?')).receipts).toHaveLength(1);
+  });
 });
