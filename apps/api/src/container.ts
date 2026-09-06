@@ -93,6 +93,9 @@ import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-rep
 import type { SpendLedgerRepository } from './ports/spend-ledger-repository.js';
 import { InMemorySpendLedgerRepository } from './adapters/spend/in-memory-spend-ledger-repository.js';
 import { PgSpendLedgerRepository } from './adapters/spend/pg-spend-ledger-repository.js';
+import type { OpsAlertRepository } from './ports/ops-alert-repository.js';
+import { InMemoryOpsAlertRepository } from './adapters/spend/in-memory-ops-alert-repository.js';
+import { PgOpsAlertRepository } from './adapters/spend/pg-ops-alert-repository.js';
 import { BriefService } from './services/brief/brief-service.js';
 import { FollowUpService } from './services/followup/follow-up-service.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
@@ -390,6 +393,14 @@ export function createSpendLedgerRepository(config: AppConfig, appPool?: Pool, r
     return new PgSpendLedgerRepository(appPool, rootPool);
   }
   return new InMemorySpendLedgerRepository();
+}
+
+export function createOpsAlertRepository(config: AppConfig, rootPool?: Pool): OpsAlertRepository {
+  if (config.authStore === 'postgres') {
+    if (!rootPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgOpsAlertRepository(rootPool);
+  }
+  return new InMemoryOpsAlertRepository();
 }
 
 export function createExtractionService(

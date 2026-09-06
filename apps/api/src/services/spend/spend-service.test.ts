@@ -63,3 +63,37 @@ describe('[SPEND-CAP] SpendService — track (CAP-TRACK)', () => {
     expect(await svc.canSpend('rep-B')).toBe(true);
   });
 });
+
+describe('[SPEND-CAP] SpendService — the 80% warn (CAP-WARN)', () => {
+  function makeWarn(capAed = 45, warnFraction = 0.8) {
+    const ledger = new InMemorySpendLedgerRepository();
+    const warns: Array<{ userId: string; periodKey: string; spentAed: number; capAed: number; dominantClass: string | null }> = [];
+    const svc = new SpendService(ledger, period, { capAed, warnFraction }, () => 0, undefined, async (e) => { warns.push(e); });
+    return { svc, warns };
+  }
+
+  it('fires exactly once, on the call that first crosses the warn line', async () => {
+    const { svc, warns } = makeWarn(45, 0.8); // warn at 36
+    await svc.recordAed('rep-A', 'extraction', 30); // below → no warn
+    expect(warns).toHaveLength(0);
+    await svc.recordAed('rep-A', 'extraction', 8); // 38 ≥ 36 → the crossing call
+    expect(warns).toHaveLength(1);
+    await svc.recordAed('rep-A', 'recall', 5); // already over → no re-fire
+    expect(warns).toHaveLength(1);
+  });
+
+  it('the warn names the rep, spend, period and dominant cost class', async () => {
+    const { svc, warns } = makeWarn(45, 0.8);
+    await svc.recordAed('rep-A', 'import', 40); // crosses in one go; import dominates
+    expect(warns[0]).toMatchObject({ userId: 'rep-A', periodKey: 'p:2026-09', dominantClass: 'import' });
+    expect(warns[0]!.spentAed).toBeCloseTo(40, 6);
+    expect(warns[0]!.capAed).toBe(45);
+  });
+
+  it('does not fire when spend stays below the warn line', async () => {
+    const { svc, warns } = makeWarn(45, 0.8);
+    await svc.recordAed('rep-A', 'recall', 35);
+    expect(warns).toHaveLength(0);
+    expect((await svc.status('rep-A')).state).toBe('ok');
+  });
+});

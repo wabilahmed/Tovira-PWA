@@ -33,6 +33,7 @@ import {
   createFollowUpService,
   createExtractionLogRepository,
   createSpendLedgerRepository,
+  createOpsAlertRepository,
   createBriefService,
   createCorrectionRepository,
   createMeetingRepository,
@@ -137,8 +138,19 @@ async function main(): Promise<void> {
   // createModelClient). Enforcement (the sweep/recall gates + the 80% ops alert + override) is wired
   // further down once its stores exist.
   const spendLedger = createSpendLedgerRepository(config, appPool, migrationPool);
+  const opsAlerts = createOpsAlertRepository(config, migrationPool);
   const spendPeriodFor = (uid: string, now: number) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt }, now));
-  const spend = new SpendService(spendLedger, spendPeriodFor, { capAed: config.spendCapAed, warnFraction: config.spendWarnFraction });
+  // CAP-WARN: at 80% of the cap, alert OPS (not the rep — a rep on a generous cap is doing nothing
+  // wrong). Idempotent per rep per period via the dedupe key.
+  const onSpendWarn = async (e: { userId: string; periodKey: string; spentAed: number; capAed: number; dominantClass: string | null }): Promise<void> => {
+    await opsAlerts.createIfAbsent({
+      kind: 'spend_warn',
+      userId: e.userId,
+      dedupeKey: `spendcap80:${e.userId}:${e.periodKey}`,
+      detail: { spentAed: Math.round(e.spentAed * 100) / 100, capAed: e.capAed, dominantClass: e.dominantClass, warnFraction: config.spendWarnFraction },
+    });
+  };
+  const spend = new SpendService(spendLedger, spendPeriodFor, { capAed: config.spendCapAed, warnFraction: config.spendWarnFraction }, () => Date.now(), undefined, onSpendWarn);
   setSpendSink(spend); // every metered model call now records its AED against the rep's period
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
   const extractionLimiter = new TrialExtractionLimiter(
@@ -310,6 +322,7 @@ async function main(): Promise<void> {
     recallMetrics,
     importCost,
     spend,
+    opsAlerts,
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),

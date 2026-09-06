@@ -126,8 +126,10 @@ export interface ApiDeps {
   recallMetrics?: RecallMetrics;
   /** Rolling per-rep import cost, surfaced in /health (COST-IMPORT-METRIC). */
   importCost?: ImportCostMetrics;
-  /** Per-account spend cap config + open ops alerts, surfaced in /health (SPEND-CAP). */
+  /** Per-account spend cap config, surfaced in /health (SPEND-CAP). */
   spend?: { snapshot(): { capAed: number; warnFraction: number } };
+  /** Recent ops alerts (e.g. spend warnings), surfaced in /health for the operator (SPEND-CAP). */
+  opsAlerts?: { listRecent(limit: number): Promise<Array<{ kind: string; userId: string; detail: Record<string, unknown>; createdAt: number }>> };
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -189,6 +191,7 @@ export function createApiServer(deps: ApiDeps): Server {
           // is checkable, not assumed (SWEEP-NEVER-RUNS). A jobs-read failure omits
           // the field rather than flapping the ALB check — SELECT 1 already gates liveness.
           const jobs = deps.jobRuns ? await deps.jobRuns.list().catch(() => undefined) : undefined;
+          const spendAlerts = deps.opsAlerts ? await deps.opsAlerts.listRecent(20).catch(() => undefined) : undefined;
           sendJson(response, 200, {
             status: 'ok',
             ...(deps.adapterModes ? { adapters: deps.adapterModes } : {}),
@@ -202,8 +205,9 @@ export function createApiServer(deps: ApiDeps): Server {
             // imports: rolling per-rep import cost (the heaviest single Claude call) — the one
             // spend the ceiling question turns on, measured going forward (COST-IMPORT-METRIC).
             ...(deps.importCost ? { imports: deps.importCost.snapshot() } : {}),
-            // spend: the per-account cap config (SPEND-CAP) — ops watches this beside the cost metrics.
-            ...(deps.spend ? { spend: deps.spend.snapshot() } : {}),
+            // spend: the per-account cap config + recent ops alerts (SPEND-CAP) — ops watches this
+            // beside the cost metrics; a spend_warn alert names the rep, spend, period, dominant class.
+            ...(deps.spend ? { spend: { ...deps.spend.snapshot(), ...(spendAlerts ? { alerts: spendAlerts } : {}) } } : {}),
           });
         } catch {
           sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' });
