@@ -114,6 +114,50 @@ describe('[P5-2] renewal date (from the webhook, source of truth)', () => {
   });
 });
 
+describe('[BILLING-PERIOD] current_period_start — the spend-cap bucket anchor', () => {
+  const START = Date.parse('2026-08-14T00:00:00Z');
+  const END = Date.parse('2026-09-14T00:00:00Z');
+
+  it('stores current_period_start from the activation webhook and exposes it as periodStart', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodStart: START, currentPeriodEnd: END }), 'whsec_test');
+    expect((await billing.entitlement('u', NOW)).periodStart).toBe(START);
+  });
+
+  it('a plan change starts a NEW bucket (new start) without losing the old — old start is not restored', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodStart: START, currentPeriodEnd: END }), 'whsec_test');
+    // Rep switches monthly → annual: Stripe issues a new period via a renewal invoice.
+    const newStart = END;
+    const newEnd = END + 365 * DAY;
+    await billing.handleWebhook(evt({ id: 'e2', type: 'invoice.payment_succeeded', customerId: 'cus_1', currentPeriodStart: newStart, currentPeriodEnd: newEnd }), 'whsec_test');
+    const ent = await billing.entitlement('u', NOW);
+    expect(ent.periodStart).toBe(newStart); // the anchor moved forward → the new bucket starts clean
+    expect(ent.status).toBe('active');
+  });
+
+  // NEGATIVE: never invent a start. A trial has none; an event without one leaves it null.
+  it('leaves periodStart null for a trialing account and when the webhook carries none', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    expect((await billing.entitlement('u', NOW)).periodStart).toBeNull(); // trialing → no paid period
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodEnd: END }), 'whsec_test');
+    expect((await billing.entitlement('u', NOW)).periodStart).toBeNull(); // end present, start absent → not invented
+  });
+
+  it('a replayed webhook does not shift the anchor (idempotent)', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    const payload = evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodStart: START, currentPeriodEnd: END });
+    await billing.handleWebhook(payload, 'whsec_test');
+    // A replay of the SAME event id (even if it somehow carried a different start) must be a no-op.
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodStart: START + 999 * DAY, currentPeriodEnd: END }), 'whsec_test');
+    expect((await billing.entitlement('u', NOW)).periodStart).toBe(START); // unchanged
+  });
+});
+
 describe('[P5-1] activity-gated trial extension', () => {
   it('extends the trial by 7 days once when notes span 3+ distinct clients', async () => {
     const { billing } = make();

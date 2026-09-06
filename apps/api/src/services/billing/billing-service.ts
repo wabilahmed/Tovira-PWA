@@ -30,6 +30,9 @@ export interface Entitlement {
   /** Next renewal date (epoch ms), straight from the webhook. Null when unknown
    *  — the UI shows a renewal line only when this is set (P5-2). */
   renewsAt: number | null;
+  /** START of the current billing period (epoch ms) — the spend-cap bucket anchor.
+   *  Null for trials / pre-change subs; the caller falls back explicitly (BILLING-PERIOD). */
+  periodStart: number | null;
 }
 
 /**
@@ -131,12 +134,13 @@ export class BillingService {
 
   async entitlement(userId: string, nowMs: number): Promise<Entitlement> {
     const s = await this.subs.get(userId);
-    if (!s) return { entitled: false, status: 'none', trialEndsAt: 0, renewsAt: null };
+    if (!s) return { entitled: false, status: 'none', trialEndsAt: 0, renewsAt: null, periodStart: null };
     const renewsAt = s.currentPeriodEnd;
-    if (s.status === 'active') return { entitled: true, status: 'active', trialEndsAt: s.trialEndsAt, renewsAt };
-    if (s.status === 'trialing' && nowMs < s.trialEndsAt) return { entitled: true, status: 'trialing', trialEndsAt: s.trialEndsAt, renewsAt };
+    const periodStart = s.currentPeriodStart;
+    if (s.status === 'active') return { entitled: true, status: 'active', trialEndsAt: s.trialEndsAt, renewsAt, periodStart };
+    if (s.status === 'trialing' && nowMs < s.trialEndsAt) return { entitled: true, status: 'trialing', trialEndsAt: s.trialEndsAt, renewsAt, periodStart };
     const status = s.status === 'trialing' ? 'trial_expired' : s.status;
-    return { entitled: false, status, trialEndsAt: s.trialEndsAt, renewsAt };
+    return { entitled: false, status, trialEndsAt: s.trialEndsAt, renewsAt, periodStart };
   }
 
   async checkout(userId: string, email: string, plan: Plan = 'monthly'): Promise<{ url: string }> {
@@ -156,9 +160,12 @@ export class BillingService {
         status: 'active',
         stripeCustomerId: event.customerId ?? null,
         stripeSubscriptionId: event.subscriptionId ?? null,
-        // Only stamp the renewal date when the webhook actually carries one —
-        // never invent it (P5-2).
+        // Only stamp the period dates when the webhook actually carries them —
+        // never invent them (P5-2 / BILLING-PERIOD). A plan change issues a NEW period;
+        // stamping its start rolls the spend-cap bucket forward cleanly (old spend stays
+        // in the old bucket, the new period starts at zero).
         ...(event.currentPeriodEnd !== undefined ? { currentPeriodEnd: event.currentPeriodEnd } : {}),
+        ...(event.currentPeriodStart !== undefined ? { currentPeriodStart: event.currentPeriodStart } : {}),
       });
       if (this.emailHook) await this.notify(() => this.emailHook!.subscriptionConfirmed(event.userId!, event.id, event.currentPeriodEnd ?? null));
     } else if (event.type === 'invoice.payment_succeeded' && event.customerId) {
@@ -168,6 +175,7 @@ export class BillingService {
         await this.subs.update(s.userId, {
           status: 'active',
           ...(event.currentPeriodEnd !== undefined ? { currentPeriodEnd: event.currentPeriodEnd } : {}),
+          ...(event.currentPeriodStart !== undefined ? { currentPeriodStart: event.currentPeriodStart } : {}),
         });
       }
     } else if (event.type === 'customer.subscription.deleted' && event.customerId) {

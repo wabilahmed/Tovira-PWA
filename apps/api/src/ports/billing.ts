@@ -17,6 +17,11 @@ export interface SubscriptionRecord {
   /** End of the current paid period, epoch ms — the renewal date. Null until a
    *  webhook carrying it arrives; never inferred locally (P5-2). */
   currentPeriodEnd: number | null;
+  /** START of the current paid period, epoch ms — the spend-cap bucket anchor
+   *  (BILLING-PERIOD). Stored straight from the webhook; null for trials and for
+   *  subscriptions created before this field existed. NEVER inferred — a null here
+   *  means "fall back explicitly", never "compute one that looks authoritative". */
+  currentPeriodStart: number | null;
 }
 
 export interface SubscriptionPatch {
@@ -26,6 +31,7 @@ export interface SubscriptionPatch {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   currentPeriodEnd?: number | null;
+  currentPeriodStart?: number | null;
 }
 
 export interface SubscriptionRepository {
@@ -62,6 +68,9 @@ export interface StripeWebhookEvent {
   /** current_period_end from the subscription/invoice, epoch ms (the gateway
    *  converts Stripe's seconds). Absent when the event doesn't carry one. */
   currentPeriodEnd?: number;
+  /** current_period_start (subscription) / period_start (invoice), epoch ms.
+   *  Absent when the event doesn't carry one — then the period start is not stamped. */
+  currentPeriodStart?: number;
 }
 
 export type Plan = 'monthly' | 'annual';

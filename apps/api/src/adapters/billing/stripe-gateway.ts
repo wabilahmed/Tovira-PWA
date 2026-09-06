@@ -55,6 +55,9 @@ export class StripeGatewayImpl implements StripeGateway {
     // invoices expose period_end. Convert to epoch ms; leave undefined otherwise.
     const periodEndSec = typeof obj.current_period_end === 'number' ? obj.current_period_end
       : typeof obj.period_end === 'number' ? obj.period_end : undefined;
+    // Period START: subscriptions expose current_period_start; invoices expose period_start.
+    const periodStartSec = typeof obj.current_period_start === 'number' ? obj.current_period_start
+      : typeof obj.period_start === 'number' ? obj.period_start : undefined;
     return {
       id: event.id,
       type: event.type,
@@ -62,6 +65,7 @@ export class StripeGatewayImpl implements StripeGateway {
       customerId: typeof obj.customer === 'string' ? obj.customer : undefined,
       subscriptionId: typeof obj.subscription === 'string' ? obj.subscription : undefined,
       ...(periodEndSec !== undefined ? { currentPeriodEnd: periodEndSec * 1000 } : {}),
+      ...(periodStartSec !== undefined ? { currentPeriodStart: periodStartSec * 1000 } : {}),
     };
   }
 }

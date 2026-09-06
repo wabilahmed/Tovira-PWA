@@ -143,7 +143,7 @@ async function main(): Promise<void> {
   const spendLedger = createSpendLedgerRepository(config, appPool, migrationPool);
   const opsAlerts = createOpsAlertRepository(config, migrationPool);
   const spendOverrides = createSpendOverrideRepository(config, migrationPool);
-  const spendPeriodFor = (uid: string, now: number) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt }, now));
+  const spendPeriodFor = (uid: string, now: number) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key);
   // CAP-WARN: at 80% of the cap, alert OPS (not the rep — a rep on a generous cap is doing nothing
   // wrong). Idempotent per rep per period via the dedupe key.
   const onSpendWarn = async (e: { userId: string; periodKey: string; spentAed: number; capAed: number; dominantClass: string | null }): Promise<void> => {

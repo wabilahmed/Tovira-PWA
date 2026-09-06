@@ -21,8 +21,9 @@ interface SubRow {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   current_period_end: Date | null;
+  current_period_start: Date | null;
 }
-const SUB_COLS = 'user_id, status, trial_ends_at, trial_extended, stripe_customer_id, stripe_subscription_id, current_period_end';
+const SUB_COLS = 'user_id, status, trial_ends_at, trial_extended, stripe_customer_id, stripe_subscription_id, current_period_end, current_period_start';
 function toSub(r: SubRow): SubscriptionRecord {
   return {
     userId: r.user_id,
@@ -32,6 +33,7 @@ function toSub(r: SubRow): SubscriptionRecord {
     stripeCustomerId: r.stripe_customer_id,
     stripeSubscriptionId: r.stripe_subscription_id,
     currentPeriodEnd: r.current_period_end ? r.current_period_end.getTime() : null,
+    currentPeriodStart: r.current_period_start ? r.current_period_start.getTime() : null,
   };
 }
 
@@ -66,6 +68,10 @@ export class PgSubscriptionRepository implements SubscriptionRepository {
     if (patch.currentPeriodEnd !== undefined) {
       if (patch.currentPeriodEnd === null) push('current_period_end = $?', null);
       else push('current_period_end = to_timestamp($? / 1000.0)', patch.currentPeriodEnd);
+    }
+    if (patch.currentPeriodStart !== undefined) {
+      if (patch.currentPeriodStart === null) push('current_period_start = $?', null);
+      else push('current_period_start = to_timestamp($? / 1000.0)', patch.currentPeriodStart);
     }
     if (sets.length === 0) return;
     params.push(userId);
