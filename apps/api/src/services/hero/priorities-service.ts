@@ -109,6 +109,8 @@ export class PrioritiesService {
         system: RANK_SYSTEM,
         messages: [{ role: 'user', content: actions.map((a, i) => `${i}: ${a.text}`).join('\n') }],
         maxTokens: 256,
+        userId,
+        spendClass: 'priorities', // SPEND-CAP
       });
       const parsed = extractJsonObject(res.text);
       if (Array.isArray(parsed)) order = parsed.filter((n): n is number => Number.isInteger(n));

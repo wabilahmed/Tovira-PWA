@@ -32,6 +32,7 @@ import {
   createLedgerService,
   createFollowUpService,
   createExtractionLogRepository,
+  createSpendLedgerRepository,
   createBriefService,
   createCorrectionRepository,
   createMeetingRepository,
@@ -68,6 +69,9 @@ import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
 import { RecallMetrics } from './services/metrics/recall-metrics.js';
 import { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
+import { SpendService } from './services/spend/spend-service.js';
+import { periodKeyFrom } from './services/spend/period.js';
+import { setSpendSink } from './adapters/model/metered.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -128,6 +132,14 @@ async function main(): Promise<void> {
     subscriptionCanceled: async (userId: string, eventId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendSubscriptionCanceled(userId, to, eventId); },
   };
   const billing = createBillingService(config, appPool, billingEmailHook);
+  // [SPEND-CAP] Durable per-account spend, bucketed by the rep's billing period. The spend sink is
+  // set process-wide so every metered model call records against it (no threading through every
+  // createModelClient). Enforcement (the sweep/recall gates + the 80% ops alert + override) is wired
+  // further down once its stores exist.
+  const spendLedger = createSpendLedgerRepository(config, appPool, migrationPool);
+  const spendPeriodFor = (uid: string, now: number) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt }, now));
+  const spend = new SpendService(spendLedger, spendPeriodFor, { capAed: config.spendCapAed, warnFraction: config.spendWarnFraction });
+  setSpendSink(spend); // every metered model call now records its AED against the rep's period
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
   const extractionLimiter = new TrialExtractionLimiter(
     (uid, now) => billing.entitlement(uid, now).then((e) => e.status),
@@ -297,6 +309,7 @@ async function main(): Promise<void> {
     modelMetrics,
     recallMetrics,
     importCost,
+    spend,
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),

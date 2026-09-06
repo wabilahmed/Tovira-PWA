@@ -17,7 +17,7 @@ export interface DetectedStatement {
 }
 
 export interface StatementDetector {
-  detect(turn: string, clientNames: string[]): Promise<DetectedStatement>;
+  detect(turn: string, clientNames: string[], userId?: string): Promise<DetectedStatement>;
 }
 
 const DETECT_SYSTEM = `You decide whether a salesperson's message is them STATING A FACT about a client (something that happened or is true), or NOT (a question, a hypothetical, speculation, or small talk).
@@ -33,13 +33,15 @@ function notAStatement(turn: string): DetectedStatement {
 export class ModelStatementDetector implements StatementDetector {
   constructor(private readonly model: ModelClient) {}
 
-  async detect(turn: string, clientNames: string[]): Promise<DetectedStatement> {
+  async detect(turn: string, clientNames: string[], userId?: string): Promise<DetectedStatement> {
     if (!turn.trim()) return notAStatement(turn);
     try {
       const res = await this.model.complete({
         system: DETECT_SYSTEM,
         messages: [{ role: 'user', content: `CLIENTS: ${clientNames.join(', ') || '(none)'}\nMESSAGE: ${turn}` }],
         maxTokens: 120,
+        userId,
+        spendClass: 'capture', // SPEND-CAP (Ask-capture statement detection)
       });
       const obj = extractJsonObject(res.text) as { isStatement?: unknown; clientRef?: unknown } | null;
       if (!obj || obj.isStatement !== true) return notAStatement(turn); // default to NOT a statement

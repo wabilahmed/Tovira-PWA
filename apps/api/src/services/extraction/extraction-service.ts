@@ -213,8 +213,9 @@ export class ExtractionService {
     // Total spend across attempts (a retry bills a second call) — the log keeps the final row's
     // tokens; the import-cost metric wants the whole import's spend.
     const spend = { calls: 0, input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
+    const spendClass = note.source === 'whatsapp_export' ? 'import' : 'extraction';
     for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
-      last = await this.call(route.model, userMessage);
+      last = await this.call(route.model, userMessage, userId, spendClass);
       spend.calls += 1;
       spend.input += last.inputTokens;
       spend.output += last.outputTokens;
@@ -339,7 +340,7 @@ export class ExtractionService {
     return extraction ? { status } : { status, flagged: true };
   }
 
-  private async call(model: ModelClient, userMessage: string): Promise<Attempt> {
+  private async call(model: ModelClient, userMessage: string, userId: string, spendClass: string): Promise<Attempt> {
     let raw: string | null = null;
     let inputTokens = 0;
     let outputTokens = 0;
@@ -354,6 +355,8 @@ export class ExtractionService {
         cacheTtl: this.cacheTtl,
         messages: [{ role: 'user', content: userMessage }],
         maxTokens: 2048,
+        userId,
+        spendClass, // 'import' for a chat import, 'extraction' for a daily note (SPEND-CAP)
         // NB: temperature is deprecated for claude-sonnet-5 (the API 400s on any
         // value), so it is intentionally NOT set here — the model manages its own
         // low-variance sampling. The port still forwards temperature for models

@@ -1,5 +1,16 @@
-import type { ModelClient, ModelCompletionRequest, ModelCompletionResponse } from '../../ports/model.js';
+import type { ModelClient, ModelCompletionRequest, ModelCompletionResponse, ModelUsage } from '../../ports/model.js';
 import { modelMetrics, type ModelMetricsRegistry } from '../../services/metrics/model-metrics.js';
+
+/** [SPEND-CAP] Where per-call Claude cost is recorded, attributed to a rep. A module-level sink
+ *  (like `modelMetrics`) so every metered client records without threading a service through every
+ *  `createModelClient` call. Set once at boot; unset in tests + eval (no attribution → no record). */
+export interface SpendSink {
+  record(userId: string, spendClass: string, model: string, usage: ModelUsage): Promise<void>;
+}
+let spendSink: SpendSink | undefined;
+export function setSpendSink(sink: SpendSink | undefined): void {
+  spendSink = sink;
+}
 
 /**
  * CACHE-1: a thin decorator that records every completed model call's cache outcome
@@ -26,6 +37,15 @@ export class MeteredModelClient implements ModelClient {
       cacheable: request.cacheSystemPrompt === true,
       hit: (res.usage?.cacheReadInputTokens ?? 0) > 0,
     });
+    // [SPEND-CAP] Record this call's AED against the rep's billing period. Best-effort — a spend
+    // ledger failure must never break a model call (never lose the work over a bookkeeping error).
+    if (spendSink && request.userId && request.spendClass && res.usage) {
+      try {
+        await spendSink.record(request.userId, request.spendClass, this.modelId, res.usage);
+      } catch (err) {
+        console.warn('[spend] record failed', err);
+      }
+    }
     return res;
   }
 }

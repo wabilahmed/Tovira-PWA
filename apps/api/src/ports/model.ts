@@ -28,6 +28,11 @@ export interface ModelCompletionRequest {
   cacheSystemPrompt?: boolean;
   /** Cache lifetime when cacheSystemPrompt is set. Defaults to '5m' when omitted. */
   cacheTtl?: CacheTtl;
+  /** [SPEND-CAP] Attribution for per-account spend tracking. When both are present, the metered
+   *  client records this call's AED cost against the rep's billing period. Absent for eval/scripts
+   *  (no attribution → not recorded). `spendClass` is a SpendClass string (e.g. 'extraction'). */
+  userId?: string;
+  spendClass?: string;
 }
 
 export interface ModelUsage {

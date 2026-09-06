@@ -122,7 +122,7 @@ export class RecallService {
     if (!this.detector || !this.capture || !this.clientDirectory) return undefined;
     try {
       const dir = await this.clientDirectory(userId);
-      const det = await this.detector.detect(turn, dir.map((c) => c.name));
+      const det = await this.detector.detect(turn, dir.map((c) => c.name), userId);
       if (!det.isStatement) return { status: 'none' };
       const matches = det.clientRef ? dir.filter((c) => c.name.toLowerCase() === det.clientRef!.toLowerCase()) : [];
       if (matches.length !== 1) return { status: 'needs_client', statement: det.text }; // ask which; store nothing
@@ -192,6 +192,8 @@ export class RecallService {
           system: SYSTEM, // byte-identical prefix; the window + directive ride the variable messages
           messages: [...history.map((m) => ({ role: m.role, content: m.content })), { role: 'user', content: current }],
           maxTokens: 512,
+          userId,
+          spendClass: 'recall', // SPEND-CAP
         });
         answer = res.text.trim() || NO_ANSWER;
         const turnIndex = history.filter((m) => m.role === 'user').length + 1;

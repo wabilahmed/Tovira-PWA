@@ -30,7 +30,7 @@ export class MeetingParser {
   ) {}
 
   async parse(userId: string, text: string, today: string): Promise<ParseResult> {
-    const parsed = await this.callModel(text, today);
+    const parsed = await this.callModel(text, today, userId);
     if (!parsed || !parsed.clientName) return { kind: 'ambiguous_time', datetimeRaw: text };
 
     // Vague/missing time → ask for specifics rather than inventing one.
@@ -55,13 +55,15 @@ export class MeetingParser {
     };
   }
 
-  private async callModel(text: string, today: string): Promise<Parsed | null> {
+  private async callModel(text: string, today: string, userId: string): Promise<Parsed | null> {
     let raw: string;
     try {
       const res = await this.model.complete({
         system: SYSTEM,
         messages: [{ role: 'user', content: `TODAY: ${today}\nREQUEST: ${text}` }],
         maxTokens: 256,
+        userId,
+        spendClass: 'meeting', // SPEND-CAP
       });
       raw = res.text;
     } catch {

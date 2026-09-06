@@ -90,6 +90,9 @@ import type { ExtractionLimiter } from './services/extraction/limiter.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
 import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-repository.js';
+import type { SpendLedgerRepository } from './ports/spend-ledger-repository.js';
+import { InMemorySpendLedgerRepository } from './adapters/spend/in-memory-spend-ledger-repository.js';
+import { PgSpendLedgerRepository } from './adapters/spend/pg-spend-ledger-repository.js';
 import { BriefService } from './services/brief/brief-service.js';
 import { FollowUpService } from './services/followup/follow-up-service.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
@@ -379,6 +382,14 @@ export function createExtractionLogRepository(config: AppConfig, pool?: Pool): E
     return new PgExtractionLogRepository(pool);
   }
   return new InMemoryExtractionLogRepository();
+}
+
+export function createSpendLedgerRepository(config: AppConfig, appPool?: Pool, rootPool?: Pool): SpendLedgerRepository {
+  if (config.authStore === 'postgres') {
+    if (!appPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgSpendLedgerRepository(appPool, rootPool);
+  }
+  return new InMemorySpendLedgerRepository();
 }
 
 export function createExtractionService(

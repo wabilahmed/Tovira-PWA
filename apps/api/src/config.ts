@@ -86,6 +86,11 @@ export interface AppConfig {
   // --- billing (P5) ---
   trialDays: number;
   trialExtractionCeiling: number;
+  // --- spend cap (SPEND-CAP): a hard per-account Claude-spend failsafe, well above the modelled
+  //     ~AED 19 and under the AED 67 margin ceiling, so it fires only on abuse or a defect. ---
+  spendCapAed: number;
+  spendWarnFraction: number;
+  recallDailyCapAtCap: number;
   stripeWebhookSecret: string;
   stripeSecretKey: string | undefined;
   stripePriceId: string;
@@ -167,6 +172,9 @@ export function loadConfig(env: Env = process.env): AppConfig {
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
     trialDays: parsePositive(env.TRIAL_DAYS, 7, 'TRIAL_DAYS'),
     trialExtractionCeiling: parsePositive(env.TRIAL_EXTRACTION_CEILING, 200, 'TRIAL_EXTRACTION_CEILING'),
+    spendCapAed: parsePositive(env.SPEND_CAP_AED, 45, 'SPEND_CAP_AED'),
+    spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
+    recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET?.trim() || 'whsec_test',
     stripeSecretKey: isBlank(env.STRIPE_SECRET_KEY) ? undefined : env.STRIPE_SECRET_KEY!.trim(),
     stripePriceId: env.STRIPE_PRICE_ID?.trim() || 'price_test',

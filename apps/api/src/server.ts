@@ -126,6 +126,8 @@ export interface ApiDeps {
   recallMetrics?: RecallMetrics;
   /** Rolling per-rep import cost, surfaced in /health (COST-IMPORT-METRIC). */
   importCost?: ImportCostMetrics;
+  /** Per-account spend cap config + open ops alerts, surfaced in /health (SPEND-CAP). */
+  spend?: { snapshot(): { capAed: number; warnFraction: number } };
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -200,6 +202,8 @@ export function createApiServer(deps: ApiDeps): Server {
             // imports: rolling per-rep import cost (the heaviest single Claude call) — the one
             // spend the ceiling question turns on, measured going forward (COST-IMPORT-METRIC).
             ...(deps.importCost ? { imports: deps.importCost.snapshot() } : {}),
+            // spend: the per-account cap config (SPEND-CAP) — ops watches this beside the cost metrics.
+            ...(deps.spend ? { spend: deps.spend.snapshot() } : {}),
           });
         } catch {
           sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' });
