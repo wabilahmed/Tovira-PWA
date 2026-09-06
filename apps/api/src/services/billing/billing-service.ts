@@ -1,4 +1,5 @@
 import type {
+  CustomerDetails,
   Plan,
   StripeGateway,
   SubscriptionRepository,
@@ -143,9 +144,28 @@ export class BillingService {
     return { entitled: false, status, trialEndsAt: s.trialEndsAt, renewsAt, periodStart };
   }
 
-  async checkout(userId: string, email: string, plan: Plan = 'monthly'): Promise<{ url: string }> {
-    const session = await this.stripe.createCheckoutSession(userId, email, plan);
+  async checkout(userId: string, email: string, plan: Plan = 'monthly', details: CustomerDetails = {}): Promise<{ url: string }> {
+    // Reuse an existing customer (a returning subscriber) so we don't orphan its metadata/history.
+    const existingCustomerId = (await this.subs.get(userId))?.stripeCustomerId ?? undefined;
+    const session = await this.stripe.createCheckoutSession(userId, email, plan, { ...details, existingCustomerId });
+    // Persist the customer id + name now (before the webhook lands) so a Settings change can sync.
+    await this.subs.update(userId, {
+      ...(session.customerId ? { stripeCustomerId: session.customerId } : {}),
+      ...(details.name !== undefined ? { billingName: details.name } : {}),
+      ...(details.company !== undefined ? { billingCompany: details.company } : {}),
+    });
     return { url: session.url };
+  }
+
+  /** Set the billing name/company (Settings) and sync it to the Stripe customer so the invoice
+   *  reflects it. No-op sync if no customer exists yet — checkout will carry it then (INVOICE-DATA). */
+  async setBillingName(userId: string, details: CustomerDetails): Promise<void> {
+    await this.subs.update(userId, {
+      ...(details.name !== undefined ? { billingName: details.name } : {}),
+      ...(details.company !== undefined ? { billingCompany: details.company } : {}),
+    });
+    const s = await this.subs.get(userId);
+    if (s?.stripeCustomerId) await this.stripe.updateCustomer(s.stripeCustomerId, details);
   }
 
   /** Process a Stripe webhook. Returns the HTTP status to reply with. */

@@ -12,7 +12,7 @@ function make() {
   const events = new InMemoryWebhookEventRepository();
   const stripe = new StubStripeGateway('whsec_test');
   const billing = new BillingService(subs, trials, events, stripe, 7);
-  return { subs, trials, events, billing };
+  return { subs, trials, events, billing, stripe };
 }
 const evt = (o: object) => JSON.stringify(o);
 
@@ -155,6 +155,35 @@ describe('[BILLING-PERIOD] current_period_start — the spend-cap bucket anchor'
     // A replay of the SAME event id (even if it somehow carried a different start) must be a no-op.
     await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodStart: START + 999 * DAY, currentPeriodEnd: END }), 'whsec_test');
     expect((await billing.entitlement('u', NOW)).periodStart).toBe(START); // unchanged
+  });
+});
+
+describe('[INVOICE-DATA] the app supplies customer name + traceable metadata', () => {
+  it('checkout creates a customer carrying the name (and stores it + the customer id)', async () => {
+    const { billing, subs, stripe } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.checkout('u', 'rep@x.com', 'monthly', { name: 'Ahmed Kareem', company: 'Kareem Realty' });
+    expect(stripe.customers).toHaveLength(1);
+    expect(stripe.customers[0]).toMatchObject({ userId: 'u', details: { name: 'Ahmed Kareem', company: 'Kareem Realty' } });
+    const s = await subs.get('u');
+    expect(s?.stripeCustomerId).toBe('cus_test_u'); // stored before the webhook, so a sync can target it
+    expect(s?.billingName).toBe('Ahmed Kareem');
+  });
+
+  it('a name change in Settings syncs to the Stripe customer', async () => {
+    const { billing, stripe } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.checkout('u', 'rep@x.com', 'monthly', { name: 'Ahmed' }); // establishes the customer
+    await billing.setBillingName('u', { name: 'Ahmed Al Habtoor', company: 'Al Habtoor Group' });
+    expect(stripe.updates.at(-1)).toEqual({ customerId: 'cus_test_u', details: { name: 'Ahmed Al Habtoor', company: 'Al Habtoor Group' } });
+  });
+
+  it('setting a name before any customer exists stores it but does not call Stripe (checkout carries it)', async () => {
+    const { billing, subs, stripe } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.setBillingName('u', { name: 'Ahmed' });
+    expect(stripe.updates).toHaveLength(0); // no customer yet → nothing to sync
+    expect((await subs.get('u'))?.billingName).toBe('Ahmed');
   });
 });
 

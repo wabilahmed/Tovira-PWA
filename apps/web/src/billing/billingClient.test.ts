@@ -34,4 +34,19 @@ describe('BillingClient', () => {
     fetchMock.mockResolvedValueOnce(json(500, {}));
     expect(await new BillingClient().checkout()).toBeNull();
   });
+
+  // [INVOICE-DATA] set the billing name/company for the Stripe customer.
+  it('sets the billing customer name (PATCH /billing/customer)', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { ok: true }));
+    expect(await new BillingClient('http://api.test').setCustomer('Ahmed Kareem', 'Kareem Realty')).toBe(true);
+    expect(String(fetchMock.mock.calls[0]![0])).toBe('http://api.test/billing/customer');
+    const init = fetchMock.mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(String(init.body))).toEqual({ name: 'Ahmed Kareem', company: 'Kareem Realty' });
+  });
+
+  it('setCustomer returns false on failure', async () => {
+    fetchMock.mockResolvedValueOnce(json(500, {}));
+    expect(await new BillingClient().setCustomer('X')).toBe(false);
+  });
 });

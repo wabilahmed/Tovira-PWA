@@ -1,9 +1,13 @@
 import Stripe from 'stripe';
-import type { Plan, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
+import type { CustomerDetails, Plan, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
 
 /** Minimal Stripe surface we use — lets tests inject a fake (no live calls/keys). */
 export interface StripeLike {
   checkout: { sessions: { create(params: Stripe.Checkout.SessionCreateParams): Promise<{ url: string | null; id: string }> } };
+  customers: {
+    create(params: Stripe.CustomerCreateParams): Promise<{ id: string }>;
+    update(id: string, params: Stripe.CustomerUpdateParams): Promise<{ id: string }>;
+  };
   webhooks: { constructEvent(payload: string, sig: string, secret: string): Stripe.Event };
 }
 
@@ -30,17 +34,44 @@ export class StripeGatewayImpl implements StripeGateway {
     this.stripe = opts.stripe ?? (new Stripe(opts.secretKey) as unknown as StripeLike);
   }
 
-  async createCheckoutSession(userId: string, email: string, plan: Plan = 'monthly'): Promise<StripeCheckout> {
+  /** metadata: only the Tovira user id (always, so an invoice traces back without matching on email)
+   *  and an optional company. NO other PII is sent — email + name are the invoice essentials. */
+  private metadataFor(userId: string, company?: string): Record<string, string> {
+    return { tovira_user_id: userId, ...(company ? { company } : {}) };
+  }
+
+  async createCheckoutSession(
+    userId: string,
+    email: string,
+    plan: Plan = 'monthly',
+    details: CustomerDetails & { existingCustomerId?: string } = {},
+  ): Promise<StripeCheckout> {
     const price = plan === 'annual' ? this.opts.annualPriceId ?? this.opts.priceId : this.opts.priceId;
+    // Create (or reuse) a customer that carries the name + the user-id metadata, so the generated
+    // invoice has a name on it and traces back to the account — a bare customer_email has neither.
+    const customerId = details.existingCustomerId
+      ?? (await this.stripe.customers.create({
+        email: email || undefined,
+        ...(details.name ? { name: details.name } : {}),
+        metadata: this.metadataFor(userId, details.company),
+      })).id;
     const session = await this.stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price, quantity: 1 }],
-      customer_email: email || undefined,
+      customer: customerId,
       client_reference_id: userId,
       success_url: this.opts.successUrl,
       cancel_url: this.opts.cancelUrl,
     });
-    return { url: session.url ?? '', sessionId: session.id };
+    return { url: session.url ?? '', sessionId: session.id, customerId };
+  }
+
+  async updateCustomer(customerId: string, details: CustomerDetails): Promise<void> {
+    await this.stripe.customers.update(customerId, {
+      ...(details.name !== undefined ? { name: details.name } : {}),
+      // metadata updates MERGE in Stripe, so this sets company without dropping tovira_user_id.
+      ...(details.company !== undefined ? { metadata: { company: details.company } } : {}),
+    });
   }
 
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null {

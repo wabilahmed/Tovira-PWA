@@ -22,6 +22,9 @@ export interface SubscriptionRecord {
    *  subscriptions created before this field existed. NEVER inferred — a null here
    *  means "fall back explicitly", never "compute one that looks authoritative". */
   currentPeriodStart: number | null;
+  /** Billing name + optional company synced to the Stripe customer (INVOICE-DATA). Null until set. */
+  billingName: string | null;
+  billingCompany: string | null;
 }
 
 export interface SubscriptionPatch {
@@ -32,6 +35,8 @@ export interface SubscriptionPatch {
   stripeSubscriptionId?: string | null;
   currentPeriodEnd?: number | null;
   currentPeriodStart?: number | null;
+  billingName?: string | null;
+  billingCompany?: string | null;
 }
 
 export interface SubscriptionRepository {
@@ -57,6 +62,16 @@ export interface WebhookEventRepository {
 export interface StripeCheckout {
   url: string;
   sessionId: string;
+  /** The Stripe customer id created/reused for the session — stored so a Settings name change can
+   *  sync to it before the webhook lands (INVOICE-DATA). */
+  customerId?: string;
+}
+
+/** What the app supplies about a customer so Stripe invoices are correct + traceable (INVOICE-DATA).
+ *  The Tovira user id is always attached as metadata; name/company are optional. */
+export interface CustomerDetails {
+  name?: string;
+  company?: string;
 }
 
 export interface StripeWebhookEvent {
@@ -76,7 +91,16 @@ export interface StripeWebhookEvent {
 export type Plan = 'monthly' | 'annual';
 
 export interface StripeGateway {
-  createCheckoutSession(userId: string, email: string, plan: Plan): Promise<StripeCheckout>;
+  /** Creates (or reuses `existingCustomerId`) a Stripe customer carrying the Tovira user id as
+   *  metadata + any name/company, then opens a subscription checkout for it (INVOICE-DATA). */
+  createCheckoutSession(
+    userId: string,
+    email: string,
+    plan: Plan,
+    details?: CustomerDetails & { existingCustomerId?: string },
+  ): Promise<StripeCheckout>;
+  /** Sync a name/company change to an existing Stripe customer (Settings). */
+  updateCustomer(customerId: string, details: CustomerDetails): Promise<void>;
   /** Verify + parse a webhook; returns null if the signature is invalid. */
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null;
 }

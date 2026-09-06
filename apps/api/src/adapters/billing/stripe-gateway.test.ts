@@ -4,14 +4,56 @@ import { StripeGatewayImpl, type StripeLike } from './stripe-gateway.js';
 const opts = { secretKey: 'sk_test_x', webhookSecret: 'whsec_x', priceId: 'price_1', successUrl: 'http://s', cancelUrl: 'http://c' };
 
 describe('StripeGatewayImpl', () => {
+  function fakeStripe(over: Partial<StripeLike> = {}) {
+    const sessionCreate = vi.fn(async (_p: Record<string, unknown>) => ({ url: 'https://checkout.stripe.com/abc', id: 'cs_1' }));
+    const customerCreate = vi.fn(async (_p: Record<string, unknown>) => ({ id: 'cus_new' }));
+    const customerUpdate = vi.fn(async (_id: string, _p: Record<string, unknown>) => ({ id: 'cus_new' }));
+    const stripe = {
+      checkout: { sessions: { create: sessionCreate } },
+      customers: { create: customerCreate, update: customerUpdate },
+      webhooks: { constructEvent: () => ({}) },
+      ...over,
+    } as unknown as StripeLike;
+    return { stripe, sessionCreate, customerCreate, customerUpdate };
+  }
+
   it('creates a subscription checkout session tagged with the user id', async () => {
-    const create = vi.fn(async (_params: { client_reference_id?: string; mode?: string }) => ({ url: 'https://checkout.stripe.com/abc', id: 'cs_1' }));
-    const stripe = { checkout: { sessions: { create } }, webhooks: { constructEvent: () => ({}) } } as unknown as StripeLike;
+    const { stripe, sessionCreate } = fakeStripe();
     const g = new StripeGatewayImpl({ ...opts, stripe });
     const out = await g.createCheckoutSession('user-1', 'a@b.com');
     expect(out.url).toContain('checkout.stripe.com');
-    expect(create.mock.calls[0]![0].client_reference_id).toBe('user-1');
-    expect(create.mock.calls[0]![0].mode).toBe('subscription');
+    expect(sessionCreate.mock.calls[0]![0].client_reference_id).toBe('user-1');
+    expect(sessionCreate.mock.calls[0]![0].mode).toBe('subscription');
+  });
+
+  // INVOICE-DATA: the customer carries the name + the tovira user-id metadata; only that + email.
+  it('creates a customer with the name and the user-id metadata, and nothing more', async () => {
+    const { stripe, sessionCreate, customerCreate } = fakeStripe();
+    const out = await new StripeGatewayImpl({ ...opts, stripe }).createCheckoutSession('user-1', 'a@b.com', 'monthly', { name: 'Ahmed Kareem', company: 'Kareem Realty' });
+    const params = customerCreate.mock.calls[0]![0] as { email?: string; name?: string; metadata?: Record<string, string> };
+    expect(params.email).toBe('a@b.com');
+    expect(params.name).toBe('Ahmed Kareem');
+    expect(params.metadata).toEqual({ tovira_user_id: 'user-1', company: 'Kareem Realty' });
+    // No PII beyond email + name + our own metadata.
+    expect(Object.keys(params).sort()).toEqual(['email', 'metadata', 'name']);
+    // The session uses the created customer (not a bare customer_email), and reports its id.
+    expect(sessionCreate.mock.calls[0]![0].customer).toBe('cus_new');
+    expect(out.customerId).toBe('cus_new');
+  });
+
+  it('reuses an existing customer instead of creating a duplicate', async () => {
+    const { stripe, customerCreate, sessionCreate } = fakeStripe();
+    const out = await new StripeGatewayImpl({ ...opts, stripe }).createCheckoutSession('user-1', 'a@b.com', 'monthly', { existingCustomerId: 'cus_old' });
+    expect(customerCreate).not.toHaveBeenCalled();
+    expect(sessionCreate.mock.calls[0]![0].customer).toBe('cus_old');
+    expect(out.customerId).toBe('cus_old');
+  });
+
+  it('updateCustomer syncs a name/company change to Stripe', async () => {
+    const { stripe, customerUpdate } = fakeStripe();
+    await new StripeGatewayImpl({ ...opts, stripe }).updateCustomer('cus_1', { name: 'New Name', company: 'NewCo' });
+    expect(customerUpdate.mock.calls[0]![0]).toBe('cus_1');
+    expect(customerUpdate.mock.calls[0]![1]).toEqual({ name: 'New Name', metadata: { company: 'NewCo' } });
   });
 
   it('maps a verified webhook to our event shape', async () => {

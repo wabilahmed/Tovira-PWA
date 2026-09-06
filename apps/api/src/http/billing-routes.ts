@@ -32,7 +32,8 @@ export async function handleBillingRoute(
   const isCheckout = method === 'POST' && path === '/billing/checkout';
   const isStatus = method === 'GET' && path === '/billing/status';
   const isIncentive = method === 'GET' && path === '/billing/incentive';
-  if (!isCheckout && !isStatus && !isIncentive) return false;
+  const isCustomer = method === 'PATCH' && path === '/billing/customer';
+  if (!isCheckout && !isStatus && !isIncentive && !isCustomer) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -52,9 +53,24 @@ export async function handleBillingRoute(
     return true;
   }
 
+  // INVOICE-DATA: set the billing name/company (Settings) and sync it to the Stripe customer.
+  if (isCustomer) {
+    const body = (await readJsonBody(req).catch(() => ({}))) as { name?: unknown; company?: unknown };
+    const details: { name?: string; company?: string } = {};
+    if (typeof body.name === 'string') details.name = body.name.trim();
+    if (typeof body.company === 'string') details.company = body.company.trim();
+    await deps.billing.setBillingName(userId, details);
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   const user = await deps.auth.getPublicUser(userId);
-  const body = (await readJsonBody(req).catch(() => ({}))) as { plan?: unknown };
+  const body = (await readJsonBody(req).catch(() => ({}))) as { plan?: unknown; name?: unknown; company?: unknown };
   const plan = body.plan === 'annual' ? 'annual' : 'monthly';
-  sendJson(res, 200, await deps.billing.checkout(userId, user?.email ?? '', plan));
+  // Collect a name/company at checkout so the very first invoice carries them (INVOICE-DATA).
+  const details: { name?: string; company?: string } = {};
+  if (typeof body.name === 'string' && body.name.trim()) details.name = body.name.trim();
+  if (typeof body.company === 'string' && body.company.trim()) details.company = body.company.trim();
+  sendJson(res, 200, await deps.billing.checkout(userId, user?.email ?? '', plan, details));
   return true;
 }

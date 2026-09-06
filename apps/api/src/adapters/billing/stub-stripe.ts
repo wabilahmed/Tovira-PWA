@@ -1,4 +1,4 @@
-import type { Plan, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
+import type { CustomerDetails, Plan, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
 
 /**
  * Local stand-in for Stripe (test mode). Checkout returns a fake URL; webhook
@@ -8,8 +8,18 @@ import type { Plan, StripeCheckout, StripeGateway, StripeWebhookEvent } from '..
 export class StubStripeGateway implements StripeGateway {
   constructor(private readonly webhookSecret = 'whsec_test') {}
 
-  async createCheckoutSession(userId: string, _email: string, plan: Plan = 'monthly'): Promise<StripeCheckout> {
-    return { url: `https://checkout.stripe.test/session?ref=${userId}&plan=${plan}`, sessionId: `cs_test_${userId}` };
+  /** Recorded so tests can assert what the app supplied to Stripe (name/company/metadata sync). */
+  readonly customers: Array<{ userId: string; details: CustomerDetails }> = [];
+  readonly updates: Array<{ customerId: string; details: CustomerDetails }> = [];
+
+  async createCheckoutSession(userId: string, _email: string, plan: Plan = 'monthly', details: CustomerDetails & { existingCustomerId?: string } = {}): Promise<StripeCheckout> {
+    const customerId = details.existingCustomerId ?? `cus_test_${userId}`;
+    if (!details.existingCustomerId) this.customers.push({ userId, details: { name: details.name, company: details.company } });
+    return { url: `https://checkout.stripe.test/session?ref=${userId}&plan=${plan}`, sessionId: `cs_test_${userId}`, customerId };
+  }
+
+  async updateCustomer(customerId: string, details: CustomerDetails): Promise<void> {
+    this.updates.push({ customerId, details });
   }
 
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null {

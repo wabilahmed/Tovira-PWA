@@ -69,4 +69,20 @@ export class BillingClient {
       return null;
     }
   }
+
+  /** [INVOICE-DATA] Set the billing name (+ optional company) for the Stripe customer, so invoices
+   *  carry a name. Best-effort; returns whether it saved. */
+  async setCustomer(name: string, company?: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/billing/customer`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, ...(company ? { company } : {}) }),
+      });
+      return res.status === 200;
+    } catch {
+      return false;
+    }
+  }
 }
