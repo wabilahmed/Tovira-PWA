@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ExtractionService } from './extraction-service.js';
 import { EXTRACTION_SYSTEM_PROMPT } from './prompt.js';
 import { referenceDateFor } from './extraction-service.js';
+import { parseWhatsAppExport } from '../import/whatsapp.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
@@ -184,6 +185,19 @@ describe('ExtractionService', () => {
     const wa = referenceDateFor({ messages: [{ sentAt: '10/03/2026, 14:00' }] }, '2026-09-01');
     expect(wa).toBe('2026-03-10'); // WhatsApp DD/MM/YYYY parsed
     expect(referenceDateFor({ messages: null }, '2026-09-01')).toBe('2026-09-01'); // fresh → caller's today
+  });
+
+  // [PARSE-REAL] End-to-end: a real dash-format 2019 chat, parsed, resolves against 2019 — NOT the
+  // import date. This chain was silently broken before the parser fix (DD/MM dates yielded sentAt
+  // null, so referenceDateFor fell back to today and a 2019 promise looked due "next week").
+  it('[PARSE-REAL] a parsed 2019 chat resolves relative dates against 2019, not the import year', () => {
+    const parsed = parseWhatsAppExport(
+      ['13/07/2019, 5:10 am - Bilal: salaam', '15/07/2019, 9:30 am - Wabil: will send the payment next Thursday'].join('\n'),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const ref = referenceDateFor({ messages: parsed.messages }, '2026-09-08');
+    expect(ref.startsWith('2019-07')).toBe(true); // resolves in the message era → a 2019 promise is long overdue
   });
 
   it('[DATE-INVARIANT] nulls a promise dated before the note reference (fresh note cannot be past-due)', async () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseWhatsAppExport } from './whatsapp.js';
+import { syntheticWhatsAppExport } from './__fixtures__/synthetic-whatsapp-export.js';
 
 describe('parseWhatsAppExport (P1-4b)', () => {
   // POSITIVE: a real-format export with two speakers over months.
@@ -88,5 +89,55 @@ describe('parseWhatsAppExport (P1-4b)', () => {
   it('rejects empty or whitespace-only input', () => {
     expect(parseWhatsAppExport('').ok).toBe(false);
     expect(parseWhatsAppExport('   \n  \t ').ok).toBe(false);
+  });
+});
+
+// [PARSE-REAL] Validate the parser against a synthetic export shaped exactly like the real
+// 5,940-message file: dash/Android format, day-first dates 2019→2026, 516 media, 2 system lines,
+// 276 continuation lines.
+describe('[PARSE-REAL] the real-file shape', () => {
+  it('parses the dash/Android format with day-first dates (not just bracketed iOS ISO)', () => {
+    const res = parseWhatsAppExport('13/07/2019, 5:28 am - Wabil: Pohonch gaya');
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.messages[0]).toMatchObject({ sender: 'Wabil', body: 'Pohonch gaya' });
+    // Day-first 13/07/2019 → 2019-07-13 (NOT month-first, and the YEAR is 2019 — the reference-date anchor).
+    expect(res.messages[0]!.sentAt).toBe('2019-07-13T05:28:00');
+  });
+
+  it('resolves 12h pm and a 2-digit year', () => {
+    const res = parseWhatsAppExport('03/06/26, 9:05 pm - Sara: hi');
+    expect(res.ok && res.messages[0]!.sentAt).toBe('2026-06-03T21:05:00');
+  });
+
+  it('a mid-file system notice is skipped, NOT folded into the previous message', () => {
+    const res = parseWhatsAppExport(
+      ['13/07/2019, 5:10 am - Bilal: first', '13/07/2019, 5:11 am - You changed the group description', '13/07/2019, 5:12 am - Bilal: second'].join('\n'),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.messages).toHaveLength(2); // the system line produced no message and joined to none
+    expect(res.messages[0]!.body).toBe('first'); // not corrupted with the notice text
+    expect(res.messages.map((m) => m.body)).toEqual(['first', 'second']);
+  });
+
+  it('matches the real file across every property (counts, media, system, continuations, span)', () => {
+    const { text, expected } = syntheticWhatsAppExport();
+    const res = parseWhatsAppExport(text);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { messages } = res;
+    expect(messages).toHaveLength(expected.messages); // 5,940 — system skipped, continuations joined
+    const bySender: Record<string, number> = {};
+    for (const m of messages) bySender[m.sender] = (bySender[m.sender] ?? 0) + 1;
+    expect(bySender).toEqual(expected.bySender); // 3010 / 2930, no phantom "system" sender
+    expect(messages.filter((m) => m.media).length).toBe(expected.media); // 516 <Media omitted>
+    // Continuation lines joined into their message (multi-line body), not dropped or split.
+    expect(messages.filter((m) => m.body.includes('\n')).length).toBe(expected.continuations);
+    // Date span preserved: earliest 2019, latest 2026.
+    const dated = messages.map((m) => m.sentAt).filter((s): s is string => s !== null).sort();
+    expect(dated.length).toBe(expected.messages); // EVERY message got a real date (the DD/MM fix)
+    expect(dated[0]!.startsWith(expected.firstYear)).toBe(true);
+    expect(dated.at(-1)!.startsWith(expected.lastYear)).toBe(true);
   });
 });

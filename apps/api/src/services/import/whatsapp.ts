@@ -34,23 +34,48 @@ const CONTROL_CHARS = /[\u200e\u200f\u202f\u00a0\u2007\u2060\ufeff]/g;
 const HEADER_RE =
   /^(?:\[(?<bracketed>[^\]]+)\]\s*|(?<bare>\d{1,4}[/-]\d{1,2}[/-]\d{1,4},?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)\s*-\s*)(?<sender>[^:]+?):\s?(?<body>.*)$/;
 
+// A DATED line with NO "Sender:" — a WhatsApp system notice (the end-to-end-encryption line,
+// "you changed…", etc.). Same timestamp prefix as HEADER_RE but no sender colon. These must be
+// SKIPPED, never folded into the preceding message as a continuation (that would corrupt it).
+const SYSTEM_PREFIX_RE =
+  /^(?:\[[^\]]+\]\s*|\d{1,4}[/-]\d{1,2}[/-]\d{1,4},?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?\s*-\s*)/;
+
 const MEDIA_RE = /(?:<\s*media\s+omitted\s*>|\bimage omitted\b|\bvideo omitted\b|<\s*attached:)/i;
 
-/** Normalise a WhatsApp timestamp to 'YYYY-MM-DDTHH:MM[:SS]', or null. */
+/** Parse the DATE part of a timestamp to {y, mo, d}. Accepts ISO (YYYY-MM-DD) and the real WhatsApp
+ *  slash/dash forms, which are DAY-FIRST (DD/MM/YYYY — UAE/most locales; the sample export is
+ *  day-first) with a 2- or 4-digit year. Month-first (US) is not auto-detected; the YEAR is
+ *  unambiguous either way, which is what the reference-date resolution depends on. */
+function parseDatePart(d: string): { y: number; mo: number; d: number } | null {
+  let m = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); // ISO first (bracketed iOS exports)
+  if (m) return { y: Number(m[1]), mo: Number(m[2]), d: Number(m[3]) };
+  m = d.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/); // day-first DD/MM/YY(YY)
+  if (m) {
+    let yr = Number(m[3]);
+    if (yr < 100) yr += 2000;
+    return { y: yr, mo: Number(m[2]), d: Number(m[1]) };
+  }
+  return null;
+}
+
+const pad = (n: number): string => String(n).padStart(2, '0');
+
+/** Normalise a WhatsApp timestamp to 'YYYY-MM-DDTHH:MM[:SS]', or null. Handles both the bracketed
+ *  iOS ISO form and the bare Android day-first form, 12h (am/pm) and 24h. */
 function normaliseTimestamp(raw: string): string | null {
   const s = raw.replace(CONTROL_CHARS, '').trim();
-  // ISO-style date: 2026-01-15, 14:30(:45)? optionally with AM/PM.
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?$/);
+  const m = s.match(/^(.+?),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?$/);
   if (!m) return null;
-  const [, y, mo, d, hhRaw, mm, ss, ampm] = m;
+  const [, dateStr, hhRaw, mm, ss, ampm] = m;
+  const date = parseDatePart(dateStr!.trim());
+  if (!date || date.mo < 1 || date.mo > 12 || date.d < 1 || date.d > 31) return null;
   let hh = Number(hhRaw);
   if (ampm) {
     const pm = /p/i.test(ampm);
     if (hh === 12) hh = pm ? 12 : 0;
     else if (pm) hh += 12;
   }
-  const hhStr = String(hh).padStart(2, '0');
-  return `${y}-${mo}-${d}T${hhStr}:${mm}${ss ? `:${ss}` : ':00'}`;
+  return `${date.y}-${pad(date.mo)}-${pad(date.d)}T${pad(hh)}:${mm}${ss ? `:${ss}` : ':00'}`;
 }
 
 export function parseWhatsAppExport(text: string): WhatsAppParseResult {
@@ -74,13 +99,17 @@ export function parseWhatsAppExport(text: string): WhatsAppParseResult {
         media: MEDIA_RE.test(body),
         role: 'unknown',
       });
+    } else if (SYSTEM_PREFIX_RE.test(line)) {
+      // A dated line with no "Sender:" is a system notice (E2E-encryption line, "you changed…").
+      // Skip it entirely — it is neither a participant message nor a continuation of one.
+      continue;
     } else if (messages.length > 0) {
       // Continuation of the previous message (multi-line body).
       const prev = messages[messages.length - 1]!;
       prev.body = prev.body === '' ? line : `${prev.body}\n${line}`;
       if (MEDIA_RE.test(line)) prev.media = true;
     }
-    // A non-header line before any message is export preamble — ignored.
+    // A non-header, non-system line before any message is export preamble — ignored.
   }
 
   if (messages.length === 0) {
