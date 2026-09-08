@@ -45,6 +45,8 @@ import {
   createNoteMoveAuditRepository,
   createNoteMoveTx,
   createNoteMoveService,
+  createContactAliasRepository,
+  createRepNameRepository,
   createMeetingParser,
   createNotificationRepository,
   createScanService,
@@ -171,11 +173,14 @@ async function main(): Promise<void> {
   const noteMoveAudit = createNoteMoveAuditRepository(config, appPool);
   const noteMoveTx = createNoteMoveTx(config, appPool, notes, facts, meetings, clients, noteMoveAudit, requirements, inventoryMatches);
   const noteMove = createNoteMoveService(notes, facts, meetings, noteMoveTx);
+  // [ALIAS] learned WhatsApp contact aliases + the rep's own display name (import counterpart id).
+  const contactAliases = createContactAliasRepository(config, appPool);
+  const repNames = createRepNameRepository(config, appPool);
   // NUDGE-UNCONFIRMED: extraction persists proposed meetings (confirmed:false) so they can be
   // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
   // COST-IMPORT-METRIC: a rolling per-rep import cost, recorded at extraction time for imports.
   const importCost = new ImportCostMetrics();
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid));
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
   const meetingParser = createMeetingParser(config, clients);
@@ -265,7 +270,7 @@ async function main(): Promise<void> {
     ],
   });
   const recallSessions = createRecallSessionRepository(config, appPool);
-  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined));
+  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames);
   const activation = createActivationService(config, appPool);
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
@@ -297,6 +302,8 @@ async function main(): Promise<void> {
     followUp,
     facts,
     noteMove,
+    aliases: contactAliases,
+    repNames,
     corrections,
     extractionLog: extractionLogs,
     brief,

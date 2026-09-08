@@ -14,6 +14,7 @@ import type { NoteMoveService } from '../services/import/note-move-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { resolveTranscript } from '../services/import/resolve.js';
 import { detectMisfileAtImport } from '../services/import/misfile.js';
+import type { ContactAliasRepository, RepNameRepository } from '../ports/contact-alias-repository.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
@@ -46,6 +47,12 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** [ALIAS] First/last message dates (YYYY-MM-DD) for the confirm prompt, or null if undated. */
+function messageDateRange(messages: Array<{ sentAt: string | null }>): { from: string; to: string } | null {
+  const dates = messages.map((m) => m.sentAt).filter((s): s is string => !!s).map((s) => s.slice(0, 10)).sort();
+  return dates.length ? { from: dates[0]!, to: dates.at(-1)! } : null;
+}
+
 export interface NoteRouteDeps {
   auth: AuthService;
   clients: ClientRepository;
@@ -58,6 +65,9 @@ export interface NoteRouteDeps {
   ledger?: LedgerService;
   billing?: BillingService;
   noteMove?: NoteMoveService;
+  /** [ALIAS] learned per-client WhatsApp aliases + the rep's own display name. Optional. */
+  aliases?: ContactAliasRepository;
+  repNames?: RepNameRepository;
 }
 
 /** Ledger (P4-11): capturing a note for a client that a scan flagged (going cold
@@ -209,7 +219,7 @@ export async function handleNoteRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const body = (await readJsonBody(req)) as { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown };
+      const body = (await readJsonBody(req)) as { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown; confirmImport?: unknown; counterpart?: unknown };
       // A full export contains everything in the chat — require explicit consent.
       if (body.consent !== true) {
         sendJson(res, 400, {
@@ -285,35 +295,55 @@ export async function handleNoteRoute(
         sendJson(res, 200, { note: null, imported: 0, duplicate: true });
         return true;
       }
-      // MISFILE-DETECT (B1): does the transcript's counterpart actually match this client? Checked
-      // deterministically (names + stakeholder map + stored phone), no model call. CONFIRM, never
-      // block; SUGGEST the right client, never auto-reassign. On a suspected misfile we hold the
-      // import (409) until the rep acknowledges; the ack proceeds and is recorded.
-      const misfileAck = body.misfileAck === true;
-      const others = (await deps.clients.listByUser(userId))
-        .filter((c) => c.id !== clientId)
-        .map((c) => ({ id: c.id, name: c.name, phone: c.phone, knownPeople: [] as string[] }));
+      // [ALIAS-COUNTERPART] Confirm the counterpart BEFORE extraction (the ordering rule). Identify
+      // the counterpart by elimination against the rep's own WhatsApp name, and match it to this
+      // client by name → learned ALIAS → known people — all deterministic, NO model call. If it
+      // doesn't match, STOP with a soft confirm (409) here, before the note is created and before
+      // extraction is ever queued: no data stored, no money spent on a possibly-misfiled chat. The
+      // ack ("yes, that's <client>") proceeds AND learns the alias so it never asks again.
+      const confirmAck = body.confirmImport === true || body.misfileAck === true;
+      const repName = deps.repNames ? await deps.repNames.get(userId) : null;
+      const aliasesOf = async (cid: string): Promise<string[]> => (deps.aliases ? deps.aliases.listByClient(userId, cid) : []);
+      const selectedAliases = await aliasesOf(clientId);
+      const allClients = await deps.clients.listByUser(userId);
+      const others = await Promise.all(
+        allClients.filter((c) => c.id !== clientId).map(async (c) => ({ id: c.id, name: c.name, phone: c.phone, aliases: await aliasesOf(c.id), knownPeople: [] as string[] })),
+      );
       const detection = detectMisfileAtImport({
         messages: parsed.messages,
-        selected: { id: client.id, name: client.name, phone: client.phone },
+        selected: { id: client.id, name: client.name, phone: client.phone, aliases: selectedAliases },
         knownPeople: knownPeopleFrom(priorNotes),
         others,
+        repName,
       });
-      if (detection.status === 'mismatch' && !misfileAck) {
-        const who = detection.counterparts[0] ?? 'someone else';
-        const suggest = detection.suggestion ? ` It looks like ${detection.suggestion.name}.` : '';
+      if (detection.status === 'mismatch' && !confirmAck) {
+        // Soft, non-accusatory copy with what parsing already knows — so the rep decides on facts.
+        const who = detection.counterpart ?? detection.counterparts[0] ?? 'this contact';
+        const dates = messageDateRange(parsed.messages);
+        const span = dates ? `, ${fresh.length} messages from ${dates.from} to ${dates.to}` : `, ${fresh.length} messages`;
+        const suggest = detection.suggestion ? ` (looks like ${detection.suggestion.name})` : '';
         sendJson(res, 409, {
-          error: 'misfile_suspected',
+          error: 'confirm_counterpart',
+          counterpart: detection.counterpart,
           counterparts: detection.counterparts,
+          participants: detection.counterparts,
           suggestion: detection.suggestion,
-          message: `This chat looks like it's with ${who}, but you're filing it under ${client.name}.${suggest} Continue, or choose a different client?`,
+          group: detection.group,
+          message: `This chat is with ${who}${span}${suggest} — is that ${client.name}?`,
         });
         return true;
       }
-      const misfileOverridden = detection.status === 'mismatch' && misfileAck;
-      if (misfileOverridden) {
-        console.info(`[misfile] override: rep imported a chat under ${clientId} despite a suspected misfile (counterparts: ${detection.counterparts.join(', ') || 'phone-only'})`);
+      // On confirm: learn the alias for the counterpart so future imports from this contact are
+      // silent (the rep teaches it once, by confirming). Group chats don't get an alias (ambiguous
+      // which speaker). Also learn the rep's own name when we could determine it by elimination.
+      if (detection.status === 'mismatch' && confirmAck && deps.aliases && !detection.group) {
+        const toAlias = (typeof body.counterpart === 'string' && body.counterpart.trim()) || detection.counterpart;
+        if (toAlias) await deps.aliases.add(userId, clientId, toAlias);
       }
+      if (detection.learnRepName && deps.repNames && !repName) {
+        await deps.repNames.set(userId, detection.learnRepName);
+      }
+      const misfileOverridden = detection.status === 'mismatch' && confirmAck;
       // Tag each speaker as client/rep so the extractor can flag unanswered
       // client questions (P1-6). Store ONLY the new slice.
       const messages = assignSpeakerRoles(fresh, client.name);

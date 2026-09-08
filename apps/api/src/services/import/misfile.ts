@@ -16,6 +16,8 @@ export interface ClientIdentity {
   id: string;
   name: string;
   phone: string | null;
+  /** [ALIAS] Learned WhatsApp display names for this client (e.g. "Bubu DXB" → Imtinan). */
+  aliases?: string[];
 }
 
 export interface MisfileInput {
@@ -25,11 +27,14 @@ export interface MisfileInput {
   knownPeople: string[];
   /** The rep's other clients (each with their own known people), to suggest the right one. */
   others: Array<ClientIdentity & { knownPeople: string[] }>;
+  /** [ALIAS-COUNTERPART] the rep's own WhatsApp display name, to identify the counterpart by
+   *  elimination (the speaker who is not the rep). Null/unknown → counterpart inferred when possible. */
+  repName?: string | null;
 }
 
 export type MisfileDetection =
-  | { status: 'ok' }
-  | { status: 'mismatch'; counterparts: string[]; suggestion: { id: string; name: string } | null };
+  | { status: 'ok'; counterparts: string[]; counterpart: string | null; group: boolean; learnRepName: string | null }
+  | { status: 'mismatch'; counterparts: string[]; counterpart: string | null; group: boolean; suggestion: { id: string; name: string } | null; learnRepName: string | null };
 
 const norm = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -55,7 +60,7 @@ function words(name: string): Set<string> {
 }
 
 /** Does a name match another — exact, or sharing a significant word (whole-word, not substring)? */
-function nameMatches(a: string, b: string): boolean {
+export function nameMatches(a: string, b: string): boolean {
   const na = norm(a);
   const nb = norm(b);
   if (!na || !nb) return false;
@@ -84,46 +89,66 @@ function participantsOf(messages: ImportedMessage[]): string[] {
   return out;
 }
 
-/** Does any participant match this client — by phone (strongest), name, or a known person? */
+/** Does any participant match this client — by phone (strongest), name, a known person, or a
+ *  learned ALIAS (the nickname/company/script the contact is saved under)? Match order per the
+ *  ALIAS spec: exact/word name → alias → known people (phone short-circuits when present). */
 function clientMatched(participants: string[], client: ClientIdentity, knownPeople: string[]): boolean {
+  const aliases = client.aliases ?? [];
   for (const p of participants) {
     if (isPhone(p)) {
       if (client.phone && phonesMatch(p, client.phone)) return true;
       continue; // a phone that doesn't match this client's phone is not a name signal
     }
     if (nameMatches(p, client.name)) return true;
+    if (aliases.some((a) => nameMatches(p, a))) return true;
     if (knownPeople.some((kp) => nameMatches(p, kp))) return true;
   }
   return false;
 }
 
+/** [ALIAS-COUNTERPART] The counterpart is the speaker who is NOT the rep. With the rep's own name
+ *  known, identify by elimination; without it, only a single non-self speaker is unambiguous.
+ *  Returns null for a group chat (>2 speakers) or when elimination is ambiguous. */
+function counterpartOf(participants: string[], repName: string | null | undefined): string | null {
+  const names = participants.filter((p) => !isPhone(p));
+  if (names.length > 2) return null; // group chat — the two-speaker rule doesn't apply
+  if (repName) {
+    const nonRep = names.filter((p) => !nameMatches(p, repName));
+    return nonRep.length === 1 ? nonRep[0]! : null;
+  }
+  return names.length === 1 ? names[0]! : null; // rep unknown → only a lone counterpart is certain
+}
+
 export function detectMisfileAtImport(input: MisfileInput): MisfileDetection {
   const participants = participantsOf(input.messages);
-  if (participants.length === 0) return { status: 'ok' }; // nothing to check
-
-  // Filed correctly if any participant matches the selected client.
-  if (clientMatched(participants, input.selected, input.knownPeople)) return { status: 'ok' };
-
   const counterparts = participants.filter((p) => !isPhone(p));
+  const group = counterparts.length > 2;
+  const counterpart = counterpartOf(participants, input.repName);
 
-  // Does the transcript positively match one of the rep's OTHER clients? That's the strongest
-  // misfile signal and gives us a suggestion — regardless of whether the selected client had
-  // identity to check (so it catches the first import too).
+  if (participants.length === 0) return { status: 'ok', counterparts, counterpart, group, learnRepName: null };
+
+  // Filed correctly if any participant matches the selected client (name → alias → known people).
+  if (clientMatched(participants, input.selected, input.knownPeople)) {
+    // [ALIAS-COUNTERPART] Learn the rep's own name on a clean two-speaker match: the matching
+    // speaker is the client, so the OTHER is the rep. Only when the rep name isn't known yet.
+    let learnRepName: string | null = null;
+    if (!input.repName && counterparts.length === 2) {
+      const matching = counterparts.find((p) => clientMatched([p], input.selected, input.knownPeople));
+      const other = counterparts.find((p) => p !== matching);
+      if (matching && other) learnRepName = other;
+    }
+    return { status: 'ok', counterparts, counterpart, group, learnRepName };
+  }
+
+  // Does the transcript positively match one of the rep's OTHER clients? The strongest misfile
+  // signal — it names the right client.
   const matchedOthers = input.others.filter((c) => clientMatched(participants, c, c.knownPeople));
-  if (matchedOthers.length === 1) {
-    return { status: 'mismatch', counterparts, suggestion: { id: matchedOthers[0]!.id, name: matchedOthers[0]!.name } };
-  }
-  if (matchedOthers.length > 1) {
-    return { status: 'mismatch', counterparts, suggestion: null }; // matches several — ambiguous
-  }
+  const suggestion = matchedOthers.length === 1 ? { id: matchedOthers[0]!.id, name: matchedOthers[0]!.name } : null;
 
-  // No other client matched. Only raise an (ambiguous) prompt when we actually HAD something to
-  // check the selected client against and it failed — a stored phone or a known-people map. On a
-  // fresh client with neither, we cannot tell, so we do not nag.
-  const hadIdentity = input.selected.phone !== null || input.knownPeople.length > 0;
-  if (hadIdentity) return { status: 'mismatch', counterparts, suggestion: null };
-
-  return { status: 'ok' };
+  // No match to the filed client. CONFIRM before extraction (the ordering rule): the counterpart is
+  // saved under a name we don't yet know for this client. Confirming teaches the alias; it never
+  // blocks, and it costs no model call because it fires before the note is even created.
+  return { status: 'mismatch', counterparts, counterpart, group, suggestion, learnRepName: null };
 }
 
 /**

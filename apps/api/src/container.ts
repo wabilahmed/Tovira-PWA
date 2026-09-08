@@ -97,6 +97,9 @@ import type { OpsAlertRepository } from './ports/ops-alert-repository.js';
 import { InMemoryOpsAlertRepository } from './adapters/spend/in-memory-ops-alert-repository.js';
 import { PgOpsAlertRepository } from './adapters/spend/pg-ops-alert-repository.js';
 import type { RecallDailyCounter } from './ports/recall-daily-counter.js';
+import type { ContactAliasRepository, RepNameRepository } from './ports/contact-alias-repository.js';
+import { InMemoryContactAliasRepository, InMemoryRepNameRepository } from './adapters/import/in-memory-contact-alias-repository.js';
+import { PgContactAliasRepository, PgRepNameRepository } from './adapters/import/pg-contact-alias-repository.js';
 import { InMemoryRecallDailyCounter } from './adapters/spend/in-memory-recall-daily-counter.js';
 import { PgRecallDailyCounter } from './adapters/spend/pg-recall-daily-counter.js';
 import type { SpendOverrideRepository } from './ports/spend-override-repository.js';
@@ -414,6 +417,22 @@ export function createOpsAlertRepository(config: AppConfig, rootPool?: Pool): Op
   return new InMemoryOpsAlertRepository();
 }
 
+export function createContactAliasRepository(config: AppConfig, appPool?: Pool): ContactAliasRepository {
+  if (config.authStore === 'postgres') {
+    if (!appPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgContactAliasRepository(appPool);
+  }
+  return new InMemoryContactAliasRepository();
+}
+
+export function createRepNameRepository(config: AppConfig, appPool?: Pool): RepNameRepository {
+  if (config.authStore === 'postgres') {
+    if (!appPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgRepNameRepository(appPool);
+  }
+  return new InMemoryRepNameRepository();
+}
+
 export function createRecallDailyCounter(config: AppConfig, appPool?: Pool): RecallDailyCounter {
   if (config.authStore === 'postgres') {
     if (!appPool) throw new Error('authStore=postgres requires a database pool');
@@ -445,9 +464,10 @@ export function createExtractionService(
   matching?: MatchingService,
   importCost?: ImportCostMetrics,
   spendGate?: { canSpend(userId: string): Promise<boolean> },
+  aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, spendGate);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, spendGate, aliasesFor);
 }
 
 /** The requirements spine store (INV-MATCH), RLS-backed on pg. */
@@ -602,10 +622,11 @@ export function createBillingService(config: AppConfig, pool?: Pool, emailHook?:
   return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook, vat, invoiceTax);
 }
 
-export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>): AccountService {
-  // On Postgres, deleting the user cascades all data (FKs) — no explicit purge list. Recall sessions
-  // are purged explicitly (also cascade-backed) so account delete works on the in-memory store too.
-  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [], onDeleted);
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository): AccountService {
+  // On Postgres, deleting the user cascades all data (FKs) — no explicit purge list. Recall sessions,
+  // aliases + rep name are purged explicitly (also cascade-backed) so delete works in-memory too.
+  const purgeables = [aliases, repNames].filter((p): p is ContactAliasRepository | RepNameRepository => !!p);
+  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases);
 }
 
 export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {

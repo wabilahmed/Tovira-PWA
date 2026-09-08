@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
@@ -69,7 +69,7 @@ async function drainImport(token: string, cid: string): Promise<void> {
 describe('[P1-4b] import a WhatsApp chat export', () => {
   it('IMPORT-ASYNC: import persists messages and returns 202 pending WITHOUT extracting inline', async () => {
     const { token } = await signup('import@example.com');
-    const cid = await createClient(token, 'Acme');
+    const cid = await createClient(token, 'Sara Lee'); // the counterpart — matches, so no confirm gate
 
     const res = await importChat(token, cid, { content: EXPORT, consent: true });
     // 202 Accepted — extraction is deferred, so a slow model can never 504 the upload.
@@ -295,12 +295,14 @@ describe('[MISFILE-DETECT] a chat filed under the wrong client', () => {
     const meridian = await createClient(token, 'Meridian');
     const res = await importChat(token, meridian, { content: AHMED_CHAT, consent: true });
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: string; counterparts: string[]; suggestion: { name: string } | null; message: string };
-    expect(body.error).toBe('misfile_suspected');
-    expect(body.counterparts).toContain('Ahmed');
+    const body = (await res.json()) as { error: string; counterpart: string | null; counterparts: string[]; suggestion: { name: string } | null; message: string };
+    expect(body.error).toBe('confirm_counterpart');
+    expect(body.counterpart).toBe('Ahmed');
     expect(body.suggestion?.name).toBe('Ahmed');
-    expect(body.message).toMatch(/filing it under Meridian/i);
-    // NEVER auto-reassigned: nothing was stored under Meridian.
+    // Soft, non-accusatory copy that asks — not "this looks wrong".
+    expect(body.message).toMatch(/is that Meridian/i);
+    expect(body.message).not.toMatch(/wrong|looks like it's with/i);
+    // NEVER stored, NEVER extracted: nothing under Meridian, so zero model spend on a maybe-misfile.
     const notes = await listNotes(token, meridian);
     expect(notes.filter((n) => n.source === 'whatsapp_export')).toHaveLength(0);
   });
@@ -319,6 +321,73 @@ describe('[MISFILE-DETECT] a chat filed under the wrong client', () => {
     expect(body.misfileOverridden).toBe(true);
     const notes = await listNotes(token, meridian);
     expect(notes.some((n) => n.source === 'whatsapp_export')).toBe(true);
+  });
+});
+
+describe('[ALIAS] confirm the counterpart before extraction, then learn the alias', () => {
+  // A real UAE case: the contact is saved under a nickname ("Bubu DXB") with no shared word with the
+  // client's real name ("Imtinan"), and the export has no phone numbers at all.
+  const bubuChat = (tail: string) => ['13/07/2019, 5:10 am - Bubu DXB: salaam', `15/07/2019, 9:30 am - Wabil: ${tail}`].join('\n');
+
+  it('stops with a soft confirm and makes ZERO model calls before the rep confirms (spy)', async () => {
+    const { token } = await signup('alias-confirm@example.com');
+    const cid = await createClient(token, 'Imtinan');
+    // Spy the extraction entrypoint — the ONLY path that reaches the model. Same shape as the
+    // matching engine's zero-Claude-calls assertion.
+    const extractSpy = vi.spyOn(deps.extraction, 'extractNote');
+    const res = await importChat(token, cid, { content: bubuChat('wsalaam'), consent: true });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string; message: string };
+    expect(body.error).toBe('confirm_counterpart');
+    expect(body.message).toMatch(/is that Imtinan/i);
+    // No note created → the sweep has nothing to extract. Draining proves nothing was queued.
+    expect(await listNotes(token, cid)).toHaveLength(0);
+    await drainImport(token, cid);
+    expect(await listNotes(token, cid)).toHaveLength(0);
+    expect(extractSpy).not.toHaveBeenCalled(); // not a single model call before confirmation
+    extractSpy.mockRestore();
+  });
+
+  it('confirm-and-remember stores the alias; a later import from the same contact is silent', async () => {
+    const { token } = await signup('alias-learn@example.com');
+    const cid = await createClient(token, 'Imtinan');
+    expect((await importChat(token, cid, { content: bubuChat('one'), consent: true })).status).toBe(409);
+    // Rep confirms "yes, that's Imtinan" and we remember the alias.
+    const ok = await importChat(token, cid, { content: bubuChat('one'), consent: true, confirmImport: true, counterpart: 'Bubu DXB' });
+    expect(ok.status).toBe(202);
+    // A fresh import from Bubu DXB (new message) no longer prompts — the alias matched.
+    const again = await importChat(token, cid, { content: bubuChat('two — following up'), consent: true });
+    expect(again.status).toBe(202);
+  });
+
+  it('cancelling (not confirming) leaves nothing stored and nothing spent', async () => {
+    const { token } = await signup('alias-cancel@example.com');
+    const cid = await createClient(token, 'Imtinan');
+    expect((await importChat(token, cid, { content: bubuChat('x'), consent: true })).status).toBe(409);
+    // Rep cancels → does nothing further. Still empty.
+    expect((await listNotes(token, cid)).filter((n) => n.source === 'whatsapp_export')).toHaveLength(0);
+  });
+
+  it('choosing a DIFFERENT client imports against that client, no extraction wasted on the wrong one', async () => {
+    const { token } = await signup('alias-different@example.com');
+    const wrong = await createClient(token, 'Imtinan');
+    const right = await createClient(token, 'Bubu'); // shares the "bubu" word → matches, no prompt
+    expect((await importChat(token, wrong, { content: bubuChat('x'), consent: true })).status).toBe(409);
+    // Rep picks the right client instead; it imports cleanly there.
+    expect((await importChat(token, right, { content: bubuChat('x'), consent: true })).status).toBe(202);
+    // Nothing was ever stored under the wrong client.
+    expect((await listNotes(token, wrong)).filter((n) => n.source === 'whatsapp_export')).toHaveLength(0);
+  });
+
+  it('an alias learned for one client never suppresses a genuine mismatch on another', async () => {
+    const { token } = await signup('alias-isolation@example.com');
+    const imtinan = await createClient(token, 'Imtinan');
+    const zed = await createClient(token, 'Zed Holdings');
+    // Teach Imtinan the alias "Bubu DXB".
+    expect((await importChat(token, imtinan, { content: bubuChat('a'), consent: true })).status).toBe(409);
+    expect((await importChat(token, imtinan, { content: bubuChat('a'), consent: true, confirmImport: true, counterpart: 'Bubu DXB' })).status).toBe(202);
+    // The SAME contact filed under a different client still prompts — the alias is Imtinan's alone.
+    expect((await importChat(token, zed, { content: bubuChat('b'), consent: true })).status).toBe(409);
   });
 });
 

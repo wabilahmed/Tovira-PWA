@@ -29,6 +29,8 @@ export class AccountService {
     /** Sends the deletion confirmation. Called BEFORE the purge (the address is
      *  about to be erased); a failing send never blocks or rolls back delete. */
     private readonly onDeleted?: (userId: string, email: string) => Promise<void>,
+    /** [ALIAS] learned contact aliases — the rep's own data, included in export. */
+    private readonly aliases?: { listByUser(userId: string): Promise<Array<{ clientId: string; alias: string }>> },
   ) {}
 
   async exportData(userId: string): Promise<unknown> {
@@ -50,6 +52,7 @@ export class AccountService {
       meetings: await this.meetings.listByUser(userId),
       images,
       recallSessions: await this.recallSessions.exportForUser(userId),
+      contactAliases: this.aliases ? await this.aliases.listByUser(userId) : [],
     };
   }
 

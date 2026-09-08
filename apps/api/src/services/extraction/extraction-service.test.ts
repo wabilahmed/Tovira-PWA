@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ExtractionService } from './extraction-service.js';
 import { EXTRACTION_SYSTEM_PROMPT } from './prompt.js';
-import { referenceDateFor } from './extraction-service.js';
+import { referenceDateFor, normaliseCounterpart } from './extraction-service.js';
 import { parseWhatsAppExport } from '../import/whatsapp.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
@@ -185,6 +185,30 @@ describe('ExtractionService', () => {
     const wa = referenceDateFor({ messages: [{ sentAt: '10/03/2026, 14:00' }] }, '2026-09-01');
     expect(wa).toBe('2026-03-10'); // WhatsApp DD/MM/YYYY parsed
     expect(referenceDateFor({ messages: null }, '2026-09-01')).toBe('2026-09-01'); // fresh → caller's today
+  });
+
+  // [ALIAS-NORMALISE] The chat counterpart (this client under a nickname) is folded into the client:
+  // dropped from the stakeholder people[] and their personal facts re-subjected to the real name.
+  it('[ALIAS-NORMALISE] the counterpart is not a stakeholder; a fact about the alias is about the client', () => {
+    const extraction = {
+      people: [{ name: 'Bubu DXB' }, { name: 'Rashid the architect' }],
+      personal_facts: [{ subject: 'Bubu DXB', fact: 'prefers WhatsApp voice notes' }, { subject: 'Rashid the architect', fact: 'is the decision maker' }],
+    };
+    normaliseCounterpart(extraction, 'Imtinan', ['Bubu DXB']);
+    // The counterpart (the client themselves) is gone from the stakeholder map; the real stakeholder stays.
+    expect(extraction.people.map((p) => p.name)).toEqual(['Rashid the architect']);
+    // The alias's personal fact now belongs to the client by their real name; the other is untouched.
+    expect(extraction.personal_facts.find((f) => f.fact.includes('voice notes'))!.subject).toBe('Imtinan');
+    expect(extraction.personal_facts.find((f) => f.fact.includes('decision maker'))!.subject).toBe('Rashid the architect');
+  });
+
+  it('[ALIAS-NORMALISE] matches the client by REAL name too, and is a no-op with no aliases + no name', () => {
+    const e1 = { people: [{ name: 'Imtinan' }, { name: 'Rashid' }], personal_facts: [] };
+    normaliseCounterpart(e1, 'Imtinan', []); // exact real-name counterpart also dropped
+    expect(e1.people.map((p) => p.name)).toEqual(['Rashid']);
+    const e2 = { people: [{ name: 'Anyone' }], personal_facts: [] };
+    normaliseCounterpart(e2, '', []); // nothing to normalise → untouched
+    expect(e2.people).toHaveLength(1);
   });
 
   // [PARSE-REAL] End-to-end: a real dash-format 2019 chat, parsed, resolves against 2019 — NOT the

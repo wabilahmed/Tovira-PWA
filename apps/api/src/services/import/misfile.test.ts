@@ -62,14 +62,53 @@ describe('[MISFILE-DETECT] detectMisfileAtImport', () => {
     expect(r.suggestion).toBeNull();
   });
 
-  it('does NOT nag on a first import of a fresh client (no phone, no known people, no other match)', () => {
+  // [ALIAS] The counterpart is saved under a name that isn't the client's (a nickname/company).
+  // We now CONFIRM once (softly) before extraction, so we can learn the alias and never nag again —
+  // the ordering rule. The counterpart is identified for the prompt + the alias to store.
+  it('confirms the counterpart on a first import when it does not match, naming it to learn the alias', () => {
     const r = detectMisfileAtImport({
       knownPeople: [],
       selected: { id: 'new', name: 'Downtown Living', phone: null },
       others: [],
-      messages: [msg('Faisal'), msg('Me')], // we simply cannot tell yet
+      messages: [msg('Faisal'), msg('Me')], // "Me" is the rep's self-label → sole counterpart is Faisal
+    });
+    expect(r.status).toBe('mismatch');
+    expect(r.counterpart).toBe('Faisal');
+  });
+
+  // [ALIAS] Once "Faisal" is a learned alias of this client, the same import is silent.
+  it('does NOT prompt when the counterpart matches a learned alias', () => {
+    const r = detectMisfileAtImport({
+      knownPeople: [],
+      selected: { id: 'new', name: 'Downtown Living', phone: null, aliases: ['Faisal'] },
+      others: [],
+      messages: [msg('Faisal'), msg('Me')],
     });
     expect(r.status).toBe('ok');
+  });
+
+  // [ALIAS-COUNTERPART] With the rep's own name known, the counterpart is the OTHER speaker.
+  it('identifies the counterpart by elimination against the rep name (two real-name speakers)', () => {
+    const r = detectMisfileAtImport({
+      ...base,
+      repName: 'Wabil',
+      selected: { id: 'c1', name: 'Imtinan', phone: null, aliases: ['Bubu DXB'] },
+      messages: [msg('Wabil'), msg('Bubu DXB')],
+    });
+    expect(r.status).toBe('ok'); // alias matches → no prompt
+    expect(r.counterpart).toBe('Bubu DXB'); // rep 'Wabil' eliminated
+  });
+
+  // [ALIAS] A group chat (>2 speakers) does not get the two-speaker counterpart rule.
+  it('flags a group chat and does not assert a single counterpart', () => {
+    const r = detectMisfileAtImport({
+      ...base,
+      repName: 'Wabil',
+      selected: { id: 'c1', name: 'Imtinan', phone: null },
+      messages: [msg('Wabil'), msg('Bubu DXB'), msg('Third Person')],
+    });
+    expect(r.group).toBe(true);
+    expect(r.counterpart).toBeNull();
   });
 
   it('a phone that does not match the stored phone, with no other match, is flagged (had identity)', () => {

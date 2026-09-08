@@ -17,7 +17,7 @@ import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './pr
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
-import { detectMisfilePostExtraction } from '../import/misfile.js';
+import { detectMisfilePostExtraction, nameMatches } from '../import/misfile.js';
 import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import type { ImportCostRecord } from '../metrics/import-cost-metrics.js';
 import type { Extraction } from './types.js';
@@ -44,6 +44,26 @@ function parseMsgDate(sentAt: string | null | undefined): string | null {
   const wa = /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(sentAt); // DD/MM/YYYY (WhatsApp)
   if (wa) return `${wa[3]}-${wa[2]!.padStart(2, '0')}-${wa[1]!.padStart(2, '0')}`;
   return null;
+}
+
+/** [ALIAS-NORMALISE] Fold the chat counterpart (this client under a nickname/company alias) into the
+ *  client's identity for FACTS: they are not their own stakeholder (drop from people[]), and a
+ *  personal fact about the alias is a fact about the client (rewrite the subject to the real name).
+ *  Mutates the extraction in place. Never touches receipts/raw text — evidence stays verbatim. */
+export function normaliseCounterpart(
+  extraction: { people?: Array<{ name?: string | null }>; personal_facts?: Array<{ subject?: string | null }> },
+  clientName: string,
+  aliases: string[],
+): void {
+  if (!clientName && aliases.length === 0) return;
+  const isClient = (n: string | null | undefined): boolean =>
+    !!n && (nameMatches(n, clientName) || aliases.some((a) => nameMatches(n, a)));
+  if (Array.isArray(extraction.people)) {
+    extraction.people = extraction.people.filter((p) => !isClient(p.name)); // the counterpart is the client, not a stakeholder
+  }
+  for (const f of extraction.personal_facts ?? []) {
+    if (isClient(f.subject)) f.subject = clientName; // a fact about the alias is a fact about the client
+  }
 }
 
 /** DATE-REF: the reference date for resolving a note's relative dates is the date its
@@ -96,6 +116,8 @@ export class ExtractionService {
     private readonly importCost?: { record(r: ImportCostRecord): void },
     /** [SPEND-CAP] over-cap gate: when canSpend is false, extraction defers (note stays pending). */
     private readonly spendGate?: { canSpend(userId: string): Promise<boolean> },
+    /** [ALIAS-NORMALISE] learned aliases for a client, to normalise counterpart attribution. */
+    private readonly aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -241,6 +263,15 @@ export class ExtractionService {
       // Chat imports carry speaker-attributed messages → detect client questions
       // the rep never answered (P1-6). Deterministic; never fabricated.
       extraction.unanswered_questions = note.messages ? detectUnansweredQuestions(note.messages) : [];
+      // [ALIAS-NORMALISE] The chat counterpart IS this client, often under a nickname/company alias
+      // ("Bubu DXB" → Imtinan). Normalise attribution into the vault: the counterpart is not a
+      // separate STAKEHOLDER (drop them from people[]), and a personal fact about the alias is a fact
+      // about the client (rewrite the subject to the real name). Receipts/quotes are raw note text
+      // and are NEVER touched here — attribution is normalised, evidence is verbatim.
+      if (this.aliasesFor) {
+        const aliases = await this.aliasesFor(userId, note.clientId).catch(() => [] as string[]);
+        normaliseCounterpart(extraction, client?.name ?? '', aliases);
+      }
       // Embedding is the semantic-search substrate, NOT the facts. If the embedder is
       // down or denied (e.g. Bedrock model access not yet granted), we must still save
       // the extracted facts — "never lose a recording". The note is 'extracted' with a

@@ -31,6 +31,7 @@ import type { ExtractionLimiter } from '../services/extraction/limiter.js';
 import { BriefService } from '../services/brief/brief-service.js';
 import { FollowUpService } from '../services/followup/follow-up-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
+import { InMemoryContactAliasRepository, InMemoryRepNameRepository } from '../adapters/import/in-memory-contact-alias-repository.js';
 import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
 import { MeetingParser } from '../services/meetings/meeting-parser.js';
 import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
@@ -104,6 +105,8 @@ export function buildInMemoryDeps(
   const inventory = new InventoryService(inventoryRepo, embedder, ledger, matching); // direction 2 trigger
   const extractionLog = new InMemoryExtractionLogRepository();
   const corrections = new InMemoryCorrectionRepository();
+  const contactAliases = new InMemoryContactAliasRepository();
+  const repNames = new InMemoryRepNameRepository();
   const extraction = new ExtractionService(
     new StubModelClient(),
     clients,
@@ -120,6 +123,9 @@ export function buildInMemoryDeps(
     undefined, // meetingTimezone
     requirements,
     matching, // direction 1 trigger
+    undefined, // importCost
+    undefined, // spendGate
+    (uid, cid) => contactAliases.listByClient(uid, cid), // [ALIAS-NORMALISE]
   );
   const brief = new BriefService(clients, notes, facts, embedder);
   const followUp = new FollowUpService(new StubModelClient(), notes);
@@ -152,6 +158,8 @@ export function buildInMemoryDeps(
     followUp,
     facts,
     noteMove,
+    aliases: contactAliases,
+    repNames,
     corrections,
     extractionLog,
     brief,
