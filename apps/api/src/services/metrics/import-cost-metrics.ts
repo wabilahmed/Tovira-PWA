@@ -15,6 +15,9 @@ export interface ImportCostRecord {
   calls: number;
   inputTokens: number; // fresh (uncached) transcript input — the cost driver
   outputTokens: number;
+  /** [COST-REMEASURE] reasoning tokens (a subset of outputTokens, billed as output) — the line that
+   *  the pre-fix cost figures were blind to; now tracked + priced separately. */
+  thinkingTokens?: number;
   cachedTokens: number; // prefix served warm (cache-read, ~0.1x)
   cacheWriteTokens: number; // prefix written cold (cache-create, ~2x) — 0 when warm
   embeddingCalls: number; // 1 note embed + N requirement embeds (Titan)
@@ -61,7 +64,7 @@ export class ImportCostMetrics {
   }
 
   /** Compact snapshot for the cost surface / /health, beside `recall`. */
-  snapshot(): { imports: number; totalAed: number; avgAed: number; totalUncachedInputTokens: number } {
+  snapshot(): { imports: number; totalAed: number; avgAed: number; totalUncachedInputTokens: number; totalThinkingTokens: number } {
     const live = this.live();
     const total = live.reduce((s, e) => s + e.costAed, 0);
     return {
@@ -69,6 +72,7 @@ export class ImportCostMetrics {
       totalAed: round(total),
       avgAed: live.length ? round(total / live.length) : 0,
       totalUncachedInputTokens: live.reduce((s, e) => s + e.inputTokens, 0),
+      totalThinkingTokens: live.reduce((s, e) => s + (e.thinkingTokens ?? 0), 0),
     };
   }
 }

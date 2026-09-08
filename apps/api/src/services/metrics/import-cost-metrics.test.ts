@@ -44,9 +44,16 @@ describe('[COST-IMPORT-METRIC] ImportCostMetrics', () => {
     expect(s.totalUncachedInputTokens).toBe(2000);
   });
 
+  it('tracks thinking tokens separately (COST-REMEASURE)', () => {
+    const m = new ImportCostMetrics();
+    m.record(rec('rep-A', 3.5, { thinkingTokens: 12303 }));
+    m.record(rec('rep-A', 0.2, { thinkingTokens: 415 }));
+    expect(m.snapshot().totalThinkingTokens).toBe(12718);
+  });
+
   it('an empty window reports zeros without dividing by zero', () => {
     const m = new ImportCostMetrics();
     const s = m.snapshot();
-    expect(s).toEqual({ imports: 0, totalAed: 0, avgAed: 0, totalUncachedInputTokens: 0 });
+    expect(s).toEqual({ imports: 0, totalAed: 0, avgAed: 0, totalUncachedInputTokens: 0, totalThinkingTokens: 0 });
   });
 });

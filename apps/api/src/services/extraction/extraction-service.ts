@@ -34,6 +34,9 @@ interface Attempt {
   outputTokens: number;
   cacheCreationTokens: number;
   cacheReadTokens: number;
+  /** [COST-REMEASURE] Reasoning tokens (billed as output; now known to dominate) — tracked and
+   *  priced separately from text so cost figures aren't blind to the biggest line. */
+  thinkingTokens: number;
   /** [EXTRACT-STOPREASON] The output budget was spent without a text answer — max_tokens hit with no
    *  text, or a thinking-only response. A DISTINCT failure (the model produced nothing), not
    *  malformed JSON. Never retried as invalid JSON; raised loud + counted. */
@@ -245,17 +248,18 @@ export class ExtractionService {
     const route = this.router ? await this.router.resolve(userId) : { model: this.model, modelId: this.modelId };
 
     const start = this.now();
-    let last: Attempt = { parsed: null, raw: null, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, starved: false };
+    let last: Attempt = { parsed: null, raw: null, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, thinkingTokens: 0, starved: false };
     let extraction: Extraction | null = null;
     // Total spend across attempts (a retry bills a second call) — the log keeps the final row's
     // tokens; the import-cost metric wants the whole import's spend.
-    const spend = { calls: 0, input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
+    const spend = { calls: 0, input: 0, output: 0, thinking: 0, cacheWrite: 0, cacheRead: 0 };
     const spendClass = note.source === 'whatsapp_export' ? 'import' : 'extraction';
     for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
       last = await this.call(route.model, userMessage, userId, spendClass);
       spend.calls += 1;
       spend.input += last.inputTokens;
       spend.output += last.outputTokens;
+      spend.thinking += last.thinkingTokens;
       spend.cacheWrite += last.cacheCreationTokens;
       spend.cacheRead += last.cacheReadTokens;
       extraction = last.parsed ? asExtraction(last.parsed) : null;
@@ -386,7 +390,7 @@ export class ExtractionService {
       const embedUsd = embedded ? estimateEmbedUsd(note.rawText.length, reqCount) : 0;
       this.importCost.record({
         userId, clientId: note.clientId, calls: spend.calls,
-        inputTokens: spend.input, outputTokens: spend.output,
+        inputTokens: spend.input, outputTokens: spend.output, thinkingTokens: spend.thinking,
         cachedTokens: spend.cacheRead, cacheWriteTokens: spend.cacheWrite,
         embeddingCalls: embedded ? 1 + reqCount : 0,
         costAed: (extractionUsd + embedUsd) * USD_TO_AED,
@@ -426,9 +430,9 @@ export class ExtractionService {
       // [EXTRACT-STOPREASON] No text answer AND the budget went to reasoning / hit the cap → starved.
       const noText = !raw || !raw.trim();
       const starved = noText && (res.stopReason === 'max_tokens' || (res.usage?.thinkingTokens ?? 0) > 0);
-      return { parsed: extractJsonObject(raw), raw, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, starved };
+      return { parsed: extractJsonObject(raw), raw, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, thinkingTokens: res.usage?.thinkingTokens ?? 0, starved };
     } catch {
-      return { parsed: null, raw: null, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, starved: false };
+      return { parsed: null, raw: null, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, thinkingTokens: 0, starved: false };
     }
   }
 }
