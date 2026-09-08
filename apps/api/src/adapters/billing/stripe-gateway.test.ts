@@ -57,14 +57,17 @@ describe('StripeGatewayImpl', () => {
   });
 
   // [VAT-INVOICE] tax-id (TRN) collection is enabled on the session only when asked.
-  it('enables tax_id_collection only when collectTaxId is set', async () => {
+  it('enables tax_id_collection AND requires a billing address only when collectTaxId is set', async () => {
     const on = fakeStripe();
     await new StripeGatewayImpl({ ...opts, stripe: on.stripe }).createCheckoutSession('u', 'a@b.com', 'monthly', { collectTaxId: true });
     expect(on.sessionCreate.mock.calls[0]![0].tax_id_collection).toEqual({ enabled: true });
+    // The country decides UAE-taxed vs non-UAE zero-rated — it must be captured when VAT is on.
+    expect(on.sessionCreate.mock.calls[0]![0].billing_address_collection).toBe('required');
 
     const off = fakeStripe();
     await new StripeGatewayImpl({ ...opts, stripe: off.stripe }).createCheckoutSession('u', 'a@b.com', 'monthly', { collectTaxId: false });
     expect(off.sessionCreate.mock.calls[0]![0].tax_id_collection).toBeUndefined();
+    expect(off.sessionCreate.mock.calls[0]![0].billing_address_collection).toBeUndefined();
   });
 
   // [VAT] invoice.* events surface the id, total (fils), customer country, and supply date.

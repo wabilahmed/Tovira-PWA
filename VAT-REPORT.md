@@ -38,6 +38,11 @@ takes effect. This document makes the switch a checklist, not a project.
 - **Non-UAE customers are zero-rated exports** — 299, no VAT — even with registration on. This is
   already load-bearing in the COGS model and is asserted in code (a non-'AE' country → 0%; an unknown
   country defaults to UAE/taxed, since zero-rating an export needs positive proof of location).
+  **Because the unknown-default is UAE/taxed, capturing the country reliably matters:** with VAT on,
+  checkout requires a billing address (`billing_address_collection: required`) so the country is
+  present on the invoice and export customers are correctly zero-rated rather than silently taxed —
+  otherwise the ~5% advantage those accounts carry in the COGS model would erode. While VAT is off,
+  an unknown country is harmless (everyone is 299, no tax).
 
 ## Dashboard actions only Wabil can perform
 **Stripe Tax + price (Task VAT-STRIPE):**
@@ -60,6 +65,7 @@ takes effect. This document makes the switch a checklist, not a project.
 | Sequential invoice numbering | **Stripe** (its invoice numbering — not ours; confirmed) |
 | Supply date | **Stripe** (invoice date; app records it as the boundary anchor) |
 | **Customer TRN** (business input-tax recovery) | **App** — `tax_id_collection` at checkout, enabled **only when VAT is on** (deliberately off until then) |
+| **Customer country** (decides UAE-taxed vs non-UAE zero-rated) | **App** — `billing_address_collection: required` at checkout, enabled with VAT on, so `invoice.customer_address.country` is reliably populated and our frozen record classifies exports correctly (Stripe Tax's `automatic_tax` also forces address capture) |
 | Customer name + account traceability | **App** — customer name + `tovira_user_id` metadata (BILLING-REPORT) |
 
 ## What the code does now (VAT off)

@@ -60,8 +60,11 @@ export class StripeGatewayImpl implements StripeGateway {
       line_items: [{ price, quantity: 1 }],
       customer: customerId,
       client_reference_id: userId,
-      // [VAT-INVOICE] collect the customer's TRN only when VAT is registered (business input-tax).
-      ...(details.collectTaxId ? { tax_id_collection: { enabled: true } } : {}),
+      // [VAT-INVOICE] when VAT is registered, collect the customer's TRN AND require a billing
+      // address — the country is what decides UAE-taxed vs non-UAE zero-rated, and our frozen
+      // invoice_tax record reads it from invoice.customer_address. Without this the country is
+      // usually unknown, which defaults to UAE/taxed and would wrongly tax export customers.
+      ...(details.collectTaxId ? { tax_id_collection: { enabled: true }, billing_address_collection: 'required' as const } : {}),
       success_url: this.opts.successUrl,
       cancel_url: this.opts.cancelUrl,
     });
