@@ -6,6 +6,8 @@ import type {
   TrialGrantRepository,
   WebhookEventRepository,
 } from '../../ports/billing.js';
+import type { InvoiceTaxRepository } from '../../ports/invoice-tax-repository.js';
+import type { VatPolicy } from './vat.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -66,6 +68,11 @@ export class BillingService {
     private readonly stripe: StripeGateway,
     private readonly trialDays: number,
     private readonly emailHook?: BillingEmailHook,
+    /** [VAT-READY] the tax policy (off by default) — gates customer-TRN collection + treats invoices. */
+    private readonly vat?: VatPolicy,
+    /** [VAT-BOUNDARY] the frozen per-invoice tax-treatment store. */
+    private readonly invoiceTax?: InvoiceTaxRepository,
+    private readonly now: () => number = () => Date.now(),
   ) {}
 
   /** Fire a lifecycle email without ever letting it break the caller (1d). */
@@ -147,7 +154,10 @@ export class BillingService {
   async checkout(userId: string, email: string, plan: Plan = 'monthly', details: CustomerDetails = {}): Promise<{ url: string }> {
     // Reuse an existing customer (a returning subscriber) so we don't orphan its metadata/history.
     const existingCustomerId = (await this.subs.get(userId))?.stripeCustomerId ?? undefined;
-    const session = await this.stripe.createCheckoutSession(userId, email, plan, { ...details, existingCustomerId });
+    // [VAT-INVOICE] collect the customer's tax id (TRN) ONLY when VAT is on — deliberately off until
+    // registration, so we never ask for a TRN we can't put on a (non-existent) tax invoice.
+    const collectTaxId = this.vat?.registered === true;
+    const session = await this.stripe.createCheckoutSession(userId, email, plan, { ...details, existingCustomerId, collectTaxId });
     // Persist the customer id + name now (before the webhook lands) so a Settings change can sync.
     await this.subs.update(userId, {
       ...(session.customerId ? { stripeCustomerId: session.customerId } : {}),
@@ -155,6 +165,25 @@ export class BillingService {
       ...(details.company !== undefined ? { billingCompany: details.company } : {}),
     });
     return { url: session.url };
+  }
+
+  /** [VAT-BOUNDARY] Freeze the tax treatment of a paid invoice: computed from ITS date + the VAT
+   *  config in force now, written once. A later config change never rewrites it (recordOnce). No-op
+   *  until VAT is wired + the event carries invoice fields. */
+  private async recordInvoiceTax(event: { invoiceId?: string; invoiceTotalFils?: number; invoiceCountry?: string; invoiceIssuedAtMs?: number }, userId: string | null): Promise<void> {
+    if (!this.vat || !this.invoiceTax || !event.invoiceId || event.invoiceTotalFils === undefined) return;
+    const issuedAtMs = event.invoiceIssuedAtMs ?? this.now();
+    const t = this.vat.treat({ dateMs: issuedAtMs, country: event.invoiceCountry ?? null, totalFils: event.invoiceTotalFils });
+    await this.invoiceTax.recordOnce({
+      invoiceId: event.invoiceId, userId, issuedAtMs, country: event.invoiceCountry ?? null,
+      totalFils: t.totalFils, taxInvoice: t.taxInvoice, zeroRated: t.zeroRated,
+      netFils: t.netFils, vatFils: t.vatFils, rate: t.rate, trn: t.trn,
+    });
+  }
+
+  /** Re-read a frozen invoice tax record (the treatment never changes when config flips). */
+  invoiceTaxRecord(invoiceId: string): Promise<import('../../ports/invoice-tax-repository.js').InvoiceTaxRecord | null> {
+    return this.invoiceTax ? this.invoiceTax.get(invoiceId) : Promise.resolve(null);
   }
 
   /** Set the billing name/company (Settings) and sync it to the Stripe customer so the invoice
@@ -197,6 +226,7 @@ export class BillingService {
           ...(event.currentPeriodEnd !== undefined ? { currentPeriodEnd: event.currentPeriodEnd } : {}),
           ...(event.currentPeriodStart !== undefined ? { currentPeriodStart: event.currentPeriodStart } : {}),
         });
+        await this.recordInvoiceTax(event, s.userId);
       }
     } else if (event.type === 'customer.subscription.deleted' && event.customerId) {
       const s = await this.subs.findByCustomerId(event.customerId);

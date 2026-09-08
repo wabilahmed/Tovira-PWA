@@ -134,6 +134,10 @@ import { PgSubscriptionRepository, PgTrialGrantRepository, PgWebhookEventReposit
 import { StubStripeGateway } from './adapters/billing/stub-stripe.js';
 import { StripeGatewayImpl } from './adapters/billing/stripe-gateway.js';
 import type { StripeGateway } from './ports/billing.js';
+import { VatPolicy } from './services/billing/vat.js';
+import type { InvoiceTaxRepository } from './ports/invoice-tax-repository.js';
+import { InMemoryInvoiceTaxRepository } from './adapters/billing/in-memory-invoice-tax-repository.js';
+import { PgInvoiceTaxRepository } from './adapters/billing/pg-invoice-tax-repository.js';
 import { AccountService } from './services/account/account-service.js';
 import { ActivationService } from './services/analytics/activation-service.js';
 import { PgActivationRepository, LogAnalytics } from './adapters/analytics/pg.js';
@@ -590,7 +594,12 @@ export function createBillingService(config: AppConfig, pool?: Pool, emailHook?:
   const stripe: StripeGateway = config.stripeSecretKey
     ? new StripeGatewayImpl({ secretKey: config.stripeSecretKey, webhookSecret: config.stripeWebhookSecret, priceId: config.stripePriceId, annualPriceId: config.stripeAnnualPriceId, successUrl: config.stripeSuccessUrl, cancelUrl: config.stripeCancelUrl })
     : new StubStripeGateway(config.stripeWebhookSecret);
-  return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook);
+  // [VAT-READY] the policy is built from config (OFF by default); the frozen invoice-tax store
+  // records each paid invoice's treatment at issue. Both wired always — the policy simply treats
+  // everything as non-VAT until registration is enabled.
+  const vat = new VatPolicy({ registered: config.vatRegistered, trn: config.vatTrn ?? null, rate: config.vatRate, registeredFromMs: config.vatRegisteredFromMs });
+  const invoiceTax: InvoiceTaxRepository = config.authStore === 'postgres' && pool ? new PgInvoiceTaxRepository(pool) : new InMemoryInvoiceTaxRepository();
+  return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook, vat, invoiceTax);
 }
 
 export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>): AccountService {

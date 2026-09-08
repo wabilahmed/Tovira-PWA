@@ -86,6 +86,12 @@ export interface StripeWebhookEvent {
   /** current_period_start (subscription) / period_start (invoice), epoch ms.
    *  Absent when the event doesn't carry one — then the period start is not stamped. */
   currentPeriodStart?: number;
+  /** [VAT] invoice fields, present on invoice.* events — the id, its total (fils), the customer's
+   *  country (for zero-rating), and its supply date (drives the tax boundary). */
+  invoiceId?: string;
+  invoiceTotalFils?: number;
+  invoiceCountry?: string;
+  invoiceIssuedAtMs?: number;
 }
 
 export type Plan = 'monthly' | 'annual';
@@ -97,7 +103,7 @@ export interface StripeGateway {
     userId: string,
     email: string,
     plan: Plan,
-    details?: CustomerDetails & { existingCustomerId?: string },
+    details?: CustomerDetails & { existingCustomerId?: string; collectTaxId?: boolean },
   ): Promise<StripeCheckout>;
   /** Sync a name/company change to an existing Stripe customer (Settings). */
   updateCustomer(customerId: string, details: CustomerDetails): Promise<void>;

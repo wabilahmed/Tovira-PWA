@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { BillingService } from './billing-service.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../../adapters/billing/in-memory.js';
 import { StubStripeGateway } from '../../adapters/billing/stub-stripe.js';
+import { VatPolicy } from './vat.js';
+import { InMemoryInvoiceTaxRepository } from '../../adapters/billing/in-memory-invoice-tax-repository.js';
+import type { InvoiceTaxRepository } from '../../ports/invoice-tax-repository.js';
 
 const NOW = Date.parse('2026-07-09T00:00:00Z');
 const DAY = 24 * 60 * 60 * 1000;
@@ -184,6 +187,85 @@ describe('[INVOICE-DATA] the app supplies customer name + traceable metadata', (
     await billing.setBillingName('u', { name: 'Ahmed' });
     expect(stripe.updates).toHaveLength(0); // no customer yet → nothing to sync
     expect((await subs.get('u'))?.billingName).toBe('Ahmed');
+  });
+});
+
+describe('[VAT-READY] VAT off by default; on, date-driven; the boundary is immutable', () => {
+  const REG = Date.parse('2026-11-01T00:00:00Z'); // registration date
+  const beforeReg = Date.parse('2026-10-15T00:00:00Z');
+  const afterReg = Date.parse('2026-11-15T00:00:00Z');
+
+  function makeVat(opts: { registered: boolean; from?: number }, invoiceTax: InvoiceTaxRepository = new InMemoryInvoiceTaxRepository()) {
+    const subs = new InMemorySubscriptionRepository();
+    const stripe = new StubStripeGateway('whsec_test');
+    const vat = new VatPolicy({ registered: opts.registered, trn: opts.registered ? '100xxxxxxxxxxxx' : null, rate: 0.05, registeredFromMs: opts.from ?? null });
+    const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), stripe, 7, undefined, vat, invoiceTax);
+    return { billing, subs, stripe, invoiceTax };
+  }
+  const paidInvoice = (o: { id: string; total: number; country: string; at: number; customerId: string; eventId: string }) =>
+    evt({ id: o.eventId, type: 'invoice.payment_succeeded', customerId: o.customerId, invoiceId: o.id, invoiceTotalFils: o.total, invoiceCountry: o.country, invoiceIssuedAtMs: o.at });
+
+  // [VAT-INVOICE] customer TRN collection is gated on registration.
+  it('collects the customer TRN at checkout ONLY when VAT is registered', async () => {
+    const off = makeVat({ registered: false });
+    await off.billing.onSignup('u', 'r@x.com', NOW);
+    await off.billing.checkout('u', 'r@x.com', 'monthly');
+    expect(off.stripe.taxIdCollected.at(-1)).toBe(false);
+
+    const on = makeVat({ registered: true, from: REG });
+    await on.billing.onSignup('u', 'r@x.com', NOW);
+    await on.billing.checkout('u', 'r@x.com', 'monthly');
+    expect(on.stripe.taxIdCollected.at(-1)).toBe(true);
+  });
+
+  it('records a UAE invoice after registration as an inclusive tax invoice (284.76 + 14.24)', async () => {
+    const { billing } = makeVat({ registered: true, from: REG });
+    await billing.onSignup('u', 'r@x.com', NOW);
+    await billing.checkout('u', 'r@x.com', 'monthly'); // establishes customer cus_test_u
+    await billing.handleWebhook(paidInvoice({ id: 'in_1', total: 29900, country: 'AE', at: afterReg, customerId: 'cus_test_u', eventId: 'e_inv1' }), 'whsec_test');
+    const rec = await billing.invoiceTaxRecord('in_1');
+    expect(rec).toMatchObject({ taxInvoice: true, zeroRated: false, netFils: 28476, vatFils: 1424, trn: '100xxxxxxxxxxxx' });
+  });
+
+  // [VAT-BOUNDARY] the most important tests — they protect a tax record.
+  it('an invoice dated BEFORE the registration date is a non-VAT invoice, even with VAT on', async () => {
+    const { billing } = makeVat({ registered: true, from: REG });
+    await billing.onSignup('u', 'r@x.com', NOW);
+    await billing.checkout('u', 'r@x.com', 'monthly');
+    await billing.handleWebhook(paidInvoice({ id: 'in_old', total: 29900, country: 'AE', at: beforeReg, customerId: 'cus_test_u', eventId: 'e_old' }), 'whsec_test');
+    expect(await billing.invoiceTaxRecord('in_old')).toMatchObject({ taxInvoice: false, vatFils: 0, netFils: 29900 });
+  });
+
+  it('an invoice on the boundary date itself is a tax invoice', async () => {
+    const { billing } = makeVat({ registered: true, from: REG });
+    await billing.onSignup('u', 'r@x.com', NOW);
+    await billing.checkout('u', 'r@x.com', 'monthly');
+    await billing.handleWebhook(paidInvoice({ id: 'in_b', total: 29900, country: 'AE', at: REG, customerId: 'cus_test_u', eventId: 'e_b' }), 'whsec_test');
+    expect((await billing.invoiceTaxRecord('in_b'))?.taxInvoice).toBe(true);
+  });
+
+  it('flipping VAT OFF does NOT strip VAT from an invoice issued while it was on (frozen record)', async () => {
+    const store = new InMemoryInvoiceTaxRepository();
+    const on = makeVat({ registered: true, from: REG }, store);
+    await on.billing.onSignup('u', 'r@x.com', NOW);
+    await on.billing.checkout('u', 'r@x.com', 'monthly');
+    await on.billing.handleWebhook(paidInvoice({ id: 'in_1', total: 29900, country: 'AE', at: afterReg, customerId: 'cus_test_u', eventId: 'e1' }), 'whsec_test');
+    // Config flips off (a new process/config), SAME durable store.
+    const off = makeVat({ registered: false }, store);
+    expect((await off.billing.invoiceTaxRecord('in_1'))?.taxInvoice).toBe(true); // unchanged — never stripped
+    expect((await off.billing.invoiceTaxRecord('in_1'))?.vatFils).toBe(1424);
+  });
+
+  it('a re-delivered webhook never rewrites a frozen record (config change cannot mutate it)', async () => {
+    const { billing } = makeVat({ registered: true, from: REG });
+    await billing.onSignup('u', 'r@x.com', NOW);
+    await billing.checkout('u', 'r@x.com', 'monthly');
+    await billing.handleWebhook(paidInvoice({ id: 'in_1', total: 29900, country: 'AE', at: afterReg, customerId: 'cus_test_u', eventId: 'e1' }), 'whsec_test');
+    // A different event id (so idempotency doesn't short-circuit) re-delivering the same invoice with a
+    // different country must NOT change the frozen treatment.
+    await billing.handleWebhook(paidInvoice({ id: 'in_1', total: 29900, country: 'GB', at: afterReg, customerId: 'cus_test_u', eventId: 'e2' }), 'whsec_test');
+    expect((await billing.invoiceTaxRecord('in_1'))?.zeroRated).toBe(false); // still the original UAE treatment
+    expect((await billing.invoiceTaxRecord('in_1'))?.vatFils).toBe(1424);
   });
 });
 

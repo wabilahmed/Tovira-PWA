@@ -12,9 +12,13 @@ export class StubStripeGateway implements StripeGateway {
   readonly customers: Array<{ userId: string; details: CustomerDetails }> = [];
   readonly updates: Array<{ customerId: string; details: CustomerDetails }> = [];
 
-  async createCheckoutSession(userId: string, _email: string, plan: Plan = 'monthly', details: CustomerDetails & { existingCustomerId?: string } = {}): Promise<StripeCheckout> {
+  /** Recorded so a test can assert TRN collection is gated on VAT registration. */
+  readonly taxIdCollected: boolean[] = [];
+
+  async createCheckoutSession(userId: string, _email: string, plan: Plan = 'monthly', details: CustomerDetails & { existingCustomerId?: string; collectTaxId?: boolean } = {}): Promise<StripeCheckout> {
     const customerId = details.existingCustomerId ?? `cus_test_${userId}`;
     if (!details.existingCustomerId) this.customers.push({ userId, details: { name: details.name, company: details.company } });
+    this.taxIdCollected.push(details.collectTaxId === true);
     return { url: `https://checkout.stripe.test/session?ref=${userId}&plan=${plan}`, sessionId: `cs_test_${userId}`, customerId };
   }
 

@@ -56,6 +56,28 @@ describe('StripeGatewayImpl', () => {
     expect(customerUpdate.mock.calls[0]![1]).toEqual({ name: 'New Name', metadata: { company: 'NewCo' } });
   });
 
+  // [VAT-INVOICE] tax-id (TRN) collection is enabled on the session only when asked.
+  it('enables tax_id_collection only when collectTaxId is set', async () => {
+    const on = fakeStripe();
+    await new StripeGatewayImpl({ ...opts, stripe: on.stripe }).createCheckoutSession('u', 'a@b.com', 'monthly', { collectTaxId: true });
+    expect(on.sessionCreate.mock.calls[0]![0].tax_id_collection).toEqual({ enabled: true });
+
+    const off = fakeStripe();
+    await new StripeGatewayImpl({ ...opts, stripe: off.stripe }).createCheckoutSession('u', 'a@b.com', 'monthly', { collectTaxId: false });
+    expect(off.sessionCreate.mock.calls[0]![0].tax_id_collection).toBeUndefined();
+  });
+
+  // [VAT] invoice.* events surface the id, total (fils), customer country, and supply date.
+  it('extracts invoice fields (id, total, country, supply date) from an invoice event', async () => {
+    const stripe = {
+      checkout: { sessions: { create: async () => ({ url: '', id: '' }) } },
+      customers: { create: async () => ({ id: 'c' }), update: async () => ({ id: 'c' }) },
+      webhooks: { constructEvent: () => ({ id: 'evt_9', type: 'invoice.payment_succeeded', data: { object: { id: 'in_9', customer: 'cus_1', total: 29900, created: 1_762_000_000, customer_address: { country: 'AE' } } } }) },
+    } as unknown as StripeLike;
+    const event = new StripeGatewayImpl({ ...opts, stripe }).constructEvent('{}', 'sig');
+    expect(event).toMatchObject({ invoiceId: 'in_9', invoiceTotalFils: 29900, invoiceCountry: 'AE', invoiceIssuedAtMs: 1_762_000_000_000 });
+  });
+
   it('maps a verified webhook to our event shape', async () => {
     const stripe = {
       checkout: { sessions: { create: async () => ({ url: '', id: '' }) } },

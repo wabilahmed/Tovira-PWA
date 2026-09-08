@@ -44,7 +44,7 @@ export class StripeGatewayImpl implements StripeGateway {
     userId: string,
     email: string,
     plan: Plan = 'monthly',
-    details: CustomerDetails & { existingCustomerId?: string } = {},
+    details: CustomerDetails & { existingCustomerId?: string; collectTaxId?: boolean } = {},
   ): Promise<StripeCheckout> {
     const price = plan === 'annual' ? this.opts.annualPriceId ?? this.opts.priceId : this.opts.priceId;
     // Create (or reuse) a customer that carries the name + the user-id metadata, so the generated
@@ -60,6 +60,8 @@ export class StripeGatewayImpl implements StripeGateway {
       line_items: [{ price, quantity: 1 }],
       customer: customerId,
       client_reference_id: userId,
+      // [VAT-INVOICE] collect the customer's TRN only when VAT is registered (business input-tax).
+      ...(details.collectTaxId ? { tax_id_collection: { enabled: true } } : {}),
       success_url: this.opts.successUrl,
       cancel_url: this.opts.cancelUrl,
     });
@@ -89,6 +91,12 @@ export class StripeGatewayImpl implements StripeGateway {
     // Period START: subscriptions expose current_period_start; invoices expose period_start.
     const periodStartSec = typeof obj.current_period_start === 'number' ? obj.current_period_start
       : typeof obj.period_start === 'number' ? obj.period_start : undefined;
+    // [VAT] invoice fields on invoice.* events: id, total (fils = Stripe's smallest-unit amount),
+    // the customer's country (for zero-rating), and the supply date.
+    const isInvoice = event.type.startsWith('invoice.');
+    const custAddr = obj.customer_address as { country?: unknown } | null | undefined;
+    const totalMinor = typeof obj.total === 'number' ? obj.total : typeof obj.amount_paid === 'number' ? obj.amount_paid : undefined;
+    const createdSec = typeof obj.created === 'number' ? obj.created : undefined;
     return {
       id: event.id,
       type: event.type,
@@ -97,6 +105,10 @@ export class StripeGatewayImpl implements StripeGateway {
       subscriptionId: typeof obj.subscription === 'string' ? obj.subscription : undefined,
       ...(periodEndSec !== undefined ? { currentPeriodEnd: periodEndSec * 1000 } : {}),
       ...(periodStartSec !== undefined ? { currentPeriodStart: periodStartSec * 1000 } : {}),
+      ...(isInvoice && typeof obj.id === 'string' ? { invoiceId: obj.id } : {}),
+      ...(isInvoice && totalMinor !== undefined ? { invoiceTotalFils: totalMinor } : {}),
+      ...(isInvoice && custAddr && typeof custAddr.country === 'string' ? { invoiceCountry: custAddr.country } : {}),
+      ...(isInvoice && createdSec !== undefined ? { invoiceIssuedAtMs: createdSec * 1000 } : {}),
     };
   }
 }
