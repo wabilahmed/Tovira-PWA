@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ExtractionService } from './extraction-service.js';
 import { EXTRACTION_SYSTEM_PROMPT } from './prompt.js';
 import { referenceDateFor, normaliseCounterpart } from './extraction-service.js';
@@ -470,5 +470,43 @@ describe('ExtractionService — spend cap defers extraction (CAP-ENFORCE)', () =
     const outcome = await svc.extractNote('u', note.id, '2026-07-09');
     expect(outcome.status).toBe('extracted');
     expect((await notes.findByIdForUser('u', note.id))?.status).toBe('extracted');
+  });
+});
+
+// [EXTRACT-STOPREASON] A reasoning model that spends its whole budget thinking returns no text —
+// a DISTINCT failure (the model produced nothing), made loud + observable, never retried as bad JSON.
+describe('ExtractionService — starved output is loud, not a silent parse failure', () => {
+  async function fixtureNote() {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const client = await clients.create('u', 'Acme');
+    const note = await notes.create('u', { clientId: client.id, source: 'paste', rawText: 'a long chat…', audioKey: null, status: 'pending_extraction' });
+    return { clients, notes, facts, logs, note };
+  }
+  const svcWith = (m: ModelClient, clients: InMemoryClientRepository, notes: InMemoryNoteRepository, facts: InMemoryFactsRepository, logs: InMemoryExtractionLogRepository, health: { recordStarvedOutput: () => void }) =>
+    new ExtractionService(m, clients, notes, facts, new StubEmbedder(8), logs, 'claude-sonnet-5', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, health);
+
+  it('a max_tokens/thinking-only response raises the starved signal, does NOT retry, and flags needs_review', async () => {
+    const { clients, notes, facts, logs, note } = await fixtureNote();
+    let calls = 0;
+    const starved: ModelClient = { complete: async () => { calls += 1; return { text: '', stopReason: 'max_tokens', usage: { inputTokens: 5000, outputTokens: 20000, thinkingTokens: 20000 } }; } };
+    const health = { recordStarvedOutput: vi.fn() };
+    const outcome = await svcWith(starved, clients, notes, facts, logs, health).extractNote('u', note.id, '2026-07-09');
+    expect(outcome.status).toBe('needs_review');
+    expect(health.recordStarvedOutput).toHaveBeenCalledTimes(1); // observable, not silent
+    expect(calls).toBe(1); // NOT retried — a retry starves identically and burns the budget again
+  });
+
+  it('a genuinely malformed-JSON response still follows the ordinary retry path (2 calls), no starved signal', async () => {
+    const { clients, notes, facts, logs, note } = await fixtureNote();
+    let calls = 0;
+    const malformed: ModelClient = { complete: async () => { calls += 1; return { text: 'not json at all', usage: { inputTokens: 100, outputTokens: 50 } }; } };
+    const health = { recordStarvedOutput: vi.fn() };
+    const outcome = await svcWith(malformed, clients, notes, facts, logs, health).extractNote('u', note.id, '2026-07-09');
+    expect(outcome.status).toBe('needs_review');
+    expect(health.recordStarvedOutput).not.toHaveBeenCalled(); // not a starved failure
+    expect(calls).toBe(2); // the malformed-JSON retry still happens
   });
 });

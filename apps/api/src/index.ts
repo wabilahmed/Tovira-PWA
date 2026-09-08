@@ -74,6 +74,7 @@ import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
 import { RecallMetrics } from './services/metrics/recall-metrics.js';
 import { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
+import { ExtractionHealthRegistry } from './services/metrics/extraction-health.js';
 import { SpendService } from './services/spend/spend-service.js';
 import { periodKeyFrom } from './services/spend/period.js';
 import { setSpendSink } from './adapters/model/metered.js';
@@ -180,7 +181,8 @@ async function main(): Promise<void> {
   // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
   // COST-IMPORT-METRIC: a rolling per-rep import cost, recorded at extraction time for imports.
   const importCost = new ImportCostMetrics();
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid));
+  const extractionHealth = new ExtractionHealthRegistry(); // [EXTRACT-STOPREASON] starved-output counter
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth);
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
   const meetingParser = createMeetingParser(config, clients);
@@ -335,6 +337,7 @@ async function main(): Promise<void> {
     modelMetrics,
     recallMetrics,
     importCost,
+    extractionHealth,
     spend,
     opsAlerts,
     opsRoute: { opsToken: config.opsToken, overrides: spendOverrides, spend },

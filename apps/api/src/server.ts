@@ -131,6 +131,8 @@ export interface ApiDeps {
   recallMetrics?: RecallMetrics;
   /** Rolling per-rep import cost, surfaced in /health (COST-IMPORT-METRIC). */
   importCost?: ImportCostMetrics;
+  /** Extraction health — starved-output count, surfaced in /health (EXTRACT-STOPREASON). */
+  extractionHealth?: { snapshot(): { starvedOutputs: number } };
   /** Per-account spend cap config, surfaced in /health (SPEND-CAP). */
   spend?: { snapshot(): { capAed: number; warnFraction: number } };
   /** Recent ops alerts (e.g. spend warnings), surfaced in /health for the operator (SPEND-CAP). */
@@ -212,6 +214,9 @@ export function createApiServer(deps: ApiDeps): Server {
             // imports: rolling per-rep import cost (the heaviest single Claude call) — the one
             // spend the ceiling question turns on, measured going forward (COST-IMPORT-METRIC).
             ...(deps.importCost ? { imports: deps.importCost.snapshot() } : {}),
+            // extraction: starved-output count (EXTRACT-STOPREASON) — a reasoning model spending its
+            // whole budget on thinking with no text answer; >0 means extraction is silently failing.
+            ...(deps.extractionHealth ? { extraction: deps.extractionHealth.snapshot() } : {}),
             // spend: the per-account cap config + recent ops alerts (SPEND-CAP) — ops watches this
             // beside the cost metrics; a spend_warn alert names the rep, spend, period, dominant class.
             ...(deps.spend ? { spend: { ...deps.spend.snapshot(), ...(spendAlerts ? { alerts: spendAlerts } : {}) } } : {}),

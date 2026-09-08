@@ -13,7 +13,7 @@ import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
 import type { ModelRouter } from './model-router.js';
 import type { ExtractionLimiter } from './limiter.js';
-import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './prompt.js';
+import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, EXTRACTION_MAX_TOKENS, buildUserMessage } from './prompt.js';
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
@@ -34,6 +34,10 @@ interface Attempt {
   outputTokens: number;
   cacheCreationTokens: number;
   cacheReadTokens: number;
+  /** [EXTRACT-STOPREASON] The output budget was spent without a text answer — max_tokens hit with no
+   *  text, or a thinking-only response. A DISTINCT failure (the model produced nothing), not
+   *  malformed JSON. Never retried as invalid JSON; raised loud + counted. */
+  starved: boolean;
 }
 
 /** Parse a message timestamp (ISO or WhatsApp DD/MM/YYYY) to YYYY-MM-DD, or null. */
@@ -118,6 +122,8 @@ export class ExtractionService {
     private readonly spendGate?: { canSpend(userId: string): Promise<boolean> },
     /** [ALIAS-NORMALISE] learned aliases for a client, to normalise counterpart attribution. */
     private readonly aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
+    /** [EXTRACT-STOPREASON] observability sink for starved (no-text) extraction outputs. */
+    private readonly health?: { recordStarvedOutput(): void },
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -239,7 +245,7 @@ export class ExtractionService {
     const route = this.router ? await this.router.resolve(userId) : { model: this.model, modelId: this.modelId };
 
     const start = this.now();
-    let last: Attempt = { parsed: null, raw: null, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
+    let last: Attempt = { parsed: null, raw: null, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, starved: false };
     let extraction: Extraction | null = null;
     // Total spend across attempts (a retry bills a second call) — the log keeps the final row's
     // tokens; the import-cost metric wants the whole import's spend.
@@ -253,6 +259,16 @@ export class ExtractionService {
       spend.cacheWrite += last.cacheCreationTokens;
       spend.cacheRead += last.cacheReadTokens;
       extraction = last.parsed ? asExtraction(last.parsed) : null;
+      // [EXTRACT-STOPREASON] A starved response (budget spent on reasoning, no text) is a DISTINCT
+      // failure — the model produced nothing, not malformed JSON. Do NOT retry it as invalid JSON
+      // (a retry starves identically and burns the budget again); make it loud and observable so it
+      // can never silently reach a user as it did before. This should not happen now that
+      // EXTRACTION_MAX_TOKENS clears the reasoning budget — if it fires, the budget needs raising.
+      if (last.starved) {
+        console.error(`[extract] OUTPUT_STARVED note=${noteId} client=${note.clientId} model=${route.modelId} inputTokens=${last.inputTokens} outputTokens=${last.outputTokens} — max_tokens exhausted by reasoning, no text emitted; raise EXTRACTION_MAX_TOKENS`);
+        this.health?.recordStarvedOutput();
+        break;
+      }
     }
 
     let status: string;
@@ -394,7 +410,7 @@ export class ExtractionService {
         cacheSystemPrompt: true,
         cacheTtl: this.cacheTtl,
         messages: [{ role: 'user', content: userMessage }],
-        maxTokens: 2048,
+        maxTokens: EXTRACTION_MAX_TOKENS, // reasoning + text share this budget (EXTRACT-MAXTOKENS)
         userId,
         spendClass, // 'import' for a chat import, 'extraction' for a daily note (SPEND-CAP)
         // NB: temperature is deprecated for claude-sonnet-5 (the API 400s on any
@@ -407,10 +423,12 @@ export class ExtractionService {
       outputTokens = res.usage?.outputTokens ?? 0;
       cacheCreationTokens = res.usage?.cacheCreationInputTokens ?? 0;
       cacheReadTokens = res.usage?.cacheReadInputTokens ?? 0;
+      // [EXTRACT-STOPREASON] No text answer AND the budget went to reasoning / hit the cap → starved.
+      const noText = !raw || !raw.trim();
+      const starved = noText && (res.stopReason === 'max_tokens' || (res.usage?.thinkingTokens ?? 0) > 0);
+      return { parsed: extractJsonObject(raw), raw, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, starved };
     } catch {
-      return { parsed: null, raw: null, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens };
+      return { parsed: null, raw: null, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, starved: false };
     }
-    const parsed = extractJsonObject(raw);
-    return { parsed, raw, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens };
   }
 }

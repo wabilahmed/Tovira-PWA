@@ -17,6 +17,24 @@ import { renderGlossary, type GlossaryEntry } from './glossary.js';
 
 export const PROMPT_VERSION = 'tovira-extract-v0.9.3';
 
+/**
+ * [EXTRACT-MAXTOKENS] Output-token ceiling for the extraction call. `claude-sonnet-5` is a reasoning
+ * model and `max_tokens` bounds thinking + text TOGETHER; the old 2048 was exhausted by reasoning
+ * alone on any multi-message import (stop_reason=max_tokens, empty text → the note silently failed).
+ *
+ * DERIVED FROM MEASUREMENT (tests/staging/think-budget ladder, real Sonnet, 2026-09), thinking tokens
+ * as a function of input size (thinking + text):
+ *     1 msg → 415 + 183   ·   10 → 3,280 + 476   ·   68 → 5,014 + 1,012
+ *   401 msg → 7,036 + 974  ·  1,500 → 6,531 + 754  ·  5,615 → 12,303 + 1,655  (worst case: 13,958 total)
+ * Thinking is input-dependent and peaks ~12.3k at the largest real import (5,615 msgs / 170k input,
+ * near Sonnet's ~200k context limit — a larger transcript fails on context, a separate concern).
+ * 20,000 = the observed peak total (13,958) + ~43% headroom, and is PROVEN to complete (the 5,615
+ * measurement ran AT max_tokens 20,000 with stop_reason=end_turn). Billing is on ACTUAL output, so a
+ * generous ceiling costs nothing in the normal case; EXTRACT-STOPREASON makes any future truncation
+ * loud. DO NOT lower this back toward the reasoning budget — that reintroduces the silent breakage.
+ */
+export const EXTRACTION_MAX_TOKENS = 20_000;
+
 export interface ExtractionPromptInput {
   today: string; // YYYY-MM-DD
   clientName: string;

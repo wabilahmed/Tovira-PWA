@@ -43,11 +43,19 @@ export interface ModelUsage {
   cacheCreationInputTokens?: number;
   /** Tokens READ from the prompt cache — the win. >0 proves caching is working. */
   cacheReadInputTokens?: number;
+  /** Reasoning tokens (a reasoning model spends these inside `outputTokens`). Billed as output.
+   *  Surfaced because they can DOMINATE output and, under a low max_tokens, starve the text block —
+   *  the extraction breakage (EXTRACT-MAXTOKENS). Present only when the provider reports it. */
+  thinkingTokens?: number;
 }
 
 export interface ModelCompletionResponse {
   text: string;
   usage?: ModelUsage;
+  /** The provider's stop reason ('end_turn', 'max_tokens', …). 'max_tokens' with an empty `text`
+   *  means the budget was exhausted (typically by reasoning) before any answer — a distinct failure,
+   *  not malformed JSON. Present when the provider reports it. */
+  stopReason?: string;
   raw?: unknown;
 }
 

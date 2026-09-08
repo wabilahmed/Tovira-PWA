@@ -61,7 +61,10 @@ export class MeetingParser {
       const res = await this.model.complete({
         system: SYSTEM,
         messages: [{ role: 'user', content: `TODAY: ${today}\nREQUEST: ${text}` }],
-        maxTokens: 256,
+        // [EXTRACT-MAXTOKENS] This parser runs on Sonnet (the default 'extraction' model class), a
+        // reasoning model — 256 was below the reasoning budget (~415 thinking on a tiny input), so it
+        // was latently truncating like extraction. 4096 clears thinking + the small datetime JSON.
+        maxTokens: 4096,
         userId,
         spendClass: 'meeting', // SPEND-CAP
       });

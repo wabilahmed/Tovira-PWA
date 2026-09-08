@@ -1,5 +1,5 @@
 import type { ModelClient } from '../ports/model.js';
-import { EXTRACTION_SYSTEM_PROMPT, buildUserMessage } from '../services/extraction/prompt.js';
+import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_MAX_TOKENS, buildUserMessage } from '../services/extraction/prompt.js';
 import { asExtraction } from '../services/extraction/validate.js';
 import { extractJsonObject } from '../services/extraction/parse.js';
 import type { Extraction } from '../services/extraction/types.js';
@@ -169,7 +169,7 @@ export async function extractForEval(model: ModelClient, note: EvalNote, opts: {
       cacheSystemPrompt: true,
       cacheTtl: '1h',
       messages: [{ role: 'user', content: buildUserMessage({ today: note.today, clientName: note.clientName, source: note.source, text: redactedNote }) }],
-      maxTokens: 2048,
+      maxTokens: EXTRACTION_MAX_TOKENS, // MUST match production exactly (EXTRACT-MAXTOKENS) — the gate certifies the real call
       // temperature intentionally unset — deprecated for claude-sonnet-5 (see
       // extraction-service). The gate certifies determinism by running twice.
     });

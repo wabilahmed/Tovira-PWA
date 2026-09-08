@@ -18,11 +18,13 @@ export interface AnthropicModelClientOptions {
 
 interface AnthropicResponseBody {
   content?: Array<{ type: string; text?: string }>;
+  stop_reason?: string;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
     cache_creation_input_tokens?: number;
     cache_read_input_tokens?: number;
+    output_tokens_details?: { thinking_tokens?: number };
   };
 }
 
@@ -103,6 +105,7 @@ export class AnthropicModelClient implements ModelClient {
     const u = body.usage;
     return {
       text,
+      stopReason: body.stop_reason,
       usage: {
         inputTokens: u?.input_tokens ?? 0,
         outputTokens: u?.output_tokens ?? 0,
@@ -110,6 +113,7 @@ export class AnthropicModelClient implements ModelClient {
         // can PROVE a cache read happened (cacheReadInputTokens > 0).
         ...(u?.cache_creation_input_tokens !== undefined ? { cacheCreationInputTokens: u.cache_creation_input_tokens } : {}),
         ...(u?.cache_read_input_tokens !== undefined ? { cacheReadInputTokens: u.cache_read_input_tokens } : {}),
+        ...(u?.output_tokens_details?.thinking_tokens !== undefined ? { thinkingTokens: u.output_tokens_details.thinking_tokens } : {}),
       },
       raw: body,
     };
