@@ -81,6 +81,27 @@ describe('assertDeployReady', () => {
   it('MODEL_PROVIDER=anthropic with a real (bedrock) embedder passes', () => {
     expect(ready({ ...base, MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-real', EMBEDDER: 'bedrock' })).not.toThrow();
   });
+
+  // [VAT-READY] a half-configured VAT state is worse than none.
+  it('VAT_REGISTERED=true without VAT_TRN or VAT_REGISTERED_FROM fails, naming BOTH', () => {
+    const check = ready({ ...base, VAT_REGISTERED: 'true' });
+    expect(check).toThrow(ConfigError);
+    expect(check).toThrow(/VAT_TRN/);
+    expect(check).toThrow(/VAT_REGISTERED_FROM/);
+  });
+
+  it('VAT_REGISTERED=true passes once TRN + registration date are set', () => {
+    expect(ready({ ...base, VAT_REGISTERED: 'true', VAT_TRN: '100xxxxxxxxxxxx', VAT_REGISTERED_FROM: '2026-11-01' })).not.toThrow();
+  });
+
+  it('VAT off (the default) requires nothing', () => {
+    expect(ready(base)).not.toThrow();
+    expect(loadConfig(base).vatRegistered).toBe(false);
+  });
+
+  it('an invalid VAT_REGISTERED_FROM date fails fast, naming it', () => {
+    expect(() => loadConfig({ ...base, VAT_REGISTERED_FROM: 'soon' })).toThrow(/VAT_REGISTERED_FROM/);
+  });
 });
 
 describe('EMBED_DIM (embedding dimension)', () => {

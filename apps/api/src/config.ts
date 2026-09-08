@@ -91,6 +91,12 @@ export interface AppConfig {
   spendCapAed: number;
   spendWarnFraction: number;
   recallDailyCapAtCap: number;
+  // --- UAE VAT (VAT-READY): fully built, OFF by default. Flip on the day Prospera registers.
+  //     An invoice's tax status is date-driven (see VatPolicy), so the boundary is immutable. ---
+  vatRegistered: boolean;
+  vatTrn: string | undefined;
+  vatRate: number;
+  vatRegisteredFromMs: number | null;
   /** Ops token for the /ops/* endpoints (cap override). Unset → the ops routes are disabled (403). */
   opsToken: string | undefined;
   stripeWebhookSecret: string;
@@ -178,6 +184,10 @@ export function loadConfig(env: Env = process.env): AppConfig {
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),
+    vatRegistered: env.VAT_REGISTERED?.trim() === 'true',
+    vatTrn: isBlank(env.VAT_TRN) ? undefined : env.VAT_TRN!.trim(),
+    vatRate: parsePositive(env.VAT_RATE, 0.05, 'VAT_RATE'),
+    vatRegisteredFromMs: parseDateOrNull(env.VAT_REGISTERED_FROM, 'VAT_REGISTERED_FROM'),
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET?.trim() || 'whsec_test',
     stripeSecretKey: isBlank(env.STRIPE_SECRET_KEY) ? undefined : env.STRIPE_SECRET_KEY!.trim(),
     stripePriceId: env.STRIPE_PRICE_ID?.trim() || 'price_test',
@@ -258,6 +268,14 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
     need(isBlank(config.stripeAnnualPriceId) || config.stripeAnnualPriceId === 'price_test_annual', 'STRIPE_ANNUAL_PRICE_ID (still the test placeholder)');
   }
 
+  // --- UAE VAT: a half-configured VAT state is worse than none (VAT-READY). If registration is on,
+  //     the TRN and the registration date are BOTH mandatory — without them we would issue
+  //     non-compliant tax invoices or reclassify by an undefined boundary. Refuse to boot.
+  if (config.vatRegistered) {
+    need(isBlank(config.vatTrn), 'VAT_TRN (VAT_REGISTERED=true requires the Prospera TRN on every tax invoice)');
+    need(config.vatRegisteredFromMs === null, 'VAT_REGISTERED_FROM (VAT_REGISTERED=true requires the registration date — the immutable tax boundary)');
+  }
+
   if (missing.length > 0) {
     throw new ConfigError(
       `Configuration is not deploy-ready. Fix these before starting with real providers:\n  - ${missing.join('\n  - ')}`,
@@ -311,6 +329,14 @@ function parsePositive(raw: string | undefined, fallback: number, name: string):
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) throw new ConfigError(`Invalid ${name}: "${raw}". Expected a positive number.`);
   return n;
+}
+
+/** A date (YYYY-MM-DD or ISO) → epoch ms, or null when blank. Invalid → fail fast (VAT-READY). */
+function parseDateOrNull(raw: string | undefined, name: string): number | null {
+  if (isBlank(raw)) return null;
+  const ms = Date.parse(raw!.trim());
+  if (!Number.isFinite(ms)) throw new ConfigError(`Invalid ${name}: "${raw}". Expected a date like 2026-11-01.`);
+  return ms;
 }
 
 function parseTranscriberProvider(raw: string | undefined): TranscriberProvider {
