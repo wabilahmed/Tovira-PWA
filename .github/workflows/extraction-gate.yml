@@ -1,0 +1,64 @@
+name: Extraction gate (scheduled)
+
+# WHY A SCHEDULE, separate from the push-triggered gate in ci.yml:
+# The EXTRACT-MAXTOKENS breakage was a NEW failure class — a certified engine decayed because the
+# PROVIDER moved underneath a codebase that never changed (claude-sonnet-5 began defaulting to
+# reasoning). A push-triggered gate NEVER fires when nobody commits, so it would not have caught this.
+# This runs the P1-9 gate on a clock instead, so drift is caught within the cadence below even with an
+# idle repo. It pairs with two other layers:
+#   - the in-prod EXTRACT-CANARY job (one call/day) → outright starvation caught in HOURS, for pennies;
+#   - the ci.yml `gate` job (every push to main) → regressions from OUR changes, caught at merge.
+# This layer catches SUBTLER drift (precision/fabrication creep) on a still repo.
+#
+# SELF-ACTIVATING + NO SURPRISE SPEND: inert until ANTHROPIC_API_KEY is in the repo secrets. Adding
+# that key is a deliberate act that also turns on the push gate in ci.yml — both are intended.
+#
+# COST / CADENCE KNOB (real recurring spend — this is the dial to set):
+#   GATE_RUNS defaults to 3 (the soft drift check, NOT a full certification). At v0.9.3 costs, one
+#   3-run pass over the 47-note eval set is ~AED 5-6 cold / less warm.
+#     - weekly (default below)  ≈ AED ~24/mo
+#     - daily  (see commented cron) ≈ AED ~170/mo — matches "catch subtler drift in a day"
+#   Switch to daily by swapping the cron lines. A full re-certification (GATE_RUNS=15) is a manual,
+#   heavier run — use workflow_dispatch with the input below, don't put it on the clock.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'GATE_RUNS (3 = drift check; 15 = certification-scale)'
+        required: false
+        default: '3'
+  schedule:
+    # Weekly — Mondays 06:00 UTC (conservative default; see the cost knob above).
+    - cron: '0 6 * * 1'
+    # Daily alternative (≈7× the cost) — comment the weekly line and uncomment this:
+    # - cron: '0 6 * * *'
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run the extraction gate (only when a key is configured)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL_PROVIDER: anthropic
+          # The eval only calls loadConfig() + the model client — it never opens a DB connection.
+          # loadConfig requires DATABASE_URL, so give it a valid dummy that is never dialed.
+          DATABASE_URL: postgres://gate:gate@localhost:5432/gate
+          # workflow_dispatch can override the run count; the schedule uses the default (3).
+          GATE_RUNS: ${{ github.event.inputs.runs || '3' }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "No ANTHROPIC_API_KEY secret set — the scheduled extraction gate is inert."
+            echo "Add ANTHROPIC_API_KEY to repo secrets to activate drift detection (this also"
+            echo "activates the push gate in ci.yml). See the cost/cadence note in this workflow."
+            exit 0
+          fi
+          echo "Running the P1-9 extraction gate — GATE_RUNS=$GATE_RUNS"
+          npm run gate
