@@ -243,9 +243,9 @@ const IMTINAN_CONTRACT: InvariantContract = {
  * fabrication/precision rates). `null` for a fixture = "no prior; first cert establishes it."
  */
 export const RECALL_BASELINES: Record<string, number | null> = {
-  'import-easy-omar': null,
-  'import-medium-farah': null,
-  'import-hard-imtinan': null,
+  'import-easy-omar': 1.0, // v0.9.4 cert 2026-09-09 (GATE_IMPORT_FULL, 3-run)
+  'import-medium-farah': 1.0,
+  'import-hard-imtinan': 1.0,
 };
 
 export const IMPORT_FIXTURES: ImportFixture[] = [
