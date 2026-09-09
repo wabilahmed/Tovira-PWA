@@ -27,6 +27,19 @@ describe('<PromisesTracker>', () => {
     expect(screen.getAllByTestId('open-promise')).toHaveLength(2);
   });
 
+  it('[PROMISE-STALE] keeps stale promises out of the active list + count, behind a filter', async () => {
+    render(<PromisesTracker api={makeApi([p('p1', 'active quote'), p('p2', 'ancient thing', { stale: true, dueDate: '2025-01-01' })])} />);
+    // active list shows only the non-stale one
+    expect(await screen.findByText('active quote')).toBeInTheDocument();
+    expect(screen.getAllByTestId('open-promise')).toHaveLength(1);
+    expect(screen.getByText(/1 open/)).toBeInTheDocument(); // count excludes the stale one
+    // stale one is hidden until the filter is opened
+    expect(screen.queryByText('ancient thing')).toBeNull();
+    await userEvent.click(screen.getByText(/Show 1 older promise/));
+    expect(screen.getByTestId('stale-promise')).toBeInTheDocument();
+    expect(screen.getByText('ancient thing')).toBeInTheDocument();
+  });
+
   it('shows an empty state when there are no open promises', async () => {
     render(<PromisesTracker api={makeApi([])} />);
     expect(await screen.findByText(/all caught up/i)).toBeInTheDocument();

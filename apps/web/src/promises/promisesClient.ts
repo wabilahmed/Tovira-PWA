@@ -10,6 +10,9 @@ export interface OpenPromise {
   confidence: string;
   done: boolean;
   confirmed: boolean;
+  /** [PROMISE-STALE] overdue past the window → shown behind a filter, out of the active count/claret.
+   *  Server-computed by the /promises endpoint; absent (treated false) on older payloads. */
+  stale?: boolean;
 }
 
 export class PromisesClient {

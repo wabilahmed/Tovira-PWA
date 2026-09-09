@@ -17,6 +17,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
   const [pending, setPending] = useState<OpenPromise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showStale, setShowStale] = useState(false); // [PROMISE-STALE] older promises sit behind a filter
 
   useEffect(() => {
     let live = true;
@@ -50,22 +51,30 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
 
   if (loading) return <p>Loading your promises…</p>;
 
+  // [PROMISE-STALE] Active = not stale (the foreground: count, claret, overdue). Stale (overdue past
+  // the window) sits behind a filter — still listed and actionable, but never claret and never in the
+  // active/overdue counts.
+  const active = open.filter((p) => !p.stale);
+  const stale = open.filter((p) => p.stale);
+  const overdueCount = active.filter((p) => overdue(p, now)).length;
+
   return (
     <section aria-label="Promises">
       <header className="tov-screenhead">
         <h2 style={{ marginTop: 0 }}>Promises</h2>
         <div className="tov-screenmeta">
-          {open.length} open
-          {open.filter((p) => overdue(p, now)).length > 0 && <> · {open.filter((p) => overdue(p, now)).length} overdue</>}
+          {active.length} open
+          {overdueCount > 0 && <> · {overdueCount} overdue</>}
           {pending.length > 0 && <> · {pending.length} to confirm</>}
+          {stale.length > 0 && <> · {stale.length} older</>}
         </div>
       </header>
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
-      {open.length === 0 ? (
+      {active.length === 0 && stale.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>No open promises — you're all caught up.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
-          {open.map((p) => (
+          {active.map((p) => (
             <li key={p.id} data-testid="open-promise" style={row}>
               <span style={{ display: 'flex', gap: '0.6rem', alignItems: 'baseline' }}>
                 {overdue(p, now) && <span className="tov-dot tov-dot--claret" aria-hidden="true" />}
@@ -77,6 +86,24 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
             </li>
           ))}
         </ul>
+      )}
+      {stale.length > 0 && (
+        <div style={{ marginTop: '0.75rem' }}>
+          <button onClick={() => setShowStale((s) => !s)} aria-expanded={showStale} style={{ color: 'var(--text-secondary)' }}>
+            {showStale ? 'Hide' : 'Show'} {stale.length} older promise{stale.length > 1 ? 's' : ''}
+          </button>
+          {showStale && (
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              {stale.map((p) => (
+                <li key={p.id} data-testid="stale-promise" style={{ ...row, color: 'var(--text-secondary)' }}>
+                  {/* stale: no claret, muted — still stored/searchable, still actionable */}
+                  <span>{p.text} <small className="tov-stamp">{due(p)}</small></span>
+                  <button onClick={() => void done(p.id)}>Done</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {pending.length > 0 && (
