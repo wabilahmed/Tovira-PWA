@@ -37,6 +37,11 @@ export interface InvariantResult {
   id: string;
   violations: string[];
   passed: boolean;
+  /** Recall over the planted anchor set (required promises + people + dates): found / required.
+   *  Reported every run beside its previous value — a violation of it isn't gating (it isn't a trust
+   *  breach), but drift down across certifications is a real signal (Wabil's condition). */
+  anchorsRequired: number;
+  anchorsFound: number;
 }
 
 const has = (hay: string, needle: string): boolean => hay.toLowerCase().includes(needle.toLowerCase());
@@ -99,5 +104,8 @@ export function scoreInvariants(c: InvariantContract, actual: Extraction): Invar
     if (!hasA || !hasB) v.push(`must-not-merge pair not both present as distinct people: "${a}" / "${b}"`);
   }
 
-  return { id: c.id, violations: v, passed: v.length === 0 };
+  // Anchor recall (reported, not gating): how many of the planted required anchors were found.
+  const anchorsRequired = (c.requiredPromises ?? []).length + (c.requiredPeople ?? []).length + (c.requiredDates ?? []).length;
+  const missingAnchors = v.filter((x) => x.startsWith('missing required')).length;
+  return { id: c.id, violations: v, passed: v.length === 0, anchorsRequired, anchorsFound: anchorsRequired - missingAnchors };
 }

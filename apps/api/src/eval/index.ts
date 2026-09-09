@@ -1,7 +1,7 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
 import { extractForEval, extractImportFixture, evaluateGate, softGate, fabricationGate, tier1Residual, tier2Gate, requirementsGate, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
-import { IMPORT_FIXTURES } from './import-fixtures.js';
+import { IMPORT_FIXTURES, RECALL_BASELINES } from './import-fixtures.js';
 import { scoreInvariants } from './score-invariants.js';
 import { redactSensitive } from '../services/redaction/redact.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
@@ -174,6 +174,9 @@ async function main(): Promise<void> {
   const runImportFull = process.env.GATE_IMPORT_FULL === '1';
   const importFixtures = IMPORT_FIXTURES.filter((f) => f.tier === 'ci-subset' || runImportFull);
   let importPass = true;
+  // Recall is REPORTED as a number every run with its previous value beside it (Wabil's condition):
+  // reported-but-unwatched is how a metric goes decorative, and a drop across certs is a real signal.
+  const prevRecall = (id: string): string => { const b = RECALL_BASELINES[id]; return b == null ? 'first cert — no prior' : `prev ${b.toFixed(2)}`; };
   console.log(`\n[gate] === IMPORT-SIZED FIXTURES (${importFixtures.length}: ${importFixtures.map((f) => f.id).join(', ')}${runImportFull ? '' : '; set GATE_IMPORT_FULL=1 for the cert-only set'}) ===`);
   for (const f of importFixtures) {
     const actual = await extractImportFixture(model, f);
@@ -182,11 +185,14 @@ async function main(): Promise<void> {
       const s = scoreNote(f.expected, actual, [], f.forbidden);
       const trustOk = s.fabricatedPromises === 0 && s.guessedDates === 0 && s.leakedValues === 0 && s.nullNamedPeople === 0 && s.falseCertainties === 0;
       importPass &&= trustOk;
-      console.log(`[gate]   ${f.id} [full]: ${trustOk ? 'PASS' : 'FAIL'} — trust{fab ${s.fabricatedPromises} guessed ${s.guessedDates} leak ${s.leakedValues} nullName ${s.nullNamedPeople} falseCert ${s.falseCertainties}} · recall{promise-miss ${s.promises.fn} person-miss ${s.people.fn}} (reported)`);
+      const expectedFacts = f.expected.promises.length + f.expected.people.length;
+      const recall = expectedFacts === 0 ? 1 : (s.promises.tp + s.people.tp) / expectedFacts;
+      console.log(`[gate]   ${f.id} [full]: GATE ${trustOk ? 'PASS' : 'FAIL'} — trust{fab ${s.fabricatedPromises} guessed ${s.guessedDates} leak ${s.leakedValues} nullName ${s.nullNamedPeople} falseCert ${s.falseCertainties}} · RECALL ${recall.toFixed(2)} (${prevRecall(f.id)}) [reported, not gating]`);
     } else {
       const r = scoreInvariants(f.contract, actual);
       importPass &&= r.passed;
-      console.log(`[gate]   ${f.id} [invariant]: ${r.passed ? 'PASS' : 'FAIL'}${r.violations.length ? ' — ' + r.violations.join('; ') : ''}`);
+      const recall = r.anchorsRequired === 0 ? 1 : r.anchorsFound / r.anchorsRequired;
+      console.log(`[gate]   ${f.id} [invariant]: GATE ${r.passed ? 'PASS' : 'FAIL'} · RECALL ${recall.toFixed(2)} (${prevRecall(f.id)}) [reported]${r.violations.length ? ' — ' + r.violations.join('; ') : ''}`);
     }
   }
 

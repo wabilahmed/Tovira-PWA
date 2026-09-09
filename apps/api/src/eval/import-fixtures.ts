@@ -213,6 +213,19 @@ const IMTINAN_CONTRACT: InvariantContract = {
   ],
 };
 
+/**
+ * [GATE-IMPORT-SIZE] Recall baseline per fixture (facts/anchors found ÷ expected), from the last
+ * certification. Recall is REPORTED not gated (Wabil's condition) — a drop across certs is a real
+ * engine-at-scale signal even though it doesn't fail the build. Empty until the first import cert
+ * sets it; update it each cert beside the new measurement (same discipline as the published
+ * fabrication/precision rates). `null` for a fixture = "no prior; first cert establishes it."
+ */
+export const RECALL_BASELINES: Record<string, number | null> = {
+  'import-easy-omar': null,
+  'import-medium-farah': null,
+  'import-hard-imtinan': null,
+};
+
 export const IMPORT_FIXTURES: ImportFixture[] = [
   { id: 'import-easy-omar', mode: 'full', clientName: 'Omar Al Mansouri', today: '2026-09-08', transcript: OMAR_TRANSCRIPT, expected: OMAR_EXPECTED, forbidden: [], tier: 'ci-subset' },
   { id: 'import-medium-farah', mode: 'invariant', clientName: 'Farah Haddad', today: '2026-09-08', transcript: synthTranscript({ client: 'Farah Haddad', anchors: FARAH_ANCHORS, totalMessages: 401, years: [2024], seed: 401 }), contract: FARAH_CONTRACT, tier: 'cert-only' },
