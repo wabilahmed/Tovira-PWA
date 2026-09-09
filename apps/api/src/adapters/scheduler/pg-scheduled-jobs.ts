@@ -29,6 +29,16 @@ export class PgJobRunStore implements JobRunStore {
     return rows[0] ? Number(rows[0].ms) : null;
   }
 
+  async lastRun(name: string): Promise<JobRun | null> {
+    const { rows } = await this.pool.query<{ ms: string; last_ok: boolean; last_error: string | null }>(
+      `SELECT (extract(epoch FROM last_run_at) * 1000)::bigint AS ms, last_ok, last_error
+       FROM scheduled_job_runs WHERE job_name = $1`,
+      [name],
+    );
+    const r = rows[0];
+    return r ? { name, lastRunAt: Number(r.ms), ok: r.last_ok, error: r.last_error } : null;
+  }
+
   async list(): Promise<JobRun[]> {
     const { rows } = await this.pool.query<{ job_name: string; ms: string; last_ok: boolean; last_error: string | null }>(
       `SELECT job_name, (extract(epoch FROM last_run_at) * 1000)::bigint AS ms, last_ok, last_error

@@ -273,11 +273,12 @@ async function main(): Promise<void> {
       // hours; generators are idempotent (deduped) and the 2/day silence budget bounds pushes.
       { name: 'daily-scan', lockKey: 4711006, intervalMs: 3 * 60 * 60 * 1000,
         run: async () => { await scanRunner.run(Date.now()); } },
-      // [EXTRACT-CANARY] Daily: one real extraction call asserting a text block returns. A throw
-      // records ok:false + the starvation reason on /health (jobs[]) within a day of any provider
-      // drift — the signal that was missing when claude-sonnet-5 started starving the budget. Logs
-      // the reasoning headroom on success so decay is visible BEFORE it breaks.
-      { name: 'extraction-canary', lockKey: 4711007, intervalMs: 24 * 60 * 60 * 1000,
+      // [EXTRACT-CANARY] Every 6h: one real extraction call asserting a text block returns. A throw
+      // records ok:false + the failure reason on /health (jobs[]) within HOURS of any provider drift
+      // — the signal that was missing when claude-sonnet-5 started starving the budget. 4 calls/day
+      // (~AED 6/mo) is trivial against a silently-broken engine. Combined with boot-retry, a deployed
+      // fix re-verifies on the next restart. Logs the reasoning headroom so decay shows BEFORE it breaks.
+      { name: 'extraction-canary', lockKey: 4711007, intervalMs: 6 * 60 * 60 * 1000,
         run: async () => { const r = await extractionCanary.run(); console.log(`[canary] extraction ok stop=${r.stopReason} thinking=${r.thinkingTokens} headroom=${r.headroomTokens}`); } },
     ],
   });

@@ -46,15 +46,16 @@ export class ScheduledBrain {
       });
   }
 
-  /** Begin ticking. Runs one pass immediately so a fresh boot doesn't wait a tick. */
+  /** Begin ticking. Runs one pass immediately so a fresh boot doesn't wait a tick. The FIRST pass is
+   *  the boot pass: it also re-runs any job whose last recorded run FAILED (see runDue). */
   start(): void {
     if (this.timer) return;
     this.timer = setInterval(() => {
-      void this.runDue();
+      void this.runDue(false);
     }, this.tickMs);
     // Don't let the timer alone keep the process alive (the HTTP server does that).
     this.timer.unref?.();
-    void this.runDue();
+    void this.runDue(true);
   }
 
   stop(): void {
@@ -64,16 +65,29 @@ export class ScheduledBrain {
     }
   }
 
-  /** One pass: run every job that is due and lockable. Never throws. */
-  async runDue(): Promise<void> {
+  /**
+   * One pass: run every job that is due and lockable. Never throws.
+   *
+   * `bootPass` (the first pass after start) ALSO re-runs a job whose last run FAILED, even inside its
+   * interval — so a deployed fix is re-verified in minutes and a stale failure clears off /health,
+   * instead of sitting red for a full interval. Capped at once: the boot-retry records a fresh run, so
+   * the under-lock "did the record change since we looked?" guard stops any second task from also
+   * retrying, and a boot-retry that fails again just waits for the normal interval (no loop) — a job
+   * failing for a persistent reason (e.g. a missing grant) does not re-run on every tick.
+   */
+  async runDue(bootPass = false): Promise<void> {
     for (const job of this.deps.jobs) {
       try {
-        const last = await this.deps.store.lastRunAt(job.name);
-        if (last !== null && this.now() - last < job.intervalMs) continue; // not due
+        const last = await this.deps.store.lastRun(job.name);
+        const dueByInterval = last === null || this.now() - last.lastRunAt >= job.intervalMs;
+        const bootRetry = bootPass && last !== null && !last.ok; // re-verify a failed job on boot
+        if (!dueByInterval && !bootRetry) continue; // not due
+        const observedAt = last?.lastRunAt ?? null;
         await this.deps.lock.withLock(job.lockKey, async () => {
-          // Re-check under the lock: another task may have just run it.
-          const fresh = await this.deps.store.lastRunAt(job.name);
-          if (fresh !== null && this.now() - fresh < job.intervalMs) return;
+          // Re-check under the lock: if another task recorded a run since we looked, skip. This caps
+          // both the interval race AND the boot-retry to exactly one run across tasks.
+          const fresh = await this.deps.store.lastRun(job.name);
+          if (fresh !== null && fresh.lastRunAt !== observedAt) return;
           try {
             await job.run();
             await this.deps.store.record(job.name, { at: this.now(), ok: true, error: null });

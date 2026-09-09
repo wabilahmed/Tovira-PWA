@@ -28,6 +28,9 @@ export interface JobRunStore {
   record(name: string, run: { at: number; ok: boolean; error?: string | null }): Promise<void>;
   /** Epoch ms of the job's last run, or null if it has never run. */
   lastRunAt(name: string): Promise<number | null>;
+  /** The job's last-run record (timestamp + ok/error), or null if it has never run. Used by the
+   *  boot-retry: a job whose last run FAILED is re-run once on boot rather than waiting an interval. */
+  lastRun(name: string): Promise<JobRun | null>;
   /** Every job's last-run record (for the health signal). */
   list(): Promise<JobRun[]>;
 }

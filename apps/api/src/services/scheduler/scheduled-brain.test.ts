@@ -91,6 +91,70 @@ describe('[SWEEP-NEVER-RUNS] ScheduledBrain', () => {
     expect(await store.list()).toEqual([]); // nothing recorded — we didn't run it
   });
 
+  // [BOOT-RETRY] A deployed fix should be re-verified in minutes, not after a full interval — and a
+  // stale failed run (e.g. the priorities-nightly grant failure) shouldn't sit red on /health for the
+  // whole interval. On the boot pass ONLY, re-run a job whose last run FAILED, even within interval.
+  it('boot pass RE-RUNS a job whose last run FAILED, even within the interval', async () => {
+    const store = new InMemoryJobRunStore();
+    let t = 10_000;
+    await store.record('canary', { at: t, ok: false, error: 'model request failed' });
+    let ran = 0;
+    const brain = new ScheduledBrain({
+      jobs: [job({ name: 'canary', intervalMs: 1_000_000, run: async () => { ran += 1; } })],
+      lock: new InMemoryAdvisoryLock(), store, now: () => t, log: () => {},
+    });
+    t = 10_500; // deep inside the interval
+    await brain.runDue(true); // boot pass
+    expect(ran).toBe(1);
+  });
+
+  it('boot pass does NOT re-run a job whose last run SUCCEEDED within the interval', async () => {
+    const store = new InMemoryJobRunStore();
+    let t = 10_000;
+    await store.record('canary', { at: t, ok: true, error: null });
+    let ran = 0;
+    const brain = new ScheduledBrain({
+      jobs: [job({ name: 'canary', intervalMs: 1_000_000, run: async () => { ran += 1; } })],
+      lock: new InMemoryAdvisoryLock(), store, now: () => t, log: () => {},
+    });
+    t = 10_500;
+    await brain.runDue(true);
+    expect(ran).toBe(0);
+  });
+
+  // The cap: retry once on boot; if it fails AGAIN, wait for the normal interval — do not loop.
+  it('boot-retry fires at most once — a failed retry is not looped, it waits for the interval', async () => {
+    const store = new InMemoryJobRunStore();
+    let t = 10_000;
+    await store.record('canary', { at: t, ok: false, error: 'still down' });
+    let ran = 0;
+    const brain = new ScheduledBrain({
+      jobs: [job({ name: 'canary', intervalMs: 1_000_000, run: async () => { ran += 1; throw new Error('still down'); } })],
+      lock: new InMemoryAdvisoryLock(), store, now: () => t, log: () => {},
+    });
+    t = 10_500;
+    await brain.runDue(true);  // boot pass → retries once (fails again, records fresh failure)
+    await brain.runDue(false); // normal ticks right after → must NOT loop
+    await brain.runDue(false);
+    expect(ran).toBe(1);
+  });
+
+  it('two tasks boot-retry a failed job exactly once between them', async () => {
+    const store = new InMemoryJobRunStore();
+    const lock = new InMemoryAdvisoryLock();
+    let t = 10_000;
+    await store.record('canary', { at: t, ok: false, error: 'x' });
+    let ran = 0;
+    const mk = () => new ScheduledBrain({
+      jobs: [job({ name: 'canary', intervalMs: 1_000_000, run: async () => { ran += 1; } })],
+      lock, store, now: () => t, log: () => {},
+    });
+    t = 10_500;
+    await mk().runDue(true);
+    await mk().runDue(true);
+    expect(ran).toBe(1);
+  });
+
   it('two tasks sharing a store+lock run a due job exactly once (no double-run)', async () => {
     const store = new InMemoryJobRunStore();
     const lock = new InMemoryAdvisoryLock(); // shared → simulates two tasks, one DB

@@ -12,6 +12,10 @@ export class InMemoryJobRunStore implements JobRunStore {
     return this.runs.get(name)?.lastRunAt ?? null;
   }
 
+  async lastRun(name: string): Promise<JobRun | null> {
+    return this.runs.get(name) ?? null;
+  }
+
   async list(): Promise<JobRun[]> {
     return [...this.runs.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
