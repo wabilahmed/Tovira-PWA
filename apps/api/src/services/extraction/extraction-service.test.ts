@@ -187,28 +187,60 @@ describe('ExtractionService', () => {
     expect(referenceDateFor({ messages: null }, '2026-09-01')).toBe('2026-09-01'); // fresh → caller's today
   });
 
-  // [ALIAS-NORMALISE] The chat counterpart (this client under a nickname) is folded into the client:
-  // dropped from the stakeholder people[] and their personal facts re-subjected to the real name.
-  it('[ALIAS-NORMALISE] the counterpart is not a stakeholder; a fact about the alias is about the client', () => {
+  // [CLIENT-PERSON v0.9.4] The chat counterpart (this client under a nickname) is KEPT as a person —
+  // under the REAL client name, never the alias — and their personal facts are re-subjected to the
+  // real name. (Pre-v0.9.4 this DROPPED the client from people[], contradicting the certified ruling
+  // and stripping the client before it reached the vault — the BLIND-2 finding.)
+  it('[CLIENT-PERSON] the counterpart is kept as the client (normalised to the real name); a fact about the alias is re-subjected', () => {
     const extraction = {
       people: [{ name: 'Bubu DXB' }, { name: 'Rashid the architect' }],
       personal_facts: [{ subject: 'Bubu DXB', fact: 'prefers WhatsApp voice notes' }, { subject: 'Rashid the architect', fact: 'is the decision maker' }],
     };
     normaliseCounterpart(extraction, 'Imtinan', ['Bubu DXB']);
-    // The counterpart (the client themselves) is gone from the stakeholder map; the real stakeholder stays.
-    expect(extraction.people.map((p) => p.name)).toEqual(['Rashid the architect']);
-    // The alias's personal fact now belongs to the client by their real name; the other is untouched.
+    // The client IS a person — present, under the REAL name (never the alias); the other stakeholder stays.
+    expect(extraction.people.map((p) => p.name)).toEqual(['Imtinan', 'Rashid the architect']);
     expect(extraction.personal_facts.find((f) => f.fact.includes('voice notes'))!.subject).toBe('Imtinan');
     expect(extraction.personal_facts.find((f) => f.fact.includes('decision maker'))!.subject).toBe('Rashid the architect');
   });
 
-  it('[ALIAS-NORMALISE] matches the client by REAL name too, and is a no-op with no aliases + no name', () => {
+  it('[CLIENT-PERSON] keeps a real-name client, collapses an alias+real double to one, and is a no-op with no name', () => {
     const e1 = { people: [{ name: 'Imtinan' }, { name: 'Rashid' }], personal_facts: [] };
-    normaliseCounterpart(e1, 'Imtinan', []); // exact real-name counterpart also dropped
-    expect(e1.people.map((p) => p.name)).toEqual(['Rashid']);
-    const e2 = { people: [{ name: 'Anyone' }], personal_facts: [] };
-    normaliseCounterpart(e2, '', []); // nothing to normalise → untouched
-    expect(e2.people).toHaveLength(1);
+    normaliseCounterpart(e1, 'Imtinan', []);
+    expect(e1.people.map((p) => p.name)).toEqual(['Imtinan', 'Rashid']); // real-name client kept, not dropped
+    // both the alias AND the real name emitted → normalise both to real, dedupe to ONE client entry
+    const e2 = { people: [{ name: 'Bubu DXB' }, { name: 'Imtinan' }, { name: 'Rashid' }], personal_facts: [] };
+    normaliseCounterpart(e2, 'Imtinan', ['Bubu DXB']);
+    expect(e2.people.map((p) => p.name)).toEqual(['Imtinan', 'Rashid']);
+    const e3 = { people: [{ name: 'Anyone' }], personal_facts: [] };
+    normaliseCounterpart(e3, '', []); // nothing to normalise → untouched
+    expect(e3.people).toHaveLength(1);
+  });
+
+  // [CLIENT-PERSON] STORED-BOUNDARY: the gate only scores the model's output (extractForEval never
+  // calls normaliseCounterpart). This tests the layer BENEATH the model — what actually survives the
+  // service into the vault — the gap BLIND-2 exposed.
+  it('[CLIENT-PERSON] extractNote keeps the client in the STORED people[] (real name), the layer the gate cannot see', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const client = await clients.create('user-A', 'Imtinan Qureshi');
+    const note = await notes.create('user-A', { clientId: client.id, source: 'whatsapp_export', rawText: '[2024-01-01] Bubu DXB: hi', audioKey: null, status: 'pending_extraction' });
+    const withClient = JSON.stringify({
+      summary: 'x', promises: [], key_dates: [], personal_facts: [], concerns: [], next_steps: [], meeting: null,
+      people: [
+        { name: 'Bubu DXB', role: null, reports_to: null, decision_role: 'unknown', notes: null }, // the client under the chat alias
+        { name: 'Sara', role: 'Legal', reports_to: null, decision_role: 'unknown', notes: null },   // a genuine other stakeholder
+      ],
+    });
+    // aliasesFor (last positional) returns the learned alias, as the real import would.
+    const svc = new ExtractionService(model(withClient), clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined, undefined, '1h', undefined, undefined, undefined, undefined, undefined, undefined, async () => ['Bubu DXB']);
+    await svc.extractNote('user-A', note.id, '2026-07-09');
+    const stored = await notes.findByIdForUser('user-A', note.id);
+    const names = ((stored?.extracted as { people: Array<{ name: string }> }).people).map((p) => p.name);
+    expect(names).toContain('Imtinan Qureshi'); // the client SURVIVES the service layer, under the real name
+    expect(names).not.toContain('Bubu DXB');    // never the alias
+    expect(names).toContain('Sara');            // the real stakeholder is untouched
   });
 
   // [PARSE-REAL] End-to-end: a real dash-format 2019 chat, parsed, resolves against 2019 — NOT the

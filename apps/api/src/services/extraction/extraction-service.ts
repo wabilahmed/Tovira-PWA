@@ -53,10 +53,14 @@ function parseMsgDate(sentAt: string | null | undefined): string | null {
   return null;
 }
 
-/** [ALIAS-NORMALISE] Fold the chat counterpart (this client under a nickname/company alias) into the
- *  client's identity for FACTS: they are not their own stakeholder (drop from people[]), and a
- *  personal fact about the alias is a fact about the client (rewrite the subject to the real name).
- *  Mutates the extraction in place. Never touches receipts/raw text — evidence stays verbatim. */
+/** [ALIAS-NORMALISE + CLIENT-PERSON v0.9.4] Fold the chat counterpart (this client under a
+ *  nickname/company alias) into the client's identity: the client IS a person (v0.9.4), so KEEP them
+ *  in people[] but under their REAL client name — never the alias/nickname — and re-subject a personal
+ *  fact about the alias to the real name. If the model emitted both the alias and the real name,
+ *  collapse to one client entry. Mutates in place; never touches receipts/raw text (evidence stays
+ *  verbatim). NB: pre-v0.9.4 this DROPPED the client from people[]; that stripped the client the
+ *  certified ruling requires before it reached the vault (the BLIND-2 finding — the gate never sees
+ *  this layer because extractForEval does not call it). */
 export function normaliseCounterpart(
   extraction: { people?: Array<{ name?: string | null }>; personal_facts?: Array<{ subject?: string | null }> },
   clientName: string,
@@ -66,7 +70,10 @@ export function normaliseCounterpart(
   const isClient = (n: string | null | undefined): boolean =>
     !!n && (nameMatches(n, clientName) || aliases.some((a) => nameMatches(n, a)));
   if (Array.isArray(extraction.people)) {
-    extraction.people = extraction.people.filter((p) => !isClient(p.name)); // the counterpart is the client, not a stakeholder
+    const seen = new Set<string>();
+    extraction.people = extraction.people
+      .map((p) => (isClient(p.name) ? { ...p, name: clientName } : p)) // the client is a person — keep, under the REAL name
+      .filter((p) => { const k = (p.name ?? '').trim().toLowerCase(); if (k === '') return true; if (seen.has(k)) return false; seen.add(k); return true; }); // collapse an alias+real double
   }
   for (const f of extraction.personal_facts ?? []) {
     if (isClient(f.subject)) f.subject = clientName; // a fact about the alias is a fact about the client
