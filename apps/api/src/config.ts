@@ -54,6 +54,11 @@ export interface AppConfig {
   anthropicApiKey: string | undefined;
   anthropicBaseUrl: string;
   anthropicModel: string;
+  /** HTTP timeout (ms) for a single model call. Sized for a REASONING-model extraction, not a
+   *  non-reasoning one: worst-case wall-clock measured at 63s (~15-msg note) and 98s (5,615-msg
+   *  import); default 300s covers a pathological run near the 20k-token output ceiling with headroom.
+   *  Extraction runs in the background sweep (no user/ALB in the path), so a long ceiling is safe. */
+  modelTimeoutMs: number;
   /**
    * Per-task-class model routing (P1-9 hybrid). extraction=Sonnet (gate-locked),
    * all other classes=Haiku by default; each overridable via MODEL_<CLASS>.
@@ -162,6 +167,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     // "never guess a date" trust rule. Sonnet 5 passed clean (0 fabricated,
     // 0 guessed). Extraction defaults to Sonnet; override with ANTHROPIC_MODEL.
     anthropicModel: env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5',
+    // [EXTRACT-TIMEOUT] 30s aborted reasoning extractions (measured 63s / 98s) — raised to 300s.
+    modelTimeoutMs: parsePositive(env.MODEL_TIMEOUT_MS, 300_000, 'MODEL_TIMEOUT_MS'),
     models: resolveModels(env),
     extractionCacheTtl: parseEnum(env.EXTRACTION_CACHE_TTL, CACHE_TTLS, '1h', 'EXTRACTION_CACHE_TTL'),
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',

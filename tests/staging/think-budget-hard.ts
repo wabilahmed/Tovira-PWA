@@ -19,6 +19,7 @@ async function main(): Promise<void> {
   const p = parseWhatsAppExport(r.text);
   if (!p.ok) throw new Error('parse');
   const userMessage = buildUserMessage({ today: new Date().toISOString().slice(0, 10), clientName: 'Ladder', source: 'whatsapp_export', text: renderThread(p.messages) });
+  const t0 = Date.now(); // [EXTRACT-TIMEOUT] wall-clock of the worst real call → derive the HTTP timeout
   const res = await fetch(`${cfg.anthropicBaseUrl}/v1/messages`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': cfg.anthropicApiKey ?? '', 'anthropic-version': '2023-06-01' },
@@ -31,6 +32,8 @@ async function main(): Promise<void> {
   const inTok = body.usage?.input_tokens ?? 0;
   const P = PRICING['claude-sonnet-5']!;
   const usd = (inTok * P.inputPerMTok + out * P.outputPerMTok) / 1e6;
+  const elapsedMs = Date.now() - t0;
   console.log(`${p.messages.length} msgs · in ${inTok} · think ${think} · text ${out - think} · out ${out} · stop ${body.stop_reason} · hasText ${(body.content ?? []).some((b) => b.type === 'text' && (b.text?.length ?? 0) > 0)} · $${usd.toFixed(4)} (AED ${(usd * USD_TO_AED).toFixed(3)})`);
+  console.log(`WALL-CLOCK: ${elapsedMs}ms (${(elapsedMs / 1000).toFixed(1)}s) — would the 30s prod timeout abort? ${elapsedMs > 30_000 ? 'YES' : 'no'}`);
 }
 main().catch((e) => { console.error('FAILED:', e); process.exit(1); });

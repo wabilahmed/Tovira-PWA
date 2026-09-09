@@ -66,6 +66,26 @@ describe('[EXTRACT-CANARY] daily extraction canary', () => {
     await expect(new ExtractionCanaryService(model).run()).rejects.toBeInstanceOf(ExtractionCanaryError);
   });
 
+  it('names a TRANSPORT failure (timeout/abort) instead of an opaque "model request failed"', async () => {
+    // The first prod failure was a 30s abort surfaced only as "model request failed" — the canary
+    // must diagnose it. ModelError carries the abort as `cause`.
+    const model: ModelClient = { async complete() { const e = new Error('model request failed') as Error & { cause?: unknown }; e.cause = Object.assign(new Error('aborted'), { name: 'AbortError' }); throw e; } };
+    try {
+      await new ExtractionCanaryService(model).run();
+      expect.unreachable('canary should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ExtractionCanaryError);
+      expect((err as Error).message).toMatch(/timed out|aborted/);
+      // never leaks the raw transport message
+      expect((err as Error).message).not.toMatch(/model request failed/);
+    }
+  });
+
+  it('names an HTTP status on a transport failure that carries one', async () => {
+    const model: ModelClient = { async complete() { const e = new Error('x') as Error & { cause?: unknown }; e.cause = { status: 529 }; throw e; } };
+    await expect(new ExtractionCanaryService(model).run()).rejects.toThrow(/HTTP 529/);
+  });
+
   it('the error names the starvation shape (stop reason + tokens) for the health surface', async () => {
     const { model } = fakeModel({ text: '', stopReason: 'max_tokens', usage: { inputTokens: 10_500, outputTokens: 20_000, thinkingTokens: 20_000 } });
     try {

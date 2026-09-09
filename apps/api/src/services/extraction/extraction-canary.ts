@@ -34,8 +34,28 @@ const CANARY_NOTE = [
 
 export class ExtractionCanaryError extends Error {
   override name = 'ExtractionCanaryError';
-  constructor(stopReason: string | undefined, thinkingTokens: number | undefined, outputTokens: number | undefined) {
-    super(`extraction canary starved — no text block (stop_reason=${stopReason ?? 'unknown'}, thinking=${thinkingTokens ?? '?'}, output=${outputTokens ?? '?'}, maxTokens=${EXTRACTION_MAX_TOKENS})`);
+  constructor(reason: string) {
+    super(`extraction canary failed — ${reason}`);
+  }
+
+  /** The budget was spent without a text answer (max_tokens / thinking-only) — the original regression. */
+  static starved(stopReason: string | undefined, thinkingTokens: number | undefined, outputTokens: number | undefined): ExtractionCanaryError {
+    return new ExtractionCanaryError(`no text block (stop_reason=${stopReason ?? 'unknown'}, thinking=${thinkingTokens ?? '?'}, output=${outputTokens ?? '?'}, maxTokens=${EXTRACTION_MAX_TOKENS})`);
+  }
+
+  /** The model call itself failed (transport). Surface a SAFE diagnostic — an abort/timeout or an HTTP
+   *  status — so /health names the cause (the first failure was an opaque "model request failed" that
+   *  turned out to be a 30s abort). Never include the underlying message: it can leak vendor internals. */
+  static transport(cause: unknown): ExtractionCanaryError {
+    const inner = (cause as { cause?: unknown })?.cause;
+    const name = (inner as { name?: string })?.name ?? (cause as { name?: string })?.name;
+    const status = (inner as { status?: number })?.status;
+    const detail = name === 'AbortError' || name === 'TimeoutError'
+      ? 'request timed out (aborted) — likely longer than the model timeout'
+      : status !== undefined
+        ? `HTTP ${status}`
+        : name ?? 'unknown transport error';
+    return new ExtractionCanaryError(`model call failed — ${detail}`);
   }
 }
 
@@ -56,14 +76,21 @@ export class ExtractionCanaryService {
 
   async run(): Promise<CanaryResult> {
     const today = new Date(this.opts.now?.() ?? Date.now()).toISOString().slice(0, 10);
-    const res = await this.model.complete({
-      system: EXTRACTION_SYSTEM_PROMPT,
-      cacheSystemPrompt: true,
-      cacheTtl: '1h',
-      messages: [{ role: 'user', content: buildUserMessage({ today, clientName: 'Canary', source: 'paste', text: CANARY_NOTE }) }],
-      maxTokens: EXTRACTION_MAX_TOKENS, // MUST match production — the canary certifies the REAL call
-      spendClass: 'extraction', // routes to the extraction model; no userId → not billed to any rep
-    });
+    let res;
+    try {
+      res = await this.model.complete({
+        system: EXTRACTION_SYSTEM_PROMPT,
+        cacheSystemPrompt: true,
+        cacheTtl: '1h',
+        messages: [{ role: 'user', content: buildUserMessage({ today, clientName: 'Canary', source: 'paste', text: CANARY_NOTE }) }],
+        maxTokens: EXTRACTION_MAX_TOKENS, // MUST match production — the canary certifies the REAL call
+        spendClass: 'extraction', // routes to the extraction model; no userId → not billed to any rep
+      });
+    } catch (err) {
+      // The call itself failed (timeout/abort, HTTP error). Re-throw with a named, safe diagnostic —
+      // the whole point of a canary is to say WHY, not just that it failed.
+      throw ExtractionCanaryError.transport(err);
+    }
 
     const text = (res.text ?? '').trim();
     const thinkingTokens = res.usage?.thinkingTokens;
@@ -71,7 +98,7 @@ export class ExtractionCanaryService {
     // The exact signal that was missing in production: text came back, and the budget wasn't
     // exhausted (by reasoning) before the answer.
     const starved = text.length === 0 || res.stopReason === 'max_tokens';
-    if (starved) throw new ExtractionCanaryError(res.stopReason, thinkingTokens, outputTokens);
+    if (starved) throw ExtractionCanaryError.starved(res.stopReason, thinkingTokens, outputTokens);
 
     return {
       ok: true,

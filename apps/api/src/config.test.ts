@@ -58,6 +58,22 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...valid, MODEL_PROVIDER: 'anthropic' }).modelProvider).toBe('anthropic');
   });
 
+  // [EXTRACT-TIMEOUT] A reasoning-model extraction runs far longer than a non-reasoning one: measured
+  // 63s (a ~15-msg note) and 98s (a 5,615-msg import) wall-clock. The old 30s adapter default aborted
+  // them ("model request failed"), the SAME decay class as max_tokens. Default must comfortably cover
+  // the worst real call.
+  it('defaults the model timeout to 300s (covers the measured reasoning-extraction worst case)', () => {
+    expect(loadConfig(valid).modelTimeoutMs).toBe(300_000);
+  });
+
+  it('reads MODEL_TIMEOUT_MS as an override', () => {
+    expect(loadConfig({ ...valid, MODEL_TIMEOUT_MS: '120000' }).modelTimeoutMs).toBe(120_000);
+  });
+
+  it('rejects a non-numeric MODEL_TIMEOUT_MS with a named error', () => {
+    expect(() => loadConfig({ ...valid, MODEL_TIMEOUT_MS: 'soon' })).toThrow(/MODEL_TIMEOUT_MS/);
+  });
+
   it('rejects an unknown model provider with a named error', () => {
     expect(() => loadConfig({ ...valid, MODEL_PROVIDER: 'gpt' })).toThrow(/MODEL_PROVIDER/);
   });

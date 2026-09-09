@@ -216,7 +216,7 @@ export function createModelClient(config: AppConfig, taskClass: AiTaskClass = 'e
   const model = config.models[taskClass];
   const inner: ModelClient =
     config.modelProvider === 'anthropic'
-      ? new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model })
+      ? new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model, timeoutMs: config.modelTimeoutMs })
       : new StubModelClient();
   // CACHE-1: meter every call's cache outcome per task class (→ /health, observability).
   return new MeteredModelClient(inner, taskClass, model);
