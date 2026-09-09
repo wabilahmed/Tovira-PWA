@@ -300,7 +300,7 @@ async function main(): Promise<void> {
   );
   const bookScan = new BookScanService(
     { clients, notes, facts },
-    { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30 },
+    { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30, promiseStaleThresholdDays: config.promiseStaleThresholdDays },
   );
   const server = createApiServer({
     pool: appPool,

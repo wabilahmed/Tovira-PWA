@@ -140,7 +140,7 @@ export function buildInMemoryDeps(
   const images = new InMemoryImageRepository();
   const recallSessions = new InMemoryRecallSessionRepository();
   const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction });
-  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, matching);
+  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
   return {
     pool: stubPool,

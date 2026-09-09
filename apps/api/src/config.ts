@@ -86,6 +86,10 @@ export interface AppConfig {
   meetingNudgeToleranceMinutes: number;
   reminderWindowDays: number;
   chatRefreshStaleDays: number;
+  // [PROMISE-STALE] Days overdue after which an open promise goes STALE (surfacing only: off the active
+  // count / claret / Today's register, still stored + searchable). 90 keeps recent misses actionable —
+  // the Book Scan's headline — while retiring the truly ancient (an import's multi-year backlog).
+  promiseStaleThresholdDays: number;
   heroMinClients: number;
   heroMinNotes: number;
   // --- billing (P5) ---
@@ -183,6 +187,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     meetingNudgeToleranceMinutes: parsePositive(env.MEETING_NUDGE_TOLERANCE_MINUTES, 15, 'MEETING_NUDGE_TOLERANCE_MINUTES'),
     reminderWindowDays: parsePositive(env.REMINDER_WINDOW_DAYS, 7, 'REMINDER_WINDOW_DAYS'),
     chatRefreshStaleDays: parsePositive(env.CHAT_REFRESH_STALE_DAYS, 21, 'CHAT_REFRESH_STALE_DAYS'),
+    promiseStaleThresholdDays: parsePositive(env.PROMISE_STALE_THRESHOLD_DAYS, 90, 'PROMISE_STALE_THRESHOLD_DAYS'),
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
     trialDays: parsePositive(env.TRIAL_DAYS, 7, 'TRIAL_DAYS'),

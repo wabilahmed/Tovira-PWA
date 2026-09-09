@@ -2,6 +2,7 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { UnansweredQuestion } from '../import/unanswered.js';
+import { isStalePromise } from '../facts/promise-lifecycle.js';
 
 /**
  * Day-One Book Scan — the "Relationship X-Ray" (P5-3b). Scans a rep's seeded
@@ -44,11 +45,17 @@ export interface BookScanReport {
   invitation: string;
   /** How many WhatsApp chat exports the book has read — the scan's third meta figure. */
   chatsRead: number;
+  /** [PROMISE-STALE] Open promises overdue past the window — NOT listed individually (a seven-year
+   *  import would flood the reveal); surfaced as a single count of "older ones" so the curated Book
+   *  Scan shows the recoverable ones and honestly acknowledges the rest. */
+  stalePromises: number;
 }
 
 export interface BookScanConfig {
   coldThresholdDays: number;
   upcomingWindowDays: number;
+  /** [PROMISE-STALE] days overdue after which an open promise is a COUNT, not a listed item. Default 90. */
+  promiseStaleThresholdDays?: number;
 }
 
 const INVITATION =
@@ -90,10 +97,15 @@ export class BookScanService {
     const clients = await this.repos.clients.listByUser(userId);
     const nameOf = new Map(clients.map((c) => [c.id, c.name]));
 
-    // 1. Open promises — worth checking (the rep may have delivered off-channel).
+    // 1. Open promises — worth checking (the rep may have delivered off-channel). [PROMISE-STALE] Only
+    // the RECOVERABLE ones (overdue within the window) are listed; ones overdue past it are counted,
+    // not listed, so importing seven years of history is a curated reveal rather than 40 red rows.
+    const staleThreshold = this.config.promiseStaleThresholdDays ?? 90;
     const promises = await this.repos.facts.listPromisesByUser(userId);
+    let stalePromises = 0;
     for (const p of promises) {
       if (p.done) continue;
+      if (isStalePromise(p, nowMs, staleThreshold)) { stalePromises += 1; continue; }
       items.push({
         kind: 'open_promise',
         clientId: p.clientId,
@@ -173,6 +185,7 @@ export class BookScanService {
         : null,
       invitation: INVITATION,
       chatsRead,
+      stalePromises,
     };
   }
 }

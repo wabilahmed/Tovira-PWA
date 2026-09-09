@@ -4,6 +4,7 @@ import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { MatchingService } from '../inventory/matching-service.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import { extractedOf } from '../insights/insights.js';
+import { isActivePromise } from '../facts/promise-lifecycle.js';
 import { evaluateGate, type GateState, type VolumeGateConfig } from './volume-gate.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -63,6 +64,9 @@ export class HeroService {
     private readonly deps: HeroDeps,
     private readonly gateConfig: VolumeGateConfig,
     private readonly coldThresholdDays: number,
+    /** [PROMISE-STALE] days overdue after which a promise drops off the active surface (Today's register,
+     *  counts) — still stored/searchable. */
+    private readonly promiseStaleThresholdDays: number,
     /** INV-MATCH (§11.4): STRONG matches enter Today's register, below every fact. Optional. */
     private readonly matching?: MatchingService,
   ) {}
@@ -91,8 +95,9 @@ export class HeroService {
         name: c.name,
         silentDays: (nowMs - c.lastTouchedAt) / DAY_MS,
         hasDecisionMaker: people.some((p) => p.decision_role === 'decision_maker'),
-        missedPromises: cp.filter((p) => !p.done && p.dueDate !== null && p.dueDate < todayIso).length,
-        openPromises: cp.filter((p) => !p.done).length,
+        // [PROMISE-STALE] active only: a promise overdue >threshold is stale — off the count/claret.
+        missedPromises: cp.filter((p) => isActivePromise(p, nowMs, this.promiseStaleThresholdDays) && p.dueDate !== null && p.dueDate < todayIso).length,
+        openPromises: cp.filter((p) => isActivePromise(p, nowMs, this.promiseStaleThresholdDays)).length,
         upcomingMeetings: meetings.filter((m) => m.clientId === c.id && m.datetime !== null && m.datetime >= nowIso).length,
       });
     }
@@ -160,7 +165,9 @@ export class HeroService {
     const todayDate = nowIso.slice(0, 10);
 
     const actions: TodayAction[] = [];
-    for (const p of promises.filter((p) => !p.done)) {
+    // [PROMISE-STALE] Today's register shows the ACTIVE set only — a promise overdue past the window
+    // is stale and drops off here (still stored/searchable, and still surfaced by the Book Scan count).
+    for (const p of promises.filter((p) => isActivePromise(p, nowMs, this.promiseStaleThresholdDays))) {
       if (p.dueDate && p.dueDate <= soonDate) {
         const overdue = p.dueDate < todayDate;
         actions.push({

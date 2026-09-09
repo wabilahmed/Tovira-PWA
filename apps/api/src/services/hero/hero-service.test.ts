@@ -13,7 +13,7 @@ function make(minClients: number, minNotes: number) {
   const facts = new InMemoryFactsRepository();
   const meetings = new InMemoryMeetingRepository();
   const notes = new InMemoryNoteRepository();
-  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients, minNotes }, 30);
+  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients, minNotes }, 30, 90);
   return { clients, facts, meetings, notes, hero };
 }
 
@@ -111,6 +111,18 @@ describe('[P4b-3] what should I do today', () => {
     expect(actions.some((a) => a.text.includes('done thing'))).toBe(false); // completed excluded
   });
 
+  it('[PROMISE-STALE] keeps a stale promise (overdue > window) off Today\'s register, but keeps a recoverable one', async () => {
+    const ctx = make(5, 20);
+    const c = await ctx.clients.create('u', 'C');
+    await ctx.facts.saveExtraction('u', { noteId: 'n', clientId: c.id, promises: [
+      { text: 'recoverable promise', owner: 'rep', due_date: '2026-07-01', due_raw: '', confidence: 'high' }, // 8d overdue → active
+      { text: 'ancient promise', owner: 'rep', due_date: '2026-01-01', due_raw: '', confidence: 'high' },      // ~190d overdue → stale (threshold 90)
+    ] });
+    const actions = await ctx.hero.today('u', NOW);
+    expect(actions.some((a) => a.text.includes('recoverable promise'))).toBe(true);
+    expect(actions.some((a) => a.text.includes('ancient promise'))).toBe(false); // stale → off the register (still stored/searchable)
+  });
+
   it('attaches a dated fact sub-line to each action (P4b-3 register)', async () => {
     const ctx = make(5, 20);
     const c = await ctx.clients.create('u', 'C');
@@ -145,7 +157,7 @@ describe('[INV-MATCH] strong matches enter Today\'s register below every fact', 
     const reqs = new InMemoryRequirementRepository();
     const matchRepo = new InMemoryInventoryMatchRepository();
     const matching = new MatchingService(matchRepo, reqs, inv);
-    const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, matching);
+    const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching);
 
     const client = await clients.create('u', 'Ahmed');
     // An OVERDUE promise (priority 4) — a fact that must rank ABOVE the match.

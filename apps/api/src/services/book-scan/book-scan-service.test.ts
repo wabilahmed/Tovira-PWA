@@ -36,6 +36,26 @@ describe('BookScanService (P5-3b)', () => {
     expect(promise.framing).toBe('worth_checking'); // never "you never did this"
   });
 
+  it('[PROMISE-STALE] lists recoverable promises but only COUNTS stale ones — the import flood stays a curated reveal', async () => {
+    const now = Date.parse('2026-07-15T00:00:00Z');
+    const iso = (d: number) => new Date(now - d * DAY).toISOString().slice(0, 10);
+    const c = await clients.create(USER, 'Acme');
+    await facts.saveExtraction(USER, {
+      noteId: 'n1',
+      clientId: c.id,
+      promises: [
+        { text: 'send the recoverable quote', owner: 'rep', due_date: iso(30), due_raw: null, confidence: 'high' },   // overdue 30d → recoverable, listed
+        { text: 'send an ancient thing', owner: 'rep', due_date: iso(200), due_raw: null, confidence: 'high' },         // overdue 200d → stale, counted
+        { text: 'send another ancient thing', owner: 'rep', due_date: iso(400), due_raw: null, confidence: 'high' },    // overdue 400d → stale, counted
+      ],
+    });
+
+    const report = await scan.scan(USER, now);
+    const listed = report.items.filter((i) => i.kind === 'open_promise');
+    expect(listed.map((i) => i.receipt.quote)).toEqual(['send the recoverable quote']); // only the recoverable one is listed
+    expect(report.stalePromises).toBe(2); // the two ancient ones are counted, not listed (no flood)
+  });
+
   it('reveals an unanswered client question, quoting it', async () => {
     const c = await clients.create(USER, 'Sara Lee');
     const note = await notes.create(USER, { clientId: c.id, source: 'whatsapp_export', rawText: 'thread', audioKey: null, status: 'extracted' });

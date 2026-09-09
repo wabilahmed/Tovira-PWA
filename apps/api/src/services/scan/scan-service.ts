@@ -5,6 +5,7 @@ import type { NotificationRepository } from '../../ports/notification-repository
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { PushableAlert } from '../push/push-dispatch-service.js';
 import { zonedTodayIso } from '../time/zone.js';
+import { isStalePromise } from '../facts/promise-lifecycle.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECURRING_TYPES = new Set(['birthday', 'anniversary']);
@@ -14,6 +15,9 @@ export interface ScanConfig {
   nudgeLeadMs: number;
   reminderWindowDays: number;
   chatRefreshStaleDays: number;
+  /** [PROMISE-STALE] days overdue after which a promise stops generating overdue alerts (it's stale —
+   *  off the loud surface, still stored/searchable). Optional; defaults to 90 in overduePromises. */
+  promiseStaleThresholdDays?: number;
 }
 
 export interface ScanSummary {
@@ -79,13 +83,16 @@ export class ScanService {
    * done, whose resolved due date is strictly before today. Fires once per
    * promise (deduped by id); unresolved/no-date promises never fire.
    */
-  async overduePromises(userId: string, nowMs: number, sink?: PushableAlert[]): Promise<number> {
+  async overduePromises(userId: string, nowMs: number, sink?: PushableAlert[], staleThresholdDays = 90): Promise<number> {
     const todayIso = new Date(nowMs).toISOString().slice(0, 10);
     const promises = await this.facts.listPromisesByUser(userId);
     let created = 0;
     for (const p of promises) {
       if (p.owner !== 'rep' || p.done || !p.dueDate) continue;
       if (p.dueDate >= todayIso) continue; // due today or later → not overdue
+      // [PROMISE-STALE] a promise overdue past the window is stale — stop the loud overdue alert (it's
+      // still stored/searchable; the Book Scan reports a count of these, it doesn't nag per-promise).
+      if (isStalePromise(p, nowMs, staleThresholdDays)) continue;
       const entry = {
         type: 'overdue_promise' as const,
         dedupeKey: `promise:${p.id}`,
@@ -199,7 +206,7 @@ export class ScanService {
   async runAll(userId: string, nowMs: number, cfg: ScanConfig): Promise<ScanSummary> {
     const pushables: PushableAlert[] = [];
     return {
-      overduePromises: await this.overduePromises(userId, nowMs, pushables),
+      overduePromises: await this.overduePromises(userId, nowMs, pushables, cfg.promiseStaleThresholdDays),
       nudges: await this.nudges(userId, nowMs, cfg.nudgeLeadMs, pushables),
       goingCold: await this.goingCold(userId, nowMs, cfg.coldThresholdDays, pushables),
       dateReminders: await this.dateReminders(userId, nowMs, cfg.reminderWindowDays, pushables),

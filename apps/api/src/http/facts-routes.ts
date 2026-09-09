@@ -7,6 +7,7 @@ import type { ExtractionLogRepository } from '../ports/extraction-log-repository
 import type { LedgerService } from '../services/ledger/ledger-service.js';
 import type { MeetingRepository } from '../ports/meeting-repository.js';
 import { pendingConfirmations } from '../services/facts/confirmation.js';
+import { isStalePromise } from '../services/facts/promise-lifecycle.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
 export interface FactsRouteDeps {
@@ -19,6 +20,9 @@ export interface FactsRouteDeps {
   meetings?: MeetingRepository;
   /** MISFILE-POST (B2): notes with a pending move-suggestion ride the same queue. */
   notes?: NoteRepository;
+  /** [PROMISE-STALE] days overdue after which an open promise is tagged stale in the tracker (the UI
+   *  keeps it behind a filter and out of the active count/claret). Defaults to 90 when unset (tests). */
+  promiseStaleThresholdDays?: number;
 }
 
 const CONFIRM_RE = /^\/promises\/([^/]+)\/confirm$/;
@@ -75,10 +79,15 @@ export async function handleFactsRoute(
   }
 
   if (isTracker) {
-    // Open promises across ALL clients, sorted by due date (no-date last).
+    // Open promises across ALL clients, sorted by due date (no-date last). [PROMISE-STALE] each is
+    // tagged `stale` (overdue past the window) — the tracker still LISTS them (searchable, behind a
+    // filter) but the active count and claret key off `!stale`. Storage is untouched.
+    const threshold = deps.promiseStaleThresholdDays ?? 90;
+    const now = Date.now();
     const open = (await deps.facts.listPromisesByUser(userId)).filter((p) => !p.done);
     open.sort(byDueDate);
-    sendJson(res, 200, { promises: open });
+    const promises = open.map((p) => ({ ...p, stale: isStalePromise(p, now, threshold) }));
+    sendJson(res, 200, { promises });
     return true;
   }
 
