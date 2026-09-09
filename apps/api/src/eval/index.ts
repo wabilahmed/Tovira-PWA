@@ -164,35 +164,38 @@ async function main(): Promise<void> {
   console.log(`[gate]   RULE-7 ISOLATION (non-gating, defense-in-depth): ${r7Leaks}/${r7Total} raw extractions reproduced a value (${r7Pct.toFixed(2)}%) — prod redacts Tier-1 at ingest; tracked for drift`);
 
   // [GATE-IMPORT-SIZE] Import-sized fixtures — the multi-message regime the single-note set never
-  // covered (the blind spot behind the max_tokens + timeout breakages). The CI subset (small,
-  // full-output) runs every gate; the cert-only set (medium/hard, invariant) runs with
-  // GATE_IMPORT_FULL=1. These GATE on the ROBUST trust rules (0 fabricated / guessed / leaked /
-  // null-named / false-certain, and 0 invariant violations); full-output exact RECALL is reported and
-  // belongs to full certification, not a brittle per-push blocker.
-  // [flag] This adds a gate surface — the gating policy (trust-rules-hard, recall-reported) is for
-  //        Wabil's cert-standard sign-off, per the P1-9 governance.
+  // covered (the blind spot behind the max_tokens + timeout breakages). CI subset runs every gate;
+  // the cert-only set (medium/hard) runs with GATE_IMPORT_FULL=1.
+  // Gate policy (owner-ruled 2026-09-09, aligned to the certified single-note policy):
+  //   - WRONGNESS gates per-run, zero tolerance: guessed-date-on-null, wrong-year date, merged people,
+  //     leaked/forbidden entity, retracted/forbidden promise. (Commission errors — asserting a wrong fact.)
+  //   - FABRICATION is NOT a per-run import gate — it is the single-note AGGREGATE bar (≤1.2%), exactly
+  //     as before. (OMAR-FAB proved per-run fab on a rich fixture just flakes on legitimate variance.)
+  //   - RECALL is REPORTED with its baseline beside it (a drift signal), never gated.
   const runImportFull = process.env.GATE_IMPORT_FULL === '1';
   const importFixtures = IMPORT_FIXTURES.filter((f) => f.tier === 'ci-subset' || runImportFull);
   let importPass = true;
-  // Recall is REPORTED as a number every run with its previous value beside it (Wabil's condition):
-  // reported-but-unwatched is how a metric goes decorative, and a drop across certs is a real signal.
   const prevRecall = (id: string): string => { const b = RECALL_BASELINES[id]; return b == null ? 'first cert — no prior' : `prev ${b.toFixed(2)}`; };
   console.log(`\n[gate] === IMPORT-SIZED FIXTURES (${importFixtures.length}: ${importFixtures.map((f) => f.id).join(', ')}${runImportFull ? '' : '; set GATE_IMPORT_FULL=1 for the cert-only set'}) ===`);
   for (const f of importFixtures) {
     const actual = await extractImportFixture(model, f);
     if (actual === null) { console.log(`[gate]   ${f.id}: FAIL — extraction returned nothing (starved/timeout/invalid)`); importPass = false; continue; }
     if (f.mode === 'full') {
+      // Full-output (none shipped today): gate on WRONGNESS only — fabrication is the aggregate bar, so
+      // fabricatedPromises is NOT a per-run gate here (it flakes on legitimate rewording).
       const s = scoreNote(f.expected, actual, [], f.forbidden);
-      const trustOk = s.fabricatedPromises === 0 && s.guessedDates === 0 && s.leakedValues === 0 && s.nullNamedPeople === 0 && s.falseCertainties === 0;
-      importPass &&= trustOk;
+      const wrongOk = s.guessedDates === 0 && s.leakedValues === 0 && s.mergedPeople === 0 && s.nullNamedPeople === 0;
+      importPass &&= wrongOk;
       const expectedFacts = f.expected.promises.length + f.expected.people.length;
       const recall = expectedFacts === 0 ? 1 : (s.promises.tp + s.people.tp) / expectedFacts;
-      console.log(`[gate]   ${f.id} [full]: GATE ${trustOk ? 'PASS' : 'FAIL'} — trust{fab ${s.fabricatedPromises} guessed ${s.guessedDates} leak ${s.leakedValues} nullName ${s.nullNamedPeople} falseCert ${s.falseCertainties}} · RECALL ${recall.toFixed(2)} (${prevRecall(f.id)}) [reported, not gating]`);
+      console.log(`[gate]   ${f.id} [full]: GATE ${wrongOk ? 'PASS' : 'FAIL'} — wrongness{guessed ${s.guessedDates} leak ${s.leakedValues} merged ${s.mergedPeople} nullName ${s.nullNamedPeople}} · RECALL ${recall.toFixed(2)} (${prevRecall(f.id)}) [reported] · fab ${s.fabricatedPromises} (aggregate bar, not gated here)`);
     } else {
       const r = scoreInvariants(f.contract, actual);
-      importPass &&= r.passed;
+      importPass &&= r.wrongness.length === 0; // gate on WRONGNESS; recall + role-misses are reported
       const recall = r.anchorsRequired === 0 ? 1 : r.anchorsFound / r.anchorsRequired;
-      console.log(`[gate]   ${f.id} [invariant]: GATE ${r.passed ? 'PASS' : 'FAIL'} · RECALL ${recall.toFixed(2)} (${prevRecall(f.id)}) [reported]${r.violations.length ? ' — ' + r.violations.join('; ') : ''}`);
+      const wrongTxt = r.wrongness.length ? ' — WRONGNESS: ' + r.wrongness.join('; ') : '';
+      const missTxt = r.recallMisses.length ? ` · reported: ${r.recallMisses.join('; ')}` : '';
+      console.log(`[gate]   ${f.id} [invariant]: GATE ${r.wrongness.length === 0 ? 'PASS' : 'FAIL'} · RECALL ${recall.toFixed(2)} (${prevRecall(f.id)}) [reported]${wrongTxt}${missTxt}`);
     }
   }
 

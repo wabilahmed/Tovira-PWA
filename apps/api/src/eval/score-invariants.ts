@@ -3,43 +3,50 @@ import type { Extraction, DecisionRole } from '../services/extraction/types.js';
 /**
  * [GATE-IMPORT-SIZE] Invariant scoring for import-sized fixtures.
  *
- * Full-output ground truth is not honestly achievable for a 5,615-message, multi-year transcript, so
- * those fixtures are certified as an INVARIANT CONTRACT (per Wabil's ruling): the planted anchor facts
- * must be found, the trust rules must hold, nothing is fabricated. This scorer checks a contract
- * against an extraction and returns the list of violations (empty = pass).
+ * Full-output ground truth is not honestly achievable for a rich multi-message transcript (exact-match
+ * scoring manufactures false "fabrications" from legitimate rewording / contingent-promise variance —
+ * proven by OMAR-FAB attribution), so import fixtures certify as an INVARIANT CONTRACT: the planted
+ * anchors must be found, the trust rules must hold, nothing wrong is asserted.
  *
- * It is deliberately two-sided — it must FAIL a violating result AND PASS a clean one. A scorer that
- * always passes certifies nothing (the leakedValues / confidence-check / nullNamed "metric shipped
- * dark" class); one that always fails is equally useless. score-invariants.test.ts proves both
- * directions before this gates any certification run.
+ * Violations split into two policy classes (owner-ruled 2026-09-09):
+ *   - WRONGNESS (commission — the system asserted something WRONG): a guessed date on a planted null,
+ *     a wrong-year date, a forbidden/retracted promise present, a forbidden entity leaked, merged
+ *     people. Gated PER-RUN, zero tolerance.
+ *   - RECALL MISS (omission — a right fact is missing, or a present person's role is off): reported,
+ *     NOT gated (a drift signal watched beside its baseline). General fabrication is governed by the
+ *     single-note gate's AGGREGATE bar (≤1.2%), exactly as before — an import fixture does not add a
+ *     per-run fabrication gate.
+ *
+ * [flag] classification choices for the owner: a WRONG-YEAR date is treated as WRONGNESS (a wrong date
+ * is a wrong fact, same family as a guessed date); a WRONG decision_role is treated as a RECALL MISS
+ * (a softer attribute miss — roles are governed by the single-note gate's aggregate people-precision,
+ * not per-run zero). Tell me to move either.
+ *
+ * score-invariants.test.ts proves both directions: a WRONGNESS case gates (passed=false); a RECALL
+ * miss is detected and reported but does NOT gate (passed=true, anchorsFound drops); a clean result
+ * passes with full recall. A metric that can't fail — or can't pass a legitimately-worded answer —
+ * certifies nothing.
  */
 export interface InvariantContract {
   id: string;
-  /** Promises that MUST appear (recall over planted commitments). `match` = case-insensitive substring
-   *  of the promise text. `dueYear`: a number → the matched promise's due_date year must equal it
-   *  (multi-year / DATE-REF integrity); explicit null → due_date MUST be null (no guessed date);
-   *  omit → don't check the date. */
   requiredPromises?: Array<{ match: string; dueYear?: number | null }>;
-  /** Promises that MUST NOT appear — a retracted/superseded commitment, or a hypothetical. */
   forbiddenPromises?: Array<{ match: string }>;
-  /** People that MUST appear, optionally pinned to a decision_role. */
   requiredPeople?: Array<{ name: string; decisionRole?: DecisionRole }>;
-  /** Entities that must appear NOWHERE — a competitor, another chat's contact, a departed participant.
-   *  The cross-attribution / stale-participant trap. */
   forbiddenEntities?: string[];
-  /** Key dates that MUST resolve to a given year (multi-year integrity); null → date MUST be null. */
   requiredDates?: Array<{ match: string; year: number | null }>;
-  /** Name pairs that must remain TWO distinct people (never merged). */
   mustNotMerge?: Array<[string, string]>;
 }
 
 export interface InvariantResult {
   id: string;
+  /** Commission errors — gated per-run, zero tolerance. */
+  wrongness: string[];
+  /** Omission errors (missing anchor, off role) — reported, not gated. */
+  recallMisses: string[];
+  /** wrongness ∪ recallMisses, for full reporting. */
   violations: string[];
+  /** The GATE: no wrongness. Recall is reported separately, never gates here. */
   passed: boolean;
-  /** Recall over the planted anchor set (required promises + people + dates): found / required.
-   *  Reported every run beside its previous value — a violation of it isn't gating (it isn't a trust
-   *  breach), but drift down across certifications is a real signal (Wabil's condition). */
   anchorsRequired: number;
   anchorsFound: number;
 }
@@ -48,34 +55,36 @@ const has = (hay: string, needle: string): boolean => hay.toLowerCase().includes
 const yearOf = (iso: string | null): number | null => (iso ? Number(iso.slice(0, 4)) : null);
 
 export function scoreInvariants(c: InvariantContract, actual: Extraction): InvariantResult {
-  const v: string[] = [];
+  const wrong: string[] = [];   // commission → gates
+  const misses: string[] = [];  // omission → reported
+  let anchorsFound = 0;
+  const anchorsRequired = (c.requiredPromises ?? []).length + (c.requiredPeople ?? []).length + (c.requiredDates ?? []).length;
 
   for (const rp of c.requiredPromises ?? []) {
-    // Match against text AND due_raw: the engine legitimately splits a commitment across fields
-    // ("Send the renewal" / due_raw "before the 30th"). Matching only .text is a FALSE-NEGATIVE class
-    // — it read as "the engine lost 3 old promises" when every one had been extracted (IMPORT-DIAG).
+    // Match text AND due_raw: the engine legitimately splits a commitment across fields (OMAR-DIAG).
     const p = actual.promises.find((x) => has(`${x.text} ${x.due_raw ?? ''}`, rp.match));
-    if (!p) { v.push(`missing required promise: "${rp.match}"`); continue; }
+    if (!p) { misses.push(`missing required promise: "${rp.match}"`); continue; }
+    anchorsFound += 1;
     if (rp.dueYear === null && p.due_date !== null) {
-      v.push(`promise "${rp.match}" must have NO date (guessed ${p.due_date})`);
+      wrong.push(`promise "${rp.match}" must have NO date (guessed ${p.due_date})`);
     } else if (typeof rp.dueYear === 'number' && yearOf(p.due_date) !== rp.dueYear) {
-      v.push(`promise "${rp.match}" date must resolve to ${rp.dueYear}, got ${p.due_date ?? 'null'}`);
+      wrong.push(`promise "${rp.match}" date must resolve to ${rp.dueYear}, got ${p.due_date ?? 'null'}`);
     }
   }
 
   for (const fp of c.forbiddenPromises ?? []) {
-    if (actual.promises.some((x) => has(x.text, fp.match))) v.push(`forbidden promise present: "${fp.match}"`);
+    if (actual.promises.some((x) => has(x.text, fp.match))) wrong.push(`forbidden promise present: "${fp.match}"`);
   }
 
   for (const rp of c.requiredPeople ?? []) {
     const person = actual.people.find((x) => has(x.name ?? '', rp.name));
-    if (!person) { v.push(`missing required person: "${rp.name}"`); continue; }
+    if (!person) { misses.push(`missing required person: "${rp.name}"`); continue; }
+    anchorsFound += 1;
     if (rp.decisionRole && person.decision_role !== rp.decisionRole) {
-      v.push(`person "${rp.name}" decision_role must be ${rp.decisionRole}, got ${person.decision_role}`);
+      misses.push(`person "${rp.name}" decision_role is ${person.decision_role}, expected ${rp.decisionRole}`); // reported, not gated
     }
   }
 
-  // Forbidden entities: scan every text-bearing field the entity could leak into.
   const blob = [
     ...actual.promises.map((p) => `${p.text} ${p.due_raw ?? ''}`),
     ...actual.people.map((p) => `${p.name ?? ''} ${p.role ?? ''} ${p.notes ?? ''}`),
@@ -83,32 +92,32 @@ export function scoreInvariants(c: InvariantContract, actual: Extraction): Invar
     ...actual.personal_facts.map((f) => `${f.subject} ${f.fact}`),
   ].join(' | ');
   for (const e of c.forbiddenEntities ?? []) {
-    if (has(blob, e)) v.push(`forbidden entity leaked into the record: "${e}"`);
+    if (has(blob, e)) wrong.push(`forbidden entity leaked into the record: "${e}"`);
   }
 
   for (const rd of c.requiredDates ?? []) {
     const kd = actual.key_dates.find((d) => has(d.description, rd.match));
-    if (!kd) { v.push(`missing required date: "${rd.match}"`); continue; }
+    if (!kd) { misses.push(`missing required date: "${rd.match}"`); continue; }
+    anchorsFound += 1;
     if (rd.year === null && kd.date !== null) {
-      v.push(`date "${rd.match}" must be null (guessed ${kd.date})`);
+      wrong.push(`date "${rd.match}" must be null (guessed ${kd.date})`);
     } else if (typeof rd.year === 'number' && yearOf(kd.date) !== rd.year) {
-      v.push(`date "${rd.match}" must resolve to ${rd.year}, got ${kd.date ?? 'null'}`);
+      wrong.push(`date "${rd.match}" must resolve to ${rd.year}, got ${kd.date ?? 'null'}`);
     }
   }
 
-  // mustNotMerge uses EXACT (case-insensitive, trimmed) name equality, never substring: the pair is
-  // deliberately near-identical (Sara / Sarah), and "Sarah".includes("sara") is true — substring
-  // matching would report a merge as passing. A merge collapses the pair to one name, so requiring
-  // BOTH exact names present detects it.
+  // Exact (not substring) name equality — the pair is deliberately near-identical (Sara/Sarah), where
+  // substring matching would report a merge as passing.
   const nameEq = (n: string | null, want: string) => (n ?? '').trim().toLowerCase() === want.trim().toLowerCase();
   for (const [a, b] of c.mustNotMerge ?? []) {
     const hasA = actual.people.some((p) => nameEq(p.name, a));
     const hasB = actual.people.some((p) => nameEq(p.name, b));
-    if (!hasA || !hasB) v.push(`must-not-merge pair not both present as distinct people: "${a}" / "${b}"`);
+    // A MERGE is a COLLAPSE — exactly one of the pair survives (the two mentions folded into one). That
+    // is WRONGNESS (a wrong fact asserted). Both ABSENT is not a merge, it's recall (both omitted) —
+    // reported, not gated. Both present is correct.
+    if (hasA !== hasB) wrong.push(`must-not-merge pair collapsed — only one of "${a}" / "${b}" present (merged)`);
+    else if (!hasA && !hasB) misses.push(`must-not-merge pair "${a}" / "${b}" both absent (recall, not a merge)`);
   }
 
-  // Anchor recall (reported, not gating): how many of the planted required anchors were found.
-  const anchorsRequired = (c.requiredPromises ?? []).length + (c.requiredPeople ?? []).length + (c.requiredDates ?? []).length;
-  const missingAnchors = v.filter((x) => x.startsWith('missing required')).length;
-  return { id: c.id, violations: v, passed: v.length === 0, anchorsRequired, anchorsFound: anchorsRequired - missingAnchors };
+  return { id: c.id, wrongness: wrong, recallMisses: misses, violations: [...wrong, ...misses], passed: wrong.length === 0, anchorsRequired, anchorsFound };
 }

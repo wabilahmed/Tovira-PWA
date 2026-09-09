@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { IMPORT_FIXTURES, synthTranscript, type FullOutputFixture, type InvariantFixture } from './import-fixtures.js';
+import { IMPORT_FIXTURES, synthTranscript, type InvariantFixture } from './import-fixtures.js';
 import { scoreInvariants, type InvariantContract } from './score-invariants.js';
 import type { Extraction } from '../services/extraction/types.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
@@ -41,20 +41,7 @@ describe('[GATE-IMPORT-SIZE] import fixtures are internally consistent', () => {
     expect(size('import-hard-imtinan')).toBeGreaterThanOrEqual(5000);
   });
 
-  it('SMALL (full-output): every expected fact is present in the transcript, and the ONLY rep commitments are the three anchors', () => {
-    const f = IMPORT_FIXTURES.find((x) => x.id === 'import-easy-omar') as FullOutputFixture;
-    for (const p of f.expected.promises) if (p.due_raw) expect(inText(f.transcript, p.due_raw), `promise phrase "${p.due_raw}"`).toBe(true);
-    for (const person of f.expected.people) expect(inText(f.transcript, person.name!), `person "${person.name}"`).toBe(true);
-    for (const d of f.expected.key_dates) if (d.date_raw) expect(inText(f.transcript, d.date_raw), `date "${d.date_raw}"`).toBe(true);
-    expect(inText(f.transcript, 'daughter graduates'), 'personal fact').toBe(true);
-    expect(inText(f.transcript, 'Gulf Distributors'), 'competitor concern present').toBe(true);
-    expect(inText(f.transcript, 'onboarding'), 'hypothetical trap present').toBe(true);
-    // No incidental rep commitment beyond the 3 anchors: exactly 3 "Me:" lines contain "I'll".
-    const repCommitments = f.transcript.split('\n').filter((l) => /-\s*Me:/.test(l) && /I'll/.test(l));
-    expect(repCommitments.length, 'exactly the 3 planted rep promises').toBe(3);
-  });
-
-  it('INVARIANT fixtures: every asserted anchor (required + trap material) appears in the transcript', () => {
+  it('every asserted anchor (required + trap material) appears in its transcript', () => {
     for (const f of IMPORT_FIXTURES.filter((x): x is InvariantFixture => x.mode === 'invariant')) {
       const c = f.contract;
       for (const rp of c.requiredPromises ?? []) expect(inText(f.transcript, rp.match), `${f.id}: required promise "${rp.match}"`).toBe(true);
@@ -71,14 +58,16 @@ describe('[GATE-IMPORT-SIZE] import fixtures are internally consistent', () => {
     for (const year of ['2019', '2021', '2023', '2024']) expect(inText(f.transcript, `/${year},`), `year ${year} present`).toBe(true);
   });
 
-  // Tie the must-fail proof to the ACTUAL fixture contracts that will gate — not just the generic
-  // scorer. Each real invariant contract must FAIL an empty result (its anchors are detected as
-  // missing) and PASS a result built to satisfy it (no false-fail that would block a good cert).
-  it('each real invariant contract FAILS an empty extraction (its anchors are enforced)', () => {
+  // Tie the two-class proof to the ACTUAL fixture contracts that will gate. Under the ruled policy an
+  // empty result is a RECALL collapse (reported), not a per-run gate failure — so it must NOT gate
+  // (wrongness empty, passed=true) yet must be DETECTED (anchorsFound 0, recall misses reported).
+  it('each real invariant contract reports an empty extraction as a recall collapse, without gating', () => {
     for (const f of IMPORT_FIXTURES.filter((x): x is InvariantFixture => x.mode === 'invariant')) {
       const r = scoreInvariants(f.contract, EMPTY);
-      expect(r.passed, `${f.id} must fail on empty`).toBe(false);
-      expect(r.violations.length, `${f.id} names its missing anchors`).toBeGreaterThan(0);
+      expect(r.wrongness, `${f.id}: an empty result asserts nothing WRONG`).toEqual([]);
+      expect(r.passed, `${f.id}: so the per-run gate passes`).toBe(true);
+      expect(r.anchorsFound, `${f.id}: but recall shows the collapse`).toBe(0);
+      expect(r.recallMisses.length, `${f.id}: and the misses are reported`).toBeGreaterThan(0);
     }
   });
 

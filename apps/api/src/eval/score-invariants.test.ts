@@ -68,11 +68,21 @@ describe('[GATE-IMPORT-SIZE] scoreInvariants — the scorer must be able to both
     expect(scoreInvariants(c, a).passed, 'reworded-but-correct promise must match its keyword').toBe(true);
   });
 
-  it('FAILS an empty result — every required clause is violated', () => {
-    const r = scoreInvariants(CONTRACT, empty);
+  // The two-class policy (owner-ruled): WRONGNESS gates per-run; RECALL misses are reported, not gated.
+  it('GATES on wrongness — a commission error (a guessed date) fails the gate', () => {
+    const a = { ...CLEAN, promises: CLEAN.promises.map((p) => p.text.includes('after the summer') ? { ...p, due_date: '2023-09-15' } : p) };
+    const r = scoreInvariants(CONTRACT, a);
+    expect(r.wrongness.length).toBeGreaterThan(0);
     expect(r.passed).toBe(false);
-    // missing: 3 promises + 1 person + 1 date + the must-not-merge pair = 6 violations
-    expect(r.violations.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('does NOT gate on recall misses — an empty result is reported (passed=true), never a per-run fail', () => {
+    const r = scoreInvariants(CONTRACT, empty);
+    expect(r.wrongness).toEqual([]);                   // empty asserts nothing WRONG (no commission)
+    expect(r.passed).toBe(true);                       // so the gate passes
+    expect(r.recallMisses.length).toBeGreaterThan(0);  // but every missing anchor is reported
+    expect(r.anchorsFound).toBe(0);                    // and recall shows the collapse (a watched signal)
+    expect(r.anchorsRequired).toBeGreaterThan(0);
   });
 
   // Each invariant type, proven to fire individually (a regression in one is pinpointed).
@@ -100,7 +110,7 @@ describe('[GATE-IMPORT-SIZE] scoreInvariants — the scorer must be able to both
     const missing = { ...CLEAN, people: CLEAN.people.filter((p) => !(p.name ?? '').includes('Imtinan')) };
     expect(scoreInvariants(CONTRACT, missing).violations.some((x) => /missing required person/i.test(x))).toBe(true);
     const wrongRole = { ...CLEAN, people: CLEAN.people.map((p) => (p.name ?? '').includes('Imtinan') ? { ...p, decision_role: 'influencer' as const } : p) };
-    expect(scoreInvariants(CONTRACT, wrongRole).violations.some((x) => /decision_role must be decision_maker/.test(x))).toBe(true);
+    expect(scoreInvariants(CONTRACT, wrongRole).violations.some((x) => /decision_role is influencer, expected decision_maker/.test(x))).toBe(true);
   });
 
   it('flags a FORBIDDEN ENTITY leaking into any field (cross-attribution / competitor)', () => {

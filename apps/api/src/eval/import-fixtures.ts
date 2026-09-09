@@ -76,31 +76,28 @@ const OMAR_TRANSCRIPT = [
   '05/06/2024, 12:44 - Omar Al Mansouri: تمام',
 ].join('\n');
 
-const OMAR_EXPECTED: Extraction = {
-  summary: 'Revised annual quote (AED 84,000) sent to Omar; Yousef advises on technical fit, Mr Rahman holds budget sign-off. Signed MSA to follow; targeting live before the 20 July Sharjah branch opening.',
-  promises: [
-    { text: 'Send the revised quote', owner: 'rep', due_date: '2024-06-06', due_raw: 'by Thursday', confidence: 'high' },
-    // v0.9.4: contingent ("once legal countersigned") + year-less "the 12th" → the engine correctly
-    // declines to guess a date and routes to confirmation. due_date null, confidence low.
-    { text: 'Send the signed MSA', owner: 'rep', due_date: null, due_raw: 'on the 12th', confidence: 'low' },
-    { text: 'Follow up after Eid', owner: 'rep', due_date: null, due_raw: 'after Eid', confidence: 'low' },
-    // owner:client — the commitment Omar makes ("I'll follow up properly after Eid"); a promise the
-    // rep is OWED. Gives the fixtures explicit owner:client coverage.
-    { text: 'Follow up after Eid', owner: 'client', due_date: null, due_raw: 'after Eid', confidence: 'high' },
+// OMAR is scored by INVARIANT contract (not full-output): OMAR-FAB attribution showed exact-match
+// manufacturing false "fabrications" from legitimate variance — the follow-up reworded run to run, and
+// the onboarding line read as a contingent low-confidence promise (Rule 4 says keep it), neither a real
+// fab. Anchors below appeared in every attribution run (people recall fn=0 across 5 runs). No
+// forbiddenPromise for onboarding (a defensible contingent commitment); no Sharjah date anchor (its
+// "20th July" is year-less → the year-less rule nulls it, genuinely ambiguous). decision_role is a
+// RECALL MISS (reported), so a role wobble doesn't flake the gate. Gulf Distributors must not be a
+// STAKEHOLDER — forbiddenEntities scans people/promises/dates, not concerns, so the legit price concern
+// is unaffected.
+const OMAR_CONTRACT: InvariantContract = {
+  id: 'import-easy-omar',
+  requiredPromises: [
+    { match: 'revised quote' },
+    { match: 'signed MSA' },
+    { match: 'follow up' },      // rep and/or client follow-up; reworded run to run but always contains this
   ],
-  people: [
-    // CLIENT-PERSON v0.9.4: Omar is the client AND a person → present; decision_role unknown (Rahman
-    // holds the sign-off, so Omar's own authority is not stated). notes null (nothing stated about him).
-    { name: 'Omar Al Mansouri', role: null, reports_to: null, decision_role: 'unknown', notes: null },
-    { name: 'Yousef', role: 'Technical', reports_to: null, decision_role: 'influencer', notes: 'Handles the technical side; advises' },
-    { name: 'Mr Rahman', role: null, reports_to: null, decision_role: 'decision_maker', notes: 'Final say on budget; signs off' },
+  requiredPeople: [
+    { name: 'Omar Al Mansouri', decisionRole: 'unknown' }, // CLIENT-PERSON v0.9.4: client present, unknown
+    { name: 'Yousef', decisionRole: 'influencer' },
+    { name: 'Mr Rahman', decisionRole: 'decision_maker' },
   ],
-  personal_facts: [{ subject: 'Omar Al Mansouri', fact: 'Daughter graduating this week', category: 'family' }],
-  key_dates: [{ description: 'Sharjah branch opening', date: '2024-07-20', date_raw: '20th July', type: 'opening' }],
-  concerns: ['Price pressure — a competitor (Gulf Distributors) quoted lower'],
-  next_steps: [],
-  requirements: [],
-  meeting: null,
+  forbiddenEntities: ['Gulf Distributors'], // a competitor — must not become an Omar stakeholder
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -249,7 +246,7 @@ export const RECALL_BASELINES: Record<string, number | null> = {
 };
 
 export const IMPORT_FIXTURES: ImportFixture[] = [
-  { id: 'import-easy-omar', mode: 'full', clientName: 'Omar Al Mansouri', today: '2026-09-08', transcript: OMAR_TRANSCRIPT, expected: OMAR_EXPECTED, forbidden: [], tier: 'ci-subset' },
+  { id: 'import-easy-omar', mode: 'invariant', clientName: 'Omar Al Mansouri', today: '2026-09-08', transcript: OMAR_TRANSCRIPT, contract: OMAR_CONTRACT, tier: 'ci-subset' },
   { id: 'import-medium-farah', mode: 'invariant', clientName: 'Farah Haddad', today: '2026-09-08', transcript: synthTranscript({ client: 'Farah Haddad', anchors: FARAH_ANCHORS, totalMessages: 401, years: [2024], seed: 401 }), contract: FARAH_CONTRACT, tier: 'cert-only' },
   { id: 'import-hard-imtinan', mode: 'invariant', clientName: 'Imtinan Qureshi', today: '2026-09-08', transcript: synthTranscript({ client: 'Imtinan Qureshi', anchors: IMTINAN_ANCHORS, totalMessages: 5615, years: [2019, 2020, 2021, 2022, 2023, 2024], seed: 5615 }), contract: IMTINAN_CONTRACT, tier: 'cert-only' },
 ];
