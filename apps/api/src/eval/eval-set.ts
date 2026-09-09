@@ -425,6 +425,7 @@ export const EVAL_NOTES: EvalNote[] = [
     note: 'Ahmed messaged asking: do you have anything with parking?',
     expected: { ...empty,
       summary: 'Ahmed asked whether there is anything available with parking.',
+      people: [{ name: 'Ahmed', role: null, reports_to: null, decision_role: 'unknown', notes: null }], // CLIENT-PERSON v0.9.4: client is a person; unknown (no authority stated)
       requirements: [],
     },
   },
@@ -433,6 +434,7 @@ export const EVAL_NOTES: EvalNote[] = [
     note: "Fatima said if the mortgage clears, they'd want two units side by side in the same tower.",
     expected: { ...empty,
       summary: 'Fatima said that, if the mortgage clears, they would want two units side by side in the same tower.',
+      people: [{ name: 'Fatima', role: null, reports_to: null, decision_role: 'unknown', notes: null }], // CLIENT-PERSON v0.9.4: client is a person; unknown (no authority stated)
       requirements: [{ text: 'Two units side by side in the same tower', requirement_raw: "if the mortgage clears, they'd want two units side by side in the same tower", stated_on: '2026-07-09', confidence: 'low' }],
     },
   },
@@ -449,6 +451,7 @@ export const EVAL_NOTES: EvalNote[] = [
     note: 'Ravi is looking for a 1-bed in JLT for his son. He shared his Emirates ID 784-1990-1234567-1 for the paperwork.',
     expected: { ...empty,
       summary: 'Ravi is looking for a 1-bed in JLT for his son; he shared his Emirates ID for the paperwork.',
+      people: [{ name: 'Ravi', role: null, reports_to: null, decision_role: 'unknown', notes: null }], // CLIENT-PERSON v0.9.4: client is a person; unknown (no authority stated)
       personal_facts: [{ subject: 'Ravi', fact: 'Has a son', category: 'family' }],
       requirements: [{ text: 'A 1-bed in JLT (for his son)', requirement_raw: 'looking for a 1-bed in JLT for his son', stated_on: '2026-07-09', confidence: 'high' }],
     },
@@ -487,6 +490,7 @@ export const EVAL_NOTES: EvalNote[] = [
     note: 'Rashid bought the JLT 1-bed we showed him last month. He mentioned his brother is looking for something similar in the same building.',
     expected: { ...empty,
       summary: 'Rashid bought the JLT 1-bed shown last month and mentioned his brother is looking for something similar in the same building.',
+      people: [{ name: 'Rashid', role: null, reports_to: null, decision_role: 'unknown', notes: null }], // CLIENT-PERSON v0.9.4: client is a person; unknown (no authority stated)
       requirements: [], // a past purchase is not a forward need; the brother's need is a THIRD PARTY's, reported by the client — not the client's own stated requirement
     },
   },
@@ -508,6 +512,7 @@ export const EVAL_NOTES: EvalNote[] = [
     note: 'Quick call with Omar. He mentioned his colleague is looking for a 2-bed in the Marina, budget around 3 million.',
     expected: { ...empty,
       summary: 'Quick call with Omar; he mentioned his colleague is looking for a 2-bed in the Marina, budget around 3 million.',
+      people: [{ name: 'Omar', role: null, reports_to: null, decision_role: 'unknown', notes: null }], // CLIENT-PERSON v0.9.4: client is a person; unknown (no authority stated)
       next_steps: ["Follow up on the colleague's interest in a 2-bed in the Marina, budget around 3 million"],
       requirements: [], // the COLLEAGUE is looking; Omar is reporting → a referral, recorded faithfully (budget kept) in next_steps, not a requirement
     },
@@ -517,6 +522,7 @@ export const EVAL_NOTES: EvalNote[] = [
     note: 'Layla is looking for a 3-bed in Mirdif for her elderly parents, ground floor.',
     expected: { ...empty,
       summary: 'Layla is looking for a 3-bed in Mirdif for her elderly parents, ground floor.',
+      people: [{ name: 'Layla', role: null, reports_to: null, decision_role: 'unknown', notes: null }], // CLIENT-PERSON v0.9.4: client is a person; unknown (no authority stated)
       requirements: [{ text: 'A 3-bed in Mirdif for her elderly parents (ground floor)', requirement_raw: 'looking for a 3-bed in Mirdif for her elderly parents, ground floor', stated_on: '2026-07-09', confidence: 'high' }],
       // LAYLA is the one looking, on her parents' behalf → her requirement, high (who is looking, not who benefits) — the on-behalf-of recall guard.
     },
@@ -526,9 +532,38 @@ export const EVAL_NOTES: EvalNote[] = [
     note: 'Faisal is looking for a 2-bed in Downtown for himself. He also said his brother is after a villa in the Springs.',
     expected: { ...empty,
       summary: 'Faisal is looking for a 2-bed in Downtown for himself; he said his brother is after a villa in the Springs.',
+      people: [{ name: 'Faisal', role: null, reports_to: null, decision_role: 'unknown', notes: null }], // CLIENT-PERSON v0.9.4: client is a person; unknown (no authority stated)
       next_steps: ["Follow up on the brother's interest in a villa in the Springs"],
       requirements: [{ text: 'A 2-bed in Downtown', requirement_raw: 'looking for a 2-bed in Downtown for himself', stated_on: '2026-07-09', confidence: 'high' }],
       // Faisal looking (own → requirement) vs brother looking (reported → next step) in ONE note — the discrimination test.
     },
+  },
+  // ==== CLIENT-PERSON — the v0.9.4 client-as-person ruling, CERTIFIED by the owner 2026-09-09. ====
+  // The client named in the context IS a person (real name, not a chat alias); decision_role unknown
+  // unless the note states their authority; an ORGANIZATION client is an account, never a person.
+  {
+    id: 'client-person-authority', today: '2026-07-09', clientName: 'Yusuf', source: 'voice',
+    note: 'Call with Yusuf. He said he signs off on this deal himself - no one else to clear it with.',
+    expected: { ...empty,
+      summary: 'Yusuf signs off on the deal himself, with no one else to clear it with.',
+      people: [{ name: 'Yusuf', role: null, reports_to: null, decision_role: 'decision_maker', notes: 'Signs off on the deal himself' }],
+    }, // client WITH stated authority -> decision_maker (the other half of the unknown-unless-stated rule)
+  },
+  {
+    id: 'client-person-alias', today: '2026-06-08', clientName: 'Imtinan Qureshi', source: 'whatsapp_export',
+    note: '[08/06/2026, 09:10] Bubu DXB: morning! just checking in, no rush on anything.\n[08/06/2026, 09:12] Me: Morning, all well here.',
+    expected: { ...empty,
+      summary: 'Casual check-in from the client; nothing actionable.',
+      people: [{ name: 'Imtinan Qureshi', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+    }, // the counterpart appears under the REAL client name, never the chat alias "Bubu DXB"
+    forbidden: ['Bubu DXB', 'Bubu'],
+  },
+  {
+    id: 'client-person-org-negative', today: '2026-07-09', clientName: 'Meridian Corp', source: 'voice',
+    note: 'Called Meridian Corp, spoke to Jordan about the renewal. Nothing decided yet.',
+    expected: { ...empty,
+      summary: 'Called Meridian Corp and spoke to Jordan about the renewal; nothing decided yet.',
+      people: [{ name: 'Jordan', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+    }, // ORG client (Meridian Corp) is an account, NOT a person — only the named individual Jordan appears
   },
 ];

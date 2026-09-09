@@ -80,11 +80,18 @@ const OMAR_EXPECTED: Extraction = {
   summary: 'Revised annual quote (AED 84,000) sent to Omar; Yousef advises on technical fit, Mr Rahman holds budget sign-off. Signed MSA to follow; targeting live before the 20 July Sharjah branch opening.',
   promises: [
     { text: 'Send the revised quote', owner: 'rep', due_date: '2024-06-06', due_raw: 'by Thursday', confidence: 'high' },
-    { text: 'Send the signed MSA', owner: 'rep', due_date: '2024-06-12', due_raw: 'on the 12th', confidence: 'high' },
+    // v0.9.4: contingent ("once legal countersigned") + year-less "the 12th" → the engine correctly
+    // declines to guess a date and routes to confirmation. due_date null, confidence low.
+    { text: 'Send the signed MSA', owner: 'rep', due_date: null, due_raw: 'on the 12th', confidence: 'low' },
     { text: 'Follow up after Eid', owner: 'rep', due_date: null, due_raw: 'after Eid', confidence: 'low' },
+    // owner:client — the commitment Omar makes ("I'll follow up properly after Eid"); a promise the
+    // rep is OWED. Gives the fixtures explicit owner:client coverage.
+    { text: 'Follow up after Eid', owner: 'client', due_date: null, due_raw: 'after Eid', confidence: 'high' },
   ],
   people: [
-    { name: 'Omar Al Mansouri', role: null, reports_to: null, decision_role: 'decision_maker', notes: 'Primary contact / buyer' },
+    // CLIENT-PERSON v0.9.4: Omar is the client AND a person → present; decision_role unknown (Rahman
+    // holds the sign-off, so Omar's own authority is not stated). notes null (nothing stated about him).
+    { name: 'Omar Al Mansouri', role: null, reports_to: null, decision_role: 'unknown', notes: null },
     { name: 'Yousef', role: 'Technical', reports_to: null, decision_role: 'influencer', notes: 'Handles the technical side; advises' },
     { name: 'Mr Rahman', role: null, reports_to: null, decision_role: 'decision_maker', notes: 'Final say on budget; signs off' },
   ],
@@ -178,9 +185,9 @@ const FARAH_CONTRACT: InvariantContract = {
     { match: 'comparison deck', dueYear: null },      // "after the board meeting" → no resolvable date
   ],
   requiredPeople: [
-    { name: 'Farah Haddad', decisionRole: 'decision_maker' },
+    { name: 'Farah Haddad', decisionRole: 'unknown' }, // CLIENT-PERSON v0.9.4: client present, unknown (Khalid signs off)
     { name: 'Khalid', decisionRole: 'decision_maker' },
-    { name: 'Reem', decisionRole: 'influencer' },
+    { name: 'Reem', decisionRole: 'unknown' },         // "just coordinates" → unknown, not influencer
   ],
   forbiddenEntities: ['Oman Insurance'],              // a prior vendor, not a Farah stakeholder
   requiredDates: [{ match: 'renew', year: 2024 }],
@@ -207,21 +214,24 @@ const IMTINAN_CONTRACT: InvariantContract = {
   // are clamped to null by design. We therefore assert promise RECALL (found despite depth) + the
   // vague-date trap here, and carry MULTI-YEAR date integrity on key_dates (requiredDates), which are
   // not clamped. A dueYear on a historical promise would fail for a pipeline reason, not a model one.
+  // match on keywords present in BOTH the planted line AND the engine's rephrasing (IMPORT-DIAG:
+  // "hold that price"→"Hold the client's price"; "circle back after the summer"→"Circle back on the
+  // account" / due_raw "after the summer"). Matched across text+due_raw by scoreInvariants.
   requiredPromises: [
-    { match: 'hold that price' },                     // H1 — surfaced despite being 5,000+ msgs deep
-    { match: 'renewal before the 30th' },             // recall only (date clamped by reference-date rule)
-    { match: 'circle back after the summer', dueYear: null }, // vague → null (trap); also clamped
-    { match: 'updated contract' },                    // recall only
+    { match: 'hold' },                                // H1 — surfaced despite being 5,000+ msgs deep
+    { match: 'renewal' },                             // H2 — recall (date clamped by reference-date rule)
+    { match: 'circle back', dueYear: null },          // H4 — vague → null (trap); also clamped
+    { match: 'updated contract' },                    // H5
   ],
   forbiddenPromises: [{ match: 'pilot proposal' }],   // H3 retracted — must not surface as open
   requiredPeople: [
-    { name: 'Imtinan Qureshi', decisionRole: 'decision_maker' },
+    { name: 'Imtinan Qureshi', decisionRole: 'unknown' }, // CLIENT-PERSON v0.9.4: client present, unknown (Bilal signs off)
     { name: 'Bilal', decisionRole: 'decision_maker' }, // latest stated role wins (2023), not 2019 'advises'
   ],
   forbiddenEntities: ['Falcon Traders'],              // competitor named in passing
   requiredDates: [
     { match: 'renewal', year: 2023 },
-    { match: 'contract', year: 2020 },
+    { match: 'signed', year: 2020 },                  // "We signed the contract … 20 August 2020" — distinct from the renewal
   ],
 };
 
