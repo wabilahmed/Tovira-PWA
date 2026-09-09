@@ -1,0 +1,96 @@
+import { describe, it, expect } from 'vitest';
+import { IMPORT_FIXTURES, synthTranscript, type FullOutputFixture, type InvariantFixture } from './import-fixtures.js';
+import { scoreInvariants, type InvariantContract } from './score-invariants.js';
+import type { Extraction } from '../services/extraction/types.js';
+import { parseWhatsAppExport } from '../services/import/whatsapp.js';
+
+const EMPTY: Extraction = { summary: '', promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null };
+
+/** Build a result that SATISFIES a contract — used to prove the wired contracts don't false-fail. */
+function compliantActual(c: InvariantContract): Extraction {
+  return {
+    ...EMPTY,
+    promises: (c.requiredPromises ?? []).map((rp) => ({ text: rp.match, owner: 'rep' as const, due_date: typeof rp.dueYear === 'number' ? `${rp.dueYear}-06-15` : null, due_raw: null, confidence: 'low' as const })),
+    people: (c.requiredPeople ?? []).map((rp) => ({ name: rp.name, role: null, reports_to: null, decision_role: rp.decisionRole ?? 'unknown', notes: null })),
+    key_dates: (c.requiredDates ?? []).map((rd) => ({ description: rd.match, date: typeof rd.year === 'number' ? `${rd.year}-06-15` : null, date_raw: null, type: 'other' })),
+  };
+}
+
+/**
+ * [GATE-IMPORT-SIZE] CONSISTENCY pass — the "check each anchor is actually planted" step Wabil asked
+ * for before any certification spend. A fixture whose transcript doesn't contain an anchor it asserts
+ * would fail the gate for the WRONG reason (a reworded fact), which is exactly what you don't want to
+ * discover mid-certification. So: every anchor a contract/expected asserts must appear in that
+ * fixture's transcript, the transcripts must parse, and the sizes must be in the intended regime.
+ */
+const inText = (transcript: string, needle: string): boolean => transcript.toLowerCase().includes(needle.toLowerCase());
+
+describe('[GATE-IMPORT-SIZE] import fixtures are internally consistent', () => {
+  it('every fixture transcript parses as a WhatsApp export with messages', () => {
+    for (const f of IMPORT_FIXTURES) {
+      const p = parseWhatsAppExport(f.transcript);
+      expect(p.ok, `${f.id} should parse`).toBe(true);
+      if (p.ok) expect(p.messages.length, `${f.id} has messages`).toBeGreaterThan(0);
+    }
+  });
+
+  it('fixtures sit in their intended size regime (message count)', () => {
+    const size = (id: string) => { const p = parseWhatsAppExport(IMPORT_FIXTURES.find((f) => f.id === id)!.transcript); return p.ok ? p.messages.length : 0; };
+    expect(size('import-easy-omar')).toBeGreaterThanOrEqual(20);
+    expect(size('import-medium-farah')).toBeGreaterThanOrEqual(350);
+    expect(size('import-hard-imtinan')).toBeGreaterThanOrEqual(5000);
+  });
+
+  it('SMALL (full-output): every expected fact is present in the transcript, and the ONLY rep commitments are the three anchors', () => {
+    const f = IMPORT_FIXTURES.find((x) => x.id === 'import-easy-omar') as FullOutputFixture;
+    for (const p of f.expected.promises) if (p.due_raw) expect(inText(f.transcript, p.due_raw), `promise phrase "${p.due_raw}"`).toBe(true);
+    for (const person of f.expected.people) expect(inText(f.transcript, person.name!), `person "${person.name}"`).toBe(true);
+    for (const d of f.expected.key_dates) if (d.date_raw) expect(inText(f.transcript, d.date_raw), `date "${d.date_raw}"`).toBe(true);
+    expect(inText(f.transcript, 'daughter graduates'), 'personal fact').toBe(true);
+    expect(inText(f.transcript, 'Gulf Distributors'), 'competitor concern present').toBe(true);
+    expect(inText(f.transcript, 'onboarding'), 'hypothetical trap present').toBe(true);
+    // No incidental rep commitment beyond the 3 anchors: exactly 3 "Me:" lines contain "I'll".
+    const repCommitments = f.transcript.split('\n').filter((l) => /-\s*Me:/.test(l) && /I'll/.test(l));
+    expect(repCommitments.length, 'exactly the 3 planted rep promises').toBe(3);
+  });
+
+  it('INVARIANT fixtures: every asserted anchor (required + trap material) appears in the transcript', () => {
+    for (const f of IMPORT_FIXTURES.filter((x): x is InvariantFixture => x.mode === 'invariant')) {
+      const c = f.contract;
+      for (const rp of c.requiredPromises ?? []) expect(inText(f.transcript, rp.match), `${f.id}: required promise "${rp.match}"`).toBe(true);
+      for (const rp of c.requiredPeople ?? []) expect(inText(f.transcript, rp.name), `${f.id}: required person "${rp.name}"`).toBe(true);
+      for (const rd of c.requiredDates ?? []) expect(inText(f.transcript, rd.match), `${f.id}: required date "${rd.match}"`).toBe(true);
+      // Trap material MUST be present, or the trap tests nothing.
+      for (const fp of c.forbiddenPromises ?? []) expect(inText(f.transcript, fp.match), `${f.id}: retracted-promise material "${fp.match}"`).toBe(true);
+      for (const e of c.forbiddenEntities ?? []) expect(inText(f.transcript, e), `${f.id}: forbidden-entity material "${e}"`).toBe(true);
+    }
+  });
+
+  it('HARD fixture spans 2019 → 2024 (multi-year anchors present)', () => {
+    const f = IMPORT_FIXTURES.find((x) => x.id === 'import-hard-imtinan')!;
+    for (const year of ['2019', '2021', '2023', '2024']) expect(inText(f.transcript, `/${year},`), `year ${year} present`).toBe(true);
+  });
+
+  // Tie the must-fail proof to the ACTUAL fixture contracts that will gate — not just the generic
+  // scorer. Each real invariant contract must FAIL an empty result (its anchors are detected as
+  // missing) and PASS a result built to satisfy it (no false-fail that would block a good cert).
+  it('each real invariant contract FAILS an empty extraction (its anchors are enforced)', () => {
+    for (const f of IMPORT_FIXTURES.filter((x): x is InvariantFixture => x.mode === 'invariant')) {
+      const r = scoreInvariants(f.contract, EMPTY);
+      expect(r.passed, `${f.id} must fail on empty`).toBe(false);
+      expect(r.violations.length, `${f.id} names its missing anchors`).toBeGreaterThan(0);
+    }
+  });
+
+  it('each real invariant contract PASSES a result built to satisfy it (no false-fail)', () => {
+    for (const f of IMPORT_FIXTURES.filter((x): x is InvariantFixture => x.mode === 'invariant')) {
+      const r = scoreInvariants(f.contract, compliantActual(f.contract));
+      expect(r.violations, `${f.id} should pass a compliant result`).toEqual([]);
+    }
+  });
+
+  it('synthTranscript is deterministic (same seed → identical output)', () => {
+    const opts = { client: 'X', anchors: [{ date: '01/01/2020', time: '10:00', sender: 'Me', text: 'anchor' }], totalMessages: 50, years: [2020], seed: 7 };
+    expect(synthTranscript(opts)).toBe(synthTranscript(opts));
+  });
+});

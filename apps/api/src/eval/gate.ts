@@ -6,6 +6,9 @@ import type { Extraction } from '../services/extraction/types.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { aggregate, scoreNote, type AggregateMetrics } from './score.js';
 import { redactSensitive } from '../services/redaction/redact.js';
+import { parseWhatsAppExport } from '../services/import/whatsapp.js';
+import { renderThread } from '../services/import/dedup.js';
+import { referenceDateFor } from '../services/extraction/extraction-service.js';
 
 /**
  * The certification standard (redefined once temperature proved unpinnable for
@@ -156,6 +159,47 @@ export interface GateResult {
 /** Run one note through a model and return the parsed+validated extraction.
  *  `redactIngest` (default true) mirrors production: strip Tier-1 values before extraction.
  *  Pass false ONLY to measure Rule 7's isolation miss-rate (the defense-in-depth signal). */
+/**
+ * [GATE-IMPORT-SIZE] Extract an import-sized fixture through the SAME path production uses for a chat
+ * import: parse the export, render the thread, resolve the reference date from the LAST message (not
+ * the import clock — referenceDateFor), and apply the DATE-INVARIANT against that reference. Mirrors
+ * extractNote so the gate certifies the real import pipeline, not a shortcut.
+ */
+export async function extractImportFixture(
+  model: ModelClient,
+  fixture: { transcript: string; clientName: string; today: string },
+): Promise<Extraction | null> {
+  const parsed = parseWhatsAppExport(fixture.transcript);
+  if (!parsed.ok) return null;
+  const referenceDate = referenceDateFor({ messages: parsed.messages }, fixture.today);
+  const text = renderThread(parsed.messages);
+  let raw: string;
+  try {
+    const res = await model.complete({
+      system: EXTRACTION_SYSTEM_PROMPT,
+      cacheSystemPrompt: true,
+      cacheTtl: '1h',
+      messages: [{ role: 'user', content: buildUserMessage({ today: referenceDate, clientName: fixture.clientName, source: 'whatsapp_export', text }) }],
+      maxTokens: EXTRACTION_MAX_TOKENS,
+    });
+    raw = res.text;
+  } catch {
+    return null;
+  }
+  const obj = extractJsonObject(raw);
+  if (obj === null) return null;
+  let ex: Extraction | null;
+  try { ex = asExtraction(obj); } catch { return null; }
+  if (ex === null) return null;
+  for (const promise of ex.promises) {
+    if (promise.due_date !== null && promise.due_date < referenceDate) {
+      promise.due_date = null;
+      promise.confidence = 'low';
+    }
+  }
+  return ex;
+}
+
 export async function extractForEval(model: ModelClient, note: EvalNote, opts: { redactIngest?: boolean } = {}): Promise<Extraction | null> {
   let text: string;
   // Ingest redaction FIRST — production strips Tier-1 values before extraction, so the

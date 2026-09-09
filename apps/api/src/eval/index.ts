@@ -1,6 +1,8 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
-import { extractForEval, evaluateGate, softGate, fabricationGate, tier1Residual, tier2Gate, requirementsGate, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
+import { extractForEval, extractImportFixture, evaluateGate, softGate, fabricationGate, tier1Residual, tier2Gate, requirementsGate, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
+import { IMPORT_FIXTURES } from './import-fixtures.js';
+import { scoreInvariants } from './score-invariants.js';
 import { redactSensitive } from '../services/redaction/redact.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { scoreNote, aggregate, type NoteScore } from './score.js';
@@ -161,6 +163,33 @@ async function main(): Promise<void> {
   const r7Pct = r7Total ? (r7Leaks / r7Total) * 100 : 0;
   console.log(`[gate]   RULE-7 ISOLATION (non-gating, defense-in-depth): ${r7Leaks}/${r7Total} raw extractions reproduced a value (${r7Pct.toFixed(2)}%) — prod redacts Tier-1 at ingest; tracked for drift`);
 
+  // [GATE-IMPORT-SIZE] Import-sized fixtures — the multi-message regime the single-note set never
+  // covered (the blind spot behind the max_tokens + timeout breakages). The CI subset (small,
+  // full-output) runs every gate; the cert-only set (medium/hard, invariant) runs with
+  // GATE_IMPORT_FULL=1. These GATE on the ROBUST trust rules (0 fabricated / guessed / leaked /
+  // null-named / false-certain, and 0 invariant violations); full-output exact RECALL is reported and
+  // belongs to full certification, not a brittle per-push blocker.
+  // [flag] This adds a gate surface — the gating policy (trust-rules-hard, recall-reported) is for
+  //        Wabil's cert-standard sign-off, per the P1-9 governance.
+  const runImportFull = process.env.GATE_IMPORT_FULL === '1';
+  const importFixtures = IMPORT_FIXTURES.filter((f) => f.tier === 'ci-subset' || runImportFull);
+  let importPass = true;
+  console.log(`\n[gate] === IMPORT-SIZED FIXTURES (${importFixtures.length}: ${importFixtures.map((f) => f.id).join(', ')}${runImportFull ? '' : '; set GATE_IMPORT_FULL=1 for the cert-only set'}) ===`);
+  for (const f of importFixtures) {
+    const actual = await extractImportFixture(model, f);
+    if (actual === null) { console.log(`[gate]   ${f.id}: FAIL — extraction returned nothing (starved/timeout/invalid)`); importPass = false; continue; }
+    if (f.mode === 'full') {
+      const s = scoreNote(f.expected, actual, [], f.forbidden);
+      const trustOk = s.fabricatedPromises === 0 && s.guessedDates === 0 && s.leakedValues === 0 && s.nullNamedPeople === 0 && s.falseCertainties === 0;
+      importPass &&= trustOk;
+      console.log(`[gate]   ${f.id} [full]: ${trustOk ? 'PASS' : 'FAIL'} — trust{fab ${s.fabricatedPromises} guessed ${s.guessedDates} leak ${s.leakedValues} nullName ${s.nullNamedPeople} falseCert ${s.falseCertainties}} · recall{promise-miss ${s.promises.fn} person-miss ${s.people.fn}} (reported)`);
+    } else {
+      const r = scoreInvariants(f.contract, actual);
+      importPass &&= r.passed;
+      console.log(`[gate]   ${f.id} [invariant]: ${r.passed ? 'PASS' : 'FAIL'}${r.violations.length ? ' — ' + r.violations.join('; ') : ''}`);
+    }
+  }
+
   const b = budget.report();
   const hitPct = calls > 0 ? (hits / calls) * 100 : 0;
   console.log(`\n[gate] cache: ${hits}/${calls} calls read the warm prefix (${hitPct.toFixed(0)}%) · spend $${b.totalUsd.toFixed(3)} (AED ${b.totalAed.toFixed(2)})`);
@@ -178,7 +207,8 @@ async function main(): Promise<void> {
   // a false one is a wrong pitch in front of a client).
   const reqGate = requirementsGate(agg, modelId);
   const reqGates = reqGate.provisional || reqGate.passed;
-  const deployPass = hardPassed && soft.passed && tier1Pass && fabGates && t2Gates && reqGates;
+  const deployPass = hardPassed && soft.passed && tier1Pass && fabGates && t2Gates && reqGates && importPass;
+  console.log(`[gate] IMPORT-SIZED: ${importPass ? 'PASS (trust rules held on every import fixture run)' : 'FAIL — an import fixture broke a trust rule or an invariant'}`);
   const fullyCertified = hardPassed && soft.passed && tier1Pass && fab.passed && !fab.provisional && t2.passed && !t2.provisional && reqGate.passed && !reqGate.provisional;
   console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + fabrication & Tier-2 ≤ ceiling)' : 'FAIL'}`);
   console.log(`[gate] FULL CERTIFICATION: ${fullyCertified ? 'PASS (aggregate rates certified over ≥ minimum sample)' : deployPass ? 'PROVISIONAL — deploy-safe, an aggregate rate not yet certified at this N' : 'FAIL'}`);
