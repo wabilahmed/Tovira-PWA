@@ -49,6 +49,26 @@ fixed ceiling works, derived from the **worst case**, not a per-input scaling bu
   (`thinking_tokens: none`), so recall/priorities/drafts/detector are unaffected. The meeting parser
   ran on Sonnet at `maxTokens: 256` — latently truncating the same way — and was **raised to 4,096**.
 
+## A2b — the SECOND ceiling (the max_tokens fix alone did not fix prod)
+
+The in-prod canary (below) caught this on its first real call. Raising `max_tokens` made the model
+**reason more**, which takes **longer wall-clock** — and the adapter had a hard **30s HTTP timeout**
+(default, never wired to config) that then *aborted* reasoning-heavy extractions. So the failure mode
+moved from "empty text" to "`model request failed` (abort)"; imports were still broken. Measured
+wall-clock of the real call:
+
+| input | output tokens | wall-clock | 30s timeout? |
+|---|---|---|---|
+| ~15-message note (the canary) | 6,201 | **63.0s** | aborts |
+| 5,615-message import | 9,567 | **98.2s** | aborts |
+
+Fix: **`MODEL_TIMEOUT_MS`, default 300s** (covers a pathological run near the 20k-token output ceiling,
+~190s, with headroom — derivation recorded beside it), wired through `createModelClient` so every call
+gets it. Safe because extraction runs in the **background sweep** — no user or ALB/CloudFront in the
+path, so a long ceiling blocks no one. This is the same decay class as max_tokens: a value tuned for a
+non-reasoning model. **Lesson: the max_tokens curve was necessary but not sufficient — time is a second
+axis a reasoning model moves along, and the canary, not the gate, is what caught it.**
+
 ## A3 — the failure is now loud
 
 A no-text response (`stop_reason: max_tokens`, or a thinking-only block) is a **distinct named
