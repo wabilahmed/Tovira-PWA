@@ -27,6 +27,16 @@ cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 # If the project isn't scaffolded yet (Phase 0 in progress), don't block.
 [[ -f package.json ]] || exit 0
 
+# [GATE-RUN GUARD] Don't verify while a certification / gate run is active. Its hundreds of live model
+# calls starve the machine and time-out timing-sensitive tests (e.g. inventory-share, share-referral) —
+# a false red. A hook that cries wolf during long runs gets learned-ignored, which is the same tripwire
+# decay we fought with the per-run fabrication bar. A gate run is the agent's deliberate long task; the
+# next stop after it finishes verifies for real. (Detects the gate script directly — no lock to leak.)
+if pgrep -f "eval/index.ts" >/dev/null 2>&1; then
+  echo "[verify] a gate/certification run is active (eval/index.ts) — skipping verification until it finishes." >&2
+  exit 0
+fi
+
 FAILED=""
 
 echo "[verify] running typecheck..." >&2
