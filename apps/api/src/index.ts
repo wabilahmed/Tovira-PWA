@@ -75,6 +75,7 @@ import { modelMetrics } from './services/metrics/model-metrics.js';
 import { RecallMetrics } from './services/metrics/recall-metrics.js';
 import { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import { ExtractionHealthRegistry } from './services/metrics/extraction-health.js';
+import { ExtractionCanaryService } from './services/extraction/extraction-canary.js';
 import { SpendService } from './services/spend/spend-service.js';
 import { periodKeyFrom } from './services/spend/period.js';
 import { setSpendSink } from './adapters/model/metered.js';
@@ -183,6 +184,9 @@ async function main(): Promise<void> {
   const importCost = new ImportCostMetrics();
   const extractionHealth = new ExtractionHealthRegistry(); // [EXTRACT-STOPREASON] starved-output counter
   const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth);
+  // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
+  // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
+  const extractionCanary = new ExtractionCanaryService(createModelClient(config));
   const followUp = createFollowUpService(config, notes);
   const brief = createBriefService(config, clients, notes, facts);
   const meetingParser = createMeetingParser(config, clients);
@@ -269,6 +273,12 @@ async function main(): Promise<void> {
       // hours; generators are idempotent (deduped) and the 2/day silence budget bounds pushes.
       { name: 'daily-scan', lockKey: 4711006, intervalMs: 3 * 60 * 60 * 1000,
         run: async () => { await scanRunner.run(Date.now()); } },
+      // [EXTRACT-CANARY] Daily: one real extraction call asserting a text block returns. A throw
+      // records ok:false + the starvation reason on /health (jobs[]) within a day of any provider
+      // drift — the signal that was missing when claude-sonnet-5 started starving the budget. Logs
+      // the reasoning headroom on success so decay is visible BEFORE it breaks.
+      { name: 'extraction-canary', lockKey: 4711007, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => { const r = await extractionCanary.run(); console.log(`[canary] extraction ok stop=${r.stopReason} thinking=${r.thinkingTokens} headroom=${r.headroomTokens}`); } },
     ],
   });
   const recallSessions = createRecallSessionRepository(config, appPool);
