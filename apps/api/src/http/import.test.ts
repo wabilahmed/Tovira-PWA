@@ -339,7 +339,7 @@ describe('[ALIAS] confirm the counterpart before extraction, then learn the alia
     expect(res.status).toBe(409);
     const body = (await res.json()) as { error: string; message: string };
     expect(body.error).toBe('confirm_counterpart');
-    expect(body.message).toMatch(/is that Imtinan/i);
+    expect(body.message).toMatch(/Imtinan/i); // the soft prompt names the client (two-speaker first import → "which one is Imtinan?")
     // No note created → the sweep has nothing to extract. Draining proves nothing was queued.
     expect(await listNotes(token, cid)).toHaveLength(0);
     await drainImport(token, cid);
@@ -358,6 +358,28 @@ describe('[ALIAS] confirm the counterpart before extraction, then learn the alia
     // A fresh import from Bubu DXB (new message) no longer prompts — the alias matched.
     const again = await importChat(token, cid, { content: bubuChat('two — following up'), consent: true });
     expect(again.status).toBe(202);
+  });
+
+  it('[ALIAS-FIRST-IMPORT] a two-speaker first import flags rep-identification, and confirming learns the rep name (breaks the chicken-and-egg)', async () => {
+    const { token } = await signup('alias-repname@example.com');
+    const cid = await createClient(token, 'Imtinan');
+    // First import ever: rep name unknown, two speakers, client matches neither → counterpart is
+    // genuinely ambiguous by elimination, so the UI must ask "which of these is you?".
+    const res = await importChat(token, cid, { content: bubuChat('one'), consent: true });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { counterpart: string | null; counterparts: string[]; needsRepIdentification?: boolean };
+    expect(body.counterpart).toBeNull(); // cannot eliminate — rep unknown on the first import
+    expect([...body.counterparts].sort()).toEqual(['Bubu DXB', 'Wabil']);
+    expect(body.needsRepIdentification).toBe(true);
+    // Rep confirms the client-speaker is "Bubu DXB" → the OTHER speaker (Wabil) is the rep, and is learned.
+    expect((await importChat(token, cid, { content: bubuChat('one'), consent: true, confirmImport: true, counterpart: 'Bubu DXB' })).status).toBe(202);
+    // Proof the rep name stuck: a NEW client's two-speaker chat now identifies the counterpart by
+    // elimination (no longer null) — the second import onwards is no longer stuck.
+    const cid2 = await createClient(token, 'Reem');
+    const chat2 = ['13/07/2019, 5:10 am - Falcon Trader: hi', '15/07/2019, 9:30 am - Wabil: hello'].join('\n');
+    const res2 = await importChat(token, cid2, { content: chat2, consent: true });
+    expect(res2.status).toBe(409);
+    expect(((await res2.json()) as { counterpart: string | null }).counterpart).toBe('Falcon Trader');
   });
 
   it('cancelling (not confirming) leaves nothing stored and nothing spent', async () => {

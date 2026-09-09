@@ -322,6 +322,10 @@ export async function handleNoteRoute(
         const dates = messageDateRange(parsed.messages);
         const span = dates ? `, ${fresh.length} messages from ${dates.from} to ${dates.to}` : `, ${fresh.length} messages`;
         const suggest = detection.suggestion ? ` (looks like ${detection.suggestion.name})` : '';
+        // [ALIAS-FIRST-IMPORT] On the very first import the rep's own WhatsApp name isn't known yet,
+        // so a two-speaker chat can't be resolved by elimination (counterpart is null). Tell the UI to
+        // ask which speaker is the rep — otherwise the alias can never be learned (the chicken-and-egg).
+        const needsRepIdentification = !repName && detection.counterpart === null && detection.counterparts.length === 2 && !detection.group;
         sendJson(res, 409, {
           error: 'confirm_counterpart',
           counterpart: detection.counterpart,
@@ -329,7 +333,10 @@ export async function handleNoteRoute(
           participants: detection.counterparts,
           suggestion: detection.suggestion,
           group: detection.group,
-          message: `This chat is with ${who}${span}${suggest} — is that ${client.name}?`,
+          needsRepIdentification,
+          message: needsRepIdentification
+            ? `This chat has two people — ${detection.counterparts.join(' and ')}. Which one is ${client.name}? (the other is you)`
+            : `This chat is with ${who}${span}${suggest} — is that ${client.name}?`,
         });
         return true;
       }
@@ -339,6 +346,13 @@ export async function handleNoteRoute(
       if (detection.status === 'mismatch' && confirmAck && deps.aliases && !detection.group) {
         const toAlias = (typeof body.counterpart === 'string' && body.counterpart.trim()) || detection.counterpart;
         if (toAlias) await deps.aliases.add(userId, clientId, toAlias);
+        // [ALIAS-FIRST-IMPORT] Confirming which speaker is the client on a two-speaker chat also tells
+        // us the rep: the OTHER speaker. Learn it when the rep name isn't known yet, so every later
+        // import resolves the counterpart by elimination — the first-import chicken-and-egg breaks here.
+        if (toAlias && !repName && deps.repNames && detection.counterparts.length === 2) {
+          const other = detection.counterparts.find((p) => p.trim().toLowerCase() !== toAlias.trim().toLowerCase());
+          if (other) await deps.repNames.set(userId, other);
+        }
       }
       if (detection.learnRepName && deps.repNames && !repName) {
         await deps.repNames.set(userId, detection.learnRepName);
