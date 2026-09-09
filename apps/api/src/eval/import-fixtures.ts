@@ -104,9 +104,21 @@ const OMAR_EXPECTED: Extraction = {
 // ─────────────────────────────────────────────────────────────────────────────
 export interface AnchorLine { date: string; time: string; sender: string; text: string }
 
+// [FIXTURE-FILLER] Realistic, varied, FACT-FREE chatter — reactions, small talk, logistics, and
+// plans that never firm up. Deliberately carries NO extractable fact: no commitment ("I'll…"), no
+// date/time, no person name, no stated need. So the only extractable facts in the transcript remain
+// the planted anchors — which keeps fabrication obvious — while reading like a real chat rather than
+// 5,000 identical "ok"s (the benign filler was a confound that made the hard fixture untrustworthy).
 const FILLER = [
-  'ok', 'thanks', 'noted', 'sure', 'got it', 'appreciate it', 'will check', 'sounds good',
-  'no problem', 'perfect', 'great', 'understood', 'let me look', 'ok thanks', 'cheers',
+  'haha true', 'fair enough', 'exactly', 'no worries', 'all good', 'same here', 'makes sense',
+  'ok cool', 'right', 'for sure', 'appreciate it', 'no rush at all', 'whenever works', 'up to you',
+  'either is fine by me', 'you there?', 'signal is patchy today', 'long day here', 'how are things',
+  'all quiet on my end', 'same old same old', 'busy week', 'finally friday', 'have a good weekend',
+  'hope you are keeping well', 'no major news', 'nothing new to report', 'we will see how it goes',
+  'still mulling it over', 'back to back all morning', 'stuck in traffic again', 'just got in',
+  'heading out shortly', 'on the move right now', 'how was your weekend', 'weekend was quiet thanks',
+  'need more coffee', 'typical monday', 'where did the week go', 'good to hear', 'sounds about right',
+  'ok noted thanks', 'cheers for that', 'perfect', 'great stuff',
 ];
 
 /** Deterministic LCG so the fixture is byte-stable across runs. */
