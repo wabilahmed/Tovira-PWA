@@ -51,7 +51,10 @@ export function scoreInvariants(c: InvariantContract, actual: Extraction): Invar
   const v: string[] = [];
 
   for (const rp of c.requiredPromises ?? []) {
-    const p = actual.promises.find((x) => has(x.text, rp.match));
+    // Match against text AND due_raw: the engine legitimately splits a commitment across fields
+    // ("Send the renewal" / due_raw "before the 30th"). Matching only .text is a FALSE-NEGATIVE class
+    // — it read as "the engine lost 3 old promises" when every one had been extracted (IMPORT-DIAG).
+    const p = actual.promises.find((x) => has(`${x.text} ${x.due_raw ?? ''}`, rp.match));
     if (!p) { v.push(`missing required promise: "${rp.match}"`); continue; }
     if (rp.dueYear === null && p.due_date !== null) {
       v.push(`promise "${rp.match}" must have NO date (guessed ${p.due_date})`);

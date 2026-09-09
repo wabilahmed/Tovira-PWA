@@ -51,6 +51,23 @@ describe('[GATE-IMPORT-SIZE] scoreInvariants — the scorer must be able to both
     expect(r.passed).toBe(true);
   });
 
+  // [FALSE-NEGATIVE GUARD] A scorer must MATCH a legitimately-worded-differently correct answer, not
+  // only fail a wrong one — else it reports a phantom miss (IMPORT-DIAG: the engine split a promise
+  // across text + due_raw and reworded another; matching only .text read as "3 promises lost"). False
+  // negatives are as damaging as false positives — they send you chasing a model bug that isn't there.
+  it('MATCHES a required promise the engine split across text and due_raw (not only exact .text)', () => {
+    const c: InvariantContract = { id: 'fn', requiredPromises: [{ match: 'renewal before the 30th' }] };
+    const a: Extraction = { ...empty, promises: [{ text: 'Send the renewal', owner: 'rep', due_date: null, due_raw: 'before the 30th', confidence: 'high' }] };
+    expect(scoreInvariants(c, a).passed, 'phrase split text/due_raw must still match').toBe(true);
+  });
+
+  it('MATCHES a required promise on its distinctive keyword when the engine rewords it', () => {
+    // Anchor targets the concept ("circle back"); engine says "Circle back on the account".
+    const c: InvariantContract = { id: 'fn2', requiredPromises: [{ match: 'circle back' }] };
+    const a: Extraction = { ...empty, promises: [{ text: 'Circle back on the account', owner: 'rep', due_date: null, due_raw: 'after the summer', confidence: 'low' }] };
+    expect(scoreInvariants(c, a).passed, 'reworded-but-correct promise must match its keyword').toBe(true);
+  });
+
   it('FAILS an empty result — every required clause is violated', () => {
     const r = scoreInvariants(CONTRACT, empty);
     expect(r.passed).toBe(false);
