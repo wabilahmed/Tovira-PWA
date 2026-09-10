@@ -46,9 +46,12 @@ export interface ExtractionLogRepository {
    */
   labelOutcomeByNote(userId: string, noteId: string, status: string): Promise<number>;
   /**
-   * [TRAINING-RETENTION] Delete this tenant's log rows created strictly before `cutoffMs`. Deletion
-   * is purely by AGE — never selective, never cherry-picking which rows survive. Tenant-scoped.
-   * Returns the number of rows removed.
+   * [TRAINING-ARCHIVE] This tenant's log rows created strictly before `cutoffMs`, oldest first — the
+   * candidates for archival. Full records (archived verbatim to object storage). Tenant-scoped.
+   * NB: there is deliberately NO delete-by-age method — rows leave the hot table ONLY via deleteByIds,
+   * and only after their archive write is confirmed, so no misconfiguration can destroy the corpus.
    */
-  purgeOlderThan(userId: string, cutoffMs: number): Promise<number>;
+  listOlderThan(userId: string, cutoffMs: number): Promise<ExtractionLogRecord[]>;
+  /** [TRAINING-ARCHIVE] Remove exactly these rows (already archived + verified). Tenant-scoped. */
+  deleteByIds(userId: string, ids: string[]): Promise<number>;
 }

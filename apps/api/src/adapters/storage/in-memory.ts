@@ -18,6 +18,10 @@ export class InMemoryStorage implements Storage {
     return this.blobs.has(key);
   }
 
+  async delete(key: string): Promise<void> {
+    this.blobs.delete(key); // idempotent — missing key is a no-op
+  }
+
   has(key: string): boolean {
     return this.blobs.has(key);
   }

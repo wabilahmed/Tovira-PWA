@@ -32,6 +32,7 @@ import {
   createLedgerService,
   createFollowUpService,
   createExtractionLogRepository,
+  createArchiveIndexRepository,
   createSpendLedgerRepository,
   createOpsAlertRepository,
   createRecallDailyCounter,
@@ -68,7 +69,7 @@ import {
   createAdvisoryLock,
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
-import { TrainingRetentionService } from './services/facts/training-retention.js';
+import { TrainingArchiveService } from './services/facts/training-archive.js';
 import { TrainingLogStatsService } from './services/facts/training-log-stats.js';
 import { PgTrainingLogStatsRepository } from './adapters/logs/pg-training-log-stats-repository.js';
 import { MeetingNudgeService } from './services/scheduler/meeting-nudge-service.js';
@@ -251,12 +252,20 @@ async function main(): Promise<void> {
     runAll: (userId, nowMs) => scan.runAll(userId, nowMs, scanConfigFrom(config)),
     dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs).then(() => undefined),
   });
-  // [TRAINING-RETENTION] age out the training corpus on the scheduled seam (disabled until configured).
-  const trainingRetention = new TrainingRetentionService({
-    extractionLog: extractionLogs,
-    corrections,
+  // [TRAINING-ARCHIVE] archive (never delete) the training corpus on the scheduled seam. Disabled
+  // until TRAINING_ARCHIVE_AGE_DAYS + _DESTINATION are set; archives to the same blob store as the
+  // gallery, removes from the hot RDS table only AFTER a confirmed write. Retention is indefinite.
+  const archiveIndex = createArchiveIndexRepository(config, appPool, migrationPool);
+  const trainingArchive = new TrainingArchiveService({
+    storage,
+    index: archiveIndex,
+    collections: [
+      { name: 'extraction_logs', listOlderThan: (u, c) => extractionLogs.listOlderThan(u, c), deleteByIds: (u, ids) => extractionLogs.deleteByIds(u, ids) },
+      { name: 'corrections', listOlderThan: (u, c) => corrections.listOlderThan(u, c), deleteByIds: (u, ids) => corrections.deleteByIds(u, ids) },
+    ],
     allUserIds: () => auth.allUserIds(),
-    retentionDays: config.trainingLogRetentionDays,
+    ageDays: config.trainingArchiveAgeDays,
+    destination: config.trainingArchiveDestination,
   });
   const jobRunStore = createJobRunStore(config, appPool);
   const scheduledBrain = new ScheduledBrain({
@@ -294,15 +303,15 @@ async function main(): Promise<void> {
       // fix re-verifies on the next restart. Logs the reasoning headroom so decay shows BEFORE it breaks.
       { name: 'extraction-canary', lockKey: 4711007, intervalMs: 6 * 60 * 60 * 1000,
         run: async () => { const r = await extractionCanary.run(); console.log(`[canary] extraction ok stop=${r.stopReason} thinking=${r.thinkingTokens} headroom=${r.headroomTokens}`); } },
-      // [TRAINING-RETENTION] Daily: age out training-log rows (extraction_logs + corrections) past the
-      // configured window. DISABLED until TRAINING_LOG_RETENTION_DAYS is set (sweep no-ops), so nothing
-      // is deleted on a model-chosen number. Recorded in scheduled_job_runs like the others.
-      { name: 'training-retention', lockKey: 4711008, intervalMs: 24 * 60 * 60 * 1000,
+      // [TRAINING-ARCHIVE] Daily: archive (NEVER delete) training-log rows older than the configured
+      // age to object storage, removing them from the hot table only after a confirmed write. DISABLED
+      // until TRAINING_ARCHIVE_AGE_DAYS + _DESTINATION are set. Recorded in scheduled_job_runs.
+      { name: 'training-archive', lockKey: 4711008, intervalMs: 24 * 60 * 60 * 1000,
         run: async () => {
-          const r = await trainingRetention.sweep(Date.now());
+          const r = await trainingArchive.archive(Date.now());
           console.log(r.enabled
-            ? `[retention] training-log sweep: removed ${r.logs} logs + ${r.corrections} corrections across ${r.users} tenants (window ${config.trainingLogRetentionDays}d)`
-            : `[retention] training-log sweep DISABLED (set TRAINING_LOG_RETENTION_DAYS to enable) — nothing deleted`);
+            ? `[archive] training-log: archived ${r.archived} rows across ${r.partitions} partitions (age ${config.trainingArchiveAgeDays}d → ${config.trainingArchiveDestination})`
+            : `[archive] training-log archival DISABLED (set TRAINING_ARCHIVE_AGE_DAYS + _DESTINATION) — nothing moved, nothing deleted`);
         } },
     ],
   });

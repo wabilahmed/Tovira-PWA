@@ -90,12 +90,15 @@ export interface AppConfig {
   // count / claret / Today's register, still stored + searchable). 90 keeps recent misses actionable —
   // the Book Scan's headline — while retiring the truly ancient (an import's multi-year backlog).
   promiseStaleThresholdDays: number;
-  // [TRAINING-RETENTION] Age (days) after which a training-log row (extraction_logs + corrections) is
-  // swept. The corpus is the highest-concentration client-PII store in the product; a retention policy
-  // was specified but never implemented (rows lived until account deletion). 0 = DISABLED (retain
-  // indefinitely) — the default UNTIL WABIL SETS A WINDOW, so nothing is deleted on a number the model
-  // chose. Proposed: 180 (see TRAINING-FIX-REPORT.md). Whatever is set MUST match the privacy page.
-  trainingLogRetentionDays: number;
+  // [TRAINING-ARCHIVE] Retention is INDEFINITE — the corpus exists to build a distillation model years
+  // out and must never be deleted by age. The daily sweep ARCHIVES rows older than this many days to
+  // object storage and removes them from the hot (RDS) table; it never deletes. 0 = DISABLED (keep
+  // everything hot). There is deliberately no "retention/delete after N days" setting.
+  trainingArchiveAgeDays: number;
+  // [TRAINING-ARCHIVE] Object-storage key prefix the archive NDJSON is written under. REQUIRED (non-
+  // empty) when trainingArchiveAgeDays > 0 — assertDeployReady refuses to enable archival without a
+  // destination, so rows are never removed from the hot table with nowhere durable to put them.
+  trainingArchiveDestination: string;
   heroMinClients: number;
   heroMinNotes: number;
   // --- billing (P5) ---
@@ -194,8 +197,10 @@ export function loadConfig(env: Env = process.env): AppConfig {
     reminderWindowDays: parsePositive(env.REMINDER_WINDOW_DAYS, 7, 'REMINDER_WINDOW_DAYS'),
     chatRefreshStaleDays: parsePositive(env.CHAT_REFRESH_STALE_DAYS, 21, 'CHAT_REFRESH_STALE_DAYS'),
     promiseStaleThresholdDays: parsePositive(env.PROMISE_STALE_THRESHOLD_DAYS, 90, 'PROMISE_STALE_THRESHOLD_DAYS'),
-    // [TRAINING-RETENTION] 0 = disabled until Wabil decides the window (never silently chosen).
-    trainingLogRetentionDays: parseNonNegative(env.TRAINING_LOG_RETENTION_DAYS, 0, 'TRAINING_LOG_RETENTION_DAYS'),
+    // [TRAINING-ARCHIVE] 0 = disabled (keep all rows hot). When > 0, archive (never delete) rows older
+    // than this to TRAINING_ARCHIVE_DESTINATION.
+    trainingArchiveAgeDays: parseNonNegative(env.TRAINING_ARCHIVE_AGE_DAYS, 0, 'TRAINING_ARCHIVE_AGE_DAYS'),
+    trainingArchiveDestination: (env.TRAINING_ARCHIVE_DESTINATION ?? '').trim(),
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
     trialDays: parsePositive(env.TRIAL_DAYS, 7, 'TRIAL_DAYS'),

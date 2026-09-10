@@ -58,11 +58,23 @@ export class PgCorrectionRepository implements CorrectionRepository {
     });
   }
 
-  async purgeOlderThan(userId: string, cutoffMs: number): Promise<number> {
+  async listOlderThan(userId: string, cutoffMs: number): Promise<CorrectionRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `DELETE FROM corrections WHERE user_id = $1 AND created_at < $2 RETURNING id`,
+        `SELECT id, user_id, note_id, entity_type, entity_id, field, before_value, after_value, prompt_version, created_at
+         FROM corrections WHERE user_id = $1 AND created_at < $2 ORDER BY created_at ASC`,
         [userId, new Date(cutoffMs)],
+      );
+      return (rows as unknown as Row[]).map(toRecord);
+    });
+  }
+
+  async deleteByIds(userId: string, ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `DELETE FROM corrections WHERE user_id = $1 AND id = ANY($2::uuid[]) RETURNING id`,
+        [userId, ids],
       );
       return rows.length;
     });

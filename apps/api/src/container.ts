@@ -90,6 +90,9 @@ import type { ExtractionLimiter } from './services/extraction/limiter.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
 import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-repository.js';
+import type { ArchiveIndexRepository } from './ports/archive-index-repository.js';
+import { InMemoryArchiveIndexRepository } from './adapters/logs/in-memory-archive-index-repository.js';
+import { PgArchiveIndexRepository } from './adapters/logs/pg-archive-index-repository.js';
 import type { SpendLedgerRepository } from './ports/spend-ledger-repository.js';
 import { InMemorySpendLedgerRepository } from './adapters/spend/in-memory-spend-ledger-repository.js';
 import { PgSpendLedgerRepository } from './adapters/spend/pg-spend-ledger-repository.js';
@@ -407,6 +410,14 @@ export function createExtractionLogRepository(config: AppConfig, pool?: Pool): E
     return new PgExtractionLogRepository(pool);
   }
   return new InMemoryExtractionLogRepository();
+}
+
+export function createArchiveIndexRepository(config: AppConfig, appPool?: Pool, rootPool?: Pool): ArchiveIndexRepository {
+  if (config.authStore === 'postgres') {
+    if (!appPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgArchiveIndexRepository(appPool, rootPool ?? appPool);
+  }
+  return new InMemoryArchiveIndexRepository();
 }
 
 export function createSpendLedgerRepository(config: AppConfig, appPool?: Pool, rootPool?: Pool): SpendLedgerRepository {

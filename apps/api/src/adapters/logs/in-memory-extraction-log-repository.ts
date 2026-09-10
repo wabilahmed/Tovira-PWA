@@ -39,9 +39,16 @@ export class InMemoryExtractionLogRepository implements ExtractionLogRepository 
     return n;
   }
 
-  async purgeOlderThan(userId: string, cutoffMs: number): Promise<number> {
+  async listOlderThan(userId: string, cutoffMs: number): Promise<ExtractionLogRecord[]> {
+    return this.rows
+      .filter((r) => r.userId === userId && r.createdAt < cutoffMs)
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  async deleteByIds(userId: string, ids: string[]): Promise<number> {
+    const set = new Set(ids);
     const before = this.rows.length;
-    this.rows = this.rows.filter((r) => !(r.userId === userId && r.createdAt < cutoffMs));
+    this.rows = this.rows.filter((r) => !(r.userId === userId && set.has(r.id)));
     return before - this.rows.length;
   }
 

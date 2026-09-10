@@ -27,8 +27,10 @@ export interface CorrectionRecord extends CorrectionEntry {
 export interface CorrectionRepository {
   record(userId: string, entry: CorrectionEntry): Promise<void>;
   listByUser(userId: string): Promise<CorrectionRecord[]>;
-  /** [TRAINING-RETENTION] Delete this tenant's correction rows created strictly before `cutoffMs` —
-   *  by age only, never selective. The training corpus (extraction_logs + corrections) obeys one
-   *  window so the privacy page can state a single period truthfully. Returns rows removed. */
-  purgeOlderThan(userId: string, cutoffMs: number): Promise<number>;
+  /** [TRAINING-ARCHIVE] This tenant's correction rows created strictly before `cutoffMs`, oldest
+   *  first — archival candidates. No delete-by-age exists; rows leave only via deleteByIds after a
+   *  confirmed archive write. */
+  listOlderThan(userId: string, cutoffMs: number): Promise<CorrectionRecord[]>;
+  /** [TRAINING-ARCHIVE] Remove exactly these rows (already archived + verified). Tenant-scoped. */
+  deleteByIds(userId: string, ids: string[]): Promise<number>;
 }

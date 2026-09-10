@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, access, rm } from 'node:fs/promises';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import type { Storage } from '../../ports/storage.js';
 
@@ -39,6 +39,10 @@ export class FsStorage implements Storage {
     } catch {
       return false;
     }
+  }
+
+  async delete(key: string): Promise<void> {
+    await rm(this.resolveKey(key), { force: true }); // force: missing key is a no-op
   }
 }
 
