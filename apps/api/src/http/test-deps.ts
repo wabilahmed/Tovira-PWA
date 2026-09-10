@@ -28,6 +28,10 @@ import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extr
 import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
 import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
 import { InMemoryArchiveIndexRepository } from '../adapters/logs/in-memory-archive-index-repository.js';
+import { InMemorySpendOverrideRepository } from '../adapters/spend/in-memory-spend-override-repository.js';
+
+/** [HEALTH-LEAK] a known ops token so tests can exercise the authenticated /health + /ops surfaces. */
+export const TEST_OPS_TOKEN = 'test-ops-token';
 import { StubEmbedder } from '../adapters/embedding/stub.js';
 import { ExtractionService } from '../services/extraction/extraction-service.js';
 import type { ExtractionLimiter } from '../services/extraction/limiter.js';
@@ -167,6 +171,12 @@ export function buildInMemoryDeps(
     repNames,
     corrections,
     extractionLog,
+    // [HEALTH-LEAK] ops surface with a known token; only opsToken is read by the /health split.
+    opsRoute: {
+      opsToken: TEST_OPS_TOKEN,
+      overrides: new InMemorySpendOverrideRepository(),
+      spend: { status: async () => ({ periodKey: 'test', spentAed: 0, capAed: 45, state: 'ok' }) },
+    },
     // [TRAINING-METRICS] ttl 0 so tests see fresh numbers on every snapshot() (each call refreshes).
     trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections, archiveIndex), 0),
     brief,

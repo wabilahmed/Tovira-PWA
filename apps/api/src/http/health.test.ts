@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { createApiServer } from '../server.js';
-import { buildInMemoryDeps } from './test-deps.js';
+import { createApiServer, publicHealthView } from '../server.js';
+import { buildInMemoryDeps, TEST_OPS_TOKEN } from './test-deps.js';
 import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
 import { ModelMetricsRegistry, NA_BELOW_MIN } from '../services/metrics/model-metrics.js';
 import { PROMPT_VERSION } from '../services/extraction/prompt.js';
 import type { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
+
+const ops = { headers: { 'x-ops-token': TEST_OPS_TOKEN } };
 
 // SWEEP-NEVER-RUNS: /health must surface the scheduled brain's last run per job, so a
 // scheduler that never fires is visible instead of looking like one with nothing to do.
@@ -33,7 +35,7 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
   });
 
   it('lists each job with ok + age (a dead scheduler shows as stale/absent, not healthy)', async () => {
-    const res = await fetch(`${base}/health`);
+    const res = await fetch(`${base}/health`, ops); // rich body is ops-token-gated (HEALTH-LEAK)
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       status: string;
@@ -68,10 +70,23 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
   });
 
   it('surfaces per-class cache hit rate over cacheable calls (n/a for uncacheable classes)', async () => {
-    const res = await fetch(`${base}/health`);
+    const res = await fetch(`${base}/health`, ops);
     const body = (await res.json()) as { cache: Record<string, { hitRate: string; cacheableCalls: number }> };
     expect(body.cache.extraction!.hitRate).toBe('75%'); // 3 of 4 cacheable calls hit
     expect(body.cache.recall!.hitRate).toBe(NA_BELOW_MIN); // never requested caching → not 0%
+  });
+
+  // [HEALTH-LEAK] The public (unauthenticated) body is liveness ONLY — nothing identifying or internal.
+  it('an UNAUTHENTICATED /health returns liveness only — no jobs, adapters, cache, or spend', async () => {
+    const res = await fetch(`${base}/health`); // no ops token
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toEqual({ status: 'ok' }); // exactly liveness
+    for (const leaky of ['jobs', 'adapters', 'cache', 'recall', 'imports', 'extraction', 'trainingLog', 'spend']) {
+      expect(body[leaky], `${leaky} must not be public`).toBeUndefined();
+    }
+    // and never a raw job error string (the 'boom' from priorities-nightly) anywhere in the body.
+    expect(JSON.stringify(body)).not.toContain('boom');
   });
 });
 
@@ -99,7 +114,7 @@ describe('[TRAINING-METRICS] /health surfaces training-log volume', () => {
   afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });
 
   it('reports total / last24h / empty-output / corrections / by-version', async () => {
-    const res = await fetch(`${base}/health`);
+    const res = await fetch(`${base}/health`, ops); // trainingLog is ops-token-gated (HEALTH-LEAK)
     const body = (await res.json()) as {
       trainingLog: { total: number; last24h: number; emptyOutput: number; corrections: number; archived: number; byPromptVersion: Record<string, number>; archiveJob: unknown };
     };
@@ -111,5 +126,20 @@ describe('[TRAINING-METRICS] /health surfaces training-log volume', () => {
     expect(body.trainingLog.byPromptVersion[PROMPT_VERSION]).toBe(2);
     expect(body.trainingLog.byPromptVersion['tovira-extract-v0.9.1']).toBe(1);
     expect('archiveJob' in body.trainingLog).toBe(true); // the archive job's last run rides in the block
+  });
+});
+
+// [HEALTH-LEAK] The allow-list is fail-closed: a field added to the rich body is private by default.
+describe('[HEALTH-LEAK] publicHealthView is a fail-closed allow-list', () => {
+  it('keeps only allow-listed keys and drops everything else, including a newly-added field', () => {
+    const full = {
+      status: 'ok',
+      adapters: { model: 'live' },
+      jobs: [{ name: 'notes-sweep', error: 'boom' }],
+      spend: { capAed: 45, alerts: [{ userId: 'u1', detail: { spentAed: 40 } }] },
+      trainingLog: { total: 3 },
+      aBrandNewFieldSomeoneAddsLater: 42, // must NOT leak just because it was added
+    };
+    expect(publicHealthView(full)).toEqual({ status: 'ok' });
   });
 });

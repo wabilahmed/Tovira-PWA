@@ -10,8 +10,9 @@ export interface OpsRouteDeps {
   spend: { status(userId: string): Promise<{ periodKey: string; spentAed: number; capAed: number; state: string }> };
 }
 
-/** Constant-time token check (never leak validity via timing). */
-function tokenOk(provided: string | undefined, expected: string | undefined): boolean {
+/** Constant-time ops-token check (never leak validity via timing). Shared with the /health split so
+ *  the identifying half of the health body is gated by exactly the same credential (HEALTH-LEAK). */
+export function opsTokenOk(provided: string | undefined, expected: string | undefined): boolean {
   if (!expected || !provided) return false;
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
@@ -36,7 +37,7 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
 
   // Ops auth — a single token, constant-time compared. No token configured → disabled.
   const provided = req.headers['x-ops-token'];
-  if (!tokenOk(typeof provided === 'string' ? provided : undefined, deps.opsToken)) {
+  if (!opsTokenOk(typeof provided === 'string' ? provided : undefined, deps.opsToken)) {
     sendJson(res, 403, { error: 'forbidden' });
     return true;
   }

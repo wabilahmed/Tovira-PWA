@@ -49,7 +49,7 @@ import { handleHeroRoute } from './http/hero-routes.js';
 import { handleBookScanRoute } from './http/book-scan-routes.js';
 import type { BookScanService } from './services/book-scan/book-scan-service.js';
 import { handleRecallRoute } from './http/recall-routes.js';
-import { handleOpsRoute, type OpsRouteDeps } from './http/ops-routes.js';
+import { handleOpsRoute, opsTokenOk, type OpsRouteDeps } from './http/ops-routes.js';
 import type { RecallService } from './services/recall/recall-service.js';
 import type { AskCaptureService } from './services/recall/ask-capture-service.js';
 import { handleCorpusRoute } from './http/corpus-routes.js';
@@ -64,6 +64,21 @@ import { handleBillingRoute } from './http/billing-routes.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
 import { sendJson } from './http/helpers.js';
+
+/**
+ * [HEALTH-LEAK] The ONLY keys an unauthenticated caller (the load balancer) may see in the /health
+ * body — liveness, nothing identifying. This is an ALLOW-LIST, so a field added to the rich body is
+ * PRIVATE by default: it is invisible publicly until its key is added here on purpose. `status` alone
+ * is what an LB needs; everything else (adapters, jobs + their raw error strings, cache/recall/import
+ * cost metrics, trainingLog volume, and spend alerts naming reps) is ops-token-gated.
+ */
+const PUBLIC_HEALTH_KEYS: ReadonlySet<string> = new Set(['status']);
+
+/** Filter a full health body down to the public allow-list (fail-closed on unknown keys). Exported
+ *  so the fail-closed property is unit-testable independent of the route. */
+export function publicHealthView(full: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(full).filter(([k]) => PUBLIC_HEALTH_KEYS.has(k)));
+}
 
 /** Shape each job's last-run for /health: ISO time + age so "is it alive" is at a glance. */
 function summarizeJobs(jobs: JobRun[], nowMs: number) {
@@ -197,43 +212,37 @@ export function createApiServer(deps: ApiDeps): Server {
 
       if (request.method === 'GET' && (url === '/health' || url === '/healthz')) {
         try {
-          await deps.pool.query('SELECT 1');
-          // adapters: which pluggable providers are live vs stub, so "staging is
-          // representative" is verifiable rather than assumed (STAGING-EMBEDDER).
-          // jobs: the scheduled brain's last-run per job, so "the brain is running"
-          // is checkable, not assumed (SWEEP-NEVER-RUNS). A jobs-read failure omits
-          // the field rather than flapping the ALB check — SELECT 1 already gates liveness.
+          await deps.pool.query('SELECT 1'); // liveness — all the load balancer needs
+          // [HEALTH-LEAK] The rich body — adapters, jobs (with raw error strings), cost metrics,
+          // trainingLog volume, and spend alerts that NAME REPS + their spend — is identifying and/or
+          // internal, so it is gated by the ops token (same credential as /ops/*), never public. An
+          // unauthenticated caller gets liveness only. The DB reads for the rich body are also skipped
+          // when unauthenticated, so a public ping costs a single SELECT 1.
+          const authed = opsTokenOk(
+            typeof request.headers['x-ops-token'] === 'string' ? (request.headers['x-ops-token'] as string) : undefined,
+            deps.opsRoute?.opsToken,
+          );
+          if (!authed) {
+            sendJson(response, 200, publicHealthView({ status: 'ok' }));
+            return;
+          }
           const jobs = deps.jobRuns ? await deps.jobRuns.list().catch(() => undefined) : undefined;
           const spendAlerts = deps.opsAlerts ? await deps.opsAlerts.listRecent(20).catch(() => undefined) : undefined;
           sendJson(response, 200, {
             status: 'ok',
             ...(deps.adapterModes ? { adapters: deps.adapterModes } : {}),
             ...(jobs ? { jobs: summarizeJobs(jobs, Date.now()) } : {}),
-            // cache: per-task-class prompt-cache hit rate (over cacheable calls), so
-            // "caching is working" is checkable, not assumed (CACHE-1).
             ...(deps.modelMetrics ? { cache: deps.modelMetrics.snapshot() } : {}),
-            // recall: rolling per-turn recall cost + the growth curve by turn index
-            // (RECALL-METRICS) — so cost is measured, not modelled.
             ...(deps.recallMetrics ? { recall: deps.recallMetrics.snapshot() } : {}),
-            // imports: rolling per-rep import cost (the heaviest single Claude call) — the one
-            // spend the ceiling question turns on, measured going forward (COST-IMPORT-METRIC).
             ...(deps.importCost ? { imports: deps.importCost.snapshot() } : {}),
-            // extraction: starved-output count (EXTRACT-STOPREASON) — a reasoning model spending its
-            // whole budget on thinking with no text answer; >0 means extraction is silently failing.
             ...(deps.extractionHealth ? { extraction: deps.extractionHealth.snapshot() } : {}),
-            // trainingLog: is the distillation corpus actually growing, and how much is usable?
-            // (TRAINING-METRICS). Cached aggregate — no DB scan on the ALB health check. We attach
-            // the archive job's last run so hot + archived corpus size + "is archival running" read
-            // together in one block.
             ...(deps.trainingLog
               ? { trainingLog: { ...deps.trainingLog.snapshot(), archiveJob: jobs?.find((j) => j.name === 'training-archive') ?? null } }
               : {}),
-            // spend: the per-account cap config + recent ops alerts (SPEND-CAP) — ops watches this
-            // beside the cost metrics; a spend_warn alert names the rep, spend, period, dominant class.
             ...(deps.spend ? { spend: { ...deps.spend.snapshot(), ...(spendAlerts ? { alerts: spendAlerts } : {}) } } : {}),
           });
         } catch {
-          sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' });
+          sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' }); // liveness only
         }
         return;
       }
