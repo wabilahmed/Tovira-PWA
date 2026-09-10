@@ -184,8 +184,16 @@ export function createRecallSessionRepository(config: AppConfig, pool: Pool): Re
 
 /** [ASK-CAPTURE] The certified-path capture pipeline. `extraction` MUST be the certified engine
  *  (Sonnet, v0.8) — recall runs on Haiku (disqualified for extraction), which only DETECTS. */
-export function createAskCaptureService(config: AppConfig, notes: NoteRepository, clients: ClientRepository, facts: FactsRepository, extraction: ExtractionService): AskCaptureService {
-  return new AskCaptureService({ notes, clients, facts, embedder: createEmbedder(config), extraction });
+export function createAskCaptureService(
+  config: AppConfig,
+  notes: NoteRepository,
+  clients: ClientRepository,
+  facts: FactsRepository,
+  extraction: ExtractionService,
+  corrections?: CorrectionRepository,
+  extractionLog?: ExtractionLogRepository,
+): AskCaptureService {
+  return new AskCaptureService({ notes, clients, facts, embedder: createEmbedder(config), extraction, corrections, extractionLog });
 }
 
 export function createRecallService(

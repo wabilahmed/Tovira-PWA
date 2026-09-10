@@ -94,4 +94,14 @@ export class PgExtractionLogRepository implements ExtractionLogRepository {
       return row ? row.prompt_version : null;
     });
   }
+
+  async labelOutcomeByNote(userId: string, noteId: string, status: string): Promise<number> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `UPDATE extraction_logs SET status = $3 WHERE user_id = $1 AND note_id = $2 RETURNING id`,
+        [userId, noteId, status],
+      );
+      return rows.length;
+    });
+  }
 }

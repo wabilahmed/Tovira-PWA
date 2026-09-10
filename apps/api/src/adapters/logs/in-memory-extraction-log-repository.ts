@@ -27,4 +27,15 @@ export class InMemoryExtractionLogRepository implements ExtractionLogRepository 
     // Most recent wins (the prompt in effect when this note was last extracted).
     return matches.reduce((a, b) => (b.createdAt >= a.createdAt ? b : a)).promptVersion;
   }
+
+  async labelOutcomeByNote(userId: string, noteId: string, status: string): Promise<number> {
+    let n = 0;
+    for (const r of this.rows) {
+      if (r.userId === userId && r.noteId === noteId) {
+        r.status = status;
+        n += 1;
+      }
+    }
+    return n;
+  }
 }

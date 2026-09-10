@@ -3,6 +3,9 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
 import type { ExtractedPromise } from '../extraction/types.js';
+import type { CorrectionRepository } from '../../ports/correction-repository.js';
+import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
+import { recordVerdict, REJECTED_FIELD } from '../facts/verdict.js';
 
 const PENDING = 'pending_confirmation';
 const DEFAULT_TTL_MS = 14 * 24 * 60 * 60 * 1000; // ASK-CAPTURE constraint 3: 14-day expiry
@@ -27,6 +30,10 @@ export interface AskCaptureDeps {
   facts: FactsRepository;
   embedder: Embedder;
   extraction: CaptureExtractor;
+  /** [CORRECTIONS-WIRE] label the surviving training-log row + record the rejection verdict. Optional
+   *  — capture/confirm/expire behave exactly as before without them. */
+  corrections?: CorrectionRepository;
+  extractionLog?: ExtractionLogRepository;
   now?: () => number;
   ttlMs?: number;
 }
@@ -93,10 +100,29 @@ export class AskCaptureService {
     return true;
   }
 
-  /** Reject → delete the pending note. The training-log row survives (constraint 2, migration 0045). */
+  /** Reject → delete the pending note. The training-log row survives (constraint 2, migration 0045),
+   *  and [CORRECTIONS-WIRE] we LABEL it 'rejected' and record the rejection verdict BEFORE deleting —
+   *  so the surviving row reads as a human "no" (distillation signal + Condition-4 rejection rate),
+   *  not an indistinguishable still-pending row. Labelling must run before the delete: 0045 nulls
+   *  note_id on delete, which would break the lookup. Both writes are isolated — a failure here
+   *  never blocks the rejection. */
   async reject(userId: string, noteId: string): Promise<boolean> {
     const note = await this.deps.notes.findByIdForUser(userId, noteId);
     if (!note || note.status !== PENDING) return false;
+    if (this.deps.extractionLog) {
+      try {
+        await this.deps.extractionLog.labelOutcomeByNote(userId, noteId, 'rejected');
+      } catch (err) {
+        console.warn(`[ask-capture] log-label failed (rejection unaffected): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    if (this.deps.corrections && this.deps.extractionLog) {
+      await recordVerdict(
+        { corrections: this.deps.corrections, extractionLog: this.deps.extractionLog },
+        userId,
+        { noteId, entityType: 'ask_capture', entityId: noteId, field: REJECTED_FIELD, before: note.rawText ?? '', after: null },
+      );
+    }
     return this.deps.notes.delete(userId, noteId);
   }
 

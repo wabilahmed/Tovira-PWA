@@ -3,14 +3,22 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import type { MeetingRepository } from '../ports/meeting-repository.js';
 import type { MeetingParser } from '../services/meetings/meeting-parser.js';
+import type { CorrectionRepository } from '../ports/correction-repository.js';
+import type { ExtractionLogRepository } from '../ports/extraction-log-repository.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 import { zonedTodayIso, zonedWallClockToInstant } from '../services/time/zone.js';
+import { recordVerdict, serialiseMeeting, REJECTED_FIELD, CONFIRMED_FIELD } from '../services/facts/verdict.js';
 
 export interface MeetingRouteDeps {
   auth: AuthService;
   clients: ClientRepository;
   meetings: MeetingRepository;
   parser: MeetingParser;
+  /** [CORRECTIONS-WIRE] verdicts on a MODEL-PROPOSED meeting (one with a source noteId) feed the
+   *  training log + rejection-rate monitor. Optional — a rep-created meeting has no extraction to
+   *  judge, and without these deps meeting routes behave exactly as before. */
+  corrections?: CorrectionRepository;
+  extractionLog?: ExtractionLogRepository;
 }
 
 const CREATE_FOR_CLIENT_RE = /^\/clients\/([^/]+)\/meetings$/;
@@ -21,6 +29,25 @@ const CONFIRM_RE = /^\/meetings\/([^/]+)\/confirm$/;
  *  passes through. An unparseable string is kept as-is (it just won't be nudge-eligible). */
 function tryResolve(datetime: string, tz: string): string {
   try { return zonedWallClockToInstant(datetime, tz).toISOString(); } catch { return datetime; }
+}
+
+/** Record a meeting verdict iff the verdict deps are wired (a model-proposed meeting). Isolated by
+ *  recordVerdict — never breaks the route. */
+async function recordMeetingVerdict(
+  deps: MeetingRouteDeps,
+  userId: string,
+  noteId: string,
+  meetingId: string,
+  field: string,
+  before: string | null,
+  after: string | null,
+): Promise<void> {
+  if (!deps.corrections || !deps.extractionLog) return;
+  await recordVerdict(
+    { corrections: deps.corrections, extractionLog: deps.extractionLog },
+    userId,
+    { noteId, entityType: 'meeting', entityId: meetingId, field, before, after },
+  );
 }
 
 export async function handleMeetingRoute(
@@ -105,6 +132,8 @@ export async function handleMeetingRoute(
     // repo leaves nudged_at alone, so a not-yet-nudged meeting follows the new time and an
     // already-nudged one never re-fires (one nudge per meeting). Moving into the past drops it.
     if (editMatch) {
+      const meetingId = decodeURIComponent(editMatch[1]!);
+      const before = await deps.meetings.findByIdForUser(userId, meetingId);
       const body = (await readJsonBody(req)) as { datetime?: unknown; datetimeRaw?: unknown; title?: unknown };
       const patch: { datetime?: string | null; datetimeRaw?: string; title?: string | null } = {};
       if (typeof body.datetime === 'string' || body.datetime === null) {
@@ -114,7 +143,16 @@ export async function handleMeetingRoute(
       }
       if (typeof body.datetimeRaw === 'string') patch.datetimeRaw = body.datetimeRaw;
       if (typeof body.title === 'string' || body.title === null) patch.title = body.title;
-      const meeting = await deps.meetings.update(userId, decodeURIComponent(editMatch[1]!), patch);
+      const meeting = await deps.meetings.update(userId, meetingId, patch);
+      // Editing a MODEL-PROPOSED meeting's time/title is a correction of the model's proposal.
+      if (meeting && before?.noteId) {
+        if ('datetime' in patch && (patch.datetime ?? null) !== before.datetime) {
+          await recordMeetingVerdict(deps, userId, before.noteId, meetingId, 'datetime', before.datetime, patch.datetime ?? null);
+        }
+        if ('title' in patch && (patch.title ?? null) !== before.title) {
+          await recordMeetingVerdict(deps, userId, before.noteId, meetingId, 'title', before.title, patch.title ?? null);
+        }
+      }
       sendJson(res, meeting ? 200 : 404, meeting ?? { error: 'not_found' });
       return true;
     }
@@ -122,12 +160,28 @@ export async function handleMeetingRoute(
     // NUDGE-UNCONFIRMED: one-tap confirm of a proposed meeting → confirmed:true, nudge-eligible.
     if (confirmMatch) {
       const meeting = await deps.meetings.confirm(userId, decodeURIComponent(confirmMatch[1]!));
+      // A confirmed proposal is training signal — the model proposed it and a human said yes.
+      if (meeting?.noteId) {
+        await recordMeetingVerdict(
+          deps, userId, meeting.noteId, meeting.id, CONFIRMED_FIELD,
+          serialiseMeeting(meeting), 'confirmed',
+        );
+      }
       sendJson(res, meeting ? 200 : 404, meeting ?? { error: 'not_found' });
       return true;
     }
 
     if (delMatch) {
-      const ok = await deps.meetings.delete(userId, decodeURIComponent(delMatch[1]!));
+      const meetingId = decodeURIComponent(delMatch[1]!);
+      // Capture the rejected proposal BEFORE deleting (after = null). [CORRECTIONS-WIRE]
+      const rejected = await deps.meetings.findByIdForUser(userId, meetingId);
+      const ok = await deps.meetings.delete(userId, meetingId);
+      if (ok && rejected?.noteId) {
+        await recordMeetingVerdict(
+          deps, userId, rejected.noteId, meetingId, REJECTED_FIELD,
+          serialiseMeeting(rejected), null,
+        );
+      }
       sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
       return true;
     }

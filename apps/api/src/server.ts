@@ -302,6 +302,8 @@ export function createApiServer(deps: ApiDeps): Server {
           clients: deps.clients,
           meetings: deps.meetings,
           parser: deps.meetingParser,
+          corrections: deps.corrections,
+          extractionLog: deps.extractionLog,
         })
       )
         return;

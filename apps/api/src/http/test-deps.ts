@@ -139,7 +139,7 @@ export function buildInMemoryDeps(
   const pushDispatch = new PushDispatchService(pushSender, pushSubscriptions, notifications, new InMemoryPushBudgetRepository());
   const images = new InMemoryImageRepository();
   const recallSessions = new InMemoryRecallSessionRepository();
-  const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction });
+  const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog });
   const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
   return {

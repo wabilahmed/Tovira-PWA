@@ -37,4 +37,12 @@ export interface ExtractionLogRepository {
    * scoped. Returns null if the note has no logged extraction.
    */
   findPromptVersionByNote(userId: string, noteId: string): Promise<string | null>;
+  /**
+   * [CORRECTIONS-WIRE] Stamp the OUTCOME onto a note's surviving log row(s) (e.g. 'rejected' when
+   * an Ask-captured statement is rejected). Before this, a rejected ask-capture row kept
+   * status='pending_confirmation' forever and was indistinguishable from one still awaiting
+   * confirmation — retained but unlabelled. Call BEFORE deleting the note (0045 nulls note_id on
+   * delete, breaking the lookup). Tenant-scoped. Returns rows updated.
+   */
+  labelOutcomeByNote(userId: string, noteId: string, status: string): Promise<number>;
 }

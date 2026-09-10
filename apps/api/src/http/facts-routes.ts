@@ -8,6 +8,7 @@ import type { LedgerService } from '../services/ledger/ledger-service.js';
 import type { MeetingRepository } from '../ports/meeting-repository.js';
 import { pendingConfirmations } from '../services/facts/confirmation.js';
 import { isStalePromise } from '../services/facts/promise-lifecycle.js';
+import { recordVerdict, serialisePromise, REJECTED_FIELD, CONFIRMED_FIELD } from '../services/facts/verdict.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
 export interface FactsRouteDeps {
@@ -92,7 +93,21 @@ export async function handleFactsRoute(
   }
 
   if (confirmMatch) {
-    const ok = await deps.facts.confirmPromise(userId, decodeURIComponent(confirmMatch[1]!));
+    const promiseId = decodeURIComponent(confirmMatch[1]!);
+    // Capture the confirmed value BEFORE we flip the flag — a confirmed (esp. low-confidence) item
+    // is training signal: the model was uncertain and a human said it was right. [CORRECTIONS-WIRE]
+    const confirmed = await deps.facts.getPromise(userId, promiseId);
+    const ok = await deps.facts.confirmPromise(userId, promiseId);
+    if (ok && confirmed) {
+      await recordVerdict(deps, userId, {
+        noteId: confirmed.noteId,
+        entityType: 'promise',
+        entityId: promiseId,
+        field: CONFIRMED_FIELD,
+        before: serialisePromise(confirmed),
+        after: 'confirmed',
+      });
+    }
     sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
     return true;
   }
@@ -117,8 +132,21 @@ export async function handleFactsRoute(
   const id = decodeURIComponent(promiseMatch![1]!);
 
   if (method === 'DELETE') {
-    // Reject: remove the item so it never surfaces again for that note.
+    // Reject — the single most informative training row: the model produced this and a human said
+    // NO. Capture the ORIGINAL value BEFORE deleting (after = null), then delete exactly as before.
+    // [CORRECTIONS-WIRE]
+    const rejected = await deps.facts.getPromise(userId, id);
     const ok = await deps.facts.deletePromise(userId, id);
+    if (ok && rejected) {
+      await recordVerdict(deps, userId, {
+        noteId: rejected.noteId,
+        entityType: 'promise',
+        entityId: id,
+        field: REJECTED_FIELD,
+        before: serialisePromise(rejected),
+        after: null,
+      });
+    }
     // No orphaned value claims: dropping the promise removes any ledger entry (P4-11).
     if (ok && deps.ledger) await deps.ledger.removeBySource(userId, id);
     sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
@@ -149,15 +177,13 @@ export async function handleFactsRoute(
       const after = body[key] === null ? null : String(body[key]);
       if (after === beforeVal) continue; // no change → no correction (no double-count)
       (patch as Record<string, unknown>)[key] = after;
-      await deps.corrections.record(userId, {
-        noteId: before.noteId,
-        entityType: 'promise',
-        entityId: id,
-        field: logField,
-        before: beforeVal,
-        after,
+      // Isolated: a failed correction write must never break the rep's edit. [CORRECTIONS-WIRE]
+      await recordVerdict(
+        deps,
+        userId,
+        { noteId: before.noteId, entityType: 'promise', entityId: id, field: logField, before: beforeVal, after },
         promptVersion,
-      });
+      );
     }
     await deps.facts.updatePromise(userId, id, patch);
     sendJson(res, 200, await deps.facts.getPromise(userId, id));
