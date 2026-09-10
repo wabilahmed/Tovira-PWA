@@ -168,7 +168,7 @@ export function buildInMemoryDeps(
     corrections,
     extractionLog,
     // [TRAINING-METRICS] ttl 0 so tests see fresh numbers on every snapshot() (each call refreshes).
-    trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections), 0),
+    trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections, archiveIndex), 0),
     brief,
     meetings,
     meetingParser,

@@ -301,6 +301,12 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
     need(config.vatRegisteredFromMs === null, 'VAT_REGISTERED_FROM (VAT_REGISTERED=true requires the registration date — the immutable tax boundary)');
   }
 
+  // --- Training-log archival: the one catastrophic misconfiguration here is archival enabled with
+  //     nowhere to put the rows — it would remove them from the hot table and drop them on the floor.
+  //     If an archive age is set, a destination is mandatory. Refuse to boot otherwise.
+  need(config.trainingArchiveAgeDays > 0 && isBlank(config.trainingArchiveDestination),
+    'TRAINING_ARCHIVE_DESTINATION (TRAINING_ARCHIVE_AGE_DAYS > 0 enables archival — a destination is REQUIRED so rows are never removed from the hot table with nowhere durable to put them)');
+
   if (missing.length > 0) {
     throw new ConfigError(
       `Configuration is not deploy-ready. Fix these before starting with real providers:\n  - ${missing.join('\n  - ')}`,

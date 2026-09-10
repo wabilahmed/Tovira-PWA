@@ -89,6 +89,8 @@ describe('[TRAINING-METRICS] /health surfaces training-log volume', () => {
     await deps.extractionLog.log('u1', { noteId: 'n2', promptVersion: PROMPT_VERSION, model: 'stub', input: 'b', rawOutput: '', status: 'needs_review', inputTokens: 1, outputTokens: 0, latencyMs: 1 });
     await deps.extractionLog.log('u2', { noteId: 'n3', promptVersion: 'tovira-extract-v0.9.1', model: 'stub', input: 'c', rawOutput: '{}', status: 'extracted', inputTokens: 1, outputTokens: 1, latencyMs: 1 });
     await deps.corrections.record('u1', { noteId: 'n1', entityType: 'promise', entityId: 'p', field: 'text', before: 'x', after: 'y', promptVersion: PROMPT_VERSION });
+    // An archived partition (2 rows) — hot total + archived = the true corpus size.
+    await deps.archiveIndex.upsert('u2', { collection: 'extraction_logs', partition: '2026-08', objectKey: 'training-archive/extraction_logs/u2/2026-08.ndjson', rowCount: 2 });
     await (deps.trainingLog as TrainingLogStatsService).refresh(); // warm the cache for a deterministic read
     server = createApiServer(deps);
     await new Promise<void>((r) => server.listen(0, r));
@@ -99,13 +101,15 @@ describe('[TRAINING-METRICS] /health surfaces training-log volume', () => {
   it('reports total / last24h / empty-output / corrections / by-version', async () => {
     const res = await fetch(`${base}/health`);
     const body = (await res.json()) as {
-      trainingLog: { total: number; last24h: number; emptyOutput: number; corrections: number; byPromptVersion: Record<string, number> };
+      trainingLog: { total: number; last24h: number; emptyOutput: number; corrections: number; archived: number; byPromptVersion: Record<string, number>; archiveJob: unknown };
     };
     expect(body.trainingLog.total).toBe(3);
     expect(body.trainingLog.last24h).toBe(3); // all just written
     expect(body.trainingLog.emptyOutput).toBe(1); // the starved row
     expect(body.trainingLog.corrections).toBe(1);
+    expect(body.trainingLog.archived).toBe(2); // hot total (3) + archived (2) = true corpus
     expect(body.trainingLog.byPromptVersion[PROMPT_VERSION]).toBe(2);
     expect(body.trainingLog.byPromptVersion['tovira-extract-v0.9.1']).toBe(1);
+    expect('archiveJob' in body.trainingLog).toBe(true); // the archive job's last run rides in the block
   });
 });

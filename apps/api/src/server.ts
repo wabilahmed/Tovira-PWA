@@ -133,9 +133,10 @@ export interface ApiDeps {
   importCost?: ImportCostMetrics;
   /** Extraction health — starved-output count, surfaced in /health (EXTRACT-STOPREASON). */
   extractionHealth?: { snapshot(): { starvedOutputs: number } };
-  /** Training-log volume — total / last24h / empty-output / corrections / by-version, surfaced in
-   *  /health so an empty log can never masquerade as a working one (TRAINING-METRICS). Cached. */
-  trainingLog?: { snapshot(): { total: number; last24h: number; emptyOutput: number; corrections: number; byPromptVersion: Record<string, number>; computedAtMs: number | null } };
+  /** Training-log volume — total / last24h / empty-output / corrections / archived / by-version,
+   *  surfaced in /health so an empty log can never masquerade as a working one (TRAINING-METRICS).
+   *  hot `total` + `archived` = the true corpus size. Cached. */
+  trainingLog?: { snapshot(): { total: number; last24h: number; emptyOutput: number; corrections: number; archived: number; byPromptVersion: Record<string, number>; computedAtMs: number | null } };
   /** Per-account spend cap config, surfaced in /health (SPEND-CAP). */
   spend?: { snapshot(): { capAed: number; warnFraction: number } };
   /** Recent ops alerts (e.g. spend warnings), surfaced in /health for the operator (SPEND-CAP). */
@@ -221,8 +222,12 @@ export function createApiServer(deps: ApiDeps): Server {
             // whole budget on thinking with no text answer; >0 means extraction is silently failing.
             ...(deps.extractionHealth ? { extraction: deps.extractionHealth.snapshot() } : {}),
             // trainingLog: is the distillation corpus actually growing, and how much is usable?
-            // (TRAINING-METRICS). Cached aggregate — no DB scan on the ALB health check.
-            ...(deps.trainingLog ? { trainingLog: deps.trainingLog.snapshot() } : {}),
+            // (TRAINING-METRICS). Cached aggregate — no DB scan on the ALB health check. We attach
+            // the archive job's last run so hot + archived corpus size + "is archival running" read
+            // together in one block.
+            ...(deps.trainingLog
+              ? { trainingLog: { ...deps.trainingLog.snapshot(), archiveJob: jobs?.find((j) => j.name === 'training-archive') ?? null } }
+              : {}),
             // spend: the per-account cap config + recent ops alerts (SPEND-CAP) — ops watches this
             // beside the cost metrics; a spend_warn alert names the rep, spend, period, dominant class.
             ...(deps.spend ? { spend: { ...deps.spend.snapshot(), ...(spendAlerts ? { alerts: spendAlerts } : {}) } } : {}),

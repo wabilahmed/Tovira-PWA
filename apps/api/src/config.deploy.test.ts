@@ -102,6 +102,23 @@ describe('assertDeployReady', () => {
   it('an invalid VAT_REGISTERED_FROM date fails fast, naming it', () => {
     expect(() => loadConfig({ ...base, VAT_REGISTERED_FROM: 'soon' })).toThrow(/VAT_REGISTERED_FROM/);
   });
+
+  // [TRAINING-ARCHIVE] archival enabled with nowhere to put rows would remove them from the hot table
+  // and drop them on the floor — the one catastrophic misconfiguration here. Refuse to boot.
+  it('TRAINING_ARCHIVE_AGE_DAYS > 0 without a destination fails, naming TRAINING_ARCHIVE_DESTINATION', () => {
+    const check = ready({ ...base, TRAINING_ARCHIVE_AGE_DAYS: '180', TRAINING_ARCHIVE_DESTINATION: '' });
+    expect(check).toThrow(ConfigError);
+    expect(check).toThrow(/TRAINING_ARCHIVE_DESTINATION/);
+  });
+
+  it('archival disabled (age 0, the default) requires no destination', () => {
+    expect(ready(base)).not.toThrow();
+    expect(loadConfig(base).trainingArchiveAgeDays).toBe(0);
+  });
+
+  it('archival enabled WITH a destination passes', () => {
+    expect(ready({ ...base, TRAINING_ARCHIVE_AGE_DAYS: '180', TRAINING_ARCHIVE_DESTINATION: 'training-archive' })).not.toThrow();
+  });
 });
 
 describe('EMBED_DIM (embedding dimension)', () => {

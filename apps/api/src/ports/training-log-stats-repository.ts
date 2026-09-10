@@ -13,6 +13,8 @@ export interface TrainingLogStats {
   emptyOutput: number;
   /** Correction rows recorded (human verdicts). */
   corrections: number;
+  /** Rows moved to the archive (object storage). hot total + archived = the TRUE corpus size. */
+  archived: number;
   /** Row count per prompt version — gaps reveal dead periods. */
   byPromptVersion: Record<string, number>;
 }

@@ -23,6 +23,7 @@ export class PgTrainingLogStatsRepository implements TrainingLogStatsRepository 
       `SELECT prompt_version, count(*) AS n FROM extraction_logs GROUP BY prompt_version`,
     );
     const corr = await this.pool.query<{ n: string }>(`SELECT count(*) AS n FROM corrections`);
+    const arch = await this.pool.query<{ n: string }>(`SELECT COALESCE(sum(row_count), 0) AS n FROM training_archive_objects`);
 
     const row = totals.rows[0] ?? { total: '0', last24h: '0', empty_output: '0' };
     const byPromptVersion: Record<string, number> = {};
@@ -33,6 +34,7 @@ export class PgTrainingLogStatsRepository implements TrainingLogStatsRepository 
       last24h: Number(row.last24h),
       emptyOutput: Number(row.empty_output),
       corrections: Number(corr.rows[0]?.n ?? '0'),
+      archived: Number(arch.rows[0]?.n ?? '0'),
       byPromptVersion,
     };
   }

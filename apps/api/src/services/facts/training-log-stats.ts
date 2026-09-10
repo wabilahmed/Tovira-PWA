@@ -6,7 +6,7 @@ export interface TrainingLogStatsSnapshot extends TrainingLogStats {
 }
 
 const EMPTY: TrainingLogStatsSnapshot = {
-  total: 0, last24h: 0, emptyOutput: 0, corrections: 0, byPromptVersion: {}, computedAtMs: null,
+  total: 0, last24h: 0, emptyOutput: 0, corrections: 0, archived: 0, byPromptVersion: {}, computedAtMs: null,
 };
 
 /**

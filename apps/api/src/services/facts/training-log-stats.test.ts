@@ -5,7 +5,7 @@ import type { TrainingLogStats, TrainingLogStatsRepository } from '../../ports/t
 function repo(stats: TrainingLogStats, onCall: () => void): TrainingLogStatsRepository {
   return { aggregate: async () => { onCall(); return stats; } };
 }
-const STATS: TrainingLogStats = { total: 10, last24h: 3, emptyOutput: 1, corrections: 4, byPromptVersion: { 'v0.9.4': 10 } };
+const STATS: TrainingLogStats = { total: 10, last24h: 3, emptyOutput: 1, corrections: 4, archived: 7, byPromptVersion: { 'v0.9.4': 10 } };
 
 describe('[TRAINING-METRICS] cached stats service', () => {
   it('snapshot() is instant and does not scan per call — the aggregate runs at most once per TTL', async () => {
