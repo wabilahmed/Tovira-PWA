@@ -227,6 +227,18 @@ describe('[VAT-READY] VAT off by default; on, date-driven; the boundary is immut
     expect(rec).toMatchObject({ taxInvoice: true, zeroRated: false, netFils: 28476, vatFils: 1424, trn: '100xxxxxxxxxxxx' });
   });
 
+  // [PROMO-CODES] A discounted invoice (Stripe applied a promotion code) records the tax treatment
+  // decomposed from the DISCOUNTED total — the webhook state reflects the discounted amount, not the list.
+  it('records a DISCOUNTED UAE invoice with VAT decomposed from the discounted total', async () => {
+    const { billing } = makeVat({ registered: true, from: REG });
+    await billing.onSignup('u', 'r@x.com', NOW);
+    await billing.checkout('u', 'r@x.com', 'monthly');
+    // 44%-off forever coupon → Stripe sends total 16744 (post-discount).
+    await billing.handleWebhook(paidInvoice({ id: 'in_disc', total: 16744, country: 'AE', at: afterReg, customerId: 'cus_test_u', eventId: 'e_disc' }), 'whsec_test');
+    const rec = await billing.invoiceTaxRecord('in_disc');
+    expect(rec).toMatchObject({ taxInvoice: true, zeroRated: false, totalFils: 16744, netFils: 15947, vatFils: 797 });
+  });
+
   // [VAT-BOUNDARY] the most important tests — they protect a tax record.
   it('an invoice dated BEFORE the registration date is a non-VAT invoice, even with VAT on', async () => {
     const { billing } = makeVat({ registered: true, from: REG });

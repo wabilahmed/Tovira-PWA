@@ -53,6 +53,25 @@ describe('[VAT-STRIPE] tax treatment — AED 299 is VAT-INCLUSIVE, non-UAE zero-
     expect(t.zeroRated).toBe(true);
   });
 
+  // [PROMO-CODES] A discounted VAT-inclusive price must decompose from the DISCOUNTED total (the
+  // invoice total Stripe sends post-discount), never the AED 299 list price.
+  it('decomposes VAT from the DISCOUNTED invoice total, not the list price', () => {
+    const DISCOUNTED = 16744; // 44% off the 29900 list, VAT-inclusive
+    const t = p.treat({ dateMs: after, country: 'AE', totalFils: DISCOUNTED });
+    expect(t.totalFils).toBe(16744);
+    expect(t.vatFils).toBe(797); // round(16744 * 0.05 / 1.05) = round(797.3) — from the DISCOUNTED total
+    expect(t.netFils).toBe(15947);
+    // Decidedly NOT the list-price decomposition (which would be 1424 / 28476).
+    expect(t.vatFils).not.toBe(1424);
+  });
+
+  it('a discount held duration:forever decomposes identically on every renewal invoice', () => {
+    const DISCOUNTED = 16744;
+    const first = p.treat({ dateMs: after, country: 'AE', totalFils: DISCOUNTED });
+    const renewal = p.treat({ dateMs: after + 30 * 24 * 3600 * 1000, country: 'AE', totalFils: DISCOUNTED });
+    expect(renewal).toEqual(first); // the discount persists across renewals (same decomposition each period)
+  });
+
   it('an unknown country defaults to UAE (taxed) — zero-rating an export needs positive proof', () => {
     expect(p.treat({ dateMs: after, country: null, totalFils: PRICE }).vatFils).toBe(1424);
     expect(p.treat({ dateMs: after, country: '', totalFils: PRICE }).vatFils).toBe(1424);

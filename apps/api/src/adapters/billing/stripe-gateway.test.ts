@@ -70,6 +70,30 @@ describe('StripeGatewayImpl', () => {
     expect(off.sessionCreate.mock.calls[0]![0].billing_address_collection).toBeUndefined();
   });
 
+  // [PROMO-CODES] Stripe-hosted Checkout accepts + enforces the promotion code; we enable the field
+  // and forward NO code ourselves, so a bad/exhausted code can never block creating the session.
+  it('enables promotion codes on the session and forwards no discount of its own', async () => {
+    const { stripe, sessionCreate } = fakeStripe();
+    const out = await new StripeGatewayImpl({ ...opts, stripe }).createCheckoutSession('u', 'a@b.com');
+    const params = sessionCreate.mock.calls[0]![0] as Record<string, unknown>;
+    expect(params.allow_promotion_codes).toBe(true);
+    expect(params.discounts).toBeUndefined(); // we never pass a code → creation can't be rejected for one
+    expect(out.url).toContain('checkout.stripe.com'); // full-price checkout always succeeds
+  });
+
+  // [PROMO-CODES] A discount lands in the invoice TOTAL (post-discount); Stripe's subtotal is the list
+  // price. We must read `total`, so VAT later decomposes from the discounted amount, not the list.
+  it('reads the DISCOUNTED invoice total (not the pre-discount subtotal)', async () => {
+    const stripe = {
+      checkout: { sessions: { create: async () => ({ url: '', id: '' }) } },
+      customers: { create: async () => ({ id: 'c' }), update: async () => ({ id: 'c' }) },
+      // list 29900, a 44% off coupon → total 16744; subtotal stays at the list price.
+      webhooks: { constructEvent: () => ({ id: 'evt_d', type: 'invoice.payment_succeeded', data: { object: { id: 'in_d', customer: 'cus_1', subtotal: 29900, total: 16744, created: 1_762_000_000, customer_address: { country: 'AE' } } } }) },
+    } as unknown as StripeLike;
+    const event = new StripeGatewayImpl({ ...opts, stripe }).constructEvent('{}', 'sig');
+    expect(event!.invoiceTotalFils).toBe(16744); // the discounted total, not 29900
+  });
+
   // [VAT] invoice.* events surface the id, total (fils), customer country, and supply date.
   it('extracts invoice fields (id, total, country, supply date) from an invoice event', async () => {
     const stripe = {

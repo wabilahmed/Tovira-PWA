@@ -60,6 +60,12 @@ export class StripeGatewayImpl implements StripeGateway {
       line_items: [{ price, quantity: 1 }],
       customer: customerId,
       client_reference_id: userId,
+      // [PROMO-CODES] Let Stripe-hosted Checkout accept a promotion code and ENFORCE it — validity,
+      // expiry, max_redemptions, and duration:forever all live in Stripe. We never accept or forward
+      // a code ourselves, so a bad/exhausted code is rejected inline by Stripe and the rep can still
+      // subscribe at full price; nothing here can block the purchase. The discount then flows through
+      // to the invoice total (post-discount), which is what our VAT decomposition reads.
+      allow_promotion_codes: true,
       // [VAT-INVOICE] when VAT is registered, collect the customer's TRN AND require a billing
       // address — the country is what decides UAE-taxed vs non-UAE zero-rated, and our frozen
       // invoice_tax record reads it from invoice.customer_address. Without this the country is
