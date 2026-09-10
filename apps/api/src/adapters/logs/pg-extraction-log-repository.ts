@@ -104,4 +104,14 @@ export class PgExtractionLogRepository implements ExtractionLogRepository {
       return rows.length;
     });
   }
+
+  async purgeOlderThan(userId: string, cutoffMs: number): Promise<number> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `DELETE FROM extraction_logs WHERE user_id = $1 AND created_at < $2 RETURNING id`,
+        [userId, new Date(cutoffMs)],
+      );
+      return rows.length;
+    });
+  }
 }

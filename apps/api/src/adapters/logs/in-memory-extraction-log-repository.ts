@@ -38,4 +38,10 @@ export class InMemoryExtractionLogRepository implements ExtractionLogRepository 
     }
     return n;
   }
+
+  async purgeOlderThan(userId: string, cutoffMs: number): Promise<number> {
+    const before = this.rows.length;
+    this.rows = this.rows.filter((r) => !(r.userId === userId && r.createdAt < cutoffMs));
+    return before - this.rows.length;
+  }
 }

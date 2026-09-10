@@ -68,6 +68,7 @@ import {
   createAdvisoryLock,
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
+import { TrainingRetentionService } from './services/facts/training-retention.js';
 import { MeetingNudgeService } from './services/scheduler/meeting-nudge-service.js';
 import { ScanRunnerService } from './services/scheduler/scan-runner-service.js';
 import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
@@ -244,6 +245,13 @@ async function main(): Promise<void> {
     runAll: (userId, nowMs) => scan.runAll(userId, nowMs, scanConfigFrom(config)),
     dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs).then(() => undefined),
   });
+  // [TRAINING-RETENTION] age out the training corpus on the scheduled seam (disabled until configured).
+  const trainingRetention = new TrainingRetentionService({
+    extractionLog: extractionLogs,
+    corrections,
+    allUserIds: () => auth.allUserIds(),
+    retentionDays: config.trainingLogRetentionDays,
+  });
   const jobRunStore = createJobRunStore(config, appPool);
   const scheduledBrain = new ScheduledBrain({
     store: jobRunStore,
@@ -280,6 +288,16 @@ async function main(): Promise<void> {
       // fix re-verifies on the next restart. Logs the reasoning headroom so decay shows BEFORE it breaks.
       { name: 'extraction-canary', lockKey: 4711007, intervalMs: 6 * 60 * 60 * 1000,
         run: async () => { const r = await extractionCanary.run(); console.log(`[canary] extraction ok stop=${r.stopReason} thinking=${r.thinkingTokens} headroom=${r.headroomTokens}`); } },
+      // [TRAINING-RETENTION] Daily: age out training-log rows (extraction_logs + corrections) past the
+      // configured window. DISABLED until TRAINING_LOG_RETENTION_DAYS is set (sweep no-ops), so nothing
+      // is deleted on a model-chosen number. Recorded in scheduled_job_runs like the others.
+      { name: 'training-retention', lockKey: 4711008, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => {
+          const r = await trainingRetention.sweep(Date.now());
+          console.log(r.enabled
+            ? `[retention] training-log sweep: removed ${r.logs} logs + ${r.corrections} corrections across ${r.users} tenants (window ${config.trainingLogRetentionDays}d)`
+            : `[retention] training-log sweep DISABLED (set TRAINING_LOG_RETENTION_DAYS to enable) — nothing deleted`);
+        } },
     ],
   });
   const recallSessions = createRecallSessionRepository(config, appPool);

@@ -45,4 +45,10 @@ export interface ExtractionLogRepository {
    * delete, breaking the lookup). Tenant-scoped. Returns rows updated.
    */
   labelOutcomeByNote(userId: string, noteId: string, status: string): Promise<number>;
+  /**
+   * [TRAINING-RETENTION] Delete this tenant's log rows created strictly before `cutoffMs`. Deletion
+   * is purely by AGE — never selective, never cherry-picking which rows survive. Tenant-scoped.
+   * Returns the number of rows removed.
+   */
+  purgeOlderThan(userId: string, cutoffMs: number): Promise<number>;
 }

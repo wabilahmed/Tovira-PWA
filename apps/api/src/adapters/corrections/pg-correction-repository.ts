@@ -57,4 +57,14 @@ export class PgCorrectionRepository implements CorrectionRepository {
       return (rows as unknown as Row[]).map(toRecord);
     });
   }
+
+  async purgeOlderThan(userId: string, cutoffMs: number): Promise<number> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `DELETE FROM corrections WHERE user_id = $1 AND created_at < $2 RETURNING id`,
+        [userId, new Date(cutoffMs)],
+      );
+      return rows.length;
+    });
+  }
 }

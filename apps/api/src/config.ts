@@ -90,6 +90,12 @@ export interface AppConfig {
   // count / claret / Today's register, still stored + searchable). 90 keeps recent misses actionable —
   // the Book Scan's headline — while retiring the truly ancient (an import's multi-year backlog).
   promiseStaleThresholdDays: number;
+  // [TRAINING-RETENTION] Age (days) after which a training-log row (extraction_logs + corrections) is
+  // swept. The corpus is the highest-concentration client-PII store in the product; a retention policy
+  // was specified but never implemented (rows lived until account deletion). 0 = DISABLED (retain
+  // indefinitely) — the default UNTIL WABIL SETS A WINDOW, so nothing is deleted on a number the model
+  // chose. Proposed: 180 (see TRAINING-FIX-REPORT.md). Whatever is set MUST match the privacy page.
+  trainingLogRetentionDays: number;
   heroMinClients: number;
   heroMinNotes: number;
   // --- billing (P5) ---
@@ -188,6 +194,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     reminderWindowDays: parsePositive(env.REMINDER_WINDOW_DAYS, 7, 'REMINDER_WINDOW_DAYS'),
     chatRefreshStaleDays: parsePositive(env.CHAT_REFRESH_STALE_DAYS, 21, 'CHAT_REFRESH_STALE_DAYS'),
     promiseStaleThresholdDays: parsePositive(env.PROMISE_STALE_THRESHOLD_DAYS, 90, 'PROMISE_STALE_THRESHOLD_DAYS'),
+    // [TRAINING-RETENTION] 0 = disabled until Wabil decides the window (never silently chosen).
+    trainingLogRetentionDays: parseNonNegative(env.TRAINING_LOG_RETENTION_DAYS, 0, 'TRAINING_LOG_RETENTION_DAYS'),
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
     trialDays: parsePositive(env.TRIAL_DAYS, 7, 'TRIAL_DAYS'),
@@ -340,6 +348,14 @@ function parsePositive(raw: string | undefined, fallback: number, name: string):
   if (isBlank(raw)) return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) throw new ConfigError(`Invalid ${name}: "${raw}". Expected a positive number.`);
+  return n;
+}
+
+/** Like parsePositive but allows 0 — used where 0 is a meaningful "disabled" (TRAINING-RETENTION). */
+function parseNonNegative(raw: string | undefined, fallback: number, name: string): number {
+  if (isBlank(raw)) return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) throw new ConfigError(`Invalid ${name}: "${raw}". Expected zero or a positive number.`);
   return n;
 }
 
