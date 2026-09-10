@@ -6,6 +6,7 @@ import { buildInMemoryDeps } from './test-deps.js';
 import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
 import { ModelMetricsRegistry, NA_BELOW_MIN } from '../services/metrics/model-metrics.js';
 import { PROMPT_VERSION } from '../services/extraction/prompt.js';
+import type { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
 
 // SWEEP-NEVER-RUNS: /health must surface the scheduled brain's last run per job, so a
 // scheduler that never fires is visible instead of looking like one with nothing to do.
@@ -71,5 +72,40 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
     const body = (await res.json()) as { cache: Record<string, { hitRate: string; cacheableCalls: number }> };
     expect(body.cache.extraction!.hitRate).toBe('75%'); // 3 of 4 cacheable calls hit
     expect(body.cache.recall!.hitRate).toBe(NA_BELOW_MIN); // never requested caching → not 0%
+  });
+});
+
+// [TRAINING-METRICS] /health must surface training-log volume so an empty log can never look like a
+// working one (the dark-metrics shape). Cached aggregate — no DB scan per health check.
+describe('[TRAINING-METRICS] /health surfaces training-log volume', () => {
+  let server: Server;
+  let base: string;
+  let deps: ReturnType<typeof buildInMemoryDeps>;
+
+  beforeAll(async () => {
+    deps = buildInMemoryDeps();
+    // Seed: two usable rows + one empty-output (starved) row, on two prompt versions, + a correction.
+    await deps.extractionLog.log('u1', { noteId: 'n1', promptVersion: PROMPT_VERSION, model: 'stub', input: 'a', rawOutput: '{}', status: 'extracted', inputTokens: 1, outputTokens: 1, latencyMs: 1 });
+    await deps.extractionLog.log('u1', { noteId: 'n2', promptVersion: PROMPT_VERSION, model: 'stub', input: 'b', rawOutput: '', status: 'needs_review', inputTokens: 1, outputTokens: 0, latencyMs: 1 });
+    await deps.extractionLog.log('u2', { noteId: 'n3', promptVersion: 'tovira-extract-v0.9.1', model: 'stub', input: 'c', rawOutput: '{}', status: 'extracted', inputTokens: 1, outputTokens: 1, latencyMs: 1 });
+    await deps.corrections.record('u1', { noteId: 'n1', entityType: 'promise', entityId: 'p', field: 'text', before: 'x', after: 'y', promptVersion: PROMPT_VERSION });
+    await (deps.trainingLog as TrainingLogStatsService).refresh(); // warm the cache for a deterministic read
+    server = createApiServer(deps);
+    await new Promise<void>((r) => server.listen(0, r));
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+  afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });
+
+  it('reports total / last24h / empty-output / corrections / by-version', async () => {
+    const res = await fetch(`${base}/health`);
+    const body = (await res.json()) as {
+      trainingLog: { total: number; last24h: number; emptyOutput: number; corrections: number; byPromptVersion: Record<string, number> };
+    };
+    expect(body.trainingLog.total).toBe(3);
+    expect(body.trainingLog.last24h).toBe(3); // all just written
+    expect(body.trainingLog.emptyOutput).toBe(1); // the starved row
+    expect(body.trainingLog.corrections).toBe(1);
+    expect(body.trainingLog.byPromptVersion[PROMPT_VERSION]).toBe(2);
+    expect(body.trainingLog.byPromptVersion['tovira-extract-v0.9.1']).toBe(1);
   });
 });

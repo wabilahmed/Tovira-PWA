@@ -44,4 +44,18 @@ export class InMemoryExtractionLogRepository implements ExtractionLogRepository 
     this.rows = this.rows.filter((r) => !(r.userId === userId && r.createdAt < cutoffMs));
     return before - this.rows.length;
   }
+
+  /** [TRAINING-METRICS] Cross-tenant counts for the stats repo (tests). */
+  statsAll(nowMs: number): { total: number; last24h: number; emptyOutput: number; byPromptVersion: Record<string, number> } {
+    const since = nowMs - 24 * 60 * 60 * 1000;
+    const byPromptVersion: Record<string, number> = {};
+    let last24h = 0;
+    let emptyOutput = 0;
+    for (const r of this.rows) {
+      byPromptVersion[r.promptVersion] = (byPromptVersion[r.promptVersion] ?? 0) + 1;
+      if (r.createdAt >= since) last24h += 1;
+      if (r.rawOutput === null || r.rawOutput.trim() === '') emptyOutput += 1;
+    }
+    return { total: this.rows.length, last24h, emptyOutput, byPromptVersion };
+  }
 }

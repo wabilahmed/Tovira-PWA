@@ -25,6 +25,8 @@ import { TranscriptionService } from '../services/transcription/transcription-se
 import { StubModelClient } from '../adapters/model/stub.js';
 import { InMemoryFactsRepository } from '../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
+import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
+import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
 import { StubEmbedder } from '../adapters/embedding/stub.js';
 import { ExtractionService } from '../services/extraction/extraction-service.js';
 import type { ExtractionLimiter } from '../services/extraction/limiter.js';
@@ -162,6 +164,8 @@ export function buildInMemoryDeps(
     repNames,
     corrections,
     extractionLog,
+    // [TRAINING-METRICS] ttl 0 so tests see fresh numbers on every snapshot() (each call refreshes).
+    trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections), 0),
     brief,
     meetings,
     meetingParser,

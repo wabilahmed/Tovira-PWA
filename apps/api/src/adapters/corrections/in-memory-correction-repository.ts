@@ -26,4 +26,9 @@ export class InMemoryCorrectionRepository implements CorrectionRepository {
     this.rows = this.rows.filter((r) => !(r.userId === userId && r.createdAt < cutoffMs));
     return before - this.rows.length;
   }
+
+  /** [TRAINING-METRICS] Cross-tenant count for the stats repo (tests). */
+  countAll(): number {
+    return this.rows.length;
+  }
 }

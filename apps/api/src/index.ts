@@ -69,6 +69,8 @@ import {
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
 import { TrainingRetentionService } from './services/facts/training-retention.js';
+import { TrainingLogStatsService } from './services/facts/training-log-stats.js';
+import { PgTrainingLogStatsRepository } from './adapters/logs/pg-training-log-stats-repository.js';
 import { MeetingNudgeService } from './services/scheduler/meeting-nudge-service.js';
 import { ScanRunnerService } from './services/scheduler/scan-runner-service.js';
 import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
@@ -184,6 +186,10 @@ async function main(): Promise<void> {
   // COST-IMPORT-METRIC: a rolling per-rep import cost, recorded at extraction time for imports.
   const importCost = new ImportCostMetrics();
   const extractionHealth = new ExtractionHealthRegistry(); // [EXTRACT-STOPREASON] starved-output counter
+  // [TRAINING-METRICS] training-log volume on /health, via the SUPERUSER pool (cross-tenant, RLS would
+  // hide it). Cached by the service so the ALB health check never triggers a DB scan. Warmed at startup.
+  const trainingLogStats = new TrainingLogStatsService(new PgTrainingLogStatsRepository(migrationPool));
+  void trainingLogStats.refresh();
   const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
@@ -367,6 +373,7 @@ async function main(): Promise<void> {
     recallMetrics,
     importCost,
     extractionHealth,
+    trainingLog: trainingLogStats,
     spend,
     opsAlerts,
     opsRoute: { opsToken: config.opsToken, overrides: spendOverrides, spend },
