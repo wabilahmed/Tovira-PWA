@@ -3,7 +3,7 @@ import type { UserRepository, UserRecord } from '../../ports/user-repository.js'
 import type { SessionRepository } from '../../ports/session-repository.js';
 import type { PasswordResetRepository } from '../../ports/password-reset-repository.js';
 import type { EmailVerificationRepository } from '../../ports/email-verification-repository.js';
-import type { PasswordHasher } from './password.js';
+import { type PasswordHasher, DUMMY_VERIFY_HASH } from './password.js';
 import { normalizeTimeZone, zonedTodayIso, zonedWallClockToInstant } from '../time/zone.js';
 
 export class AuthError extends Error {
@@ -138,9 +138,12 @@ export class AuthService {
   async login(emailRaw: string, password: string): Promise<AuthResult> {
     const email = normalizeEmail(emailRaw);
     const user = await this.deps.users.findByEmail(email);
-    // Always run a verify (even on unknown email) to avoid a timing oracle, and
-    // fail with one generic error for both cases — no user enumeration.
-    const ok = await this.deps.hasher.verify(password, user?.passwordHash ?? 'scrypt$00$00');
+    // Always run a verify (even on unknown email) to avoid a timing oracle, and fail with one generic
+    // error for both cases — no user enumeration. [LOGIN-TIMING] The placeholder is WELL-FORMED
+    // (DUMMY_VERIFY_HASH), so the unknown-email path runs the FULL scrypt like a real one — the old
+    // 'scrypt$00$00' short-circuited before the KDF, making unknown emails answer far faster (a
+    // measurable enumeration oracle the response-shape design could not see).
+    const ok = await this.deps.hasher.verify(password, user?.passwordHash ?? DUMMY_VERIFY_HASH);
     if (!user || !ok) throw new InvalidCredentialsError();
     return this.issue(user);
   }
