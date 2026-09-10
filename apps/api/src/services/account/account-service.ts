@@ -11,9 +11,17 @@ export interface UserPurgeable {
 }
 
 /**
- * Data trust & control (P5-4). Export gives the rep all their data; delete
- * removes it — on Postgres via FK cascade (incl. the training log), and
- * in-memory via explicit purge — so it can't reappear in briefs/search/training.
+ * Data trust & control (P5-4). Export gives the rep the data they own — their clients, notes
+ * (raw text/transcripts, with the extracted facts inside each note record), promises, key dates,
+ * meetings, images, recall sessions, contact aliases, AND the training log (extraction_logs +
+ * corrections) [EXPORT-TRAINING]. Delete removes it — on Postgres via FK cascade (incl. the training
+ * log), and in-memory via explicit purge — so it can't reappear in briefs/search/training.
+ *
+ * Intentionally NOT in the export (operational/billing records, not rep content): notifications,
+ * push subscriptions, daily priorities, the value + spend ledgers, email log, billing/subscription
+ * rows, referrals, activation analytics. These are retained for operation/compliance and are
+ * audited in TRAINING-FIX-REPORT.md; the export's scope is the rep's content + extracted/training
+ * data, which is now complete.
  */
 export class AccountService {
   constructor(
@@ -31,6 +39,13 @@ export class AccountService {
     private readonly onDeleted?: (userId: string, email: string) => Promise<void>,
     /** [ALIAS] learned contact aliases — the rep's own data, included in export. */
     private readonly aliases?: { listByUser(userId: string): Promise<Array<{ clientId: string; alias: string }>> },
+    /** [EXPORT-TRAINING] the extraction training log — the highest-concentration PII store in the
+     *  product, retained specifically to train on. It is the rep's data and MUST export (it was
+     *  silently omitted, a false "all their data" claim in a DSAR context). Purged on delete via the
+     *  users FK cascade, like every other tenant table. */
+    private readonly extractionLog?: { listByUser(userId: string): Promise<unknown[]> },
+    /** [EXPORT-TRAINING] rep corrections — the human verdicts on extracted facts. The rep's data. */
+    private readonly corrections?: { listByUser(userId: string): Promise<unknown[]> },
   ) {}
 
   async exportData(userId: string): Promise<unknown> {
@@ -53,6 +68,10 @@ export class AccountService {
       images,
       recallSessions: await this.recallSessions.exportForUser(userId),
       contactAliases: this.aliases ? await this.aliases.listByUser(userId) : [],
+      // [EXPORT-TRAINING] the training corpus this rep generated — raw inputs, model outputs, and the
+      // human verdicts on them. The highest-concentration PII they own; a DSAR export must carry it.
+      extractionLogs: this.extractionLog ? await this.extractionLog.listByUser(userId) : [],
+      corrections: this.corrections ? await this.corrections.listByUser(userId) : [],
     };
   }
 

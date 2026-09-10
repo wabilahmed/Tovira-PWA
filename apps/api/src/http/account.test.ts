@@ -59,6 +59,33 @@ describe('[P5-4] data trust & control', () => {
     expect(Array.isArray(data.meetings)).toBe(true);
   });
 
+  // [EXPORT-TRAINING] The training log is the highest-concentration PII store in the product and was
+  // silently omitted — a false "all their data" claim in a data-subject-access context. It must export.
+  it('exports the training log (extraction_logs) and rep corrections', async () => {
+    const res = await fetch(`${base}/auth/signup`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'export-training@example.com', password: 'password123' }),
+    });
+    const { token, user } = (await res.json()) as { token: string; user: { id: string } };
+    // Seed one extraction-log row + one correction for this rep.
+    await deps.extractionLog.log(user.id, {
+      noteId: 'n-exp', promptVersion: 'tovira-extract-vX', model: 'stub', input: 'my raw note text',
+      rawOutput: '{"promises":[]}', status: 'extracted', inputTokens: 3, outputTokens: 3, latencyMs: 2,
+    });
+    await deps.corrections.record(user.id, {
+      noteId: 'n-exp', entityType: 'promise', entityId: 'p1', field: 'text',
+      before: 'send plan', after: 'send the plan', promptVersion: 'tovira-extract-vX',
+    });
+
+    const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as {
+      extractionLogs: Array<{ input: string }>; corrections: Array<{ before: string | null }>;
+    };
+    expect(Array.isArray(data.extractionLogs)).toBe(true);
+    expect(data.extractionLogs.some((r) => r.input === 'my raw note text')).toBe(true);
+    expect(Array.isArray(data.corrections)).toBe(true);
+    expect(data.corrections.some((r) => r.before === 'send plan')).toBe(true);
+  });
+
   // NEGATIVE: after delete, the data does not reappear.
   it('deletes the account and its data so nothing reappears', async () => {
     const token = await signup('delete@example.com');

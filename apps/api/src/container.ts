@@ -631,11 +631,13 @@ export function createBillingService(config: AppConfig, pool?: Pool, emailHook?:
   return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook, vat, invoiceTax);
 }
 
-export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository): AccountService {
-  // On Postgres, deleting the user cascades all data (FKs) — no explicit purge list. Recall sessions,
-  // aliases + rep name are purged explicitly (also cascade-backed) so delete works in-memory too.
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository): AccountService {
+  // On Postgres, deleting the user cascades all data (FKs, incl. extraction_logs + corrections) — no
+  // explicit purge list. Recall sessions, aliases + rep name are purged explicitly (also cascade-
+  // backed) so delete works in-memory too.
   const purgeables = [aliases, repNames].filter((p): p is ContactAliasRepository | RepNameRepository => !!p);
-  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases);
+  // [EXPORT-TRAINING] pass the training-log + correction repos so the account EXPORT carries them.
+  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases, extractionLog, corrections);
 }
 
 export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {

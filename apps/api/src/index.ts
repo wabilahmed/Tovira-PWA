@@ -283,7 +283,7 @@ async function main(): Promise<void> {
     ],
   });
   const recallSessions = createRecallSessionRepository(config, appPool);
-  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames);
+  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections);
   const activation = createActivationService(config, appPool);
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
