@@ -28,6 +28,7 @@ const NOTIFICATION_WIRING: Record<NotificationType, Wiring> = {
   going_cold: { triggeredBy: 'scanRunner.run(' },
   date_reminder: { triggeredBy: 'scanRunner.run(' },
   chat_refresh: { triggeredBy: 'scanRunner.run(' },
+  import_complete: { triggeredBy: 'importCompletion.onNoteSettled(' }, // [IMPORT-DONE] sweep terminal hook
 };
 
 const LEDGER_WIRING: Record<LedgerEventType, Wiring> = {

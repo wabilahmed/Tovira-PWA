@@ -23,6 +23,10 @@ export interface NoteSweepDeps {
    *  advanced, not attempt-counted, never flagged) so they resume intact once the rep is under
    *  cap — a spend cap must never burn a note's retry budget or push it to needs_review. */
   canSpend?(userId: string): Promise<boolean>;
+  /** [IMPORT-DONE] Optional: called once when a note reaches a TERMINAL state (extracted /
+   *  needs_review) via the sweep, so an import completion can notify the waiting rep. Best-effort —
+   *  a failure here never affects the sweep. Fires once because a terminal note is never re-listed. */
+  onSettled?(userId: string, noteId: string): Promise<void>;
 }
 
 export interface SweepResult {
@@ -49,14 +53,19 @@ export class NoteSweepService {
         if (note.sweepAttempts >= this.maxAttempts) {
           await this.deps.markNeedsReview(userId, note.id);
           flagged += 1;
+          await this.settle(userId, note.id); // [IMPORT-DONE] a stuck import notifies failure
           continue;
         }
         // Count this attempt before trying, so a step that keeps throwing still
         // converges to needs_review instead of retrying forever.
         await this.deps.setAttempts(userId, note.id, note.sweepAttempts + 1);
         try {
-          if (note.status === 'pending_transcription') await this.deps.transcribe(userId, note.id);
-          else if (note.status === 'pending_extraction') await this.deps.extract(userId, note.id, todayIso);
+          if (note.status === 'pending_transcription') {
+            await this.deps.transcribe(userId, note.id); // → pending_extraction (not terminal, no settle)
+          } else if (note.status === 'pending_extraction') {
+            await this.deps.extract(userId, note.id, todayIso); // → extracted | needs_review (terminal)
+            await this.settle(userId, note.id); // [IMPORT-DONE] notify on import completion
+          }
           advanced += 1;
         } catch {
           // Leave it pending; the next sweep retries (attempts already bumped).
@@ -64,5 +73,16 @@ export class NoteSweepService {
       }
     }
     return { advanced, flagged };
+  }
+
+  /** [IMPORT-DONE] Fire the settled hook — best-effort, isolated: a notification failure must never
+   *  break the sweep or a note's advance. */
+  private async settle(userId: string, noteId: string): Promise<void> {
+    if (!this.deps.onSettled) return;
+    try {
+      await this.deps.onSettled(userId, noteId);
+    } catch {
+      // A notify failure is not a sweep failure — the note is already advanced/flagged.
+    }
   }
 }

@@ -146,3 +146,28 @@ describe('[NUDGE-RANK] pre-meeting nudges outrank everything and are exempt from
     expect(inApp.some((n) => n.dedupeKey === 'refresh:1')).toBe(true);
   });
 });
+
+// [IMPORT-DONE] Import-complete is the SECOND documented brand §10 exception — same treatment as a
+// meeting nudge: always sent, never suppressed by the cap, never consuming it.
+describe('[IMPORT-DONE] import-complete bypasses the 2/day silence budget', () => {
+  const importDone = (n: number): PushableAlert => ({ type: 'import_complete', dedupeKey: `import:${n}`, clientId: String(n), title: `Import ${n}`, body: 'done' });
+
+  it('an import-complete notice sends even when the non-meeting budget is already full', async () => {
+    const { svc, sender, subs, budget } = make();
+    await subs.save('u', sub);
+    await budget.recordSent('u', new Date(NOW).toISOString().slice(0, 10), DAILY_PUSH_CAP); // budget exhausted
+    const { sent, suppressed } = await svc.dispatch('u', [...nonMeeting(), importDone(1)], NOW);
+    expect(sent.map((a) => a.type)).toEqual(['import_complete']); // the exempt one still goes
+    expect(suppressed.every((a) => a.type !== 'import_complete')).toBe(true);
+    expect(sender.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT consume the non-meeting budget', async () => {
+    const { svc, sender, subs } = make();
+    await subs.save('u', sub);
+    await svc.dispatch('u', [importDone(1), importDone(2), importDone(3)], NOW); // 3 exempt
+    (sender.send as ReturnType<typeof vi.fn>).mockClear();
+    await svc.dispatch('u', nonMeeting(), NOW + 60 * 1000); // same day
+    expect(sender.send).toHaveBeenCalledTimes(2); // full non-meeting budget intact
+  });
+});

@@ -10,6 +10,7 @@ import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { PrioritiesService } from './services/hero/priorities-service.js';
 import { NoteSweepService } from './services/notes/note-sweep-service.js';
+import { ImportCompletionService } from './services/notes/import-completion-service.js';
 import { TrialEmailService } from './services/email/trial-email-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
 import { ReferralService } from './services/referral/referral-service.js';
@@ -211,6 +212,12 @@ async function main(): Promise<void> {
   // Note sweep (FLOWS-7): advance any rep's stuck pending notes so a voice note or a
   // deferred import (IMPORT-ASYNC) never stalls; bounded retries → terminal
   // needs_review, never lost.
+  // [IMPORT-DONE] notify the waiting rep when a deferred import finishes (success or failure).
+  const importCompletion = new ImportCompletionService({
+    notes,
+    clients,
+    dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs),
+  });
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),
     listPending: (u) => notes.listPendingByUser(u).then((rows) => rows.map((n) => ({ id: n.id, status: n.status, sweepAttempts: n.sweepAttempts }))),
@@ -219,6 +226,7 @@ async function main(): Promise<void> {
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     canSpend: (u) => spend.canSpend(u), // SPEND-CAP: a capped rep's queue waits, untouched
+    onSettled: (u, id) => importCompletion.onNoteSettled(u, id), // IMPORT-DONE
   });
   // Trial-ending (2 days out) + trial-ended emails (EMAIL-HOOKS 1a), idempotent.
   const trialEmail = new TrialEmailService({ listTrialing: () => billing.listTrialing() }, emailFor, accountEmail);

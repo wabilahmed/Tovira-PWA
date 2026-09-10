@@ -9,19 +9,25 @@ import { zonedTodayIso } from '../time/zone.js';
  * every alert still lands in the in-app Alerts list, so nothing is lost, it just doesn't buzz
  * the phone. The cap counts alerts (not per-device fan-out).
  *
- * [NUDGE-RANK] Pre-meeting nudges are the ONE exception to brand §10's 2/day cap — the first
- * documented one. They are the only alert with a deadline (a brief is worthless after the
- * meeting), so a rep with three meetings gets three nudges: meeting nudges are always sent,
- * never suppressed by the cap, and never consume it. Everything else still shares the cap of 2.
+ * [NUDGE-RANK] Pre-meeting nudges are the FIRST exception to brand §10's 2/day cap — the only alert
+ * with a deadline (a brief is worthless after the meeting), so a rep with three meetings gets three
+ * nudges: always sent, never suppressed by the cap, never consuming it.
+ *
+ * [IMPORT-DONE] Import-complete notices are the SECOND documented exception. An import notice is a
+ * RESPONSE to something the rep just did and is actively waiting on — not proactive noise — so, by
+ * the same reasoning that exempted meeting nudges, it is always sent and never consumes the budget.
+ * Everything else still shares the cap of 2.
  */
 export const DAILY_PUSH_CAP = 2;
 
-const MEETING = 'pre_meeting_nudge';
+/** Alert types exempt from the 2/day budget — never suppressed, never consuming it (see above). */
+const EXEMPT: ReadonlySet<string> = new Set(['pre_meeting_nudge', 'import_complete']);
 
 /** Push priority, lowest number = loudest. Time-critical beats important, so the meeting
  *  nudge outranks all. Types outside this map never preempt. */
 const RANK: Record<string, number> = {
   pre_meeting_nudge: 0,
+  import_complete: 0, // exempt + loud: the rep is actively waiting on it
   overdue_promise: 1,
   going_cold: 2,
   date_reminder: 3,
@@ -81,31 +87,31 @@ export class PushDispatchService {
       });
     }
 
-    // 2. Split: meeting nudges are exempt from the cap; everything else shares it.
-    const meetings = candidates.filter((c) => c.type === MEETING);
+    // 2. Split: exempt alerts (meeting nudges + import-complete) are outside the cap; the rest share it.
+    const exempt = candidates.filter((c) => EXEMPT.has(c.type));
     const others = candidates
-      .filter((c) => c.type !== MEETING)
+      .filter((c) => !EXEMPT.has(c.type))
       .sort((a, b) => rankOf(a.type) - rankOf(b.type));
 
     const day = await this.dayFor(userId, nowMs);
     const devices = await this.subs.listByUser(userId);
     const hasDevices = devices.length > 0;
 
-    // Non-meeting alerts spend today's budget; meetings never touch it.
+    // Non-exempt alerts spend today's budget; exempt ones never touch it.
     const remaining = Math.max(0, this.cap - (await this.budget.countSent(userId, day)));
     const othersToSend = hasDevices ? others.slice(0, remaining) : [];
-    const meetingsToSend = hasDevices ? meetings : [];
+    const exemptToSend = hasDevices ? exempt : [];
 
-    // Loudest first for the returned order (meetings rank 0, so ahead of the rest).
-    const sent = [...meetingsToSend, ...othersToSend].sort((a, b) => rankOf(a.type) - rankOf(b.type));
-    const suppressed = others.slice(othersToSend.length); // meetings are never suppressed by the cap
+    // Loudest first for the returned order (exempt types rank 0, so ahead of the rest).
+    const sent = [...exemptToSend, ...othersToSend].sort((a, b) => rankOf(a.type) - rankOf(b.type));
+    const suppressed = others.slice(othersToSend.length); // exempt alerts are never suppressed by the cap
 
     for (const alert of sent) {
       for (const device of devices) {
         await this.sender.send(device, { title: alert.title, body: alert.body, ...(alert.url ? { url: alert.url } : {}) });
       }
     }
-    // Only NON-meeting sends consume the daily budget (the documented brand §10 exception).
+    // Only NON-exempt sends consume the daily budget (the documented brand §10 exceptions).
     if (othersToSend.length > 0) await this.budget.recordSent(userId, day, othersToSend.length);
 
     return { sent, suppressed };
