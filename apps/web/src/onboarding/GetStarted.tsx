@@ -33,8 +33,13 @@ export function GetStarted({
   sharedContentB64?: string;
 }): JSX.Element {
   // A shared chat (text or file) jumps straight past the guide to the import step, prefilled.
-  const [step, setStep] = useState<'guide' | 'import'>(sharedContent || sharedContentB64 ? 'import' : 'guide');
-  const [target, setTarget] = useState<ClientSummary | null>(clients[0] ?? null);
+  const shared = Boolean(sharedContent || sharedContentB64);
+  const [step, setStep] = useState<'guide' | 'import'>(shared ? 'import' : 'guide');
+  // [IMPORT-PLACEMENT] A shared chat arrives with NO client context (nothing behind the share sheet),
+  // so it must NOT assume a client — start with no target and force the picker below. The guided
+  // onboarding path (not shared) still defaults to the first client, since the rep is already in a
+  // client-context flow they can see.
+  const [target, setTarget] = useState<ClientSummary | null>(shared ? null : (clients[0] ?? null));
   const [newName, setNewName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,14 +73,26 @@ export function GetStarted({
   }
 
   if (!target) {
+    // [IMPORT-PLACEMENT] The client picker: choose an existing client (when any) OR create one
+    // inline. Reached when a chat was shared with no client context — the file resolves to a client
+    // the rep explicitly picks before anything is processed, never an assumed one.
     return (
-      <section aria-label="Name the client">
+      <section aria-label="Choose the client">
         <h2>Who's this chat with?</h2>
+        {clients.length > 0 && (
+          <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            {clients.map((c) => (
+              <button key={c.id} type="button" onClick={() => setTarget(c)} style={{ textAlign: 'left' }}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
         <form onSubmit={createAndSelect} style={{ display: 'flex', gap: '0.5rem' }}>
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Client name"
+            placeholder={clients.length > 0 ? 'or add a new client' : 'Client name'}
             aria-label="Client name"
             style={{ flex: 1 }}
           />
