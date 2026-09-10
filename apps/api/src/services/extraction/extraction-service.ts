@@ -19,6 +19,7 @@ import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
 import { detectMisfilePostExtraction, nameMatches } from '../import/misfile.js';
 import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
+import { redactTier2 } from '../redaction/tier2.js';
 import type { ImportCostRecord } from '../metrics/import-cost-metrics.js';
 import type { Extraction } from './types.js';
 
@@ -369,11 +370,16 @@ export class ExtractionService {
     }
 
     // Exactly one log row per extraction, success or failure.
+    // [TIER2-INPUT] The model saw the FULL userMessage (unchanged — no prompt change, no re-cert);
+    // we scrub Tier-2 (special-category) content from the STORED training copy only, so the corpus we
+    // train on never archives a third party's health/religion/orientation/criminal history. Narrow +
+    // anchored (precision over recall) — a best-effort net, not a guarantee (see redactTier2 / report).
+    const storedInput = redactTier2(userMessage).redacted;
     await this.logs.log(userId, {
       noteId,
       promptVersion: PROMPT_VERSION,
       model: route.modelId,
-      input: userMessage,
+      input: storedInput,
       rawOutput: last.raw,
       status,
       inputTokens: last.inputTokens,

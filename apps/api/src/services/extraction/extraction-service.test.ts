@@ -542,3 +542,34 @@ describe('ExtractionService — starved output is loud, not a silent parse failu
     expect(calls).toBe(2); // the malformed-JSON retry still happens
   });
 });
+
+describe('[TIER2-INPUT] Tier-2 is scrubbed from the STORED training-log input only', () => {
+  it('scrubs the stored log input; the model input and the rep\'s note are untouched', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const client = await clients.create('user-A', 'Meridian Corp');
+    const raw = 'Buyer was diagnosed with cancer; send the revised quote by Friday';
+    const note = await notes.create('user-A', { clientId: client.id, source: 'paste', rawText: raw, audioKey: null, status: 'pending_extraction' });
+    const cap = capturingModel(VALID);
+    const service = new ExtractionService(cap.client, clients, notes, facts, new StubEmbedder(8), logs, 'stub');
+
+    await service.extractNote('user-A', note.id, '2026-07-09');
+
+    // The model saw the FULL text — extraction is unchanged (no prompt change, no re-certification).
+    const sentContent = String(cap.last()?.messages?.[0]?.content ?? '');
+    expect(sentContent).toContain('diagnosed with cancer');
+
+    // The STORED training-log input is scrubbed, but legitimate context is preserved.
+    const rows = await logs.listByUser('user-A');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.input).not.toContain('cancer');
+    expect(rows[0]!.input).toContain('[health detail removed]');
+    expect(rows[0]!.input).toContain('send the revised quote by Friday');
+
+    // The rep's own note is untouched (their vault; Rule 7 governs extracted FACTS, verified elsewhere).
+    const storedNote = await notes.findByIdForUser('user-A', note.id);
+    expect(storedNote!.rawText).toContain('diagnosed with cancer');
+  });
+});
