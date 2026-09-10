@@ -5,10 +5,14 @@ import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { ImageRepository } from '../../ports/image-repository.js';
 import type { RecallSessionRepository } from '../../ports/recall-session-repository.js';
+import type { ArchiveIndexRepository } from '../../ports/archive-index-repository.js';
+import type { Storage } from '../../ports/storage.js';
 
 export interface UserPurgeable {
   purgeUser(userId: string): Promise<void>;
 }
+
+const dec = new TextDecoder();
 
 /**
  * Data trust & control (P5-4). Export gives the rep the data they own — their clients, notes
@@ -46,6 +50,11 @@ export class AccountService {
     private readonly extractionLog?: { listByUser(userId: string): Promise<unknown[]> },
     /** [EXPORT-TRAINING] rep corrections — the human verdicts on extracted facts. The rep's data. */
     private readonly corrections?: { listByUser(userId: string): Promise<unknown[]> },
+    /** [TRAINING-DELETE] the archive index + blob store. Needed because archived training rows live in
+     *  object storage, which the FK cascade does NOT reach — they must be purged and exported
+     *  explicitly. Absent → no archive (in-memory/dev without archival); behaves as before. */
+    private readonly archiveIndex?: ArchiveIndexRepository,
+    private readonly archiveStorage?: Pick<Storage, 'get' | 'delete'>,
   ) {}
 
   async exportData(userId: string): Promise<unknown> {
@@ -72,7 +81,28 @@ export class AccountService {
       // human verdicts on them. The highest-concentration PII they own; a DSAR export must carry it.
       extractionLogs: this.extractionLog ? await this.extractionLog.listByUser(userId) : [],
       corrections: this.corrections ? await this.corrections.listByUser(userId) : [],
+      // [TRAINING-DELETE] archived training rows live in object storage, not the hot tables — "all
+      // their data" must include them too, or the export silently omits everything older than the
+      // archive age.
+      archivedTraining: await this.readArchivedRows(userId),
     };
+  }
+
+  /** Read back this rep's archived training rows from object storage (via the index). Best-effort per
+   *  object — a single unreadable archive object must not sink the whole export. */
+  private async readArchivedRows(userId: string): Promise<unknown[]> {
+    if (!this.archiveIndex || !this.archiveStorage) return [];
+    const objects = await this.archiveIndex.listByUser(userId);
+    const out: unknown[] = [];
+    for (const obj of objects) {
+      try {
+        const text = dec.decode(await this.archiveStorage.get(obj.objectKey)).trim();
+        for (const line of text.split('\n')) if (line.trim()) out.push(JSON.parse(line));
+      } catch (err) {
+        console.warn(`[account] export: archive object ${obj.objectKey} unreadable: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    return out;
   }
 
   async deleteAccount(userId: string): Promise<void> {
@@ -86,8 +116,32 @@ export class AccountService {
         console.warn(`[account] delete-confirmation email failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
+    // [TRAINING-DELETE] Purge archived training objects FIRST — they live in object storage, which the
+    // users FK cascade does NOT reach. Do it before deleteUser so that if any object delete fails, the
+    // index + user remain intact and the purge is retryable (never a silent partial that orphans PII).
+    await this.purgeArchive(userId);
     await this.recallSessions.purgeUser(userId); // pg also cascades on the users FK; explicit for in-memory
     for (const p of this.purgeables) await p.purgeUser(userId);
-    await this.auth.deleteUser(userId);
+    await this.auth.deleteUser(userId); // cascades hot extraction_logs + corrections + the archive index
+  }
+
+  /** Delete every archived training object for the rep, then its index rows. Attempts all objects and,
+   *  if ANY failed, throws an aggregate error — a partial purge is REPORTED, never silently partial,
+   *  and the index stays intact so a retry can complete it. */
+  private async purgeArchive(userId: string): Promise<void> {
+    if (!this.archiveIndex || !this.archiveStorage) return;
+    const objects = await this.archiveIndex.listByUser(userId);
+    const failed: string[] = [];
+    for (const obj of objects) {
+      try {
+        await this.archiveStorage.delete(obj.objectKey);
+      } catch (err) {
+        failed.push(`${obj.objectKey} (${err instanceof Error ? err.message : String(err)})`);
+      }
+    }
+    if (failed.length > 0) {
+      throw new Error(`[account] archive purge incomplete for ${userId}: ${failed.length}/${objects.length} objects not deleted — ${failed.join('; ')}`);
+    }
+    await this.archiveIndex.deleteByUser(userId); // objects gone → drop the index (pg also cascades)
   }
 }

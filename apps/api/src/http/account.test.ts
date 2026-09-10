@@ -86,6 +86,56 @@ describe('[P5-4] data trust & control', () => {
     expect(data.corrections.some((r) => r.before === 'send plan')).toBe(true);
   });
 
+  // [TRAINING-DELETE] Archived training rows live in object storage, which the FK cascade can't reach.
+  // Export must include them; deletion must purge them; a partial purge must be reported, not silent.
+  it('export includes archived training rows, and account deletion purges them from object storage', async () => {
+    const res = await fetch(`${base}/auth/signup`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'archive-del@example.com', password: 'password123' }),
+    });
+    const { token, user } = (await res.json()) as { token: string; user: { id: string } };
+    const key = `training-archive/extraction_logs/${user.id}/2026-09.ndjson`;
+    const enc = new TextEncoder();
+    await deps.storage.put(key, enc.encode(JSON.stringify({ id: 'r1', noteId: 'n1', promptVersion: 'v0.9.4', input: 'archived note text' }) + '\n'));
+    await deps.archiveIndex.upsert(user.id, { collection: 'extraction_logs', partition: '2026-09', objectKey: key, rowCount: 1 });
+
+    // Export carries the archived row.
+    const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as {
+      archivedTraining: Array<{ input?: string }>;
+    };
+    expect(data.archivedTraining.some((r) => r.input === 'archived note text')).toBe(true);
+
+    // Deletion purges the object AND the index entry.
+    expect((await fetch(`${base}/account`, { method: 'DELETE', headers: auth(token) })).status).toBe(200);
+    expect(deps.storage.has(key)).toBe(false);
+    expect(await deps.archiveIndex.listByUser(user.id)).toEqual([]);
+  });
+
+  it('a purge that fails partway is REPORTED (500), not silently partial — the archive stays for retry', async () => {
+    const d = buildInMemoryDeps();
+    d.storage.delete = async () => { throw new Error('object store unavailable'); };
+    const srv = createApiServer(d);
+    await new Promise<void>((r) => srv.listen(0, r));
+    const b = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+    try {
+      const res = await fetch(`${b}/auth/signup`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'archive-fail@example.com', password: 'password123' }),
+      });
+      const { token, user } = (await res.json()) as { token: string; user: { id: string } };
+      const key = `training-archive/extraction_logs/${user.id}/2026-09.ndjson`;
+      await d.storage.put(key, new TextEncoder().encode('{"id":"r1"}\n'));
+      await d.archiveIndex.upsert(user.id, { collection: 'extraction_logs', partition: '2026-09', objectKey: key, rowCount: 1 });
+
+      // The object delete throws → deletion is reported as a failure, not a silent partial success.
+      expect((await fetch(`${b}/account`, { method: 'DELETE', headers: auth(token) })).status).toBe(500);
+      // The archive index is intact (the user still exists) so the purge is retryable.
+      expect(await d.archiveIndex.listByUser(user.id)).toHaveLength(1);
+    } finally {
+      await new Promise<void>((r) => srv.close(() => r()));
+    }
+  });
+
   // NEGATIVE: after delete, the data does not reappear.
   it('deletes the account and its data so nothing reappears', async () => {
     const token = await signup('delete@example.com');

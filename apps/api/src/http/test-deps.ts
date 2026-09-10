@@ -27,6 +27,7 @@ import { InMemoryFactsRepository } from '../adapters/facts/in-memory-facts-repos
 import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
 import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
+import { InMemoryArchiveIndexRepository } from '../adapters/logs/in-memory-archive-index-repository.js';
 import { StubEmbedder } from '../adapters/embedding/stub.js';
 import { ExtractionService } from '../services/extraction/extraction-service.js';
 import type { ExtractionLimiter } from '../services/extraction/limiter.js';
@@ -74,6 +75,7 @@ export interface TestDeps extends ApiDeps {
   inventoryMatches: InMemoryInventoryMatchRepository;
   requirements: InMemoryRequirementRepository;
   ledger: LedgerService;
+  archiveIndex: InMemoryArchiveIndexRepository;
 }
 
 /**
@@ -95,6 +97,7 @@ export function buildInMemoryDeps(
   });
   const notes = new InMemoryNoteRepository();
   const storage = new InMemoryStorage();
+  const archiveIndex = new InMemoryArchiveIndexRepository(); // [TRAINING-DELETE] archive index for tests
   const clients = new InMemoryClientRepository();
   const inventoryRepo = new InMemoryInventoryRepository();
   const facts = new InMemoryFactsRepository();
@@ -179,7 +182,8 @@ export function buildInMemoryDeps(
     hero,
     priorities: new PrioritiesService(hero, new StubModelClient(), new InMemoryPrioritiesRepository()),
     billing,
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo], undefined, undefined, extractionLog, corrections),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo], undefined, undefined, extractionLog, corrections, archiveIndex, storage),
+    archiveIndex,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions),

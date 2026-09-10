@@ -642,13 +642,15 @@ export function createBillingService(config: AppConfig, pool?: Pool, emailHook?:
   return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook, vat, invoiceTax);
 }
 
-export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository): AccountService {
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository, archiveIndex?: ArchiveIndexRepository, archiveStorage?: Storage): AccountService {
   // On Postgres, deleting the user cascades all data (FKs, incl. extraction_logs + corrections) — no
   // explicit purge list. Recall sessions, aliases + rep name are purged explicitly (also cascade-
   // backed) so delete works in-memory too.
   const purgeables = [aliases, repNames].filter((p): p is ContactAliasRepository | RepNameRepository => !!p);
   // [EXPORT-TRAINING] pass the training-log + correction repos so the account EXPORT carries them.
-  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases, extractionLog, corrections);
+  // [TRAINING-DELETE] pass the archive index + blob store so deletion purges archived objects (the FK
+  // cascade can't reach object storage) and export reads them back.
+  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases, extractionLog, corrections, archiveIndex, archiveStorage);
 }
 
 export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {
