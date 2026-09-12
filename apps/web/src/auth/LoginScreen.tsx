@@ -130,7 +130,7 @@ export function LoginScreen({ auth, onAuthed }: { auth: AuthClient; onAuthed: (s
           </button>
         )}
       </div>
-      {mode === 'signup' && <p className="auth__trust">7 days free · no card to start</p>}
+      {mode === 'signup' && <p className="auth__trust">14 days free · no card to start</p>}
     </AuthShell>
   );
 }
