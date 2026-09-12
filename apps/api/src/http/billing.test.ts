@@ -86,28 +86,8 @@ describe('[P5-1/P5-2] trial + billing over HTTP', () => {
     expect(monthly.url).toContain('plan=monthly');
   });
 
-  // [P5-1-UI] the server computes the extension incentive from real activity;
-  // notes on 3 distinct clients move it from progress → earned.
-  it('serves the server-computed extension incentive (progress → earned)', async () => {
-    const { token } = await signup('incentive-http@example.com');
-    const incUrl = `${base}/billing/incentive`;
-    const auth = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
-    const inc0 = (await (await fetch(incUrl, { headers: auth })).json()) as { state: string; distinctClients: number };
-    expect(inc0.state).toBe('progress');
-    expect(inc0.distinctClients).toBe(0);
-
-    for (let i = 0; i < 3; i++) {
-      const c = await client(token);
-      await fetch(`${base}/clients/${c}/notes/paste`, { method: 'POST', headers: auth, body: JSON.stringify({ text: `note ${i}` }) });
-    }
-    const inc1 = (await (await fetch(incUrl, { headers: auth })).json()) as { state: string; distinctClients: number };
-    expect(inc1.state).toBe('earned');
-    expect(inc1.distinctClients).toBe(3);
-  });
-
-  it('requires auth for the incentive endpoint', async () => {
-    expect((await fetch(`${base}/billing/incentive`)).status).toBe(401);
-  });
+  // [TRIAL-14] The extension-incentive endpoint (/billing/incentive) is removed with the usage-gated
+  // extension — a flat 14-day trial has no "earn more days" state. Its HTTP tests are deleted here.
 
   // [P5-4] consent
   it('rejects signup when consent is explicitly refused', async () => {

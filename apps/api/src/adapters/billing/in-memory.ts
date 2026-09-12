@@ -10,7 +10,7 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
   private byUser = new Map<string, SubscriptionRecord>();
 
   async create(userId: string, trialEndsAt: number): Promise<SubscriptionRecord> {
-    const record: SubscriptionRecord = { userId, status: 'trialing', trialEndsAt, trialExtended: false, stripeCustomerId: null, stripeSubscriptionId: null, currentPeriodEnd: null, currentPeriodStart: null, billingName: null, billingCompany: null };
+    const record: SubscriptionRecord = { userId, status: 'trialing', trialEndsAt, stripeCustomerId: null, stripeSubscriptionId: null, currentPeriodEnd: null, currentPeriodStart: null, billingName: null, billingCompany: null };
     this.byUser.set(userId, record);
     return record;
   }

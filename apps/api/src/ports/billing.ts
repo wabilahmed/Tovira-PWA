@@ -10,8 +10,9 @@ export interface SubscriptionRecord {
   userId: string;
   status: SubscriptionStatus;
   trialEndsAt: number;
-  /** Whether the one-time activity-gated trial extension was already granted (P5-1). */
-  trialExtended: boolean;
+  // [TRIAL-14] The usage-gated trial extension is removed (flat 14-day trial), so `trialExtended` is
+  // gone from the app model. The DB column subscriptions.trial_extended is now ORPHANED — left in
+  // place (not dropped here); see TRIAL-14-REPORT for the follow-up drop-migration decision.
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
   /** End of the current paid period, epoch ms — the renewal date. Null until a
@@ -30,7 +31,6 @@ export interface SubscriptionRecord {
 export interface SubscriptionPatch {
   status?: SubscriptionStatus;
   trialEndsAt?: number;
-  trialExtended?: boolean;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   currentPeriodEnd?: number | null;

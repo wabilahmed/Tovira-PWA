@@ -1,16 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
-import type { ClientRepository } from '../ports/client-repository.js';
-import type { NoteRepository } from '../ports/note-repository.js';
-import { countDistinctClientsWithNotes } from './notes-routes.js';
 import { extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 
 export interface BillingRouteDeps {
   auth: AuthService;
   billing: BillingService;
-  clients: ClientRepository;
-  notes: NoteRepository;
 }
 
 export async function handleBillingRoute(
@@ -31,9 +26,8 @@ export async function handleBillingRoute(
 
   const isCheckout = method === 'POST' && path === '/billing/checkout';
   const isStatus = method === 'GET' && path === '/billing/status';
-  const isIncentive = method === 'GET' && path === '/billing/incentive';
   const isCustomer = method === 'PATCH' && path === '/billing/customer';
-  if (!isCheckout && !isStatus && !isIncentive && !isCustomer) return false;
+  if (!isCheckout && !isStatus && !isCustomer) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -44,12 +38,6 @@ export async function handleBillingRoute(
 
   if (isStatus) {
     sendJson(res, 200, await deps.billing.entitlement(userId, Date.now()));
-    return true;
-  }
-
-  if (isIncentive) {
-    const distinct = await countDistinctClientsWithNotes(deps.clients, deps.notes, userId);
-    sendJson(res, 200, await deps.billing.extensionIncentive(userId, distinct, Date.now()));
     return true;
   }
 

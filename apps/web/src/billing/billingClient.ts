@@ -9,25 +9,8 @@ export interface Entitlement {
   renewsAt?: number | null;
 }
 
-/** Server-computed +7-day extension incentive (P5-1-UI). The client renders this
- *  verbatim and never computes eligibility itself. */
-export interface ExtensionIncentive {
-  state: 'progress' | 'earned' | 'hidden';
-  distinctClients: number;
-  needed: number;
-  remaining: number;
-  extensionDays: number;
-  trialEndsAt: number;
-}
-
-const HIDDEN_INCENTIVE: ExtensionIncentive = {
-  state: 'hidden',
-  distinctClients: 0,
-  needed: 3,
-  remaining: 3,
-  extensionDays: 7,
-  trialEndsAt: 0,
-};
+// [TRIAL-14] The usage-gated trial-extension incentive is removed — the trial is a flat 14 days, so
+// there is no "earn more days" state to render and no /billing/incentive endpoint to read.
 
 export class BillingClient {
   constructor(private readonly baseUrl: string = '') {}
@@ -39,18 +22,6 @@ export class BillingClient {
       return (await res.json()) as Entitlement;
     } catch {
       return null;
-    }
-  }
-
-  /** The server-computed extension incentive. On any failure we fall back to
-   *  `hidden` — the client must never invent eligibility the server didn't grant. */
-  async incentive(): Promise<ExtensionIncentive> {
-    try {
-      const res = await fetch(`${this.baseUrl}/billing/incentive`, { credentials: 'include' });
-      if (res.status !== 200) return HIDDEN_INCENTIVE;
-      return (await res.json()) as ExtensionIncentive;
-    } catch {
-      return HIDDEN_INCENTIVE;
     }
   }
 

@@ -82,27 +82,6 @@ async function recordReopenIfFlagged(deps: NoteRouteDeps, userId: string, client
   }
 }
 
-/** Count the rep's clients that have at least one note — the exact signal that
- *  earns the P5-1 extension, shared with the incentive display so the two agree. */
-export async function countDistinctClientsWithNotes(
-  clients: ClientRepository,
-  notes: NoteRepository,
-  userId: string,
-): Promise<number> {
-  let distinct = 0;
-  for (const c of await clients.listByUser(userId)) {
-    if ((await notes.listByClient(userId, c.id)).length > 0) distinct += 1;
-  }
-  return distinct;
-}
-
-/** Activity-gated trial extension (P5-1): notes on 3+ distinct clients → +7 days
- *  once. Enforced server-side, on the capture path — never client-triggerable. */
-async function maybeExtendTrial(deps: NoteRouteDeps, userId: string): Promise<void> {
-  if (!deps.billing) return;
-  const distinct = await countDistinctClientsWithNotes(deps.clients, deps.notes, userId);
-  await deps.billing.extendTrialForActivity(userId, distinct);
-}
 
 const VOICE_RE = /^\/clients\/([^/]+)\/notes\/voice$/;
 const PASTE_RE = /^\/clients\/([^/]+)\/notes\/paste$/;
@@ -171,7 +150,6 @@ export async function handleNoteRoute(
       });
       await deps.clients.touch(userId, clientId); // bump recency
       await recordReopenIfFlagged(deps, userId, clientId);
-      await maybeExtendTrial(deps, userId);
       sendJson(res, 201, note);
       return true;
     }
@@ -207,7 +185,6 @@ export async function handleNoteRoute(
       });
       await deps.clients.touch(userId, clientId);
       await recordReopenIfFlagged(deps, userId, clientId);
-      await maybeExtendTrial(deps, userId);
       sendJson(res, 201, note);
       return true;
     }

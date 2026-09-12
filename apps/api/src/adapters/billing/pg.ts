@@ -17,7 +17,6 @@ interface SubRow {
   user_id: string;
   status: string;
   trial_ends_at: Date;
-  trial_extended: boolean;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   current_period_end: Date | null;
@@ -25,13 +24,14 @@ interface SubRow {
   billing_name: string | null;
   billing_company: string | null;
 }
-const SUB_COLS = 'user_id, status, trial_ends_at, trial_extended, stripe_customer_id, stripe_subscription_id, current_period_end, current_period_start, billing_name, billing_company';
+// [TRIAL-14] trial_extended is intentionally NOT selected/written — the usage-gated extension is gone
+// (flat 14-day trial). The column is left in the DB (orphaned, reported), so this list simply omits it.
+const SUB_COLS = 'user_id, status, trial_ends_at, stripe_customer_id, stripe_subscription_id, current_period_end, current_period_start, billing_name, billing_company';
 function toSub(r: SubRow): SubscriptionRecord {
   return {
     userId: r.user_id,
     status: r.status as SubscriptionStatus,
     trialEndsAt: r.trial_ends_at.getTime(),
-    trialExtended: r.trial_extended,
     stripeCustomerId: r.stripe_customer_id,
     stripeSubscriptionId: r.stripe_subscription_id,
     currentPeriodEnd: r.current_period_end ? r.current_period_end.getTime() : null,
@@ -68,7 +68,6 @@ export class PgSubscriptionRepository implements SubscriptionRepository {
     if (patch.stripeCustomerId !== undefined) push('stripe_customer_id = $?', patch.stripeCustomerId);
     if (patch.stripeSubscriptionId !== undefined) push('stripe_subscription_id = $?', patch.stripeSubscriptionId);
     if (patch.trialEndsAt !== undefined) push('trial_ends_at = to_timestamp($? / 1000.0)', patch.trialEndsAt);
-    if (patch.trialExtended !== undefined) push('trial_extended = $?', patch.trialExtended);
     if (patch.currentPeriodEnd !== undefined) {
       if (patch.currentPeriodEnd === null) push('current_period_end = $?', null);
       else push('current_period_end = to_timestamp($? / 1000.0)', patch.currentPeriodEnd);

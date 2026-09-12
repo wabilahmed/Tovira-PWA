@@ -281,83 +281,9 @@ describe('[VAT-READY] VAT off by default; on, date-driven; the boundary is immut
   });
 });
 
-describe('[P5-1] activity-gated trial extension', () => {
-  it('extends the trial by 7 days once when notes span 3+ distinct clients', async () => {
-    const { billing } = make();
-    await billing.onSignup('u', 'rep@x.com', NOW);
-    const before = (await billing.entitlement('u', NOW)).trialEndsAt;
-    expect(await billing.extendTrialForActivity('u', 3)).toBe(true);
-    const after = (await billing.entitlement('u', NOW)).trialEndsAt;
-    expect(after - before).toBe(7 * DAY);
-  });
-
-  it('cannot be earned twice (re-qualifying does nothing)', async () => {
-    const { billing } = make();
-    await billing.onSignup('u', 'rep@x.com', NOW);
-    expect(await billing.extendTrialForActivity('u', 5)).toBe(true);
-    expect(await billing.extendTrialForActivity('u', 5)).toBe(false); // already extended
-  });
-
-  it('does not extend for fewer than 3 distinct clients', async () => {
-    const { billing } = make();
-    await billing.onSignup('u', 'rep@x.com', NOW);
-    expect(await billing.extendTrialForActivity('u', 2)).toBe(false);
-  });
-
-  it('does not extend a non-trial (paid/expired) account', async () => {
-    const { billing, subs } = make();
-    await billing.onSignup('u', 'rep@x.com', NOW);
-    await subs.update('u', { status: 'active' });
-    expect(await billing.extendTrialForActivity('u', 5)).toBe(false);
-  });
-});
-
-// [P5-1-UI] The server owns eligibility for the +7-day incentive; the client
-// only renders what the server reports. Four states: progress, earned, and two
-// hidden cases (already extended is folded into earned + a client-side dismissal;
-// converted-to-paid / expired → hidden).
-describe('[P5-1-UI] trial-extension incentive (server-computed)', () => {
-  it('reports progress toward the extension while trialing and below the threshold', async () => {
-    const { billing } = make();
-    await billing.onSignup('u', 'rep@x.com', NOW);
-    const inc = await billing.extensionIncentive('u', 2, NOW);
-    expect(inc.state).toBe('progress');
-    expect(inc.distinctClients).toBe(2);
-    expect(inc.needed).toBe(3);
-    expect(inc.remaining).toBe(1);
-    expect(inc.extensionDays).toBe(7);
-  });
-
-  it('reports "earned" with the NEW trial end once the extension has been applied', async () => {
-    const { billing } = make();
-    await billing.onSignup('u', 'rep@x.com', NOW);
-    const before = (await billing.entitlement('u', NOW)).trialEndsAt;
-    await billing.extendTrialForActivity('u', 3);
-    const inc = await billing.extensionIncentive('u', 3, NOW);
-    expect(inc.state).toBe('earned');
-    expect(inc.remaining).toBe(0);
-    expect(inc.trialEndsAt - before).toBe(7 * DAY); // the extended end, from the server
-  });
-
-  it('is hidden once the account has converted to paid', async () => {
-    const { billing, subs } = make();
-    await billing.onSignup('u', 'rep@x.com', NOW);
-    await subs.update('u', { status: 'active' });
-    expect((await billing.extensionIncentive('u', 5, NOW)).state).toBe('hidden');
-  });
-
-  it('is hidden once the trial has expired', async () => {
-    const { billing } = make();
-    await billing.onSignup('u', 'rep@x.com', NOW);
-    const afterTrial = NOW + 8 * DAY;
-    expect((await billing.extensionIncentive('u', 2, afterTrial)).state).toBe('hidden');
-  });
-
-  it('is hidden when there is no subscription at all', async () => {
-    const { billing } = make();
-    expect((await billing.extensionIncentive('nobody', 3, NOW)).state).toBe('hidden');
-  });
-});
+// [TRIAL-14] The usage-gated trial extension (old [P5-1]/[P5-1-UI] +7-day incentive) is REMOVED — the
+// trial is a flat 14 days. Its tests are deleted with the logic; the flat-length expiry is covered in
+// billing-service trial tests (task 4).
 
 describe('[EMAIL-HOOKS 1b] webhook lifecycle emails', () => {
   const RENEW = Date.parse('2026-09-14T00:00:00Z');

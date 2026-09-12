@@ -29,7 +29,6 @@ import { MeetingsClient } from './meetings/meetingsClient.js';
 import { Meetings } from './meetings/Meetings.js';
 import { BillingClient } from './billing/billingClient.js';
 import { Billing } from './billing/Billing.js';
-import { TrialIncentive } from './billing/TrialIncentive.js';
 import { AccountClient } from './account/accountClient.js';
 import { AccountControls } from './account/AccountControls.js';
 import { ImagesClient } from './gallery/imagesClient.js';
@@ -413,7 +412,6 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             <h2 style={{ marginTop: 0 }}>Settings</h2>
             <CorpusBadge api={corpusApi} />
           </header>
-          <TrialIncentive api={billingApi} />
           <p className="tov-setting-line">
             Email: {session.user.email}
             {' — '}
