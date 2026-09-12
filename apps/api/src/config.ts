@@ -43,6 +43,14 @@ const PUSH_PROVIDERS: readonly PushProvider[] = ['stub', 'webpush'];
 const EMAIL_PROVIDERS: readonly EmailProvider[] = ['stub', 'ses', 'resend'];
 const CACHE_TTLS: readonly CacheTtl[] = ['5m', '1h'];
 
+/**
+ * [TRIAL-14] The trial length, in days. Product decision (locked): a FLAT 14 days, stated up front —
+ * no usage-gated extension, no conditional second week. This is the single source of truth for trial
+ * length; `trialDays` in the loaded config defaults to it and every trial-expiry computation derives
+ * from `config.trialDays`. Was 7 with a usage-gated +7; the extension path is removed, not reconfigured.
+ */
+export const DEFAULT_TRIAL_DAYS = 14;
+
 export interface AppConfig {
   databaseUrl: string;
   /** Non-superuser role connection for request queries (RLS enforced). */
@@ -102,6 +110,10 @@ export interface AppConfig {
   heroMinClients: number;
   heroMinNotes: number;
   // --- billing (P5) ---
+  // [TRIAL-14] Trial length in days. Product decision: a FLAT 14-day trial, stated up front — no
+  // usage-gated extension, no conditional second week (the old 7+7 usage extension was removed). This
+  // is the single source of truth; onSignup derives trialEndsAt from it and everything else reads
+  // that stored end. Overridable via TRIAL_DAYS for tests/staging; the default IS the product value.
   trialDays: number;
   trialExtractionCeiling: number;
   // --- spend cap (SPEND-CAP): a hard per-account Claude-spend failsafe, well above the modelled
@@ -203,7 +215,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     trainingArchiveDestination: (env.TRAINING_ARCHIVE_DESTINATION ?? '').trim(),
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
-    trialDays: parsePositive(env.TRIAL_DAYS, 7, 'TRIAL_DAYS'),
+    trialDays: parsePositive(env.TRIAL_DAYS, DEFAULT_TRIAL_DAYS, 'TRIAL_DAYS'),
     trialExtractionCeiling: parsePositive(env.TRIAL_EXTRACTION_CEILING, 200, 'TRIAL_EXTRACTION_CEILING'),
     spendCapAed: parsePositive(env.SPEND_CAP_AED, 45, 'SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),

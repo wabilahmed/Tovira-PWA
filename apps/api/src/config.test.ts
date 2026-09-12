@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadConfig, ConfigError } from './config.js';
+import { loadConfig, ConfigError, DEFAULT_TRIAL_DAYS } from './config.js';
 
 // [P0-1] "Start with a required env var missing → stack fails fast with a named,
 // actionable error, not a silent crash or a half-up state."
@@ -15,6 +15,13 @@ describe('loadConfig', () => {
     expect(cfg.databaseUrl).toBe(valid.DATABASE_URL);
     expect(cfg.port).toBe(3001);
     expect(cfg.nodeEnv).toBe('development');
+  });
+
+  // [TRIAL-14] Single source of truth: the trial is a FLAT 14 days by default (product decision).
+  it('defaults the trial to a flat 14 days', () => {
+    expect(DEFAULT_TRIAL_DAYS).toBe(14);
+    expect(loadConfig(valid).trialDays).toBe(14);
+    expect(loadConfig({ ...valid, TRIAL_DAYS: '21' }).trialDays).toBe(21); // still overridable for tests/staging
   });
 
   it('applies sensible defaults for optional vars', () => {
