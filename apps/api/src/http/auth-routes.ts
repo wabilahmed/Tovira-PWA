@@ -29,8 +29,10 @@ export interface AuthRouteOptions {
   appBaseUrl: string;
   /** Called after a successful signup (starts the trial). */
   onSignup?: (userId: string, email: string) => Promise<void>;
-  /** Called after signup when a referral code was supplied (P5-6). */
-  onReferral?: (referrerCode: string, userId: string, email: string) => Promise<void>;
+  /** Called after signup when a referral code was supplied (P5-6). Returns whether the code was
+   *  CREDITED (true) or not (false — unknown/self/already-referred), so signup can report a clear
+   *  outcome to the rep. Must never throw in a way that blocks signup (crediting is best-effort). */
+  onReferral?: (referrerCode: string, userId: string, email: string) => Promise<boolean>;
   /** Deliver a password-reset link (no-op locally without an email adapter). */
   sendResetEmail?: (to: string, resetUrl: string) => Promise<void>;
   /** Deliver an email-verification link (EMAIL-VERIFY resend path). */
@@ -70,18 +72,22 @@ export async function handleAuthRoute(
       const result = await auth.signup(email, password, consentVersion, timezone);
       await opts.onSignup?.(result.user.id, result.user.email);
       const ref = typeof body.ref === 'string' ? body.ref.trim() : '';
-      if (ref) {
-        // Referral crediting must NEVER break signup — the same isolation the
-        // lifecycle email hooks use. A crediting failure (e.g. a transient DB
-        // error) is logged; the account is still created. Crediting is idempotent
-        // (referrals PK on referred_email), so a retry can't double-credit.
+      // [REFERRAL-ENTRY] Report the outcome so the rep gets a clear message (applied / invalid / none)
+      // for a code they typed, not just a silent credit. 'none' = no code given.
+      let referral: 'applied' | 'invalid' | 'none' = 'none';
+      if (ref && opts.onReferral) {
+        // Referral crediting must NEVER break signup — the same isolation the lifecycle email hooks
+        // use. A crediting failure (transient DB error) or an unknown/self/already-referred code is
+        // reported as 'invalid'; the account is still created. Crediting is idempotent (referrals PK
+        // on referred_email), so a retry can't double-credit.
         try {
-          await opts.onReferral?.(ref, result.user.id, result.user.email);
+          referral = (await opts.onReferral(ref, result.user.id, result.user.email)) ? 'applied' : 'invalid';
         } catch (err) {
           console.warn('referral crediting failed; signup still succeeded', err);
+          referral = 'invalid';
         }
       }
-      sendJson(res, 201, result, {
+      sendJson(res, 201, { ...result, referral }, {
         'set-cookie': sessionCookie(result.token, auth.sessionTtlSeconds, opts.cookieSecure),
       });
       return true;

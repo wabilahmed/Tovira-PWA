@@ -1,8 +1,8 @@
 import { API_BASE } from './apiBase.js';
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
-import { ForgotPassword, ResetPassword } from './auth/PasswordReset.js';
-import { AuthShell } from './auth/AuthShell.js';
+import { ResetPassword } from './auth/PasswordReset.js';
+import { LoginScreen } from './auth/LoginScreen.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
@@ -195,7 +195,7 @@ export function App(): JSX.Element {
     );
   }
   if (loading) return <Centered>Loading…</Centered>;
-  if (!session) return <LoginScreen onAuthed={setSession} />;
+  if (!session) return <LoginScreen auth={auth} onAuthed={setSession} />;
 
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
@@ -662,81 +662,6 @@ const linkButton: React.CSSProperties = {
   fontSize: 'inherit',
 };
 
-
-function LoginScreen({ onAuthed }: { onAuthed: (s: Session) => void }): JSX.Element {
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [consent, setConsent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: React.FormEvent): Promise<void> {
-    e.preventDefault();
-    if (mode === 'signup' && !consent) return; // must accept the terms to sign up
-    setBusy(true);
-    setError(null);
-    try {
-      const ref = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') ?? undefined : undefined;
-      const session = mode === 'login' ? await auth.login(email, password) : await auth.signup(email, password, ref, true);
-      onAuthed(session);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (mode === 'forgot') {
-    return <ForgotPassword api={auth} onBack={() => setMode('login')} />;
-  }
-
-  return (
-    <AuthShell subtitle={mode === 'login' ? 'Log in to your vault' : 'Create your account'}>
-      <form onSubmit={submit} className="auth__form" aria-label={mode === 'login' ? 'Log in' : 'Sign up'}>
-        <label className="auth__field">
-          <span>Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
-        </label>
-        <label className="auth__field">
-          <span>Password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-          />
-        </label>
-        {mode === 'signup' && (
-          <label className="auth__consent">
-            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} aria-label="Accept terms" />
-            <span>
-              I agree to the{' '}
-              <a href="https://tovira.com/terms" target="_blank" rel="noreferrer">Terms</a> and{' '}
-              <a href="https://tovira.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.
-            </span>
-          </label>
-        )}
-        {error && <p className="auth__error" role="alert">{error}</p>}
-        <button className="auth__submit" type="submit" disabled={busy || (mode === 'signup' && !consent)}>
-          {mode === 'login' ? 'Log in' : 'Create account'}
-        </button>
-      </form>
-      <div className="auth__alt">
-        <button type="button" className="auth__link" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
-          {mode === 'login' ? 'Need an account? Sign up' : 'Have an account? Log in'}
-        </button>
-        {mode === 'login' && (
-          <button type="button" className="auth__link auth__link--muted" onClick={() => setMode('forgot')}>
-            Forgot password?
-          </button>
-        )}
-      </div>
-      {mode === 'signup' && <p className="auth__trust">7 days free · no card to start</p>}
-    </AuthShell>
-  );
-}
 
 function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: string; onChange: () => void }): JSX.Element {
   if (brief.empty) {

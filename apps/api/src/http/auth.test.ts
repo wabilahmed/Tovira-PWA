@@ -39,6 +39,29 @@ describe('auth HTTP endpoints', () => {
     expect(cookie.toLowerCase()).toContain('httponly');
   });
 
+  // [REFERRAL-ENTRY] A supplied code is reported back so the rep gets a clear outcome; an invalid
+  // code NEVER blocks signup (the account is created, nobody is credited).
+  it('reports referral: "none" when no code is supplied', async () => {
+    const res = await post('/auth/signup', { email: 'ref-none@example.com', password: 'password123' });
+    expect(res.status).toBe(201);
+    expect((await res.json() as { referral?: string }).referral).toBe('none');
+  });
+
+  it('reports referral: "applied" for a valid code, crediting the referrer', async () => {
+    const a = await (await post('/auth/signup', { email: 'referrer@example.com', password: 'password123' })).json() as { user: { referralCode: string } };
+    const res = await post('/auth/signup', { email: 'referred@example.com', password: 'password123', ref: a.user.referralCode });
+    expect(res.status).toBe(201);
+    expect((await res.json() as { referral?: string }).referral).toBe('applied');
+  });
+
+  it('reports referral: "invalid" for an unknown code but STILL creates the account (never blocks)', async () => {
+    const res = await post('/auth/signup', { email: 'ref-bad@example.com', password: 'password123', ref: 'no-such-code' });
+    expect(res.status).toBe(201); // signup succeeded despite the bad code
+    const json = await res.json() as { user: { email: string }; referral?: string };
+    expect(json.user.email).toBe('ref-bad@example.com'); // account created
+    expect(json.referral).toBe('invalid'); // clear outcome, nobody credited
+  });
+
   it('authorizes a protected route via Bearer token, and again after "refresh"', async () => {
     const signup = await post('/auth/signup', { email: 'b@example.com', password: 'password123' });
     const { token } = (await signup.json()) as { token: string };

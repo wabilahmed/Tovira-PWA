@@ -269,7 +269,7 @@ export function createApiServer(deps: ApiDeps): Server {
             await deps.accountEmail.sendWelcome(userId, email, ent.trialEndsAt, verifyUrl);
           })().catch(() => undefined);
         },
-        onReferral: (code, userId, email) => deps.referral.apply(code, userId, email).then(() => undefined),
+        onReferral: (code, userId, email) => deps.referral.apply(code, userId, email), // returns whether credited (REFERRAL-ENTRY)
         sendResetEmail: (to, resetUrl) => deps.accountEmail.sendPasswordReset(to, resetUrl),
         sendVerifyEmail: (to, verifyUrl) => deps.accountEmail.sendVerification(to, verifyUrl),
         loginLimiter: deps.loginLimiter,

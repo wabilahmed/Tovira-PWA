@@ -1,5 +1,9 @@
 export interface Session {
   user: { id: string; email: string; referralCode: string; emailVerified: boolean; timezone: string };
+  /** [REFERRAL-ENTRY] Present on the signup response only: whether a supplied referral code was
+   *  credited ('applied'), rejected ('invalid' — unknown/self/already-referred), or absent ('none').
+   *  Drives the clear post-signup message; never blocks signup. */
+  referral?: 'applied' | 'invalid' | 'none';
 }
 
 /**
@@ -156,6 +160,7 @@ export class AuthClient {
     }
     const data = (await res.json()) as Session;
     setAuthHint(true);
-    return { user: data.user };
+    // Carry the referral outcome (signup only) so the UI can show a clear applied/invalid message.
+    return data.referral ? { user: data.user, referral: data.referral } : { user: data.user };
   }
 }
