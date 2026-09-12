@@ -175,7 +175,8 @@ export function buildInMemoryDeps(
     opsRoute: {
       opsToken: TEST_OPS_TOKEN,
       overrides: new InMemorySpendOverrideRepository(),
-      spend: { status: async () => ({ periodKey: 'test', spentAed: 0, capAed: 45, state: 'ok' }) },
+      spend: { status: async () => ({ periodKey: 'test', spentAed: 0, capAed: 45, state: 'ok' }), report: async () => [] },
+      allUserIds: () => auth.allUserIds(),
     },
     // [TRAINING-METRICS] ttl 0 so tests see fresh numbers on every snapshot() (each call refreshes).
     trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections, archiveIndex), 0),

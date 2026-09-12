@@ -7,7 +7,13 @@ export interface OpsRouteDeps {
   /** Unset → the ops routes are disabled (always 403). Never a rep credential. */
   opsToken?: string;
   overrides: SpendOverrideRepository;
-  spend: { status(userId: string): Promise<{ periodKey: string; spentAed: number; capAed: number; state: string }> };
+  spend: {
+    status(userId: string): Promise<{ periodKey: string; spentAed: number; capAed: number; state: string }>;
+    /** [SPEND-REPORT] per-rep Claude spend this period (AED + USD, per-class), for the ops cost view. */
+    report(userIds: string[]): Promise<unknown[]>;
+  };
+  /** [SPEND-REPORT] every rep id, so the cost view can score each on their own current period. */
+  allUserIds: () => Promise<string[]>;
 }
 
 /** Constant-time ops-token check (never leak validity via timing). Shared with the /health split so
@@ -67,6 +73,16 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
 
   if (req.method === 'GET' && url === '/ops/spend-cap/audit') {
     sendJson(res, 200, { audit: await deps.overrides.listAudit(50) });
+    return true;
+  }
+
+  // [SPEND-REPORT] GET /ops/spend — per-rep Claude spend this billing period, most-expensive first,
+  // in AED + USD with the per-class split. This is the "what is each rep costing" readout: the
+  // spend_ledger already CAPTURES it on every model call; this exposes it (cross-tenant → ops-only).
+  if (req.method === 'GET' && url === '/ops/spend') {
+    const reps = (await deps.spend.report(await deps.allUserIds())) as Array<{ spentUsd?: number }>;
+    const totalUsd = reps.reduce((sum, r) => sum + (r.spentUsd ?? 0), 0);
+    sendJson(res, 200, { reps, totalUsd: Math.round(totalUsd * 100) / 100 });
     return true;
   }
 

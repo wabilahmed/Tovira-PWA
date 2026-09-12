@@ -83,6 +83,59 @@ export class SpendService {
   snapshot(): { capAed: number; warnFraction: number } {
     return { capAed: this.cfg.capAed, warnFraction: this.cfg.warnFraction };
   }
+
+  /**
+   * [SPEND-REPORT] Per-rep Claude spend for THIS billing period — the ops readout of "what is each
+   * rep costing". Each rep is scored on their OWN current period (billing windows differ per rep),
+   * with the per-class breakdown and BOTH currencies (the ledger stores AED; ops funds the account in
+   * USD). Sorted most-expensive first. Durable spend (survives restarts), unlike the rolling /health
+   * cost metrics. Cross-tenant, so it is only reachable behind the ops token.
+   */
+  async report(userIds: string[]): Promise<RepSpend[]> {
+    const rows = await Promise.all(userIds.map((userId) => this.reportOne(userId)));
+    return rows.sort((a, b) => b.spentAed - a.spentAed);
+  }
+
+  private async reportOne(userId: string): Promise<RepSpend> {
+    const periodKey = await this.periodKeyFor(userId, this.now());
+    const spend = await this.ledger.getForPeriod(userId, periodKey);
+    const capAed = (await this.overrideFor?.(userId, periodKey)) ?? this.cfg.capAed;
+    const fraction = capAed > 0 ? spend.totalAed / capAed : 0;
+    const state: SpendState = spend.totalAed >= capAed ? 'capped' : fraction >= this.cfg.warnFraction ? 'warn' : 'ok';
+    return {
+      userId,
+      periodKey,
+      spentAed: spend.totalAed,
+      spentUsd: aedToUsd(spend.totalAed),
+      capAed,
+      capUsd: aedToUsd(capAed),
+      fraction,
+      state,
+      calls: spend.byClass.reduce((n, c) => n + c.calls, 0),
+      byClass: spend.byClass
+        .map((c) => ({ costClass: c.costClass, aed: c.aed, usd: aedToUsd(c.aed), calls: c.calls }))
+        .sort((a, b) => b.aed - a.aed),
+    };
+  }
+}
+
+/** One rep's Claude spend this billing period (SPEND-REPORT), AED + USD, with the per-class split. */
+export interface RepSpend {
+  userId: string;
+  periodKey: string;
+  spentAed: number;
+  spentUsd: number;
+  capAed: number;
+  capUsd: number;
+  fraction: number;
+  state: SpendState;
+  calls: number;
+  byClass: Array<{ costClass: SpendClass; aed: number; usd: number; calls: number }>;
+}
+
+/** AED → USD at the same pegged rate the cost model uses, rounded to cents. */
+function aedToUsd(aed: number): number {
+  return Math.round((aed / USD_TO_AED) * 100) / 100;
 }
 
 function dominant(byClass: Array<{ costClass: SpendClass; aed: number }>): SpendClass | null {
