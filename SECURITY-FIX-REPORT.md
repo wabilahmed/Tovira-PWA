@@ -151,3 +151,34 @@ surface is now delimited and guarded by gating tests; the timing oracle is close
 core isolation posture (no IDOR, RLS, parameterised everything, no XSS sink) was already sound. **Safe
 for the controlled ~10-rep pilot; scaling past it still requires the deferred set + an external pen
 test.**
+
+---
+
+## DELIBERATE CI-gate skip — credit outage (2026-09-12, temporary, MUST be undone when credits return)
+
+This batch was pushed to git but **NOT deployed**, and CI was **skipped**, on purpose. The Anthropic
+account is out of credits, so the CI P1-9 extraction gate (`ci.yml` → `gate`) fails on **spend, not on
+anything in this change**: with no credits every model call returns empty, which the gate reads as
+"extraction returned nothing (starved/timeout/invalid)" and fails the deploy. Proven: local
+`GATE_RUNS=3` on this exact tree **passed cleanly hours earlier** (promises p=0.98 r=0.94, import
+recall 1.00) and, re-run after the balance emptied, produced the **identical** all-runs-`r=0.00`
+failure on byte-identical code. The only variable is the credit balance.
+
+**Mechanism used: a `[skip ci]` marker on the push** (not a workflow edit). Why this one:
+- It is the **most visible** — the marker is in the commit subject, self-documenting.
+- CI's `gate` step only self-skips when `ANTHROPIC_API_KEY` is *unset*; the secret is set (just
+  unfunded), so it would run and fail. Skipping *only* the gate is not enough anyway: `deploy.yml`
+  fires on CI `conclusion == 'success'`, so a gate-skipped-but-verify-passed CI would **deploy** —
+  which is explicitly not wanted. `[skip ci]` skips the whole CI workflow, so there is **no
+  `workflow_run` event and therefore no deploy** — satisfying "git only, no gate, no deploy" in one
+  marker.
+- It is **per-commit, so it cannot silently persist** — no workflow file was changed, nothing is
+  left disabled. The gate returns automatically on the very next push that does *not* carry the
+  marker. That is the intended guard against the exact decay pattern (a red CI nobody investigates, or
+  a silently-bypassed gate).
+
+**What must happen when credits are back:** simply push normally (no marker) — CI runs the full gate
+again. **No commit may be deployed until a funded CI gate has passed on it.** The security code itself
+is validated (full suite 1573 green locally, typecheck + lint clean, and the gate passed on this tree
+while credits existed), but the standing rule holds: the gate must be green on a funded run before
+these commits reach production. Until then this batch lives on `main`, unshipped.
