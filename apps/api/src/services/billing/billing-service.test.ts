@@ -14,38 +14,61 @@ function make() {
   const trials = new InMemoryTrialGrantRepository();
   const events = new InMemoryWebhookEventRepository();
   const stripe = new StubStripeGateway('whsec_test');
-  const billing = new BillingService(subs, trials, events, stripe, 7);
+  const billing = new BillingService(subs, trials, events, stripe, 14); // [TRIAL-14] flat 14-day trial
   return { subs, trials, events, billing, stripe };
 }
 const evt = (o: object) => JSON.stringify(o);
 
-describe('[P5-1] free trial', () => {
-  it('grants a 7-day trial with full access at signup', async () => {
+describe('[P5-1 · TRIAL-14] free trial (flat 14 days, no usage gate)', () => {
+  it('a trial started today grants full access and expires on day 14', async () => {
     const { billing } = make();
     await billing.onSignup('u', 'rep@x.com', NOW);
     const e = await billing.entitlement('u', NOW);
     expect(e.entitled).toBe(true);
     expect(e.status).toBe('trialing');
-    expect(e.trialEndsAt).toBe(NOW + 7 * DAY);
+    expect(e.trialEndsAt).toBe(NOW + 14 * DAY); // flat 14 days
+    // Still trialing at day 13; expired at day 15 — the window is exactly 14 days.
+    expect((await billing.entitlement('u', NOW + 13 * DAY)).entitled).toBe(true);
   });
 
-  // NEGATIVE: day 8 unpaid → locked.
-  it('locks access after the trial ends with no payment', async () => {
+  // NEGATIVE: day 15 unpaid → locked (the flat window ended on day 14).
+  it('locks access after the 14-day trial ends with no payment', async () => {
     const { billing } = make();
     await billing.onSignup('u', 'rep@x.com', NOW);
-    const e = await billing.entitlement('u', NOW + 8 * DAY);
+    const e = await billing.entitlement('u', NOW + 15 * DAY);
     expect(e.entitled).toBe(false);
     expect(e.status).toBe('trial_expired');
   });
 
-  // NEGATIVE: deleting/recreating an account doesn't grant a fresh trial.
+  // [TRIAL-14] An in-flight trial created under the OLD 7-day rule is NEITHER retroactively shortened
+  // NOR silently extended when the length changes to 14 — the stored trialEndsAt is authoritative and
+  // is never recomputed. (onSignup stamps the end once; entitlement only reads it.)
+  it('does not retroactively change an in-flight trial created under the old 7-day rule', async () => {
+    const subs = new InMemorySubscriptionRepository();
+    const trials = new InMemoryTrialGrantRepository();
+    const stripe = new StubStripeGateway('whsec_test');
+    // A subscription created while the trial was 7 days: its end is NOW + 7d, stored.
+    const billing7 = new BillingService(subs, trials, new InMemoryWebhookEventRepository(), stripe, 7);
+    await billing7.onSignup('legacy', 'old@x.com', NOW);
+    const original = (await billing7.entitlement('legacy', NOW)).trialEndsAt;
+    expect(original).toBe(NOW + 7 * DAY);
+
+    // The service is now 14-day, sharing the same store. Reading the in-flight trial does NOT move it.
+    const billing14 = new BillingService(subs, trials, new InMemoryWebhookEventRepository(), stripe, 14);
+    expect((await billing14.entitlement('legacy', NOW)).trialEndsAt).toBe(original); // unchanged: not 14d, not shortened
+    // And it still expires on its ORIGINAL day 7, not a silently-extended day 14.
+    expect((await billing14.entitlement('legacy', NOW + 8 * DAY)).entitled).toBe(false);
+  });
+
+  // NEGATIVE: deleting/recreating an account doesn't grant a fresh trial (anchored to the first grant).
   it('does not grant a fresh trial for a re-used email (no trial farming)', async () => {
     const { billing } = make();
     await billing.onSignup('u1', 'rep@x.com', NOW);
     // "delete" u1, sign up again with the same email a week later.
     await billing.onSignup('u2', 'REP@x.com', NOW + 7 * DAY);
-    const e = await billing.entitlement('u2', NOW + 8 * DAY);
-    expect(e.entitled).toBe(false); // trial window is anchored to the first grant
+    // Anchored to the FIRST grant (ends NOW+14d), so it's expired by NOW+15d — a fresh trial from the
+    // re-signup would still be active (NOW+7d+14d = NOW+21d). Expired here proves no fresh window.
+    expect((await billing.entitlement('u2', NOW + 15 * DAY)).entitled).toBe(false);
   });
 });
 

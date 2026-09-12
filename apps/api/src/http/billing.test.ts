@@ -14,7 +14,7 @@ let subs: InMemorySubscriptionRepository;
 
 beforeAll(async () => {
   subs = new InMemorySubscriptionRepository();
-  const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
+  const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 14);
   deps = buildInMemoryDeps({ billing });
   server = createApiServer(deps);
   await new Promise<void>((r) => server.listen(0, r));
