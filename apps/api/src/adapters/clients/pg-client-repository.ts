@@ -122,4 +122,13 @@ export class PgClientRepository implements ClientRepository {
       );
     });
   }
+
+  async clearOutcome(userId: string, id: string): Promise<void> {
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query(
+        "UPDATE clients SET outcome = 'open', outcome_source = NULL, outcome_changed_at = NULL WHERE id = $1",
+        [id],
+      );
+    });
+  }
 }

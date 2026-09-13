@@ -98,6 +98,14 @@ export interface AppConfig {
   // count / claret / Today's register, still stored + searchable). 90 keeps recent misses actionable —
   // the Book Scan's headline — while retiring the truly ancient (an import's multi-year backlog).
   promiseStaleThresholdDays: number;
+  // [OUTCOME-2] Days of NO activity (in either direction) after which an OPEN client is inferred lost
+  // by the nightly silence rule. Derivation (NOT settled — a pilot may move it): going-cold is 30d
+  // ("reach out, this is cooling") — a deal is not dead the moment it cools, so lost_inferred must sit
+  // materially beyond it. 90d is 3× the cooling window and matches the existing promise-staleness
+  // horizon (promiseStaleThresholdDays) — the product's existing "probably not live anymore" line.
+  // "Activity" is operationalised as clients.last_touched_at (the same clock going-cold reads); true
+  // per-message direction lives in extraction, which is out of this batch's scope.
+  lostInferredThresholdDays: number;
   // [TRAINING-ARCHIVE] Retention is INDEFINITE — the corpus exists to build a distillation model years
   // out and must never be deleted by age. The daily sweep ARCHIVES rows older than this many days to
   // object storage and removes them from the hot (RDS) table; it never deletes. 0 = DISABLED (keep
@@ -209,6 +217,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     reminderWindowDays: parsePositive(env.REMINDER_WINDOW_DAYS, 7, 'REMINDER_WINDOW_DAYS'),
     chatRefreshStaleDays: parsePositive(env.CHAT_REFRESH_STALE_DAYS, 21, 'CHAT_REFRESH_STALE_DAYS'),
     promiseStaleThresholdDays: parsePositive(env.PROMISE_STALE_THRESHOLD_DAYS, 90, 'PROMISE_STALE_THRESHOLD_DAYS'),
+    // [OUTCOME-2] default 90 — derivation recorded on the interface field above (not settled).
+    lostInferredThresholdDays: parsePositive(env.LOST_INFERRED_THRESHOLD_DAYS, 90, 'LOST_INFERRED_THRESHOLD_DAYS'),
     // [TRAINING-ARCHIVE] 0 = disabled (keep all rows hot). When > 0, archive (never delete) rows older
     // than this to TRAINING_ARCHIVE_DESTINATION.
     trainingArchiveAgeDays: parseNonNegative(env.TRAINING_ARCHIVE_AGE_DAYS, 0, 'TRAINING_ARCHIVE_AGE_DAYS'),

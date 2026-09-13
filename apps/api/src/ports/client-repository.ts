@@ -54,4 +54,8 @@ export interface ClientRepository {
   /** [OUTCOME] Set a client's deal outcome, recording who set it and when. Scoped to the owner;
    *  a no-op for a foreign/unknown client (RLS is the hard net in Postgres). */
   setOutcome(userId: string, id: string, outcome: ClientOutcome, source: OutcomeSource, changedAtMs: number): Promise<void>;
+  /** [OUTCOME] Revert a client to the untouched default (outcome 'open', no source, no changed-at).
+   *  Used by the silence rule (OUTCOME-2) to clear an INFERRED loss when activity resumes — never a
+   *  rep-set outcome. Scoped to the owner. */
+  clearOutcome(userId: string, id: string): Promise<void>;
 }

@@ -70,6 +70,7 @@ import {
   createAdvisoryLock,
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
+import { OutcomeInferenceService } from './services/outcomes/outcome-inference-service.js';
 import { TrainingArchiveService } from './services/facts/training-archive.js';
 import { TrainingLogStatsService } from './services/facts/training-log-stats.js';
 import { PgTrainingLogStatsRepository } from './adapters/logs/pg-training-log-stats-repository.js';
@@ -275,6 +276,13 @@ async function main(): Promise<void> {
     ageDays: config.trainingArchiveAgeDays,
     destination: config.trainingArchiveDestination,
   });
+  // [OUTCOME-2] The nightly deterministic silence rule: mark long-silent open clients lost_inferred,
+  // revert when activity resumes. No model call. Rep-set outcomes are never touched.
+  const outcomeInference = new OutcomeInferenceService({
+    clients,
+    allUserIds: () => auth.allUserIds(),
+    thresholdDays: config.lostInferredThresholdDays,
+  });
   const jobRunStore = createJobRunStore(config, appPool);
   const scheduledBrain = new ScheduledBrain({
     store: jobRunStore,
@@ -321,6 +329,10 @@ async function main(): Promise<void> {
             ? `[archive] training-log: archived ${r.archived} rows across ${r.partitions} partitions (age ${config.trainingArchiveAgeDays}d → ${config.trainingArchiveDestination})`
             : `[archive] training-log archival DISABLED (set TRAINING_ARCHIVE_AGE_DAYS + _DESTINATION) — nothing moved, nothing deleted`);
         } },
+      // [OUTCOME-2] Daily: mark long-silent open clients lost_inferred and revert those whose activity
+      // resumed. Deterministic, no model call. Idempotent, so a restart or extra tick is harmless.
+      { name: 'outcomes-inference', lockKey: 4711009, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => { const r = await outcomeInference.recompute(Date.now()); console.log(`[outcomes] inferred=${r.inferred} reverted=${r.reverted}`); } },
     ],
   });
   const recallSessions = createRecallSessionRepository(config, appPool);

@@ -71,4 +71,13 @@ export class InMemoryClientRepository implements ClientRepository {
       client.outcomeChangedAt = changedAtMs;
     }
   }
+
+  async clearOutcome(userId: string, id: string): Promise<void> {
+    const client = this.byId.get(id);
+    if (client && client.userId === userId) {
+      client.outcome = 'open';
+      client.outcomeSource = null;
+      client.outcomeChangedAt = null;
+    }
+  }
 }
