@@ -80,6 +80,7 @@ export interface TestDeps extends ApiDeps {
   requirements: InMemoryRequirementRepository;
   ledger: LedgerService;
   archiveIndex: InMemoryArchiveIndexRepository;
+  recallSessions: InMemoryRecallSessionRepository;
 }
 
 /**
@@ -193,8 +194,12 @@ export function buildInMemoryDeps(
     hero,
     priorities: new PrioritiesService(hero, new StubModelClient(), new InMemoryPrioritiesRepository()),
     billing,
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo], undefined, undefined, extractionLog, corrections, archiveIndex, storage),
+    // [PRIVACY-3] purgeables covers every in-memory store the users FK cascade purges in Postgres, so
+    // account deletion leaves zero rows in the in-memory model too (recall + S3 archive are purged by
+    // AccountService directly). A new store added here without a purge fails the deletion test.
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images], undefined, undefined, extractionLog, corrections, archiveIndex, storage),
     archiveIndex,
+    recallSessions,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions),

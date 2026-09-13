@@ -29,4 +29,10 @@ export class InMemoryImageRepository implements ImageRepository {
     const i = this.byId.get(id);
     return i && i.userId === userId ? i : null;
   }
+
+  /** [PRIVACY-3] Account-deletion purge. In Postgres the images.user_id → users FK cascade does this;
+   *  the in-memory adapter needs it explicitly so the account-deletion purge path is complete. */
+  async purgeUser(userId: string): Promise<void> {
+    for (const [id, i] of this.byId) if (i.userId === userId) this.byId.delete(id);
+  }
 }
