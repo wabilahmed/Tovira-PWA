@@ -56,6 +56,7 @@ describe('[P5-3b] Book Scan endpoint', () => {
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
         consent: true,
+        firstImportAck: true,
         content: [
           '[2026-01-15, 09:00:00] Alex: here is the quote',
           '[2026-01-16, 10:00:00] Sara Lee: Can you do bulk pricing?',

@@ -80,6 +80,7 @@ describe('[P5-3] day-one seeding via WhatsApp export', () => {
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
         consent: true,
+        firstImportAck: true,
         content: [
           '[2026-01-15, 09:00:00] Alex: quote sent',
           '[2026-01-16, 10:00:00] Sara Lee: Can you do bulk pricing?',
@@ -113,7 +114,7 @@ describe('[P5-3] day-one seeding via WhatsApp export', () => {
     await fetch(`${base}/clients/${cid}/notes/import`, {
       method: 'POST',
       headers: { authorization: `Bearer ${a.token}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ consent: true, content: '[2026-01-15, 09:00:00] Sara Lee: hi?' }),
+      body: JSON.stringify({ consent: true, firstImportAck: true, content: '[2026-01-15, 09:00:00] Sara Lee: hi?' }),
     });
     expect((await status(a.token)).seeded).toBe(true);
     expect((await status(b.token)).seeded).toBe(false); // B unaffected

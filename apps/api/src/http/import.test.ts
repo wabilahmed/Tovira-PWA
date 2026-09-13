@@ -51,7 +51,9 @@ function importChat(token: string, clientId: string, body: unknown): Promise<Res
   return fetch(`${base}/clients/${clientId}/notes/import`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    // [PRIVACY-5] first-import acknowledgement is a precondition now (like consent); these tests are
+    // not about that gate, so they satisfy it. Ignored after the account's first import.
+    body: JSON.stringify({ firstImportAck: true, ...(body as Record<string, unknown>) }),
   });
 }
 

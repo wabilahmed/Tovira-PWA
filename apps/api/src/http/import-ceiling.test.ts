@@ -44,7 +44,7 @@ describe('[P5-1-CEILING] import stopped by the trial seeding ceiling', () => {
     const res = await fetch(`${base}/clients/${cid}/notes/import`, {
       method: 'POST',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ content: EXPORT, consent: true }),
+      body: JSON.stringify({ content: EXPORT, consent: true, firstImportAck: true }),
     });
     expect(res.status).toBe(202); // accepted; extraction deferred
     const body = (await res.json()) as { imported: number; status: string; note: { id: string } };
