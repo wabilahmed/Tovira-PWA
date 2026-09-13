@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { ClientRecord, ClientRepository } from '../../ports/client-repository.js';
+import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource } from '../../ports/client-repository.js';
 import { withTenant } from '../../db/tenant.js';
 
 interface ClientRow {
@@ -11,6 +11,9 @@ interface ClientRow {
   email: string | null;
   created_at: Date;
   last_touched_at: Date;
+  outcome: ClientOutcome;
+  outcome_changed_at: Date | null;
+  outcome_source: OutcomeSource | null;
 }
 
 function toRecord(row: ClientRow): ClientRecord {
@@ -23,10 +26,13 @@ function toRecord(row: ClientRow): ClientRecord {
     email: row.email,
     createdAt: row.created_at.getTime(),
     lastTouchedAt: row.last_touched_at.getTime(),
+    outcome: row.outcome,
+    outcomeChangedAt: row.outcome_changed_at ? row.outcome_changed_at.getTime() : null,
+    outcomeSource: row.outcome_source,
   };
 }
 
-const COLUMNS = 'id, user_id, name, phone, title, email, created_at, last_touched_at';
+const COLUMNS = 'id, user_id, name, phone, title, email, created_at, last_touched_at, outcome, outcome_changed_at, outcome_source';
 
 /**
  * Postgres-backed client store. Every method runs inside a tenant transaction
@@ -104,6 +110,16 @@ export class PgClientRepository implements ClientRepository {
         [userId, cutoffMs],
       );
       return (rows as unknown as ClientRow[]).map(toRecord);
+    });
+  }
+
+  async setOutcome(userId: string, id: string, outcome: ClientOutcome, source: OutcomeSource, changedAtMs: number): Promise<void> {
+    // RLS scopes the row to the owner; a mismatched tenant simply updates nothing.
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query(
+        'UPDATE clients SET outcome = $2, outcome_source = $3, outcome_changed_at = to_timestamp($4 / 1000.0) WHERE id = $1',
+        [id, outcome, source, changedAtMs],
+      );
     });
   }
 }

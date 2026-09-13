@@ -4,6 +4,16 @@
  * the DB via Row-Level Security (P0-4).
  */
 
+/** [OUTCOME] The deal outcome of a client relationship. 'open' is the default; a rep confirms
+ *  'won' or 'lost_confirmed'; the nightly silence rule may set 'lost_inferred' (Task 3). Capture
+ *  only — nothing in this batch analyses or aggregates these. */
+export type ClientOutcome = 'open' | 'won' | 'lost_confirmed' | 'lost_inferred';
+/** How the current outcome was arrived at. A later best-practices analysis MUST be able to tell a
+ *  rep-confirmed loss from an inferred one (they may skew results differently), so this is stored
+ *  explicitly rather than derived from the outcome value. Null while the outcome is the untouched
+ *  default 'open'. */
+export type OutcomeSource = 'rep' | 'inferred';
+
 export interface ClientRecord {
   id: string;
   userId: string;
@@ -17,6 +27,12 @@ export interface ClientRecord {
   createdAt: number;
   /** Recency signal for fast selection — bumped on create and on activity. */
   lastTouchedAt: number;
+  /** [OUTCOME] Deal outcome; defaults to 'open'. */
+  outcome: ClientOutcome;
+  /** [OUTCOME] When the outcome last changed; null while it is the untouched default. */
+  outcomeChangedAt: number | null;
+  /** [OUTCOME] Who set the current outcome; null while untouched. */
+  outcomeSource: OutcomeSource | null;
 }
 
 export interface ClientRepository {
@@ -35,4 +51,7 @@ export interface ClientRepository {
   setLastTouched(userId: string, id: string, ms: number): Promise<void>;
   /** Clients not touched since `cutoffMs` — the going-cold list. */
   listGoingCold(userId: string, cutoffMs: number): Promise<ClientRecord[]>;
+  /** [OUTCOME] Set a client's deal outcome, recording who set it and when. Scoped to the owner;
+   *  a no-op for a foreign/unknown client (RLS is the hard net in Postgres). */
+  setOutcome(userId: string, id: string, outcome: ClientOutcome, source: OutcomeSource, changedAtMs: number): Promise<void>;
 }
