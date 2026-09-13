@@ -61,6 +61,19 @@ describe('[SITE2] the funnel is present, in order', () => {
     expect(items[0]!.hasAttribute('open')).toBe(true);
   });
 
+  // Decision (owner): the "Who is it not for?" answer keeps the recorded-video-call exclusion
+  // but leads with WHO it is for (in-person / relationship sellers) and drops the
+  // "good tools already exist" framing that positioned Tovira as the leftover option.
+  it('the "not for" FAQ leads with who it is for, not a leftover-tool framing', () => {
+    const items = [...d.querySelectorAll<HTMLDetailsElement>('.faq details')];
+    const notFor = items.find((el) => /who is it not for/i.test(el.querySelector('summary')?.textContent ?? ''));
+    expect(notFor, 'the "Who is it not for?" FAQ is present').toBeTruthy();
+    const answer = notFor!.querySelector('p')?.textContent ?? '';
+    expect(answer).not.toMatch(/good tools already exist/i);
+    expect(answer).toMatch(/in person|relationship/i);
+    expect(answer).toMatch(/recorded video/i); // the exclusion itself stays
+  });
+
   it('security makes no claim beyond the four sanctioned ones', () => {
     const sec = d.querySelector('.sec--band')!.textContent ?? '';
     expect(sec).toMatch(/encrypted in transit and at rest/i);
