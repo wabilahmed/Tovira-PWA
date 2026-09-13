@@ -54,15 +54,27 @@ describe('[OUTCOME-2] lost_inferred silence rule', () => {
     expect(after.outcomeSource).toBe('rep');
   });
 
-  it('never overwrites a rep-set "still open" — inference must not touch source = rep', async () => {
+  it('never overwrites a rep-confirmed loss — source = rep always wins over inference', async () => {
     const repo = new InMemoryClientRepository();
-    const c = await repo.create('user-A', 'Pinned Open');
-    await repo.setOutcome('user-A', c.id, 'open', 'rep', now - 200 * DAY);
+    const c = await repo.create('user-A', 'Confirmed Lost');
+    await repo.setOutcome('user-A', c.id, 'lost_confirmed', 'rep', now - 200 * DAY);
     await silentFor(repo, 'user-A', c.id, N + 100, now);
     await service(repo).recompute(now);
     const after = (await repo.findByIdForUser('user-A', c.id))!;
-    expect(after.outcome).toBe('open');
-    expect(after.outcomeSource).toBe('rep'); // untouched by inference
+    expect(after.outcome).toBe('lost_confirmed');
+    expect(after.outcomeSource).toBe('rep');
+  });
+
+  // [FOLLOWUP-1] "still open" is a snooze, not a pin: it clears to the untouched default (source
+  // unset) and resets the clock, so the client is eligible to be inferred lost if it goes silent again.
+  it('does NOT exempt a snoozed "still open" client from a later inference run', async () => {
+    const repo = new InMemoryClientRepository();
+    const c = await repo.create('user-A', 'Snoozed');
+    await repo.clearOutcome('user-A', c.id); // "still open" leaves outcome_source unset
+    await repo.touch('user-A', c.id);        // clock reset (the snooze)
+    await silentFor(repo, 'user-A', c.id, N + 1, now); // silent again, past the threshold
+    await service(repo).recompute(now);
+    expect((await repo.findByIdForUser('user-A', c.id))!.outcome).toBe('lost_inferred');
   });
 
   it('is reversible: activity resuming returns a lost_inferred client to open and clears the inferred value', async () => {

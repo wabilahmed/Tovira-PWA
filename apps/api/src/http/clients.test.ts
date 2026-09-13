@@ -240,13 +240,15 @@ describe('[OUTCOME-3] client outcome endpoint (rep-set, tenant-scoped)', () => {
     expect(after.outcomeSource).toBe('rep');
   });
 
-  it('is reversible: a rep can move an outcome back to open later', async () => {
+  it('is reversible, and "still open" is a snooze not a pin: it leaves outcome_source unset', async () => {
     const token = await signup('outcome-reverse@example.com');
     const c = await makeClient(token, 'Reversible Corp');
     await setOutcome(token, c.id, 'lost');
-    const after = (await (await setOutcome(token, c.id, 'open')).json()) as { outcome: string; outcomeSource: string };
+    const after = (await (await setOutcome(token, c.id, 'open')).json()) as { outcome: string; outcomeSource: string | null };
     expect(after.outcome).toBe('open');
-    expect(after.outcomeSource).toBe('rep'); // a rep-set open still wins over inference
+    // [FOLLOWUP-1] "still open" states the present, not the outcome — it does NOT pin the client
+    // against inference. outcome_source is left unset, so a later silence run can still infer a loss.
+    expect(after.outcomeSource).toBeNull();
   });
 
   it('"still open" resets the going-quiet clock (bumps last_touched_at)', async () => {

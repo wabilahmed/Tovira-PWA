@@ -37,10 +37,15 @@ export async function handleClientRoute(
       return true;
     }
 
-    // [OUTCOME-3] The rep confirm control: won / lost / still open. Every rep-set outcome records
-    // outcome_source='rep', which the nightly silence rule (OUTCOME-2) must never overwrite. "Still
-    // open" is deliberately NOT a no-op: it also resets the going-quiet clock (touch) so the cooling
-    // alert does not immediately ask again. Reversible — a rep can POST a different outcome later.
+    // [OUTCOME-3 / FOLLOWUP-1] The rep confirm control: won / lost / still open.
+    //  - won / lost are real OUTCOME statements → outcome_source='rep', which the nightly silence rule
+    //    (OUTCOME-2) must never overwrite.
+    //  - "still open" is a statement about the PRESENT, not the outcome. It resets the going-quiet
+    //    clock (a snooze) and leaves outcome_source UNSET, so the client stays eligible for inference
+    //    later — a rep saying a deal is alive in March is not saying it can never be inferred lost in
+    //    December. Source is left unset (null) rather than 'inferred': 'inferred' would falsely
+    //    attribute a rep tap to the system, and null == "no outcome on record" is the honest state.
+    // Reversible — a rep can POST a different outcome later.
     if (method === 'POST' && path.startsWith('/clients/') && path.endsWith('/outcome')) {
       const id = decodeURIComponent(path.slice('/clients/'.length, -'/outcome'.length));
       const existing = await clients.findByIdForUser(userId, id);
@@ -56,8 +61,12 @@ export async function handleClientRoute(
         sendJson(res, 400, { error: 'validation', message: "outcome must be 'won', 'lost', or 'open'." });
         return true;
       }
-      await clients.setOutcome(userId, id, mapped, 'rep', Date.now());
-      if (mapped === 'open') await clients.touch(userId, id); // reset the going-quiet clock
+      if (mapped === 'open') {
+        await clients.clearOutcome(userId, id); // snooze: back to the untouched default (source unset)
+        await clients.touch(userId, id);        // reset the going-quiet clock
+      } else {
+        await clients.setOutcome(userId, id, mapped, 'rep', Date.now());
+      }
       sendJson(res, 200, await clients.findByIdForUser(userId, id));
       return true;
     }
