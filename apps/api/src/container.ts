@@ -103,6 +103,9 @@ import type { RecallDailyCounter } from './ports/recall-daily-counter.js';
 import type { ContactAliasRepository, RepNameRepository } from './ports/contact-alias-repository.js';
 import { InMemoryContactAliasRepository, InMemoryRepNameRepository } from './adapters/import/in-memory-contact-alias-repository.js';
 import { PgContactAliasRepository, PgRepNameRepository } from './adapters/import/pg-contact-alias-repository.js';
+import { InMemoryImportAckRepository } from './adapters/import/in-memory-import-ack-repository.js';
+import { PgImportAckRepository } from './adapters/import/pg-import-ack-repository.js';
+import type { ImportAckRepository } from './ports/import-ack-repository.js';
 import { InMemoryRecallDailyCounter } from './adapters/spend/in-memory-recall-daily-counter.js';
 import { PgRecallDailyCounter } from './adapters/spend/pg-recall-daily-counter.js';
 import type { SpendOverrideRepository } from './ports/spend-override-repository.js';
@@ -442,6 +445,15 @@ export function createContactAliasRepository(config: AppConfig, appPool?: Pool):
     return new PgContactAliasRepository(appPool);
   }
   return new InMemoryContactAliasRepository();
+}
+
+/** [PRIVACY-5] first-import acknowledgement store. */
+export function createImportAckRepository(config: AppConfig, appPool?: Pool): ImportAckRepository {
+  if (config.authStore === 'postgres') {
+    if (!appPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgImportAckRepository(appPool);
+  }
+  return new InMemoryImportAckRepository();
 }
 
 export function createRepNameRepository(config: AppConfig, appPool?: Pool): RepNameRepository {

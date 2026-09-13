@@ -40,6 +40,7 @@ import { handleInventoryRoute } from './http/inventory-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
 import type { NoteMoveService } from './services/import/note-move-service.js';
 import type { ContactAliasRepository, RepNameRepository } from './ports/contact-alias-repository.js';
+import type { ImportAckRepository } from './ports/import-ack-repository.js';
 import { handleFactsRoute } from './http/facts-routes.js';
 import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
@@ -130,6 +131,8 @@ export interface ApiDeps {
   /** [ALIAS] learned WhatsApp contact aliases + the rep's own display name. */
   aliases?: ContactAliasRepository;
   repNames?: RepNameRepository;
+  /** [PRIVACY-5] first-import acknowledgement store. */
+  importAck: ImportAckRepository;
   corpus: CorpusStatsService;
   monday: MondayDigestService;
   ledger: LedgerService;
@@ -291,6 +294,7 @@ export function createApiServer(deps: ApiDeps): Server {
           noteMove: deps.noteMove,
           aliases: deps.aliases,
           repNames: deps.repNames,
+          importAck: deps.importAck,
         })
       )
         return;

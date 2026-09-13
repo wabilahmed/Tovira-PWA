@@ -39,6 +39,7 @@ import { BriefService } from '../services/brief/brief-service.js';
 import { FollowUpService } from '../services/followup/follow-up-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
 import { InMemoryContactAliasRepository, InMemoryRepNameRepository } from '../adapters/import/in-memory-contact-alias-repository.js';
+import { InMemoryImportAckRepository } from '../adapters/import/in-memory-import-ack-repository.js';
 import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
 import { MeetingParser } from '../services/meetings/meeting-parser.js';
 import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
@@ -117,6 +118,7 @@ export function buildInMemoryDeps(
   const corrections = new InMemoryCorrectionRepository();
   const contactAliases = new InMemoryContactAliasRepository();
   const repNames = new InMemoryRepNameRepository();
+  const importAck = new InMemoryImportAckRepository();
   const extraction = new ExtractionService(
     new StubModelClient(),
     clients,
@@ -197,9 +199,10 @@ export function buildInMemoryDeps(
     // [PRIVACY-3] purgeables covers every in-memory store the users FK cascade purges in Postgres, so
     // account deletion leaves zero rows in the in-memory model too (recall + S3 archive are purged by
     // AccountService directly). A new store added here without a purge fails the deletion test.
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images], undefined, undefined, extractionLog, corrections, archiveIndex, storage),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck], undefined, undefined, extractionLog, corrections, archiveIndex, storage),
     archiveIndex,
     recallSessions,
+    importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions),

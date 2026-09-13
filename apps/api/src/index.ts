@@ -48,6 +48,7 @@ import {
   createNoteMoveTx,
   createNoteMoveService,
   createContactAliasRepository,
+  createImportAckRepository,
   createRepNameRepository,
   createMeetingParser,
   createNotificationRepository,
@@ -184,6 +185,7 @@ async function main(): Promise<void> {
   // [ALIAS] learned WhatsApp contact aliases + the rep's own display name (import counterpart id).
   const contactAliases = createContactAliasRepository(config, appPool);
   const repNames = createRepNameRepository(config, appPool);
+  const importAck = createImportAckRepository(config, appPool);
   // NUDGE-UNCONFIRMED: extraction persists proposed meetings (confirmed:false) so they can be
   // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
   // COST-IMPORT-METRIC: a rolling per-rep import cost, recorded at extraction time for imports.
@@ -370,6 +372,7 @@ async function main(): Promise<void> {
     noteMove,
     aliases: contactAliases,
     repNames,
+    importAck,
     corrections,
     extractionLog: extractionLogs,
     brief,

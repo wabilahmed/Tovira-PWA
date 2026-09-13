@@ -15,6 +15,8 @@ import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { resolveTranscript } from '../services/import/resolve.js';
 import { detectMisfileAtImport } from '../services/import/misfile.js';
 import type { ContactAliasRepository, RepNameRepository } from '../ports/contact-alias-repository.js';
+import type { ImportAckRepository } from '../ports/import-ack-repository.js';
+import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
@@ -68,6 +70,8 @@ export interface NoteRouteDeps {
   /** [ALIAS] learned per-client WhatsApp aliases + the rep's own display name. Optional. */
   aliases?: ContactAliasRepository;
   repNames?: RepNameRepository;
+  /** [PRIVACY-5] first-import acknowledgement store — gates the first chat-export upload per account. */
+  importAck: ImportAckRepository;
 }
 
 /** Ledger (P4-11): capturing a note for a client that a scan flagged (going cold
@@ -196,7 +200,19 @@ export async function handleNoteRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const body = (await readJsonBody(req)) as { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown; confirmImport?: unknown; counterpart?: unknown };
+      const body = (await readJsonBody(req)) as { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown; confirmImport?: unknown; counterpart?: unknown; firstImportAck?: unknown };
+      // [PRIVACY-5] Before the FIRST import in this account, the rep must acknowledge they have the
+      // right to upload messages written by other people. Once acknowledged (stored, once per account),
+      // later imports skip this. Declining = not sending firstImportAck: the import does not proceed and
+      // nothing about the account changes (no ack recorded, no note created).
+      if ((await deps.importAck.acknowledgedAt(userId)) === null) {
+        if (body.firstImportAck === true) {
+          await deps.importAck.acknowledge(userId, Date.now());
+        } else {
+          sendJson(res, 428, { error: 'acknowledgement_required', notice: FIRST_IMPORT_NOTICE });
+          return true;
+        }
+      }
       // A full export contains everything in the chat — require explicit consent.
       if (body.consent !== true) {
         sendJson(res, 400, {
