@@ -39,6 +39,15 @@ describe('[SITE2] the funnel is present, in order', () => {
     }
   });
 
+  // Audit fill: the daily ranked "who to contact today" list is a core surface that was
+  // absent from §4; and alias resolution (one client under several names) is the accuracy
+  // capability that was nowhere on the page. Both are approved source copy for shipped features.
+  it('the "how" section names the daily ranked priorities surface and alias resolution', () => {
+    const how = d.querySelector('#how')?.textContent ?? '';
+    expect(how, 'daily ranked priorities surface').toMatch(/who needs you|ranked/i);
+    expect(how, 'one client under several names (alias resolution)').toMatch(/name/i);
+  });
+
   it('every CTA is a plain link to /app (works with no JS) and there is a sticky mobile bar', () => {
     const ctas = [...d.querySelectorAll<HTMLAnchorElement>('[data-cta]')];
     expect(ctas.length).toBeGreaterThanOrEqual(4); // nav, hero, plans, close, mobile bar
