@@ -36,6 +36,22 @@ describe('<Alerts>', () => {
     expect(await screen.findByText(/nothing needs you and no one has gone quiet/i)).toBeInTheDocument();
   });
 
+  // [OUTCOME-3] The won/lost/still-open control sits on each going-quiet row when a handler is wired.
+  it('offers the outcome control on a cooling client and reports the rep\'s choice', async () => {
+    const user = userEvent.setup();
+    const onSetOutcome = vi.fn().mockResolvedValue(undefined);
+    render(<Alerts api={makeApi([], [coldC('c1', 'Meridian')])} onSetOutcome={onSetOutcome} />);
+    await screen.findByTestId('cold-client');
+    await user.click(screen.getByRole('button', { name: /mark meridian lost/i }));
+    await waitFor(() => expect(onSetOutcome).toHaveBeenCalledWith('c1', 'lost'));
+  });
+
+  it('shows no outcome control when no handler is wired', async () => {
+    render(<Alerts api={makeApi([], [coldC('c1', 'Meridian')])} />);
+    await screen.findByTestId('cold-client');
+    expect(screen.queryByRole('button', { name: /mark meridian lost/i })).toBeNull();
+  });
+
   // POSITIVE: refresh re-runs the scan and reloads.
   it('re-runs the scan on refresh', async () => {
     const user = userEvent.setup();

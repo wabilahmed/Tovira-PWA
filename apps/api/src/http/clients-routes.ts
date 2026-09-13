@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
-import type { ClientRepository } from '../ports/client-repository.js';
+import type { ClientRepository, ClientOutcome } from '../ports/client-repository.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
 /** Handle a /clients or /clients/:id request. Returns true if it handled it. */
@@ -34,6 +34,31 @@ export async function handleClientRoute(
       const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : null;
       const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null;
       sendJson(res, 201, await clients.create(userId, name, phone, title, email));
+      return true;
+    }
+
+    // [OUTCOME-3] The rep confirm control: won / lost / still open. Every rep-set outcome records
+    // outcome_source='rep', which the nightly silence rule (OUTCOME-2) must never overwrite. "Still
+    // open" is deliberately NOT a no-op: it also resets the going-quiet clock (touch) so the cooling
+    // alert does not immediately ask again. Reversible — a rep can POST a different outcome later.
+    if (method === 'POST' && path.startsWith('/clients/') && path.endsWith('/outcome')) {
+      const id = decodeURIComponent(path.slice('/clients/'.length, -'/outcome'.length));
+      const existing = await clients.findByIdForUser(userId, id);
+      if (!existing) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      const body = (await readJsonBody(req)) as { outcome?: unknown };
+      const choice = typeof body.outcome === 'string' ? body.outcome : '';
+      const mapped: ClientOutcome | null =
+        choice === 'won' ? 'won' : choice === 'lost' ? 'lost_confirmed' : choice === 'open' ? 'open' : null;
+      if (mapped === null) {
+        sendJson(res, 400, { error: 'validation', message: "outcome must be 'won', 'lost', or 'open'." });
+        return true;
+      }
+      await clients.setOutcome(userId, id, mapped, 'rep', Date.now());
+      if (mapped === 'open') await clients.touch(userId, id); // reset the going-quiet clock
+      sendJson(res, 200, await clients.findByIdForUser(userId, id));
       return true;
     }
 

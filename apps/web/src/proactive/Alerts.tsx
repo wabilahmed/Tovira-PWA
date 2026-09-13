@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ColdClient, Notification } from './proactiveClient.js';
 import { daysSince } from '../format/dates.js';
+import { OutcomeControl, type OutcomeChoice } from '../outcomes/OutcomeControl.js';
 
 export interface ProactiveApi {
   listCold(): Promise<ColdClient[]>;
@@ -8,8 +9,10 @@ export interface ProactiveApi {
   runScan(): Promise<boolean>;
 }
 
-/** In-app alerts + going-cold list — value even when push fails/is off (P3-5). */
-export function Alerts({ api, now = Date.now() }: { api: ProactiveApi; now?: number }): JSX.Element {
+/** In-app alerts + going-cold list — value even when push fails/is off (P3-5).
+ *  [OUTCOME-3] when `onSetOutcome` is wired, each going-quiet row carries the won/lost/still-open
+ *  control — the deal-risk surface is exactly where a rep knows the answer. */
+export function Alerts({ api, now = Date.now(), onSetOutcome }: { api: ProactiveApi; now?: number; onSetOutcome?: (clientId: string, choice: OutcomeChoice) => void | Promise<void> }): JSX.Element {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [cold, setCold] = useState<ColdClient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,10 +81,13 @@ export function Alerts({ api, now = Date.now() }: { api: ProactiveApi; now?: num
           {cold.map((c) => {
             const days = daysSince(c.lastTouchedAt, now);
             return (
-              <li key={c.id} data-testid="cold-client" style={{ ...item, justifyContent: 'space-between' }}>
-                <span>{c.name}</span>{' '}
-                {/* Elapsed silence is a fact — the one place claret may dominate a row (§10). */}
-                <span className="tov-mono" style={{ color: 'var(--claret)', fontSize: '0.85rem' }}>· silent {days} day{days === 1 ? '' : 's'}</span>
+              <li key={c.id} data-testid="cold-client" style={{ ...item, flexDirection: 'column', alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'baseline' }}>
+                  <span>{c.name}</span>{' '}
+                  {/* Elapsed silence is a fact — the one place claret may dominate a row (§10). */}
+                  <span className="tov-mono" style={{ color: 'var(--claret)', fontSize: '0.85rem' }}>· silent {days} day{days === 1 ? '' : 's'}</span>
+                </div>
+                {onSetOutcome && <OutcomeControl clientName={c.name} onChoose={(choice) => onSetOutcome(c.id, choice)} />}
               </li>
             );
           })}

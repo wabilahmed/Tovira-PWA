@@ -351,6 +351,18 @@
 .tov-confirm-queue {
   margin-top: 1rem;
 }
+/* [OUTCOME-3] The won/lost/still-open control. Mobile-first: buttons wrap and stay tappable on a
+   narrow screen; reuses the .tov-chit-action outline idiom. */
+.tov-outcome-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.tov-outcome-control .tov-chit-action[aria-pressed='true'] {
+  background: var(--brass-surface);
+  font-weight: 600;
+}
 
 /* Soft email-verification nudge (EMAIL-VERIFY): quiet, never alarming. It informs;
    it does not block. Measured tone per the brand voice — no red, no urgency. */

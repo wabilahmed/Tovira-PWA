@@ -367,7 +367,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'week' && gated(
         <>
-          <MondayDigest api={mondayApi} />
+          <MondayDigest api={mondayApi} onSetOutcome={async (id, choice) => { await clientsApi.setOutcome(id, choice); }} />
           <ConfirmChitQueue api={promisesApi} heading="Guesses to confirm" />
         </>,
       )}
@@ -390,7 +390,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'alerts' && (
         <>
-          <Alerts api={proactiveApi} />
+          <Alerts api={proactiveApi} onSetOutcome={async (id, choice) => { await clientsApi.setOutcome(id, choice); }} />
           <ConfirmChitQueue api={promisesApi} />
         </>
       )}

@@ -79,6 +79,22 @@ export class ClientsClient {
     return (await res.json()) as ClientSummary;
   }
 
+  /** [OUTCOME-3] Set a client's deal outcome (rep-sourced server-side). 'lost' → lost_confirmed;
+   *  'open' also resets the going-quiet clock. Returns whether it persisted. */
+  async setOutcome(id: string, outcome: 'won' | 'lost' | 'open'): Promise<boolean> {
+    try {
+      const res = await fetch(this.url(`/clients/${encodeURIComponent(id)}/outcome`), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ outcome }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   /** Set (or clear) a client's phone (P4-7). Returns the updated record, or null
    *  on failure (e.g. not the owner). */
   async setPhone(id: string, phone: string | null): Promise<ClientSummary | null> {

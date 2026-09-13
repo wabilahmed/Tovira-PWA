@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { MondayDigest as Digest } from './mondayClient.js';
 import { Receipt } from '../components/Receipt.js';
 import { formatBody, formatRange, daysSince } from '../format/dates.js';
+import { OutcomeControl, type OutcomeChoice } from '../outcomes/OutcomeControl.js';
 
 export interface MondayApi {
   get(): Promise<Digest | null>;
@@ -14,7 +15,7 @@ export interface MondayApi {
  * one thing to do earns the single brass verb. Empty sections are hidden, never
  * padded.
  */
-export function MondayDigest({ api, now = Date.now() }: { api: MondayApi; now?: number }): JSX.Element {
+export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: MondayApi; now?: number; onSetOutcome?: (clientId: string, choice: OutcomeChoice) => void | Promise<void> }): JSX.Element {
   const [digest, setDigest] = useState<Digest | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
 
@@ -68,7 +69,10 @@ export function MondayDigest({ api, now = Date.now() }: { api: MondayApi; now?: 
 
       <Section testid="cooling" label="Cooling clients" count={digest.coolingClients.length}>
         {digest.coolingClients.map((c) => (
-          <Row key={c.id} left={c.name} right={c.lastTouchedAt ? `silent ${daysSince(c.lastTouchedAt, now)} days` : ''} claretRight />
+          <div key={c.id}>
+            <Row left={c.name} right={c.lastTouchedAt ? `silent ${daysSince(c.lastTouchedAt, now)} days` : ''} claretRight />
+            {onSetOutcome && <OutcomeControl clientName={c.name} onChoose={(choice) => onSetOutcome(c.id, choice)} />}
+          </div>
         ))}
       </Section>
 

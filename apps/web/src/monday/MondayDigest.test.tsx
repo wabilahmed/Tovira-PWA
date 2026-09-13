@@ -40,6 +40,17 @@ describe('<MondayDigest>', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument();
   });
 
+  // [OUTCOME-3] Cooling clients carry the outcome control, batched as rows, when a handler is wired.
+  it('offers the outcome control on each cooling row and reports the choice', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const onSetOutcome = vi.fn().mockResolvedValue(undefined);
+    render(<MondayDigest api={api(full)} onSetOutcome={onSetOutcome} />);
+    const cooling = await screen.findByTestId('cooling');
+    await user.click(within(cooling).getByRole('button', { name: /mark quiet co won/i }));
+    expect(onSetOutcome).toHaveBeenCalledWith('c2', 'won');
+  });
+
   // INV-MATCH: the "surfaced but not acted this week" section — item + the client's quoted words.
   it('lists suggestions surfaced this week but not acted on, with the receipt', async () => {
     const surfaced = [{ clientId: 'c1', itemTitle: 'Marina Heights 402', requirementRaw: 'a 2-bed near the marina', statedOn: '2026-03-14', noteId: 'n1' }];

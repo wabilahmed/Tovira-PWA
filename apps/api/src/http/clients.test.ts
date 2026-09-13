@@ -207,3 +207,77 @@ describe('clients HTTP endpoints (tenant-scoped)', () => {
     expect(bList.clients.map((c) => c.id)).not.toContain(aClient.id);
   });
 });
+
+// [OUTCOME-3] The rep confirm control writes over HTTP: won / lost / still open. Setting any of them
+// records outcome_source='rep'. "Still open" is not a no-op — it resets the going-quiet clock.
+describe('[OUTCOME-3] client outcome endpoint (rep-set, tenant-scoped)', () => {
+  async function makeClient(token: string, name: string): Promise<{ id: string; lastTouchedAt: number }> {
+    return (await (await fetch(`${base}/clients`, authed(token, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }),
+    }))).json()) as { id: string; lastTouchedAt: number };
+  }
+  function setOutcome(token: string, id: string, outcome: string): Promise<Response> {
+    return fetch(`${base}/clients/${id}/outcome`, authed(token, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ outcome }),
+    }));
+  }
+
+  it('marks a client won, recording the rep as the source', async () => {
+    const token = await signup('outcome-won@example.com');
+    const c = await makeClient(token, 'Won Corp');
+    const res = await setOutcome(token, c.id, 'won');
+    expect(res.status).toBe(200);
+    const after = (await res.json()) as { outcome: string; outcomeSource: string };
+    expect(after.outcome).toBe('won');
+    expect(after.outcomeSource).toBe('rep');
+  });
+
+  it('maps "lost" to lost_confirmed (a rep-confirmed loss, distinct from inferred)', async () => {
+    const token = await signup('outcome-lost@example.com');
+    const c = await makeClient(token, 'Lost Corp');
+    const after = (await (await setOutcome(token, c.id, 'lost')).json()) as { outcome: string; outcomeSource: string };
+    expect(after.outcome).toBe('lost_confirmed');
+    expect(after.outcomeSource).toBe('rep');
+  });
+
+  it('is reversible: a rep can move an outcome back to open later', async () => {
+    const token = await signup('outcome-reverse@example.com');
+    const c = await makeClient(token, 'Reversible Corp');
+    await setOutcome(token, c.id, 'lost');
+    const after = (await (await setOutcome(token, c.id, 'open')).json()) as { outcome: string; outcomeSource: string };
+    expect(after.outcome).toBe('open');
+    expect(after.outcomeSource).toBe('rep'); // a rep-set open still wins over inference
+  });
+
+  it('"still open" resets the going-quiet clock (bumps last_touched_at)', async () => {
+    const token = await signup('outcome-clock@example.com');
+    const c = await makeClient(token, 'Clock Corp');
+    const after = (await (await setOutcome(token, c.id, 'open')).json()) as { lastTouchedAt: number };
+    expect(after.lastTouchedAt).toBeGreaterThan(c.lastTouchedAt);
+  });
+
+  it('rejects an unknown outcome value (400)', async () => {
+    const token = await signup('outcome-bad@example.com');
+    const c = await makeClient(token, 'Bad Corp');
+    expect((await setOutcome(token, c.id, 'maybe')).status).toBe(400);
+  });
+
+  it('requires auth', async () => {
+    const token = await signup('outcome-auth@example.com');
+    const c = await makeClient(token, 'Auth Corp');
+    expect((await fetch(`${base}/clients/${c.id}/outcome`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ outcome: 'won' }),
+    })).status).toBe(401);
+  });
+
+  // ISOLATION: another rep cannot set (or even address) your client's outcome.
+  it('never lets another rep set a client outcome (IDOR → 404)', async () => {
+    const tokenA = await signup('outcome-idorA@example.com');
+    const tokenB = await signup('outcome-idorB@example.com');
+    const a = await makeClient(tokenA, 'A Corp');
+    expect((await setOutcome(tokenB, a.id, 'won')).status).toBe(404);
+    // A's client is untouched.
+    const stillOpen = (await (await fetch(`${base}/clients/${a.id}`, authed(tokenA))).json()) as { outcome: string };
+    expect(stillOpen.outcome).toBe('open');
+  });
+});
