@@ -166,10 +166,10 @@ records the actor of each transition, but not the actions that were resetting th
   re-inferred" and "a snoozed still-open client is NOT exempt"); `clients.test.ts` **+0** (the
   reversible test was reworded to assert source-unset, not added). File count **+1** = the new history
   test file. No production tests changed count.
-- **1598 pass; 1 known environmental flake** — `share-referral.test.ts`'s crediting-timeout assertion
-  (2000 ms tolerance) trips only under heavy parallel load (measured at 2176 ms in one contended run).
-  It passes in isolation and in un-contended full runs; it is unrelated to this batch. Documented as a
-  standing solo-run flake.
+- **All green in an un-contended run: 1599 / 1599 passed, 0 failures** (`vitest run --no-file-parallelism`,
+  198 s). A separate heavily-parallel run showed 1598 + 1 failure — the documented `share-referral.test.ts`
+  crediting-timeout flake (2000 ms tolerance, measured 2176 ms under load); it passes solo and in the
+  un-contended full run, and is unrelated to this batch.
 - **Typecheck clean · lint clean.**
 
 ## Unshipped on main
