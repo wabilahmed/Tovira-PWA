@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
-import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource } from '../../ports/client-repository.js';
+import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition } from '../../ports/client-repository.js';
+import type { TenantQueryable } from '../../db/tenant.js';
 import { withTenant } from '../../db/tenant.js';
 
 interface ClientRow {
@@ -114,21 +115,79 @@ export class PgClientRepository implements ClientRepository {
   }
 
   async setOutcome(userId: string, id: string, outcome: ClientOutcome, source: OutcomeSource, changedAtMs: number): Promise<void> {
-    // RLS scopes the row to the owner; a mismatched tenant simply updates nothing.
+    // RLS scopes the row to the owner; a mismatched tenant simply updates nothing. The UPDATE and the
+    // history append run in ONE tenant transaction (withTenant BEGIN/COMMIT), so a transition is never
+    // recorded without its state change, nor lost after it.
     await withTenant(this.pool, userId, async (c) => {
-      await c.query(
+      const prev = await prevOutcome(c, id);
+      const { rowCount } = (await c.query(
         'UPDATE clients SET outcome = $2, outcome_source = $3, outcome_changed_at = to_timestamp($4 / 1000.0) WHERE id = $1',
         [id, outcome, source, changedAtMs],
-      );
+      )) as unknown as { rowCount: number };
+      if (rowCount && prev !== null && prev !== outcome) {
+        await appendHistory(c, userId, id, prev, outcome, source, changedAtMs);
+      }
     });
   }
 
-  async clearOutcome(userId: string, id: string): Promise<void> {
+  async clearOutcome(userId: string, id: string, actor: OutcomeSource, changedAtMs: number): Promise<void> {
     await withTenant(this.pool, userId, async (c) => {
-      await c.query(
+      const prev = await prevOutcome(c, id);
+      const { rowCount } = (await c.query(
         "UPDATE clients SET outcome = 'open', outcome_source = NULL, outcome_changed_at = NULL WHERE id = $1",
         [id],
-      );
+      )) as unknown as { rowCount: number };
+      if (rowCount && prev !== null && prev !== 'open') {
+        await appendHistory(c, userId, id, prev, 'open', actor, changedAtMs);
+      }
     });
   }
+
+  async listOutcomeHistory(userId: string, id: string): Promise<OutcomeTransition[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      // RLS scopes rows to the owner; the client_id filter narrows to one client, oldest first.
+      const { rows } = await c.query(
+        'SELECT client_id, prev_outcome, new_outcome, source, changed_at FROM client_outcome_history WHERE client_id = $1 ORDER BY changed_at ASC, id ASC',
+        [id],
+      );
+      return (rows as unknown as OutcomeHistoryRow[]).map((r) => ({
+        clientId: r.client_id,
+        previous: r.prev_outcome,
+        next: r.new_outcome,
+        source: r.source,
+        changedAt: r.changed_at.getTime(),
+      }));
+    });
+  }
+}
+
+interface OutcomeHistoryRow {
+  client_id: string;
+  prev_outcome: ClientOutcome;
+  new_outcome: ClientOutcome;
+  source: OutcomeSource;
+  changed_at: Date;
+}
+
+/** Read a client's current outcome inside the tenant tx; null if the row is not visible (foreign/unknown). */
+async function prevOutcome(c: TenantQueryable, id: string): Promise<ClientOutcome | null> {
+  const { rows } = await c.query('SELECT outcome FROM clients WHERE id = $1', [id]);
+  return rows[0] ? (rows[0].outcome as ClientOutcome) : null;
+}
+
+/** Append one append-only transition row (INSERT only; the table grants no UPDATE/DELETE). */
+async function appendHistory(
+  c: TenantQueryable,
+  userId: string,
+  clientId: string,
+  prev: ClientOutcome,
+  next: ClientOutcome,
+  source: OutcomeSource,
+  changedAtMs: number,
+): Promise<void> {
+  await c.query(
+    `INSERT INTO client_outcome_history (user_id, client_id, prev_outcome, new_outcome, source, changed_at)
+     VALUES ($1, $2, $3, $4, $5, to_timestamp($6 / 1000.0))`,
+    [userId, clientId, prev, next, source, changedAtMs],
+  );
 }

@@ -14,6 +14,19 @@ export type ClientOutcome = 'open' | 'won' | 'lost_confirmed' | 'lost_inferred';
  *  default 'open'. */
 export type OutcomeSource = 'rep' | 'inferred';
 
+/** [OUTCOME-FOLLOWUP-2] One append-only record of a single outcome transition. `source` is the ACTOR
+ *  of THIS transition ('rep' or 'inferred'), not necessarily the client's resulting outcome_source —
+ *  e.g. a rep tapping "still open" on an inferred loss logs {lost_inferred → open, source:'rep'} while
+ *  the client's stored outcome_source returns to null. That distinction is exactly what lets a later
+ *  analysis tell a rep-revival from an activity-revival. */
+export interface OutcomeTransition {
+  clientId: string;
+  previous: ClientOutcome;
+  next: ClientOutcome;
+  source: OutcomeSource;
+  changedAt: number;
+}
+
 export interface ClientRecord {
   id: string;
   userId: string;
@@ -52,10 +65,16 @@ export interface ClientRepository {
   /** Clients not touched since `cutoffMs` — the going-cold list. */
   listGoingCold(userId: string, cutoffMs: number): Promise<ClientRecord[]>;
   /** [OUTCOME] Set a client's deal outcome, recording who set it and when. Scoped to the owner;
-   *  a no-op for a foreign/unknown client (RLS is the hard net in Postgres). */
+   *  a no-op for a foreign/unknown client (RLS is the hard net in Postgres). [FOLLOWUP-2] Appends an
+   *  outcome-history row when the outcome or source actually changes (a no-op write logs nothing). */
   setOutcome(userId: string, id: string, outcome: ClientOutcome, source: OutcomeSource, changedAtMs: number): Promise<void>;
   /** [OUTCOME] Revert a client to the untouched default (outcome 'open', no source, no changed-at).
-   *  Used by the silence rule (OUTCOME-2) to clear an INFERRED loss when activity resumes — never a
-   *  rep-set outcome. Scoped to the owner. */
-  clearOutcome(userId: string, id: string): Promise<void>;
+   *  Used for a rep "still open" snooze (actor 'rep') and by the silence rule to clear an inferred loss
+   *  when activity resumes (actor 'inferred'). Scoped to the owner. [FOLLOWUP-2] `actor` is recorded as
+   *  the transition's source in the history; the client's outcome_source still returns to null. Appends
+   *  a history row only when it actually changes the outcome (already-open/untouched → no row). */
+  clearOutcome(userId: string, id: string, actor: OutcomeSource, changedAtMs: number): Promise<void>;
+  /** [OUTCOME-FOLLOWUP-2] The append-only outcome-transition history for one client, oldest first.
+   *  Scoped to the owner — another rep's history is never returned. */
+  listOutcomeHistory(userId: string, id: string): Promise<OutcomeTransition[]>;
 }

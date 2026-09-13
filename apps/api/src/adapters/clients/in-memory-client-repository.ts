@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource } from '../../ports/client-repository.js';
+import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition } from '../../ports/client-repository.js';
 
 /** In-memory client store mirroring the RLS isolation contract, for tests. */
 export class InMemoryClientRepository implements ClientRepository {
   private readonly byId = new Map<string, ClientRecord>();
+  /** [FOLLOWUP-2] Append-only outcome history, keyed by client id. Mirrors the RLS-isolated
+   *  client_outcome_history table; scoped by userId on read/write like the pg adapter. */
+  private readonly history = new Map<string, OutcomeTransition[]>();
   private clock = 0;
 
   /** Monotonic recency stamp so ordering is deterministic even within a ms. */
@@ -56,28 +59,49 @@ export class InMemoryClientRepository implements ClientRepository {
   }
 
   async purgeUser(userId: string): Promise<void> {
-    for (const [id, c] of this.byId) if (c.userId === userId) this.byId.delete(id);
+    for (const [id, c] of this.byId) {
+      if (c.userId === userId) {
+        this.byId.delete(id);
+        this.history.delete(id); // [FOLLOWUP-2] account deletion purges history too
+      }
+    }
   }
 
   async listGoingCold(userId: string, cutoffMs: number): Promise<ClientRecord[]> {
     return this.ownedByUser(userId).filter((c) => c.lastTouchedAt < cutoffMs);
   }
 
+  /** Append a transition row only when the outcome actually changes (append-only, no no-op rows). */
+  private logTransition(id: string, previous: ClientOutcome, next: ClientOutcome, source: OutcomeSource, changedAt: number): void {
+    if (previous === next) return;
+    const rows = this.history.get(id) ?? [];
+    rows.push({ clientId: id, previous, next, source, changedAt });
+    this.history.set(id, rows);
+  }
+
   async setOutcome(userId: string, id: string, outcome: ClientOutcome, source: OutcomeSource, changedAtMs: number): Promise<void> {
     const client = this.byId.get(id);
     if (client && client.userId === userId) {
+      this.logTransition(id, client.outcome, outcome, source, changedAtMs);
       client.outcome = outcome;
       client.outcomeSource = source;
       client.outcomeChangedAt = changedAtMs;
     }
   }
 
-  async clearOutcome(userId: string, id: string): Promise<void> {
+  async clearOutcome(userId: string, id: string, actor: OutcomeSource, changedAtMs: number): Promise<void> {
     const client = this.byId.get(id);
     if (client && client.userId === userId) {
+      this.logTransition(id, client.outcome, 'open', actor, changedAtMs);
       client.outcome = 'open';
       client.outcomeSource = null;
       client.outcomeChangedAt = null;
     }
+  }
+
+  async listOutcomeHistory(userId: string, id: string): Promise<OutcomeTransition[]> {
+    const client = this.byId.get(id);
+    if (!client || client.userId !== userId) return []; // isolation: never another rep's history
+    return [...(this.history.get(id) ?? [])];
   }
 }

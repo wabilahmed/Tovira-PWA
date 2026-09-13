@@ -70,7 +70,7 @@ describe('[OUTCOME-2] lost_inferred silence rule', () => {
   it('does NOT exempt a snoozed "still open" client from a later inference run', async () => {
     const repo = new InMemoryClientRepository();
     const c = await repo.create('user-A', 'Snoozed');
-    await repo.clearOutcome('user-A', c.id); // "still open" leaves outcome_source unset
+    await repo.clearOutcome('user-A', c.id, 'rep', now); // "still open" leaves outcome_source unset
     await repo.touch('user-A', c.id);        // clock reset (the snooze)
     await silentFor(repo, 'user-A', c.id, N + 1, now); // silent again, past the threshold
     await service(repo).recompute(now);

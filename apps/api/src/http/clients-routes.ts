@@ -62,7 +62,7 @@ export async function handleClientRoute(
         return true;
       }
       if (mapped === 'open') {
-        await clients.clearOutcome(userId, id); // snooze: back to the untouched default (source unset)
+        await clients.clearOutcome(userId, id, 'rep', Date.now()); // snooze: untouched default; history actor 'rep'
         await clients.touch(userId, id);        // reset the going-quiet clock
       } else {
         await clients.setOutcome(userId, id, mapped, 'rep', Date.now());

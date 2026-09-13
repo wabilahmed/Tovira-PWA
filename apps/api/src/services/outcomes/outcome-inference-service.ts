@@ -67,7 +67,8 @@ export class OutcomeInferenceService {
         result.inferred += 1;
       } else if (!silentEnough && c.outcome === 'lost_inferred') {
         // Activity resumed (a capture bumped last_touched_at) → clear the inference, back to open.
-        await this.deps.clients.clearOutcome(userId, c.id);
+        // History actor is 'inferred' — the rule reverted it (distinct from a rep tapping "still open").
+        await this.deps.clients.clearOutcome(userId, c.id, 'inferred', nowMs);
         result.reverted += 1;
       }
       // Everything else (open+recent, already-correct lost_inferred, etc.) is a no-op → idempotent.
