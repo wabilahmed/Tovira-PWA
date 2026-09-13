@@ -7,7 +7,17 @@ export default defineConfig({
   plugins: [react()],
   test: {
     include: ['apps/api/src/**/*.test.ts', 'apps/web/src/**/*.test.{ts,tsx}', 'test/**/*.test.ts'],
-    exclude: ['**/node_modules/**', 'test/integration/**'],
+    // [TIMING-POOL] The two wall-clock timing tests run in a SEPARATE, sequential pass
+    // (vitest.timing.config.ts), NOT here — under this 229-file parallel run the machine is
+    // saturated, so their duration measurements inflate and trip on load, not on code (a false red;
+    // and a timing test contending with 228 others isn't measuring what it thinks it is). `npm test`
+    // runs that pass right after this one, alone, so they still gate. Assertions are unchanged.
+    exclude: [
+      '**/node_modules/**',
+      'test/integration/**',
+      'apps/api/src/services/auth/password.test.ts',
+      'apps/api/src/http/share-referral.test.ts',
+    ],
     // Node by default (API + web logic); web COMPONENT tests (.test.tsx) and the
     // marketing DOM tests (referral pass-through, RTL, a11y — now inside the PWA
     // at src/marketing) run in jsdom.
