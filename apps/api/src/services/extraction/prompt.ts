@@ -16,7 +16,7 @@
 import { renderGlossary, type GlossaryEntry } from './glossary.js';
 import { UNTRUSTED_BEGIN, UNTRUSTED_END } from './untrusted.js';
 
-export const PROMPT_VERSION = 'tovira-extract-v0.9.4';
+export const PROMPT_VERSION = 'tovira-extract-v0.9.5';
 
 /**
  * [EXTRACT-MAXTOKENS] Output-token ceiling for the extraction call. `claude-sonnet-5` is a reasoning
@@ -62,7 +62,9 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
       "owner": "rep | client",
       "due_date": "YYYY-MM-DD | null",
       "due_raw": "original phrase | null",
-      "confidence": "high | low"
+      "confidence": "high | low",
+      "source_span": "the verbatim excerpt this fact was drawn from | null",
+      "source_message_at": "YYYY-MM-DDTHH:MM | null"
     }
   ],
   "people": [
@@ -71,14 +73,18 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
       "role": "job title or role if stated | null",
       "reports_to": "name if stated | null",
       "decision_role": "decision_maker | influencer | blocker | unknown",
-      "notes": "any stated detail about their part in the deal | null"
+      "notes": "any stated detail about their part in the deal | null",
+      "source_span": "the verbatim excerpt this fact was drawn from | null",
+      "source_message_at": "YYYY-MM-DDTHH:MM | null"
     }
   ],
   "personal_facts": [
     {
       "subject": "which person this is about",
       "fact": "the durable personal detail, e.g. 'daughter just started college'",
-      "category": "family | hobby | preference | background | other"
+      "category": "family | hobby | preference | background | other",
+      "source_span": "the verbatim excerpt this fact was drawn from | null",
+      "source_message_at": "YYYY-MM-DDTHH:MM | null"
     }
   ],
   "key_dates": [
@@ -86,7 +92,9 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
       "description": "what the date is for",
       "date": "YYYY-MM-DD | null",
       "date_raw": "original phrase | null",
-      "type": "birthday | anniversary | launch | deadline | other"
+      "type": "birthday | anniversary | launch | deadline | other",
+      "source_span": "the verbatim excerpt this fact was drawn from | null",
+      "source_message_at": "YYYY-MM-DDTHH:MM | null"
     }
   ],
   "concerns": [
@@ -106,7 +114,9 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
   "meeting": {
     "datetime": "YYYY-MM-DDTHH:MM | null",
     "datetime_raw": "original phrase",
-    "confirmed": false
+    "confirmed": false,
+    "source_span": "the verbatim excerpt this fact was drawn from | null",
+    "source_message_at": "YYYY-MM-DDTHH:MM | null"
   }
 }
 
@@ -121,7 +131,8 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
 6. The note is about the client named in the message below. Attribute facts to the right person; the main contact may be that client, but notes can mention others. When that client is a named individual (a person, not an organization), they ARE a stakeholder: include them in "people" under their real client name — never a chat alias or nickname — with "decision_role" set by the same rule as everyone else (Rule 5): "unknown" unless the note states their authority. Being the client does not imply they decide — they may be a coordinator whose manager signs off. When the client is an organization (a company, group, family, or account), it is NOT a person: do not invent a human for it — list only the named individuals actually mentioned.
 7. Sensitive data — protection wins on a genuine conflict, but only on a genuine conflict. Never copy account numbers, card numbers, IBANs, government identifiers (Emirates ID, passport, visa, licence), passwords, PINs, OTPs, or credentials into ANY field — not summary, concerns, personal_facts, next_steps, or notes. Refer to such a value only in general terms ("sent their bank details", "shared a card") and never reproduce the value or any of its digits. Never record religion, ethnicity, political opinion, sexual orientation, criminal history, or ANYTHING about a person's health (illness, injury, treatment, medication, appointment) as a personal fact or in any other field — extract the rest of the note normally and say nothing about the health matter. Do NOT over-suppress: a legitimate fact (a promise, a date, a person) that merely sits near sensitive content is unaffected — extract it fully and at its normal confidence, because dropping it protects nothing. The two only conflict when the commitment's object IS the sensitive value ("send the payment to that IBAN", "confirm the card ending 4421"): then describe it in general terms without reproducing the value — e.g. "make the payment to their bank account", "send the ID document" — keeping the original DIRECTION and ACTOR of the commitment (redaction removes a value, never a meaning: never let it change who is doing what to whom), with confidence "low" so the rep confirms from the source.
 8. Requirements — what the client is looking for you to FIND for them. A requirement is a positive, stated, forward-looking need for a product, property, service, or item the client wants you to source — e.g. "looking for a 2-bed near the marina", "needs cover for two vehicles". The test: would the client recognise this as something they asked you to FIND for them? If yes, it is a requirement; keep the verbatim phrase in requirement_raw. A requirement is the CLIENT'S OWN need — the client must be the one doing the looking. A client looking ON BEHALF OF someone ("a 1-bed in JLT for his son") IS their requirement, at high confidence unless conditional or vague: the test is who is doing the LOOKING, not who benefits. But when the client REPORTS that someone else is looking ("his brother is looking for something similar", "a colleague needs cover"), that is a referral — not this client's requirement — so record the need in next_steps, never in requirements; do not drop it, a referral is real business. It is NOT a requirement when it is: (a) an action or deliverable they want YOU to do or provide — "wants the pricing in writing", "wants the proposal ready before the exhibition", "wants us live before their launch"; they are asking you to do something, not to find something → that is a next step (next_steps), not a requirement; (b) a complaint or worry about price, timeline, or risk ("the pricing is above budget") → a concern; (c) a question about availability ("do you have anything with parking?") → an inquiry, neither; (d) something the rep merely believes the client wants, or a preference you inferred → nothing; (e) a purchase already made ("ordered 100000 units") → a past action, not a forward-looking need; (f) a need the client REPORTS on behalf of a third party who is themselves looking ("his brother is looking…") → a referral; record it in next_steps, not requirements (who is looking, not who benefits). Set stated_on to TODAY'S DATE given in the message below — the reference date of the note the requirement came from (for an imported chat that is the message's own date, so a requirement stated in March reads as March even if the chat is imported later). Use null only when the note attributes the requirement to some earlier time with no resolvable date; never guess a date (same discipline as Rule 2). If the client's need is conditional or vague ("if the budget clears, we'd want two units"), mark "confidence": "low".
-9. Output only valid JSON matching the schema. No prose, no explanation, no markdown, no code fences. Nothing before or after the JSON object.
+9. Source receipts (source_span, source_message_at) — for every promise, key_date, person, personal_fact, and meeting only (requirements already keep requirement_raw; concerns/next_steps/summary have none). Quote into source_span the VERBATIM span you drew the fact from — the specific words exactly as written, not the whole message, the same discipline as requirement_raw in Rule 8. If you cannot point to a clear span, set source_span to null — never paraphrase, reconstruct, or guess it; a fabricated span is as serious as a fabricated date. Set source_message_at to the timestamp of the message that span came from, copied from the per-message timestamps in the input when they are present (an imported chat is rendered as "[timestamp] sender: message"). When the input has no per-message timestamps — a pasted block, a voice-note transcript, a single statement — set source_message_at to null. Never use the note's capture time, today's date, or any other stand-in; there is no correct single message time for those sources, and a wrong timestamp is a wrong fact. Absence is null, never a guess (same as Rules 2 and 5).
+10. Output only valid JSON matching the schema. No prose, no explanation, no markdown, no code fences. Nothing before or after the JSON object.
 
 ## Worked examples
 
@@ -272,6 +283,31 @@ Output:
 {"summary":"Call with Omar Al Mansouri; he wants the revised quote by Thursday and will take it to their board.","promises":[{"text":"Send the revised quote","owner":"rep","due_date":null,"due_raw":"Thursday","confidence":"high"}],"people":[{"name":"Omar Al Mansouri","role":null,"reports_to":null,"decision_role":"unknown","notes":null}],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"requirements":[],"meeting":null}
 
 Note: Omar is the client AND a person, so he appears in people under his real name (never a chat nickname). decision_role is "unknown" - he takes the quote to their board, so his own authority is not stated; being the client is not itself a decision role. If the client were an organisation (a company, group, or family), it would be an account, not a person - do not emit a person for it.
+
+### Note on the receipt fields in examples A–O
+
+Examples A–O above were written before v0.9.5 and OMIT source_span and source_message_at for brevity. That omission is only for the older examples — your real output MUST include both fields on every promise, key_date, person, personal_fact, and meeting, per Rule 9 and the schema. Examples P and Q show them.
+
+### Example P - an imported chat: source_span quoted verbatim, source_message_at from the message timestamp
+
+Input (an imported chat, each line "[timestamp] sender: message"; T1, T2 here STAND IN for the real per-message timestamps the actual input carries — copy the real one verbatim):
+"[T1] Omar: any update on the quote?
+[T2] Me: yes, I'll send the revised quote by Thursday. also my daughter just started at LSE"
+
+Output:
+{"summary":"Omar asked about the quote; rep committed to send the revised quote by Thursday and mentioned his daughter started at LSE.","promises":[{"text":"Send the revised quote","owner":"rep","due_date":null,"due_raw":"Thursday","confidence":"high","source_span":"I'll send the revised quote by Thursday","source_message_at":"T2"}],"people":[{"name":"Omar","role":null,"reports_to":null,"decision_role":"unknown","notes":null,"source_span":"[T1] Omar: any update on the quote?","source_message_at":"T1"}],"personal_facts":[{"subject":"Omar","fact":"Daughter just started at LSE","category":"family","source_span":"my daughter just started at LSE","source_message_at":"T2"}],"key_dates":[],"concerns":[],"next_steps":[],"requirements":[],"meeting":null}
+
+Note: each source_span is copied VERBATIM from the message it came from, and source_message_at is the timestamp of that exact message — the promise/personal fact came from the T2 message, the person mention from the T1 message. Copy the message's real timestamp verbatim (T1/T2 stand in for it here); quote the span, do not paraphrase it.
+
+### Example Q - a pasted note with no per-message timestamp: source_message_at is null
+
+Input (source: a pasted block, no timestamps):
+"Told Omar I'll send the revised quote by Thursday. He confirmed the demo is locked in for Thursday 3pm."
+
+Output:
+{"summary":"Rep committed to send Omar the revised quote by Thursday; the demo is confirmed for Thursday 3pm.","promises":[{"text":"Send the revised quote","owner":"rep","due_date":null,"due_raw":"Thursday","confidence":"high","source_span":"I'll send the revised quote by Thursday","source_message_at":null}],"people":[],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"requirements":[],"meeting":{"datetime":null,"datetime_raw":"Thursday 3pm","confirmed":true,"source_span":"the demo is locked in for Thursday 3pm","source_message_at":null}}
+
+Note: the block has no per-message timestamp, so source_message_at is null for BOTH facts — never the capture time, never today. source_span is still quoted verbatim from the block; only the timestamp is unknowable.
 
 Follow these rules and the shape of these examples exactly. Output only the JSON object.`;
 
