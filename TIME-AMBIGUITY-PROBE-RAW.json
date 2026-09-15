@@ -1,0 +1,2747 @@
+[
+  {
+    "id": "A1",
+    "cls": "A · explicit range",
+    "client": "Rashid Al Falasi",
+    "source": "whatsapp_export",
+    "note": "between 1-4pm",
+    "text": "[2026-09-14T18:03:00] Rashid: salaam, can we do the villa viewing tomorrow?\n[2026-09-14T18:05:00] Me: sure, what time works for you?\n[2026-09-14T18:06:00] Rashid: let's meet somewhere between 1-4pm",
+    "runs": [
+      {
+        "summary": "Rashid asked to schedule a villa viewing for the next day; they discussed a time window but did not lock in an exact time.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Rashid",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "salaam, can we do the villa viewing tomorrow?",
+            "source_message_at": "2026-09-14T18:03:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Confirm an exact time within the 1-4pm window for the villa viewing"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "tomorrow, between 1-4pm",
+          "confirmed": false,
+          "source_span": "let's meet somewhere between 1-4pm",
+          "source_message_at": "2026-09-14T18:06:00"
+        }
+      },
+      {
+        "summary": "Rashid asked to schedule a villa viewing for the next day, and they were narrowing down a time between 1pm and 4pm.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Rashid",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "salaam, can we do the villa viewing tomorrow?",
+            "source_message_at": "2026-09-14T18:03:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "tomorrow, somewhere between 1-4pm",
+          "confirmed": false,
+          "source_span": "let's meet somewhere between 1-4pm",
+          "source_message_at": "2026-09-14T18:06:00"
+        }
+      },
+      {
+        "summary": "Rashid asked to schedule a villa viewing for the next day, and proposed meeting sometime between 1-4pm.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Rashid",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "salaam, can we do the villa viewing tomorrow?",
+            "source_message_at": "2026-09-14T18:03:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Confirm a specific viewing time within the 1-4pm window Rashid proposed"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "tomorrow, between 1-4pm",
+          "confirmed": false,
+          "source_span": "let's meet somewhere between 1-4pm",
+          "source_message_at": "2026-09-14T18:06:00"
+        }
+      },
+      {
+        "summary": "Rashid asked to schedule a villa viewing for the next day; a time window was proposed but not finalized.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Rashid Al Falasi",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "salaam, can we do the villa viewing tomorrow?",
+            "source_message_at": "2026-09-14T18:03:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Confirm an exact viewing time with Rashid within the 1-4pm window"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "tomorrow, somewhere between 1-4pm",
+          "confirmed": false,
+          "source_span": "let's meet somewhere between 1-4pm",
+          "source_message_at": "2026-09-14T18:06:00"
+        }
+      },
+      {
+        "summary": "Rashid asked for a villa viewing and proposed meeting sometime between 1-4pm on the day after the chat.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Rashid",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "salaam, can we do the villa viewing tomorrow?",
+            "source_message_at": "2026-09-14T18:03:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "tomorrow, between 1-4pm",
+          "confirmed": false,
+          "source_span": "let's meet somewhere between 1-4pm",
+          "source_message_at": "2026-09-14T18:06:00"
+        }
+      }
+    ]
+  },
+  {
+    "id": "A2",
+    "cls": "A · explicit range",
+    "client": "Fatima Noor",
+    "source": "whatsapp_export",
+    "note": "10 to 12 tomorrow",
+    "text": "[2026-09-14T09:15:00] Me: when are you free for the Marina apartment handover?\n[2026-09-14T09:20:00] Fatima: I'm free 10 to 12 tomorrow",
+    "runs": [
+      {
+        "summary": "Rep asked Fatima about her availability for the Marina apartment handover, and she said she's free 10 to 12 tomorrow.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Fatima Noor",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "I'm free 10 to 12 tomorrow",
+            "source_message_at": "2026-09-14T09:20:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "10 to 12 tomorrow",
+          "confirmed": false,
+          "source_span": "I'm free 10 to 12 tomorrow",
+          "source_message_at": "2026-09-14T09:20:00"
+        }
+      },
+      {
+        "summary": "Rep asked Fatima about her availability for the Marina apartment handover; she said she is free from 10 to 12 the next day.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Fatima",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "I'm free 10 to 12 tomorrow",
+            "source_message_at": "2026-09-14T09:20:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule the Marina apartment handover for her free window"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "10 to 12 tomorrow",
+          "confirmed": false,
+          "source_span": "I'm free 10 to 12 tomorrow",
+          "source_message_at": "2026-09-14T09:20:00"
+        }
+      },
+      {
+        "summary": "Rep asked Fatima when she's free for the Marina apartment handover; she said she's free 10 to 12 the next day.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Fatima",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "I'm free 10 to 12 tomorrow",
+            "source_message_at": "2026-09-14T09:20"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "10 to 12 tomorrow",
+          "confirmed": false,
+          "source_span": "I'm free 10 to 12 tomorrow",
+          "source_message_at": "2026-09-14T09:20"
+        }
+      },
+      {
+        "summary": "Rep asked Fatima about her availability for the Marina apartment handover; she said she's free from 10 to 12 the next day.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Fatima",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "I'm free 10 to 12 tomorrow",
+            "source_message_at": "2026-09-14T09:20"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T10:00",
+          "datetime_raw": "10 to 12 tomorrow",
+          "confirmed": false,
+          "source_span": "I'm free 10 to 12 tomorrow",
+          "source_message_at": "2026-09-14T09:20"
+        }
+      },
+      {
+        "summary": "Rep asked Fatima about her availability for the Marina apartment handover; she said she's free from 10 to 12 the next day.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Fatima",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "I'm free 10 to 12 tomorrow",
+            "source_message_at": "2026-09-14T09:20:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T10:00",
+          "datetime_raw": "10 to 12 tomorrow",
+          "confirmed": false,
+          "source_span": "I'm free 10 to 12 tomorrow",
+          "source_message_at": "2026-09-14T09:20:00"
+        }
+      }
+    ]
+  },
+  {
+    "id": "A3",
+    "cls": "A · explicit range",
+    "client": "Khalid Rahman",
+    "source": "whatsapp_export",
+    "note": "between Thursday and Saturday",
+    "text": "[2026-09-13T11:00:00] Me: when can we schedule the Dubai Hills site tour?\n[2026-09-13T11:12:00] Khalid: anytime between Thursday and Saturday works for me",
+    "runs": [
+      {
+        "summary": "Rep asked to schedule the Dubai Hills site tour; Khalid said he is available anytime between Thursday and Saturday.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Khalid Rahman",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "anytime between Thursday and Saturday works for me",
+            "source_message_at": "2026-09-13T11:12:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule the Dubai Hills site tour within Khalid's Thursday-Saturday availability"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "Thursday and Saturday",
+          "confirmed": false,
+          "source_span": "anytime between Thursday and Saturday works for me",
+          "source_message_at": "2026-09-13T11:12:00"
+        }
+      },
+      {
+        "summary": "Rep asked Khalid about scheduling a Dubai Hills site tour; Khalid said he's available anytime between Thursday and Saturday.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Khalid",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "anytime between Thursday and Saturday works for me",
+            "source_message_at": "2026-09-13T11:12:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule the Dubai Hills site tour for a time between Thursday and Saturday"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "anytime between Thursday and Saturday",
+          "confirmed": false,
+          "source_span": "anytime between Thursday and Saturday works for me",
+          "source_message_at": "2026-09-13T11:12:00"
+        }
+      },
+      {
+        "summary": "Rep asked Khalid about scheduling a Dubai Hills site tour; Khalid said Thursday through Saturday works for him.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Khalid Rahman",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": null,
+            "source_message_at": null
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule the Dubai Hills site tour for a day between Thursday and Saturday"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "anytime between Thursday and Saturday",
+          "confirmed": false,
+          "source_span": "anytime between Thursday and Saturday works for me",
+          "source_message_at": "2026-09-13T11:12"
+        }
+      },
+      {
+        "summary": "Rep asked Khalid about scheduling a Dubai Hills site tour; Khalid said he is available anytime Thursday to Saturday.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Khalid Rahman",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Khalid: anytime between Thursday and Saturday works for me",
+            "source_message_at": "2026-09-13T11:12:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Confirm a specific day and time for the Dubai Hills site tour within Khalid's Thursday-Saturday window"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "anytime between Thursday and Saturday",
+          "confirmed": false,
+          "source_span": "anytime between Thursday and Saturday works for me",
+          "source_message_at": "2026-09-13T11:12:00"
+        }
+      },
+      {
+        "summary": "Rep asked Khalid about scheduling a Dubai Hills site tour; Khalid said he's available anytime between Thursday and Saturday.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Khalid",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "anytime between Thursday and Saturday works for me",
+            "source_message_at": "2026-09-13T11:12:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule the Dubai Hills site tour for a day between Thursday and Saturday"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "anytime between Thursday and Saturday",
+          "confirmed": false,
+          "source_span": "anytime between Thursday and Saturday works for me",
+          "source_message_at": "2026-09-13T11:12:00"
+        }
+      }
+    ]
+  },
+  {
+    "id": "B1",
+    "cls": "B · self-correction",
+    "client": "Bilal Ahmed",
+    "source": "whatsapp_export",
+    "note": "at 2 2:30 pm",
+    "text": "[2026-09-14T20:01:00] Bilal: bro let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs\n[2026-09-14T20:02:00] Me: got it",
+    "runs": [
+      {
+        "summary": "Bilal proposed a meeting tomorrow to go over mortgage documents; rep acknowledged.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Bilal Ahmed",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "bro let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+            "source_message_at": "2026-09-14T20:01"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "2 2:30 pm tomorrow",
+          "confirmed": true,
+          "source_span": "let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+          "source_message_at": "2026-09-14T20:01"
+        }
+      },
+      {
+        "summary": "Bilal proposed a meeting for tomorrow at 2:30pm to discuss mortgage documents; rep acknowledged.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Bilal Ahmed",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "bro let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+            "source_message_at": "2026-09-14T20:01"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T14:30",
+          "datetime_raw": "2 2:30 pm tomorrow",
+          "confirmed": true,
+          "source_span": "let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+          "source_message_at": "2026-09-14T20:01"
+        }
+      },
+      {
+        "summary": "Bilal proposed a meeting tomorrow to go over mortgage documents; the rep acknowledged.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Bilal",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "bro let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+            "source_message_at": "2026-09-14T20:01"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "2 2:30 pm tomorrow",
+          "confirmed": false,
+          "source_span": "let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+          "source_message_at": "2026-09-14T20:01"
+        }
+      },
+      {
+        "summary": "Bilal proposed a meeting for tomorrow to discuss mortgage documents; rep acknowledged.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Bilal Ahmed",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "bro let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+            "source_message_at": "2026-09-14T20:01"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T14:30",
+          "datetime_raw": "2 2:30 pm tomorrow",
+          "confirmed": true,
+          "source_span": "let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+          "source_message_at": "2026-09-14T20:01"
+        }
+      },
+      {
+        "summary": "Bilal proposed a meeting for tomorrow to discuss mortgage docs, and the rep acknowledged.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Bilal",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "bro let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+            "source_message_at": "2026-09-14T20:01"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T14:30",
+          "datetime_raw": "2 2:30 pm tomorrow",
+          "confirmed": true,
+          "source_span": "let's do the meeting at 2 2:30 pm tomorrow for the mortgage docs",
+          "source_message_at": "2026-09-14T20:01"
+        }
+      }
+    ]
+  },
+  {
+    "id": "B2",
+    "cls": "B · self-correction",
+    "client": "Sana Malik",
+    "source": "whatsapp_export",
+    "note": "Monday — no wait, Tuesday",
+    "text": "[2026-09-14T14:30:00] Me: which day should I block for the contract signing?\n[2026-09-14T14:33:00] Sana: Monday — no wait, Tuesday",
+    "runs": [
+      {
+        "summary": "Rep asked Sana Malik which day to block for the contract signing; she first said Monday, then corrected to Tuesday.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sana Malik",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Sana: Monday — no wait, Tuesday",
+            "source_message_at": "2026-09-14T14:33:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "Monday — no wait, Tuesday",
+          "confirmed": false,
+          "source_span": "Monday — no wait, Tuesday",
+          "source_message_at": "2026-09-14T14:33:00"
+        }
+      },
+      {
+        "summary": "Rep asked Sana Malik which day to block for the contract signing; she said Monday, then corrected herself to Tuesday.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sana Malik",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": null,
+            "source_message_at": null
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "Tuesday",
+          "confirmed": false,
+          "source_span": "Monday — no wait, Tuesday",
+          "source_message_at": "2026-09-14T14:33:00"
+        }
+      },
+      {
+        "summary": "Rep asked Sana which day to block for the contract signing; she initially said Monday but corrected herself to Tuesday, leaving the day not firmly settled.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sana",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Sana: Monday — no wait, Tuesday",
+            "source_message_at": "2026-09-14T14:33:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "Monday — no wait, Tuesday",
+          "confirmed": false,
+          "source_span": "Monday — no wait, Tuesday",
+          "source_message_at": "2026-09-14T14:33:00"
+        }
+      },
+      {
+        "summary": "Rep asked Sana Malik which day to block for the contract signing; she initially said Monday then corrected to Tuesday.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sana Malik",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Sana: Monday — no wait, Tuesday",
+            "source_message_at": "2026-09-14T14:33:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T00:00",
+          "datetime_raw": "Tuesday",
+          "confirmed": true,
+          "source_span": "Monday — no wait, Tuesday",
+          "source_message_at": "2026-09-14T14:33:00"
+        }
+      },
+      {
+        "summary": "Rep asked Sana which day to block for the contract signing; she initially said Monday but corrected herself to Tuesday.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sana",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Sana: Monday — no wait, Tuesday",
+            "source_message_at": "2026-09-14T14:33:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "Tuesday",
+          "confirmed": false,
+          "source_span": "Monday — no wait, Tuesday",
+          "source_message_at": "2026-09-14T14:33:00"
+        }
+      }
+    ]
+  },
+  {
+    "id": "B3",
+    "cls": "B · self-correction",
+    "client": "Aisha Khan",
+    "source": "whatsapp_export",
+    "note": "at 5, actually make it 6",
+    "text": "[2026-09-14T17:45:00] Aisha: call me at 5, actually make it 6\n[2026-09-14T17:46:00] Me: noted, will call at 6",
+    "runs": [
+      {
+        "summary": "Aisha asked the rep to call her, moving the time from 5 to 6; the rep confirmed a 6 o'clock call.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Aisha",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "call me at 5, actually make it 6",
+            "source_message_at": "2026-09-14T17:45"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-14T18:00",
+          "datetime_raw": "call me at 5, actually make it 6",
+          "confirmed": true,
+          "source_span": "call me at 5, actually make it 6",
+          "source_message_at": "2026-09-14T17:45"
+        }
+      },
+      {
+        "summary": "Aisha asked the rep to call her, revising the time to 6; the rep confirmed the call.",
+        "promises": [
+          {
+            "text": "Call Aisha at 6",
+            "owner": "rep",
+            "due_date": null,
+            "due_raw": "6",
+            "confidence": "high",
+            "source_span": "noted, will call at 6",
+            "source_message_at": "2026-09-14T17:46:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Aisha",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "call me at 5, actually make it 6",
+            "source_message_at": "2026-09-14T17:45:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "6",
+          "confirmed": true,
+          "source_span": "noted, will call at 6",
+          "source_message_at": "2026-09-14T17:46:00"
+        }
+      },
+      {
+        "summary": "Aisha asked to be called and changed the time to 6; the rep confirmed they would call at 6.",
+        "promises": [
+          {
+            "text": "Call Aisha at 6",
+            "owner": "rep",
+            "due_date": "2026-09-14",
+            "due_raw": "6",
+            "confidence": "high",
+            "source_span": "will call at 6",
+            "source_message_at": "2026-09-14T17:46:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Aisha",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Aisha: call me at 5, actually make it 6",
+            "source_message_at": "2026-09-14T17:45:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-14T18:00",
+          "datetime_raw": "6",
+          "confirmed": true,
+          "source_span": "actually make it 6",
+          "source_message_at": "2026-09-14T17:45:00"
+        }
+      },
+      {
+        "summary": "Aisha asked for a call, first at 5 then moved to 6; the rep confirmed they'd call at 6.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Aisha",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "call me at 5, actually make it 6",
+            "source_message_at": "2026-09-14T17:45:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "call me at 5, actually make it 6",
+          "confirmed": true,
+          "source_span": "call me at 5, actually make it 6",
+          "source_message_at": "2026-09-14T17:45:00"
+        }
+      },
+      {
+        "summary": "Aisha asked the rep to call her, first at 5 then changed to 6; the rep confirmed the call for 6.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Aisha",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "call me at 5, actually make it 6",
+            "source_message_at": "2026-09-14T17:45"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-14T18:00",
+          "datetime_raw": "6",
+          "confirmed": true,
+          "source_span": "noted, will call at 6",
+          "source_message_at": "2026-09-14T17:46"
+        }
+      }
+    ]
+  },
+  {
+    "id": "C1",
+    "cls": "C · religious/cultural",
+    "client": "Yusuf Ibrahim",
+    "source": "whatsapp_export",
+    "note": "after Asr",
+    "text": "[2026-09-14T13:00:00] Me: when should I come by with the tenancy contract?\n[2026-09-14T13:10:00] Yusuf: after Asr",
+    "runs": [
+      {
+        "summary": "Rep asked Yusuf when to bring by the tenancy contract; Yusuf said to come after Asr.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Yusuf Ibrahim",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Yusuf: after Asr",
+            "source_message_at": "2026-09-14T13:10:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "after Asr",
+          "confirmed": true,
+          "source_span": "after Asr",
+          "source_message_at": "2026-09-14T13:10:00"
+        }
+      },
+      {
+        "summary": "Rep asked Yusuf when to bring by the tenancy contract, and Yusuf said to come after Asr.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Yusuf",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Yusuf: after Asr",
+            "source_message_at": "2026-09-14T13:10"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "after Asr",
+          "confirmed": true,
+          "source_span": "after Asr",
+          "source_message_at": "2026-09-14T13:10"
+        }
+      },
+      {
+        "summary": "Rep asked Yusuf when to bring the tenancy contract by; Yusuf said to come after Asr.",
+        "promises": [
+          {
+            "text": "Come by with the tenancy contract",
+            "owner": "rep",
+            "due_date": null,
+            "due_raw": "after Asr",
+            "confidence": "high",
+            "source_span": "when should I come by with the tenancy contract?",
+            "source_message_at": "2026-09-14T13:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Yusuf Ibrahim",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Yusuf: after Asr",
+            "source_message_at": "2026-09-14T13:10"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "after Asr",
+          "confirmed": true,
+          "source_span": "after Asr",
+          "source_message_at": "2026-09-14T13:10"
+        }
+      },
+      {
+        "summary": "Rep asked Yusuf when to come by with the tenancy contract, and Yusuf said after Asr.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Yusuf Ibrahim",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Yusuf: after Asr",
+            "source_message_at": "2026-09-14T13:10:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "after Asr",
+          "confirmed": true,
+          "source_span": "after Asr",
+          "source_message_at": "2026-09-14T13:10:00"
+        }
+      },
+      {
+        "summary": "Rep asked Yusuf when to come by with the tenancy contract, and Yusuf said after Asr.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Yusuf",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Yusuf: after Asr",
+            "source_message_at": "2026-09-14T13:10:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "after Asr",
+          "confirmed": true,
+          "source_span": "after Asr",
+          "source_message_at": "2026-09-14T13:10:00"
+        }
+      }
+    ]
+  },
+  {
+    "id": "C2",
+    "cls": "C · religious/cultural",
+    "client": "Mariam Saleh",
+    "source": "whatsapp_export",
+    "note": "بعد المغرب around 8",
+    "text": "[2026-09-14T16:20:00] Me: what time tomorrow for the handover?\n[2026-09-14T16:25:00] Mariam: بعد المغرب around 8",
+    "runs": [
+      {
+        "summary": "Rep asked Mariam about the time for tomorrow's handover; she replied it would be after Maghrib, around 8.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Mariam",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Mariam: بعد المغرب around 8",
+            "source_message_at": "2026-09-14T16:25:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-16T20:00",
+          "datetime_raw": "tomorrow, بعد المغرب around 8",
+          "confirmed": false,
+          "source_span": "بعد المغرب around 8",
+          "source_message_at": "2026-09-14T16:25:00"
+        }
+      },
+      {
+        "summary": "Rep asked Mariam about the time for tomorrow's handover; she replied it would be after Maghrib, around 8.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Mariam",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "بعد المغرب around 8",
+            "source_message_at": "2026-09-14T16:25"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T20:00",
+          "datetime_raw": "tomorrow, بعد المغرب around 8",
+          "confirmed": true,
+          "source_span": "بعد المغرب around 8",
+          "source_message_at": "2026-09-14T16:25"
+        }
+      },
+      {
+        "summary": "Mariam confirmed a handover time for the next day, saying around 8pm after Maghrib.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Mariam",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Mariam: بعد المغرب around 8",
+            "source_message_at": "2026-09-14T16:25:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "tomorrow, بعد المغرب around 8",
+          "confirmed": true,
+          "source_span": "بعد المغرب around 8",
+          "source_message_at": "2026-09-14T16:25:00"
+        }
+      },
+      {
+        "summary": "Rep asked Mariam about tomorrow's handover time; she replied it would be after Maghrib, around 8.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Mariam",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Mariam: بعد المغرب around 8",
+            "source_message_at": "2026-09-14T16:25:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "بعد المغرب around 8",
+          "confirmed": false,
+          "source_span": "بعد المغرب around 8",
+          "source_message_at": "2026-09-14T16:25:00"
+        }
+      },
+      {
+        "summary": "Rep asked Mariam about the time for tomorrow's handover; she said after Maghrib around 8.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Mariam",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Mariam: بعد المغرب around 8",
+            "source_message_at": "2026-09-14T16:25:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "tomorrow, بعد المغرب around 8",
+          "confirmed": true,
+          "source_span": "بعد المغرب around 8",
+          "source_message_at": "2026-09-14T16:25:00"
+        }
+      }
+    ]
+  },
+  {
+    "id": "C3",
+    "cls": "C · religious/cultural",
+    "client": "Omar Siddiqui",
+    "source": "whatsapp_export",
+    "note": "before Jummah on Friday",
+    "text": "[2026-09-11T10:00:00] Me: can we finalize the insurance renewal this week?\n[2026-09-11T10:05:00] Omar: before Jummah on Friday inshallah",
+    "runs": [
+      {
+        "summary": "Rep asked Omar to finalize the insurance renewal this week; Omar said he'd do it before Friday's Jummah prayer.",
+        "promises": [
+          {
+            "text": "Finalize the insurance renewal",
+            "owner": "client",
+            "due_date": "2026-09-11",
+            "due_raw": "before Jummah on Friday",
+            "confidence": "low",
+            "source_span": "before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Omar Siddiqui",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Omar: before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Rep asked Omar Siddiqui to finalize the insurance renewal this week; Omar indicated he'd try to do so before Friday prayer, using a hedged expression.",
+        "promises": [
+          {
+            "text": "Finalize the insurance renewal before Friday",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "before Jummah on Friday",
+            "confidence": "low",
+            "source_span": "before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Omar Siddiqui",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Omar: before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Rep asked Omar to finalize the insurance renewal this week; Omar said he'd try to do it before Friday prayer.",
+        "promises": [
+          {
+            "text": "Finalize the insurance renewal before Friday (Jummah)",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "before Jummah on Friday inshallah",
+            "confidence": "low",
+            "source_span": "before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Omar Siddiqui",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Omar: before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Rep asked Omar to finalize the insurance renewal this week; Omar committed to finishing it before Friday's Jummah prayer.",
+        "promises": [
+          {
+            "text": "Finalize the insurance renewal before Friday's Jummah prayer",
+            "owner": "client",
+            "due_date": "2026-09-18",
+            "due_raw": "before Jummah on Friday inshallah",
+            "confidence": "high",
+            "source_span": "before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05"
+          }
+        ],
+        "people": [
+          {
+            "name": "Omar Siddiqui",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Omar: before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Rep asked Omar to finalize the insurance renewal this week; Omar said he'd try to do it before Friday prayers, God willing.",
+        "promises": [
+          {
+            "text": "Finalize the insurance renewal before Jummah on Friday",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "before Jummah on Friday",
+            "confidence": "low",
+            "source_span": "before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05"
+          }
+        ],
+        "people": [
+          {
+            "name": "Omar Siddiqui",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Omar: before Jummah on Friday inshallah",
+            "source_message_at": "2026-09-11T10:05"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      }
+    ]
+  },
+  {
+    "id": "D1",
+    "cls": "D · vague",
+    "client": "Hind Al Marri",
+    "source": "whatsapp_export",
+    "note": "next week sometime",
+    "text": "[2026-09-14T12:00:00] Me: when do you want to see the JVC townhouses?\n[2026-09-14T12:15:00] Hind: next week sometime",
+    "runs": [
+      {
+        "summary": "Rep asked Hind when she wants to view the JVC townhouses; she said next week sometime, with no firm date given.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Hind",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Hind: next week sometime",
+            "source_message_at": "2026-09-14T12:15"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Arrange a viewing of the JVC townhouses for next week"
+        ],
+        "requirements": [
+          {
+            "text": "JVC townhouses to view",
+            "requirement_raw": "when do you want to see the JVC townhouses?",
+            "stated_on": "2026-09-14",
+            "confidence": "high"
+          }
+        ],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "next week sometime",
+          "confirmed": false,
+          "source_span": "next week sometime",
+          "source_message_at": "2026-09-14T12:15"
+        }
+      },
+      {
+        "summary": "Rep asked Hind Al Marri when she'd like to view the JVC townhouses; she said sometime next week without a firm date.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Hind Al Marri",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Hind: next week sometime",
+            "source_message_at": "2026-09-14T12:15"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [
+          {
+            "text": "JVC townhouses to view",
+            "requirement_raw": "when do you want to see the JVC townhouses?",
+            "stated_on": "2026-09-14",
+            "confidence": "high"
+          }
+        ],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "next week sometime",
+          "confirmed": false,
+          "source_span": "next week sometime",
+          "source_message_at": "2026-09-14T12:15"
+        }
+      },
+      {
+        "summary": "Rep asked Hind when she wants to view the JVC townhouses; she said sometime next week without a specific day.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Hind Al Marri",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": null,
+            "source_message_at": null
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Confirm a specific day next week for the JVC townhouse viewing"
+        ],
+        "requirements": [
+          {
+            "text": "To view the JVC townhouses",
+            "requirement_raw": "when do you want to see the JVC townhouses?",
+            "stated_on": "2026-09-15",
+            "confidence": "high"
+          }
+        ],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "next week sometime",
+          "confirmed": false,
+          "source_span": "next week sometime",
+          "source_message_at": "2026-09-14T12:15"
+        }
+      },
+      {
+        "summary": "Rep asked Hind Al Marri when she'd like to view the JVC townhouses; she said sometime next week without a specific date.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Hind Al Marri",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": null,
+            "source_message_at": null
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [
+          {
+            "text": "JVC townhouses",
+            "requirement_raw": "see the JVC townhouses",
+            "stated_on": "2026-09-14",
+            "confidence": "high"
+          }
+        ],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "next week sometime",
+          "confirmed": false,
+          "source_span": "next week sometime",
+          "source_message_at": "2026-09-14T12:15:00"
+        }
+      },
+      {
+        "summary": "Rep asked Hind when she wants to view JVC townhouses; she said sometime next week.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Hind",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Hind: next week sometime",
+            "source_message_at": "2026-09-14T12:15"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Arrange a viewing of the JVC townhouses for next week"
+        ],
+        "requirements": [
+          {
+            "text": "Townhouses in JVC",
+            "requirement_raw": "the JVC townhouses",
+            "stated_on": "2026-09-15",
+            "confidence": "low"
+          }
+        ],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "next week sometime",
+          "confirmed": false,
+          "source_span": "next week sometime",
+          "source_message_at": "2026-09-14T12:15"
+        }
+      }
+    ]
+  },
+  {
+    "id": "D2",
+    "cls": "D · vague",
+    "client": "Ravi Kumar",
+    "source": "whatsapp_export",
+    "note": "end of the month",
+    "text": "[2026-09-14T15:00:00] Ravi: I'll transfer the booking deposit end of the month\n[2026-09-14T15:01:00] Me: perfect, thanks",
+    "runs": [
+      {
+        "summary": "Ravi committed to transfer the booking deposit by the end of the month.",
+        "promises": [
+          {
+            "text": "Transfer the booking deposit",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "end of the month",
+            "confidence": "high",
+            "source_span": "I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Ravi",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Ravi: I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Ravi committed to transfer the booking deposit by the end of the month.",
+        "promises": [
+          {
+            "text": "Transfer the booking deposit",
+            "owner": "client",
+            "due_date": "2026-09-30",
+            "due_raw": "end of the month",
+            "confidence": "high",
+            "source_span": "I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Ravi Kumar",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Ravi told the rep he will transfer the booking deposit by the end of the month.",
+        "promises": [
+          {
+            "text": "Transfer the booking deposit",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "end of the month",
+            "confidence": "high",
+            "source_span": "I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Ravi Kumar",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Ravi: I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Ravi confirmed he will transfer the booking deposit by the end of the month.",
+        "promises": [
+          {
+            "text": "Transfer the booking deposit",
+            "owner": "client",
+            "due_date": "2026-09-30",
+            "due_raw": "end of the month",
+            "confidence": "high",
+            "source_span": "I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Ravi Kumar",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Ravi Kumar told the rep he will transfer the booking deposit by the end of the month.",
+        "promises": [
+          {
+            "text": "Transfer the booking deposit",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "end of the month",
+            "confidence": "high",
+            "source_span": "I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Ravi Kumar",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Ravi: I'll transfer the booking deposit end of the month",
+            "source_message_at": "2026-09-14T15:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      }
+    ]
+  },
+  {
+    "id": "D3",
+    "cls": "D · vague",
+    "client": "Layla Hassan",
+    "source": "whatsapp_export",
+    "note": "morning is better for me",
+    "text": "[2026-09-14T08:30:00] Me: morning or evening for the viewing?\n[2026-09-14T08:35:00] Layla: morning is better for me",
+    "runs": [
+      {
+        "summary": "Rep asked Layla whether she preferred morning or evening for a viewing; she said morning works better for her.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Layla Hassan",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": "Prefers morning for the viewing",
+            "source_span": "morning is better for me",
+            "source_message_at": "2026-09-14T08:35"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule the viewing for the morning, per Layla's preference"
+        ],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Layla and the rep discussed timing for a property viewing; Layla said mornings work better for her.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Layla",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Layla: morning is better for me",
+            "source_message_at": "2026-09-14T08:35:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule the viewing for a morning time"
+        ],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Layla told the rep she prefers a morning viewing time over evening.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Layla Hassan",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "morning is better for me",
+            "source_message_at": "2026-09-14T08:35:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule the viewing for a morning time"
+        ],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Rep and Layla discussed timing for a property viewing; Layla said mornings work better for her.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Layla",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Layla: morning is better for me",
+            "source_message_at": "2026-09-14T08:35:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "morning",
+          "confirmed": false,
+          "source_span": "morning is better for me",
+          "source_message_at": "2026-09-14T08:35:00"
+        }
+      },
+      {
+        "summary": "Layla indicated she prefers a morning viewing over an evening one.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Layla Hassan",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": "Prefers morning for the viewing",
+            "source_span": "morning is better for me",
+            "source_message_at": "2026-09-14T08:35:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      }
+    ]
+  },
+  {
+    "id": "D4",
+    "cls": "D · vague",
+    "client": "Tariq Aziz",
+    "source": "whatsapp_export",
+    "note": "in shaa Allah tomorrow",
+    "text": "[2026-09-14T19:00:00] Me: are we still on for the office viewing?\n[2026-09-14T19:10:00] Tariq: in shaa Allah tomorrow",
+    "runs": [
+      {
+        "summary": "Rep asked Tariq about the office viewing; Tariq said tomorrow, God willing.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Tariq",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "in shaa Allah tomorrow",
+            "source_message_at": "2026-09-14T19:10:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15",
+          "datetime_raw": "tomorrow",
+          "confirmed": false,
+          "source_span": "in shaa Allah tomorrow",
+          "source_message_at": "2026-09-14T19:10:00"
+        }
+      },
+      {
+        "summary": "Tariq confirmed tentatively that the office viewing is planned for the next day.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Tariq",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "in shaa Allah tomorrow",
+            "source_message_at": "2026-09-14T19:10:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "tomorrow",
+          "confirmed": false,
+          "source_span": "in shaa Allah tomorrow",
+          "source_message_at": "2026-09-14T19:10:00"
+        }
+      },
+      {
+        "summary": "Rep asked Tariq if the office viewing was still on; Tariq responded confirming it for tomorrow, using the phrase 'in shaa Allah'.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Tariq",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "in shaa Allah tomorrow",
+            "source_message_at": "2026-09-14T19:10:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "tomorrow",
+          "confirmed": false,
+          "source_span": "in shaa Allah tomorrow",
+          "source_message_at": "2026-09-14T19:10:00"
+        }
+      },
+      {
+        "summary": "Rep asked Tariq if the office viewing was still on; Tariq confirmed it for tomorrow.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Tariq Aziz",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": null,
+            "source_message_at": null
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-16T00:00",
+          "datetime_raw": "tomorrow",
+          "confirmed": true,
+          "source_span": "in shaa Allah tomorrow",
+          "source_message_at": "2026-09-14T19:10:00"
+        }
+      },
+      {
+        "summary": "Rep checked in about the office viewing and Tariq confirmed it is on for tomorrow.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Tariq",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Tariq: in shaa Allah tomorrow",
+            "source_message_at": "2026-09-14T19:10"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-16",
+          "datetime_raw": "tomorrow",
+          "confirmed": true,
+          "source_span": "in shaa Allah tomorrow",
+          "source_message_at": "2026-09-14T19:10"
+        }
+      }
+    ]
+  },
+  {
+    "id": "E1",
+    "cls": "E · code-switched",
+    "client": "Nadia Fares",
+    "source": "whatsapp_export",
+    "note": "bukra بعد الظهر, maybe 3 or 4",
+    "text": "[2026-09-14T11:00:00] Nadia: يعني نلتقي bukra بعد الظهر, maybe 3 or 4\n[2026-09-14T11:02:00] Me: ok works for me",
+    "runs": [
+      {
+        "summary": "Nadia proposed meeting tomorrow afternoon around 3 or 4; the rep agreed to the time.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Nadia Fares",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "[2026-09-14T11:00:00] Nadia: يعني نلتقي bukra بعد الظهر, maybe 3 or 4",
+            "source_message_at": "2026-09-14T11:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "bukra بعد الظهر, maybe 3 or 4",
+          "confirmed": true,
+          "source_span": "يعني نلتقي bukra بعد الظهر, maybe 3 or 4",
+          "source_message_at": "2026-09-14T11:00"
+        }
+      },
+      {
+        "summary": "Nadia proposed meeting tomorrow afternoon around 3 or 4, and the rep agreed.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Nadia",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "يعني نلتقي bukra بعد الظهر, maybe 3 or 4",
+            "source_message_at": "2026-09-14T11:00:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "bukra بعد الظهر, maybe 3 or 4",
+          "confirmed": false,
+          "source_span": "يعني نلتقي bukra بعد الظهر, maybe 3 or 4",
+          "source_message_at": "2026-09-14T11:00:00"
+        }
+      },
+      {
+        "summary": "Nadia proposed meeting tomorrow afternoon around 3 or 4, and the rep agreed.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Nadia",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "يعني نلتقي bukra بعد الظهر, maybe 3 or 4",
+            "source_message_at": "2026-09-14T11:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "bukra بعد الظهر, maybe 3 or 4",
+          "confirmed": true,
+          "source_span": "يعني نلتقي bukra بعد الظهر, maybe 3 or 4",
+          "source_message_at": "2026-09-14T11:00"
+        }
+      },
+      {
+        "summary": "Nadia proposed meeting tomorrow afternoon around 3 or 4; rep agreed.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Nadia",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": null,
+            "source_message_at": "2026-09-14T11:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "bukra بعد الظهر, maybe 3 or 4",
+          "confirmed": true,
+          "source_span": "نلتقي bukra بعد الظهر, maybe 3 or 4",
+          "source_message_at": "2026-09-14T11:00"
+        }
+      },
+      {
+        "summary": "Nadia proposed meeting tomorrow afternoon around 3 or 4, and the rep agreed.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Nadia",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "يعني نلتقي bukra بعد الظهر, maybe 3 or 4",
+            "source_message_at": "2026-09-14T11:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "bukra بعد الظهر, maybe 3 or 4",
+          "confirmed": true,
+          "source_span": "يعني نلتقي bukra بعد الظهر, maybe 3 or 4",
+          "source_message_at": "2026-09-14T11:00"
+        }
+      }
+    ]
+  },
+  {
+    "id": "E2",
+    "cls": "E · code-switched",
+    "client": "Vikram Singh",
+    "source": "whatsapp_export",
+    "note": "kal shaam ko, around 7 baje",
+    "text": "[2026-09-14T18:30:00] Vikram: bhai kal shaam ko milte hain, around 7 baje\n[2026-09-14T18:31:00] Me: theek hai",
+    "runs": [
+      {
+        "summary": "Vikram proposed meeting tomorrow evening around 7pm; the rep agreed.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Vikram",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "bhai kal shaam ko milte hain, around 7 baje",
+            "source_message_at": "2026-09-14T18:30:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T19:00",
+          "datetime_raw": "kal shaam ko, around 7 baje",
+          "confirmed": true,
+          "source_span": "bhai kal shaam ko milte hain, around 7 baje",
+          "source_message_at": "2026-09-14T18:30:00"
+        }
+      },
+      {
+        "summary": "Vikram proposed meeting up the next evening around 7pm, and the rep agreed.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Vikram Singh",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "bhai kal shaam ko milte hain, around 7 baje",
+            "source_message_at": "2026-09-14T18:30"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T19:00",
+          "datetime_raw": "kal shaam ko, around 7 baje",
+          "confirmed": true,
+          "source_span": "kal shaam ko milte hain, around 7 baje",
+          "source_message_at": "2026-09-14T18:30"
+        }
+      },
+      {
+        "summary": "Vikram proposed meeting tomorrow evening around 7pm, and the rep agreed.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Vikram",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Vikram: bhai kal shaam ko milte hain, around 7 baje",
+            "source_message_at": "2026-09-14T18:30"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T19:00",
+          "datetime_raw": "kal shaam ko, around 7 baje",
+          "confirmed": true,
+          "source_span": "bhai kal shaam ko milte hain, around 7 baje",
+          "source_message_at": "2026-09-14T18:30"
+        }
+      },
+      {
+        "summary": "Vikram proposed meeting tomorrow evening around 7pm, and the rep agreed.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Vikram",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "bhai kal shaam ko milte hain, around 7 baje",
+            "source_message_at": "2026-09-14T18:30"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-16T19:00",
+          "datetime_raw": "kal shaam ko, around 7 baje",
+          "confirmed": true,
+          "source_span": "kal shaam ko milte hain, around 7 baje",
+          "source_message_at": "2026-09-14T18:30"
+        }
+      },
+      {
+        "summary": "Vikram proposed meeting tomorrow evening around 7pm and the rep agreed.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Vikram",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "bhai kal shaam ko milte hain, around 7 baje",
+            "source_message_at": "2026-09-14T18:30"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-15T19:00",
+          "datetime_raw": "kal shaam ko milte hain, around 7 baje",
+          "confirmed": true,
+          "source_span": "bhai kal shaam ko milte hain, around 7 baje",
+          "source_message_at": "2026-09-14T18:30"
+        }
+      }
+    ]
+  },
+  {
+    "id": "E3",
+    "cls": "E · code-switched",
+    "client": "Zoya Iqbal",
+    "source": "whatsapp_export",
+    "note": "kal ya parso, subah ke waqt",
+    "text": "[2026-09-14T21:00:00] Me: when can you come sign the insurance papers?\n[2026-09-14T21:05:00] Zoya: kal ya parso, subah ke waqt theek rahega",
+    "runs": [
+      {
+        "summary": "Rep asked Zoya when she could come sign the insurance papers; she said tomorrow or the day after, in the morning.",
+        "promises": [
+          {
+            "text": "Come sign the insurance papers",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "kal ya parso, subah ke waqt (tomorrow or day after tomorrow, in the morning)",
+            "confidence": "low",
+            "source_span": "kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05"
+          }
+        ],
+        "people": [
+          {
+            "name": "Zoya",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "kal ya parso, subah ke waqt (tomorrow or day after tomorrow, morning)",
+          "confirmed": false,
+          "source_span": "kal ya parso, subah ke waqt theek rahega",
+          "source_message_at": "2026-09-14T21:05"
+        }
+      },
+      {
+        "summary": "Rep asked Zoya when she can come sign the insurance papers; she said tomorrow or the day after, in the morning.",
+        "promises": [
+          {
+            "text": "Come sign the insurance papers",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "kal ya parso, subah ke waqt",
+            "confidence": "low",
+            "source_span": "kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Zoya",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Zoya: kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Rep asked Zoya when she can come sign the insurance papers; she said tomorrow or the day after, in the morning.",
+        "promises": [
+          {
+            "text": "Come sign the insurance papers",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "kal ya parso, subah ke waqt",
+            "confidence": "low",
+            "source_span": "kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Zoya",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Zoya: kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "kal ya parso, subah ke waqt",
+          "confirmed": false,
+          "source_span": "kal ya parso, subah ke waqt theek rahega",
+          "source_message_at": "2026-09-14T21:05:00"
+        }
+      },
+      {
+        "summary": "Rep asked Zoya when she can come sign the insurance papers; she said tomorrow or the day after, in the morning, would work.",
+        "promises": [
+          {
+            "text": "Come sign the insurance papers",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "kal ya parso, subah ke waqt (tomorrow or day after tomorrow, morning time)",
+            "confidence": "low",
+            "source_span": "kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05:00"
+          }
+        ],
+        "people": [
+          {
+            "name": "Zoya",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "[2026-09-14T21:05:00] Zoya: kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": "kal ya parso, subah ke waqt (tomorrow or day after tomorrow, morning time)",
+          "confirmed": false,
+          "source_span": "kal ya parso, subah ke waqt theek rahega",
+          "source_message_at": "2026-09-14T21:05:00"
+        }
+      },
+      {
+        "summary": "Rep asked Zoya when she could come sign the insurance papers; she said tomorrow or the day after, in the morning, would work.",
+        "promises": [
+          {
+            "text": "Come sign the insurance papers",
+            "owner": "client",
+            "due_date": null,
+            "due_raw": "kal ya parso, subah ke waqt (tomorrow or day after, in the morning)",
+            "confidence": "low",
+            "source_span": "kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05"
+          }
+        ],
+        "people": [
+          {
+            "name": "Zoya",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Zoya: kal ya parso, subah ke waqt theek rahega",
+            "source_message_at": "2026-09-14T21:05"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": null
+      }
+    ]
+  },
+  {
+    "id": "F1",
+    "cls": "F · control (unambiguous)",
+    "client": "Sameer Malik",
+    "source": "whatsapp_export",
+    "note": "Thursday 3pm",
+    "text": "[2026-09-14T10:00:00] Me: confirming our meeting\n[2026-09-14T10:01:00] Sameer: yes, meeting Thursday 3pm at your office",
+    "runs": [
+      {
+        "summary": "Rep and Sameer confirmed a meeting for Thursday at 3pm at the rep's office.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sameer Malik",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "yes, meeting Thursday 3pm at your office",
+            "source_message_at": "2026-09-14T10:01"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-17T15:00",
+          "datetime_raw": "Thursday 3pm",
+          "confirmed": true,
+          "source_span": "yes, meeting Thursday 3pm at your office",
+          "source_message_at": "2026-09-14T10:01"
+        }
+      },
+      {
+        "summary": "Rep confirmed a meeting with Sameer for Thursday at 3pm at the rep's office.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sameer",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Sameer: yes, meeting Thursday 3pm at your office",
+            "source_message_at": "2026-09-14T10:01"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-17T15:00",
+          "datetime_raw": "Thursday 3pm at your office",
+          "confirmed": true,
+          "source_span": "yes, meeting Thursday 3pm at your office",
+          "source_message_at": "2026-09-14T10:01"
+        }
+      },
+      {
+        "summary": "Sameer confirmed the meeting for Thursday 3pm at the rep's office.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sameer",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "Sameer: yes, meeting Thursday 3pm at your office",
+            "source_message_at": "2026-09-14T10:01:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-17T15:00",
+          "datetime_raw": "Thursday 3pm",
+          "confirmed": true,
+          "source_span": "yes, meeting Thursday 3pm at your office",
+          "source_message_at": "2026-09-14T10:01:00"
+        }
+      },
+      {
+        "summary": "Rep confirmed a meeting with Sameer, who confirmed it for Thursday 3pm at the rep's office.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sameer",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "yes, meeting Thursday 3pm at your office",
+            "source_message_at": "2026-09-14T10:01:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-16T15:00",
+          "datetime_raw": "Thursday 3pm",
+          "confirmed": true,
+          "source_span": "yes, meeting Thursday 3pm at your office",
+          "source_message_at": "2026-09-14T10:01:00"
+        }
+      },
+      {
+        "summary": "Rep confirmed an upcoming meeting with Sameer Malik; he confirmed Thursday at 3pm at the rep's office.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Sameer Malik",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "yes, meeting Thursday 3pm at your office",
+            "source_message_at": "2026-09-14T10:01"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [],
+        "requirements": [],
+        "meeting": {
+          "datetime": "2026-09-17T15:00",
+          "datetime_raw": "Thursday 3pm",
+          "confirmed": true,
+          "source_span": "meeting Thursday 3pm at your office",
+          "source_message_at": "2026-09-14T10:01"
+        }
+      }
+    ]
+  },
+  {
+    "id": "F2",
+    "cls": "F · control (no time)",
+    "client": "Dina Farouk",
+    "source": "whatsapp_export",
+    "note": "let's meet (no time)",
+    "text": "[2026-09-14T13:00:00] Me: would love to catch up soon\n[2026-09-14T13:05:00] Dina: yes let's meet",
+    "runs": [
+      {
+        "summary": "Rep and Dina agreed to meet up, with no specific date or time set.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Dina",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "yes let's meet",
+            "source_message_at": "2026-09-14T13:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule a time to meet up"
+        ],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Rep and Dina agreed to meet up, without setting a specific time.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Dina",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "yes let's meet",
+            "source_message_at": "2026-09-14T13:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Follow up to schedule a meeting with Dina"
+        ],
+        "requirements": [],
+        "meeting": {
+          "datetime": null,
+          "datetime_raw": null,
+          "confirmed": false,
+          "source_span": "yes let's meet",
+          "source_message_at": "2026-09-14T13:05:00"
+        }
+      },
+      {
+        "summary": "Rep and Dina exchanged messages agreeing to catch up soon, with no specific time set.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Dina",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "yes let's meet",
+            "source_message_at": "2026-09-14T13:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Arrange a time to catch up"
+        ],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Rep suggested catching up with Dina Farouk, and she agreed to meet, but no specific time was set.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Dina",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "yes let's meet",
+            "source_message_at": "2026-09-14T13:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Arrange a specific time to catch up with Dina"
+        ],
+        "requirements": [],
+        "meeting": null
+      },
+      {
+        "summary": "Rep and Dina exchanged messages expressing interest in catching up; no specific meeting time was set.",
+        "promises": [],
+        "people": [
+          {
+            "name": "Dina",
+            "role": null,
+            "reports_to": null,
+            "decision_role": "unknown",
+            "notes": null,
+            "source_span": "yes let's meet",
+            "source_message_at": "2026-09-14T13:05:00"
+          }
+        ],
+        "personal_facts": [],
+        "key_dates": [],
+        "concerns": [],
+        "next_steps": [
+          "Schedule a time to catch up with Dina"
+        ],
+        "requirements": [],
+        "meeting": null
+      }
+    ]
+  }
+]
