@@ -23,6 +23,10 @@ export interface PromiseRecord {
    *  the canonical. The tracker (listPromisesByUser) shows only canonicals; a merged
    *  child stays attached to its note so the receipt trail shows every source. */
   mergedInto: string | null;
+  /** [RECEIPTS-v0.9.5] stored receipt: verbatim excerpt + source message time. null when the source has
+   *  no per-message timestamp (voice/paste) OR for pre-v0.9.5 facts that predate receipts. */
+  sourceSpan: string | null;
+  sourceMessageAt: string | null;
   createdAt: number;
 }
 
@@ -35,6 +39,9 @@ export interface KeyDateRecord {
   date: string | null; // resolved YYYY-MM-DD, or null if unresolved
   dateRaw: string | null;
   type: string; // birthday | anniversary | launch | deadline | other
+  /** [RECEIPTS-v0.9.5] stored receipt (see PromiseRecord). null for pre-v0.9.5 / no-per-message-time. */
+  sourceSpan: string | null;
+  sourceMessageAt: string | null;
   createdAt: number;
 }
 

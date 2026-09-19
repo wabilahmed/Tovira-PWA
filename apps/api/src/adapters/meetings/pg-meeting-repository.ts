@@ -12,6 +12,8 @@ interface Row {
   confirmed: boolean;
   note_id: string | null;
   nudged_at: Date | null;
+  source_span: string | null;
+  source_message_at: Date | null;
   created_at: Date;
 }
 
@@ -26,11 +28,13 @@ function toRecord(row: Row): MeetingRecord {
     confirmed: row.confirmed,
     noteId: row.note_id,
     nudgedAt: row.nudged_at ? row.nudged_at.getTime() : null,
+    sourceSpan: row.source_span,
+    sourceMessageAt: row.source_message_at ? row.source_message_at.toISOString() : null,
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, datetime, datetime_raw, title, confirmed, note_id, nudged_at, created_at';
+const COLUMNS = 'id, user_id, client_id, datetime, datetime_raw, title, confirmed, note_id, nudged_at, source_span, source_message_at, created_at';
 
 export class PgMeetingRepository implements MeetingRepository {
   constructor(private readonly pool: Pool) {}
@@ -38,9 +42,9 @@ export class PgMeetingRepository implements MeetingRepository {
   async create(userId: string, meeting: NewMeeting): Promise<MeetingRecord> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO meetings (user_id, client_id, datetime, datetime_raw, title, confirmed, note_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING ${COLUMNS}`,
-        [userId, meeting.clientId, meeting.datetime, meeting.datetimeRaw, meeting.title, meeting.confirmed, meeting.noteId ?? null],
+        `INSERT INTO meetings (user_id, client_id, datetime, datetime_raw, title, confirmed, note_id, source_span, source_message_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING ${COLUMNS}`,
+        [userId, meeting.clientId, meeting.datetime, meeting.datetimeRaw, meeting.title, meeting.confirmed, meeting.noteId ?? null, meeting.sourceSpan ?? null, meeting.sourceMessageAt ?? null],
       );
       return toRecord(rows[0] as unknown as Row);
     });

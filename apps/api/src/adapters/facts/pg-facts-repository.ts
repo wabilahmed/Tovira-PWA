@@ -18,6 +18,8 @@ interface KeyDateRow {
   date: Date | null;
   date_raw: string | null;
   type: string;
+  source_span: string | null;
+  source_message_at: Date | null;
   created_at: Date;
 }
 
@@ -35,6 +37,8 @@ interface PromiseRow {
   done_at: Date | null;
   confirmed: boolean;
   merged_into: string | null;
+  source_span: string | null;
+  source_message_at: Date | null;
   created_at: Date;
 }
 
@@ -53,12 +57,14 @@ function toRecord(row: PromiseRow): PromiseRecord {
     doneAt: row.done_at ? row.done_at.getTime() : null,
     confirmed: row.confirmed,
     mergedInto: row.merged_into,
+    sourceSpan: row.source_span,
+    sourceMessageAt: row.source_message_at ? row.source_message_at.toISOString() : null,
     createdAt: row.created_at.getTime(),
   };
 }
 
 const COLUMNS =
-  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, done_at, confirmed, merged_into, created_at';
+  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, done_at, confirmed, merged_into, source_span, source_message_at, created_at';
 
 /** Postgres-backed spine store; every method runs in a tenant tx (RLS enforced). */
 export class PgFactsRepository implements FactsRepository {
@@ -84,9 +90,9 @@ export class PgFactsRepository implements FactsRepository {
         const key = promiseDedupeKey(p.owner, p.text);
         const canonical = canonicalByKey.get(key);
         const { rows: ins } = await c.query(
-          `INSERT INTO promises (user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, merged_into)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-          [userId, input.noteId, input.clientId, p.text, p.owner, p.due_date, p.due_raw, p.confidence, canonical ? canonical.id : null],
+          `INSERT INTO promises (user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, merged_into, source_span, source_message_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+          [userId, input.noteId, input.clientId, p.text, p.owner, p.due_date, p.due_raw, p.confidence, canonical ? canonical.id : null, p.source_span ?? null, p.source_message_at ?? null],
         );
         if (canonical) {
           // Specific date wins: fill the canonical's null date from this duplicate.
@@ -101,9 +107,9 @@ export class PgFactsRepository implements FactsRepository {
       }
       for (const d of input.keyDates ?? []) {
         await c.query(
-          `INSERT INTO key_dates (user_id, note_id, client_id, description, date, date_raw, type)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [userId, input.noteId, input.clientId, d.description, d.date, d.date_raw, d.type],
+          `INSERT INTO key_dates (user_id, note_id, client_id, description, date, date_raw, type, source_span, source_message_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [userId, input.noteId, input.clientId, d.description, d.date, d.date_raw, d.type, d.source_span ?? null, d.source_message_at ?? null],
         );
       }
     });
@@ -122,7 +128,7 @@ export class PgFactsRepository implements FactsRepository {
   async listKeyDatesByUser(userId: string): Promise<KeyDateRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `SELECT id, user_id, note_id, client_id, description, date, date_raw, type, created_at
+        `SELECT id, user_id, note_id, client_id, description, date, date_raw, type, source_span, source_message_at, created_at
          FROM key_dates WHERE user_id = $1`,
         [userId],
       );
@@ -135,6 +141,8 @@ export class PgFactsRepository implements FactsRepository {
         date: r.date ? r.date.toISOString().slice(0, 10) : null,
         dateRaw: r.date_raw,
         type: r.type,
+        sourceSpan: r.source_span,
+        sourceMessageAt: r.source_message_at ? r.source_message_at.toISOString() : null,
         createdAt: r.created_at.getTime(),
       }));
     });
@@ -160,7 +168,7 @@ export class PgFactsRepository implements FactsRepository {
   async listKeyDatesByNote(userId: string, noteId: string): Promise<KeyDateRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `SELECT id, user_id, note_id, client_id, description, date, date_raw, type, created_at
+        `SELECT id, user_id, note_id, client_id, description, date, date_raw, type, source_span, source_message_at, created_at
          FROM key_dates WHERE note_id = $1`,
         [noteId],
       );
@@ -173,6 +181,8 @@ export class PgFactsRepository implements FactsRepository {
         date: r.date ? r.date.toISOString().slice(0, 10) : null,
         dateRaw: r.date_raw,
         type: r.type,
+        sourceSpan: r.source_span,
+        sourceMessageAt: r.source_message_at ? r.source_message_at.toISOString() : null,
         createdAt: r.created_at.getTime(),
       }));
     });

@@ -11,6 +11,10 @@ export interface ExtractedPromise {
   due_date: string | null;
   due_raw: string | null;
   confidence: Confidence;
+  /** [RECEIPTS-v0.9.5] verbatim source excerpt + source message timestamp (null when the source has
+   *  no per-message timestamp — voice/paste). Optional: v0.9.4 output lacks them; v0.9.5 emits them. */
+  source_span?: string | null;
+  source_message_at?: string | null;
 }
 
 export interface ExtractedPerson {
@@ -19,12 +23,20 @@ export interface ExtractedPerson {
   reports_to: string | null;
   decision_role: DecisionRole;
   notes: string | null;
+  /** [RECEIPTS-v0.9.5] verbatim source excerpt + source message timestamp (null when the source has
+   *  no per-message timestamp — voice/paste). Optional: v0.9.4 output lacks them; v0.9.5 emits them. */
+  source_span?: string | null;
+  source_message_at?: string | null;
 }
 
 export interface PersonalFact {
   subject: string;
   fact: string;
   category: string;
+  /** [RECEIPTS-v0.9.5] verbatim source excerpt + source message timestamp (null when the source has
+   *  no per-message timestamp — voice/paste). Optional: v0.9.4 output lacks them; v0.9.5 emits them. */
+  source_span?: string | null;
+  source_message_at?: string | null;
 }
 
 export interface KeyDate {
@@ -32,6 +44,10 @@ export interface KeyDate {
   date: string | null;
   date_raw: string | null;
   type: string;
+  /** [RECEIPTS-v0.9.5] verbatim source excerpt + source message timestamp (null when the source has
+   *  no per-message timestamp — voice/paste). Optional: v0.9.4 output lacks them; v0.9.5 emits them. */
+  source_span?: string | null;
+  source_message_at?: string | null;
 }
 
 /** [REQ-FIELD, v0.9] What the client has STATED they are looking for — never an inferred
@@ -48,6 +64,10 @@ export interface Meeting {
   datetime: string | null;
   datetime_raw: string;
   confirmed: boolean;
+  /** [RECEIPTS-v0.9.5] verbatim source excerpt + source message timestamp (null when the source has
+   *  no per-message timestamp — voice/paste). Optional: v0.9.4 output lacks them; v0.9.5 emits them. */
+  source_span?: string | null;
+  source_message_at?: string | null;
 }
 
 export interface Extraction {

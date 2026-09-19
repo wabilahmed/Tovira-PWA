@@ -13,6 +13,9 @@ export interface MeetingRecord {
   /** Source note when the meeting was proposed by extraction; null for rep-created. */
   noteId: string | null;
   nudgedAt: number | null; // when a pre-meeting nudge was generated (idempotency)
+  /** [RECEIPTS-v0.9.5] stored receipt (see PromiseRecord). null for pre-v0.9.5 / no-per-message-time. */
+  sourceSpan: string | null;
+  sourceMessageAt: string | null;
   createdAt: number;
 }
 
@@ -24,6 +27,9 @@ export interface NewMeeting {
   confirmed: boolean;
   /** Provenance: the note this was extracted from (NUDGE-UNCONFIRMED), or null. */
   noteId?: string | null;
+  /** [RECEIPTS-v0.9.5] from the extracted meeting; null/omitted for rep-created or pre-v0.9.5. */
+  sourceSpan?: string | null;
+  sourceMessageAt?: string | null;
 }
 
 /** Reschedule/edit. Only provided fields change; nudgedAt and confirmed are left as-is, so a

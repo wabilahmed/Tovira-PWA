@@ -217,6 +217,8 @@ export class ExtractionService {
       title: null,
       confirmed: meeting.confirmed,
       noteId,
+      sourceSpan: meeting.source_span ?? null,
+      sourceMessageAt: meeting.source_message_at ?? null,
     });
   }
 
