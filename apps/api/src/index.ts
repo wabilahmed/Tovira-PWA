@@ -211,8 +211,10 @@ async function main(): Promise<void> {
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
   const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications);
-  // [ERASURE] single-counterparty erasure (Terms 4.9), operator-run via the ops route.
-  const erasure = new ErasureService({ clients, notes, extractionLog: extractionLogs, audit: createErasureAuditRepository(config, appPool) });
+  // [ERASURE] single-counterparty erasure (Terms 4.9), operator-run via the ops route. Covers the
+  // training archive (object storage, outside the DB cascade) — archiveIndex + storage passed in.
+  const archiveIndex = createArchiveIndexRepository(config, appPool, migrationPool);
+  const erasure = new ErasureService({ clients, notes, extractionLog: extractionLogs, audit: createErasureAuditRepository(config, appPool), archiveIndex, archiveStorage: storage });
   const erasureRequests = new ErasureRequestService({ erasure, requests: createErasureRequestRepository(config, appPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes, matching);
@@ -276,7 +278,6 @@ async function main(): Promise<void> {
   // [TRAINING-ARCHIVE] archive (never delete) the training corpus on the scheduled seam. Disabled
   // until TRAINING_ARCHIVE_AGE_DAYS + _DESTINATION are set; archives to the same blob store as the
   // gallery, removes from the hot RDS table only AFTER a confirmed write. Retention is indefinite.
-  const archiveIndex = createArchiveIndexRepository(config, appPool, migrationPool);
   const trainingArchive = new TrainingArchiveService({
     storage,
     index: archiveIndex,
