@@ -179,6 +179,99 @@ export function scoreNote(
   return score;
 }
 
+// ── Receipt scoring (RECEIPTS-v0.9.5 Task 5): gate source_span / source_message_at automatically ──
+
+const RECEIPT_TYPES = ['promises', 'people', 'personal_facts', 'key_dates'] as const;
+
+/**
+ * A non-verbatim span is still FAITHFUL if ≥70% of its Latin tokens appear in the source.
+ * Derivation (v0.9.5 cert, owner ruling 3): a code-switched span the model re-scripts from
+ * Devanagari/Arabic into Latin transliteration is NOT a fabrication, but a byte-only match
+ * false-flagged it. 0.70 is the level that passed the known transliteration/reorder cases while
+ * still catching genuinely invented text (which shares far fewer tokens). Non-Latin script is
+ * stripped by the tokenizer, so a purely non-Latin span is judged by verbatim containment (below).
+ */
+const SPAN_FAITHFUL_MIN_TOKEN_OVERLAP = 0.7;
+
+function normContains(span: string, note: string): boolean {
+  const n = (s: string) => s.toLowerCase().replace(/[‘’“”]/g, "'").replace(/\s+/g, ' ').trim();
+  return n(note).includes(n(span));
+}
+function latinTokens(s: string): string[] {
+  // Strips non-Latin script (Arabic/Devanagari → spaces), leaving Latin/number tokens only.
+  return s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 1);
+}
+
+/** Transliteration-aware: byte-verbatim (quote/space/case-normalised) OR ≥70% Latin-token overlap. */
+export function spanFaithful(span: string, note: string): boolean {
+  if (normContains(span, note)) return true;
+  const spanToks = latinTokens(span);
+  if (spanToks.length === 0) return false; // no Latin tokens and not verbatim → cannot vouch for it
+  const noteSet = new Set(latinTokens(note));
+  const hit = spanToks.filter((t) => noteSet.has(t)).length;
+  return hit / spanToks.length >= SPAN_FAITHFUL_MIN_TOKEN_OVERLAP;
+}
+
+export interface ReceiptScore {
+  spansEmitted: number;
+  /** non-null span NOT faithful to the source — zero-tolerance, as serious as a fabricated date (Rule 9). */
+  spansFabricated: number;
+  /** source_message_at non-null when the source has NO per-message timestamps (voice/paste) — a wrong fact. */
+  messageAtOnAmbiguous: number;
+  /** source_message_at value absent from a timestamped source — a made-up message time (where determinable). */
+  messageAtNotInSource: number;
+}
+
+/** The receipt gate bars (zero-tolerance, per the source-receipt doctrine, Rule 9). */
+export const GATE_RECEIPTS = { maxFabricatedSpans: 0, maxMessageAtOnAmbiguous: 0 };
+
+/**
+ * Score a predicted extraction's receipts against the SOURCE it was drawn from.
+ * `sourceHasMessageTimestamps` is true only for an imported chat (per-message "[timestamp]" lines);
+ * false for voice/paste, where source_message_at MUST be null (Rule 9).
+ */
+export function scoreReceipts(
+  sourceText: string,
+  actual: Extraction | null,
+  sourceHasMessageTimestamps: boolean,
+): ReceiptScore {
+  const s: ReceiptScore = { spansEmitted: 0, spansFabricated: 0, messageAtOnAmbiguous: 0, messageAtNotInSource: 0 };
+  if (!actual) return s;
+  const items: Array<{ source_span?: string | null; source_message_at?: string | null }> = [];
+  for (const t of RECEIPT_TYPES) {
+    const arr = (actual as unknown as Record<string, unknown>)[t];
+    if (Array.isArray(arr)) items.push(...(arr as Array<{ source_span?: string | null; source_message_at?: string | null }>));
+  }
+  if (actual.meeting) items.push(actual.meeting);
+  for (const it of items) {
+    const span = it.source_span;
+    if (typeof span === 'string' && span.trim()) {
+      s.spansEmitted += 1;
+      if (!spanFaithful(span, sourceText)) s.spansFabricated += 1;
+    }
+    const at = it.source_message_at;
+    if (at != null && String(at).trim()) {
+      if (!sourceHasMessageTimestamps) {
+        s.messageAtOnAmbiguous += 1;
+      } else if (!sourceText.includes(String(at)) && !sourceText.includes(String(at).slice(0, 16))) {
+        // The chat renders "[<timestamp>] …"; a source_message_at not present there is invented.
+        s.messageAtNotInSource += 1;
+      }
+    }
+  }
+  return s;
+}
+
+export function aggregateReceipts(scores: ReceiptScore[]): ReceiptScore {
+  const sum = (pick: (s: ReceiptScore) => number) => scores.reduce((a, s) => a + pick(s), 0);
+  return {
+    spansEmitted: sum((s) => s.spansEmitted),
+    spansFabricated: sum((s) => s.spansFabricated),
+    messageAtOnAmbiguous: sum((s) => s.messageAtOnAmbiguous),
+    messageAtNotInSource: sum((s) => s.messageAtNotInSource),
+  };
+}
+
 export interface FieldMetrics {
   precision: number;
   recall: number;

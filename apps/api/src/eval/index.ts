@@ -5,7 +5,7 @@ import { IMPORT_FIXTURES, RECALL_BASELINES } from './import-fixtures.js';
 import { scoreInvariants } from './score-invariants.js';
 import { redactSensitive } from '../services/redaction/redact.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
-import { scoreNote, aggregate, type NoteScore } from './score.js';
+import { scoreNote, aggregate, scoreReceipts, aggregateReceipts, GATE_RECEIPTS, type NoteScore, type ReceiptScore } from './score.js';
 import type { Extraction } from '../services/extraction/types.js';
 import type { ModelClient } from '../ports/model.js';
 import { ModelBudget } from '../services/metrics/model-budget.js';
@@ -23,7 +23,7 @@ import { ModelBudget } from '../services/metrics/model-budget.js';
  */
 const p = (n: number): string => n.toFixed(2);
 
-interface Scored { note: EvalNote; actual: Extraction | null; score: NoteScore }
+interface Scored { note: EvalNote; actual: Extraction | null; score: NoteScore; receipt: ReceiptScore }
 
 async function runOnce(model: ModelClient): Promise<Scored[]> {
   const out: Scored[] = [];
@@ -31,7 +31,10 @@ async function runOnce(model: ModelClient): Promise<Scored[]> {
     const actual = await extractForEval(model, note);
     // Thread `forbidden` so the gate actually measures leakedValues (REDACT-5 bar = 0);
     // without it the leakage metric is dark and the HARD leak check can never fire.
-    out.push({ note, actual, score: scoreNote(note.expected, actual, note.mustNotMerge, note.forbidden) });
+    // [RECEIPTS-v0.9.5 Task 5] Score receipts against the source: only an imported chat carries
+    // per-message timestamps, so voice/paste must leave source_message_at null (Rule 9).
+    const receipt = scoreReceipts(note.note, actual, note.source === 'whatsapp_export');
+    out.push({ note, actual, score: scoreNote(note.expected, actual, note.mustNotMerge, note.forbidden), receipt });
   }
   return out;
 }
@@ -93,6 +96,7 @@ async function main(): Promise<void> {
     },
   };
   const allScores: NoteScore[] = [];
+  const allReceipts: ReceiptScore[] = [];
   let hardPassed = true;
 
   // Runs are configurable: 3 (default) is the cheap per-run/soft deploy gate; a fabrication
@@ -109,8 +113,22 @@ async function main(): Promise<void> {
     line('MULTILINGUAL', ml, mlGate.passed ? 'HARD PASS' : `HARD FAIL: ${mlGate.reasons.join('; ')}`);
     if (run === 1) { spuriousPeople(scored); spuriousRequirements(scored); }
     allScores.push(...scored.map((s) => s.score));
+    allReceipts.push(...scored.map((s) => s.receipt));
     hardPassed &&= fullGate.passed && mlGate.passed;
   }
+
+  // [RECEIPTS-v0.9.5 Task 5] Receipt gate: a fabricated source_span is as serious as a fabricated
+  // date (Rule 9), and source_message_at on an ambiguous (voice/paste) source is a wrong fact —
+  // both per-run zero-tolerance. Checked automatically here instead of via a manual cert report.
+  const receiptAgg = aggregateReceipts(allReceipts);
+  const receiptPass =
+    receiptAgg.spansFabricated <= GATE_RECEIPTS.maxFabricatedSpans &&
+    receiptAgg.messageAtOnAmbiguous <= GATE_RECEIPTS.maxMessageAtOnAmbiguous;
+  console.log(
+    `[gate]   RECEIPTS: spans emitted=${receiptAgg.spansEmitted} FABRICATED=${receiptAgg.spansFabricated} (bar ${GATE_RECEIPTS.maxFabricatedSpans}) · ` +
+      `msgAt-on-ambiguous=${receiptAgg.messageAtOnAmbiguous} (bar ${GATE_RECEIPTS.maxMessageAtOnAmbiguous}) · msgAt-not-in-source=${receiptAgg.messageAtNotInSource} (reported) → ${receiptPass ? 'HARD PASS' : 'HARD FAIL'}`,
+  );
+  hardPassed &&= receiptPass;
 
   const agg = aggregate(allScores);
   const soft = softGate(agg, modelId);
