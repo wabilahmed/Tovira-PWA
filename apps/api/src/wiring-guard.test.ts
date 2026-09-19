@@ -29,6 +29,7 @@ const NOTIFICATION_WIRING: Record<NotificationType, Wiring> = {
   going_cold: { triggeredBy: 'scanRunner.run(' },
   date_reminder: { triggeredBy: 'scanRunner.run(' },
   chat_refresh: { triggeredBy: 'scanRunner.run(' },
+  daily_digest: { triggeredBy: 'dailyDigest.runScheduled(' }, // NOTIF-REWORK: daily-digest brain job
   import_complete: { triggeredBy: 'importCompletion.onNoteSettled(' }, // [IMPORT-DONE] sweep terminal hook
 };
 
@@ -40,7 +41,7 @@ const LEDGER_WIRING: Record<LedgerEventType, Wiring> = {
 };
 
 // Every job that must be registered on the ScheduledBrain (asserted present in index.ts).
-const SCHEDULED_JOBS = ['notes-sweep', 'priorities-nightly', 'trial-emails', 'meeting-nudges', 'monday-digest', 'daily-scan'];
+const SCHEDULED_JOBS = ['notes-sweep', 'priorities-nightly', 'trial-emails', 'meeting-nudges', 'monday-digest', 'daily-digest', 'daily-scan'];
 
 function nonTestSource(): string {
   const root = dirname(fileURLToPath(import.meta.url));

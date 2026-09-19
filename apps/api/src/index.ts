@@ -13,6 +13,7 @@ import { NoteSweepService } from './services/notes/note-sweep-service.js';
 import { ImportCompletionService } from './services/notes/import-completion-service.js';
 import { TrialEmailService } from './services/email/trial-email-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
+import { DailyDigestService } from './services/digest/daily-digest-service.js';
 import { ReferralService } from './services/referral/referral-service.js';
 import { InMemoryReferralRepository } from './adapters/referral/in-memory-referral-repository.js';
 import { PgReferralRepository } from './adapters/referral/pg-referral-repository.js';
@@ -210,7 +211,10 @@ async function main(): Promise<void> {
   const hero = createHeroService(config, clients, facts, meetings, notes, matching);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
   // (cost-guard #3, P4b-3). Uses the priorities-class model (see routing).
-  const priorities = new PrioritiesService(hero, createModelClient(config, 'priorities'), createPrioritiesRepository(config, appPool), { timezoneFor: (userId) => auth.timezoneFor(userId) });
+  const prioritiesRepo = createPrioritiesRepository(config, appPool);
+  const priorities = new PrioritiesService(hero, createModelClient(config, 'priorities'), prioritiesRepo, { timezoneFor: (userId) => auth.timezoneFor(userId) });
+  // NOTIF-REWORK: the daily digest reads the SAME precomputed priorities cache (never recomputes).
+  const dailyDigest = new DailyDigestService({ priorities: prioritiesRepo, notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts), timezoneFor: (userId) => auth.timezoneFor(userId) });
   // Note sweep (FLOWS-7): advance any rep's stuck pending notes so a voice note or a
   // deferred import (IMPORT-ASYNC) never stalls; bounded retries → terminal
   // needs_review, never lost.
@@ -308,6 +312,9 @@ async function main(): Promise<void> {
       // idempotent per rep-local-week via the monday:<weekOf> dedupe.
       { name: 'monday-digest', lockKey: 4711005, intervalMs: 60 * 60 * 1000,
         run: async () => { await monday.runScheduled(await auth.allUserIds(), Date.now()); } },
+      // NOTIF-REWORK: the daily digest — one discretionary push per rep-day at their local hour.
+      { name: 'daily-digest', lockKey: 4711006, intervalMs: 60 * 60 * 1000,
+        run: async () => { await dailyDigest.runScheduled(await auth.allUserIds(), Date.now()); } },
       // [SCAN-WIRING] The daily proactive scan (overdue promises / going cold / date reminders /
       // chat-refresh) — the automated trigger the stub EventBridge Lambda never provided. Every few
       // hours; generators are idempotent (deduped) and the 2/day silence budget bounds pushes.

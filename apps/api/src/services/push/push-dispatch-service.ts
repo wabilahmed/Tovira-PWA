@@ -23,7 +23,7 @@ export const TIME_CRITICAL: ReadonlySet<string> = new Set<NotificationType>([
   'pre_meeting_nudge',
   'promise_due_today',
   'import_complete',
-  // 'daily_digest' is added in Task 3 (the one discretionary push).
+  'daily_digest', // the single daily discretionary push (DailyDigestService)
 ]);
 
 export interface PushableAlert {

@@ -10,6 +10,7 @@ export type NotificationType =
   | 'date_reminder'
   | 'chat_refresh'
   | 'monday_digest'
+  | 'daily_digest' // NOTIF-REWORK: the one discretionary push — "N things need you" (opens the daily list)
   | 'import_complete';
 
 export interface NotificationEntry {
