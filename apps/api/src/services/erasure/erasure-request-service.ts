@@ -72,7 +72,16 @@ export class ErasureRequestService {
     if (req.status === 'retention_asserted') return { ok: false, reason: 'retention_asserted' };
     if (this.now() < req.windowEndsAt) return { ok: false, reason: 'window_open' };
 
-    const result = await this.deps.erasure.commit(userId, req.requesterNames);
+    // [ERASURE-ARCHIVE Task 4] THE GATE: the erasure is only complete if commit fully succeeded —
+    // and commit purges the training archive first, throwing if the object store is unreachable
+    // (down / credentials missing). On any failure we do NOT mark the request complete and do NOT
+    // notify the rep of completion: it stays OPEN and the error surfaces, never a silent gap.
+    let result: Awaited<ReturnType<ErasureService['commit']>>;
+    try {
+      result = await this.deps.erasure.commit(userId, req.requesterNames);
+    } catch (err) {
+      return { ok: false, reason: `incomplete: ${err instanceof Error ? err.message : 'erasure failed'}` };
+    }
     await this.deps.requests.setStatus(userId, requestId, 'completed');
     const summary = summariseCategories(result.categories.map((c) => `${c.category}:${c.deleted}`));
     await this.notify(userId, {
