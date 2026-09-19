@@ -30,9 +30,11 @@ export function aggregatePeople(extractions: Extraction[]): ExtractedPerson[] {
       seen.set(key, person);
       continue;
     }
-    // Merge only same-name mentions: fill in details, prefer a known decision role.
+    // Merge only same-name mentions: fill in details, prefer a known decision role. Spread
+    // `existing` first so its receipt fields (source_span/source_message_at + any attached receipt)
+    // survive the merge — rebuilding field-by-field previously dropped them (receipt gap).
     seen.set(key, {
-      name: existing.name,
+      ...existing,
       role: existing.role ?? person.role,
       reports_to: existing.reports_to ?? person.reports_to,
       decision_role: existing.decision_role !== 'unknown' ? existing.decision_role : person.decision_role,

@@ -18,6 +18,7 @@ import type { ContactAliasRepository, RepNameRepository } from '../ports/contact
 import type { ImportAckRepository } from '../ports/import-ack-repository.js';
 import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
+import { noteWithReceipts } from '../services/receipts/receipt.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
 import { redactSensitive } from '../services/redaction/redact.js';
@@ -410,7 +411,7 @@ export async function handleNoteRoute(
 
     if (listMatch) {
       const clientId = decodeURIComponent(listMatch[1]!);
-      sendJson(res, 200, { notes: await deps.notes.listByClient(userId, clientId) });
+      sendJson(res, 200, { notes: (await deps.notes.listByClient(userId, clientId)).map(noteWithReceipts) });
       return true;
     }
 
@@ -430,7 +431,7 @@ export async function handleNoteRoute(
       }
       const outcome = await deps.transcription.transcribeNote(userId, noteId);
       const updated = await deps.notes.findByIdForUser(userId, noteId);
-      sendJson(res, 200, { note: updated, ...outcome });
+      sendJson(res, 200, { note: updated ? noteWithReceipts(updated) : updated, ...outcome });
       return true;
     }
 
@@ -443,7 +444,7 @@ export async function handleNoteRoute(
       }
       const outcome = await deps.extraction.extractNote(userId, noteId, todayIso());
       const updated = await deps.notes.findByIdForUser(userId, noteId);
-      sendJson(res, 200, { note: updated, ...outcome });
+      sendJson(res, 200, { note: updated ? noteWithReceipts(updated) : updated, ...outcome });
       return true;
     }
 

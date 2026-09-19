@@ -4,6 +4,7 @@ import type { FactsRepository, PromiseRecord } from '../../ports/facts-repositor
 import type { Embedder } from '../../ports/embedder.js';
 import type { Extraction, ExtractedPerson, PersonalFact } from '../extraction/types.js';
 import { presentableAsSettledFact, promiseNeedsConfirmation } from '../facts/confirmation.js';
+import { withReceipt, withExtractedReceipt, type FactReceipt } from '../receipts/receipt.js';
 
 const RELATED_THRESHOLD = 0.5;
 const EMPTY: Extraction = {
@@ -33,10 +34,10 @@ export interface Brief {
   clientName: string;
   empty: boolean;
   recentContext: RecentItem[];
-  openPromises: PromiseRecord[]; // settled/certain only
-  needsConfirmation: PromiseRecord[]; // uncertain — shown as "to confirm", never as fact
-  keyPeople: ExtractedPerson[];
-  personalNotes: PersonalFact[];
+  openPromises: Array<PromiseRecord & { receipt: FactReceipt }>; // settled/certain only
+  needsConfirmation: Array<PromiseRecord & { receipt: FactReceipt }>; // uncertain — shown as "to confirm", never as fact
+  keyPeople: Array<ExtractedPerson & { receipt: FactReceipt }>;
+  personalNotes: Array<PersonalFact & { receipt: FactReceipt }>;
   concerns: string[];
   relatedNotes: RelatedNote[];
 }
@@ -70,12 +71,18 @@ export class BriefService {
       (p) => p.clientId === clientId && !p.done,
     );
 
-    const openPromises = promises.filter(presentableAsSettledFact);
-    const needsConfirmation = promises.filter(promiseNeedsConfirmation);
+    const openPromises = promises.filter(presentableAsSettledFact).map(withReceipt);
+    const needsConfirmation = promises.filter(promiseNeedsConfirmation).map(withReceipt);
 
     const extracted = notes.map((n) => extractedOf(n.extracted));
-    const keyPeople = dedupePeople(extracted.flatMap((f) => f.people));
-    const personalNotes = extracted.flatMap((f) => f.personal_facts);
+    // People and personal facts carry no created_at of their own — bind each receipt's capture-date
+    // fallback to the ORIGINATING note's created_at before deduping across notes.
+    const keyPeople = dedupePeople(
+      notes.flatMap((n) => extractedOf(n.extracted).people.map((p) => withExtractedReceipt(p, n.createdAt))),
+    );
+    const personalNotes = notes.flatMap((n) =>
+      extractedOf(n.extracted).personal_facts.map((pf) => withExtractedReceipt(pf, n.createdAt)),
+    );
     const concerns = extracted.flatMap((f) => f.concerns);
 
     const recentContext: RecentItem[] = notes.slice(0, 5).map((n) => ({
@@ -117,8 +124,8 @@ export class BriefService {
   }
 }
 
-function dedupePeople(people: ExtractedPerson[]): ExtractedPerson[] {
-  const seen = new Map<string, ExtractedPerson>();
+function dedupePeople<T extends ExtractedPerson>(people: T[]): T[] {
+  const seen = new Map<string, T>();
   for (const p of people) {
     const key = (p.name ?? '').trim().toLowerCase();
     if (!key) continue;

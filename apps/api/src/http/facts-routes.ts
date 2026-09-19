@@ -9,6 +9,7 @@ import type { MeetingRepository } from '../ports/meeting-repository.js';
 import { pendingConfirmations } from '../services/facts/confirmation.js';
 import { isStalePromise } from '../services/facts/promise-lifecycle.js';
 import { recordVerdict, serialisePromise, REJECTED_FIELD, CONFIRMED_FIELD } from '../services/facts/verdict.js';
+import { withReceipt } from '../services/receipts/receipt.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
 export interface FactsRouteDeps {
@@ -75,7 +76,7 @@ export async function handleFactsRoute(
       mentioned: n.moveSuggestion?.mentioned ?? [],
       reason: n.moveSuggestion?.reason ?? '',
     }));
-    sendJson(res, 200, { promises: pendingConfirmations(promises), meetings, moveSuggestions });
+    sendJson(res, 200, { promises: pendingConfirmations(promises).map(withReceipt), meetings: meetings.map(withReceipt), moveSuggestions });
     return true;
   }
 
@@ -87,7 +88,7 @@ export async function handleFactsRoute(
     const now = Date.now();
     const open = (await deps.facts.listPromisesByUser(userId)).filter((p) => !p.done);
     open.sort(byDueDate);
-    const promises = open.map((p) => ({ ...p, stale: isStalePromise(p, now, threshold) }));
+    const promises = open.map((p) => ({ ...withReceipt(p), stale: isStalePromise(p, now, threshold) }));
     sendJson(res, 200, { promises });
     return true;
   }
@@ -186,7 +187,8 @@ export async function handleFactsRoute(
       );
     }
     await deps.facts.updatePromise(userId, id, patch);
-    sendJson(res, 200, await deps.facts.getPromise(userId, id));
+    const updated = await deps.facts.getPromise(userId, id);
+    sendJson(res, 200, updated ? withReceipt(updated) : updated);
     return true;
   } catch (err) {
     if (err instanceof BadJsonError) {

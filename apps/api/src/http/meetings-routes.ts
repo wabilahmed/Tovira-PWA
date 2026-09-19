@@ -8,6 +8,7 @@ import type { ExtractionLogRepository } from '../ports/extraction-log-repository
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 import { zonedTodayIso, zonedWallClockToInstant } from '../services/time/zone.js';
 import { recordVerdict, serialiseMeeting, REJECTED_FIELD, CONFIRMED_FIELD } from '../services/facts/verdict.js';
+import { withReceipt } from '../services/receipts/receipt.js';
 
 export interface MeetingRouteDeps {
   auth: AuthService;
@@ -119,12 +120,12 @@ export async function handleMeetingRoute(
         confirmed: true,
       });
       await deps.clients.touch(userId, clientId);
-      sendJson(res, 201, meeting);
+      sendJson(res, 201, withReceipt(meeting));
       return true;
     }
 
     if (isList) {
-      sendJson(res, 200, { meetings: await deps.meetings.listByUser(userId) });
+      sendJson(res, 200, { meetings: (await deps.meetings.listByUser(userId)).map(withReceipt) });
       return true;
     }
 
@@ -153,7 +154,7 @@ export async function handleMeetingRoute(
           await recordMeetingVerdict(deps, userId, before.noteId, meetingId, 'title', before.title, patch.title ?? null);
         }
       }
-      sendJson(res, meeting ? 200 : 404, meeting ?? { error: 'not_found' });
+      sendJson(res, meeting ? 200 : 404, meeting ? withReceipt(meeting) : { error: 'not_found' });
       return true;
     }
 
@@ -167,7 +168,7 @@ export async function handleMeetingRoute(
           serialiseMeeting(meeting), 'confirmed',
         );
       }
-      sendJson(res, meeting ? 200 : 404, meeting ?? { error: 'not_found' });
+      sendJson(res, meeting ? 200 : 404, meeting ? withReceipt(meeting) : { error: 'not_found' });
       return true;
     }
 
