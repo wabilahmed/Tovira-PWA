@@ -128,7 +128,7 @@ export class ErasureService {
   /** Execute the erasure. Deletes exact structured matches + confirmed fuzzy + log rows; keeps mentions. */
   async commit(userId: string, requesterNames: string[], opts: CommitOptions = {}): Promise<ErasureResult> {
     const rn = requesterNames.map(norm).filter(Boolean);
-    const counts: Record<string, number> = { people: 0, personal_facts: 0, unanswered_questions: 0, messages: 0, training_logs: 0 };
+    const counts: Record<string, number> = { people: 0, personal_facts: 0, unanswered_questions: 0, messages: 0, embeddings_cleared: 0, training_logs: 0 };
     if (rn.length === 0) return { categories: [] }; // unknown counterparty → nothing happens, nothing recorded
 
     const confirmed = new Set((opts.confirmFuzzy ?? []).map((k) => `${k.noteId}|${k.store}|${norm(k.who)}`));
@@ -154,6 +154,7 @@ export class ErasureService {
       // The requester's OWN messages go; rawText is re-rendered from the survivors (deterministic).
       let messages = note.messages;
       let rawText = note.rawText;
+      let clearEmbedding = false;
       if (note.messages && note.messages.length > 0) {
         const kept = note.messages.filter((m) => !shouldDelete(note.id, 'messages', m.sender));
         if (kept.length !== note.messages.length) {
@@ -161,9 +162,21 @@ export class ErasureService {
           messages = kept as ImportedMessage[];
           rawText = renderThread(kept as ImportedMessage[]);
           changed = true;
+          // [ERASURE Task 3] The note embedding is one vector over the WHOLE rawText (all speakers),
+          // so it cannot be surgically cleared for one requester. We clear it ONLY when the note is
+          // WHOLLY the requester's (no messages survive) — then the vector was entirely their content.
+          // For a SHARED note we leave the (now stale) vector rather than delete more than the rule
+          // allows (clearing would drop recall for the KEPT facts too); that residual is reported.
+          if (kept.length === 0) { clearEmbedding = true; counts.embeddings_cleared! += 1; }
         }
       }
-      if (changed) await this.deps.notes.update(userId, note.id, { ...(ex ? { extracted: ex } : {}), ...(messages !== note.messages ? { messages, rawText } : {}) });
+      if (changed) {
+        await this.deps.notes.update(userId, note.id, {
+          ...(ex ? { extracted: ex } : {}),
+          ...(messages !== note.messages ? { messages, rawText } : {}),
+          ...(clearEmbedding ? { embedding: null } : {}),
+        });
+      }
     }
 
     const logIds = (await this.deps.extractionLog.listByUser(userId)).filter((r) => mentions(r.input, rn) || mentions(r.rawOutput, rn)).map((r) => r.id);
