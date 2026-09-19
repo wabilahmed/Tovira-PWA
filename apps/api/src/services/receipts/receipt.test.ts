@@ -48,8 +48,8 @@ describe('[RECEIPTS-v0.9.5 Task 3] buildReceipt — renders from stored fields o
 });
 
 describe('[RECEIPTS-v0.9.5 Task 3] withReceipt / withExtractedReceipt', () => {
-  it('withReceipt uses a relational record’s own created_at as the capture date', () => {
-    const rec = { id: 'p1', sourceSpan: 'send the quote', sourceMessageAt: null, createdAt: CAPTURE_MS };
+  it('withReceipt uses a relational record’s denormalised captureAt (the conversation date)', () => {
+    const rec = { id: 'p1', sourceSpan: 'send the quote', sourceMessageAt: null, captureAt: '2026-09-14', createdAt: CAPTURE_MS };
     const out = withReceipt(rec);
     expect(out.receipt.source).toBe('capture');
     expect(out.receipt.at).toBe('2026-09-14');

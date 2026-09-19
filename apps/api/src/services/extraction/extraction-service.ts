@@ -202,7 +202,7 @@ export class ExtractionService {
     await this.notes.update(userId, noteId, { moveSuggestion: suggestion });
   }
 
-  private async persistProposedMeeting(userId: string, noteId: string, clientId: string, meeting: Meeting): Promise<void> {
+  private async persistProposedMeeting(userId: string, noteId: string, clientId: string, meeting: Meeting, captureAt: string): Promise<void> {
     if (!this.meetings) return;
     if (await this.meetings.findByNoteId(userId, noteId)) return; // already persisted — idempotent
     let datetime = meeting.datetime;
@@ -219,6 +219,7 @@ export class ExtractionService {
       noteId,
       sourceSpan: meeting.source_span ?? null,
       sourceMessageAt: meeting.source_message_at ?? null,
+      captureAt, // the note's conversation date (referenceDate), not the import/write time
     });
   }
 
@@ -339,12 +340,13 @@ export class ExtractionService {
           clientId: note.clientId,
           promises: extraction.promises,
           keyDates: extraction.key_dates,
+          captureAt: referenceDate, // the note's conversation date, not the fact-row/import time
         });
         // NUDGE-UNCONFIRMED: persist a proposed meeting so it can be confirmed and nudged.
         // Best-effort — a failure here must never lose the extracted facts (never lose a recording).
         if (this.meetings && extraction.meeting) {
           try {
-            await this.persistProposedMeeting(userId, noteId, note.clientId, extraction.meeting);
+            await this.persistProposedMeeting(userId, noteId, note.clientId, extraction.meeting, referenceDate);
           } catch (err) {
             console.warn(`[extract] proposed-meeting persist failed for note ${noteId}`, err);
           }

@@ -50,6 +50,14 @@ describe('[RECEIPTS-v0.9.5 Task 2] relational persistence — in-memory round-tr
     expect(d!.sourceMessageAt).toBe(CHAT_MSG_AT);
   });
 
+  it('[capture-date] the note conversation date persists on promises and key_dates and reads back', async () => {
+    const repo = new InMemoryFactsRepository();
+    await repo.saveExtraction('u', { noteId: 'n1', clientId: 'c1', captureAt: '2024-03-15',
+      promises: [withReceipt({})], keyDates: [kdWithReceipt({})] });
+    expect((await repo.listPromisesByNote('u', 'n1'))[0]!.captureAt).toBe('2024-03-15');
+    expect((await repo.listKeyDatesByNote('u', 'n1'))[0]!.captureAt).toBe('2024-03-15');
+  });
+
   it('ambiguous source (voice/paste): span persists, source_message_at is NULL — not dropped, not approximated', async () => {
     const repo = new InMemoryFactsRepository();
     await repo.saveExtraction('u', { noteId: 'n1', clientId: 'c1',

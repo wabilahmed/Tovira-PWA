@@ -27,6 +27,10 @@ export interface PromiseRecord {
    *  no per-message timestamp (voice/paste) OR for pre-v0.9.5 facts that predate receipts. */
   sourceSpan: string | null;
   sourceMessageAt: string | null;
+  /** [RECEIPTS-capture-date] the note's conversation date (referenceDate: latest message date for a
+   *  chat, capture date for voice/paste) as YYYY-MM-DD — the capture-date fallback source, so a receipt
+   *  never shows the import date. null for facts written before this column existed. */
+  captureAt: string | null;
   createdAt: number;
 }
 
@@ -42,6 +46,8 @@ export interface KeyDateRecord {
   /** [RECEIPTS-v0.9.5] stored receipt (see PromiseRecord). null for pre-v0.9.5 / no-per-message-time. */
   sourceSpan: string | null;
   sourceMessageAt: string | null;
+  /** [RECEIPTS-capture-date] the note's conversation date (see PromiseRecord.captureAt). */
+  captureAt: string | null;
   createdAt: number;
 }
 
@@ -50,6 +56,9 @@ export interface SaveExtractionInput {
   clientId: string;
   promises: ExtractedPromise[];
   keyDates?: KeyDate[];
+  /** [RECEIPTS-capture-date] the note's conversation date (referenceDate, YYYY-MM-DD) stamped onto
+   *  every fact from this note for the receipt capture-date fallback. Omitted/undefined → null. */
+  captureAt?: string | null;
 }
 
 export interface FactsRepository {

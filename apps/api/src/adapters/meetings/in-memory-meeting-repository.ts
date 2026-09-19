@@ -19,6 +19,7 @@ export class InMemoryMeetingRepository implements MeetingRepository {
       nudgedAt: null,
       sourceSpan: meeting.sourceSpan ?? null,
       sourceMessageAt: meeting.sourceMessageAt ?? null,
+      captureAt: meeting.captureAt ?? null,
       createdAt: Date.now() + this.seq++,
     };
     this.byId.set(record.id, record);

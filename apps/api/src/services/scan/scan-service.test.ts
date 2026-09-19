@@ -96,7 +96,7 @@ describe('[P3-3] going-cold alert', () => {
 
 describe('[P3-4] date reminders', () => {
   const kd = (over: Partial<KeyDateRecord>): KeyDateRecord => ({
-    id: 'd1', userId: 'u', noteId: 'n', clientId: 'c', description: 'Birthday', date: null, dateRaw: null, type: 'birthday', sourceSpan: null, sourceMessageAt: null, createdAt: 0, ...over,
+    id: 'd1', userId: 'u', noteId: 'n', clientId: 'c', description: 'Birthday', date: null, dateRaw: null, type: 'birthday', sourceSpan: null, sourceMessageAt: null, captureAt: null, createdAt: 0, ...over,
   });
 
   it('reminds for a birthday one day out', () => {

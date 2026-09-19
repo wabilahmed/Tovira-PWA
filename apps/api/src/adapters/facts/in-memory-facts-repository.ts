@@ -35,6 +35,7 @@ export class InMemoryFactsRepository implements FactsRepository {
         type: kd.type,
         sourceSpan: kd.source_span ?? null,
         sourceMessageAt: kd.source_message_at ?? null,
+        captureAt: input.captureAt ?? null,
         createdAt: Date.now(),
       });
     }
@@ -67,6 +68,7 @@ export class InMemoryFactsRepository implements FactsRepository {
         mergedInto: canonical ? canonical.id : null,
         sourceSpan: promise.source_span ?? null,
         sourceMessageAt: promise.source_message_at ?? null,
+        captureAt: input.captureAt ?? null,
         createdAt: Date.now(),
       });
       // Specific date wins: a duplicate that carries a resolved date fills the

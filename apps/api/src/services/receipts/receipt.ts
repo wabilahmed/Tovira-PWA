@@ -13,6 +13,8 @@
  *  - 'none'     — no stored span at all (a pre-v0.9.5 fact; see Task 4). Never blank, never faked.
  */
 
+import { referenceDateFor } from '../extraction/extraction-service.js';
+
 export type ReceiptSource = 'message' | 'capture' | 'none';
 
 export interface FactReceipt {
@@ -61,11 +63,22 @@ export function buildReceipt(input: ReceiptInput): FactReceipt {
   return { quote: span, source: 'capture', at, label };
 }
 
-/** Attach a receipt to a relational fact record (its own created_at is the capture date). */
-export function withReceipt<T extends { sourceSpan: string | null; sourceMessageAt: string | null; createdAt: number }>(
+/** A YYYY-MM-DD capture date → epoch ms (UTC midnight), for buildReceipt. null-safe. */
+function captureDateToMs(captureAt: string | null): number | null {
+  return captureAt ? Date.parse(`${captureAt}T00:00:00Z`) : null;
+}
+
+/**
+ * Attach a receipt to a relational fact record. The capture-date fallback uses the fact's
+ * denormalised `captureAt` (the note's conversation date — latest message date for a chat, capture
+ * date for voice/paste), NEVER the fact row's own created_at (which is the import/write time and
+ * would stamp an old import with today's date). captureAt null (pre-migration fact) → honest
+ * fallback with no date.
+ */
+export function withReceipt<T extends { sourceSpan: string | null; sourceMessageAt: string | null; captureAt: string | null }>(
   rec: T,
 ): T & { receipt: FactReceipt } {
-  return { ...rec, receipt: buildReceipt({ sourceSpan: rec.sourceSpan, sourceMessageAt: rec.sourceMessageAt, captureDateMs: rec.createdAt }) };
+  return { ...rec, receipt: buildReceipt({ sourceSpan: rec.sourceSpan, sourceMessageAt: rec.sourceMessageAt, captureDateMs: captureDateToMs(rec.captureAt) }) };
 }
 
 /** Attach a receipt to a JSONB fact (person/personal_fact/etc.) whose capture date must be supplied
@@ -88,10 +101,14 @@ interface ReceiptFact { source_span?: string | null; source_message_at?: string 
  * source_span/source_message_at — NEVER from `note.rawText`. That is the decoupling contract: this
  * function does not read rawText, so a note whose raw body was deleted still renders full receipts.
  */
-export function noteWithReceipts<N extends { createdAt: number; extracted: unknown }>(note: N): N {
+export function noteWithReceipts<N extends { createdAt: number; extracted: unknown; messages?: { sentAt: string | null }[] | null }>(note: N): N {
   const ex = note.extracted;
   if (!ex || typeof ex !== 'object') return note;
-  const at = note.createdAt;
+  // The capture-date fallback for this note's facts is its CONVERSATION date — the latest message
+  // date for an imported chat, else the note's own capture date — via the canonical referenceDateFor,
+  // NOT note.createdAt (which is the import/insert time and wrong for a back-dated import).
+  const convDate = referenceDateFor(note, new Date(note.createdAt).toISOString().slice(0, 10));
+  const at = captureDateToMs(convDate);
   const e = ex as Record<string, unknown>;
   const mapArr = (key: string) =>
     Array.isArray(e[key]) ? (e[key] as ReceiptFact[]).map((f) => withExtractedReceipt(f, at)) : e[key];

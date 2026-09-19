@@ -16,6 +16,8 @@ export interface MeetingRecord {
   /** [RECEIPTS-v0.9.5] stored receipt (see PromiseRecord). null for pre-v0.9.5 / no-per-message-time. */
   sourceSpan: string | null;
   sourceMessageAt: string | null;
+  /** [RECEIPTS-capture-date] the note's conversation date (YYYY-MM-DD) — capture-date fallback source. */
+  captureAt: string | null;
   createdAt: number;
 }
 
@@ -30,6 +32,8 @@ export interface NewMeeting {
   /** [RECEIPTS-v0.9.5] from the extracted meeting; null/omitted for rep-created or pre-v0.9.5. */
   sourceSpan?: string | null;
   sourceMessageAt?: string | null;
+  /** [RECEIPTS-capture-date] the note's conversation date (YYYY-MM-DD); null/omitted for rep-created. */
+  captureAt?: string | null;
 }
 
 /** Reschedule/edit. Only provided fields change; nudgedAt and confirmed are left as-is, so a
