@@ -14,6 +14,8 @@ import { ImportCompletionService } from './services/notes/import-completion-serv
 import { TrialEmailService } from './services/email/trial-email-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
 import { DailyDigestService } from './services/digest/daily-digest-service.js';
+import { ErasureService } from './services/erasure/erasure-service.js';
+import { ErasureRequestService } from './services/erasure/erasure-request-service.js';
 import { ReferralService } from './services/referral/referral-service.js';
 import { InMemoryReferralRepository } from './adapters/referral/in-memory-referral-repository.js';
 import { PgReferralRepository } from './adapters/referral/pg-referral-repository.js';
@@ -59,6 +61,8 @@ import {
   createPushSubscriptionRepository,
   createPushSender,
   createPushDispatchService,
+  createErasureAuditRepository,
+  createErasureRequestRepository,
   createAccountEmailService,
   createImageRepository,
   createHeroService,
@@ -207,6 +211,9 @@ async function main(): Promise<void> {
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
   const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications);
+  // [ERASURE] single-counterparty erasure (Terms 4.9), operator-run via the ops route.
+  const erasure = new ErasureService({ clients, notes, extractionLog: extractionLogs, audit: createErasureAuditRepository(config, appPool) });
+  const erasureRequests = new ErasureRequestService({ erasure, requests: createErasureRequestRepository(config, appPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes, matching);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
@@ -414,7 +421,7 @@ async function main(): Promise<void> {
     trainingLog: trainingLogStats,
     spend,
     opsAlerts,
-    opsRoute: { opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds() },
+    opsRoute: { opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests },
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),

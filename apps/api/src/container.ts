@@ -128,6 +128,12 @@ import type { PushSender, PushSubscriptionRepository, PushBudgetRepository } fro
 import { PushDispatchService } from './services/push/push-dispatch-service.js';
 import { InMemoryPushBudgetRepository } from './adapters/push/in-memory-push-budget-repository.js';
 import { PgPushBudgetRepository } from './adapters/push/pg-push-budget-repository.js';
+import type { ErasureAuditRepository } from './ports/erasure-audit-repository.js';
+import type { ErasureRequestRepository } from './ports/erasure-request-repository.js';
+import { InMemoryErasureAuditRepository } from './adapters/erasure/in-memory-erasure-audit-repository.js';
+import { PgErasureAuditRepository } from './adapters/erasure/pg-erasure-audit-repository.js';
+import { InMemoryErasureRequestRepository } from './adapters/erasure/in-memory-erasure-request-repository.js';
+import { PgErasureRequestRepository } from './adapters/erasure/pg-erasure-request-repository.js';
 import { StubPushSender } from './adapters/push/stub-sender.js';
 import { WebPushSender } from './adapters/push/webpush-sender.js';
 import { InMemoryPushSubscriptionRepository } from './adapters/push/in-memory-push-subscription-repository.js';
@@ -594,6 +600,22 @@ export function createPushSender(config: AppConfig): PushSender {
     }
   }
   return new StubPushSender();
+}
+
+/** [ERASURE] the erasure audit trail + pending-request store. Pg when the account store is Postgres. */
+export function createErasureAuditRepository(config: AppConfig, pool?: Pool): ErasureAuditRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgErasureAuditRepository(pool);
+  }
+  return new InMemoryErasureAuditRepository();
+}
+export function createErasureRequestRepository(config: AppConfig, pool?: Pool): ErasureRequestRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgErasureRequestRepository(pool);
+  }
+  return new InMemoryErasureRequestRepository();
 }
 
 /** The silence-budget ledger (max 2 pushes/rep/day), RLS-free system table on pg. */
