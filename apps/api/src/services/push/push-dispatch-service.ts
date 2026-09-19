@@ -24,6 +24,8 @@ export const TIME_CRITICAL: ReadonlySet<string> = new Set<NotificationType>([
   'promise_due_today',
   'import_complete',
   'daily_digest', // the single daily discretionary push (DailyDigestService)
+  'erasure_pending', // ERASURE: a legal notice the rep must see, not silent
+  'erasure_completed',
 ]);
 
 export interface PushableAlert {

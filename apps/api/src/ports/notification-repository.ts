@@ -11,6 +11,8 @@ export type NotificationType =
   | 'chat_refresh'
   | 'monday_digest'
   | 'daily_digest' // NOTIF-REWORK: the one discretionary push — "N things need you" (opens the daily list)
+  | 'erasure_pending' // ERASURE: a third party requested erasure; the rep's retention-window notice (Terms 4.9)
+  | 'erasure_completed' // ERASURE: the erasure ran; what was removed, in categories
   | 'import_complete';
 
 export interface NotificationEntry {

@@ -30,6 +30,8 @@ const NOTIFICATION_WIRING: Record<NotificationType, Wiring> = {
   date_reminder: { triggeredBy: 'scanRunner.run(' },
   chat_refresh: { triggeredBy: 'scanRunner.run(' },
   daily_digest: { triggeredBy: 'dailyDigest.runScheduled(' }, // NOTIF-REWORK: daily-digest brain job
+  erasure_pending: { triggeredBy: "type: 'erasure_pending'" }, // ERASURE: ErasureRequestService.open
+  erasure_completed: { triggeredBy: "type: 'erasure_completed'" }, // ERASURE: ErasureRequestService.complete
   import_complete: { triggeredBy: 'importCompletion.onNoteSettled(' }, // [IMPORT-DONE] sweep terminal hook
 };
 

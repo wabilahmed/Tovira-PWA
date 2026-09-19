@@ -44,7 +44,7 @@ describe('[NOTIF-REWORK] time-critical alerts push uncapped', () => {
     const { sent } = await svc.dispatch('u', alerts, NOW);
     expect(sent).toHaveLength(4);
     expect(sender.send).toHaveBeenCalledTimes(4);
-    expect([...TIME_CRITICAL].sort()).toEqual(['daily_digest', 'import_complete', 'pre_meeting_nudge', 'promise_due_today']);
+    expect([...TIME_CRITICAL].sort()).toEqual(['daily_digest', 'erasure_completed', 'erasure_pending', 'import_complete', 'pre_meeting_nudge', 'promise_due_today']);
   });
 
   it('the same alert firing twice produces one push, not two (dedup preserved)', async () => {
