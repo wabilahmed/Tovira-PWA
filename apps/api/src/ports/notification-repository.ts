@@ -2,7 +2,15 @@
  * Port: generated alerts/reminders (P3-2/3/4). Stored so they're idempotent
  * (deduped by key) and reachable in-app even when push fails/is off (P3-5).
  */
-export type NotificationType = 'overdue_promise' | 'pre_meeting_nudge' | 'going_cold' | 'date_reminder' | 'chat_refresh' | 'monday_digest' | 'import_complete';
+export type NotificationType =
+  | 'overdue_promise'
+  | 'promise_due_today' // NOTIF-REWORK: time-critical — a rep-owned promise due TODAY (pushes uncapped)
+  | 'pre_meeting_nudge'
+  | 'going_cold'
+  | 'date_reminder'
+  | 'chat_refresh'
+  | 'monday_digest'
+  | 'import_complete';
 
 export interface NotificationEntry {
   type: NotificationType;

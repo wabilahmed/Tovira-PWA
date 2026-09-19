@@ -23,8 +23,9 @@ type Wiring = { triggeredBy: string } | { dormant: string };
 // Each notification type → the production call site that fires it (asserted present below).
 const NOTIFICATION_WIRING: Record<NotificationType, Wiring> = {
   pre_meeting_nudge: { triggeredBy: 'meetingNudge.run(' }, // meeting-nudges brain job
-  monday_digest: { triggeredBy: 'monday.runScheduled(' }, // monday-digest brain job
+  monday_digest: { triggeredBy: 'monday.runScheduled(' }, // monday-digest brain job (in-app only now; no push)
   overdue_promise: { triggeredBy: 'scanRunner.run(' }, // daily-scan brain job → scan.runAll
+  promise_due_today: { triggeredBy: 'scanRunner.run(' }, // NOTIF-REWORK: scan.runAll → promisesDueToday
   going_cold: { triggeredBy: 'scanRunner.run(' },
   date_reminder: { triggeredBy: 'scanRunner.run(' },
   chat_refresh: { triggeredBy: 'scanRunner.run(' },

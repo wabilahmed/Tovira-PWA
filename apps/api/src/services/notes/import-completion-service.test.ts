@@ -4,7 +4,6 @@ import { NoteSweepService } from './note-sweep-service.js';
 import { PushDispatchService } from '../push/push-dispatch-service.js';
 import { InMemoryNotificationRepository } from '../../adapters/notifications/in-memory-notification-repository.js';
 import { InMemoryPushSubscriptionRepository } from '../../adapters/push/in-memory-push-subscription-repository.js';
-import { InMemoryPushBudgetRepository } from '../../adapters/push/in-memory-push-budget-repository.js';
 import type { PushSender } from '../../ports/push.js';
 import type { NoteRecord } from '../../ports/note-repository.js';
 
@@ -25,15 +24,14 @@ function make(note: NoteRecord | null) {
   const sender: PushSender = { send: vi.fn().mockResolvedValue(undefined) };
   const notifications = new InMemoryNotificationRepository();
   const subs = new InMemoryPushSubscriptionRepository();
-  const budget = new InMemoryPushBudgetRepository();
-  const dispatch = new PushDispatchService(sender, subs, notifications, budget);
+  const dispatch = new PushDispatchService(sender, subs, notifications);
   const notes = { findByIdForUser: vi.fn().mockResolvedValue(note) };
   const clients = { findByIdForUser: vi.fn().mockResolvedValue({ id: 'c1', name: 'Acme' }) };
   const svc = new ImportCompletionService({
     notes: notes as never, clients: clients as never,
     dispatch: (u, a, n) => dispatch.dispatch(u, a, n), now: () => NOW,
   });
-  return { svc, sender, notifications, subs, budget };
+  return { svc, sender, notifications, subs };
 }
 
 describe('[IMPORT-DONE] completion notice', () => {

@@ -57,7 +57,6 @@ import {
   meetingNudgeWindowMs,
   createPushSubscriptionRepository,
   createPushSender,
-  createPushBudgetRepository,
   createPushDispatchService,
   createAccountEmailService,
   createImageRepository,
@@ -206,7 +205,7 @@ async function main(): Promise<void> {
   const scan = createScanService(clients, meetings, facts, notifications, notes, (userId) => auth.timezoneFor(userId));
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
-  const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications, createPushBudgetRepository(config, appPool), (userId) => auth.timezoneFor(userId));
+  const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications);
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes, matching);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache

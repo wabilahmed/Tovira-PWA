@@ -59,7 +59,7 @@ export async function handleProactiveRoute(
   // loudest few (max 2/rep/day). Suppressed alerts still show in-app.
   const now = Date.now();
   const summary = await deps.scan.runAll(userId, now, deps.scanConfig);
-  const { sent, suppressed } = await deps.pushDispatch.dispatch(userId, summary.pushables, now);
+  const { sent, heldForDigest } = await deps.pushDispatch.dispatch(userId, summary.pushables, now);
   sendJson(res, 200, {
     overduePromises: summary.overduePromises,
     nudges: summary.nudges,
@@ -67,7 +67,7 @@ export async function handleProactiveRoute(
     dateReminders: summary.dateReminders,
     chatRefresh: summary.chatRefresh,
     pushed: sent.length,
-    suppressed: suppressed.length,
+    heldForDigest: heldForDigest.length,
   });
   return true;
 }

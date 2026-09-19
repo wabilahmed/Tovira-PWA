@@ -22,6 +22,7 @@ export interface ScanConfig {
 
 export interface ScanSummary {
   overduePromises: number;
+  promisesDueToday: number;
   nudges: number;
   goingCold: number;
   dateReminders: number;
@@ -99,6 +100,32 @@ export class ScanService {
         clientId: p.clientId,
         title: 'Overdue promise',
         body: `Overdue — ${p.text}`,
+      };
+      const ok = await this.notifications.createIfAbsent(userId, entry);
+      if (ok) { created += 1; sink?.push(entry); }
+    }
+    return created;
+  }
+
+  /**
+   * [NOTIF-REWORK] Promises due TODAY (time-critical): a rep-owned, not-done commitment whose
+   * resolved due date is exactly today. Pushes uncapped (like a meeting nudge) — it has an imminent
+   * deadline. Distinct from overduePromises (strictly past due, now discretionary → digest). Fires
+   * once per promise per day (deduped by id + today), so a promise still due tomorrow re-fires then.
+   */
+  async promisesDueToday(userId: string, nowMs: number, sink?: PushableAlert[]): Promise<number> {
+    const todayIso = new Date(nowMs).toISOString().slice(0, 10);
+    const promises = await this.facts.listPromisesByUser(userId);
+    let created = 0;
+    for (const p of promises) {
+      if (p.owner !== 'rep' || p.done || !p.dueDate) continue;
+      if (p.dueDate !== todayIso) continue; // strictly due TODAY (overdue/future handled elsewhere)
+      const entry = {
+        type: 'promise_due_today' as const,
+        dedupeKey: `due_today:${p.id}:${todayIso}`,
+        clientId: p.clientId,
+        title: 'Promise due today',
+        body: `Due today — ${p.text}`,
       };
       const ok = await this.notifications.createIfAbsent(userId, entry);
       if (ok) { created += 1; sink?.push(entry); }
@@ -207,6 +234,7 @@ export class ScanService {
     const pushables: PushableAlert[] = [];
     return {
       overduePromises: await this.overduePromises(userId, nowMs, pushables, cfg.promiseStaleThresholdDays),
+      promisesDueToday: await this.promisesDueToday(userId, nowMs, pushables),
       nudges: await this.nudges(userId, nowMs, cfg.nudgeLeadMs, pushables),
       goingCold: await this.goingCold(userId, nowMs, cfg.coldThresholdDays, pushables),
       dateReminders: await this.dateReminders(userId, nowMs, cfg.reminderWindowDays, pushables),

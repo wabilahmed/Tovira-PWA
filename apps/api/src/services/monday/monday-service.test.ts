@@ -5,7 +5,6 @@ import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repo
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryNotificationRepository } from '../../adapters/notifications/in-memory-notification-repository.js';
 import { InMemoryPushSubscriptionRepository } from '../../adapters/push/in-memory-push-subscription-repository.js';
-import { InMemoryPushBudgetRepository } from '../../adapters/push/in-memory-push-budget-repository.js';
 import { PushDispatchService } from '../push/push-dispatch-service.js';
 import type { PushSender } from '../../ports/push.js';
 
@@ -20,11 +19,10 @@ function make() {
   const facts = new InMemoryFactsRepository();
   const notifications = new InMemoryNotificationRepository();
   const subs = new InMemoryPushSubscriptionRepository();
-  const budget = new InMemoryPushBudgetRepository();
   const sender: PushSender = { send: vi.fn().mockResolvedValue(undefined) };
-  const pushDispatch = new PushDispatchService(sender, subs, notifications, budget);
+  const pushDispatch = new PushDispatchService(sender, subs, notifications);
   const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch);
-  return { clients, notes, facts, notifications, subs, budget, sender, pushDispatch, svc };
+  return { clients, notes, facts, notifications, subs, sender, pushDispatch, svc };
 }
 
 describe('[TZ-BOUNDARY] MondayDigestService computes the week on the rep\'s clock', () => {
@@ -37,8 +35,7 @@ describe('[TZ-BOUNDARY] MondayDigestService computes the week on the rep\'s cloc
     const facts = new InMemoryFactsRepository();
     const notifications = new InMemoryNotificationRepository();
     const subs = new InMemoryPushSubscriptionRepository();
-    const budget = new InMemoryPushBudgetRepository();
-    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications, budget);
+    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications);
     const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch, async () => tz);
     return { clients, facts, svc };
   }
@@ -66,8 +63,7 @@ describe('[TZ-SCHED] scheduled Monday digest fires on each rep\'s local Monday, 
     const facts = new InMemoryFactsRepository();
     const notifications = new InMemoryNotificationRepository();
     const subs = new InMemoryPushSubscriptionRepository();
-    const budget = new InMemoryPushBudgetRepository();
-    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications, budget);
+    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications);
     const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch, async (u) => tzByUser[u] ?? 'Etc/UTC');
     const digests = async (u: string) => (await notifications.listByUser(u)).filter((n) => n.type === 'monday_digest').length;
     return { svc, digests };
@@ -99,7 +95,7 @@ describe('[TZ-SCHED] scheduled Monday digest fires on each rep\'s local Monday, 
     const facts = new InMemoryFactsRepository();
     const notifications = new InMemoryNotificationRepository();
     const subs = new InMemoryPushSubscriptionRepository();
-    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications, new InMemoryPushBudgetRepository());
+    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications);
     const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch, async () => tz.r!);
     expect(await svc.runScheduled(['r'], MON_EARLY)).toBe(1); // Dubai Monday → sent
     tz.r = 'Asia/Riyadh'; // +3 — same local date 2026-08-03, same weekOf
@@ -158,24 +154,15 @@ describe('MondayDigestService (P3-8)', () => {
     expect(await notifications.listByUser('u')).toHaveLength(1);
   });
 
-  // [FLOWS / silence budget] the Monday push goes through the SAME ranked, capped
-  // dispatcher as every other alert — brand §10 "max 2/day, no exceptions".
-  it('pushes the Monday digest through the silence budget when budget remains', async () => {
-    const { clients, subs, sender, svc } = make();
+  // [NOTIF-REWORK] monday_digest is DISCRETIONARY: the weekly push is removed (ruling 3 — the new
+  // daily digest supersedes it). The Monday statement still records in-app; it just never pushes.
+  it('records the Monday digest in-app but never pushes it (discretionary, no push)', async () => {
+    const { clients, subs, sender, notifications, svc } = make();
     await clients.create('u', 'Acme');
     await subs.save('u', sub);
     await svc.notifyMonday('u', NOW);
-    expect(sender.send).toHaveBeenCalledTimes(1); // pushed to the one device, within budget
-  });
-
-  it('suppresses the Monday push when the daily budget is spent, but still records it in-app', async () => {
-    const { clients, subs, budget, sender, notifications, svc } = make();
-    await clients.create('u', 'Acme');
-    await subs.save('u', sub);
-    await budget.recordSent('u', iso(NOW), 2); // the 2/day cap is already used
-    await svc.notifyMonday('u', NOW);
-    expect(sender.send).not.toHaveBeenCalled(); // no exception to the cap
-    expect(await notifications.listByUser('u')).toHaveLength(1); // suppressed from push ≠ lost
+    expect(sender.send).not.toHaveBeenCalled(); // monday_digest is not time-critical → no push
+    expect(await notifications.listByUser('u')).toHaveLength(1); // still recorded — the in-app Monday statement
   });
 
   it('never includes another rep\'s data', async () => {
@@ -195,8 +182,7 @@ describe('[INV-MATCH] the digest carries this week\'s unacted strong suggestions
     const facts = new InMemoryFactsRepository();
     const notifications = new InMemoryNotificationRepository();
     const subs = new InMemoryPushSubscriptionRepository();
-    const budget = new InMemoryPushBudgetRepository();
-    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications, budget);
+    const pushDispatch = new PushDispatchService({ send: vi.fn().mockResolvedValue(undefined) }, subs, notifications);
     const suggestionsSurfacedSince = vi.fn().mockResolvedValue(surfaced);
     const svc = new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch, undefined, { suggestionsSurfacedSince });
     return { svc, suggestionsSurfacedSince };

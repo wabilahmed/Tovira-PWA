@@ -64,7 +64,6 @@ import { AccountService } from '../services/account/account-service.js';
 import { ActivationService } from '../services/analytics/activation-service.js';
 import { InMemoryActivationRepository, InMemoryAnalytics } from '../adapters/analytics/in-memory.js';
 import { InMemoryPushSubscriptionRepository } from '../adapters/push/in-memory-push-subscription-repository.js';
-import { InMemoryPushBudgetRepository } from '../adapters/push/in-memory-push-budget-repository.js';
 import { StubPushSender } from '../adapters/push/stub-sender.js';
 import { PushDispatchService } from '../services/push/push-dispatch-service.js';
 import { InMemoryImageRepository } from '../adapters/images/in-memory-image-repository.js';
@@ -148,7 +147,7 @@ export function buildInMemoryDeps(
   const scan = new ScanService(clients, meetings, facts, notifications, notes);
   const pushSubscriptions = new InMemoryPushSubscriptionRepository();
   const pushSender = new StubPushSender();
-  const pushDispatch = new PushDispatchService(pushSender, pushSubscriptions, notifications, new InMemoryPushBudgetRepository());
+  const pushDispatch = new PushDispatchService(pushSender, pushSubscriptions, notifications);
   const images = new InMemoryImageRepository();
   const recallSessions = new InMemoryRecallSessionRepository();
   const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog });

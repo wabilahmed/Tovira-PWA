@@ -610,10 +610,9 @@ export function createPushDispatchService(
   sender: PushSender,
   subs: PushSubscriptionRepository,
   notifications: NotificationRepository,
-  budget: PushBudgetRepository,
-  timezoneFor?: (userId: string) => Promise<string>,
 ): PushDispatchService {
-  return new PushDispatchService(sender, subs, notifications, budget, undefined, timezoneFor);
+  // NOTIF-REWORK: the 2/day silence budget is removed — no budget repo, no rep-day timezone needed.
+  return new PushDispatchService(sender, subs, notifications);
 }
 
 /** Per-client gallery images (P4-6), RLS-backed on pg. */
