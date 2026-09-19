@@ -321,7 +321,9 @@ async function main(): Promise<void> {
       { name: 'monday-digest', lockKey: 4711005, intervalMs: 60 * 60 * 1000,
         run: async () => { await monday.runScheduled(await auth.allUserIds(), Date.now()); } },
       // NOTIF-REWORK: the daily digest — one discretionary push per rep-day at their local hour.
-      { name: 'daily-digest', lockKey: 4711006, intervalMs: 60 * 60 * 1000,
+      // lockKey 4711010: UNIQUE per job (advisory lock). 4711006 is daily-scan, …007 extraction-canary,
+      // …008 training-archive, …009 outcomes-inference — so the next free key is …010.
+      { name: 'daily-digest', lockKey: 4711010, intervalMs: 60 * 60 * 1000,
         run: async () => { await dailyDigest.runScheduled(await auth.allUserIds(), Date.now()); } },
       // [SCAN-WIRING] The daily proactive scan (overdue promises / going cold / date reminders /
       // chat-refresh) — the automated trigger the stub EventBridge Lambda never provided. Every few

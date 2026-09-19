@@ -83,6 +83,17 @@ describe('[WIRING-GUARD] every registered emitter is reachable in production', (
     }
   });
 
+  // A shared advisory-lock key makes two jobs contend for one lock, so one is silently skipped —
+  // a "registered but doesn't run" defect (a human once caught this by reading index.ts). Now CI does.
+  it('every registered scheduled job has a UNIQUE advisory lockKey', () => {
+    const pairs = [...indexSrc.matchAll(/name:\s*'([^']+)',\s*lockKey:\s*(\d+)/g)].map((m) => ({ name: m[1]!, lockKey: m[2]! }));
+    expect(pairs.length, 'no scheduled jobs found — the regex or registration shape changed').toBeGreaterThanOrEqual(SCHEDULED_JOBS.length);
+    const byKey = new Map<string, string[]>();
+    for (const p of pairs) (byKey.get(p.lockKey) ?? byKey.set(p.lockKey, []).get(p.lockKey)!).push(p.name);
+    const collisions = [...byKey.entries()].filter(([, names]) => names.length > 1);
+    expect(collisions, `lockKey collisions: ${collisions.map(([k, n]) => `${k} → ${n.join(', ')}`).join('; ')}`).toEqual([]);
+  });
+
   it('the allow-list is small and every entry carries a reason (visible, not silent)', () => {
     const dormant = [
       ...Object.entries(NOTIFICATION_WIRING),
