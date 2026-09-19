@@ -8,7 +8,7 @@ import type { ModelClient } from '../../ports/model.js';
 const NOW = Date.parse('2026-08-05T09:00:00Z');
 const DAY = 24 * 60 * 60 * 1000;
 
-const action = (i: number): TodayAction => ({ kind: 'promise', priority: i, text: `action ${i}`, clientId: `c${i}` });
+const action = (i: number): TodayAction => ({ kind: 'promise', reason: 'promise_due', priority: i, text: `action ${i}`, clientId: `c${i}` });
 
 /** A model that counts calls; returns a (valid) reordering by default. */
 function countingModel(text = '[1,0]'): { model: ModelClient; calls: () => number } {

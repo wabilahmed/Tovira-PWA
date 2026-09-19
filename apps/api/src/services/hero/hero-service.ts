@@ -42,8 +42,13 @@ export interface RiskItem {
   reasons: string[];
 }
 
+/** [NOTIF-REWORK Task 5] Why this item is on the register — drives the grouped surface. */
+export type PriorityReason = 'promise_overdue' | 'promise_due' | 'meeting' | 'cooling' | 'match';
+
 export interface TodayAction {
   kind: 'promise' | 'meeting' | 'cold' | 'risk' | 'match';
+  /** The reason group this action belongs to (set at build time; grouping never parses text). */
+  reason: PriorityReason;
   priority: number;
   text: string;
   /** A one-line fact with a date/elapsed count — the reason this is on the
@@ -172,6 +177,7 @@ export class HeroService {
         const overdue = p.dueDate < todayDate;
         actions.push({
           kind: 'promise',
+          reason: overdue ? 'promise_overdue' : 'promise_due',
           priority: overdue ? 4 : 3,
           text: `${overdue ? 'Overdue' : 'Due soon'}: ${p.text}`,
           clientId: p.clientId,
@@ -181,12 +187,12 @@ export class HeroService {
     }
     for (const m of meetings) {
       if (m.datetime && m.datetime >= nowIso && m.datetime <= soonIso) {
-        actions.push({ kind: 'meeting', priority: 3, text: `Prep for meeting (${m.datetimeRaw})`, clientId: m.clientId, subline: `meeting ${m.datetimeRaw}` });
+        actions.push({ kind: 'meeting', reason: 'meeting', priority: 3, text: `Prep for meeting (${m.datetimeRaw})`, clientId: m.clientId, subline: `meeting ${m.datetimeRaw}` });
       }
     }
     for (const s of sig) {
       if (s.silentDays > this.coldThresholdDays) {
-        actions.push({ kind: 'cold', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days` });
+        actions.push({ kind: 'cold', reason: 'cooling', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days` });
       }
     }
     // INV-MATCH: STRONG matches enter the register at priority 0 — BELOW every fact (overdue
@@ -198,6 +204,7 @@ export class HeroService {
         const when = s.receipt.statedOn ? ` · ${bodyDate(s.receipt.statedOn)}` : '';
         actions.push({
           kind: 'match',
+          reason: 'match',
           priority: 0,
           text: `${s.itemTitle} may suit ${client?.name ?? 'a client'}`,
           clientId: s.clientId,

@@ -9,7 +9,8 @@ import type { PushableAlert } from '../push/push-dispatch-service.js';
 const NOW = Date.parse('2026-08-14T09:00:00Z');
 const DAY = 24 * 60 * 60 * 1000;
 
-const act = (kind: TodayAction['kind'], n: number): TodayAction => ({ kind, priority: 1, text: `${kind} ${n}`, clientId: String(n) });
+const REASON: Record<TodayAction['kind'], TodayAction['reason']> = { promise: 'promise_overdue', meeting: 'meeting', cold: 'cooling', match: 'match', risk: 'cooling' };
+const act = (kind: TodayAction['kind'], n: number): TodayAction => ({ kind, reason: REASON[kind], priority: 1, text: `${kind} ${n}`, clientId: String(n) });
 
 /** A priorities cache stub: returns the given actions for the queried day; records get() calls. */
 function cacheOf(actions: TodayAction[]): PrioritiesRepository & { getSpy: ReturnType<typeof vi.fn> } {
