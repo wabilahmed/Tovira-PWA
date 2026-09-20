@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { TrialExtractionLimiter } from './limiter.js';
 import { InMemoryExtractionCounter } from '../../adapters/extraction/in-memory-extraction-counter.js';
 
-const CEILINGS = { trial: 100, paid: 2000 };
 // Resolver stub: a fixed status, and a period key derived from status so trial vs paid bucket differ.
 function resolver(status: string, periodKey = `pk:${status}`) {
   return async () => ({ status, periodKey });

@@ -93,7 +93,7 @@ export interface TestDeps extends ApiDeps {
  */
 export function buildInMemoryDeps(
   overrides: Partial<ApiDeps> = {},
-  opts: { extractionLimiter?: ExtractionLimiter } = {},
+  opts: { extractionLimiter?: ExtractionLimiter; enforceVerification?: boolean } = {},
 ): TestDeps {
   const stubPool = { query: async () => ({ rows: [] }) } as unknown as Pool;
   const auth = new AuthService({
@@ -154,8 +154,12 @@ export function buildInMemoryDeps(
     undefined, // spendGate
     (uid, cid) => contactAliases.listByClient(uid, cid), // [ALIAS-NORMALISE]
     undefined, // health
-    // [TRIAL-FARM] verification gate — extraction requires a verified email (the one paid op).
-    { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) },
+    // [TRIAL-FARM] verification gate — extraction requires a verified email (the one paid op). Tests
+    // default to VERIFIED (verification is a precondition, proven by the dedicated verification test);
+    // pass opts.enforceVerification to exercise the real emailVerified-backed gate.
+    opts.enforceVerification
+      ? { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) }
+      : { isVerified: async () => true },
   );
   const brief = new BriefService(clients, notes, facts, embedder);
   const followUp = new FollowUpService(new StubModelClient(), notes);

@@ -18,7 +18,7 @@ let base: string;
 let deps: TestDeps;
 
 beforeAll(async () => {
-  deps = buildInMemoryDeps();
+  deps = buildInMemoryDeps({}, { enforceVerification: true }); // exercise the real emailVerified gate
   server = createApiServer(deps);
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
