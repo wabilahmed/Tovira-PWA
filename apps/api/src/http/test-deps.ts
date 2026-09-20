@@ -139,6 +139,7 @@ export function buildInMemoryDeps(
     extractionCounter,
     { trial: 100, paid: 2000 },
   );
+  const extractionLimiter = opts.extractionLimiter ?? defaultExtractionLimiter;
   const extraction = new ExtractionService(
     opts.modelClient ?? new StubModelClient(),
     clients,
@@ -149,7 +150,7 @@ export function buildInMemoryDeps(
     'stub',
     corrections,
     undefined, // router
-    opts.extractionLimiter ?? defaultExtractionLimiter,
+    extractionLimiter,
     undefined, // cacheTtl
     undefined, // meetings
     undefined, // meetingTimezone
@@ -192,6 +193,7 @@ export function buildInMemoryDeps(
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     isVerified: opts.enforceVerification ? (u: string) => auth.getPublicUser(u).then((x) => x?.emailVerified ?? false) : undefined,
+    allow: (u: string) => extractionLimiter.allow(u), // [ASYNC-EXTRACT] ceiling skip (mirrors prod)
   });
   const runSweep = async (passes = 2): Promise<void> => {
     const today = new Date().toISOString().slice(0, 10);

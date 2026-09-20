@@ -138,6 +138,13 @@ export interface AppConfig {
   // --- spend cap (SPEND-CAP): a hard per-account Claude-spend failsafe, well above the modelled
   //     ~AED 19 and under the AED 67 margin ceiling, so it fires only on abuse or a defect. ---
   spendCapAed: number;
+  /** [ASYNC-EXTRACT] How many notes the background sweep (the primary extraction processor) works at
+   *  once. Derived for the pilot: ~10 reps importing their books at once is the target concurrency; a
+   *  pool of 5 drains each fairness-column of up to 10 reps in ~2 cycles while staying well under the
+   *  Bedrock per-model rate limit (and one arm64 container's headroom — extraction is I/O-bound on the
+   *  model call, not CPU). Higher risks provider 429s; lower reintroduces the day-one backlog. Tunable
+   *  via SWEEP_CONCURRENCY; NOT settled — revisit against real Bedrock TPM/RPM at pilot scale. */
+  sweepConcurrency: number;
   /** [TRIAL-FARM] The spend cap for a TRIALING account — far tighter than the paying-account failsafe.
    *  The AED 45 cap was derived as a PAYING month's cost guard (COGS ~AED 43–48); reusing it for a
    *  14-day trial lets one trial burn most of a paying month's budget before anyone pays. Derived from
@@ -248,6 +255,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     trialExtractionCeiling: parsePositive(env.TRIAL_EXTRACTION_CEILING, 100, 'TRIAL_EXTRACTION_CEILING'),
     paidExtractionCeiling: parsePositive(env.PAID_EXTRACTION_CEILING, 2000, 'PAID_EXTRACTION_CEILING'),
     spendCapAed: parsePositive(env.SPEND_CAP_AED, 45, 'SPEND_CAP_AED'),
+    sweepConcurrency: parsePositive(env.SWEEP_CONCURRENCY, 5, 'SWEEP_CONCURRENCY'),
     trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, 15, 'TRIAL_SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),

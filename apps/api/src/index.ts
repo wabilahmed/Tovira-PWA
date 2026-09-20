@@ -9,7 +9,7 @@ import { BookScanService } from './services/book-scan/book-scan-service.js';
 import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { PrioritiesService } from './services/hero/priorities-service.js';
-import { NoteSweepService } from './services/notes/note-sweep-service.js';
+import { NoteSweepService, DEFAULT_MAX_SWEEP_ATTEMPTS } from './services/notes/note-sweep-service.js';
 import { ImportCompletionService } from './services/notes/import-completion-service.js';
 import { TrialEmailService } from './services/email/trial-email-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
@@ -250,8 +250,9 @@ async function main(): Promise<void> {
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     canSpend: (u) => spend.canSpend(u), // SPEND-CAP: a capped rep's queue waits, untouched
     isVerified: (u) => verifiedGate.isVerified(u), // TRIAL-FARM: an unverified rep's queue waits too
+    allow: (u) => extractionLimiter.allow(u), // ASYNC-EXTRACT: a rep at the extraction ceiling waits (no needs_review)
     onSettled: (u, id) => importCompletion.onNoteSettled(u, id), // IMPORT-DONE
-  });
+  }, DEFAULT_MAX_SWEEP_ATTEMPTS, config.sweepConcurrency);
   // Trial-ending (2 days out) + trial-ended emails (EMAIL-HOOKS 1a), idempotent.
   const trialEmail = new TrialEmailService({ listTrialing: () => billing.listTrialing() }, emailFor, accountEmail);
 
@@ -361,7 +362,9 @@ async function main(): Promise<void> {
       { name: 'outcomes-inference', lockKey: 4711009, intervalMs: 24 * 60 * 60 * 1000,
         run: async () => { const r = await outcomeInference.recompute(Date.now()); console.log(`[outcomes] inferred=${r.inferred} reverted=${r.reverted}`); } },
     ],
-  });
+  }, 15_000); // [ASYNC-EXTRACT] tick every 15s (was 30s) so the notes-sweep (15s interval) fires on
+  // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs
+  // have long intervals, so a faster due-check is negligible overhead.
   const recallSessions = createRecallSessionRepository(config, appPool);
   const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, archiveIndex, storage);
   const activation = createActivationService(config, appPool);
