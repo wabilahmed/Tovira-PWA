@@ -36,7 +36,12 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
   if (state === 'loading') return <p>Scanning your history…</p>;
   if (state === 'error' || !report) return <p role="alert">Couldn’t run the scan. Please try again.</p>;
 
-  if (report.isEmpty) {
+  // [BOOKSCAN-STREAM] Still working iff a chat is queued/processing. The empty state is shown ONLY when
+  // the scan is FINISHED with nothing found — mid-scan-zero must read as "still scanning", never "empty".
+  const progress = report.scanProgress;
+  const scanning = progress ? !progress.done : false;
+
+  if (!scanning && report.isEmpty) {
     return (
       <section aria-label="Book Scan">
         <header className="tov-screenhead">
@@ -60,6 +65,14 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
           {report.items.length} finding{report.items.length === 1 ? '' : 's'} · {clients} client{clients === 1 ? '' : 's'}
           {typeof report.chatsRead === 'number' && <> · {report.chatsRead} chat{report.chatsRead === 1 ? '' : 's'} read</>}
         </div>
+        {/* [BOOKSCAN-STREAM] Progress that can't be mistaken for completion: while any chat is still
+            being analysed, this is ALWAYS shown, so three findings never read as "the total". */}
+        {scanning && progress && (
+          <div data-testid="scan-progress" role="status" aria-live="polite" className="tov-screenmeta" style={{ color: 'var(--amber)' }}>
+            Still scanning — analysed {progress.extractedChats} of {progress.totalChats} chat{progress.totalChats === 1 ? '' : 's'}
+            {progress.failedChats > 0 && <> · {progress.failedChats} couldn’t be read</>}
+          </div>
+        )}
       </header>
 
       {SECTIONS.map(({ kind, label }) => {

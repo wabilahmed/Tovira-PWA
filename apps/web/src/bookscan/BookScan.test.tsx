@@ -29,6 +29,33 @@ const FULL: BookScanReport = {
   ],
 };
 
+// [BOOKSCAN-STREAM task 2] progress that cannot be mistaken for completion.
+describe('<BookScan> streaming progress', () => {
+  const prog = (over: Partial<NonNullable<BookScanReport['scanProgress']>>) => ({
+    totalChats: 3, extractedChats: 0, pendingChats: 3, failedChats: 0, done: false, ...over,
+  });
+
+  it('mid-scan with zero findings renders the SCANNING state, not the empty state', async () => {
+    render(<BookScan api={api({ items: [], isEmpty: true, message: 'Not much here yet.', invitation: 'x', scanProgress: prog({ extractedChats: 1, pendingChats: 2 }) })} />);
+    expect(await screen.findByTestId('scan-progress')).toBeInTheDocument();
+    expect(screen.getByTestId('scan-progress')).toHaveTextContent(/analysed 1 of 3/i);
+    expect(screen.queryByText(/not much here yet/i)).toBeNull(); // NOT the empty state
+  });
+
+  it('completed with zero findings renders the empty state (genuinely nothing found)', async () => {
+    render(<BookScan api={api({ items: [], isEmpty: true, message: 'Not much here yet.', invitation: 'x', scanProgress: prog({ extractedChats: 3, pendingChats: 0, done: true }) })} />);
+    expect(await screen.findByText(/not much here yet/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('scan-progress')).toBeNull(); // finished — no scanning indicator
+  });
+
+  it('a failed extraction is visible in progress, not dropped', async () => {
+    render(<BookScan api={api({ items: [], isEmpty: true, message: 'x', invitation: 'x', scanProgress: prog({ totalChats: 3, extractedChats: 1, pendingChats: 1, failedChats: 1 }) })} />);
+    const bar = await screen.findByTestId('scan-progress');
+    expect(bar).toHaveTextContent(/analysed 1 of 3/i); // failed still in the denominator (of 3)
+    expect(bar).toHaveTextContent(/1 couldn’t be read/i);
+  });
+});
+
 describe('<BookScan>', () => {
   it('shows a loading state first', () => {
     render(<BookScan api={api(FULL)} />);

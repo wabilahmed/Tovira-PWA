@@ -3,6 +3,7 @@ import type { NoteRepository } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { UnansweredQuestion } from '../import/unanswered.js';
 import { isStalePromise } from '../facts/promise-lifecycle.js';
+import { extractionState } from '../notes/extraction-state.js';
 
 /**
  * Day-One Book Scan — the "Relationship X-Ray" (P5-3b). Scans a rep's seeded
@@ -38,6 +39,20 @@ export interface BookScanItem {
   framing: 'worth_checking' | 'informational';
 }
 
+/**
+ * [BOOKSCAN-STREAM] Account-wide extraction progress over IMPORTED CHATS (whatsapp_export notes) —
+ * so the streaming scan can show "N of M analysed" and, crucially, an unambiguous still-working vs
+ * finished signal. On day one (empty account) this equals the rep's import. A FAILED chat stays in
+ * `totalChats` (never silently reduces the denominator) and is surfaced as `failedChats`.
+ */
+export interface ScanProgress {
+  totalChats: number; // all imported chats — the denominator; includes failed, never shrinks
+  extractedChats: number; // done
+  pendingChats: number; // still queued or processing — the scan is working iff this is > 0
+  failedChats: number; // extraction failed (needs_review / import_failed) — shown, never dropped
+  done: boolean; // nothing left queued/processing (settled: done or failed)
+}
+
 export interface BookScanReport {
   items: BookScanItem[];
   isEmpty: boolean;
@@ -45,6 +60,8 @@ export interface BookScanReport {
   invitation: string;
   /** How many WhatsApp chat exports the book has read — the scan's third meta figure. */
   chatsRead: number;
+  /** [BOOKSCAN-STREAM] streaming progress over imported chats (see ScanProgress). */
+  scanProgress: ScanProgress;
   /** [PROMISE-STALE] Open promises overdue past the window — NOT listed individually (a seven-year
    *  import would flood the reveal); surfaced as a single count of "older ones" so the curated Book
    *  Scan shows the recoverable ones and honestly acknowledges the rest. */
@@ -119,9 +136,21 @@ export class BookScanService {
     // 2. Unanswered client questions + 3. going-cold — one pass over each client's notes.
     const coldCutoff = nowMs - this.config.coldThresholdDays * DAY_MS;
     let chatsRead = 0;
+    // [BOOKSCAN-STREAM] account-wide extraction progress over imported chats.
+    let extractedChats = 0;
+    let pendingChats = 0;
+    let failedChats = 0;
     for (const c of clients) {
       const clientNotes = await this.repos.notes.listByClient(userId, c.id); // most-recent first
       chatsRead += clientNotes.filter((n) => n.source === 'whatsapp_export').length;
+      for (const n of clientNotes) {
+        if (n.source === 'whatsapp_export') {
+          const st = extractionState(n);
+          if (st === 'done') extractedChats += 1;
+          else if (st === 'failed') failedChats += 1;
+          else pendingChats += 1; // queued | processing — still working
+        }
+      }
       for (const n of clientNotes) {
         const ex = n.extracted as { unanswered_questions?: UnansweredQuestion[] } | null;
         for (const q of ex?.unanswered_questions ?? []) {
@@ -186,6 +215,13 @@ export class BookScanService {
       invitation: INVITATION,
       chatsRead,
       stalePromises,
+      scanProgress: {
+        totalChats: extractedChats + pendingChats + failedChats,
+        extractedChats,
+        pendingChats,
+        failedChats,
+        done: pendingChats === 0, // settled — nothing left queued/processing (failed counts as settled)
+      },
     };
   }
 }

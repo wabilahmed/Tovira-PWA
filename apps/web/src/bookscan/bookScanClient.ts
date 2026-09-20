@@ -11,12 +11,23 @@ export interface BookScanItem {
   framing: 'worth_checking' | 'informational';
 }
 
+/** [BOOKSCAN-STREAM] Account-wide extraction progress over imported chats — the still-working vs
+ *  finished signal. A failed chat stays in totalChats (never drops the denominator). */
+export interface ScanProgress {
+  totalChats: number;
+  extractedChats: number;
+  pendingChats: number;
+  failedChats: number;
+  done: boolean;
+}
+
 export interface BookScanReport {
   items: BookScanItem[];
   isEmpty: boolean;
   message: string | null;
   invitation: string;
   chatsRead?: number;
+  scanProgress?: ScanProgress;
 }
 
 export class BookScanClient {
