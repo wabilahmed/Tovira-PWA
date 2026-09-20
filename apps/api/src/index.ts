@@ -199,7 +199,9 @@ async function main(): Promise<void> {
   // hide it). Cached by the service so the ALB health check never triggers a DB scan. Warmed at startup.
   const trainingLogStats = new TrainingLogStatsService(new PgTrainingLogStatsRepository(migrationPool));
   void trainingLogStats.refresh();
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth);
+  // [TRIAL-FARM] Extraction — the one paid, unbounded-cost operation — is gated on a verified email.
+  const verifiedGate = { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) };
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));
@@ -241,6 +243,7 @@ async function main(): Promise<void> {
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     canSpend: (u) => spend.canSpend(u), // SPEND-CAP: a capped rep's queue waits, untouched
+    isVerified: (u) => verifiedGate.isVerified(u), // TRIAL-FARM: an unverified rep's queue waits too
     onSettled: (u, id) => importCompletion.onNoteSettled(u, id), // IMPORT-DONE
   });
   // Trial-ending (2 days out) + trial-ended emails (EMAIL-HOOKS 1a), idempotent.

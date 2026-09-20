@@ -26,6 +26,8 @@ import type { Extraction } from './types.js';
 export interface ExtractOutcome {
   status: string;
   flagged?: boolean;
+  /** A human-facing reason, set when a deferral needs the rep to act (e.g. verify email). */
+  message?: string;
 }
 
 interface Attempt {
@@ -135,6 +137,10 @@ export class ExtractionService {
     private readonly aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
     /** [EXTRACT-STOPREASON] observability sink for starved (no-text) extraction outputs. */
     private readonly health?: { recordStarvedOutput(): void },
+    /** [TRIAL-FARM] Email-verification gate: extraction is the one paid, unbounded-cost operation,
+     *  so it (and ONLY it) requires a verified email. Unverified → defer (note stays pending), never
+     *  a model call, never a lost note. Optional — ungated when absent (reading/capture stay open). */
+    private readonly verifiedGate?: { isVerified(userId: string): Promise<boolean> },
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -228,6 +234,13 @@ export class ExtractionService {
     if (!note) return { status: 'not_found' };
     if (!note.rawText || !note.rawText.trim()) return { status: note.status };
 
+    // [TRIAL-FARM] Verification gate — FIRST, before any bound or spend. Extraction is the one
+    // operation that spends money on demand, so it is the one action gated on a verified email
+    // (reading, browsing and capture stay open). Unverified → DEFER: the raw note is already stored
+    // and simply stays pending; the sweep drains it once verified. Never a model call, never lost.
+    if (this.verifiedGate && !(await this.verifiedGate.isVerified(userId))) {
+      return { status: 'verification_required', flagged: true, message: 'Verify your email to start extracting. Your notes are saved and will extract once you verify.' };
+    }
     // Trial seeding bound (P5-1): stop before spending on a model call. Nothing
     // breaks — the note stays pending and the route explains the ceiling.
     if (this.limiter && !(await this.limiter.allow(userId))) {

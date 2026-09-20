@@ -23,6 +23,10 @@ export interface NoteSweepDeps {
    *  advanced, not attempt-counted, never flagged) so they resume intact once the rep is under
    *  cap — a spend cap must never burn a note's retry budget or push it to needs_review. */
   canSpend?(userId: string): Promise<boolean>;
+  /** [TRIAL-FARM] Optional verification gate. An unverified rep's pending notes are LEFT UNTOUCHED
+   *  (not advanced, not attempt-counted, never flagged) — exactly like the spend cap — so they resume
+   *  intact the moment the rep verifies. Extraction is the one paid operation gated on verification. */
+  isVerified?(userId: string): Promise<boolean>;
   /** [IMPORT-DONE] Optional: called once when a note reaches a TERMINAL state (extracted /
    *  needs_review) via the sweep, so an import completion can notify the waiting rep. Best-effort —
    *  a failure here never affects the sweep. Fires once because a terminal note is never re-listed. */
@@ -48,6 +52,9 @@ export class NoteSweepService {
     for (const userId of await this.deps.allUserIds()) {
       // [SPEND-CAP] A capped rep's queue waits, untouched — no attempt bump, no needs_review.
       if (this.deps.canSpend && !(await this.deps.canSpend(userId))) continue;
+      // [TRIAL-FARM] An unverified rep's queue waits the same way — extraction (the one paid op) is
+      // gated on a verified email; their notes must not burn retry budget or reach needs_review.
+      if (this.deps.isVerified && !(await this.deps.isVerified(userId))) continue;
       for (const note of await this.deps.listPending(userId)) {
         // Exhausted retries → terminal flagged state, never silently dropped.
         if (note.sweepAttempts >= this.maxAttempts) {

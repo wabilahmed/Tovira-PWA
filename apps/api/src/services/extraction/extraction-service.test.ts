@@ -316,6 +316,36 @@ describe('ExtractionService', () => {
     expect((await notes.findByIdForUser('u', note.id))!.status).toBe('pending_extraction'); // note untouched
   });
 
+  // [TRIAL-FARM] An unverified account is deferred BEFORE any model call — extraction is the one
+  // paid operation gated on a verified email. The note is left pending, nothing spent, nothing lost.
+  it('defers extraction (verification_required) for an unverified account, before the model call', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const client = await clients.create('u', 'Acme');
+    const note = await notes.create('u', { clientId: client.id, source: 'paste', rawText: 'hi', audioKey: null, status: 'pending_extraction' });
+    let called = 0;
+    let verified = false;
+    const svc = new ExtractionService(
+      { complete: async () => { called += 1; return { text: '{}' }; } },
+      clients, notes, facts, new StubEmbedder(8), logs, 'stub',
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { isVerified: async () => verified }, // unverified
+    );
+    const out = await svc.extractNote('u', note.id, '2026-07-09');
+    expect(out.status).toBe('verification_required');
+    expect(out.message).toMatch(/verify/i);
+    expect(called).toBe(0); // never called the model
+    expect((await notes.findByIdForUser('u', note.id))!.status).toBe('pending_extraction'); // untouched, queued
+
+    // Once verified, the same note extracts.
+    verified = true;
+    const out2 = await svc.extractNote('u', note.id, '2026-07-09');
+    expect(out2.status).not.toBe('verification_required');
+    expect(called).toBeGreaterThan(0); // the model was called this time (0 while unverified)
+  });
+
   // MISFILE-POST (B2): after extraction, a note whose people belong only to another client gets a
   // soft move-suggestion; a correctly-filed note gets none.
   it('stores a move-suggestion when a note mentions only another client\'s people', async () => {

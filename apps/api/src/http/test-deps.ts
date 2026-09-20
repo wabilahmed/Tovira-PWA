@@ -137,6 +137,9 @@ export function buildInMemoryDeps(
     undefined, // importCost
     undefined, // spendGate
     (uid, cid) => contactAliases.listByClient(uid, cid), // [ALIAS-NORMALISE]
+    undefined, // health
+    // [TRIAL-FARM] verification gate — extraction requires a verified email (the one paid op).
+    { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) },
   );
   const brief = new BriefService(clients, notes, facts, embedder);
   const followUp = new FollowUpService(new StubModelClient(), notes);

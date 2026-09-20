@@ -503,9 +503,10 @@ export function createExtractionService(
   spendGate?: { canSpend(userId: string): Promise<boolean> },
   aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
   health?: { recordStarvedOutput(): void },
+  verifiedGate?: { isVerified(userId: string): Promise<boolean> },
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, spendGate, aliasesFor, health);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, spendGate, aliasesFor, health, verifiedGate);
 }
 
 /** The requirements spine store (INV-MATCH), RLS-backed on pg. */

@@ -71,6 +71,33 @@ describe('[FLOWS-7] NoteSweepService — advance stuck notes, bounded, never los
     expect(r.advanced).toBe(1);
   });
 
+  // [TRIAL-FARM] An unverified rep's queue waits the same way — no attempt bump, no needs_review.
+  it('leaves an UNVERIFIED rep\'s pending notes untouched, and drains a verified rep normally', async () => {
+    const verified = new Set(['done']);
+    const { svc, calls } = make(
+      { unver: [note('x', 'pending_extraction')], done: [note('y', 'pending_extraction')] },
+      { isVerified: async (u) => verified.has(u) },
+    );
+    const r = await svc.sweep('2026-08-01');
+    expect(calls.extract).toEqual(['y']); // only the verified rep advanced
+    expect(calls.attempts).toEqual([['y', 1]]); // the unverified note's retry budget is NOT spent
+    expect(calls.review).toEqual([]); // never flagged
+    expect(r.advanced).toBe(1);
+  });
+
+  it('resumes a rep once they verify (queued note extracts, retry budget intact)', async () => {
+    let verified = false;
+    const { svc, calls } = make(
+      { rep: [note('x', 'pending_extraction')] },
+      { isVerified: async () => verified },
+    );
+    await svc.sweep('2026-08-01');
+    expect(calls.extract).toEqual([]); // deferred while unverified
+    verified = true;
+    await svc.sweep('2026-08-02');
+    expect(calls.extract).toEqual(['x']); // released on verify, intact
+  });
+
   it('resumes a previously-capped rep once they are under the cap again', async () => {
     let capped = true;
     const { svc, calls } = make(
