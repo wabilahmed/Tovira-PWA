@@ -108,6 +108,9 @@ import { PgImportAckRepository } from './adapters/import/pg-import-ack-repositor
 import type { ImportAckRepository } from './ports/import-ack-repository.js';
 import { InMemoryRecallDailyCounter } from './adapters/spend/in-memory-recall-daily-counter.js';
 import { PgRecallDailyCounter } from './adapters/spend/pg-recall-daily-counter.js';
+import type { ExtractionCounterRepository } from './ports/extraction-counter.js';
+import { InMemoryExtractionCounter } from './adapters/extraction/in-memory-extraction-counter.js';
+import { PgExtractionCounter } from './adapters/extraction/pg-extraction-counter.js';
 import type { SpendOverrideRepository } from './ports/spend-override-repository.js';
 import { InMemorySpendOverrideRepository } from './adapters/spend/in-memory-spend-override-repository.js';
 import { PgSpendOverrideRepository } from './adapters/spend/pg-spend-override-repository.js';
@@ -476,6 +479,15 @@ export function createRecallDailyCounter(config: AppConfig, appPool?: Pool): Rec
     return new PgRecallDailyCounter(appPool);
   }
   return new InMemoryRecallDailyCounter();
+}
+
+/** [TRIAL-FARM] The durable, monotonic extraction counter that backs the trial + paid ceilings. */
+export function createExtractionCounter(config: AppConfig, appPool?: Pool): ExtractionCounterRepository {
+  if (config.authStore === 'postgres') {
+    if (!appPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgExtractionCounter(appPool);
+  }
+  return new InMemoryExtractionCounter();
 }
 
 export function createSpendOverrideRepository(config: AppConfig, rootPool?: Pool): SpendOverrideRepository {

@@ -40,6 +40,7 @@ import {
   createSpendLedgerRepository,
   createOpsAlertRepository,
   createRecallDailyCounter,
+  createExtractionCounter,
   createSpendOverrideRepository,
   createBriefService,
   createCorrectionRepository,
@@ -174,10 +175,15 @@ async function main(): Promise<void> {
   // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
   const recallGate = new RecallSpendGate(spend, createRecallDailyCounter(config, appPool), config.recallDailyCapAtCap);
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
+  // [TRIAL-FARM] Durable, monotonic extraction counter (not prunable log rows) backs the ceilings.
+  const extractionCounter = createExtractionCounter(config, appPool);
   const extractionLimiter = new TrialExtractionLimiter(
-    (uid, now) => billing.entitlement(uid, now).then((e) => e.status),
-    (uid) => extractionLogs.listByUser(uid).then((rows) => rows.length),
-    config.trialExtractionCeiling,
+    (uid, now) => billing.entitlement(uid, now).then((e) => ({
+      status: e.status,
+      periodKey: periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key,
+    })),
+    extractionCounter,
+    { trial: config.trialExtractionCeiling, paid: config.paidExtractionCeiling },
   );
   const meetings = createMeetingRepository(config, appPool);
   const requirements = createRequirementRepository(config, appPool);

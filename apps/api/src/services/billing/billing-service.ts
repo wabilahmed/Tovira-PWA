@@ -8,6 +8,7 @@ import type {
 } from '../../ports/billing.js';
 import type { InvoiceTaxRepository } from '../../ports/invoice-tax-repository.js';
 import type { VatPolicy } from './vat.js';
+import { normalizeTrialEmailKey } from './trial-email-key.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -72,7 +73,9 @@ export class BillingService {
   async onSignup(userId: string, email: string, nowMs: number): Promise<void> {
     // [TRIAL-14] Reuse the original grant for this email → no fresh trial on re-signup. The trial is
     // a FLAT config.trialDays (14); there is no usage-gated extension — a rep gets exactly this window.
-    const grantedAt = await this.trials.grantOrGet(email.trim().toLowerCase(), nowMs);
+    // [TRIAL-FARM] Normalise the grant key (plus-tags, Gmail dots/googlemail) so wabil+1@, wabil+2@ and
+    // w.abil@gmail — the same inbox — cannot each farm a fresh trial. The account email is unchanged.
+    const grantedAt = await this.trials.grantOrGet(normalizeTrialEmailKey(email), nowMs);
     await this.subs.create(userId, grantedAt + this.trialDays * DAY_MS);
   }
 

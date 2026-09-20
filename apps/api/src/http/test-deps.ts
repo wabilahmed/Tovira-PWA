@@ -25,6 +25,9 @@ import { TranscriptionService } from '../services/transcription/transcription-se
 import { StubModelClient } from '../adapters/model/stub.js';
 import { InMemoryFactsRepository } from '../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
+import { InMemoryExtractionCounter } from '../adapters/extraction/in-memory-extraction-counter.js';
+import { TrialExtractionLimiter } from '../services/extraction/limiter.js';
+import { periodKeyFrom } from '../services/spend/period.js';
 import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
 import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
 import { InMemoryArchiveIndexRepository } from '../adapters/logs/in-memory-archive-index-repository.js';
@@ -81,6 +84,7 @@ export interface TestDeps extends ApiDeps {
   ledger: LedgerService;
   archiveIndex: InMemoryArchiveIndexRepository;
   recallSessions: InMemoryRecallSessionRepository;
+  extractionCounter: InMemoryExtractionCounter;
 }
 
 /**
@@ -118,6 +122,18 @@ export function buildInMemoryDeps(
   const contactAliases = new InMemoryContactAliasRepository();
   const repNames = new InMemoryRepNameRepository();
   const importAck = new InMemoryImportAckRepository();
+  // [TRIAL-FARM] durable extraction counter + the status-aware ceiling (mirrors prod). The resolver
+  // forward-references `billing` (declared below); it is only invoked at extraction time, after
+  // construction completes, so the reference is resolved by then.
+  const extractionCounter = new InMemoryExtractionCounter();
+  const defaultExtractionLimiter = new TrialExtractionLimiter(
+    (uid, now) => billing.entitlement(uid, now).then((e) => ({
+      status: e.status,
+      periodKey: periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key,
+    })),
+    extractionCounter,
+    { trial: 100, paid: 2000 },
+  );
   const extraction = new ExtractionService(
     new StubModelClient(),
     clients,
@@ -128,7 +144,7 @@ export function buildInMemoryDeps(
     'stub',
     corrections,
     undefined, // router
-    opts.extractionLimiter,
+    opts.extractionLimiter ?? defaultExtractionLimiter,
     undefined, // cacheTtl
     undefined, // meetings
     undefined, // meetingTimezone
@@ -201,9 +217,10 @@ export function buildInMemoryDeps(
     // [PRIVACY-3] purgeables covers every in-memory store the users FK cascade purges in Postgres, so
     // account deletion leaves zero rows in the in-memory model too (recall + S3 archive are purged by
     // AccountService directly). A new store added here without a purge fails the deletion test.
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck], undefined, undefined, extractionLog, corrections, archiveIndex, storage),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter], undefined, undefined, extractionLog, corrections, archiveIndex, storage),
     archiveIndex,
     recallSessions,
+    extractionCounter,
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),

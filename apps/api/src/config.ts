@@ -123,7 +123,18 @@ export interface AppConfig {
   // is the single source of truth; onSignup derives trialEndsAt from it and everything else reads
   // that stored end. Overridable via TRIAL_DAYS for tests/staging; the default IS the product value.
   trialDays: number;
+  /** [TRIAL-FARM] Per-TRIAL extraction ceiling — enforced pre-spend against a DURABLE monotonic
+   *  counter (not prunable log rows). Derived to cover one real rep's genuine first import (~30 chat
+   *  imports, one extraction each) plus ~two weeks of daily capture (~5/day × 14 ≈ 70) ≈ 100, with
+   *  no meaningful headroom beyond it — a real rep never notices; a farmer's trial is near-worthless.
+   *  NOTE: the AED 45 trial spend cap independently bounds a trial to ~65–150 extractions, so this is
+   *  durable defense-in-depth (and the binding limit if per-extraction cost falls). Number NOT settled. */
   trialExtractionCeiling: number;
+  /** [TRIAL-FARM] Per-billing-PERIOD extraction ceiling for a PAYING account (active/past_due). Far
+   *  more generous than the trial ceiling — a card + real accountability — and per-period (resets each
+   *  billing period) so it never locks out a long-term customer. Purely a runaway-loop backstop above
+   *  what the AED spend cap allows; the spend cap is the operative paid bound. Number NOT settled. */
+  paidExtractionCeiling: number;
   // --- spend cap (SPEND-CAP): a hard per-account Claude-spend failsafe, well above the modelled
   //     ~AED 19 and under the AED 67 margin ceiling, so it fires only on abuse or a defect. ---
   spendCapAed: number;
@@ -226,7 +237,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
     trialDays: parsePositive(env.TRIAL_DAYS, DEFAULT_TRIAL_DAYS, 'TRIAL_DAYS'),
-    trialExtractionCeiling: parsePositive(env.TRIAL_EXTRACTION_CEILING, 200, 'TRIAL_EXTRACTION_CEILING'),
+    trialExtractionCeiling: parsePositive(env.TRIAL_EXTRACTION_CEILING, 100, 'TRIAL_EXTRACTION_CEILING'),
+    paidExtractionCeiling: parsePositive(env.PAID_EXTRACTION_CEILING, 2000, 'PAID_EXTRACTION_CEILING'),
     spendCapAed: parsePositive(env.SPEND_CAP_AED, 45, 'SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),

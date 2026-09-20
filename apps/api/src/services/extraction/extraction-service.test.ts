@@ -14,6 +14,8 @@ import { InMemoryInventoryMatchRepository } from '../../adapters/inventory/in-me
 import { MatchingService } from '../inventory/matching-service.js';
 import { StubEmbedder } from '../../adapters/embedding/stub.js';
 import { ImportCostMetrics } from '../metrics/import-cost-metrics.js';
+import { TrialExtractionLimiter } from './limiter.js';
+import { InMemoryExtractionCounter } from '../../adapters/extraction/in-memory-extraction-counter.js';
 import type { ModelClient } from '../../ports/model.js';
 import type { Embedder } from '../../ports/embedder.js';
 
@@ -344,6 +346,43 @@ describe('ExtractionService', () => {
     const out2 = await svc.extractNote('u', note.id, '2026-07-09');
     expect(out2.status).not.toBe('verification_required');
     expect(called).toBeGreaterThan(0); // the model was called this time (0 while unverified)
+  });
+
+  // [TRIAL-FARM] Durable ceiling: the check reads a monotonic counter (not prunable log rows) and
+  // fires BEFORE the model call. At the ceiling → trial_limit, no spend, note left pending; a real
+  // extraction records against the counter.
+  it('enforces the DURABLE trial ceiling before the model call, and records each spend', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const client = await clients.create('u', 'Acme');
+    const counter = new InMemoryExtractionCounter();
+    const PK = 't:trial-window';
+    const limiter = new TrialExtractionLimiter(async () => ({ status: 'trialing', periodKey: PK }), counter, { trial: 2, paid: 100 });
+    let called = 0;
+    const svc = new ExtractionService(
+      { complete: async () => { called += 1; return { text: VALID }; } },
+      clients, notes, facts, new StubEmbedder(8), logs, 'stub',
+      undefined, undefined, limiter, // limiter at position 10
+    );
+
+    // Under the ceiling: two extractions run and each records against the durable counter.
+    for (let i = 0; i < 2; i++) {
+      const n = await notes.create('u', { clientId: client.id, source: 'paste', rawText: `note ${i}`, audioKey: null, status: 'pending_extraction' });
+      const out = await svc.extractNote('u', n.id, '2026-07-09');
+      expect(out.status).not.toBe('trial_limit');
+    }
+    expect(await counter.count('u', PK)).toBe(2); // recorded, monotonic
+    const calledAfterTwo = called;
+
+    // At the ceiling: the third extraction is refused BEFORE any model call; the note stays pending.
+    const n3 = await notes.create('u', { clientId: client.id, source: 'paste', rawText: 'note 3', audioKey: null, status: 'pending_extraction' });
+    const blocked = await svc.extractNote('u', n3.id, '2026-07-09');
+    expect(blocked.status).toBe('trial_limit');
+    expect(called).toBe(calledAfterTwo); // NO extra model call — the check is before the spend
+    expect((await notes.findByIdForUser('u', n3.id))!.status).toBe('pending_extraction'); // untouched
+    expect(await counter.count('u', PK)).toBe(2); // a blocked extraction never records
   });
 
   // MISFILE-POST (B2): after extraction, a note whose people belong only to another client gets a

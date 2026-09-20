@@ -299,6 +299,11 @@ export class ExtractionService {
       }
     }
 
+    // [TRIAL-FARM] Count this extraction against the durable ceiling — once per note that actually
+    // SPENT (≥1 model call), regardless of retries or parse outcome. The allow() gate above read the
+    // same counter before spending; recording after keeps the bound honest and monotonic.
+    if (spend.calls > 0) await this.limiter?.record?.(userId);
+
     let status: string;
     if (!extraction) {
       await this.notes.update(userId, noteId, { status: 'needs_review' });
