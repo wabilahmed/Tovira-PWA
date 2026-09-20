@@ -19,6 +19,7 @@ import type { ImportAckRepository } from '../ports/import-ack-repository.js';
 import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { noteWithReceipts } from '../services/receipts/receipt.js';
+import { extractionState, aggregateExtractionStates } from '../services/notes/extraction-state.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
 import { redactSensitive } from '../services/redaction/redact.js';
@@ -407,7 +408,14 @@ export async function handleNoteRoute(
 
     if (listMatch) {
       const clientId = decodeURIComponent(listMatch[1]!);
-      sendJson(res, 200, { notes: (await deps.notes.listByClient(userId, clientId)).map(noteWithReceipts) });
+      // [ASYNC-EXTRACT] Each note carries its rep-facing extractionState (queued/processing/done/failed)
+      // and the response includes the aggregate — so a rep watching an import sees per-note status AND
+      // "N of M analysed", and a failure reads as failed rather than an endless spinner.
+      const raw = await deps.notes.listByClient(userId, clientId);
+      sendJson(res, 200, {
+        notes: raw.map((n) => ({ ...noteWithReceipts(n), extractionState: extractionState(n) })),
+        extraction: aggregateExtractionStates(raw),
+      });
       return true;
     }
 

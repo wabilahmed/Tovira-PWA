@@ -4,7 +4,7 @@ import { AuthClient, type Session } from './auth/authClient.js';
 import { ResetPassword } from './auth/PasswordReset.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
-import { ClientsClient, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
+import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
 import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
@@ -531,6 +531,16 @@ function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; 
   useEffect(() => {
     void outbox.flush().then(refresh);
   }, []);
+  // [ASYNC-EXTRACT] Extraction runs in the background sweep now, so the timeline must POLL to reflect
+  // completion (before this, a note sat on "analysing…" forever until a manual action). Poll every 4s
+  // while any note is queued/processing; stop the moment all notes are terminal (done/failed).
+  useEffect(() => {
+    if (!anyExtractionInProgress(notes)) return;
+    const t = setInterval(() => {
+      void clientsApi.listNotes(client.id).then(setNotes);
+    }, 4000);
+    return () => clearInterval(t);
+  }, [notes, client.id]);
 
   async function startRec(): Promise<void> {
     setStatus(null);

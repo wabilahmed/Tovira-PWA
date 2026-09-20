@@ -9,12 +9,34 @@ export interface ClientSummary {
   createdAt: number;
 }
 
+export type ExtractionState = 'queued' | 'processing' | 'done' | 'failed';
+
+/** [ASYNC-EXTRACT] The rep-facing state of a note: prefer the server's value, else derive from status
+ *  (so it's correct against an older response). Mirrors the server's extractionState. */
+export function extractionStateOf(n: { status: string; extractionState?: ExtractionState }): ExtractionState {
+  if (n.extractionState) return n.extractionState;
+  if (n.status === 'extracted') return 'done';
+  if (n.status === 'needs_review' || n.status === 'import_failed') return 'failed';
+  if (n.status === 'pending_transcription' || n.status === 'pending_extraction') return 'processing';
+  return 'queued';
+}
+
+/** True while any note is still queued or processing — the signal to keep polling for updates. */
+export function anyExtractionInProgress(notes: Array<{ status: string; extractionState?: ExtractionState }>): boolean {
+  return notes.some((n) => {
+    const s = extractionStateOf(n);
+    return s === 'queued' || s === 'processing';
+  });
+}
+
 export interface NoteSummary {
   id: string;
   source: 'voice' | 'paste';
   rawText: string | null;
   status: string;
   createdAt: number;
+  /** [ASYNC-EXTRACT] the rep-facing state the server computes; absent on older responses. */
+  extractionState?: ExtractionState;
 }
 
 export interface Brief {

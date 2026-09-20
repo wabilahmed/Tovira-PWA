@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react';
 import type { NoteSummary } from './clientsClient.js';
+import { extractionStateOf } from './clientsClient.js';
 import { CeilingNotice } from '../import/CeilingNotice.js';
 
-function isProcessing(status: string): boolean {
-  return status === 'pending_transcription' || status === 'pending_extraction';
-}
 function processingLabel(status: string): string {
   return status === 'pending_transcription' ? 'transcribing…' : 'analysing…';
 }
@@ -30,11 +28,17 @@ export function NotesTimeline({
     <ul style={{ listStyle: 'none', padding: 0 }}>
       {notes.map((n) => {
         const ceiling = ceilingNoteIds.has(n.id);
+        const state = extractionStateOf(n);
+        const inProgress = state === 'queued' || state === 'processing';
         return (
           <li key={n.id} style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--hairline)' }}>
             <small className="tov-stamp">
               {new Date(n.createdAt).toLocaleString()} · {n.source}
-              {!ceiling && isProcessing(n.status) && <em style={{ color: 'var(--amber)', fontStyle: 'normal' }}> · {processingLabel(n.status)}</em>}
+              {!ceiling && inProgress && <em style={{ color: 'var(--amber)', fontStyle: 'normal' }}> · {state === 'queued' ? 'queued…' : processingLabel(n.status)}</em>}
+              {/* [ASYNC-EXTRACT] a failure reads as failed — never an endless spinner. */}
+              {!ceiling && state === 'failed' && (
+                <em data-testid="extract-failed" style={{ color: 'var(--danger, #b00)', fontStyle: 'normal' }}> · couldn’t analyse — saved; tap to retry</em>
+              )}
             </small>
             <div style={{ marginTop: 4 }}>{n.rawText ?? <em>(transcription pending)</em>}</div>
             {ceiling && <CeilingNotice />}

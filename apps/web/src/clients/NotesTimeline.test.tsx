@@ -26,6 +26,20 @@ describe('<NotesTimeline> (P5-1-CEILING-UI)', () => {
     expect(screen.queryByText(/analysing/i)).toBeNull();
   });
 
+  // [ASYNC-EXTRACT] a failed extraction surfaces as failed — never a silent spinner.
+  it('shows a distinct FAILED state for a note whose extraction failed', () => {
+    render(<NotesTimeline notes={[note({ status: 'needs_review', extractionState: 'failed' })]} ceilingNoteIds={new Set()} />);
+    expect(screen.getByTestId('extract-failed')).toBeInTheDocument();
+    expect(screen.queryByText(/analysing/i)).toBeNull(); // not stuck-looking
+  });
+
+  it('distinguishes queued from processing', () => {
+    const { rerender } = render(<NotesTimeline notes={[note({ status: 'pending_extraction', extractionState: 'queued' })]} ceilingNoteIds={new Set()} />);
+    expect(screen.getByText(/queued/i)).toBeInTheDocument();
+    rerender(<NotesTimeline notes={[note({ status: 'pending_extraction', extractionState: 'processing' })]} ceilingNoteIds={new Set()} />);
+    expect(screen.getByText(/analysing/i)).toBeInTheDocument();
+  });
+
   it('renders an empty state when there are no notes', () => {
     render(<NotesTimeline notes={[]} ceilingNoteIds={new Set()} />);
     expect(screen.getByText(/no notes yet/i)).toBeInTheDocument();

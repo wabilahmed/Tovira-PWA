@@ -1,6 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ClientsClient } from './clientsClient.js';
+import { ClientsClient, extractionStateOf, anyExtractionInProgress } from './clientsClient.js';
 import { LOCKED } from '../billing/gated.js';
+
+describe('[ASYNC-EXTRACT] extraction state helpers', () => {
+  it('prefers the server extractionState, else derives from status', () => {
+    expect(extractionStateOf({ status: 'pending_extraction', extractionState: 'queued' })).toBe('queued');
+    expect(extractionStateOf({ status: 'extracted' })).toBe('done');
+    expect(extractionStateOf({ status: 'needs_review' })).toBe('failed');
+    expect(extractionStateOf({ status: 'import_failed' })).toBe('failed');
+    expect(extractionStateOf({ status: 'pending_transcription' })).toBe('processing');
+  });
+  it('anyExtractionInProgress is true only while a note is queued/processing', () => {
+    expect(anyExtractionInProgress([{ status: 'extracted' }, { status: 'needs_review' }])).toBe(false);
+    expect(anyExtractionInProgress([{ status: 'extracted' }, { status: 'pending_extraction', extractionState: 'queued' }])).toBe(true);
+    expect(anyExtractionInProgress([])).toBe(false);
+  });
+});
 
 describe('ClientsClient', () => {
   const fetchMock = vi.fn();
