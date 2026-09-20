@@ -123,3 +123,40 @@ describe('[SPEND-CAP] SpendService honours a per-account override (CAP-OVERRIDE)
     expect(await svc.canSpend('rep-A')).toBe(false); // this period still uses the config cap
   });
 });
+
+// [TRIAL-FARM] A TRIAL period (periodKey `t:…`) uses the tighter trial cap; a paid period uses the
+// full cap. The trial cap must not let a 14-day trial burn a paying month's budget.
+describe('[TRIAL-FARM] SpendService — trial-specific spend cap', () => {
+  function make(periodKey: string, cfg: { capAed: number; warnFraction: number; trialCapAed?: number }) {
+    const ledger = new InMemorySpendLedgerRepository();
+    return new SpendService(ledger, async () => periodKey, cfg);
+  }
+
+  it('a trialing account (t:… period) is capped at the trial cap, not the paying cap', async () => {
+    const svc = make('t:1791072000000', { capAed: 45, trialCapAed: 15, warnFraction: 0.8 });
+    expect((await svc.status('rep')).capAed).toBe(15);
+    await svc.recordAed('rep', 'import', 14);
+    expect(await svc.canSpend('rep')).toBe(true); // under the trial cap
+    await svc.recordAed('rep', 'import', 1); // now at 15
+    expect(await svc.canSpend('rep')).toBe(false); // capped at the trial cap, long before the AED 45 cap
+  });
+
+  it('a paying account (p:… period) keeps the full cap — the trial cap does not apply', async () => {
+    const svc = make('p:2026-09', { capAed: 45, trialCapAed: 15, warnFraction: 0.8 });
+    expect((await svc.status('rep')).capAed).toBe(45);
+    await svc.recordAed('rep', 'extraction', 20); // over the trial cap, well under the paying cap
+    expect(await svc.canSpend('rep')).toBe(true);
+    await svc.recordAed('rep', 'extraction', 25); // now at 45
+    expect(await svc.canSpend('rep')).toBe(false);
+  });
+
+  it('a fallback/expired period (pf:…) uses the full cap, not the trial cap', async () => {
+    const svc = make('pf:m:2026-09', { capAed: 45, trialCapAed: 15, warnFraction: 0.8 });
+    expect((await svc.status('rep')).capAed).toBe(45);
+  });
+
+  it('without a trialCapAed configured, a trial period falls back to the full cap (backward compatible)', async () => {
+    const svc = make('t:1791072000000', { capAed: 45, warnFraction: 0.8 });
+    expect((await svc.status('rep')).capAed).toBe(45);
+  });
+});

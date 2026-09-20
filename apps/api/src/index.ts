@@ -170,7 +170,7 @@ async function main(): Promise<void> {
       detail: { spentAed: Math.round(e.spentAed * 100) / 100, capAed: e.capAed, dominantClass: e.dominantClass, warnFraction: config.spendWarnFraction },
     });
   };
-  const spend = new SpendService(spendLedger, spendPeriodFor, { capAed: config.spendCapAed, warnFraction: config.spendWarnFraction }, () => Date.now(), (u, pk) => spendOverrides.effectiveCap(u, pk), onSpendWarn);
+  const spend = new SpendService(spendLedger, spendPeriodFor, { capAed: config.spendCapAed, trialCapAed: config.trialSpendCapAed, warnFraction: config.spendWarnFraction }, () => Date.now(), (u, pk) => spendOverrides.effectiveCap(u, pk), onSpendWarn);
   setSpendSink(spend); // every metered model call now records its AED against the rep's period
   // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
   const recallGate = new RecallSpendGate(spend, createRecallDailyCounter(config, appPool), config.recallDailyCapAtCap);

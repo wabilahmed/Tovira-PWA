@@ -138,6 +138,14 @@ export interface AppConfig {
   // --- spend cap (SPEND-CAP): a hard per-account Claude-spend failsafe, well above the modelled
   //     ~AED 19 and under the AED 67 margin ceiling, so it fires only on abuse or a defect. ---
   spendCapAed: number;
+  /** [TRIAL-FARM] The spend cap for a TRIALING account — far tighter than the paying-account failsafe.
+   *  The AED 45 cap was derived as a PAYING month's cost guard (COGS ~AED 43–48); reusing it for a
+   *  14-day trial lets one trial burn most of a paying month's budget before anyone pays. Derived from
+   *  the measured import cost (~AED 0.34 / 1,000 messages; a 5,615-message import ≈ AED 2.3–2.5 warm):
+   *  a genuine first import (an active book, generously ~30 chats) plus ~two weeks of short daily notes
+   *  is well under AED 10, so AED 15 leaves ~50% headroom for a heavy real rep while cutting per-inbox
+   *  farming value to a third of the AED 45 exposure. Enforced pre-spend, degrade-not-break. NOT settled. */
+  trialSpendCapAed: number;
   spendWarnFraction: number;
   recallDailyCapAtCap: number;
   // --- UAE VAT (VAT-READY): fully built, OFF by default. Flip on the day Prospera registers.
@@ -240,6 +248,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     trialExtractionCeiling: parsePositive(env.TRIAL_EXTRACTION_CEILING, 100, 'TRIAL_EXTRACTION_CEILING'),
     paidExtractionCeiling: parsePositive(env.PAID_EXTRACTION_CEILING, 2000, 'PAID_EXTRACTION_CEILING'),
     spendCapAed: parsePositive(env.SPEND_CAP_AED, 45, 'SPEND_CAP_AED'),
+    trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, 15, 'TRIAL_SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),

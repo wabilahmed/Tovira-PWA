@@ -156,7 +156,7 @@ export interface ApiDeps {
    *  hot `total` + `archived` = the true corpus size. Cached. */
   trainingLog?: { snapshot(): { total: number; last24h: number; emptyOutput: number; corrections: number; archived: number; byPromptVersion: Record<string, number>; computedAtMs: number | null } };
   /** Per-account spend cap config, surfaced in /health (SPEND-CAP). */
-  spend?: { snapshot(): { capAed: number; warnFraction: number } };
+  spend?: { snapshot(): { capAed: number; warnFraction: number; trialCapAed?: number } };
   /** Recent ops alerts (e.g. spend warnings), surfaced in /health for the operator (SPEND-CAP). */
   opsAlerts?: { listRecent(limit: number): Promise<Array<{ kind: string; userId: string; detail: Record<string, unknown>; createdAt: number }>> };
   /** Ops-only cap-override endpoints (CAP-OVERRIDE). Absent → /ops/* is not served. */

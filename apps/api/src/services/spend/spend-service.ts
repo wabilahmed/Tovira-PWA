@@ -33,13 +33,24 @@ export class SpendService {
   constructor(
     private readonly ledger: SpendLedgerRepository,
     private readonly periodKeyFor: PeriodKeyFor,
-    private readonly cfg: { capAed: number; warnFraction: number },
+    private readonly cfg: { capAed: number; warnFraction: number; trialCapAed?: number },
     private readonly now: () => number = () => Date.now(),
     /** CAP-OVERRIDE: raises the cap for a named rep+period. Optional. */
     private readonly overrideFor?: OverrideFor,
     /** CAP-WARN: fired the first time a rep crosses the warn line in a period. Optional. */
     private readonly onWarn?: WarnHandler,
   ) {}
+
+  /**
+   * [TRIAL-FARM] The cap for this (rep, period), status-aware. A TRIAL period (periodKey `t:…`, set by
+   * periodKeyFrom for a trialing account) uses the tighter `trialCapAed` — a 14-day trial must not be
+   * allowed to burn most of a paying month's COGS. Paid/expired periods use the full `capAed`. An ops
+   * override still wins over either base (it can raise a specific rep+period).
+   */
+  private async capFor(userId: string, periodKey: string): Promise<number> {
+    const base = periodKey.startsWith('t:') ? (this.cfg.trialCapAed ?? this.cfg.capAed) : this.cfg.capAed;
+    return (await this.overrideFor?.(userId, periodKey)) ?? base;
+  }
 
   /** Record a real Claude call's cost (computed from usage). Zero-cost calls are ignored. */
   async record(userId: string, costClass: SpendClass, model: string, usage: CallUsage): Promise<void> {
@@ -54,7 +65,7 @@ export class SpendService {
     await this.ledger.add(userId, periodKey, costClass, aed);
     // CAP-WARN: fire once, on the call that first crosses the warn line (before < warn ≤ after).
     if (this.onWarn) {
-      const capAed = (await this.overrideFor?.(userId, periodKey)) ?? this.cfg.capAed;
+      const capAed = await this.capFor(userId, periodKey);
       const warnAt = capAed * this.cfg.warnFraction;
       const after = before + aed;
       if (before < warnAt && after >= warnAt) {
@@ -68,7 +79,7 @@ export class SpendService {
   async status(userId: string): Promise<SpendStatus> {
     const periodKey = await this.periodKeyFor(userId, this.now());
     const spend = await this.ledger.getForPeriod(userId, periodKey);
-    const capAed = (await this.overrideFor?.(userId, periodKey)) ?? this.cfg.capAed;
+    const capAed = await this.capFor(userId, periodKey);
     const fraction = capAed > 0 ? spend.totalAed / capAed : 0;
     const state: SpendState = spend.totalAed >= capAed ? 'capped' : fraction >= this.cfg.warnFraction ? 'warn' : 'ok';
     return { periodKey, spentAed: spend.totalAed, capAed, fraction, state, dominantClass: dominant(spend.byClass) };
@@ -80,8 +91,8 @@ export class SpendService {
   }
 
   /** Compact cap config for /health (ops watches this next to the rolling cost metrics). */
-  snapshot(): { capAed: number; warnFraction: number } {
-    return { capAed: this.cfg.capAed, warnFraction: this.cfg.warnFraction };
+  snapshot(): { capAed: number; warnFraction: number; trialCapAed: number } {
+    return { capAed: this.cfg.capAed, warnFraction: this.cfg.warnFraction, trialCapAed: this.cfg.trialCapAed ?? this.cfg.capAed };
   }
 
   /**
@@ -99,7 +110,7 @@ export class SpendService {
   private async reportOne(userId: string): Promise<RepSpend> {
     const periodKey = await this.periodKeyFor(userId, this.now());
     const spend = await this.ledger.getForPeriod(userId, periodKey);
-    const capAed = (await this.overrideFor?.(userId, periodKey)) ?? this.cfg.capAed;
+    const capAed = await this.capFor(userId, periodKey);
     const fraction = capAed > 0 ? spend.totalAed / capAed : 0;
     const state: SpendState = spend.totalAed >= capAed ? 'capped' : fraction >= this.cfg.warnFraction ? 'warn' : 'ok';
     return {
