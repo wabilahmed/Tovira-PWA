@@ -38,7 +38,7 @@ afterAll(async () => {
 });
 
 const H = (t: string) => ({ authorization: `Bearer ${t}`, 'content-type': 'application/json' });
-interface Acct { token: string; userId: string; clientId: string; sentinel: string }
+interface Acct { token: string; userId: string; clientId: string; sentinel: string; noteId: string }
 
 async function signup(email: string): Promise<{ token: string; userId: string }> {
   const res = await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'password123', consent: true }) });
@@ -49,9 +49,10 @@ async function createClient(token: string, name: string): Promise<string> {
   const res = await fetch(`${base}/clients`, { method: 'POST', headers: H(token), body: JSON.stringify({ name }) });
   return ((await res.json()) as { id: string }).id;
 }
-async function pasteExtract(token: string, clientId: string, text: string): Promise<string> {
+async function pasteNote(token: string, clientId: string, text: string): Promise<string> {
+  // [ASYNC-EXTRACT] paste queues the note; the caller drives the sweep (once, not concurrently) to
+  // extract + embed. /extract no longer runs the model in-request.
   const p = (await (await fetch(`${base}/clients/${clientId}/notes/paste`, { method: 'POST', headers: H(token), body: JSON.stringify({ text }) })).json()) as { id: string };
-  await fetch(`${base}/notes/${p.id}/extract`, { method: 'POST', headers: H(token) }); // stores note + embedding
   return p.id;
 }
 async function createInventory(token: string, title: string, description: string): Promise<void> {
@@ -65,14 +66,14 @@ async function seedPromise(userId: string, clientId: string, noteId: string, sen
   });
 }
 
-/** Build one account, seeded with data that carries its sentinel on all three surfaces. */
+/** Build one account, seeded with data that carries its sentinel on all three surfaces. The promise
+ *  is seeded LATER (after the first sweep) so the stub re-extraction of the baseline note can't wipe it. */
 async function makeAccount(email: string, clientName: string, sentinel: string): Promise<Acct> {
   const { token, userId } = await signup(email);
   const clientId = await createClient(token, clientName);
-  const noteId = await pasteExtract(token, clientId, `Met Kai Sterling at ${clientName}. ${sentinel}. Budget confirmed, wants a 2-bed.`);
-  await seedPromise(userId, clientId, noteId, sentinel);
+  const noteId = await pasteNote(token, clientId, `Met Kai Sterling at ${clientName}. ${sentinel}. Budget confirmed, wants a 2-bed.`);
   await createInventory(token, `2-bed ${clientName}`, `Two-bedroom apartment. ${sentinel}. Sea view.`);
-  return { token, userId, clientId, sentinel };
+  return { token, userId, clientId, sentinel, noteId };
 }
 
 async function text(res: Response): Promise<string> {
@@ -87,15 +88,21 @@ describe('[BATCH-B] concurrent two-account isolation (mirror of the prod leak ru
       makeAccount('zztest-leak-bravo@example.com', 'Marina Gardens', 'SENTINEL-BRAVO-B3'),
     ]);
 
-    // Concurrent extraction rounds — two tenants' extractions in-flight at the same instant.
+    // Both accounts' baseline notes extract + embed in one sweep pass (the async processor,
+    // handling two tenants in the same drain — the isolation surface under test).
+    await deps.runSweep();
+    // Seed each account's sentinel promise AFTER the sweep (its baseline note is now terminal, so a
+    // later sweep won't re-extract and wipe it) — this is the /promises isolation surface.
+    await seedPromise(A.userId, A.clientId, A.noteId, A.sentinel);
+    await seedPromise(B.userId, B.clientId, B.noteId, B.sentinel);
+
+    // Several rounds of interleaved captures for both tenants, then a single drain processes them
+    // all together (two tenants' notes extracting in the same sweep).
     for (let r = 0; r < 6; r++) {
-      const nA = (await (await fetch(`${base}/clients/${A.clientId}/notes/paste`, { method: 'POST', headers: H(A.token), body: JSON.stringify({ text: `Round ${r} ${A.sentinel}: Kai Sterling has AED 9,000,000 in cash.` }) })).json()) as { id: string };
-      const nB = (await (await fetch(`${base}/clients/${B.clientId}/notes/paste`, { method: 'POST', headers: H(B.token), body: JSON.stringify({ text: `Round ${r} ${B.sentinel}: Kai Sterling needs a shellfish-free venue.` }) })).json()) as { id: string };
-      await Promise.all([
-        fetch(`${base}/notes/${nA.id}/extract`, { method: 'POST', headers: H(A.token) }),
-        fetch(`${base}/notes/${nB.id}/extract`, { method: 'POST', headers: H(B.token) }),
-      ]);
+      await pasteNote(A.token, A.clientId, `Round ${r} ${A.sentinel}: Kai Sterling has AED 9,000,000 in cash.`);
+      await pasteNote(B.token, B.clientId, `Round ${r} ${B.sentinel}: Kai Sterling needs a shellfish-free venue.`);
     }
+    await deps.runSweep();
 
     const leaks: string[] = [];
     // For each account, every surface must be free of the OTHER account's sentinel.

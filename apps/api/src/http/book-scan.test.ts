@@ -63,9 +63,9 @@ describe('[P5-3b] Book Scan endpoint', () => {
         ].join('\n'),
       }),
     });
-    // IMPORT-ASYNC: extraction is deferred to the sweep — drain it via /extract.
-    const noteId = ((await imp.json()) as { note: { id: string } }).note.id;
-    await fetch(`${base}/notes/${noteId}/extract`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    // [ASYNC-EXTRACT] extraction runs in the background sweep — drive it directly.
+    await imp.json();
+    await deps.runSweep();
 
     const body = (await (await fetch(`${base}/book-scan`, {
       headers: { authorization: `Bearer ${token}` },

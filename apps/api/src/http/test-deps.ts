@@ -23,6 +23,8 @@ import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { StubTranscriber } from '../adapters/transcription/stub.js';
 import { TranscriptionService } from '../services/transcription/transcription-service.js';
 import { StubModelClient } from '../adapters/model/stub.js';
+import type { ModelClient } from '../ports/model.js';
+import { NoteSweepService } from '../services/notes/note-sweep-service.js';
 import { InMemoryFactsRepository } from '../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryExtractionCounter } from '../adapters/extraction/in-memory-extraction-counter.js';
@@ -85,6 +87,9 @@ export interface TestDeps extends ApiDeps {
   archiveIndex: InMemoryArchiveIndexRepository;
   recallSessions: InMemoryRecallSessionRepository;
   extractionCounter: InMemoryExtractionCounter;
+  /** [ASYNC-EXTRACT] Run the background sweep (the real async processor) N passes — how tests drive
+   *  extraction now that /extract only accepts + queues. Defaults to 2 passes (transcription → extraction). */
+  runSweep: (passes?: number) => Promise<void>;
 }
 
 /**
@@ -93,7 +98,7 @@ export interface TestDeps extends ApiDeps {
  */
 export function buildInMemoryDeps(
   overrides: Partial<ApiDeps> = {},
-  opts: { extractionLimiter?: ExtractionLimiter; enforceVerification?: boolean } = {},
+  opts: { extractionLimiter?: ExtractionLimiter; enforceVerification?: boolean; modelClient?: ModelClient } = {},
 ): TestDeps {
   const stubPool = { query: async () => ({ rows: [] }) } as unknown as Pool;
   const auth = new AuthService({
@@ -135,7 +140,7 @@ export function buildInMemoryDeps(
     { trial: 100, paid: 2000 },
   );
   const extraction = new ExtractionService(
-    new StubModelClient(),
+    opts.modelClient ?? new StubModelClient(),
     clients,
     notes,
     facts,
@@ -176,6 +181,22 @@ export function buildInMemoryDeps(
   const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog });
   const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
+  // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via
+  // the SWEEP (the real path), not by an inline /extract. `runSweep()` runs a bounded number of passes
+  // (transcription → extraction takes two), mirroring index.ts wiring incl. the verification skip.
+  const noteSweep = new NoteSweepService({
+    allUserIds: () => auth.allUserIds(),
+    listPending: (u) => notes.listPendingByUser(u).then((rows) => rows.map((n) => ({ id: n.id, status: n.status, sweepAttempts: n.sweepAttempts }))),
+    transcribe: (u, id) => transcription.transcribeNote(u, id).then(() => undefined),
+    extract: (u, id, today) => extraction.extractNote(u, id, today).then(() => undefined),
+    setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
+    markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
+    isVerified: opts.enforceVerification ? (u: string) => auth.getPublicUser(u).then((x) => x?.emailVerified ?? false) : undefined,
+  });
+  const runSweep = async (passes = 2): Promise<void> => {
+    const today = new Date().toISOString().slice(0, 10);
+    for (let i = 0; i < passes; i++) await noteSweep.sweep(today);
+  };
   return {
     pool: stubPool,
     auth,
@@ -225,6 +246,7 @@ export function buildInMemoryDeps(
     archiveIndex,
     recallSessions,
     extractionCounter,
+    runSweep,
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),

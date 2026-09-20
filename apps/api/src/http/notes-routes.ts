@@ -46,10 +46,6 @@ function knownPeopleFrom(notes: Array<{ extracted: unknown }>): string[] {
   return [...names];
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 /** [ALIAS] First/last message dates (YYYY-MM-DD) for the confirm prompt, or null if undated. */
 function messageDateRange(messages: Array<{ sentAt: string | null }>): { from: string; to: string } | null {
   const dates = messages.map((m) => m.sentAt).filter((s): s is string => !!s).map((s) => s.slice(0, 10)).sort();
@@ -442,9 +438,18 @@ export async function handleNoteRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const outcome = await deps.extraction.extractNote(userId, noteId, todayIso());
-      const updated = await deps.notes.findByIdForUser(userId, noteId);
-      sendJson(res, 200, { note: updated ? noteWithReceipts(updated) : updated, ...outcome });
+      // [ASYNC-EXTRACT] Accept + queue — NO model call in the request path. A synchronous extraction
+      // held a request/connection + container slot for the model's whole duration and 504'd under
+      // concurrency (BATCH B: 2/24 at two accounts; day-one is ten reps importing at once). The note is
+      // already stored at capture; here we only (re)queue it pending_extraction and return IMMEDIATELY,
+      // regardless of note size. The background sweep is the processor. A re-extract of a terminal note
+      // resets its retry budget; an already-queued or empty note is left as-is (nothing to do).
+      const terminal = note.status === 'extracted' || note.status === 'needs_review';
+      if (note.rawText && note.rawText.trim() && terminal) {
+        await deps.notes.update(userId, noteId, { status: 'pending_extraction', sweepAttempts: 0 });
+      }
+      const queued = await deps.notes.findByIdForUser(userId, noteId);
+      sendJson(res, 202, { note: queued ? noteWithReceipts(queued) : queued, status: 'queued' });
       return true;
     }
 

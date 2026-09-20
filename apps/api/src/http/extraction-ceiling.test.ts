@@ -47,9 +47,11 @@ describe('[TRIAL-FARM] extraction ceiling degrades, capture/export/delete surviv
     // Capture STILL works — the note is stored (never lose a capture), it simply queues.
     const noteId = ((await (await fetch(`${base}/clients/${clientId}/notes/paste`, { method: 'POST', headers: H(token), body: JSON.stringify({ text: 'Kai promised the deposit by Friday.' }) })).json()) as { id: string }).id;
 
-    // Extraction is refused at the ceiling — before any model call — and the note stays pending.
-    const ex = (await (await fetch(`${base}/notes/${noteId}/extract`, { method: 'POST', headers: H(token) })).json()) as { status: string };
-    expect(ex.status).toBe('trial_limit');
+    // [ASYNC-EXTRACT] /extract accepts + queues (202); the sweep is the processor, and at the ceiling
+    // it refuses before any model call — the note stays pending (not extracted), nothing lost.
+    const ex = await fetch(`${base}/notes/${noteId}/extract`, { method: 'POST', headers: H(token) });
+    expect(ex.status).toBe(202);
+    await deps.runSweep();
     const note = ((await (await fetch(`${base}/clients/${clientId}/notes`, { headers: H(token) })).json()) as { notes: Array<{ id: string; status: string }> }).notes.find((n) => n.id === noteId)!;
     expect(note.status).toBe('pending_extraction');
 

@@ -61,11 +61,14 @@ async function listNotes(token: string, cid: string): Promise<Array<{ id: string
   return ((await (await fetch(`${base}/clients/${cid}/notes`, { headers: { authorization: `Bearer ${token}` } })).json()) as { notes: Array<{ id: string; source: string; status: string; extracted: { unanswered_questions?: Array<{ question: string }> } | null; messages: Array<{ sender: string; sentAt: string | null; body: string; media: boolean }> | null }> }).notes;
 }
 
-/** IMPORT-ASYNC: import defers extraction to the sweep; the tests model the sweep by
- *  calling the same /extract seam on the imported note. */
+/** [ASYNC-EXTRACT] import defers extraction to the background sweep. Drive extraction for THIS
+ *  client's queued import note only (scoped, so it can't touch other tests' notes in the shared
+ *  deps — the old /extract seam was per-note too). No pending import note → a no-op. */
 async function drainImport(token: string, cid: string): Promise<void> {
+  const identity = await deps.auth.authenticate(token);
+  if (!identity) return;
   const note = (await listNotes(token, cid)).find((n) => n.source === 'whatsapp_export' && n.status === 'pending_extraction');
-  if (note) await fetch(`${base}/notes/${note.id}/extract`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+  if (note) await deps.extraction.extractNote(identity.userId, note.id, new Date().toISOString().slice(0, 10));
 }
 
 describe('[P1-4b] import a WhatsApp chat export', () => {

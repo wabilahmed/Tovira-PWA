@@ -26,8 +26,8 @@ const auth = (t: string) => ({ authorization: `Bearer ${t}`, 'content-type': 'ap
 
 async function seedNote(token: string, text: string): Promise<void> {
   const cid = ((await (await fetch(`${base}/clients`, { method: 'POST', headers: auth(token), body: JSON.stringify({ name: 'Gulf RE' }) })).json()) as { id: string }).id;
-  const note = (await (await fetch(`${base}/clients/${cid}/notes/paste`, { method: 'POST', headers: auth(token), body: JSON.stringify({ text }) })).json()) as { id: string };
-  await fetch(`${base}/notes/${note.id}/extract`, { method: 'POST', headers: auth(token) }); // embeds the note
+  await (await fetch(`${base}/clients/${cid}/notes/paste`, { method: 'POST', headers: auth(token), body: JSON.stringify({ text }) })).json();
+  await deps.runSweep(); // [ASYNC-EXTRACT] the sweep is the processor — it extracts + embeds the note
 }
 
 function ask(token: string, question: string): Promise<Response> {

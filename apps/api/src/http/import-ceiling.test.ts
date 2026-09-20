@@ -60,20 +60,27 @@ describe('[P5-1-CEILING] import stopped by the trial seeding ceiling', () => {
     expect((imported.messages as unknown[]).length).toBeGreaterThan(0);
     expect(imported.status).toBe('pending_extraction'); // saved, waiting — not failed
 
-    // Draining the sweep (via /extract) surfaces the ceiling: the note stays pending.
-    const ex = await fetch(`${base}/notes/${body.note.id}/extract`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
-    expect(((await ex.json()) as { status: string }).status).toBe('trial_limit');
+    // [ASYNC-EXTRACT] The sweep is the processor; at the ceiling it does not extract — the note
+    // stays pending (blocked, not lost, not failed), not advanced to extracted.
+    await deps.runSweep();
+    const drained = (await (await fetch(`${base}/clients/${cid}/notes`, { headers: { authorization: `Bearer ${token}` } })).json()) as { notes: Array<{ source: string; status: string }> };
+    expect(drained.notes.find((n) => n.source === 'whatsapp_export')!.status).toBe('pending_extraction');
   });
 
-  // The per-note extract endpoint surfaces the same ceiling signal (server-side),
-  // so the notes timeline can render the non-scary state without any local math.
-  it('the extract endpoint reports the trial_limit status server-side', async () => {
+  // [ASYNC-EXTRACT] At the ceiling the sweep blocks extraction: the note stays pending (never
+  // extracted), so nothing is lost and no model spend occurs. (The rep-facing "waiting" signal is
+  // Task 4's visibility work; here we assert the note is not extracted at the ceiling.)
+  it('the ceiling blocks extraction in the sweep — the note stays pending, not extracted', async () => {
     const token = await signup('ceiling-extract@example.com');
     const cid = await createClient(token, 'Sara Lee');
     const paste = await fetch(`${base}/clients/${cid}/notes/paste`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ text: 'a note to analyse' }) });
     const noteId = ((await paste.json()) as { id: string }).id;
+    // /extract only accepts + queues now (202).
     const ex = await fetch(`${base}/notes/${noteId}/extract`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
-    expect(ex.status).toBe(200);
-    expect(((await ex.json()) as { status: string }).status).toBe('trial_limit');
+    expect(ex.status).toBe(202);
+    // The sweep runs but the ceiling blocks the model call — the note is never extracted.
+    await deps.runSweep();
+    const listed = (await (await fetch(`${base}/clients/${cid}/notes`, { headers: { authorization: `Bearer ${token}` } })).json()) as { notes: Array<{ id: string; status: string }> };
+    expect(listed.notes.find((n) => n.id === noteId)!.status).toBe('pending_extraction');
   });
 });

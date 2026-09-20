@@ -38,9 +38,9 @@ async function paste(token: string, clientId: string, text: string): Promise<str
   expect(r.status).toBe(201);
   return ((await r.json()) as { id: string }).id;
 }
-async function extract(token: string, noteId: string): Promise<{ status: string; message?: string }> {
-  const r = await fetch(`${base}/notes/${noteId}/extract`, { method: 'POST', headers: H(token) });
-  return (await r.json()) as { status: string; message?: string };
+async function noteStatus(token: string, clientId: string, noteId: string): Promise<string> {
+  const notes = ((await (await fetch(`${base}/clients/${clientId}/notes`, { headers: H(token) })).json()) as { notes: Array<{ id: string; status: string }> }).notes;
+  return notes.find((n) => n.id === noteId)?.status ?? 'unknown';
 }
 
 describe('[TRIAL-FARM] verification gates extraction only', () => {
@@ -51,12 +51,10 @@ describe('[TRIAL-FARM] verification gates extraction only', () => {
     // Capture still stores the note (never lose a capture) — it just queues.
     const noteId = await paste(token, clientId, 'Kai promised to send the signed contract by Friday.');
 
-    // Extraction is refused with a clear reason; the note stays pending; NO facts written.
-    const out = await extract(token, noteId);
-    expect(out.status).toBe('verification_required');
-    expect((out.message ?? '').toLowerCase()).toContain('verify');
-    const note = ((await (await fetch(`${base}/clients/${clientId}/notes`, { headers: H(token) })).json()) as { notes: Array<{ id: string; status: string }> }).notes.find((n) => n.id === noteId)!;
-    expect(note.status).toBe('pending_extraction'); // queued, not extracted, not failed
+    // The sweep is the processor, and it SKIPS an unverified rep — the note stays queued (not
+    // extracted, not failed, retry budget untouched), no facts written, no model spend.
+    await deps.runSweep();
+    expect(await noteStatus(token, clientId, noteId)).toBe('pending_extraction');
     const promises = (await (await fetch(`${base}/promises`, { headers: H(token) })).json()) as { promises: unknown[] };
     expect(promises.promises).toHaveLength(0);
 
@@ -64,29 +62,29 @@ describe('[TRIAL-FARM] verification gates extraction only', () => {
     expect((await fetch(`${base}/account/export`, { headers: H(token) })).status).toBe(200);
   });
 
-  it('VERIFYING then lets extraction run on the queued note', async () => {
+  it('VERIFYING then lets the queued note extract on the next sweep', async () => {
     const { token, userId } = await signup('verify-then-extract@example.com');
     const clientId = ((await (await fetch(`${base}/clients`, { method: 'POST', headers: H(token), body: JSON.stringify({ name: 'Acme' }) })).json()) as { id: string }).id;
     const noteId = await paste(token, clientId, 'Kai promised to send the signed contract by Friday.');
-    expect((await extract(token, noteId)).status).toBe('verification_required');
+    await deps.runSweep();
+    expect(await noteStatus(token, clientId, noteId)).toBe('pending_extraction'); // waits while unverified
 
     // Verify the email (mint + consume a real token, the production path).
     const vtoken = await deps.auth.createEmailVerification(userId);
     await fetch(`${base}/auth/verify-email`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: vtoken }) });
 
-    // Now extraction runs.
-    const out = await extract(token, noteId);
-    expect(out.status).not.toBe('verification_required');
-    expect(['extracted', 'needs_review']).toContain(out.status);
+    // Now the sweep extracts it.
+    await deps.runSweep();
+    expect(['extracted', 'needs_review']).toContain(await noteStatus(token, clientId, noteId));
   });
 
-  it('a VERIFIED account is unaffected (extraction runs normally)', async () => {
+  it('a VERIFIED account is unaffected (the sweep extracts normally)', async () => {
     const { token, userId } = await signup('already-verified@example.com');
     const vtoken = await deps.auth.createEmailVerification(userId);
     await fetch(`${base}/auth/verify-email`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: vtoken }) });
     const clientId = ((await (await fetch(`${base}/clients`, { method: 'POST', headers: H(token), body: JSON.stringify({ name: 'Acme' }) })).json()) as { id: string }).id;
     const noteId = await paste(token, clientId, 'Kai promised to send the signed contract by Friday.');
-    const out = await extract(token, noteId);
-    expect(out.status).not.toBe('verification_required');
+    await deps.runSweep();
+    expect(['extracted', 'needs_review']).toContain(await noteStatus(token, clientId, noteId));
   });
 });

@@ -2,15 +2,16 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
-import { buildInMemoryDeps } from './test-deps.js';
+import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 
 let server: Server;
 let base: string;
 let storage: InMemoryStorage;
+let deps: TestDeps;
 
 beforeAll(async () => {
-  const deps = buildInMemoryDeps();
+  deps = buildInMemoryDeps();
   storage = deps.storage;
   server = createApiServer(deps);
   await new Promise<void>((r) => server.listen(0, r));
@@ -161,14 +162,17 @@ describe('voice note upload', () => {
       body: JSON.stringify({ text: 'quick catch-up, nothing to action' }),
     });
     const note = (await noteRes.json()) as { id: string };
+    // [ASYNC-EXTRACT] /extract now accepts + queues (202); the sweep is the processor.
     const res = await fetch(`${base}/notes/${note.id}/extract`, {
       method: 'POST',
       headers: { authorization: `Bearer ${token}` },
     });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { note: { status: string; extracted: unknown } };
-    expect(body.note.status).toBe('extracted');
-    expect(body.note.extracted).not.toBeNull();
+    expect(res.status).toBe(202);
+    expect(((await res.json()) as { status: string }).status).toBe('queued');
+    await deps.runSweep();
+    const listed = ((await (await fetch(`${base}/clients/${clientId}/notes`, { headers: { authorization: `Bearer ${token}` } })).json()) as { notes: Array<{ id: string; status: string; extracted: unknown }> }).notes.find((n) => n.id === note.id)!;
+    expect(listed.status).toBe('extracted');
+    expect(listed.extracted).not.toBeNull();
   });
 
   it('rejects extracting another rep\'s note (404)', async () => {
