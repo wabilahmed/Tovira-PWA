@@ -1,37 +1,53 @@
-import { useEffect, useState } from 'react';
-import type { BookScanReport, BookScanItem, BookScanKind } from './bookScanClient.js';
+import { useEffect, useRef, useState } from 'react';
+import type { BookScanReport, BookScanItem } from './bookScanClient.js';
 import { Receipt } from '../components/Receipt.js';
 import { daysSince } from '../format/dates.js';
+import { findingId, appendFindings } from './streaming.js';
 
 export interface BookScanApi {
   scan(): Promise<BookScanReport | null>;
 }
 
-/** Section label + display order for each finding kind (board §6 grouping). */
-const SECTIONS: Array<{ kind: BookScanKind; label: string }> = [
-  { kind: 'open_promise', label: 'Open promises' },
-  { kind: 'unanswered_question', label: 'Unanswered questions' },
-  { kind: 'going_cold', label: 'Going quiet' },
-  { kind: 'upcoming_date', label: 'Dates ahead' },
-];
+/** [BOOKSCAN-STREAM] Poll cadence while the scan is still analysing chats. 4s matches the notes-timeline
+ *  poll from the async batch (one consistent cadence): fast enough that a dropped promise appears within
+ *  a few seconds, slow enough not to hammer the server or the phone battery. Polling STOPS on done. */
+const POLL_MS = 4000;
 
 /**
- * The Day-One Book Scan (P5-3b) — "the audit". A Fraunces headline over a mono
- * meta line, findings grouped into ruled sections (mono stamp + count), each
- * finding backed by a Receipt-chit, and the one orchestrated deal-out reveal.
+ * The Day-One Book Scan (P5-3b) — "the audit". [BOOKSCAN-STREAM] It STREAMS: findings append in arrival
+ * order as chats extract (never re-sorted — the server groups by category, so stability is enforced
+ * client-side via appendFindings + findingId), with an always-visible progress signal so a partial scan
+ * is never mistaken for a finished one.
  */
 export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: number }): JSX.Element {
   const [report, setReport] = useState<BookScanReport | null>(null);
+  const [shown, setShown] = useState<BookScanItem[]>([]); // append-only, arrival order — never re-sorted
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
 
+  // Poll until the scan is finished (done), then stop — a scan that polls forever is a battery + cost
+  // problem. Re-runs on remount (fresh api), so returning to the screen shows current state, not stale.
   useEffect(() => {
     let live = true;
-    void api.scan().then((r) => {
+    const timer = { id: null as ReturnType<typeof setInterval> | null };
+    const stop = (): void => { if (timer.id) { clearInterval(timer.id); timer.id = null; } };
+    const tick = async (): Promise<void> => {
+      const r = await api.scan();
       if (!live) return;
-      if (r) { setReport(r); setState('ready'); } else setState('error');
-    });
-    return () => { live = false; };
+      if (!r) { setState((s) => (s === 'loading' ? 'error' : s)); return; }
+      setReport(r);
+      setState('ready');
+      const stillWorking = r.scanProgress ? !r.scanProgress.done : false;
+      if (!stillWorking) stop(); // finished (or a server with no progress info) → stop polling
+    };
+    void tick();
+    timer.id = setInterval(() => { void tick(); }, POLL_MS);
+    return () => { live = false; stop(); };
   }, [api]);
+
+  // Accumulate append-only: keep every finding already shown in place, add new ones at the end.
+  useEffect(() => {
+    if (report) setShown((prev) => appendFindings(prev, report.items));
+  }, [report]);
 
   if (state === 'loading') return <p>Scanning your history…</p>;
   if (state === 'error' || !report) return <p role="alert">Couldn’t run the scan. Please try again.</p>;
@@ -41,7 +57,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
   const progress = report.scanProgress;
   const scanning = progress ? !progress.done : false;
 
-  if (!scanning && report.isEmpty) {
+  if (!scanning && shown.length === 0) {
     return (
       <section aria-label="Book Scan">
         <header className="tov-screenhead">
@@ -53,8 +69,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
     );
   }
 
-  const clients = new Set(report.items.map((i) => i.clientId)).size;
-  let dealt = 0; // running index so findings deal out in order across sections
+  const clients = new Set(shown.map((i) => i.clientId)).size;
 
   return (
     <section aria-label="Book Scan">
@@ -62,7 +77,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
         <div className="tov-stamp">The Book Scan</div>
         <h2>What your book has been hiding</h2>
         <div className="tov-screenmeta">
-          {report.items.length} finding{report.items.length === 1 ? '' : 's'} · {clients} client{clients === 1 ? '' : 's'}
+          {shown.length} finding{shown.length === 1 ? '' : 's'} · {clients} client{clients === 1 ? '' : 's'}
           {typeof report.chatsRead === 'number' && <> · {report.chatsRead} chat{report.chatsRead === 1 ? '' : 's'} read</>}
         </div>
         {/* [BOOKSCAN-STREAM] Progress that can't be mistaken for completion: while any chat is still
@@ -75,22 +90,14 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
         )}
       </header>
 
-      {SECTIONS.map(({ kind, label }) => {
-        const group = report.items.filter((i) => i.kind === kind);
-        if (group.length === 0) return null;
-        return (
-          <div key={kind} style={{ margin: '1.25rem 0' }}>
-            <div className="tov-stamp" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: 8 }}>
-              <span>{label}</span>
-              <span>{String(group.length).padStart(2, '0')}</span>
-            </div>
-            {group.map((item) => {
-              const i = dealt++;
-              return <Finding key={`${item.clientId}-${i}`} item={item} index={i} now={now} />;
-            })}
-          </div>
-        );
-      })}
+      {/* Flat, arrival-ordered list — keyed by a stable derived id so React never reorders the DOM as
+          new findings append. No section grouping: grouping would re-sort a late arrival into its
+          category, moving already-read entries. */}
+      <div style={{ margin: '1.25rem 0' }}>
+        {shown.map((item, i) => (
+          <Finding key={findingId(item)} item={item} index={i} now={now} />
+        ))}
+      </div>
 
       <p style={{ marginTop: '1.5rem', color: 'var(--brass)' }}>{report.invitation}</p>
     </section>
