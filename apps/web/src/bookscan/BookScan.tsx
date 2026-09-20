@@ -83,7 +83,15 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
         {/* [BOOKSCAN-STREAM] Progress that can't be mistaken for completion: while any chat is still
             being analysed, this is ALWAYS shown, so three findings never read as "the total". */}
         {scanning && progress && (
-          <div data-testid="scan-progress" role="status" aria-live="polite" className="tov-screenmeta" style={{ color: 'var(--amber)' }}>
+          // [BOOKSCAN-STREAM · mobile] Sticky so the progress stays visible without scrolling as
+          // findings stream in below it on a phone. Opaque background so pinned text stays legible.
+          <div
+            data-testid="scan-progress"
+            role="status"
+            aria-live="polite"
+            className="tov-screenmeta"
+            style={{ color: 'var(--amber)', position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface-base)', padding: '0.4rem 0', borderBottom: '1px solid var(--hairline)' }}
+          >
             Still scanning — analysed {progress.extractedChats} of {progress.totalChats} chat{progress.totalChats === 1 ? '' : 's'}
             {progress.failedChats > 0 && <> · {progress.failedChats} couldn’t be read</>}
           </div>
