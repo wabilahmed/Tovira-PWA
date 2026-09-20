@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { BookScanReport, BookScanItem } from './bookScanClient.js';
 import { Receipt } from '../components/Receipt.js';
 import { daysSince } from '../format/dates.js';

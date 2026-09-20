@@ -159,23 +159,23 @@ describe('BookScanService (P5-3b)', () => {
 // [BOOKSCAN-STREAM] account-wide extraction progress over imported chats — the still-working vs
 // finished signal that the streaming scan must never get wrong.
 describe('BookScanService — scanProgress (streaming)', () => {
-  const chat = async (clientId: string, status: string, id: string) =>
+  const chat = async (clientId: string, status: string) =>
     notes.create(USER, { clientId, source: 'whatsapp_export', rawText: 'chat', audioKey: null, status, messages: [] });
 
   it('counts imported chats by state; still working while any is pending', async () => {
     const c = await clients.create(USER, 'Acme');
-    await chat(c.id, 'extracted', 'a');
-    await chat(c.id, 'extracted', 'b');
-    await chat(c.id, 'pending_extraction', 'c');
-    await chat(c.id, 'needs_review', 'd'); // failed
+    await chat(c.id, 'extracted');
+    await chat(c.id, 'extracted');
+    await chat(c.id, 'pending_extraction');
+    await chat(c.id, 'needs_review'); // failed
     const p = (await scan.scan(USER, Date.now())).scanProgress;
     expect(p).toEqual({ totalChats: 4, extractedChats: 2, pendingChats: 1, failedChats: 1, done: false });
   });
 
   it('a failed chat stays in the denominator (never silently dropped) and does not keep it "working"', async () => {
     const c = await clients.create(USER, 'Acme');
-    await chat(c.id, 'extracted', 'a');
-    await chat(c.id, 'needs_review', 'b'); // failed, but settled
+    await chat(c.id, 'extracted');
+    await chat(c.id, 'needs_review'); // failed, but settled
     const p = (await scan.scan(USER, Date.now())).scanProgress;
     expect(p.totalChats).toBe(2); // failed still counted in the total
     expect(p.failedChats).toBe(1);

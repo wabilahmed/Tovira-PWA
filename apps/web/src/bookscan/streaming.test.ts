@@ -37,7 +37,7 @@ describe('[BOOKSCAN-STREAM] findingId + appendFindings — stable client-side or
   });
 
   it('re-seeing the same findings appends nothing (idempotent)', () => {
-    let shown = appendFindings([], [A, B]);
+    const shown = appendFindings([], [A, B]);
     const same = appendFindings(shown, [A, B]);
     expect(same).toBe(shown); // no change → same reference (no re-render churn)
   });
