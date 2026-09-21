@@ -21,12 +21,45 @@ jobs:
       # One build: the marketing routes are prerendered inside the PWA build.
       - run: npm run build -w apps/web
 
+  # The unit suite runs migrations against a FAKE client that never executes SQL, so anything real
+  # Postgres rejects at apply time — an FK whose column type doesn't match its referent, a grant to a
+  # missing role, an RLS predicate that won't type-check — slips through and only dies on the prod boot
+  # (then ECS rolls the deploy back). 0067's `user_id text REFERENCES users(id)` (users.id is uuid) did
+  # exactly that. This job runs the REAL migration set against a REAL Postgres so that class fails in CI.
+  # It runs in PARALLEL with `verify` (adds ~0 wall-clock; ~1-2 min on its own runner), and `gate` needs
+  # it — so a broken migration never spends the model gate or reaches deploy.
+  migrations-pg:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: tovira
+          POSTGRES_PASSWORD: tovira
+          POSTGRES_DB: tovira
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tovira -d tovira"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply every migration against real Postgres (fresh schema)
+        env:
+          MIGRATIONS_TEST_DB_URL: postgres://tovira:tovira@localhost:5432/tovira
+        run: npx vitest run apps/api/src/db/migrations-real-postgres.test.ts
+
   # The P1-9 extraction quality gate (Sonnet vs Haiku). It needs a real model
   # key, so it self-activates: a no-op until ANTHROPIC_API_KEY is in the repo
   # secrets, then it fails the build if extraction ever guesses a date /
   # fabricates a promise / merges two people. Runs on main only (it spends).
   gate:
-    needs: verify
+    needs: [verify, migrations-pg]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
