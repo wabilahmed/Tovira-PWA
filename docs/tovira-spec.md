@@ -248,14 +248,20 @@ AED 299 is trivial where one commission is 10–100x the annual price. Launch IC
 
 ## 5g. Account lifecycle & transactional email — LOCKED
 
-**Email verification is SOFT.** A rep has full access to every feature from the
-moment they sign up; verification is NEVER a gate. On signup the welcome email
-carries a single-use, hashed, 7-day confirmation link; until confirmed, a quiet
-dismissible in-app banner invites confirmation with a server-rate-limited resend
+**Email verification is SOFT — for reading, browsing and capture.** A rep has full
+access to read, browse, capture, export and delete from the moment they sign up;
+verification is never a gate on those. **The one exception is extraction** — the single
+operation that spends money on an external provider on demand. Extraction requires a
+verified email: an unverified rep's captures are stored and **queue** unextracted
+(nothing is lost), and they extract automatically the moment they verify. On signup the
+welcome email carries a single-use, hashed, 7-day confirmation link; until confirmed, a
+quiet dismissible in-app banner invites confirmation with a server-rate-limited resend
 (3 per user per UTC day). Rationale: deliverability of the commercially-critical
-lifecycle emails matters, but capture-friction at first value matters more — so we
-capture the address's validity without blocking the first chat. (Hard/gated
-verification was considered and **rejected**.)
+lifecycle emails matters, and capture-friction at first value matters more — so we never
+block capture — but "never gate access" was about reading and capture, never about an
+unbounded-cost paid operation, and an ungated extraction lets an unverified account spend
+real credits (trial farming). A blanket hard-gate on *all* access was considered and
+**rejected**, and remains rejected; this gates *only* extraction.
 
 **Lifecycle-email matrix.** Every transactional email is idempotent per
 `(user, event)` (billing emails per Stripe **event id**) and a failing send never
@@ -327,3 +333,11 @@ breaks the business action:
 - **2026-07-09** — Locked the **hero feature tier** (§5b): cross-client pattern intelligence (★ the hook), deal-risk radar, and "what should I do today?". Features 1 & 2 are **volume-gated** (patterns on thin data are noise; a wrong pattern is worse than a missed fact); feature 3 is always on and degrades gracefully. Positioned as Phase 4+ — they sit on top of good extraction and can't rescue a weak spine. Exact volume threshold left as an open question to tune on beta data.
 
 - **2026-08-16** — Locked **account lifecycle & transactional email** (§5g): email verification is **SOFT** (full access from signup, quiet dismissible banner + server-rate-limited resend; hard/gated verification considered and rejected); the full lifecycle-email matrix is wired to real events, idempotent per (user, event) / Stripe event id, with account-deleted sent BEFORE the purge. Reconciled the extraction-prompt version note: the repo copy is **v0.5** (ladder: v0.2 added `unanswered_questions` to the model contract → v0.3 withdrew it in favor of the deterministic-in-code implementation → v0.4 year-less-date rule → v0.5 no-null-named-person rule); the engine certified with three clean runs is v0.5.
+- **2026-09-20** — Amended the SOFT-verification decision (§5g): verification now gates
+  **extraction only** (the one paid, unbounded-cost operation). Reading, browsing, capture,
+  export and delete stay open from signup; unverified captures queue and extract on verify.
+  Also tightened trial cost defence — a trial-specific spend cap (AED 20, vs the AED 45
+  paying-account failsafe), a durable monotonic extraction counter (trial ceiling 100 / paid
+  2000 per period), and a normalised trial-grant key (plus-tags + Gmail dots). Rationale:
+  trial farming confirmed in production (open signup + unverified extraction spends real
+  credits). Blanket access-gating stays rejected.
