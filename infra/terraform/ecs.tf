@@ -74,6 +74,11 @@ resource "aws_ecs_task_definition" "api" {
       { name = "EMAIL_FROM", valueFrom = "${aws_secretsmanager_secret.app.arn}:EMAIL_FROM::" },
       { name = "SES_REGION", valueFrom = "${aws_secretsmanager_secret.app.arn}:SES_REGION::" },
       { name = "RESEND_API_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:RESEND_API_KEY::" },
+      # [OPS-VISIBILITY] Gates every /ops/* route + the identifying /health body. Unset → ops surface is
+      # DARK (all 403, /health liveness-only) and boot warns + /health reports opsConfigured:false.
+      # TRAP: the OPS_TOKEN key must EXIST in the secret BEFORE this ref is applied, or the task fails to
+      # start and the deploy rolls back. Order: key into the secret → terraform apply → deploy.
+      { name = "OPS_TOKEN", valueFrom = "${aws_secretsmanager_secret.app.arn}:OPS_TOKEN::" },
     ]
     healthCheck = {
       command     = ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]

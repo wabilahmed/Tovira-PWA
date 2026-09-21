@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { loadConfig, assertDeployReady, describeAdapters } from './config.js';
+import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning } from './config.js';
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
@@ -105,6 +105,10 @@ async function main(): Promise<void> {
   // …and on a half-configured real provider (e.g. EMAIL_SENDER=ses with no
   // sender), with every offending key named at once (DEPLOY-READY).
   assertDeployReady(config);
+  // [OPS-VISIBILITY] A missing OPS_TOKEN in prod is fail-closed (safe) but silent — warn loudly so a
+  // dark ops surface is noticed at boot, not months later. Public /health also reports opsConfigured.
+  const opsWarn = opsSurfaceWarning(config);
+  if (opsWarn) console.warn(opsWarn);
   // Startup signal: which adapters are live vs stub, so "staging is representative"
   // is verifiable at a glance (and again on GET /health).
   console.log(`[adapters] ${Object.entries(describeAdapters(config)).map(([k, v]) => `${k}=${v}`).join(' ')}`);

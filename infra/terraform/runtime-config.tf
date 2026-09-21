@@ -41,6 +41,11 @@ resource "aws_secretsmanager_secret_version" "app" {
     SES_REGION     = var.region
     RESEND_API_KEY = "REPLACE_ME"
     APP_BASE_URL   = "https://REPLACE_ME"
+    # [OPS-VISIBILITY] Bearer token for /ops/* + the identifying /health body. Seeded here so a FRESH
+    # env has the key present before ecs.tf's secret ref is applied (else the task can't start). On an
+    # EXISTING env this placeholder is NOT written (ignore_changes below) — add the real key manually
+    # FIRST, then apply. Generate with `openssl rand -hex 32`.
+    OPS_TOKEN = "REPLACE_ME"
   })
 
   lifecycle {

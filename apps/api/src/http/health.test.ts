@@ -81,7 +81,7 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
     const res = await fetch(`${base}/health`); // no ops token
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body).toEqual({ status: 'ok' }); // exactly liveness
+    expect(body).toEqual({ status: 'ok', opsConfigured: true }); // liveness + the public ops-visibility boolean (OPS-VISIBILITY); nothing else
     for (const leaky of ['jobs', 'adapters', 'cache', 'recall', 'imports', 'extraction', 'trainingLog', 'spend']) {
       expect(body[leaky], `${leaky} must not be public`).toBeUndefined();
     }
@@ -141,5 +141,35 @@ describe('[HEALTH-LEAK] publicHealthView is a fail-closed allow-list', () => {
       aBrandNewFieldSomeoneAddsLater: 42, // must NOT leak just because it was added
     };
     expect(publicHealthView(full)).toEqual({ status: 'ok' });
+  });
+
+  it('[OPS-VISIBILITY] lets opsConfigured through (it is deliberately public), still nothing else', () => {
+    expect(publicHealthView({ status: 'ok', opsConfigured: false, jobs: [{ name: 'x' }] })).toEqual({ status: 'ok', opsConfigured: false });
+    expect(publicHealthView({ status: 'ok', opsConfigured: true })).toEqual({ status: 'ok', opsConfigured: true });
+  });
+});
+
+// [OPS-VISIBILITY] A missing OPS_TOKEN is fail-closed (403 everywhere) but must not be SILENT: public
+// /health carries opsConfigured so a dark ops surface shows on the first unauthenticated curl.
+describe('[OPS-VISIBILITY] public /health exposes opsConfigured', () => {
+  async function opsConfiguredFor(clearToken: boolean): Promise<unknown> {
+    const deps = buildInMemoryDeps(); // opsToken defaults to TEST_OPS_TOKEN
+    if (clearToken) deps.opsRoute!.opsToken = undefined; // simulate prod with OPS_TOKEN unset
+    const server = createApiServer(deps);
+    await new Promise<void>((r) => server.listen(0, r));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      return await (await fetch(`${base}/health`)).json(); // NO token → the public view
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  }
+
+  it('reports opsConfigured:true when OPS_TOKEN is set — and no private fields leak', async () => {
+    expect(await opsConfiguredFor(false)).toEqual({ status: 'ok', opsConfigured: true });
+  });
+
+  it('reports opsConfigured:false when OPS_TOKEN is unset — the dark surface is visible unauthenticated', async () => {
+    expect(await opsConfiguredFor(true)).toEqual({ status: 'ok', opsConfigured: false });
   });
 });

@@ -299,6 +299,21 @@ export function loadConfig(env: Env = process.env): AppConfig {
  * Call this at boot AFTER {@link loadConfig}. It is intentionally separate so the
  * unit tests (which run against stub providers) don't have to satisfy prod keys.
  */
+/**
+ * [OPS-VISIBILITY] In production, a missing OPS_TOKEN silently disables the entire ops surface (every
+ * /ops/* → 403, the identifying /health body gated off). Fail-closed is CORRECT — an unset token must
+ * never open the routes — but a *silent* dark surface goes unnoticed for months. This is NOT a hard
+ * boot failure (fail-closed is safe to run), so it returns a loud warning to log at boot rather than
+ * throwing; public /health also reports `opsConfigured:false` so the first curl reveals it. Returns
+ * the warning string when prod + no token, else undefined (dev, or token set).
+ */
+export function opsSurfaceWarning(config: Pick<AppConfig, 'nodeEnv' | 'opsToken'>): string | undefined {
+  if (config.nodeEnv === 'production' && !config.opsToken) {
+    return '[ops] WARNING: OPS_TOKEN is not set in production — every /ops/* route returns 403 and /health exposes liveness only (opsConfigured:false). The ops surface is DARK. Set OPS_TOKEN in Secrets Manager (tovira/<env>/app) and wire it into the task definition.';
+  }
+  return undefined;
+}
+
 export function assertDeployReady(config: AppConfig, env: Env = process.env): void {
   const missing: string[] = [];
   const need = (cond: boolean, keyAndWhy: string): void => {

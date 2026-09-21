@@ -73,7 +73,10 @@ import { sendJson } from './http/helpers.js';
  * is what an LB needs; everything else (adapters, jobs + their raw error strings, cache/recall/import
  * cost metrics, trainingLog volume, and spend alerts naming reps) is ops-token-gated.
  */
-const PUBLIC_HEALTH_KEYS: ReadonlySet<string> = new Set(['status']);
+// `opsConfigured` is deliberately public (OPS-VISIBILITY): a boolean, no secret, so the first
+// unauthenticated curl reveals a dark ops surface (OPS_TOKEN unset → false) instead of it going
+// unnoticed. Everything else stays private by default (fail-closed).
+const PUBLIC_HEALTH_KEYS: ReadonlySet<string> = new Set(['status', 'opsConfigured']);
 
 /** Filter a full health body down to the public allow-list (fail-closed on unknown keys). Exported
  *  so the fail-closed property is unit-testable independent of the route. */
@@ -225,14 +228,18 @@ export function createApiServer(deps: ApiDeps): Server {
             typeof request.headers['x-ops-token'] === 'string' ? (request.headers['x-ops-token'] as string) : undefined,
             deps.opsRoute?.opsToken,
           );
+          // [OPS-VISIBILITY] public boolean — is the ops surface actually enabled? Unset OPS_TOKEN in
+          // prod means every /ops/* is 403 and this rich body is gated; surface that on the first curl.
+          const opsConfigured = Boolean(deps.opsRoute?.opsToken);
           if (!authed) {
-            sendJson(response, 200, publicHealthView({ status: 'ok' }));
+            sendJson(response, 200, publicHealthView({ status: 'ok', opsConfigured }));
             return;
           }
           const jobs = deps.jobRuns ? await deps.jobRuns.list().catch(() => undefined) : undefined;
           const spendAlerts = deps.opsAlerts ? await deps.opsAlerts.listRecent(20).catch(() => undefined) : undefined;
           sendJson(response, 200, {
             status: 'ok',
+            opsConfigured,
             ...(deps.adapterModes ? { adapters: deps.adapterModes } : {}),
             ...(jobs ? { jobs: summarizeJobs(jobs, Date.now()) } : {}),
             ...(deps.modelMetrics ? { cache: deps.modelMetrics.snapshot() } : {}),

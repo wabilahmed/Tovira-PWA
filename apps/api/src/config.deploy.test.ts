@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadConfig, assertDeployReady, describeAdapters, ConfigError } from './config.js';
+import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning, ConfigError } from './config.js';
 
 // [DEPLOY-READY] the boot-time audit: a real provider selected without its key
 // must fail fast with the MISSING KEY NAMED — never a silent half-up service.
@@ -146,5 +146,32 @@ describe('describeAdapters', () => {
     expect(modes.embedder).toBe('live');
     expect(modes.transcriber).toBe('live');
     expect(modes.push).toBe('stub');
+  });
+});
+
+// [OPS-VISIBILITY] A missing OPS_TOKEN in prod is fail-closed but silent; it must be VISIBLE — a loud
+// boot warning (this) and a public /health opsConfigured:false (server test). Fail-closed stays.
+describe('opsSurfaceWarning', () => {
+  const base = { DATABASE_URL: 'postgres://tovira:tovira@localhost:5432/tovira' };
+  const warn = (env: Record<string, string | undefined>) => opsSurfaceWarning(loadConfig(env));
+
+  it('warns in production when OPS_TOKEN is unset — naming the token and the dark surface', () => {
+    const w = warn({ ...base, NODE_ENV: 'production' });
+    expect(w).toBeDefined();
+    expect(w).toMatch(/OPS_TOKEN/);
+    expect(w).toMatch(/DARK/);
+  });
+
+  it('warns in production when OPS_TOKEN is blank (isBlank → undefined)', () => {
+    expect(warn({ ...base, NODE_ENV: 'production', OPS_TOKEN: '   ' })).toBeDefined();
+  });
+
+  it('is silent in production once OPS_TOKEN is set (fail-closed lifted, no warning)', () => {
+    expect(warn({ ...base, NODE_ENV: 'production', OPS_TOKEN: 's3cret' })).toBeUndefined();
+  });
+
+  it('is silent outside production (a dark ops surface is only a prod concern)', () => {
+    expect(warn({ ...base })).toBeUndefined(); // NODE_ENV defaults to development
+    expect(warn({ ...base, NODE_ENV: 'development' })).toBeUndefined();
   });
 });

@@ -18,7 +18,7 @@ command -v jq >/dev/null || { echo "jq is required (brew install jq)"; exit 1; }
 
 # Only these externally-supplied keys are pushed; everything else in the file is
 # ignored. DATABASE_URL/APP_DATABASE_URL/APP_DB_PASSWORD stay Terraform-managed.
-ALLOWED="ANTHROPIC_API_KEY GROQ_API_KEY VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_ANNUAL_PRICE_ID EMAIL_SENDER EMAIL_FROM SES_REGION APP_BASE_URL"
+ALLOWED="ANTHROPIC_API_KEY GROQ_API_KEY VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PRICE_ID STRIPE_ANNUAL_PRICE_ID EMAIL_SENDER EMAIL_FROM SES_REGION APP_BASE_URL OPS_TOKEN"
 
 current="$(aws secretsmanager get-secret-value --secret-id "$SECRET_ID" --region "$REGION" --query SecretString --output text 2>/dev/null || echo '{}')"
 merged="$current"
