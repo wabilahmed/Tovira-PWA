@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# commit-msg hook — automatic net for the "[skip ci] trap" on every `git commit`.
+# Wired via core.hooksPath=.githooks (set by the package.json `prepare` script, or
+# `git config core.hooksPath .githooks`). Note: `git commit --no-verify` bypasses
+# this — trigger commits should go through scripts/ci-trigger-commit.sh, which
+# validates regardless.
+set -uo pipefail
+exec "$(git rev-parse --show-toplevel)/scripts/check-ci-skip-token.sh" "$1"

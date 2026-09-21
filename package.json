@@ -21,7 +21,9 @@
     "gate": "npm run gate -w apps/api",
     "typecheck": "tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint .",
-    "test:staging": "vitest run --config vitest.staging.config.ts"
+    "test:staging": "vitest run --config vitest.staging.config.ts",
+    "prepare": "git config core.hooksPath .githooks || true",
+    "ci:trigger": "scripts/ci-trigger-commit.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.14.0",
