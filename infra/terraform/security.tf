@@ -63,5 +63,14 @@ resource "aws_security_group" "rds" {
     protocol        = "tcp"
     security_groups = [aws_security_group.api.id]
   }
+  # [BASTION] The one added rule: reach Postgres from the SSM jump host (bastion.tf) — a SG reference,
+  # never an IP/CIDR. The DB stays private; access is IAM-gated via Session Manager.
+  ingress {
+    description     = "Postgres from the SSM bastion (erasure runbook + incident response)"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion.id]
+  }
   tags = { Name = "tovira-${var.env}-rds" }
 }
