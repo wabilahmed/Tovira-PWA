@@ -54,6 +54,12 @@ variable "api_image" {
   description = "Full ECR image URI:tag for the API container (set by CI on deploy)."
   type        = string
   default     = ""
+  # [FOOTGUN-FIX] Empty in prod would register a task-def revision with a blank image. Provided by
+  # prod.auto.tfvars (the placeholder; the deploy pipeline overrides it) or -var — never left empty in prod.
+  validation {
+    condition     = var.env != "prod" || trimspace(var.api_image) != ""
+    error_message = "api_image must be set when env=prod (empty blanks the container image). Use prod.auto.tfvars or pass -var=\"api_image=...\"."
+  }
 }
 
 variable "api_cpu" {
@@ -87,12 +93,25 @@ variable "alarm_email" {
 # ── Marketing site (apps/site) ───────────────────────────────────────────────
 variable "marketing_domain" {
   description = "Apex domain for the marketing site (e.g. tovira.com). Empty = default CloudFront domain, no aliases."
+  type        = string
   default     = ""
+  # [FOOTGUN-FIX] Empty in prod DROPS the CloudFront custom domain (staging.tovira.io) + its ACM cert and
+  # downgrades TLS to TLSv1 (marketing.tf). A bare plan/apply with defaults must not silently do that.
+  validation {
+    condition     = var.env != "prod" || trimspace(var.marketing_domain) != ""
+    error_message = "marketing_domain must be set when env=prod (empty drops the custom domain + ACM cert and downgrades TLS). Use prod.auto.tfvars or pass -var=\"marketing_domain=...\"."
+  }
 }
 
 variable "marketing_acm_certificate_arn" {
   description = "ACM cert ARN in us-east-1 covering the apex + www for the marketing CloudFront. Empty = default cert."
+  type        = string
   default     = ""
+  # [FOOTGUN-FIX] Empty in prod falls back to the default CloudFront cert (no custom-domain TLS).
+  validation {
+    condition     = var.env != "prod" || trimspace(var.marketing_acm_certificate_arn) != ""
+    error_message = "marketing_acm_certificate_arn must be set when env=prod (empty falls back to the default cert). Use prod.auto.tfvars or pass -var=\"marketing_acm_certificate_arn=...\"."
+  }
 }
 
 # --- Transactional email (SES; authored, not applied — see ses.tf) ---
