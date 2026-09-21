@@ -31,6 +31,12 @@ export interface BookScanReceipt {
 
 export interface BookScanItem {
   kind: BookScanKind;
+  /** [BOOKSCAN-STREAM] A STABLE, UNIQUE identity for this finding, so the streaming client can key it
+   *  without colliding (the old kind|client|quote|date key dropped null-span / same-message duplicates).
+   *  For a finding backed by a single fact row it is that row's id (promise/keyDate); for one with no
+   *  single backing row it is a stable composite (unanswered: noteId:index; going-quiet: clientId). With
+   *  the `kind` prefix on the client it is globally unique. */
+  id: string;
   clientId: string;
   clientName: string;
   headline: string;
@@ -125,6 +131,7 @@ export class BookScanService {
       if (isStalePromise(p, nowMs, staleThreshold)) { stalePromises += 1; continue; }
       items.push({
         kind: 'open_promise',
+        id: p.id, // the promise row id — unique per promise, independent of quote/date
         clientId: p.clientId,
         clientName: nameOf.get(p.clientId) ?? 'Unknown',
         headline: `Worth checking: did you ${p.text}?`,
@@ -153,10 +160,16 @@ export class BookScanService {
       }
       for (const n of clientNotes) {
         const ex = n.extracted as { unanswered_questions?: UnansweredQuestion[] } | null;
-        for (const q of ex?.unanswered_questions ?? []) {
+        const questions = ex?.unanswered_questions ?? [];
+        // No fact row backs an unanswered question (it lives inside the note's extracted blob), so key it
+        // by note id + its INDEX in that note's array — stable (extraction is idempotent per note, order
+        // preserved) and unique per note, even when two questions share the same text/date.
+        for (let qi = 0; qi < questions.length; qi++) {
+          const q = questions[qi]!;
           if (!q.question.trim()) continue;
           items.push({
             kind: 'unanswered_question',
+            id: `${n.id}:${qi}`,
             clientId: c.id,
             clientName: c.name,
             headline: `${c.name} asked something and the thread went quiet`,
@@ -175,6 +188,7 @@ export class BookScanService {
         if (lastText.trim()) {
           items.push({
             kind: 'going_cold',
+            id: c.id, // one going-quiet finding per client; the client id is its stable, unique key
             clientId: c.id,
             clientName: c.name,
             headline: `${c.name} has gone quiet — worth a nudge?`,
@@ -194,6 +208,7 @@ export class BookScanService {
       if (kd.date >= today && kd.date <= horizon) {
         items.push({
           kind: 'upcoming_date',
+          id: kd.id, // the key-date row id — unique per date
           clientId: kd.clientId,
           clientName: nameOf.get(kd.clientId) ?? 'Unknown',
           headline: `Upcoming: ${kd.description}`,

@@ -12,6 +12,7 @@ const FULL: BookScanReport = {
   items: [
     {
       kind: 'open_promise',
+      id: 'p1',
       clientId: 'c1',
       clientName: 'Acme',
       headline: 'Worth checking: did you send the revised quote?',
@@ -20,6 +21,7 @@ const FULL: BookScanReport = {
     },
     {
       kind: 'unanswered_question',
+      id: 'q1',
       clientId: 'c2',
       clientName: 'Sara Lee',
       headline: 'Sara Lee asked something and the thread went quiet',

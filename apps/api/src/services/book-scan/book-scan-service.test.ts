@@ -188,3 +188,43 @@ describe('BookScanService — scanProgress (streaming)', () => {
     expect(p).toEqual({ totalChats: 0, extractedChats: 0, pendingChats: 0, failedChats: 0, done: true });
   });
 });
+
+// [BOOKSCAN-STREAM part A] Every finding carries a STABLE, UNIQUE id so the streaming client never drops
+// one to a collision. Two distinct promises with the same text + date must get distinct ids.
+describe('BookScanService — finding identity', () => {
+  it('gives two distinct promises (same client, same due date) distinct ids — the row id, not the quote', async () => {
+    const c = await clients.create(USER, 'Acme');
+    // Distinct commitments (the facts layer dedupes IDENTICAL text, so these differ) that share a date.
+    await facts.saveExtraction(USER, {
+      noteId: 'n1', clientId: c.id,
+      promises: [
+        { text: 'send the floor plan', owner: 'rep', due_date: '2026-08-01', due_raw: 'Friday', confidence: 'high' },
+        { text: 'send the brochure', owner: 'rep', due_date: '2026-08-01', due_raw: 'Friday', confidence: 'high' },
+      ],
+    });
+    const items = (await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'))).items.filter((i) => i.kind === 'open_promise');
+    expect(items).toHaveLength(2);
+    expect(new Set(items.map((i) => i.id)).size).toBe(2); // distinct row ids
+  });
+
+  it('every finding carries a non-empty id', async () => {
+    const c = await clients.create(USER, 'Acme');
+    await facts.saveExtraction(USER, { noteId: 'n1', clientId: c.id, promises: [{ text: 'send the deck', owner: 'rep', due_date: '2026-08-01', due_raw: null, confidence: 'high' }] });
+    const report = await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'));
+    expect(report.items.length).toBeGreaterThan(0);
+    for (const i of report.items) expect(i.id.length).toBeGreaterThan(0);
+  });
+
+  it('keys an unanswered question by note id + index (unique even with same text/date)', async () => {
+    const c = await clients.create(USER, 'Sara Lee');
+    const note = await notes.create(USER, { clientId: c.id, source: 'whatsapp_export', rawText: 't', audioKey: null, status: 'extracted' });
+    await notes.update(USER, note.id, { extracted: { unanswered_questions: [
+      { question: 'Can you do bulk pricing?', sentAt: '2026-01-16T10:00:00', sender: 'Sara Lee' },
+      { question: 'Can you do bulk pricing?', sentAt: '2026-01-16T10:00:00', sender: 'Sara Lee' },
+    ] } });
+    const items = (await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'))).items.filter((i) => i.kind === 'unanswered_question');
+    expect(items).toHaveLength(2);
+    expect(new Set(items.map((i) => i.id)).size).toBe(2);
+    expect(items.map((i) => i.id)).toEqual([`${note.id}:0`, `${note.id}:1`]);
+  });
+});

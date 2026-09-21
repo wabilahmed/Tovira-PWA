@@ -8,7 +8,7 @@ import { BookScan } from './BookScan.js';
 import type { BookScanReport, BookScanItem } from './bookScanClient.js';
 
 const finding = (quote: string): BookScanItem => ({
-  kind: 'open_promise', clientId: 'c1', clientName: 'Acme', headline: `did you ${quote}?`,
+  kind: 'open_promise', id: quote, clientId: 'c1', clientName: 'Acme', headline: `did you ${quote}?`,
   receipt: { quote, date: '2026-08-01' }, framing: 'worth_checking',
 });
 const rep = (done: boolean, items: BookScanItem[] = []): BookScanReport => ({

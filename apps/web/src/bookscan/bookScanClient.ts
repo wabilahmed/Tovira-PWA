@@ -4,6 +4,10 @@ export type BookScanKind = 'open_promise' | 'unanswered_question' | 'going_cold'
 
 export interface BookScanItem {
   kind: BookScanKind;
+  /** [BOOKSCAN-STREAM] Stable, unique server-supplied identity (a fact row id, or a stable composite for
+   *  findings with no single backing row) — the key the streaming client uses so it never drops a
+   *  finding to a collision. */
+  id: string;
   clientId: string;
   clientName: string;
   headline: string;
