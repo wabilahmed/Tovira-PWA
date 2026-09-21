@@ -32,6 +32,7 @@ import { TrialExtractionLimiter } from '../services/extraction/limiter.js';
 import { periodKeyFrom } from '../services/spend/period.js';
 import { SpendService } from '../services/spend/spend-service.js';
 import { InMemorySpendLedgerRepository } from '../adapters/spend/in-memory-spend-ledger-repository.js';
+import { InMemoryModelCallEventStore } from '../adapters/spend/in-memory-model-call-event-store.js';
 import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
 import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
 import { InMemoryArchiveIndexRepository } from '../adapters/logs/in-memory-archive-index-repository.js';
@@ -94,6 +95,8 @@ export interface TestDeps extends ApiDeps {
   runSweep: (passes?: number) => Promise<void>;
   /** [SPEND-INSTRUMENT] the spend cap service — seed spend with `spend.recordAed(...)` to test at-cap behaviour. */
   spend: SpendService;
+  /** [SPEND-INSTRUMENT] the durable per-call event store — seed with `.record(...)` to test /ops/spend/by-class. */
+  modelCallEvents: InMemoryModelCallEventStore;
 }
 
 /**
@@ -196,6 +199,7 @@ export function buildInMemoryDeps(
     (uid, now) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key),
     { capAed: 45, trialCapAed: 20, warnFraction: 0.8 },
   );
+  const modelCallEvents = new InMemoryModelCallEventStore();
   // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via
   // the SWEEP (the real path), not by an inline /extract. `runSweep()` runs a bounded number of passes
   // (transcription → extraction takes two), mirroring index.ts wiring incl. the verification skip.
@@ -240,6 +244,7 @@ export function buildInMemoryDeps(
       overrides: new InMemorySpendOverrideRepository(),
       spend: { status: async () => ({ periodKey: 'test', spentAed: 0, capAed: 45, state: 'ok' }), report: async () => [] },
       allUserIds: () => auth.allUserIds(),
+      modelCallEvents,
     },
     // [TRAINING-METRICS] ttl 0 so tests see fresh numbers on every snapshot() (each call refreshes).
     trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections, archiveIndex), 0),
@@ -265,6 +270,7 @@ export function buildInMemoryDeps(
     extractionCounter,
     runSweep,
     spend,
+    modelCallEvents,
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),

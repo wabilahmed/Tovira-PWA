@@ -11,7 +11,7 @@ describe('[SPEND-INSTRUMENT] ModelCallEventService records priced, bucketed per-
     const store = new InMemoryModelCallEventStore();
     const svc = new ModelCallEventService(store, async () => 't:trial', () => 111);
     await svc.record('rep-A', 'extraction', SONNET, usage());
-    const [c] = await store.aggregateByClass('t:trial', 'rep-A');
+    const [c] = await store.aggregateByClass(0, 1000, 'rep-A');
     expect(c!.spendClass).toBe('extraction');
     expect(c!.calls).toBe(1);
     expect(c!.inputTokens).toBe(100);
@@ -20,13 +20,14 @@ describe('[SPEND-INSTRUMENT] ModelCallEventService records priced, bucketed per-
     expect(c!.costAed).toBeGreaterThan(0); // priced via callCostUsd
   });
 
-  it('a SYSTEM call has no period bucket and is excluded from a rep-scoped view but present overall', async () => {
+  it('a SYSTEM call is excluded from a rep-scoped view but present in the aggregate (invoice) total', async () => {
     const store = new InMemoryModelCallEventStore();
-    const svc = new ModelCallEventService(store, async () => 't:trial');
-    await svc.record(null, 'canary', SONNET, usage()); // system → periodKey null
-    expect(await store.aggregateByClass('t:trial', 'rep-A')).toEqual([]); // not in any rep's period
-    // (system events carry periodKey null; they aggregate only under a null-key query, which ops does
-    // separately — the point here is a rep view never sees system cost.)
+    const svc = new ModelCallEventService(store, async () => 't:trial', () => 500);
+    await svc.record(null, 'canary', SONNET, usage()); // system → userId null
+    const W = [0, 1000] as const;
+    expect(await store.aggregateByClass(...W, 'rep-A')).toEqual([]); // a rep never sees system cost
+    const all = await store.aggregateByClass(...W); // aggregate (no userId) DOES include system — matches the invoice
+    expect(all.map((c) => c.spendClass)).toEqual(['canary']);
   });
 
   it('aggregateByModel sums per model with USD + AED (invoice-comparable)', async () => {
@@ -34,7 +35,7 @@ describe('[SPEND-INSTRUMENT] ModelCallEventService records priced, bucketed per-
     const svc = new ModelCallEventService(store, async () => 'p:2026-10', () => 1);
     await svc.record('rep-A', 'extraction', SONNET, usage());
     await svc.record('rep-A', 'recall', 'claude-haiku-4-5-20251001', usage({ cacheReadInputTokens: 0 }));
-    const models = await store.aggregateByModel('p:2026-10');
+    const models = await store.aggregateByModel(0, 1000);
     expect(models.map((m) => m.model).sort()).toEqual(['claude-haiku-4-5-20251001', 'claude-sonnet-5']);
     for (const m of models) { expect(m.costUsd).toBeGreaterThan(0); expect(m.costAed).toBeGreaterThan(0); }
   });

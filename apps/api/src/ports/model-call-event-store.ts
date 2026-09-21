@@ -49,8 +49,13 @@ export interface ModelAggregate {
 
 export interface ModelCallEventStore {
   record(e: ModelCallEvent): Promise<void>;
-  /** Per-CLASS totals for a period. `userId` given → that account; omitted → every account + system. */
-  aggregateByClass(periodKey: string, userId?: string): Promise<ClassAggregate[]>;
-  /** Per-MODEL totals for a period (invoice-comparable). Same scoping as aggregateByClass. */
-  aggregateByModel(periodKey: string, userId?: string): Promise<ModelAggregate[]>;
+  /**
+   * Per-CLASS totals over a TIME WINDOW [fromMs, toMs). Time, not billing period, because an Anthropic
+   * invoice is a calendar window and includes system calls too. `userId` given → that ONE account;
+   * omitted → every account AND system calls (the total that reconciles to the invoice).
+   */
+  aggregateByClass(fromMs: number, toMs: number, userId?: string): Promise<ClassAggregate[]>;
+  /** Per-MODEL totals over the same window — the invoice-comparable line (Anthropic bills per model, per
+   *  token type, in USD). Same scoping as aggregateByClass. */
+  aggregateByModel(fromMs: number, toMs: number, userId?: string): Promise<ModelAggregate[]>;
 }

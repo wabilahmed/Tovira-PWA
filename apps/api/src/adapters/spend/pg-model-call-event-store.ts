@@ -21,13 +21,15 @@ export class PgModelCallEventStore implements ModelCallEventStore {
     );
   }
 
-  private where(periodKey: string, userId?: string): { clause: string; params: unknown[] } {
-    if (userId === undefined) return { clause: 'period_key = $1', params: [periodKey] };
-    return { clause: 'period_key = $1 AND user_id = $2', params: [periodKey, userId] };
+  private where(fromMs: number, toMs: number, userId?: string): { clause: string; params: unknown[] } {
+    const from = new Date(fromMs).toISOString();
+    const to = new Date(toMs).toISOString();
+    if (userId === undefined) return { clause: 'created_at >= $1 AND created_at < $2', params: [from, to] };
+    return { clause: 'created_at >= $1 AND created_at < $2 AND user_id = $3', params: [from, to, userId] };
   }
 
-  async aggregateByClass(periodKey: string, userId?: string): Promise<ClassAggregate[]> {
-    const { clause, params } = this.where(periodKey, userId);
+  async aggregateByClass(fromMs: number, toMs: number, userId?: string): Promise<ClassAggregate[]> {
+    const { clause, params } = this.where(fromMs, toMs, userId);
     const { rows } = await this.pool.query(
       `SELECT spend_class, count(*)::int AS calls,
               sum(input_tokens)::bigint AS input, sum(output_tokens)::bigint AS output,
@@ -46,8 +48,8 @@ export class PgModelCallEventStore implements ModelCallEventStore {
       }));
   }
 
-  async aggregateByModel(periodKey: string, userId?: string): Promise<ModelAggregate[]> {
-    const { clause, params } = this.where(periodKey, userId);
+  async aggregateByModel(fromMs: number, toMs: number, userId?: string): Promise<ModelAggregate[]> {
+    const { clause, params } = this.where(fromMs, toMs, userId);
     const { rows } = await this.pool.query(
       `SELECT model, count(*)::int AS calls,
               sum(input_tokens)::bigint AS input, sum(output_tokens)::bigint AS output,

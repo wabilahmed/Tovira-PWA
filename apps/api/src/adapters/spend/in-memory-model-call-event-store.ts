@@ -10,13 +10,13 @@ export class InMemoryModelCallEventStore implements ModelCallEventStore {
     this.events.push({ ...e });
   }
 
-  private forPeriod(periodKey: string, userId?: string): ModelCallEvent[] {
-    return this.events.filter((e) => e.periodKey === periodKey && (userId === undefined || e.userId === userId));
+  private inWindow(fromMs: number, toMs: number, userId?: string): ModelCallEvent[] {
+    return this.events.filter((e) => e.at >= fromMs && e.at < toMs && (userId === undefined || e.userId === userId));
   }
 
-  async aggregateByClass(periodKey: string, userId?: string): Promise<ClassAggregate[]> {
+  async aggregateByClass(fromMs: number, toMs: number, userId?: string): Promise<ClassAggregate[]> {
     const by = new Map<SpendClass, ClassAggregate>();
-    for (const e of this.forPeriod(periodKey, userId)) {
+    for (const e of this.inWindow(fromMs, toMs, userId)) {
       const a = by.get(e.spendClass) ?? { spendClass: e.spendClass, calls: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, costAed: 0 };
       a.calls += 1;
       a.inputTokens += e.inputTokens;
@@ -30,9 +30,9 @@ export class InMemoryModelCallEventStore implements ModelCallEventStore {
     return [...by.values()].sort((x, y) => y.costAed - x.costAed);
   }
 
-  async aggregateByModel(periodKey: string, userId?: string): Promise<ModelAggregate[]> {
+  async aggregateByModel(fromMs: number, toMs: number, userId?: string): Promise<ModelAggregate[]> {
     const by = new Map<string, ModelAggregate>();
-    for (const e of this.forPeriod(periodKey, userId)) {
+    for (const e of this.inWindow(fromMs, toMs, userId)) {
       const a = by.get(e.model) ?? { model: e.model, calls: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 0, costAed: 0 };
       a.calls += 1;
       a.inputTokens += e.inputTokens;

@@ -4,6 +4,8 @@ import { sendJson, readJsonBody, BadJsonError } from './helpers.js';
 import type { SpendOverrideRepository } from '../ports/spend-override-repository.js';
 import type { ErasureService } from '../services/erasure/erasure-service.js';
 import type { ErasureRequestService } from '../services/erasure/erasure-request-service.js';
+import type { ModelCallEventStore } from '../ports/model-call-event-store.js';
+import { spendByClassReport } from '../services/spend/spend-by-class-report.js';
 
 export interface OpsRouteDeps {
   /** Unset → the ops routes are disabled (always 403). Never a rep credential. */
@@ -19,6 +21,8 @@ export interface OpsRouteDeps {
   /** [ERASURE] single-counterparty erasure, operator-run (Terms 4.9). Absent → the routes no-op neutrally. */
   erasure?: Pick<ErasureService, 'preview'>;
   erasureRequests?: Pick<ErasureRequestService, 'open' | 'complete'>;
+  /** [SPEND-INSTRUMENT] durable per-call event store — powers GET /ops/spend/by-class. Absent → 404. */
+  modelCallEvents?: ModelCallEventStore;
 }
 
 /** Constant-time ops-token check (never leak validity via timing). Shared with the /health split so
@@ -112,6 +116,25 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
 
   if (req.method === 'GET' && url === '/ops/spend-cap/audit') {
     sendJson(res, 200, { audit: await deps.overrides.listAudit(50) });
+    return true;
+  }
+
+  // [SPEND-INSTRUMENT B3] GET /ops/spend/by-class?from=&to=&userId= — cost BY FEATURE CLASS (with each
+  // class's share) and BY MODEL (invoice-comparable, USD) over a TIME WINDOW. Reads the recorded per-call
+  // events, never recomputes. `userId` → one account; omitted → all accounts + system (reconciles to the
+  // Anthropic invoice for the window). Defaults to the current calendar month if from/to are absent.
+  if (req.method === 'GET' && url === '/ops/spend/by-class') {
+    if (!deps.modelCallEvents) { sendJson(res, 404, { error: 'not_found' }); return true; }
+    const q = new URL(req.url ?? '/', 'http://x').searchParams;
+    const now = new Date();
+    const fromMs = q.get('from') ? Date.parse(q.get('from')!) : Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+    const toMs = q.get('to') ? Date.parse(q.get('to')!) : now.getTime();
+    if (Number.isNaN(fromMs) || Number.isNaN(toMs) || fromMs >= toMs) {
+      sendJson(res, 400, { error: 'validation', message: 'from/to must be valid ISO dates with from < to.' });
+      return true;
+    }
+    const userId = q.get('userId')?.trim() || undefined;
+    sendJson(res, 200, await spendByClassReport(deps.modelCallEvents, fromMs, toMs, userId));
     return true;
   }
 
