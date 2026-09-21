@@ -82,8 +82,27 @@ export class PgUserRepository implements UserRepository {
     await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
   }
 
+  /**
+   * [SYSTEM-ONLY] The one deliberately UNSCOPED read of `users`. Returns ids ONLY (no PII) and is
+   * called exclusively from SYSTEM/OPS contexts — the scheduled batch jobs (priorities/monday/daily
+   * digest) and the ops spend report — NEVER from a rep-facing request path. `users` has no RLS (auth
+   * must look a user up by email before any tenant context exists), so this cross-tenant read is safe
+   * only because of that call-site discipline; the [USERS-GUARD] CI test enforces it (this is the sole
+   * unscoped `FROM users` allowed anywhere). Do not call it from a request handler.
+   */
   async listAllIds(): Promise<string[]> {
     const { rows } = await this.pool.query<{ id: string }>('SELECT id FROM users');
     return rows.map((r) => r.id);
+  }
+
+  /** [ACTIVATION] Mark a user activated at most once (atomic UPDATE … WHERE activated_at IS NULL);
+   *  returns true only on the first activation. Scoped by id. Lives here so ALL `users` SQL is in this
+   *  one file ([USERS-GUARD]); the activation adapter delegates to it. */
+  async markActivatedOnce(userId: string, at: number): Promise<boolean> {
+    const { rows } = await this.pool.query(
+      'UPDATE users SET activated_at = to_timestamp($2 / 1000.0) WHERE id = $1 AND activated_at IS NULL RETURNING id',
+      [userId, at],
+    );
+    return rows.length > 0;
   }
 }

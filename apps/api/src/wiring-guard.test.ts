@@ -145,4 +145,42 @@ describe('[WIRING-GUARD] every registered emitter is reachable in production', (
     // INV-MATCH A5 there are NONE: inventory_suggested_bought is now wired (share-from-suggestion).
     expect(dormant.length).toBe(0);
   });
+
+  // [USERS-GUARD] The `users` table has NO row-level security — auth must look a user up by email
+  // BEFORE any tenant context exists, so RLS keyed on app.user_id is impossible on it. That makes the
+  // app-layer scoping the ONLY thing preventing a cross-tenant read, with no DB backstop. So: every
+  // `users` query lives in ONE audited file (pg-user-repository.ts), and every SELECT there is scoped
+  // by a key — except the single, deliberate, ids-only `allUserIds` read. A stray `FROM users` in a
+  // request path, or a new unscoped SELECT, would leak silently; this makes that a CI failure.
+  describe('[USERS-GUARD] users-table access is centralized and scoped', () => {
+    const CANON = 'adapters/auth/pg-user-repository.ts';
+    // Dev/tooling only — not a request path (same spirit as the eval/scripts exemption above).
+    const exempt = (rel: string): boolean =>
+      rel === CANON || rel.startsWith('seed/') || rel.startsWith('eval/') || rel.startsWith('scripts/');
+    const USERS_SQL = /\b(?:from|into|update)\s+users\b/i; // covers SELECT…FROM / INSERT INTO / UPDATE / DELETE FROM users
+
+    it('no users-table SQL exists outside pg-user-repository.ts', () => {
+      const offenders = nonTestFiles()
+        .filter((f) => !exempt(f.rel))
+        // strip line comments so a doc mention of "from users" is not a false positive; SQL lives in strings
+        .filter((f) => USERS_SQL.test(f.content.replace(/\/\/[^\n]*/g, '')))
+        .map((f) => f.rel);
+      expect(offenders, `users-table SQL must live only in ${CANON}; found in: ${offenders.join(', ')}`).toEqual([]);
+    });
+
+    it('every SELECT … FROM users in pg-user-repository.ts is WHERE-scoped, except the ids-only allUserIds read', () => {
+      const repo = nonTestFiles().find((f) => f.rel === CANON);
+      expect(repo, `${CANON} not found`).toBeTruthy();
+      const selects = repo!.content
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => /\bselect\b/i.test(l) && /\bfrom users\b/i.test(l));
+      expect(selects.length, 'no users SELECT found — file shape changed').toBeGreaterThan(0);
+      for (const line of selects) {
+        const scoped = /\bwhere\b/i.test(line);
+        const allUserIds = /\bselect\s+id\s+from users\b/i.test(line); // ids only, deliberately unscoped (SYSTEM-ONLY)
+        expect(scoped || allUserIds, `unscoped users SELECT (scope it, or it's a new allUserIds — reconsider): ${line}`).toBe(true);
+      }
+    });
+  });
 });

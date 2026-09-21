@@ -1,15 +1,16 @@
 import type { Pool } from 'pg';
+import { PgUserRepository } from '../auth/pg-user-repository.js';
 import type { ActivationRepository, Analytics, AnalyticsEvent } from '../../services/analytics/activation-service.js';
 
-/** Records activation on users.activated_at; the UPDATE ... WHERE NULL is atomic. */
+/** Records activation on users.activated_at. Delegates to PgUserRepository so ALL `users` SQL lives in
+ *  one file ([USERS-GUARD]); this adapter holds no `users` query of its own. */
 export class PgActivationRepository implements ActivationRepository {
-  constructor(private readonly pool: Pool) {}
-  async markActivatedOnce(userId: string, at: number): Promise<boolean> {
-    const { rows } = await this.pool.query(
-      'UPDATE users SET activated_at = to_timestamp($2 / 1000.0) WHERE id = $1 AND activated_at IS NULL RETURNING id',
-      [userId, at],
-    );
-    return rows.length > 0;
+  private readonly users: PgUserRepository;
+  constructor(pool: Pool) {
+    this.users = new PgUserRepository(pool);
+  }
+  markActivatedOnce(userId: string, at: number): Promise<boolean> {
+    return this.users.markActivatedOnce(userId, at);
   }
 }
 
