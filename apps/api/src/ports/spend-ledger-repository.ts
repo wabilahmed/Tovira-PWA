@@ -5,7 +5,20 @@
  * (user, period, cost class); spend accumulates. Embeddings and transcription are NOT Claude spend
  * and are never recorded here.
  */
-export type SpendClass = 'extraction' | 'import' | 'recall' | 'priorities' | 'followup' | 'meeting' | 'capture';
+/**
+ * [SPEND-INSTRUMENT] The closed set of model-call classes. Every metered call MUST declare one — a call
+ * with no valid class fails loudly (unclassified spend is impossible), never defaults to "other". Renamed
+ * `followup`→`draft` and added `canary` (system health probe, charged to no account) per the batch's
+ * taxonomy; `import` is extraction-of-a-chat; `capture` is Ask-capture statement detection. (`brief` and
+ * `inventory` make no model call today, and `gate` runs in the eval harness with no spend sink, so none
+ * of those appear here — a class with no producer would be a dead emitter.)
+ */
+export const SPEND_CLASSES = ['extraction', 'import', 'recall', 'priorities', 'draft', 'meeting', 'capture', 'canary'] as const;
+export type SpendClass = (typeof SPEND_CLASSES)[number];
+const SPEND_CLASS_SET: ReadonlySet<string> = new Set(SPEND_CLASSES);
+export function isSpendClass(v: unknown): v is SpendClass {
+  return typeof v === 'string' && SPEND_CLASS_SET.has(v);
+}
 
 export interface SpendByClass {
   costClass: SpendClass;

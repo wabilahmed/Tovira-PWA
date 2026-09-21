@@ -111,6 +111,9 @@ import { PgRecallDailyCounter } from './adapters/spend/pg-recall-daily-counter.j
 import type { ExtractionCounterRepository } from './ports/extraction-counter.js';
 import { InMemoryExtractionCounter } from './adapters/extraction/in-memory-extraction-counter.js';
 import { PgExtractionCounter } from './adapters/extraction/pg-extraction-counter.js';
+import type { ModelCallEventStore } from './ports/model-call-event-store.js';
+import { InMemoryModelCallEventStore } from './adapters/spend/in-memory-model-call-event-store.js';
+import { PgModelCallEventStore } from './adapters/spend/pg-model-call-event-store.js';
 import type { SpendOverrideRepository } from './ports/spend-override-repository.js';
 import { InMemorySpendOverrideRepository } from './adapters/spend/in-memory-spend-override-repository.js';
 import { PgSpendOverrideRepository } from './adapters/spend/pg-spend-override-repository.js';
@@ -479,6 +482,15 @@ export function createRecallDailyCounter(config: AppConfig, appPool?: Pool): Rec
     return new PgRecallDailyCounter(appPool);
   }
   return new InMemoryRecallDailyCounter();
+}
+
+/** [SPEND-INSTRUMENT] The durable per-call model-spend event store (cross-tenant ops accounting). */
+export function createModelCallEventStore(config: AppConfig, rootPool?: Pool): ModelCallEventStore {
+  if (config.authStore === 'postgres') {
+    if (!rootPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgModelCallEventStore(rootPool);
+  }
+  return new InMemoryModelCallEventStore();
 }
 
 /** [TRIAL-FARM] The durable, monotonic extraction counter that backs the trial + paid ceilings. */

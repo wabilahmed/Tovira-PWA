@@ -84,7 +84,7 @@ export class ExtractionCanaryService {
         cacheTtl: '1h',
         messages: [{ role: 'user', content: buildUserMessage({ today, clientName: 'Canary', source: 'paste', text: CANARY_NOTE }) }],
         maxTokens: EXTRACTION_MAX_TOKENS, // MUST match production — the canary certifies the REAL call
-        spendClass: 'extraction', // routes to the extraction model; no userId → not billed to any rep
+        spendClass: 'canary', // system probe, no userId → recorded account-less, never billed to a rep
       });
     } catch (err) {
       // The call itself failed (timeout/abort, HTTP error). Re-throw with a named, safe diagnostic —

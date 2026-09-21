@@ -34,7 +34,7 @@ export class FollowUpService {
       nextSteps ? `NEXT STEPS:\n${nextSteps}` : '',
     ].filter(Boolean).join('\n\n');
 
-    const res = await this.model.complete({ system: SYSTEM, messages: [{ role: 'user', content: input }], maxTokens: 512, userId, spendClass: 'followup' });
+    const res = await this.model.complete({ system: SYSTEM, messages: [{ role: 'user', content: input }], maxTokens: 512, userId, spendClass: 'draft' });
     return { draft: res.text };
   }
 }

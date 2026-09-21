@@ -41,6 +41,7 @@ import {
   createOpsAlertRepository,
   createRecallDailyCounter,
   createExtractionCounter,
+  createModelCallEventStore,
   createSpendOverrideRepository,
   createBriefService,
   createCorrectionRepository,
@@ -90,7 +91,8 @@ import { ExtractionHealthRegistry } from './services/metrics/extraction-health.j
 import { ExtractionCanaryService } from './services/extraction/extraction-canary.js';
 import { SpendService } from './services/spend/spend-service.js';
 import { periodKeyFrom } from './services/spend/period.js';
-import { setSpendSink } from './adapters/model/metered.js';
+import { setSpendSink, setModelCallEventSink } from './adapters/model/metered.js';
+import { ModelCallEventService } from './services/spend/model-call-event-service.js';
 import { RecallSpendGate } from './services/spend/recall-spend-gate.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 
@@ -172,6 +174,10 @@ async function main(): Promise<void> {
   };
   const spend = new SpendService(spendLedger, spendPeriodFor, { capAed: config.spendCapAed, trialCapAed: config.trialSpendCapAed, warnFraction: config.spendWarnFraction }, () => Date.now(), (u, pk) => spendOverrides.effectiveCap(u, pk), onSpendWarn);
   setSpendSink(spend); // every metered model call now records its AED against the rep's period
+  // [SPEND-INSTRUMENT] Per-call event log alongside the ledger: class/model/tokens/cache/cost per call
+  // (system calls recorded account-less). Cross-tenant ops accounting → the root pool.
+  const modelCallEvents = createModelCallEventStore(config, migrationPool);
+  setModelCallEventSink(new ModelCallEventService(modelCallEvents, (uid) => spendPeriodFor(uid, Date.now())));
   // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
   const recallGate = new RecallSpendGate(spend, createRecallDailyCounter(config, appPool), config.recallDailyCapAtCap);
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
