@@ -35,8 +35,15 @@ export class ScheduledBrain {
 
   constructor(
     private readonly deps: ScheduledBrainDeps,
-    /** How often the brain wakes to check for due jobs. */
-    private readonly tickMs = 30_000,
+    /** How often the brain wakes to check for due jobs. This is the RESOLUTION of every job's cadence:
+     *  a job runs at the first tick where `now - lastRunAt >= job.intervalMs`, so no job fires more
+     *  often than its own interval, but none fires *tighter* than a tick either. 15s so the notes-sweep
+     *  (the async-extraction primary processor, intervalMs 15_000) actually runs on its 15s cadence — at
+     *  the old 30s tick the 15s interval was never binding and a queued note waited up to ~30s to extract
+     *  (measured: /health notes-sweep ageSeconds 23/9/24). Cost of the 2× tick frequency is ~11 indexed
+     *  `lastRun` reads every 15s instead of 30s (negligible); the hourly/6h/daily jobs are unaffected —
+     *  their own intervalMs still gates them, the tick only sets the check resolution. */
+    private readonly tickMs = 15_000,
   ) {
     this.now = deps.now ?? (() => Date.now());
     this.log =
