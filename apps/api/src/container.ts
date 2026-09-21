@@ -540,8 +540,17 @@ export function createExtractionModelRouter(
   statusOf: (userId: string, nowMs: number) => Promise<string>,
 ): ModelRouter | undefined {
   if (config.modelProvider !== 'anthropic') return undefined;
+  // [SPEND-INSTRUMENT] Wrap the router's clients in MeteredModelClient — WITHOUT this, extraction/import
+  // (the dominant cost) ran on raw clients and never reached the spend sink, so it was in neither the
+  // ledger nor the spend cap (the cap has never counted extraction; the bug dates to P5-7, 2026-08-01,
+  // predating the ledger itself). Task class 'extraction' keeps the cache-metrics + timeout consistent
+  // with createModelClient; the per-call spendClass (extraction/import) still comes from the request.
   const make = (model: string) =>
-    new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model });
+    new MeteredModelClient(
+      new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model, timeoutMs: config.modelTimeoutMs }),
+      'extraction',
+      model,
+    );
   return new BillingModelRouter(
     statusOf,
     { model: make(config.anthropicModel), modelId: config.anthropicModel },

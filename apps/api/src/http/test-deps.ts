@@ -30,6 +30,8 @@ import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extr
 import { InMemoryExtractionCounter } from '../adapters/extraction/in-memory-extraction-counter.js';
 import { TrialExtractionLimiter } from '../services/extraction/limiter.js';
 import { periodKeyFrom } from '../services/spend/period.js';
+import { SpendService } from '../services/spend/spend-service.js';
+import { InMemorySpendLedgerRepository } from '../adapters/spend/in-memory-spend-ledger-repository.js';
 import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
 import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
 import { InMemoryArchiveIndexRepository } from '../adapters/logs/in-memory-archive-index-repository.js';
@@ -90,6 +92,8 @@ export interface TestDeps extends ApiDeps {
   /** [ASYNC-EXTRACT] Run the background sweep (the real async processor) N passes — how tests drive
    *  extraction now that /extract only accepts + queues. Defaults to 2 passes (transcription → extraction). */
   runSweep: (passes?: number) => Promise<void>;
+  /** [SPEND-INSTRUMENT] the spend cap service — seed spend with `spend.recordAed(...)` to test at-cap behaviour. */
+  spend: SpendService;
 }
 
 /**
@@ -157,7 +161,9 @@ export function buildInMemoryDeps(
     requirements,
     matching, // direction 1 trigger
     undefined, // importCost
-    undefined, // spendGate
+    // [SPEND-INSTRUMENT] extraction spend gate — forward-refs `spend` (declared below); invoked only at
+    // extraction time, so the reference is resolved by then. Extraction defers when the rep is at cap.
+    { canSpend: (uid: string) => spend.canSpend(uid) }, // spendGate
     (uid, cid) => contactAliases.listByClient(uid, cid), // [ALIAS-NORMALISE]
     undefined, // health
     // [TRIAL-FARM] verification gate — extraction requires a verified email (the one paid op). Tests
@@ -182,6 +188,14 @@ export function buildInMemoryDeps(
   const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog });
   const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
+  // [SPEND-INSTRUMENT] The durable spend cap (mirrors prod): status-aware caps (trial 15 / paid 45),
+  // period-bucketed. Wired into the sweep's canSpend skip + the extraction spendGate so a capped rep's
+  // extraction QUEUES (sweep leaves it untouched) rather than spends — now testable end-to-end.
+  const spend = new SpendService(
+    new InMemorySpendLedgerRepository(),
+    (uid, now) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key),
+    { capAed: 45, trialCapAed: 15, warnFraction: 0.8 },
+  );
   // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via
   // the SWEEP (the real path), not by an inline /extract. `runSweep()` runs a bounded number of passes
   // (transcription → extraction takes two), mirroring index.ts wiring incl. the verification skip.
@@ -194,6 +208,7 @@ export function buildInMemoryDeps(
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     isVerified: opts.enforceVerification ? (u: string) => auth.getPublicUser(u).then((x) => x?.emailVerified ?? false) : undefined,
     allow: (u: string) => extractionLimiter.allow(u), // [ASYNC-EXTRACT] ceiling skip (mirrors prod)
+    canSpend: (u: string) => spend.canSpend(u), // [SPEND-INSTRUMENT] spend-cap skip (mirrors prod)
   });
   const runSweep = async (passes = 2): Promise<void> => {
     const today = new Date().toISOString().slice(0, 10);
@@ -249,6 +264,7 @@ export function buildInMemoryDeps(
     recallSessions,
     extractionCounter,
     runSweep,
+    spend,
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),

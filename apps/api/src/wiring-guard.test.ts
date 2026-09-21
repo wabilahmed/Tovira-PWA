@@ -59,6 +59,48 @@ function nonTestSource(): string {
   return out.join('\n');
 }
 
+/** Per-file non-test source, path relative to the src root — for checks that need file boundaries. */
+function nonTestFiles(): Array<{ rel: string; content: string }> {
+  const root = dirname(fileURLToPath(import.meta.url));
+  const out: Array<{ rel: string; content: string }> = [];
+  const walk = (dir: string): void => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.ts') && !e.name.endsWith('.test.ts')) out.push({ rel: p.slice(root.length + 1), content: readFileSync(p, 'utf8') });
+    }
+  };
+  walk(root);
+  return out;
+}
+
+/**
+ * [SPEND-INSTRUMENT / WIRING-GUARD] Every model call must route through the metered sink, so no cost
+ * escapes the ledger (this is the same defect class as an emitter with no caller — extraction ran on
+ * RAW clients from P5-7 and was never metered, so the spend cap never counted it). A raw
+ * AnthropicModelClient constructed outside the metered wrapper — anywhere but the eval/scripts paths,
+ * which are deliberately unattributed — fails CI.
+ */
+describe('[WIRING-GUARD] every model call routes through the metered sink', () => {
+  it('no production code constructs a raw AnthropicModelClient that bypasses MeteredModelClient', () => {
+    const offenders: string[] = [];
+    for (const f of nonTestFiles()) {
+      if (/(^|\/)(scripts|eval)\//.test(f.rel)) continue; // eval + one-off scripts: no sink, no attribution
+      const anthropic = (f.content.match(/new AnthropicModelClient\(/g) ?? []).length;
+      if (anthropic === 0) continue;
+      // container.ts is the ONE sanctioned factory; every client it builds must be wrapped in a
+      // MeteredModelClient. Anywhere else, a raw client is a bypass.
+      if (f.rel.endsWith('container.ts')) {
+        const metered = (f.content.match(/new MeteredModelClient\(/g) ?? []).length;
+        if (metered < anthropic) offenders.push(`${f.rel}: ${anthropic} AnthropicModelClient but only ${metered} MeteredModelClient — an unmetered client`);
+      } else {
+        offenders.push(`${f.rel}: constructs AnthropicModelClient outside the container factory (unmetered)`);
+      }
+    }
+    expect(offenders, `raw model clients bypass the metered sink:\n${offenders.join('\n')}`).toEqual([]);
+  });
+});
+
 describe('[WIRING-GUARD] every registered emitter is reachable in production', () => {
   const src = nonTestSource();
   const indexSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'index.ts'), 'utf8');
