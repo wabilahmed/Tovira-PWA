@@ -6,6 +6,7 @@ import type { ErasureService } from '../services/erasure/erasure-service.js';
 import type { ErasureRequestService } from '../services/erasure/erasure-request-service.js';
 import type { ModelCallEventStore } from '../ports/model-call-event-store.js';
 import { spendByClassReport } from '../services/spend/spend-by-class-report.js';
+import { conversationCostReport } from '../services/spend/conversation-cost-report.js';
 
 export interface OpsRouteDeps {
   /** Unset → the ops routes are disabled (always 403). Never a rep credential. */
@@ -135,6 +136,22 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
     }
     const userId = q.get('userId')?.trim() || undefined;
     sendJson(res, 200, await spendByClassReport(deps.modelCallEvents, fromMs, toMs, userId));
+    return true;
+  }
+
+  // [SPEND-INSTRUMENT B4 · ASK-CONVO] GET /ops/spend/conversation?userId=&conversationId= — per-turn cost
+  // for one conversation (turn number, context size, cost, running total), read from the durable per-call
+  // log. Makes conversation cost GROWTH visible; ops-only (a measurement surface, never rep-facing).
+  if (req.method === 'GET' && url === '/ops/spend/conversation') {
+    if (!deps.modelCallEvents) { sendJson(res, 404, { error: 'not_found' }); return true; }
+    const q = new URL(req.url ?? '/', 'http://x').searchParams;
+    const userId = q.get('userId')?.trim();
+    const conversationId = q.get('conversationId')?.trim();
+    if (!userId || !conversationId) {
+      sendJson(res, 400, { error: 'validation', message: 'userId and conversationId are required.' });
+      return true;
+    }
+    sendJson(res, 200, await conversationCostReport(deps.modelCallEvents, userId, conversationId));
     return true;
   }
 

@@ -206,6 +206,11 @@ export class RecallService {
       const current = this.sessions
         ? `${HISTORY_DIRECTIVE}\n\nQUESTION: ${question}\n\nEXCERPTS:\n${fencedExcerpts}`
         : `QUESTION: ${question}\n\nEXCERPTS:\n${fencedExcerpts}`;
+      // [ASK-CONVO] Turn attribution is known before the call: turnIndex = prior rep turns + 1. Stamped
+      // on the request so the durable per-call log ties this call's cost to (conversation, turn) — that
+      // is what makes per-turn conversation cost growth measurable from data (B4).
+      const turnIndex = history.filter((m) => m.role === 'user').length + 1;
+      const historyTokens = estimateTokens(history.map((m) => m.content).join('\n'));
       try {
         const res = await this.model.complete({
           system: SYSTEM, // byte-identical prefix; the window + directive ride the variable messages
@@ -213,10 +218,9 @@ export class RecallService {
           maxTokens: 512,
           userId,
           spendClass: 'recall', // SPEND-CAP
+          ...(sessionId ? { conversationId: sessionId, turnIndex } : {}), // ASK-CONVO attribution
         });
         answer = res.text.trim() || NO_ANSWER;
-        const turnIndex = history.filter((m) => m.role === 'user').length + 1;
-        const historyTokens = estimateTokens(history.map((m) => m.content).join('\n'));
         this.recordTurn(userId, excerpts, turnIndex, historyTokens, res.usage);
       } catch {
         // Never fabricate on a model failure — fall back to the verbatim receipts.

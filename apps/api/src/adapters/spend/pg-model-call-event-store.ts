@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { ModelCallEvent, ModelCallEventStore, ClassAggregate, ModelAggregate } from '../../ports/model-call-event-store.js';
+import type { ModelCallEvent, ModelCallEventStore, ClassAggregate, ModelAggregate, ConversationTurnRow } from '../../ports/model-call-event-store.js';
 import { isSpendClass } from '../../ports/spend-ledger-repository.js';
 import { USD_TO_AED } from '../../services/metrics/model-budget.js';
 
@@ -14,10 +14,10 @@ export class PgModelCallEventStore implements ModelCallEventStore {
     await this.pool.query(
       `INSERT INTO model_call_events
          (user_id, period_key, spend_class, model, input_tokens, output_tokens, thinking_tokens,
-          cache_read_tokens, cache_creation_tokens, cache_hit, cost_aed)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          cache_read_tokens, cache_creation_tokens, cache_hit, cost_aed, conversation_id, turn_index)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [e.userId, e.periodKey, e.spendClass, e.model, e.inputTokens, e.outputTokens, e.thinkingTokens,
-        e.cacheReadTokens, e.cacheCreationTokens, e.cacheHit, e.costAed],
+        e.cacheReadTokens, e.cacheCreationTokens, e.cacheHit, e.costAed, e.conversationId ?? null, e.turnIndex ?? null],
     );
   }
 
@@ -64,6 +64,29 @@ export class PgModelCallEventStore implements ModelCallEventStore {
         model: String(r.model), calls: Number(r.calls), inputTokens: Number(r.input), outputTokens: Number(r.output),
         cacheReadTokens: Number(r.cache_read), cacheCreationTokens: Number(r.cache_create),
         costAed, costUsd: Math.round((costAed / USD_TO_AED) * 1e6) / 1e6,
+      };
+    });
+  }
+
+  async conversationTurns(userId: string, conversationId: string): Promise<ConversationTurnRow[]> {
+    const { rows } = await this.pool.query(
+      `SELECT turn_index, input_tokens, output_tokens, cache_read_tokens, cost_aed,
+              extract(epoch from created_at) * 1000 AS at_ms
+         FROM model_call_events
+        WHERE user_id = $1 AND conversation_id = $2
+        ORDER BY turn_index ASC NULLS LAST, created_at ASC`,
+      [userId, conversationId],
+    );
+    let cumulative = 0;
+    return rows.map((r: Record<string, string>) => {
+      const inputTokens = Number(r.input_tokens);
+      const cacheReadTokens = Number(r.cache_read_tokens);
+      const costAed = Number(r.cost_aed);
+      cumulative = Math.round((cumulative + costAed) * 1e6) / 1e6;
+      return {
+        turnIndex: Number(r.turn_index), contextTokens: inputTokens + cacheReadTokens,
+        inputTokens, cacheReadTokens, outputTokens: Number(r.output_tokens),
+        costAed, cumulativeCostAed: cumulative, at: Number(r.at_ms),
       };
     });
   }

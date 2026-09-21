@@ -16,7 +16,12 @@ export function setSpendSink(sink: SpendSink | undefined): void {
 /** [SPEND-INSTRUMENT] The durable PER-CALL event sink (class/model/tokens/cache/cost), alongside the
  *  ledger. Records rep AND system calls (system → userId null). Set once at boot; unset in tests/eval. */
 export interface ModelCallEventSink {
-  record(userId: string | null, spendClass: SpendClass, model: string, usage: ModelUsage): Promise<void>;
+  record(userId: string | null, spendClass: SpendClass, model: string, usage: ModelUsage, attribution?: ConversationAttribution): Promise<void>;
+}
+/** [ASK-CONVO] Conversation attribution carried from the recall request into the durable per-call log. */
+export interface ConversationAttribution {
+  conversationId?: string;
+  turnIndex?: number;
 }
 let eventSink: ModelCallEventSink | undefined;
 export function setModelCallEventSink(sink: ModelCallEventSink | undefined): void {
@@ -58,7 +63,10 @@ export class MeteredModelClient implements ModelClient {
       if (cls !== undefined) {
         // Per-call event log — records rep AND system calls (system → userId null, charged to no account).
         if (eventSink) {
-          try { await eventSink.record(request.userId ?? null, cls, this.modelId, res.usage); }
+          const attribution = request.conversationId !== undefined || request.turnIndex !== undefined
+            ? { conversationId: request.conversationId, turnIndex: request.turnIndex }
+            : undefined;
+          try { await eventSink.record(request.userId ?? null, cls, this.modelId, res.usage, attribution); }
           catch (err) { console.warn('[spend] event record failed', err); }
         }
         // Ledger (canSpend) — rep-attributed calls only (a system call never touches a rep's cap).

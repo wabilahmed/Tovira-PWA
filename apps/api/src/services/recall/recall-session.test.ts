@@ -117,6 +117,24 @@ describe('[ASK-SESSION] the 20-message conversation window', () => {
     expect(cap.last().length).toBe(3);
   });
 
+  // [ASK-CONVO B4] The model call is stamped with conversation attribution — that is what lets the durable
+  // per-call log answer "what did THIS conversation cost, per turn". conversationId = the session; turnIndex
+  // increments within a session and resets when a new session starts.
+  it('[ASK-CONVO] stamps the model request with (conversationId, turnIndex): same session increments, idle resets', async () => {
+    const reqs: Array<{ conversationId?: string; turnIndex?: number }> = [];
+    const client: ModelClient = { complete: async (req) => { reqs.push({ conversationId: req.conversationId, turnIndex: req.turnIndex }); return { text: 'ok', usage: { inputTokens: 10, outputTokens: 5 } }; } };
+    const svc = new RecallService(embedder, oneMatch, client, cfg, undefined, 'h', new InMemoryRecallSessionRepository());
+    await svc.ask('u', 'first', T);
+    await svc.ask('u', 'second', T + MIN); // same session
+    await svc.ask('u', 'much later', T + 31 * MIN); // > 30 min idle → new session
+    expect(reqs[0]!.turnIndex).toBe(1);
+    expect(reqs[1]!.turnIndex).toBe(2);
+    expect(reqs[0]!.conversationId).toBeTruthy();
+    expect(reqs[1]!.conversationId).toBe(reqs[0]!.conversationId); // same conversation
+    expect(reqs[2]!.turnIndex).toBe(1); // fresh session resets the turn counter
+    expect(reqs[2]!.conversationId).not.toBe(reqs[0]!.conversationId); // a different conversation
+  });
+
   it('isolates sessions per rep', async () => {
     const sessions = new InMemoryRecallSessionRepository();
     const svc = new RecallService(embedder, oneMatch, capturing().client, cfg, undefined, 'h', sessions);

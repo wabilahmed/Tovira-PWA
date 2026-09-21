@@ -33,6 +33,12 @@ export interface ModelCompletionRequest {
    *  (no attribution → not recorded). `spendClass` is a SpendClass string (e.g. 'extraction'). */
   userId?: string;
   spendClass?: string;
+  /** [SPEND-INSTRUMENT · ASK-CONVO] Conversation attribution for per-turn cost growth. Set by the
+   *  recall path so the durable per-call log can answer "what did this 20-turn conversation cost, and
+   *  how does per-turn cost grow as context accretes". `conversationId` = the recall session; `turnIndex`
+   *  = the 1-based turn. Absent for one-shot calls (extraction/import) — those are not conversations. */
+  conversationId?: string;
+  turnIndex?: number;
 }
 
 export interface ModelUsage {

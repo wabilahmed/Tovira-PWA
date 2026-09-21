@@ -74,4 +74,22 @@ describe('[SPEND-INSTRUMENT] per-call event log + mandatory class', () => {
     const c = new MeteredModelClient(richInner(), 'extraction', 'claude-sonnet-5', new ModelMetricsRegistry());
     await expect(c.complete({ messages: [{ role: 'user', content: 'x' }], userId: 'rep-A', spendClass: 'other' })).rejects.toThrow(/invalid spendClass/i);
   });
+
+  // [ASK-CONVO B4] A recall turn carries conversation attribution → it reaches the durable log so per-turn
+  // conversation cost is measurable. A one-shot call (no conversationId/turnIndex) passes no attribution.
+  it('forwards conversation attribution (conversationId, turnIndex) to the event sink for a recall turn', async () => {
+    const attributions: Array<unknown> = [];
+    setModelCallEventSink({ record: async (_u, _c, _m, _usage, attribution) => { attributions.push(attribution); } } as ModelCallEventSink);
+    const c = new MeteredModelClient(richInner(), 'recall', 'claude-haiku-4-5-20251001', new ModelMetricsRegistry());
+    await c.complete({ messages: [{ role: 'user', content: 'x' }], userId: 'rep-A', spendClass: 'recall', conversationId: 'sess-1', turnIndex: 7 });
+    expect(attributions[0]).toEqual({ conversationId: 'sess-1', turnIndex: 7 });
+  });
+
+  it('passes NO attribution for a one-shot call (extraction is not a conversation)', async () => {
+    const attributions: Array<unknown> = [];
+    setModelCallEventSink({ record: async (_u, _c, _m, _usage, attribution) => { attributions.push(attribution); } } as ModelCallEventSink);
+    const c = new MeteredModelClient(richInner(), 'extraction', 'claude-sonnet-5', new ModelMetricsRegistry());
+    await c.complete({ messages: [{ role: 'user', content: 'x' }], userId: 'rep-A', spendClass: 'extraction' });
+    expect(attributions[0]).toBeUndefined();
+  });
 });

@@ -1,4 +1,4 @@
-import type { ModelCallEvent, ModelCallEventStore, ClassAggregate, ModelAggregate } from '../../ports/model-call-event-store.js';
+import type { ModelCallEvent, ModelCallEventStore, ClassAggregate, ModelAggregate, ConversationTurnRow } from '../../ports/model-call-event-store.js';
 import type { SpendClass } from '../../ports/spend-ledger-repository.js';
 import { USD_TO_AED } from '../../services/metrics/model-budget.js';
 
@@ -45,4 +45,28 @@ export class InMemoryModelCallEventStore implements ModelCallEventStore {
     for (const a of by.values()) a.costUsd = Math.round((a.costAed / USD_TO_AED) * 1e6) / 1e6;
     return [...by.values()].sort((x, y) => y.costAed - x.costAed);
   }
+
+  async conversationTurns(userId: string, conversationId: string): Promise<ConversationTurnRow[]> {
+    const turns = this.events
+      .filter((e) => e.userId === userId && e.conversationId === conversationId)
+      .sort((a, b) => (a.turnIndex ?? 0) - (b.turnIndex ?? 0) || a.at - b.at);
+    let cumulative = 0;
+    return turns.map((e) => {
+      cumulative = round(cumulative + e.costAed);
+      return {
+        turnIndex: e.turnIndex ?? 0,
+        contextTokens: e.inputTokens + e.cacheReadTokens,
+        inputTokens: e.inputTokens,
+        cacheReadTokens: e.cacheReadTokens,
+        outputTokens: e.outputTokens,
+        costAed: e.costAed,
+        cumulativeCostAed: cumulative,
+        at: e.at,
+      };
+    });
+  }
+}
+
+function round(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
 }

@@ -20,6 +20,24 @@ export interface ModelCallEvent {
   cacheHit: boolean; // cacheReadTokens > 0
   costAed: number;
   at: number;
+  /** [ASK-CONVO] Conversation attribution — set only for recall turns. `conversationId` = the recall
+   *  session; `turnIndex` = the 1-based turn. Null on one-shot calls (extraction/import). */
+  conversationId?: string | null;
+  turnIndex?: number | null;
+}
+
+/** [ASK-CONVO] One recall turn's cost, in turn order — the per-turn conversation growth curve (B4).
+ *  `contextTokens` is the context the model actually saw that turn (fresh input + cache-read), the
+ *  number that grows as history accretes. `cumulativeCostAed` is the running conversation total. */
+export interface ConversationTurnRow {
+  turnIndex: number;
+  contextTokens: number;
+  inputTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
+  costAed: number;
+  cumulativeCostAed: number;
+  at: number;
 }
 
 /** One class's totals over a period — the readable per-feature cost (B3). */
@@ -58,4 +76,7 @@ export interface ModelCallEventStore {
   /** Per-MODEL totals over the same window — the invoice-comparable line (Anthropic bills per model, per
    *  token type, in USD). Same scoping as aggregateByClass. */
   aggregateByModel(fromMs: number, toMs: number, userId?: string): Promise<ModelAggregate[]>;
+  /** [ASK-CONVO] Per-turn cost for ONE conversation, in turn order (B4) — reads the recorded turns, never
+   *  recomputes. Scoped to (userId, conversationId): one rep's one conversation, never another's. */
+  conversationTurns(userId: string, conversationId: string): Promise<ConversationTurnRow[]>;
 }

@@ -16,7 +16,7 @@ export class ModelCallEventService {
     private readonly now: () => number = () => Date.now(),
   ) {}
 
-  async record(userId: string | null, spendClass: SpendClass, model: string, usage: ModelUsage): Promise<void> {
+  async record(userId: string | null, spendClass: SpendClass, model: string, usage: ModelUsage, attribution?: { conversationId?: string; turnIndex?: number }): Promise<void> {
     const callUsage: CallUsage = {
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
@@ -38,6 +38,8 @@ export class ModelCallEventService {
       cacheHit: (usage.cacheReadInputTokens ?? 0) > 0,
       costAed,
       at: this.now(),
+      conversationId: attribution?.conversationId ?? null,
+      turnIndex: attribution?.turnIndex ?? null,
     });
   }
 }
