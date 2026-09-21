@@ -188,13 +188,13 @@ export function buildInMemoryDeps(
   const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog });
   const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
-  // [SPEND-INSTRUMENT] The durable spend cap (mirrors prod): status-aware caps (trial 15 / paid 45),
+  // [SPEND-INSTRUMENT] The durable spend cap (mirrors prod): status-aware caps (trial 20 / paid 45),
   // period-bucketed. Wired into the sweep's canSpend skip + the extraction spendGate so a capped rep's
   // extraction QUEUES (sweep leaves it untouched) rather than spends — now testable end-to-end.
   const spend = new SpendService(
     new InMemorySpendLedgerRepository(),
     (uid, now) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key),
-    { capAed: 45, trialCapAed: 15, warnFraction: 0.8 },
+    { capAed: 45, trialCapAed: 20, warnFraction: 0.8 },
   );
   // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via
   // the SWEEP (the real path), not by an inline /extract. `runSweep()` runs a bounded number of passes

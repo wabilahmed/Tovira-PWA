@@ -127,8 +127,9 @@ export interface AppConfig {
    *  counter (not prunable log rows). Derived to cover one real rep's genuine first import (~30 chat
    *  imports, one extraction each) plus ~two weeks of daily capture (~5/day × 14 ≈ 70) ≈ 100, with
    *  no meaningful headroom beyond it — a real rep never notices; a farmer's trial is near-worthless.
-   *  NOTE: the AED 45 trial spend cap independently bounds a trial to ~65–150 extractions, so this is
-   *  durable defense-in-depth (and the binding limit if per-extraction cost falls). Number NOT settled. */
+   *  NOTE: the AED 20 trial spend cap (trialSpendCapAed) independently bounds a trial's SPEND (now that
+   *  extraction is metered), so this count ceiling is durable defense-in-depth (and the binding limit if
+   *  per-extraction cost falls). Number NOT settled. */
   trialExtractionCeiling: number;
   /** [TRIAL-FARM] Per-billing-PERIOD extraction ceiling for a PAYING account (active/past_due). Far
    *  more generous than the trial ceiling — a card + real accountability — and per-period (resets each
@@ -147,11 +148,14 @@ export interface AppConfig {
   sweepConcurrency: number;
   /** [TRIAL-FARM] The spend cap for a TRIALING account — far tighter than the paying-account failsafe.
    *  The AED 45 cap was derived as a PAYING month's cost guard (COGS ~AED 43–48); reusing it for a
-   *  14-day trial lets one trial burn most of a paying month's budget before anyone pays. Derived from
-   *  the measured import cost (~AED 0.34 / 1,000 messages; a 5,615-message import ≈ AED 2.3–2.5 warm):
-   *  a genuine first import (an active book, generously ~30 chats) plus ~two weeks of short daily notes
-   *  is well under AED 10, so AED 15 leaves ~50% headroom for a heavy real rep while cutting per-inbox
-   *  farming value to a third of the AED 45 exposure. Enforced pre-spend, degrade-not-break. NOT settled. */
+   *  14-day trial lets one trial burn most of a paying month's budget before anyone pays. Sized against
+   *  the NOW-METERED pricing (callCostUsd, Sonnet — trials route to Sonnet; see trial-cost.test.ts):
+   *  a realistic first fortnight (~30 imported chats + ~5 daily notes/day × 14) ≈ AED 6.3, and a
+   *  heavy-BUT-LEGIT rep (~40 big chats + ~10 notes/day) ≈ AED 15.3. At **AED 20**: a normal fortnight
+   *  uses ~a third of the cap, the heavy-legit case clears with margin (so the most engaged prospect
+   *  isn't the one throttled), and per-inbox farming value stays under HALF the old AED 45 exposure.
+   *  (Was 15 — raised because 15.3 would have throttled the heaviest legitimate trial, the wrong person.)
+   *  Enforced pre-spend, degrade-not-break. NOT settled. */
   trialSpendCapAed: number;
   spendWarnFraction: number;
   recallDailyCapAtCap: number;
@@ -256,7 +260,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     paidExtractionCeiling: parsePositive(env.PAID_EXTRACTION_CEILING, 2000, 'PAID_EXTRACTION_CEILING'),
     spendCapAed: parsePositive(env.SPEND_CAP_AED, 45, 'SPEND_CAP_AED'),
     sweepConcurrency: parsePositive(env.SWEEP_CONCURRENCY, 5, 'SWEEP_CONCURRENCY'),
-    trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, 15, 'TRIAL_SPEND_CAP_AED'),
+    trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, 20, 'TRIAL_SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),

@@ -33,7 +33,7 @@ describe('[SPEND-INSTRUMENT] at-cap extraction queues (sweep skip), never fails'
   it('a spend-capped rep\'s extraction stays queued and UNTOUCHED; capture + export still work', async () => {
     const { token, userId } = await signup('spend-capped@example.com');
     // Push the rep to their (trial) spend cap — as metered extraction now would.
-    await deps.spend.recordAed(userId, 'extraction', 15);
+    await deps.spend.recordAed(userId, 'extraction', 20);
     expect(await deps.spend.canSpend(userId)).toBe(false);
 
     const clientId = ((await (await fetch(`${base}/clients`, { method: 'POST', headers: H(token), body: JSON.stringify({ name: 'Acme' }) })).json()) as { id: string }).id;
