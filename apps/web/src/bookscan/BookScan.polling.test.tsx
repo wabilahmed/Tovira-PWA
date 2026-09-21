@@ -19,8 +19,12 @@ const rep = (done: boolean, items: BookScanItem[] = []): BookScanReport => ({
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-// Flush the two-stage effect chain (poll → setReport, then report → setShown → re-render).
-const flush = async (): Promise<void> => { await vi.advanceTimersByTimeAsync(0); await vi.advanceTimersByTimeAsync(0); };
+// Drain the two-stage effect chain (poll → setReport, then report → setShown → re-render). A fixed
+// number of turns is non-deterministic under CPU load, so advance timers UNTIL a condition holds
+// (bounded), which deterministically drains the effect chain however many turns it takes.
+const flushUntil = async (cond: () => boolean, maxTurns = 30): Promise<void> => {
+  for (let i = 0; i < maxTurns && !cond(); i++) await vi.advanceTimersByTimeAsync(0);
+};
 
 describe('[BOOKSCAN-STREAM] polling lifecycle', () => {
   it('polls while working and STOPS once the scan is done', async () => {
@@ -49,14 +53,14 @@ describe('[BOOKSCAN-STREAM] polling lifecycle', () => {
   it('shows correct current state after a remount mid-scan (not a stale snapshot)', async () => {
     const scan1 = vi.fn<() => Promise<BookScanReport | null>>().mockResolvedValue(rep(false, [finding('send the quote')]));
     const first = render(<BookScan api={{ scan: scan1 }} />);
-    await flush();
+    await flushUntil(() => screen.queryAllByText(/send the quote/i).length > 0);
     expect(screen.getAllByText(/send the quote/i).length).toBeGreaterThan(0);
     first.unmount(); // leaving the screen clears the interval
 
     // Coming back: a fresh mount re-fetches and shows the NOW-current (finished) state.
     const scan2 = vi.fn<() => Promise<BookScanReport | null>>().mockResolvedValue(rep(true, [finding('send the quote'), finding('call them back')]));
     render(<BookScan api={{ scan: scan2 }} />);
-    await flush();
+    await flushUntil(() => screen.queryAllByText(/call them back/i).length > 0);
     expect(scan2).toHaveBeenCalled();
     expect(screen.getAllByText(/call them back/i).length).toBeGreaterThan(0); // current state, not stale
     expect(screen.queryByTestId('scan-progress')).toBeNull(); // finished → no scanning indicator
