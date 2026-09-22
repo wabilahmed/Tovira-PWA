@@ -8,40 +8,49 @@ const parse = (p: string): Document => new DOMParser().parseFromString(read(p), 
 const PRIVACY = 'apps/web/privacy/index.html';
 const TERMS = 'apps/web/terms/index.html';
 
-describe('[SITE / LEGAL] Privacy & Terms exist and are honest skeletons', () => {
-  it('both pages exist with a single h1 and a noindex draft marker', () => {
+// [SITE / LEGAL] These pages are now PUBLISHED (owner-approved final text, all four publish gates green
+// in production). The test flipped from guarding "honest draft skeleton" to guarding the published
+// state: no draft/noindex markers, and every mandated protection actually present in the shipped copy.
+describe('[SITE / LEGAL] Privacy & Terms are published, not drafts', () => {
+  it('both pages are published: one h1, and NO noindex / LAWYER / Draft markers', () => {
     for (const p of [PRIVACY, TERMS]) {
       const d = parse(p);
+      const raw = read(p);
       expect(d.querySelectorAll('h1')).toHaveLength(1);
-      expect(d.querySelector('meta[name="robots"]')?.getAttribute('content')).toContain('noindex');
+      // Published: indexable (the noindex meta is gone) and no draft scaffolding.
+      expect(d.querySelector('meta[name="robots"]')).toBeNull();
+      expect(raw).not.toMatch(/LAWYER REVIEW REQUIRED/i);
+      expect(raw).not.toMatch(/·\s*Draft/i);
     }
   });
 
-  // No invented legal text: every page is explicitly marked as needing a lawyer.
-  it('carries LAWYER REVIEW REQUIRED markers (no invented final legal text)', () => {
-    expect(read(PRIVACY)).toMatch(/LAWYER REVIEW REQUIRED/);
-    expect(read(TERMS)).toMatch(/LAWYER REVIEW REQUIRED/);
-    // ...on more than just the header — the risky sections are flagged too.
-    expect((read(PRIVACY).match(/LAWYER REVIEW REQUIRED/g) ?? []).length).toBeGreaterThanOrEqual(5);
-  });
-
-  it('privacy covers the mandated topics: third-party client data, sub-processors, training log, retention, rights, UAE contact', () => {
+  it('privacy covers the mandated topics with real, shipped text', () => {
     const t = read(PRIVACY);
-    expect(t).toMatch(/third[- ]part(y|ies)/i);
-    expect(t).toMatch(/messages? (written|authored) by your clients|contain messages/i);
-    for (const sub of ['Amazon Web Services', 'Anthropic', 'Groq', 'Stripe']) expect(t).toContain(sub);
-    expect(t).toMatch(/AWS region/); // processing location flagged
-    expect(t).toMatch(/training log/i);
-    expect(t).toMatch(/retention/i);
-    expect(t).toMatch(/export/i);
+    // Third-party (non-user) client data.
+    expect(t).toMatch(/you are not a user|messages written by your clients/i);
+    // Every sub-processor named, with processing locations.
+    for (const sub of ['Amazon Web Services', 'Anthropic', 'Groq', 'Stripe', 'Resend']) expect(t).toContain(sub);
+    expect(t).toContain('eu-north-1'); // where data is held
+    expect(t).toMatch(/stored in Sweden/i);
+    // The training stance, retention, and data-subject controls.
+    expect(t).toMatch(/do not (keep|retain).{0,40}train AI models|not to train models/i);
+    expect(t).toMatch(/how long we keep/i);
+    expect(t).toMatch(/export is built into Tovira/i);
     expect(t).toMatch(/delete your account/i);
-    expect(t).toMatch(/UAE contact/i);
+    // The protections we actually ship (verified against production before publishing).
+    expect(t).toMatch(/do not record health information as facts/i);
+    expect(t).toMatch(/removes Emirates ID numbers, card numbers, IBANs/i); // deterministic redaction
+    expect(t).toMatch(/fewer than 20 reps or clients/i); // k-anonymity floor = 20
+    expect(t).toMatch(/UAE Data Office/i); // the regulator to complain to
   });
 
-  it('terms flags third-party data consent and billing', () => {
+  it('terms flags third-party data responsibility, billing, erasure and export-before-delete', () => {
     const t = read(TERMS);
-    expect(t).toMatch(/messages authored by your clients/i);
+    expect(t).toMatch(/legal right to upload every conversation/i); // the rep warrants the right
+    expect(t).toMatch(/you are the data controller/i);
     expect(t).toMatch(/AED 299/);
+    expect(t).toMatch(/third-party erasure requests/i); // 4.9
+    expect(t).toMatch(/export your data first/i); // 12.4 — deletion is immediate
   });
 
   it('the landing footer links to /privacy and /terms', () => {
