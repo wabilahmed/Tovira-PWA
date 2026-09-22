@@ -1,5 +1,6 @@
 import type { ErasureService, CommitOptions, SummaryCandidate } from './erasure-service.js';
 import type { ErasureRequestRepository, ErasureRequestRecord } from '../../ports/erasure-request-repository.js';
+import type { ErasureReceiptRepository } from '../../ports/erasure-receipt-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { PushableAlert } from '../push/push-dispatch-service.js';
 
@@ -21,6 +22,9 @@ export interface ErasureRequestDeps {
   erasure: ErasureService;
   requests: ErasureRequestRepository;
   notifications: NotificationRepository;
+  /** [ERASURE-RECEIPT] The durable proof-of-erasure store that outlives account deletion. Absent →
+   *  no receipt is written (dev/in-memory without it); completion still succeeds. */
+  receipts?: ErasureReceiptRepository;
   /** Push through the shared dispatcher (erasure notices are time-critical → they push). */
   dispatch: (userId: string, alerts: PushableAlert[]) => Promise<unknown>;
   now?: () => number;
@@ -93,6 +97,17 @@ export class ErasureRequestService {
     if (result.needsReview.length > 0) {
       return { ok: false, reason: 'summary_needs_review', candidates: result.needsReview };
     }
+    // [ERASURE-RECEIPT] Write the durable proof-of-erasure BEFORE marking the request completed, so a
+    // failed write leaves the request un-completed and retryable (the receipt is keyed on the request id
+    // with ON CONFLICT DO NOTHING, so a retry is idempotent). Minimal by construction: request id, the
+    // two dates, and per-store COUNTS — no requester name, no rep id, no content. It has no user_id/FK,
+    // so it survives the rep deleting their account (the tenant erasure_audit does not).
+    await this.deps.receipts?.record({
+      requestId: req.id,
+      receivedAt: req.requestedAt,
+      completedAt: this.now(),
+      categories: result.categories,
+    });
     await this.deps.requests.setStatus(userId, requestId, 'completed');
     const summary = summariseCategories(result.categories.map((c) => `${c.category}:${c.deleted}`));
     await this.notify(userId, {

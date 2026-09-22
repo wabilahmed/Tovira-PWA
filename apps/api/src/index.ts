@@ -65,6 +65,7 @@ import {
   createPushDispatchService,
   createErasureAuditRepository,
   createErasureRequestRepository,
+  createErasureReceiptRepository,
   createAccountEmailService,
   createImageRepository,
   createHeroService,
@@ -236,7 +237,9 @@ async function main(): Promise<void> {
   // are removed. A metered client, but every rewrite request carries spendClass 'erasure' and NO userId,
   // so it records account-less — never a rep's spend cap or extraction ceiling (erasure is legal, not usage).
   const erasure = new ErasureService({ clients, notes, extractionLog: extractionLogs, audit: createErasureAuditRepository(config, appPool), archiveIndex, archiveStorage: storage, summariser: createModelClient(config, 'extraction') });
-  const erasureRequests = new ErasureRequestService({ erasure, requests: createErasureRequestRepository(config, appPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
+  // [ERASURE-RECEIPT] the proof-of-erasure store uses the ROOT pool (migrationPool): it has no RLS and
+  // no user_id/FK, so it is not tenant data and it survives the rep deleting their account.
+  const erasureRequests = new ErasureRequestService({ erasure, requests: createErasureRequestRepository(config, appPool), receipts: createErasureReceiptRepository(config, migrationPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes, matching);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
