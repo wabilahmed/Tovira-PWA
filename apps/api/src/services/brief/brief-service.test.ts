@@ -145,3 +145,26 @@ describe('BriefService', () => {
     expect(ids).not.toContain(unrelated.id); // the focus note is excluded from its own related list
   });
 });
+
+describe('[SCREEN] brief related-notes query embedding excludes held messages', () => {
+  it('embeds only model-safe text — a flagged message never reaches the embedder (Titan)', async () => {
+    const { clients, notes, facts, client } = await seed();
+    const seen: string[] = [];
+    const embedder: Embedder = { dimension: 3, embed: async (t: string) => { seen.push(t); return [0, 0, 0]; } };
+    const HEALTH = 'he is in hospital after surgery';
+    const CLEAN = 'send the floor plan for unit 12';
+    const note = await notes.create('user-A', {
+      clientId: client.id, source: 'whatsapp_export', audioKey: null, status: 'extracted',
+      rawText: `[t1] Client: ${CLEAN}\n[t2] Client: ${HEALTH}`,
+      messages: [
+        { sentAt: 't1', sender: 'Client', body: CLEAN, media: false, role: 'client' },
+        { sentAt: 't2', sender: 'Client', body: HEALTH, media: false, role: 'client', excluded: true, sensitive: [{ category: 'health', span: 'hospital', index: 9 }] },
+      ],
+    });
+    await notes.update('user-A', note.id, { extracted: extraction({}) });
+    await new BriefService(clients, notes, facts, embedder).buildBrief('user-A', client.id);
+    const embedded = seen.join('\n');
+    expect(embedded).toContain(CLEAN); // the unflagged content is embedded
+    expect(embedded).not.toContain(HEALTH); // the held message never reaches the embedder
+  });
+});

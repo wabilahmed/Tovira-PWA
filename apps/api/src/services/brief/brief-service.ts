@@ -1,5 +1,6 @@
 import type { ClientRepository } from '../../ports/client-repository.js';
-import type { NoteRepository } from '../../ports/note-repository.js';
+import type { NoteRepository, ImportedMessage } from '../../ports/note-repository.js';
+import { modelSafeText } from '../import/dedup.js';
 import type { FactsRepository, PromiseRecord } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
 import type { Extraction, ExtractedPerson, PersonalFact } from '../extraction/types.js';
@@ -112,11 +113,14 @@ export class BriefService {
   private async related(
     userId: string,
     clientId: string,
-    notes: Array<{ id: string; rawText: string | null }>,
+    notes: Array<{ id: string; rawText: string | null; messages?: ImportedMessage[] | null }>,
   ): Promise<RelatedNote[]> {
-    const focus = notes.find((n) => n.rawText && n.rawText.trim());
-    if (!focus?.rawText) return [];
-    const query = await this.embedder.embed(focus.rawText);
+    // [SCREEN] The related-notes query embeds the focus note into Titan — a model send of third-party
+    // content. Route it through modelSafeText so a held (flagged) message never reaches the embedder,
+    // exactly like extraction, recall and draft. The caller already passes full notes (listByClient).
+    const focus = notes.find((n) => modelSafeText(n).trim());
+    if (!focus) return [];
+    const query = await this.embedder.embed(modelSafeText(focus));
     const sims = await this.notes.searchSimilar(userId, clientId, query, 5);
     return sims
       .filter((s) => s.note.id !== focus.id && s.similarity >= RELATED_THRESHOLD)
