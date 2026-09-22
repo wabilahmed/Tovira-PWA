@@ -53,6 +53,15 @@ describe('[SITE / LEGAL] Privacy & Terms are published, not drafts', () => {
     expect(t).toMatch(/export your data first/i); // 12.4 — deletion is immediate
   });
 
+  it('has NO unfilled bracketed placeholder — "[" followed by capitals — in either published page', () => {
+    // A published page must never ship a fill-me marker like [DATE] or [CONFIRM REGION]. The legit
+    // redaction example "[card ending 4421]" starts lowercase, so it is deliberately not matched.
+    for (const p of [PRIVACY, TERMS]) {
+      const found = read(p).match(/\[[A-Z][A-Z0-9 _/-]*\]/g) ?? [];
+      expect(found, `${p} still contains placeholder(s): ${found.join(', ')}`).toHaveLength(0);
+    }
+  });
+
   it('the landing footer links to /privacy and /terms', () => {
     const hrefs = [...parse('apps/web/index.html').querySelectorAll('footer a')].map((a) => a.getAttribute('href'));
     expect(hrefs).toContain('/privacy');
