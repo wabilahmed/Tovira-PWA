@@ -20,6 +20,7 @@ import { detectUnansweredQuestions } from '../import/unanswered.js';
 import { detectMisfilePostExtraction, nameMatches } from '../import/misfile.js';
 import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { redactTier2 } from '../redaction/tier2.js';
+import { dropHealthPersonalFacts } from './health-filter.js';
 import type { ImportCostRecord } from '../metrics/import-cost-metrics.js';
 import type { Extraction } from './types.js';
 
@@ -321,6 +322,13 @@ export class ExtractionService {
         const aliases = await this.aliasesFor(userId, note.clientId).catch(() => [] as string[]);
         normaliseCounterpart(extraction, client?.name ?? '', aliases);
       }
+      // [HEALTH-EXCLUSION] Deterministic write-time backstop for Rule 7 (a model rule can slip, a
+      // write-time check cannot — same doctrine as DATE-INVARIANT below): drop any personal_fact the
+      // model tagged `health`, WHOLE, before it is stored — structured health is per-run zero regardless
+      // of the model. Free-text health is deliberately NOT touched (a scrub would edit stored evidence
+      // and eat legitimate words); it stays a Rule-7/Tier-2 concern.
+      const droppedHealth = dropHealthPersonalFacts(extraction);
+      if (droppedHealth > 0) console.info(`[health-exclusion] note ${noteId}: dropped ${droppedHealth} health personal_fact(s) at write time`);
       // Embedding is the semantic-search substrate, NOT the facts. If the embedder is
       // down or denied (e.g. Bedrock model access not yet granted), we must still save
       // the extracted facts — "never lose a recording". The note is 'extracted' with a

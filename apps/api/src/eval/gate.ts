@@ -6,6 +6,7 @@ import type { Extraction } from '../services/extraction/types.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { aggregate, scoreNote, type AggregateMetrics } from './score.js';
 import { redactSensitive } from '../services/redaction/redact.js';
+import { dropHealthPersonalFacts, isHealthFact } from '../services/extraction/health-filter.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { renderThread } from '../services/import/dedup.js';
 import { referenceDateFor } from '../services/extraction/extraction-service.js';
@@ -239,6 +240,10 @@ export async function extractForEval(model: ModelClient, note: EvalNote, opts: {
       promise.confidence = 'low';
     }
   }
+  // [HEALTH-EXCLUSION] Mirror production (extractNote drops health personal_facts at write time), so the
+  // gate certifies the SHIPPED pipeline: structured health is per-run zero. Free-text health remains in
+  // the scored output and is measured by the Tier-2 leakage bar.
+  dropHealthPersonalFacts(ex);
   return ex;
 }
 
@@ -255,6 +260,17 @@ export function tier1Residual(notes: EvalNote[] = EVAL_NOTES): string[] {
     if (redactSensitive(once).total > 0) bad.push(n.id); // a second pass still finds Tier-1 → gap
   }
   return bad;
+}
+
+/**
+ * [HEALTH-EXCLUSION] Count personal_facts still tagged `health` in a scored extraction. On the shipped
+ * pipeline this is ALWAYS 0 — the write-time filter (dropHealthPersonalFacts, applied in extractForEval
+ * and production) removes them. A non-zero means the filter was bypassed or broken: a real regression,
+ * caught deterministically. This is the STRUCTURED-health per-run-zero guarantee (vs the stochastic
+ * free-text Tier-2 bar).
+ */
+export function structuredHealthCount(ex: Extraction | null): number {
+  return ex ? ex.personal_facts.filter((f) => isHealthFact(f)).length : 0;
 }
 
 /**
