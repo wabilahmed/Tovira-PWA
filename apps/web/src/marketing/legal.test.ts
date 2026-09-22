@@ -53,6 +53,44 @@ describe('[SITE / LEGAL] Privacy & Terms are published, not drafts', () => {
     expect(t).toMatch(/export your data first/i); // 12.4 — deletion is immediate
   });
 
+  it('[LEGAL-REVIEW] terms carry the revised clauses (4.4g, 4.6, 4.7, 4.9, 6.2, 6.6, 10.1-10.3, 13.3)', () => {
+    const t = read(TERMS);
+    expect(t).toMatch(/Voice notes are for your own record of a meeting/i); // 4.4(g)
+    expect(t).toMatch(/we record your organisation, your role, and the basis/i); // 4.6 reasonable checks
+    expect(t).toMatch(/may suspend or remove content we reasonably believe/i); // 4.6 suspend suspect content
+    expect(t).toMatch(/only to the extent they are caused by your breach/i); // 4.7 indemnity narrowed
+    expect(t).toMatch(/does not cover loss caused by us/i); // 4.7 excludes our own loss
+    expect(t).toMatch(/During that period we restrict processing of the disputed data/i); // 4.9 restrict
+    expect(t).toMatch(/Telling us is not a veto/i); // 4.9 no veto
+    expect(t).toMatch(/free trial does not reduce anyone's privacy rights/i); // 6.2
+    expect(t).toMatch(/A new price applies only from your next renewal/i); // 6.6
+    expect(t).toMatch(/mandatory rights under consumer protection and data protection law/i); // 10.1
+    expect(t).toMatch(/failed to take reasonable security, backup or restoration measures/i); // 10.2
+    expect(t).toMatch(/reasonable care in selecting our suppliers/i); // 10.3 supplier not a blanket defence
+    expect(t).toMatch(/does not apply to urgent relief/i); // 13.3 pre-action carve-outs
+  });
+
+  it('[LEGAL-REVIEW] terms section 10 is renumbered and the deleted clauses are gone', () => {
+    const t = read(TERMS);
+    expect(t).toMatch(/10\.5 Basis of the bargain/); // renumbered from 10.6
+    expect(t).not.toMatch(/10\.6/); // no clause 10.6 remains
+    expect(t).not.toMatch(/10\.5 Time limit/i); // the twelve-month claim bar is deleted
+    expect(t).not.toMatch(/must be brought within .{0,20}twelve months/i);
+    expect(t).not.toMatch(/incidental to a message you could not reasonably separate/i); // 4.4(f) exception deleted
+  });
+
+  it('[LEGAL-REVIEW] privacy erasure section carries the revised promises', () => {
+    const t = read(PRIVACY);
+    expect(t).toMatch(/we restrict processing of the disputed data while we review it/i); // restrict during review
+    expect(t).toMatch(/Their objection is not a veto/i); // no veto
+    expect(t).toMatch(/identifying the specific data/i); // asserted exception must be specific
+    expect(t).toMatch(/A passing mention can still be personal data/i); // no longer always survives
+    expect(t).toMatch(/test whether it could reasonably be reconnected to an individual and record the result/i); // embedding re-id test
+    expect(t).not.toMatch(/cannot be turned back into your words/i); // old flat "unreadable" claim removed
+    expect(t).toMatch(/complete an erasure within 30 days/i); // 30-day target
+    expect(t).not.toMatch(/cannot promise a fixed completion time/i); // "no fixed time" removed
+  });
+
   it('has NO unfilled bracketed placeholder — "[" followed by capitals — in either published page', () => {
     // A published page must never ship a fill-me marker like [DATE] or [CONFIRM REGION]. The legit
     // redaction example "[card ending 4421]" starts lowercase, so it is deliberately not matched.
