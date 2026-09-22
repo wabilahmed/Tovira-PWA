@@ -58,7 +58,7 @@ Return a single JSON object with exactly these fields. Use an empty array `[]` w
     {
       "subject": "which person this is about",
       "fact": "the durable personal detail, e.g. 'daughter just started college'",
-      "category": "family | hobby | preference | health | background | other"
+      "category": "family | hobby | preference | background | other"
     }
   ],
 

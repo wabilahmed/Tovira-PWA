@@ -1,7 +1,10 @@
 /**
- * The extraction prompt (v0.9 — v0.8 + the `requirements` field: what the client has STATED they
- * are looking for, for inventory matching (REQ-FIELD, Rule 8, Example N). v0.8 = v0.7 + Rule 4
- * promise-boundary clause; v0.7 added the sensitive-data redaction rule), split on the
+ * The extraction prompt (v0.9.6 — removed the health-personal-fact example that positively taught
+ * health extraction, contradicting Rule 7; Rule 7 (exclude health) stands, now backed by a deterministic
+ * write-time filter that drops any health-categorised personal_fact. v0.9 = v0.8 + the `requirements`
+ * field: what the client has STATED they are looking for, for inventory matching (REQ-FIELD, Rule 8,
+ * Example N). v0.8 = v0.7 + Rule 4 promise-boundary clause; v0.7 added the sensitive-data redaction
+ * rule), split on the
  * caching boundary from the spec:
  *  - EXTRACTION_SYSTEM_PROMPT: the CACHEABLE prefix — role + schema + rules +
  *    examples. Byte-identical every call, ≥4,096 tokens (the Haiku cache floor).
@@ -16,7 +19,7 @@
 import { renderGlossary, type GlossaryEntry } from './glossary.js';
 import { UNTRUSTED_BEGIN, UNTRUSTED_END } from './untrusted.js';
 
-export const PROMPT_VERSION = 'tovira-extract-v0.9.5';
+export const PROMPT_VERSION = 'tovira-extract-v0.9.6';
 
 /**
  * [EXTRACT-MAXTOKENS] Output-token ceiling for the extraction call. `claude-sonnet-5` is a reasoning
@@ -233,16 +236,6 @@ Output:
 {"summary":"Demo confirmed with Castellan for the 14th at 10am; a security review is needed before their board meeting on the 20th.","promises":[],"people":[{"name":"Priya","role":null,"reports_to":null,"decision_role":"unknown","notes":"Has an assistant sending the invite"}],"personal_facts":[],"key_dates":[{"description":"Castellan board meeting - security review must be done before it","date":null,"date_raw":"the 20th","type":"deadline"}],"concerns":["If the security review isn't done before the board meeting the deal slips a quarter"],"next_steps":[],"requirements":[],"meeting":{"datetime":null,"datetime_raw":"Friday the 14th at 10am","confirmed":true}}
 
 Note: this meeting is confirmed (they said "locked in"), so confirmed is true. Still keep datetime_raw verbatim and resolve datetime against today's date at call time.
-
-### Example K - a blocker person and a health personal fact
-
-Input:
-"Rough one at Meridian. Their head of security, Klaus, is dead set against any cloud vendor and he's blocking the whole evaluation. Sarah's trying to work around him. Separately, Sarah mentioned she's been off with a back injury and working from home most days."
-
-Output:
-{"summary":"Security lead Klaus at Meridian is blocking the cloud evaluation; Sarah is trying to work around him.","promises":[],"people":[{"name":"Klaus","role":"Head of Security","reports_to":null,"decision_role":"blocker","notes":"Opposed to cloud vendors; blocking the evaluation"},{"name":"Sarah","role":null,"reports_to":null,"decision_role":"influencer","notes":"Trying to work around Klaus"}],"personal_facts":[{"subject":"Sarah","fact":"Recovering from a back injury; working from home most days","category":"health"}],"key_dates":[],"concerns":["Head of security is opposed to cloud vendors and is blocking the evaluation"],"next_steps":[],"requirements":[],"meeting":null}
-
-Note: Klaus is clearly a blocker - that role is stated. A health detail is sensitive but explicitly stated, so it is captured factually under the correct subject.
 
 ### Example L - a preference and no business content
 

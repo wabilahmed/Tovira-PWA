@@ -1,6 +1,6 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
-import { extractForEval, extractImportFixture, evaluateGate, softGate, fabricationGate, tier1Residual, tier2Gate, requirementsGate, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
+import { extractForEval, extractImportFixture, evaluateGate, softGate, fabricationGate, tier1Residual, tier2Gate, requirementsGate, structuredHealthCount, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
 import { IMPORT_FIXTURES, RECALL_BASELINES } from './import-fixtures.js';
 import { scoreInvariants } from './score-invariants.js';
 import { redactSensitive } from '../services/redaction/redact.js';
@@ -181,6 +181,28 @@ async function main(): Promise<void> {
   const r7Pct = r7Total ? (r7Leaks / r7Total) * 100 : 0;
   console.log(`[gate]   RULE-7 ISOLATION (non-gating, defense-in-depth): ${r7Leaks}/${r7Total} raw extractions reproduced a value (${r7Pct.toFixed(2)}%) — prod redacts Tier-1 at ingest; tracked for drift`);
 
+  // [HEALTH-EXCLUSION] Two guarantees, reported apart. STRUCTURED health (a personal_fact tagged
+  // `health`) is per-run ZERO — the write-time filter drops it before storage, deterministically, so a
+  // survivor is a broken filter (gated). FREE-TEXT health (a health detail the model wrote into a
+  // summary/concern, which the filter must NOT edit) stays a stochastic Tier-2 signal — reported, not
+  // gated, so removing the health example can be seen to lower it. Baseline before this fix: 5/170 = 2.94%.
+  const healthFixtures = EVAL_NOTES.filter((n) => (n.forbidden ?? []).some((f) => /surgery|knee|injury|illness|medic|diagnos|hospital|clinic|treatment|health/i.test(f)));
+  let structuredHealth = 0;
+  let freeTextHealthLeaks = 0;
+  let healthTotal = 0;
+  for (let i = 0; i < RUNS; i++) {
+    for (const note of healthFixtures) {
+      const ex = await extractForEval(model, note); // shipped pipeline: ingest-redacted + health filter applied
+      healthTotal += 1;
+      structuredHealth += structuredHealthCount(ex);
+      if (scoreNote(note.expected, ex, note.mustNotMerge, note.forbidden).leakedValues > 0) freeTextHealthLeaks += 1;
+    }
+  }
+  const structuredHealthPass = structuredHealth === 0;
+  const ftPct = healthTotal ? (freeTextHealthLeaks / healthTotal) * 100 : 0;
+  console.log(`[gate]   STRUCTURED HEALTH: ${structuredHealthPass ? '0 — per-run zero (deterministic write-time filter drops every health personal_fact)' : `FAIL — ${structuredHealth} health personal_fact(s) survived the filter`}`);
+  console.log(`[gate]   FREE-TEXT HEALTH LEAKAGE (Tier-2, reported not gated): ${freeTextHealthLeaks}/${healthTotal} = ${ftPct.toFixed(2)}% — baseline before Example K removal: 5/170 = 2.94%`);
+
   // [GATE-IMPORT-SIZE] Import-sized fixtures — the multi-message regime the single-note set never
   // covered (the blind spot behind the max_tokens + timeout breakages). CI subset runs every gate;
   // the cert-only set (medium/hard) runs with GATE_IMPORT_FULL=1.
@@ -234,10 +256,10 @@ async function main(): Promise<void> {
   // a false one is a wrong pitch in front of a client).
   const reqGate = requirementsGate(agg, modelId);
   const reqGates = reqGate.provisional || reqGate.passed;
-  const deployPass = hardPassed && soft.passed && tier1Pass && fabGates && t2Gates && reqGates && importPass;
+  const deployPass = hardPassed && soft.passed && tier1Pass && structuredHealthPass && fabGates && t2Gates && reqGates && importPass;
   console.log(`[gate] IMPORT-SIZED: ${importPass ? 'PASS (trust rules held on every import fixture run)' : 'FAIL — an import fixture broke a trust rule or an invariant'}`);
   const fullyCertified = hardPassed && soft.passed && tier1Pass && fab.passed && !fab.provisional && t2.passed && !t2.provisional && reqGate.passed && !reqGate.provisional;
-  console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + fabrication & Tier-2 ≤ ceiling)' : 'FAIL'}`);
+  console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + structured-health zero + fabrication & Tier-2 ≤ ceiling)' : 'FAIL'}`);
   console.log(`[gate] FULL CERTIFICATION: ${fullyCertified ? 'PASS (aggregate rates certified over ≥ minimum sample)' : deployPass ? 'PROVISIONAL — deploy-safe, an aggregate rate not yet certified at this N' : 'FAIL'}`);
   if (!deployPass) process.exit(1);
 }
