@@ -26,10 +26,12 @@ const isMarketingNav = ({ request, url }: { request: Request; url: URL }): boole
 registerRoute(isMarketingNav, new NetworkFirst({ cacheName: 'tovira-marketing' }));
 
 // SPA: every OTHER navigation serves the app shell (app.html) — the marketing
-// pages own `/`, so the shell moved off it. Never fire for the share-target POST
-// or the marketing routes above.
+// pages own `/`, so the shell moved off it. Never fire for the share-target POST,
+// the marketing routes above, or `/api/*`: a browser navigation to an API URL must
+// reach the network (CloudFront → ALB), not be answered with the cached app shell
+// (which showed the login page for /api/* while curl, bypassing the worker, worked).
 registerRoute(
-  new NavigationRoute(createHandlerBoundToURL('app.html'), { denylist: [/^\/share-target/, MARKETING] }),
+  new NavigationRoute(createHandlerBoundToURL('app.html'), { denylist: [/^\/api\//, /^\/share-target/, MARKETING] }),
 );
 
 // Auto-update: take over immediately so a returning user gets the fresh build
