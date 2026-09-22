@@ -54,3 +54,25 @@ Durable record of extraction-prompt certifications. Agent-maintained (repo root,
 - COST: the `claude-sonnet-5` price row in `model-budget.ts` is a generation stale (Sonnet 4.6 numbers), so this run's gate-reported spend over-states real cost ~1.5×. Tracked separately.
 
 **Scope:** certifies v0.9.7 for deployment. The special-category free-text rate is a positive one-fixture signal, not a certified rate.
+
+---
+
+## GATE ↔ PRODUCTION — KNOWN DIFFERENCES (extractForEval vs extractNote)
+
+The gate's `extractForEval` mirrors production's `extractNote` post-parse pipeline: ingest Tier-1
+redaction, DATE-INVARIANT, `dropSensitivePersonalFacts`, and (added 2026-09-22) `normaliseCounterpart`.
+Three differences remain, logged here as known and accepted for now:
+
+1. **Learned counterpart aliases.** Production passes `aliasesFor(userId, clientId)` (confirmed at import)
+   into `normaliseCounterpart`; the gate passes `note.aliases`, which the guarded fixture carries only where
+   an owner has added it. Until an alias is added, the `client-person-alias` bar reflects production
+   *without a confirmed alias*. (Being closed via an owner edit to the fixture.)
+2. **Per-rep correction glossary.** Production injects `buildGlossary(user corrections)` into the user
+   message; the gate omits it. No scored effect on the fixtures (they carry no corrections). Not mirrored.
+3. **Reference date.** Production uses `referenceDateFor(note, today)` for the message date and the
+   DATE-INVARIANT threshold; the gate uses `note.today` directly. Diverges only for imports whose
+   conversation date ≠ `today`; the fixtures set `today` to the intended reference, so no scored effect.
+
+Persistence/side-effects (verifiedGate, embedding, facts/meeting/requirements persist, inventory matching,
+hold state, telemetry) are intentionally outside the gate — it scores the extraction object, not stored
+rows — and are covered by `extraction-service.test.ts`.
