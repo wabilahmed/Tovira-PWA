@@ -13,13 +13,14 @@
 /**
  * Minimum number of distinct accounts a cross-account aggregate must span.
  *
- * Derivation (NOT settled — the owner sets the final number, and any published aggregate/policy must
- * honour whatever the code says): a standard k-anonymity floor. k = 5 is the common minimum at which a
- * group statistic stops being attributable to one member. With a small pilot population the owner may
- * raise it (10+) for a stronger guarantee; it is deliberately a single constant so that decision is
- * one edit. It is never lowered silently — this is a privacy property, not a tuning knob.
+ * Derivation: SET TO MATCH THE PUBLISHED PRIVACY POLICY. Section 8 of the privacy policy states we
+ * never compute or retain a statistic from a group of fewer than 20 reps or clients, so the code floor
+ * IS 20 — the policy sentence and this constant must always agree. A standard k-anonymity floor is
+ * k = 5; the owner chose the stronger 20 for the pilot population, and the policy promises it, so the
+ * two are bound together. It is never lowered silently — that would make a published promise false;
+ * this is a privacy property, not a tuning knob. (A test pins it to 20 so a silent change fails CI.)
  */
-export const MIN_AGGREGATE_GROUP_SIZE = 5;
+export const MIN_AGGREGATE_GROUP_SIZE = 20;
 
 /** Thrown when an aggregate would span fewer than MIN_AGGREGATE_GROUP_SIZE accounts. */
 export class AggregateGroupTooSmallError extends Error {
