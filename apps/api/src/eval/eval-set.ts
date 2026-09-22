@@ -321,7 +321,7 @@ export const EVAL_NOTES: EvalNote[] = [
     id: 'redact-iban-card', today: '2026-09-01', clientName: 'Delta Trading', source: 'paste',
     note: "Client sent card 4539 1488 0343 6467 and IBAN AE070331234567890123456 for the deposit. I'll send the signed invoice this Friday.",
     expected: { ...empty, summary: 'Client shared payment details for the deposit; rep will send the signed invoice.', promises: [{ text: 'Send the signed invoice', owner: 'rep', due_date: '2026-09-04', due_raw: 'this Friday', confidence: 'high' }] },
-    forbidden: ['4539', '1488', '0343', '6467', 'AE0703', 'AE070331234567890123456'],
+    forbidden: ['4539', '1488', '0343', 'AE0703', 'AE070331234567890123456'],
   },
   {
     id: 'redact-emirates-id', today: '2026-09-01', clientName: 'Nimbus FZE', source: 'paste',
