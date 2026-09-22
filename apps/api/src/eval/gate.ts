@@ -306,7 +306,7 @@ export async function runEval(
 ): Promise<AggregateMetrics & { model: string }> {
   const scores = [];
   for (const note of notes) {
-    const actual = await extractForEval(model, note);
+    const actual = await extractForEval(model, note, { aliases: note.aliases });
     scores.push(scoreNote(note.expected, actual, note.mustNotMerge, note.forbidden));
   }
   return { model: modelId, ...aggregate(scores) };

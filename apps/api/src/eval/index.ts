@@ -29,7 +29,7 @@ interface Scored { note: EvalNote; actual: Extraction | null; score: NoteScore; 
 async function runOnce(model: ModelClient): Promise<Scored[]> {
   const out: Scored[] = [];
   for (const note of EVAL_NOTES) {
-    const actual = await extractForEval(model, note);
+    const actual = await extractForEval(model, note, { aliases: note.aliases });
     // Thread `forbidden` so the gate actually measures leakedValues (REDACT-5 bar = 0);
     // without it the leakage metric is dark and the HARD leak check can never fire.
     // [RECEIPTS-v0.9.5 Task 5] Score receipts against the source: only an imported chat carries
@@ -193,7 +193,7 @@ async function main(): Promise<void> {
   let r7Total = 0;
   for (let i = 0; i < RUNS; i++) {
     for (const note of redFixtures) {
-      const raw = await extractForEval(model, note, { redactIngest: false });
+      const raw = await extractForEval(model, note, { redactIngest: false, aliases: note.aliases });
       r7Total += 1;
       if (scoreNote(note.expected, raw, note.mustNotMerge, note.forbidden).leakedValues > 0) r7Leaks += 1;
     }
@@ -212,7 +212,7 @@ async function main(): Promise<void> {
   let healthTotal = 0;
   for (let i = 0; i < RUNS; i++) {
     for (const note of healthFixtures) {
-      const ex = await extractForEval(model, note); // shipped pipeline: ingest-redacted + sensitive filter applied
+      const ex = await extractForEval(model, note, { aliases: note.aliases }); // shipped pipeline: ingest-redacted + sensitive filter applied
       healthTotal += 1;
       structuredSensitive += structuredSensitiveCount(ex);
       if (scoreNote(note.expected, ex, note.mustNotMerge, note.forbidden).leakedValues > 0) freeTextHealthLeaks += 1;
@@ -235,7 +235,7 @@ async function main(): Promise<void> {
   let scTotal = 0;
   for (let i = 0; i < RUNS; i++) {
     for (const note of scFixtures) {
-      const raw = await extractForEval(model, note, { sensitiveDrop: false }); // RAW pre-filter output
+      const raw = await extractForEval(model, note, { sensitiveDrop: false, aliases: note.aliases }); // RAW pre-filter output
       scTotal += 1;
       scAttempts += (raw?.personal_facts ?? []).filter((f) => SPECIAL_LABEL.test((typeof f.category === 'string' ? f.category : '').trim())).length;
     }

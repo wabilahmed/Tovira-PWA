@@ -25,6 +25,7 @@ export interface EvalNote {
    *  stated_on must equal this and differ from today; that is what proves stated_on tracks the
    *  note's reference date, not the clock (the DATE-REF regression class). Asserted in the test. */
   importMessageDate?: string;
+  aliases?: string[];
 }
 
 const empty = {
@@ -556,7 +557,7 @@ export const EVAL_NOTES: EvalNote[] = [
       summary: 'Casual check-in from the client; nothing actionable.',
       people: [{ name: 'Imtinan Qureshi', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
     }, // the counterpart appears under the REAL client name, never the chat alias "Bubu DXB"
-    forbidden: ['Bubu DXB', 'Bubu'],
+    forbidden: ['Bubu DXB', 'Bubu'],  aliases: ['Bubu DXB', 'Bubu'],
   },
   {
     id: 'client-person-org-negative', today: '2026-07-09', clientName: 'Meridian Corp', source: 'voice',
