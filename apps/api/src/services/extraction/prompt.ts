@@ -1,5 +1,9 @@
 /**
- * The extraction prompt (v0.9.6 — removed the health-personal-fact example that positively taught
+ * The extraction prompt (v0.9.7 — EXPERIMENT: added religion/ethnicity/political_opinion/
+ * sexual_orientation as personal_fact category labels (no examples), so a Rule-7 slip is self-labelled
+ * and dropped deterministically the way health is. Rule 7 (never record these) still stands. Under test:
+ * whether offering the labels PRIMES the model to extract these categories more; revert if it does.
+ * v0.9.6 — removed the health-personal-fact example that positively taught
  * health extraction, contradicting Rule 7; Rule 7 (exclude health) stands, now backed by a deterministic
  * write-time filter that drops any health-categorised personal_fact. v0.9 = v0.8 + the `requirements`
  * field: what the client has STATED they are looking for, for inventory matching (REQ-FIELD, Rule 8,
@@ -19,7 +23,7 @@
 import { renderGlossary, type GlossaryEntry } from './glossary.js';
 import { UNTRUSTED_BEGIN, UNTRUSTED_END } from './untrusted.js';
 
-export const PROMPT_VERSION = 'tovira-extract-v0.9.6';
+export const PROMPT_VERSION = 'tovira-extract-v0.9.7';
 
 /**
  * [EXTRACT-MAXTOKENS] Output-token ceiling for the extraction call. `claude-sonnet-5` is a reasoning
@@ -85,7 +89,7 @@ Return a single JSON object with exactly these fields. Use an empty array [] whe
     {
       "subject": "which person this is about",
       "fact": "the durable personal detail, e.g. 'daughter just started college'",
-      "category": "family | hobby | preference | background | other",
+      "category": "family | hobby | preference | background | other | religion | ethnicity | political_opinion | sexual_orientation",
       "source_span": "the verbatim excerpt this fact was drawn from | null",
       "source_message_at": "YYYY-MM-DDTHH:MM | null"
     }

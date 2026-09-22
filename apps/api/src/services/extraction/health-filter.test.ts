@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isHealthFact, dropHealthPersonalFacts } from './health-filter.js';
+import { isHealthFact, dropHealthPersonalFacts, isSensitiveFact, dropSensitivePersonalFacts, SENSITIVE_CATEGORIES } from './health-filter.js';
 
 /**
  * [HEALTH-EXCLUSION] The deterministic write-time backstop for Rule 7: a personal_fact tagged `health`
@@ -54,5 +54,35 @@ describe('[HEALTH-EXCLUSION] dropHealthPersonalFacts', () => {
     const clean = { personal_facts: [{ subject: 'A', fact: 'x', category: 'hobby' }] };
     expect(dropHealthPersonalFacts(clean)).toBe(0);
     expect(clean.personal_facts).toHaveLength(1);
+  });
+});
+
+describe('[SPECIAL-CATEGORY v0.9.7] dropSensitivePersonalFacts covers health + special categories', () => {
+  it('the sensitive set is exactly health + the four special categories', () => {
+    expect([...SENSITIVE_CATEGORIES].sort()).toEqual(
+      ['ethnicity', 'health', 'political_opinion', 'religion', 'sexual_orientation'],
+    );
+  });
+
+  it('isSensitiveFact matches every sensitive category (case-insensitive) and nothing else', () => {
+    for (const c of ['health', 'religion', 'Ethnicity', 'POLITICAL_OPINION', ' sexual_orientation ']) {
+      expect(isSensitiveFact({ category: c })).toBe(true);
+    }
+    for (const c of ['family', 'hobby', 'preference', 'background', 'other', 'politics']) {
+      expect(isSensitiveFact({ category: c })).toBe(false);
+    }
+  });
+
+  it('drops health AND special-category facts whole, keeps ordinary facts byte-identical', () => {
+    const keep = { subject: 'A', fact: 'likes golf', category: 'hobby' };
+    const ex = { personal_facts: [
+      { subject: 'B', fact: 'is religious', category: 'religion' },
+      keep,
+      { subject: 'C', fact: 'knee surgery', category: 'health' },
+      { subject: 'D', fact: 'votes X', category: 'political_opinion' },
+    ] };
+    expect(dropSensitivePersonalFacts(ex)).toBe(3);
+    expect(ex.personal_facts).toEqual([keep]);
+    expect(ex.personal_facts[0]).toBe(keep); // same object — no edit
   });
 });

@@ -18,6 +18,28 @@ export function isHealthFact(f: { category?: unknown }): boolean {
 }
 
 /**
+ * [SPECIAL-CATEGORY EXPERIMENT v0.9.7] The full sensitive-category set the deterministic filter drops.
+ * The schema now offers these as category LABELS (no examples), so a slip is self-labelled and catchable
+ * the way health was — Rule 7 still says never record them; this is the backstop. EXPERIMENTAL: certified
+ * at N=980 and checked for whether offering the labels PRIMES the model to extract these more (attempts).
+ */
+export const SENSITIVE_CATEGORIES = ['health', 'religion', 'ethnicity', 'political_opinion', 'sexual_orientation'] as const;
+const SENSITIVE_SET: ReadonlySet<string> = new Set(SENSITIVE_CATEGORIES);
+
+/** True when a personal_fact is tagged with any sensitive category (health or a special category). */
+export function isSensitiveFact(f: { category?: unknown }): boolean {
+  return typeof f.category === 'string' && SENSITIVE_SET.has(f.category.trim().toLowerCase());
+}
+
+/** Drop every sensitive-categorised personal_fact in place; returns how many were removed. */
+export function dropSensitivePersonalFacts(ex: { personal_facts?: Array<{ category?: unknown }> }): number {
+  if (!Array.isArray(ex.personal_facts)) return 0;
+  const before = ex.personal_facts.length;
+  ex.personal_facts = ex.personal_facts.filter((f) => !isSensitiveFact(f));
+  return before - ex.personal_facts.length;
+}
+
+/**
  * Drop every health-categorised personal_fact from an extraction, in place. Returns how many were
  * removed. Safe on a missing/!array personal_facts field (returns 0).
  */
