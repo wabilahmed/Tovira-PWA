@@ -1,6 +1,7 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
-import { extractForEval, extractImportFixture, evaluateGate, softGate, fabricationGate, tier1Residual, tier2Gate, requirementsGate, structuredHealthCount, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
+import { extractForEval, extractImportFixture, evaluateGate, softGate, fabricationGate, tier1Residual, requirementsGate, structuredHealthCount, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
+import { classifyLeaks, tier2Bars, tier2ClassOf, type LeakRecord, type Tier2Class } from './tier2-classify.js';
 import { IMPORT_FIXTURES, RECALL_BASELINES } from './import-fixtures.js';
 import { scoreInvariants } from './score-invariants.js';
 import { redactSensitive } from '../services/redaction/redact.js';
@@ -97,6 +98,9 @@ async function main(): Promise<void> {
   };
   const allScores: NoteScore[] = [];
   const allReceipts: ReceiptScore[] = [];
+  // [TIER2-SPLIT] every Tier-2 leak, attributed to fixture/term/field/class/run, so the bars can be
+  // split per class and each leak named. Health is excluded — it has its own structured/free-text bars.
+  const leakRecords: Array<LeakRecord & { run: number }> = [];
   let hardPassed = true;
 
   // Runs are configurable: 3 (default) is the cheap per-run/soft deploy gate; a fabrication
@@ -112,6 +116,10 @@ async function main(): Promise<void> {
     line('FULL SET   ', full, fullGate.passed ? 'HARD PASS' : `HARD FAIL: ${fullGate.reasons.join('; ')}`);
     line('MULTILINGUAL', ml, mlGate.passed ? 'HARD PASS' : `HARD FAIL: ${mlGate.reasons.join('; ')}`);
     if (run === 1) { spuriousPeople(scored); spuriousRequirements(scored); }
+    for (const s of scored) {
+      if (s.note.id === 'health-exclusion') continue; // health has its own bars, not the Tier-2 split
+      for (const rec of classifyLeaks(s.note.id, s.note.forbidden ?? [], s.actual)) leakRecords.push({ ...rec, run });
+    }
     allScores.push(...scored.map((s) => s.score));
     allReceipts.push(...scored.map((s) => s.receipt));
     hardPassed &&= fullGate.passed && mlGate.passed;
@@ -152,18 +160,30 @@ async function main(): Promise<void> {
   const tier1Pass = tier1Bad.length === 0;
   console.log(`[gate]   TIER-1 LEAKAGE: ${tier1Pass ? '0 — deterministically enforced at ingest (redact.ts idempotent; no residual pattern)' : `FAIL — redact.ts left a residual Tier-1 pattern in: ${tier1Bad.join(', ')}`}`);
 
-  // TIER-2 (meaning: religion/health/…): model-enforced (Rule 7), stochastic → AGGREGATE bar.
-  // On the ingest-redacted path, any leakedValues are Tier-2 by construction. Exposures = the
-  // count of Tier-2-bearing fixtures (a forbidden value survives ingest redaction) × runs.
-  const t2Fixtures = EVAL_NOTES.filter((n) => (n.forbidden ?? []).some((f) => redactSensitive(n.note).redacted.includes(f)));
-  const tier2Exposures = t2Fixtures.length * RUNS;
-  const t2 = tier2Gate(agg, tier2Exposures, modelId);
-  const t2State = t2.provisional
-    ? `PROVISIONAL (${agg.leakedValues}/${tier2Exposures} = ${t2.ratePct.toFixed(2)}%, but exposures<${GATE_TIER2.minExposures})`
-    : t2.passed
-      ? `${t2.ratePct.toFixed(2)}% (${agg.leakedValues}/${tier2Exposures}) ≤ ${GATE_TIER2.maxRatePct}% ceiling — model-enforced (Rule 7), aggregate bar`
-      : `FAIL: ${t2.reasons.join('; ')}`;
-  console.log(`[gate]   TIER-2 LEAKAGE: ${t2State}`);
+  // [TIER2-SPLIT] Tier-2 leakage, SPLIT PER CLASS so one class can never be hidden by, or blamed on,
+  // another. A fixture is Tier-2 when a forbidden term survives ingest redaction; exposures per class =
+  // (non-health Tier-2 fixtures in that class) × runs. The SPECIAL-CATEGORY bar (religion / ethnicity /
+  // politics / sexual orientation) is the privacy GATE; alias-normalisation and 'other' are reported,
+  // not gated — an echoed alias is a quality miss, not a privacy leak, and must never fail the privacy bar.
+  const t2Fixtures = EVAL_NOTES.filter((n) => n.id !== 'health-exclusion' && (n.forbidden ?? []).some((f) => redactSensitive(n.note).redacted.includes(f)));
+  const exposuresByClass: Partial<Record<Tier2Class, number>> = {};
+  for (const n of t2Fixtures) { const c = tier2ClassOf(n.id); exposuresByClass[c] = (exposuresByClass[c] ?? 0) + RUNS; }
+  const bars = tier2Bars(leakRecords, exposuresByClass, GATE_TIER2.minExposures, GATE_TIER2.maxRatePct);
+  const scBar = bars.find((b) => b.cls === 'special_category')
+    ?? { cls: 'special_category' as Tier2Class, leaks: 0, exposures: 0, ratePct: 0, provisional: true, passed: true };
+  for (const b of bars) {
+    const state = b.provisional
+      ? `PROVISIONAL (${b.leaks}/${b.exposures} = ${b.ratePct.toFixed(2)}%, exposures<${GATE_TIER2.minExposures})`
+      : b.passed
+        ? `${b.ratePct.toFixed(2)}% (${b.leaks}/${b.exposures}) ≤ ${GATE_TIER2.maxRatePct}% ceiling`
+        : `FAIL: ${b.ratePct.toFixed(2)}% (${b.leaks}/${b.exposures}) > ${GATE_TIER2.maxRatePct}% ceiling`;
+    console.log(`[gate]   TIER-2 ${b.cls.toUpperCase()}${b.cls === 'special_category' ? ' [GATED]' : ' [reported]'}: ${state}`);
+  }
+  // [TIER2-SPLIT] Per-leak printer — a gate that can't say WHAT leaked can't be acted on. Names every
+  // leak: fixture, class, term, the field it landed in (structured store vs free text), and the run.
+  for (const r of leakRecords) {
+    console.log(`[gate]     leak: fixture="${r.fixtureId}" class=${r.cls} term="${r.term}" field=${r.field} (${r.structured ? 'structured' : 'free-text'}) run=${r.run}`);
+  }
 
   // Rule 7 ISOLATION SIGNAL (non-gating): feed RAW values (no ingest redaction) to measure how
   // often the MODEL itself reproduces a Tier-1 value — the defense-in-depth layer for a pattern
@@ -250,16 +270,18 @@ async function main(): Promise<void> {
   // gating on it would make CI flaky and teach re-rolling. The aggregates are certified at
   // the periodic large-N run (GATE_RUNS≥30 => FULL CERTIFICATION), not on every push.
   const fabGates = fab.provisional || fab.passed;
-  const t2Gates = t2.provisional || t2.passed;
+  // [TIER2-SPLIT] The privacy gate is the SPECIAL-CATEGORY bar only — an alias-normalisation or 'other'
+  // leak never fails it (they're reported, tracked separately). Provisional below the min sample.
+  const scGates = scBar.provisional || scBar.passed;
   // REQ-GATE: requirements precision gates like fabrication/Tier-2 — enforced once non-provisional,
   // reported below the floor. Recall is measured, never gated (a missed requirement is invisible;
   // a false one is a wrong pitch in front of a client).
   const reqGate = requirementsGate(agg, modelId);
   const reqGates = reqGate.provisional || reqGate.passed;
-  const deployPass = hardPassed && soft.passed && tier1Pass && structuredHealthPass && fabGates && t2Gates && reqGates && importPass;
+  const deployPass = hardPassed && soft.passed && tier1Pass && structuredHealthPass && fabGates && scGates && reqGates && importPass;
   console.log(`[gate] IMPORT-SIZED: ${importPass ? 'PASS (trust rules held on every import fixture run)' : 'FAIL — an import fixture broke a trust rule or an invariant'}`);
-  const fullyCertified = hardPassed && soft.passed && tier1Pass && fab.passed && !fab.provisional && t2.passed && !t2.provisional && reqGate.passed && !reqGate.provisional;
-  console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + structured-health zero + fabrication & Tier-2 ≤ ceiling)' : 'FAIL'}`);
+  const fullyCertified = hardPassed && soft.passed && tier1Pass && fab.passed && !fab.provisional && scBar.passed && !scBar.provisional && reqGate.passed && !reqGate.provisional;
+  console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + structured-health zero + fabrication & special-category ≤ ceiling)' : 'FAIL'}`);
   console.log(`[gate] FULL CERTIFICATION: ${fullyCertified ? 'PASS (aggregate rates certified over ≥ minimum sample)' : deployPass ? 'PROVISIONAL — deploy-safe, an aggregate rate not yet certified at this N' : 'FAIL'}`);
   if (!deployPass) process.exit(1);
 }
