@@ -4,7 +4,9 @@ import type { ExtractionLogRepository } from '../../ports/extraction-log-reposit
 import type { ErasureAuditRepository, ErasureCategoryCount } from '../../ports/erasure-audit-repository.js';
 import type { ArchiveIndexRepository } from '../../ports/archive-index-repository.js';
 import type { Storage } from '../../ports/storage.js';
+import type { ModelClient } from '../../ports/model.js';
 import { renderThread } from '../import/dedup.js';
+import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_MAX_TOKENS, buildUserMessage } from '../extraction/prompt.js';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -121,7 +123,15 @@ export interface CommitOptions {
    *  WHOLE — never edits it, never touches an unflagged sibling. Ids for other notes/stores are ignored. */
   flaggedMentionIds?: string[];
 }
-export interface ErasureResult { categories: ErasureCategoryCount[] }
+/** [ERASURE-SUMMARY] A note whose REWRITTEN summary still names the requester after her messages were
+ *  removed — surfaced for the operator to flag (delete whole), never silently accepted. */
+export interface SummaryCandidate { noteId: string; clientId: string; id: string; snippet: string }
+export interface ErasureResult {
+  categories: ErasureCategoryCount[];
+  /** Non-empty → the erasure is NOT fully complete: these rewritten summaries still name the requester
+   *  and need the operator to flag them (by `id`) before completion is honest. */
+  needsReview: SummaryCandidate[];
+}
 
 interface Extraction2 { [k: string]: unknown }
 
@@ -134,6 +144,13 @@ export interface ErasureDeps {
    *  it; absent → the archive is not scanned (dev/in-memory without archival). */
   archiveIndex?: ArchiveIndexRepository;
   archiveStorage?: Storage;
+  /** [ERASURE-SUMMARY] The certified extractor, used to RE-summarise a note after the requester's
+   *  messages are removed. Wired in prod to a metered client that classes the call `erasure` with NO
+   *  userId — it is Prospera's legal obligation, never the rep's usage, so it never touches their spend
+   *  cap or extraction ceiling. Absent → no rewrite (dev/in-memory); the old summary is left, and if it
+   *  still names the requester it surfaces as an unreviewed candidate. */
+  summariser?: ModelClient;
+  now?: () => number;
 }
 
 export class ErasureService {
@@ -206,7 +223,9 @@ export class ErasureService {
   async commit(userId: string, requesterNames: string[], opts: CommitOptions = {}): Promise<ErasureResult> {
     const rn = requesterNames.map(norm).filter(Boolean);
     const counts: Record<string, number> = { people: 0, personal_facts: 0, unanswered_questions: 0, messages: 0, embeddings_cleared: 0, training_logs: 0, training_archive: 0 };
-    if (rn.length === 0) return { categories: [] }; // unknown counterparty → nothing happens, nothing recorded
+    const needsReview: SummaryCandidate[] = []; // [ERASURE-SUMMARY] rewritten summaries still naming her
+    if (rn.length === 0) return { categories: [], needsReview }; // unknown counterparty → nothing happens, nothing recorded
+    const clientNames = new Map((await this.deps.clients.listByUser(userId)).map((c) => [c.id, c.name]));
 
     // [ARCHIVE] Purge the training archive FIRST (Task 2). It is object storage outside the DB cascade
     // and the riskiest step; going first keeps a storage failure retryable (nothing else changed yet)
@@ -281,6 +300,25 @@ export class ErasureService {
           if (kept.length === 0) { clearEmbedding = true; counts.embeddings_cleared! += 1; }
         }
       }
+      // [ERASURE-SUMMARY] The summary is free text that routinely carries a fact ABOUT the requester
+      // (the live-UAT finding). If the operator FLAGGED it (or the whole note was hers), delete it WHOLE.
+      // Otherwise, when her messages were removed, RE-summarise the survivors with the certified extractor
+      // (classed `erasure`, no userId) and take ONLY the new summary — no other field is touched. If the
+      // new summary STILL names her, surface it for the operator to flag; never silently accept it.
+      if (ex && typeof ex.summary === 'string') {
+        const summaryFlagged = flagged.has(mentionId(note.id, 'summary', 0));
+        const survivors = (messages ?? []) as ImportedMessage[];
+        const msgsRemoved = messages !== note.messages;
+        if (summaryFlagged || (msgsRemoved && survivors.length === 0)) {
+          ex.summary = null; counts.summaries = (counts.summaries ?? 0) + 1; changed = true; // deleted WHOLE
+        } else if (msgsRemoved && survivors.length > 0 && this.deps.summariser) {
+          const rewritten = await this.resummarise(clientNames.get(note.clientId) ?? 'the client', survivors);
+          if (rewritten !== null) { ex.summary = rewritten; changed = true; } // ONLY the summary — never another field
+          if (mentions(typeof ex.summary === 'string' ? ex.summary : '', rn)) {
+            needsReview.push({ noteId: note.id, clientId: note.clientId, id: mentionId(note.id, 'summary', 0), snippet: String(ex.summary ?? '') });
+          }
+        }
+      }
       if (changed) {
         await this.deps.notes.update(userId, note.id, {
           ...(ex ? { extracted: ex } : {}),
@@ -295,7 +333,30 @@ export class ErasureService {
 
     const categories = toCategories(counts);
     await this.deps.audit.record(userId, { requesterNames, categories, outcome: 'committed' });
-    return { categories };
+    return { categories, needsReview };
+  }
+
+  /** [ERASURE-SUMMARY] Re-summarise the SURVIVING messages with the certified extractor, returning ONLY
+   *  the new summary string (or null on any failure — the caller then surfaces the old one for review).
+   *  Classed `erasure` with NO userId, so it is charged to no account: Prospera's legal obligation, never
+   *  the rep's spend cap or extraction ceiling. Same certified prompt as production extraction. */
+  private async resummarise(clientName: string, survivors: ImportedMessage[]): Promise<string | null> {
+    if (!this.deps.summariser) return null;
+    const today = new Date((this.deps.now ?? Date.now)()).toISOString().slice(0, 10);
+    try {
+      const res = await this.deps.summariser.complete({
+        system: EXTRACTION_SYSTEM_PROMPT,
+        cacheSystemPrompt: true,
+        cacheTtl: '1h',
+        maxTokens: EXTRACTION_MAX_TOKENS,
+        spendClass: 'erasure', // no userId below → recorded account-less, never billed to a rep
+        messages: [{ role: 'user', content: buildUserMessage({ today, clientName, source: 'whatsapp_export', text: renderThread(survivors) }) }],
+      });
+      const parsed = JSON.parse((res.text ?? '').trim()) as { summary?: unknown };
+      return typeof parsed.summary === 'string' ? parsed.summary : null;
+    } catch {
+      return null; // transport or parse failure → leave the old summary; it surfaces as a candidate
+    }
   }
 }
 

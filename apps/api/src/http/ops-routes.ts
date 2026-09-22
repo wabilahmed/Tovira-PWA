@@ -88,10 +88,14 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
     }
     if (req.method === 'POST' && url === '/ops/erasure/complete') {
       const requestId = typeof body.requestId === 'string' ? body.requestId : '';
-      if (authed && deps.erasureRequests && userId && requestId) {
-        await deps.erasureRequests.complete(userId, requestId, { flaggedMentionIds, confirmFuzzy });
-      }
-      sendJson(res, 200, { ok: true }); // neutral ack
+      // An AUTHED operator with a real requestId gets the outcome — including any needsReview candidates
+      // (a rewritten summary still naming the requester) to flag and re-complete. A requestId is an
+      // unguessable id from a real open, and the caller already holds the ops token, so this does not
+      // enumerate. Unauth (no token) → the same neutral ack as preview/open.
+      const result = authed && deps.erasureRequests && userId && requestId
+        ? await deps.erasureRequests.complete(userId, requestId, { flaggedMentionIds, confirmFuzzy })
+        : { ok: true };
+      sendJson(res, 200, result);
       return true;
     }
     sendJson(res, 200, { ok: true });

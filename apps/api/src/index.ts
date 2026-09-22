@@ -232,7 +232,10 @@ async function main(): Promise<void> {
   // [ERASURE] single-counterparty erasure (Terms 4.9), operator-run via the ops route. Covers the
   // training archive (object storage, outside the DB cascade) — archiveIndex + storage passed in.
   const archiveIndex = createArchiveIndexRepository(config, appPool, migrationPool);
-  const erasure = new ErasureService({ clients, notes, extractionLog: extractionLogs, audit: createErasureAuditRepository(config, appPool), archiveIndex, archiveStorage: storage });
+  // [ERASURE-SUMMARY] the certified extractor for re-summarising a note after the requester's messages
+  // are removed. A metered client, but every rewrite request carries spendClass 'erasure' and NO userId,
+  // so it records account-less — never a rep's spend cap or extraction ceiling (erasure is legal, not usage).
+  const erasure = new ErasureService({ clients, notes, extractionLog: extractionLogs, audit: createErasureAuditRepository(config, appPool), archiveIndex, archiveStorage: storage, summariser: createModelClient(config, 'extraction') });
   const erasureRequests = new ErasureRequestService({ erasure, requests: createErasureRequestRepository(config, appPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
   const images = createImageRepository(config, appPool);
   const hero = createHeroService(config, clients, facts, meetings, notes, matching);

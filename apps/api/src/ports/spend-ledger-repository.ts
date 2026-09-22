@@ -13,7 +13,7 @@
  * `inventory` make no model call today, and `gate` runs in the eval harness with no spend sink, so none
  * of those appear here — a class with no producer would be a dead emitter.)
  */
-export const SPEND_CLASSES = ['extraction', 'import', 'recall', 'priorities', 'draft', 'meeting', 'capture', 'canary'] as const;
+export const SPEND_CLASSES = ['extraction', 'import', 'recall', 'priorities', 'draft', 'meeting', 'capture', 'canary', 'erasure'] as const;
 export type SpendClass = (typeof SPEND_CLASSES)[number];
 const SPEND_CLASS_SET: ReadonlySet<string> = new Set(SPEND_CLASSES);
 export function isSpendClass(v: unknown): v is SpendClass {

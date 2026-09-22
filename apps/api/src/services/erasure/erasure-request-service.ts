@@ -1,4 +1,4 @@
-import type { ErasureService, CommitOptions } from './erasure-service.js';
+import type { ErasureService, CommitOptions, SummaryCandidate } from './erasure-service.js';
 import type { ErasureRequestRepository, ErasureRequestRecord } from '../../ports/erasure-request-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { PushableAlert } from '../push/push-dispatch-service.js';
@@ -69,7 +69,7 @@ export class ErasureRequestService {
     userId: string,
     requestId: string,
     opts: Pick<CommitOptions, 'flaggedMentionIds' | 'confirmFuzzy'> = {},
-  ): Promise<{ ok: boolean; reason?: string }> {
+  ): Promise<{ ok: boolean; reason?: string; candidates?: SummaryCandidate[] }> {
     const req = await this.deps.requests.get(userId, requestId);
     if (!req) return { ok: false, reason: 'not_found' };
     if (req.status === 'completed') return { ok: false, reason: 'already_completed' };
@@ -85,6 +85,13 @@ export class ErasureRequestService {
       result = await this.deps.erasure.commit(userId, req.requesterNames, opts);
     } catch (err) {
       return { ok: false, reason: `incomplete: ${err instanceof Error ? err.message : 'erasure failed'}` };
+    }
+    // [ERASURE-SUMMARY] A rewritten summary that still names the requester is an UNREVIEWED candidate:
+    // refuse to finalise (the request stays open) and hand the operator the candidates to flag. The
+    // structured/message/flag deletions already applied persist; a re-complete with the summary flagged
+    // deletes it whole and then finalises.
+    if (result.needsReview.length > 0) {
+      return { ok: false, reason: 'summary_needs_review', candidates: result.needsReview };
     }
     await this.deps.requests.setStatus(userId, requestId, 'completed');
     const summary = summariseCategories(result.categories.map((c) => `${c.category}:${c.deleted}`));
