@@ -1,4 +1,4 @@
-import type { ErasureService } from './erasure-service.js';
+import type { ErasureService, CommitOptions } from './erasure-service.js';
 import type { ErasureRequestRepository, ErasureRequestRecord } from '../../ports/erasure-request-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { PushableAlert } from '../push/push-dispatch-service.js';
@@ -65,7 +65,11 @@ export class ErasureRequestService {
    * Complete the erasure. Refuses BEFORE the window closes and if the rep asserted retention (a legal
    * hold). On success, runs the erasure and tells the rep what was removed.
    */
-  async complete(userId: string, requestId: string): Promise<{ ok: boolean; reason?: string }> {
+  async complete(
+    userId: string,
+    requestId: string,
+    opts: Pick<CommitOptions, 'flaggedMentionIds' | 'confirmFuzzy'> = {},
+  ): Promise<{ ok: boolean; reason?: string }> {
     const req = await this.deps.requests.get(userId, requestId);
     if (!req) return { ok: false, reason: 'not_found' };
     if (req.status === 'completed') return { ok: false, reason: 'already_completed' };
@@ -78,7 +82,7 @@ export class ErasureRequestService {
     // notify the rep of completion: it stays OPEN and the error surfaces, never a silent gap.
     let result: Awaited<ReturnType<ErasureService['commit']>>;
     try {
-      result = await this.deps.erasure.commit(userId, req.requesterNames);
+      result = await this.deps.erasure.commit(userId, req.requesterNames, opts);
     } catch (err) {
       return { ok: false, reason: `incomplete: ${err instanceof Error ? err.message : 'erasure failed'}` };
     }

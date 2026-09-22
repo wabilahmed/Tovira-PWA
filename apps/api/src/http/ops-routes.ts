@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { sendJson, readJsonBody, BadJsonError } from './helpers.js';
 import type { SpendOverrideRepository } from '../ports/spend-override-repository.js';
-import type { ErasureService } from '../services/erasure/erasure-service.js';
+import type { ErasureService, FuzzyKey } from '../services/erasure/erasure-service.js';
 import type { ErasureRequestService } from '../services/erasure/erasure-request-service.js';
 import type { ModelCallEventStore } from '../ports/model-call-event-store.js';
 import { spendByClassReport } from '../services/spend/spend-by-class-report.js';
@@ -59,10 +59,20 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
   // exists. Only a valid ops token performs the action. Handled BEFORE the generic 403 so a bad
   // token here returns the same neutral shape as an authenticated unknown-counterparty request.
   if (url.startsWith('/ops/erasure/')) {
-    let body: { userId?: unknown; requesterNames?: unknown; requestId?: unknown } = {};
+    let body: { userId?: unknown; requesterNames?: unknown; requestId?: unknown; flaggedMentionIds?: unknown; confirmFuzzy?: unknown } = {};
     try { body = (req.method === 'POST' ? await readJsonBody(req) : {}) as typeof body; } catch { body = {}; }
     const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
     const names = Array.isArray(body.requesterNames) ? (body.requesterNames as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+    // [ERASURE-FLAGS] operator flags + fuzzy confirmations for /complete (both ignored elsewhere).
+    const flaggedMentionIds = Array.isArray(body.flaggedMentionIds) ? (body.flaggedMentionIds as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+    const confirmFuzzy = Array.isArray(body.confirmFuzzy)
+      ? (body.confirmFuzzy as unknown[]).flatMap((x) => {
+          const o = x as { noteId?: unknown; store?: unknown; who?: unknown };
+          return typeof o?.noteId === 'string' && typeof o?.store === 'string' && typeof o?.who === 'string'
+            ? [{ noteId: o.noteId, store: o.store as FuzzyKey['store'], who: o.who }]
+            : [];
+        })
+      : [];
 
     if (req.method === 'POST' && url === '/ops/erasure/preview') {
       // Unauth (or a valid token on an unknown counterparty) → the SAME empty plan. Byte-identical.
@@ -78,7 +88,9 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
     }
     if (req.method === 'POST' && url === '/ops/erasure/complete') {
       const requestId = typeof body.requestId === 'string' ? body.requestId : '';
-      if (authed && deps.erasureRequests && userId && requestId) await deps.erasureRequests.complete(userId, requestId);
+      if (authed && deps.erasureRequests && userId && requestId) {
+        await deps.erasureRequests.complete(userId, requestId, { flaggedMentionIds, confirmFuzzy });
+      }
       sendJson(res, 200, { ok: true }); // neutral ack
       return true;
     }

@@ -85,11 +85,23 @@ function classifyArchiveRow(row: Record<string, unknown>, requesterNorm: string[
 }
 const rankOf = (m: MatchKind): number => (m === 'exact' ? 2 : m === 'fuzzy' ? 1 : 0);
 export interface MentionItem {
+  /** Stable id the operator references to FLAG this mention for whole deletion (ERASURE-FLAGS). Derived
+   *  from note+store+array-index, so it is identical across previews of the same extraction and lets
+   *  commit re-derive-and-match without persisting anything about the requester. */
+  id: string;
   noteId: string;
   clientId: string;
   store: string; // 'summary' | 'promise' | 'key_date' | 'meeting' | 'requirement' | 'next_step' | 'concern' | 'personal_fact_body'
   snippet: string; // the kept free-text (preview only)
 }
+/** The stable flag id for a free-text mention: note + store + index within that store's array (or the
+ *  scalar summary). Re-derived identically in preview and commit — no ordering surprise, no residue. */
+function mentionId(noteId: string, store: string, index: number): string {
+  return `${noteId}:${store}:${index}`;
+}
+/** Free-text array stores whose mentions the operator may FLAG for whole-element deletion. `summary`
+ *  is deliberately NOT here — it is a scalar the rewrite path handles (ERASURE-SUMMARY), never edited. */
+const FLAGGABLE_ARRAY_STORES = ['key_date', 'next_step', 'concern'] as const;
 export interface ErasurePlan {
   requesterNames: string[];
   autoDelete: ErasureItem[]; // exact structured matches — deleted on commit
@@ -104,6 +116,10 @@ export interface CommitOptions {
   confirmFuzzy?: FuzzyKey[];
   /** [ARCHIVE] fuzzy-match archive rows the operator confirmed (by object + row id). */
   confirmArchiveRows?: Array<{ objectKey: string; rowId: string }>;
+  /** [ERASURE-FLAGS] keptMention ids the operator judged to be ABOUT the requester. Each names a
+   *  free-text array element (key_date/next_step/concern) by its stable id; commit deletes that element
+   *  WHOLE — never edits it, never touches an unflagged sibling. Ids for other notes/stores are ignored. */
+  flaggedMentionIds?: string[];
 }
 export interface ErasureResult { categories: ErasureCategoryCount[] }
 
@@ -148,14 +164,16 @@ export class ErasureService {
       for (const q of asArr(ex.unanswered_questions)) push('unanswered_questions', String(q.sender ?? ''), matchName(q.sender as string, rn));
       for (const m of (note.messages ?? [])) push('messages', m.sender, matchName(m.sender, rn));
 
-      // Free-text MENTIONS → kept (listed so the operator can see what remains).
-      if (mentions(ex.summary as string, rn)) plan.keptMentions.push({ noteId: note.id, clientId: note.clientId, store: 'summary', snippet: String(ex.summary) });
-      for (const p of asArr(ex.promises)) if (matchName((p as { subject?: string }).subject, rn) === 'none' && mentions(p.text as string, rn)) plan.keptMentions.push({ noteId: note.id, clientId: note.clientId, store: 'promise', snippet: String(p.text) });
-      for (const d of asArr(ex.key_dates)) if (mentions(d.description as string, rn)) plan.keptMentions.push({ noteId: note.id, clientId: note.clientId, store: 'key_date', snippet: String(d.description) });
-      for (const s of asStrArr(ex.next_steps)) if (mentions(s, rn)) plan.keptMentions.push({ noteId: note.id, clientId: note.clientId, store: 'next_step', snippet: s });
-      for (const s of asStrArr(ex.concerns)) if (mentions(s, rn)) plan.keptMentions.push({ noteId: note.id, clientId: note.clientId, store: 'concern', snippet: s });
+      // Free-text MENTIONS → kept, each with a stable id (note+store+FULL-array index) so the operator
+      // can FLAG a fact-about hiding in free text for WHOLE deletion (ERASURE-FLAGS). The index is the
+      // real array position, so commit removes exactly that element and never a sibling.
+      if (mentions(ex.summary as string, rn)) plan.keptMentions.push({ id: mentionId(note.id, 'summary', 0), noteId: note.id, clientId: note.clientId, store: 'summary', snippet: String(ex.summary) });
+      asArr(ex.promises).forEach((p, idx) => { if (matchName((p as { subject?: string }).subject, rn) === 'none' && mentions(p.text as string, rn)) plan.keptMentions.push({ id: mentionId(note.id, 'promise', idx), noteId: note.id, clientId: note.clientId, store: 'promise', snippet: String(p.text) }); });
+      asArr(ex.key_dates).forEach((d, idx) => { if (mentions(d.description as string, rn)) plan.keptMentions.push({ id: mentionId(note.id, 'key_date', idx), noteId: note.id, clientId: note.clientId, store: 'key_date', snippet: String(d.description) }); });
+      (Array.isArray(ex.next_steps) ? ex.next_steps : []).forEach((s, idx) => { if (typeof s === 'string' && mentions(s, rn)) plan.keptMentions.push({ id: mentionId(note.id, 'next_step', idx), noteId: note.id, clientId: note.clientId, store: 'next_step', snippet: s }); });
+      (Array.isArray(ex.concerns) ? ex.concerns : []).forEach((s, idx) => { if (typeof s === 'string' && mentions(s, rn)) plan.keptMentions.push({ id: mentionId(note.id, 'concern', idx), noteId: note.id, clientId: note.clientId, store: 'concern', snippet: s }); });
       // A personal_fact whose SUBJECT is someone else but whose FACT text names the requester → mention (kept).
-      for (const f of asArr(ex.personal_facts)) if (matchName(f.subject as string, rn) === 'none' && mentions(f.fact as string, rn)) plan.keptMentions.push({ noteId: note.id, clientId: note.clientId, store: 'personal_fact_body', snippet: String(f.fact) });
+      asArr(ex.personal_facts).forEach((f, idx) => { if (matchName(f.subject as string, rn) === 'none' && mentions(f.fact as string, rn)) plan.keptMentions.push({ id: mentionId(note.id, 'personal_fact_body', idx), noteId: note.id, clientId: note.clientId, store: 'personal_fact_body', snippet: String(f.fact) }); });
     }
 
     // Training-log hot table (ruling 3): rows whose free-text input/output names the requester.
@@ -176,7 +194,7 @@ export class ErasureService {
             const item: ErasureItem = { noteId: String(row.noteId ?? ''), clientId: '', store: 'archive', match, who, objectKey: obj.objectKey, rowId: String(row.id ?? '') };
             (match === 'exact' ? plan.autoDelete : plan.fuzzyCandidates).push(item);
           } else if (match === 'mention') {
-            plan.keptMentions.push({ noteId: String(row.noteId ?? ''), clientId: '', store: `archive:${obj.collection}`, snippet: '(archived training row — mention only)' });
+            plan.keptMentions.push({ id: mentionId(String(row.noteId ?? ''), `archive:${obj.collection}`, 0), noteId: String(row.noteId ?? ''), clientId: '', store: `archive:${obj.collection}`, snippet: '(archived training row — mention only)' });
           }
         }
       }
@@ -212,6 +230,8 @@ export class ErasureService {
     }
 
     const confirmed = new Set((opts.confirmFuzzy ?? []).map((k) => `${k.noteId}|${k.store}|${norm(k.who)}`));
+    const flagged = new Set(opts.flaggedMentionIds ?? []); // [ERASURE-FLAGS] operator-flagged free-text ids
+    const STORE_KEY: Record<string, string> = { key_date: 'key_dates', next_step: 'next_steps', concern: 'concerns' };
     const shouldDelete = (noteId: string, store: WhoStore, who: string | null | undefined): boolean => {
       const m = matchName(who, rn);
       if (m === 'exact') return true;
@@ -229,6 +249,17 @@ export class ErasureService {
           ex[store] = (ex[store] as Array<Record<string, unknown>>).filter((e) => !shouldDelete(note.id, store, e[field] as string));
           const removed = before - (ex[store] as unknown[]).length;
           if (removed > 0) { counts[store]! += removed; changed = true; }
+        }
+        // [ERASURE-FLAGS] Delete operator-flagged free-text mentions WHOLE — drop the flagged array
+        // element by its stable id; NEVER edit the text, NEVER touch an unflagged sibling. Counted per
+        // store (audit shape only, no content).
+        for (const store of FLAGGABLE_ARRAY_STORES) {
+          const key = STORE_KEY[store]!;
+          if (!Array.isArray(ex[key])) continue;
+          const arr = ex[key] as unknown[];
+          const kept = arr.filter((_, idx) => !flagged.has(mentionId(note.id, store, idx)));
+          const removed = arr.length - kept.length;
+          if (removed > 0) { ex[key] = kept; counts[key] = (counts[key] ?? 0) + removed; changed = true; }
         }
       }
       // The requester's OWN messages go; rawText is re-rendered from the survivors (deterministic).
@@ -278,9 +309,6 @@ function parseNdjson(bytes: Uint8Array): Array<Record<string, unknown>> {
   const text = dec.decode(bytes).trim();
   if (!text) return [];
   return text.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l) as Record<string, unknown>);
-}
-function asStrArr(v: unknown): string[] {
-  return Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : [];
 }
 function toCategories(counts: Record<string, number>): ErasureCategoryCount[] {
   return Object.entries(counts).filter(([, n]) => n > 0).map(([category, deleted]) => ({ category, deleted }));
