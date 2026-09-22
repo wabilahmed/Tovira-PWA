@@ -33,3 +33,24 @@ Durable record of extraction-prompt certifications. Agent-maintained (repo root,
 4. Then a measured experiment (option A): special-category schema labels + deterministic drop, certified at N=980, checked for extraction priming.
 
 **Scope:** this certifies v0.9.6 for deployment. It does **not** certify the special-category Tier-2 rate, which stays an open, separately-tracked item.
+
+---
+
+## `tovira-extract-v0.9.7` — OWNER CERTIFICATION
+
+- **Date:** 2026-09-22
+- **Certified by:** owner ruling (wabil@prospera-technologies.com); recorded by Claude.
+- **Run:** `extraction-gate.yml` `workflow_dispatch`, run `35732179644`, **N=980** (20 runs × 49 notes), branch `experiment/special-category-labels`.
+- **Change (option A):** added `religion | ethnicity | political_opinion | sexual_orientation` as personal_fact category LABELS in the schema (no examples); generalised the deterministic write-time filter to drop any sensitive-categorised personal_fact (health + the four); kept Rule 7. Prompt v0.9.6 → v0.9.7.
+
+### Results
+- **PRIMING: 0** special-category-tagged personal_facts across 20 pre-filter extractions (baseline 0). The labels did **not** prime the model to extract these categories — the decisive test for option A. No revert.
+- **STRUCTURED SENSITIVE: 0** — per-run zero; the filter drops every sensitive-categorised personal_fact.
+- **SPECIAL-CATEGORY free-text: 0/20 = 0.00%** — encouraging, but **one fixture** (`special-category-not-a-fact`), so this is a positive signal, **not proof**; needs more special-category fixtures to certify a rate.
+- Fabrication 3/980 = 0.31% CERTIFIED · Tier-1 0 · soft PASS (promises 0.99/0.95, people 1.00/0.99). **DEPLOY GATE: PASS.**
+
+### Noted alongside (not part of this certification)
+- ALIAS_NORMALISATION bar read 7/20 = 35% leaking exposures — but the gate's `extractForEval` does not run production's `normaliseCounterpart`, so this overstates the shipped miss (6 of 7 leaks were in `people[]`, which production normalises). Tracked: add `normaliseCounterpart` to the gate so the alias bar reflects production.
+- COST: the `claude-sonnet-5` price row in `model-budget.ts` is a generation stale (Sonnet 4.6 numbers), so this run's gate-reported spend over-states real cost ~1.5×. Tracked separately.
+
+**Scope:** certifies v0.9.7 for deployment. The special-category free-text rate is a positive one-fixture signal, not a certified rate.
