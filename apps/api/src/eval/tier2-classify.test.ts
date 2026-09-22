@@ -44,10 +44,12 @@ describe('[TIER2-SPLIT] classifyLeaks — which field a term landed in', () => {
 });
 
 describe('[TIER2-SPLIT] per-class bars — one class never hides or is blamed for another', () => {
-  const records: Array<LeakRecord> = [
-    { fixtureId: 'special-category-not-a-fact', term: 'religious', field: 'summary', structured: false, cls: 'special_category' },
-    { fixtureId: 'special-category-not-a-fact', term: 'votes', field: 'summary', structured: false, cls: 'special_category' },
-    { fixtureId: 'client-person-alias', term: 'Bubu', field: 'people', structured: true, cls: 'alias_normalisation' },
+  // Leaks are attributed AND counted per leaking exposure (fixture, run). The two special-category
+  // leaks are in different runs → two leaking exposures; the alias leak is a third exposure.
+  const records: Array<LeakRecord & { run: number }> = [
+    { fixtureId: 'special-category-not-a-fact', term: 'religious', field: 'summary', structured: false, cls: 'special_category', run: 1 },
+    { fixtureId: 'special-category-not-a-fact', term: 'votes', field: 'summary', structured: false, cls: 'special_category', run: 2 },
+    { fixtureId: 'client-person-alias', term: 'Bubu', field: 'people', structured: true, cls: 'alias_normalisation', run: 1 },
   ];
   const exposures = { special_category: 20, alias_normalisation: 20 };
 
@@ -55,10 +57,23 @@ describe('[TIER2-SPLIT] per-class bars — one class never hides or is blamed fo
     const bars = tier2Bars(records, exposures, 12, 8);
     const sc = bars.find((b) => b.cls === 'special_category')!;
     const alias = bars.find((b) => b.cls === 'alias_normalisation')!;
-    expect(sc.leaks).toBe(2);   // ONLY the two special-category leaks
+    expect(sc.leaks).toBe(2);   // ONLY the two special-category leaking exposures
     expect(alias.leaks).toBe(1); // the alias leak is NOT counted under special_category
     expect(sc.ratePct).toBeCloseTo(10);   // 2/20
     expect(alias.ratePct).toBeCloseTo(5);  // 1/20
+  });
+
+  it('counts LEAKING EXPOSURES, not term-hits — overlapping terms in one exposure count once, rate ≤ 100%', () => {
+    // client-person-alias forbids both 'Bubu' and 'Bubu DXB'; one echo trips both → two term-records,
+    // but it is ONE leaking exposure (one fixture, one run). Term-hit counting gave 2/1 = 200%.
+    const oneEcho: Array<LeakRecord & { run: number }> = [
+      { fixtureId: 'client-person-alias', term: 'Bubu DXB', field: 'people', structured: true, cls: 'alias_normalisation', run: 1 },
+      { fixtureId: 'client-person-alias', term: 'Bubu', field: 'people', structured: true, cls: 'alias_normalisation', run: 1 },
+    ];
+    const alias = tier2Bars(oneEcho, { alias_normalisation: 1 }, 12, 8).find((b) => b.cls === 'alias_normalisation')!;
+    expect(alias.leaks).toBe(1);   // one leaking exposure, not two term-hits
+    expect(alias.ratePct).toBe(100); // 1/1 — never 200%
+    expect(alias.ratePct).toBeLessThanOrEqual(100);
   });
 
   it('the special_category bar FAILS at 2/20=10% > 8%, while alias PASSES at 5% — independently', () => {

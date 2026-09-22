@@ -81,15 +81,24 @@ export function tier2Bar(cls: Tier2Class, leaks: number, exposures: number, minE
   return { cls, leaks, exposures, ratePct, provisional: exposures < minExposures, passed: ratePct <= maxRatePct };
 }
 
-/** Build a bar for every class that has exposures or leaks, from the accumulated leak records. */
+/**
+ * Build a bar for every class that has exposures or leaks. `leaks` counts LEAKING EXPOSURES — distinct
+ * (fixture, run) pairs where at least one forbidden term of that class appeared — NOT term-hits. A single
+ * echo that trips two overlapping forbidden terms ("Bubu" ⊂ "Bubu DXB") is ONE leaking exposure, so the
+ * rate can never exceed 100% (leaking exposures ≤ total exposures). The per-leak printer still shows every
+ * term-hit; only the rate denominator is deduped to exposures.
+ */
 export function tier2Bars(
-  records: LeakRecord[],
+  records: Array<LeakRecord & { run: number }>,
   exposuresByClass: Partial<Record<Tier2Class, number>>,
   minExposures: number,
   maxRatePct: number,
 ): Tier2Bar[] {
   const classes: Tier2Class[] = ['special_category', 'alias_normalisation', 'other'];
   return classes
-    .map((cls) => tier2Bar(cls, records.filter((r) => r.cls === cls).length, exposuresByClass[cls] ?? 0, minExposures, maxRatePct))
+    .map((cls) => {
+      const leakingExposures = new Set(records.filter((r) => r.cls === cls).map((r) => `${r.fixtureId}::${r.run}`)).size;
+      return tier2Bar(cls, leakingExposures, exposuresByClass[cls] ?? 0, minExposures, maxRatePct);
+    })
     .filter((b) => b.exposures > 0 || b.leaks > 0);
 }
