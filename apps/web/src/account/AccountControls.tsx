@@ -39,6 +39,13 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
     <section aria-label="Your data">
       <h2 style={{ marginTop: 0 }}>Your data</h2>
 
+      {/* [DELETE-EXPORT-FIRST] Deletion is immediate + permanent (AccountService.deleteAccount purges at
+          once, no grace window), so steer the rep to export BEFORE they delete, with the export action
+          right here above the delete control — matches Terms 12.4. */}
+      <p style={{ color: 'var(--text-secondary)' }}>
+        <strong>Export your data first.</strong> Deleting your account is immediate and permanent —
+        everything is removed right away and cannot be recovered.
+      </p>
       <p>
         <button onClick={() => void doExport()}>Export my data</button>{' '}
         {download && (
@@ -48,9 +55,6 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
         )}
       </p>
 
-      <hr />
-
-      <p style={{ color: 'var(--text-secondary)' }}>Deleting removes your account and all client data. This can't be undone.</p>
       {!confirming ? (
         <button onClick={() => setConfirming(true)} style={{ color: 'var(--claret)' }}>Delete my account</button>
       ) : (
