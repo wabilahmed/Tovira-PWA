@@ -520,8 +520,8 @@ describe('ExtractionService — import cost metric', () => {
 
   it('records a positive per-rep import cost for a whatsapp_export note', async () => {
     const { importCost } = await run('whatsapp_export');
-    // 50000·$3 + 400·$15 + 9743·$0.3 per MTok = $0.157929 → ×3.6725 ≈ AED 0.58.
-    expect(importCost.perUserRollingAed('u')).toBeCloseTo(0.58, 1);
+    // 50000·$2 + 400·$10 + 9743·$0.2 per MTok = $0.1059486 → ×3.6725 ≈ AED 0.389.
+    expect(importCost.perUserRollingAed('u')).toBeCloseTo(0.389, 2);
     const snap = importCost.snapshot();
     expect(snap.imports).toBe(1);
     expect(snap.totalUncachedInputTokens).toBe(50_000);

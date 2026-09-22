@@ -16,10 +16,10 @@ function make(capAed = 45, warnFraction = 0.8) {
 describe('[SPEND-CAP] SpendService — track (CAP-TRACK)', () => {
   it('records a Claude call as AED into the rep\'s current period', async () => {
     const { svc } = make();
-    // 1,000,000 input tokens · Sonnet $3/MTok = $3 → ×3.6725 = AED 11.0175
+    // 1,000,000 input tokens · Sonnet 5 $2/MTok = $2 → ×3.6725 = AED 7.345
     await svc.record('rep-A', 'extraction', SONNET, { inputTokens: 1_000_000, outputTokens: 0 });
     const s = await svc.status('rep-A');
-    expect(s.spentAed).toBeCloseTo(11.0175, 3);
+    expect(s.spentAed).toBeCloseTo(7.345, 3);
     expect(s.periodKey).toBe('p:2026-09');
   });
 

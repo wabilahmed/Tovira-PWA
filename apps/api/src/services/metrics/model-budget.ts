@@ -3,18 +3,25 @@
  * track during (abort if actual exceeds the estimate by more than a margin), report
  * after — actual tokens + cost split cached vs uncached, per task class.
  *
- * Prices are USD per million tokens (approximate list prices; override for accuracy).
- * Cache reads are ~0.1x input; the 1h-TTL write premium is ~2x input.
+ * Prices are USD per million tokens — Anthropic published first-party rates.
+ * Cache reads are 0.1x input; cache writes are 1.25x input (5-minute TTL) or 2x input (1-hour TTL,
+ * made permanent 2026-08-10). `cacheWritePerMTok` below is the 1-HOUR rate, because EVERY caching path
+ * in this codebase uses ttl '1h' (config.extractionCacheTtl defaults to '1h'; the gate, canary, and
+ * erasure resummarise all pass '1h'). If any path is switched to '5m' (EXTRACTION_CACHE_TTL=5m), its
+ * writes would bill at 1.25x ($2.50 Sonnet / $1.25 Haiku) but be priced here at the 1h rate — a latent
+ * over-count on writes only, which are ~0.1% of spend (one write per warm cache period).
  */
 export interface ModelPricing {
   inputPerMTok: number;
   outputPerMTok: number;
-  cacheWritePerMTok: number; // 1h tier ≈ 2x input
-  cacheReadPerMTok: number; // ≈ 0.1x input
+  cacheWritePerMTok: number; // 1-hour tier = 2x input (see note above)
+  cacheReadPerMTok: number; // 0.1x input
 }
 
 export const PRICING: Record<string, ModelPricing> = {
-  'claude-sonnet-5': { inputPerMTok: 3, outputPerMTok: 15, cacheWritePerMTok: 6, cacheReadPerMTok: 0.3 },
+  // Claude Sonnet 5: $2 in / $10 out; cache read $0.20 (0.1x), 1h write $4.00 (2x). [5m write would be $2.50.]
+  'claude-sonnet-5': { inputPerMTok: 2, outputPerMTok: 10, cacheWritePerMTok: 4, cacheReadPerMTok: 0.2 },
+  // Claude Haiku 4.5: $1 in / $5 out; cache read $0.10 (0.1x), 1h write $2.00 (2x). [5m write would be $1.25.]
   'claude-haiku-4-5-20251001': { inputPerMTok: 1, outputPerMTok: 5, cacheWritePerMTok: 2, cacheReadPerMTok: 0.1 },
 };
 const FALLBACK: ModelPricing = PRICING['claude-sonnet-5']!;
