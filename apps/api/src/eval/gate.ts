@@ -6,7 +6,7 @@ import type { Extraction } from '../services/extraction/types.js';
 import { EVAL_NOTES, type EvalNote } from './eval-set.js';
 import { aggregate, scoreNote, type AggregateMetrics } from './score.js';
 import { redactSensitive } from '../services/redaction/redact.js';
-import { dropHealthPersonalFacts, isHealthFact } from '../services/extraction/health-filter.js';
+import { dropSensitivePersonalFacts, isSensitiveFact } from '../services/extraction/health-filter.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { renderThread } from '../services/import/dedup.js';
 import { referenceDateFor } from '../services/extraction/extraction-service.js';
@@ -201,7 +201,7 @@ export async function extractImportFixture(
   return ex;
 }
 
-export async function extractForEval(model: ModelClient, note: EvalNote, opts: { redactIngest?: boolean } = {}): Promise<Extraction | null> {
+export async function extractForEval(model: ModelClient, note: EvalNote, opts: { redactIngest?: boolean; sensitiveDrop?: boolean } = {}): Promise<Extraction | null> {
   let text: string;
   // Ingest redaction FIRST — production strips Tier-1 values before extraction, so the
   // model never sees them. The gate tests that shipped guarantee (the leakage bar now
@@ -243,7 +243,9 @@ export async function extractForEval(model: ModelClient, note: EvalNote, opts: {
   // [HEALTH-EXCLUSION] Mirror production (extractNote drops health personal_facts at write time), so the
   // gate certifies the SHIPPED pipeline: structured health is per-run zero. Free-text health remains in
   // the scored output and is measured by the Tier-2 leakage bar.
-  dropHealthPersonalFacts(ex);
+  // Default: mirror production (drop sensitive personal_facts). The priming measurement passes
+  // sensitiveDrop:false to see the RAW pre-filter output — how often the model TAGGED these categories.
+  if (opts.sensitiveDrop !== false) dropSensitivePersonalFacts(ex);
   return ex;
 }
 
@@ -269,8 +271,8 @@ export function tier1Residual(notes: EvalNote[] = EVAL_NOTES): string[] {
  * caught deterministically. This is the STRUCTURED-health per-run-zero guarantee (vs the stochastic
  * free-text Tier-2 bar).
  */
-export function structuredHealthCount(ex: Extraction | null): number {
-  return ex ? ex.personal_facts.filter((f) => isHealthFact(f)).length : 0;
+export function structuredSensitiveCount(ex: Extraction | null): number {
+  return ex ? ex.personal_facts.filter((f) => isSensitiveFact(f)).length : 0;
 }
 
 /**

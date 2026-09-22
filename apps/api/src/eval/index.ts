@@ -1,6 +1,6 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
-import { extractForEval, extractImportFixture, evaluateGate, softGate, fabricationGate, tier1Residual, requirementsGate, structuredHealthCount, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
+import { extractForEval, extractImportFixture, evaluateGate, softGate, fabricationGate, tier1Residual, requirementsGate, structuredSensitiveCount, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
 import { classifyLeaks, tier2Bars, tier2ClassOf, type LeakRecord, type Tier2Class } from './tier2-classify.js';
 import { IMPORT_FIXTURES, RECALL_BASELINES } from './import-fixtures.js';
 import { scoreInvariants } from './score-invariants.js';
@@ -207,21 +207,40 @@ async function main(): Promise<void> {
   // summary/concern, which the filter must NOT edit) stays a stochastic Tier-2 signal — reported, not
   // gated, so removing the health example can be seen to lower it. Baseline before this fix: 5/170 = 2.94%.
   const healthFixtures = EVAL_NOTES.filter((n) => (n.forbidden ?? []).some((f) => /surgery|knee|injury|illness|medic|diagnos|hospital|clinic|treatment|health/i.test(f)));
-  let structuredHealth = 0;
+  let structuredSensitive = 0;
   let freeTextHealthLeaks = 0;
   let healthTotal = 0;
   for (let i = 0; i < RUNS; i++) {
     for (const note of healthFixtures) {
-      const ex = await extractForEval(model, note); // shipped pipeline: ingest-redacted + health filter applied
+      const ex = await extractForEval(model, note); // shipped pipeline: ingest-redacted + sensitive filter applied
       healthTotal += 1;
-      structuredHealth += structuredHealthCount(ex);
+      structuredSensitive += structuredSensitiveCount(ex);
       if (scoreNote(note.expected, ex, note.mustNotMerge, note.forbidden).leakedValues > 0) freeTextHealthLeaks += 1;
     }
   }
-  const structuredHealthPass = structuredHealth === 0;
+  const structuredSensitivePass = structuredSensitive === 0;
   const ftPct = healthTotal ? (freeTextHealthLeaks / healthTotal) * 100 : 0;
-  console.log(`[gate]   STRUCTURED HEALTH: ${structuredHealthPass ? '0 — per-run zero (deterministic write-time filter drops every health personal_fact)' : `FAIL — ${structuredHealth} health personal_fact(s) survived the filter`}`);
-  console.log(`[gate]   FREE-TEXT HEALTH LEAKAGE (Tier-2, reported not gated): ${freeTextHealthLeaks}/${healthTotal} = ${ftPct.toFixed(2)}% — baseline before Example K removal: 5/170 = 2.94%`);
+  console.log(`[gate]   STRUCTURED SENSITIVE (health + special categories): ${structuredSensitivePass ? '0 — per-run zero (deterministic write-time filter drops every sensitive personal_fact)' : `FAIL — ${structuredSensitive} sensitive personal_fact(s) survived the filter`}`);
+  console.log(`[gate]   FREE-TEXT HEALTH LEAKAGE (reported, not gated): ${freeTextHealthLeaks}/${healthTotal} = ${ftPct.toFixed(2)}% — baseline before Example K removal: 5/170 = 2.94%`);
+
+  // [SPECIAL-CATEGORY EXPERIMENT v0.9.7] PRIMING probe. Run the special-category fixture(s) with the
+  // filter OFF (sensitiveDrop:false) and count how many personal_facts the model TAGGED with a special
+  // category. Baseline (v0.9.6, before the labels existed) is 0 by construction. A non-trivial count means
+  // adding the labels PRIMED the model to structure these facts more — and per the owner rule, if the
+  // labels prime extraction we REVERT (a filter that increases extraction attempts is worse than none,
+  // even though it drops them before storage). Reported, never gated — it is an experiment signal.
+  const scFixtures = EVAL_NOTES.filter((n) => tier2ClassOf(n.id) === 'special_category');
+  const SPECIAL_LABEL = /^(religion|ethnicity|political_opinion|sexual_orientation)$/i;
+  let scAttempts = 0;
+  let scTotal = 0;
+  for (let i = 0; i < RUNS; i++) {
+    for (const note of scFixtures) {
+      const raw = await extractForEval(model, note, { sensitiveDrop: false }); // RAW pre-filter output
+      scTotal += 1;
+      scAttempts += (raw?.personal_facts ?? []).filter((f) => SPECIAL_LABEL.test((typeof f.category === 'string' ? f.category : '').trim())).length;
+    }
+  }
+  console.log(`[gate]   SPECIAL-CATEGORY PRIMING (pre-filter attempts): ${scAttempts} special-category-tagged personal_fact(s) across ${scTotal} extractions — baseline 0 (labels absent before v0.9.7). Non-trivial ⇒ labels primed extraction ⇒ REVERT.`);
 
   // [GATE-IMPORT-SIZE] Import-sized fixtures — the multi-message regime the single-note set never
   // covered (the blind spot behind the max_tokens + timeout breakages). CI subset runs every gate;
@@ -278,10 +297,10 @@ async function main(): Promise<void> {
   // a false one is a wrong pitch in front of a client).
   const reqGate = requirementsGate(agg, modelId);
   const reqGates = reqGate.provisional || reqGate.passed;
-  const deployPass = hardPassed && soft.passed && tier1Pass && structuredHealthPass && fabGates && scGates && reqGates && importPass;
+  const deployPass = hardPassed && soft.passed && tier1Pass && structuredSensitivePass && fabGates && scGates && reqGates && importPass;
   console.log(`[gate] IMPORT-SIZED: ${importPass ? 'PASS (trust rules held on every import fixture run)' : 'FAIL — an import fixture broke a trust rule or an invariant'}`);
   const fullyCertified = hardPassed && soft.passed && tier1Pass && fab.passed && !fab.provisional && scBar.passed && !scBar.provisional && reqGate.passed && !reqGate.provisional;
-  console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + structured-health zero + fabrication & special-category ≤ ceiling)' : 'FAIL'}`);
+  console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + structured-sensitive zero + fabrication & special-category ≤ ceiling)' : 'FAIL'}`);
   console.log(`[gate] FULL CERTIFICATION: ${fullyCertified ? 'PASS (aggregate rates certified over ≥ minimum sample)' : deployPass ? 'PROVISIONAL — deploy-safe, an aggregate rate not yet certified at this N' : 'FAIL'}`);
   if (!deployPass) process.exit(1);
 }
