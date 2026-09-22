@@ -284,3 +284,30 @@ describe('[REQ-GATE] requirements precision bar', () => {
     expect(GATE_REQ.floorPct).toBe(95);
   });
 });
+
+// [ALIAS-NORMALISE] The gate must certify the SHIPPED pipeline: extractForEval now runs production's
+// normaliseCounterpart, so the alias bar reflects what production stores, not raw model output.
+describe('[ALIAS-NORMALISE] extractForEval mirrors production normaliseCounterpart', () => {
+  const synthetic: EvalNote = {
+    id: 'synthetic-alias', today: '2026-06-08', clientName: 'Imtinan Qureshi', source: 'whatsapp_export',
+    note: 'zzz-synthetic', expected: {} as Extraction, // note.expected is unused; we score the returned extraction
+  };
+  const P = (name: string) => ({ name, role: null, reports_to: null, decision_role: 'unknown' as const, notes: null });
+  const emit = (people: ReturnType<typeof P>[], personal_facts: Array<{ subject: string; fact: string; category: string }>): ModelClient => ({
+    complete: async () => ({ text: JSON.stringify({ summary: 's', promises: [], people, personal_facts, key_dates: [], concerns: [], next_steps: [], meeting: null }) }),
+  });
+
+  it('with the learned alias supplied: renames the alias to the real client, collapses the double, re-subjects the fact', async () => {
+    const model = emit([P('Bubu DXB'), P('Imtinan Qureshi')], [{ subject: 'Bubu DXB', fact: 'prefers WhatsApp', category: 'preference' }]);
+    const ex = await extractForEval(model, synthetic, { aliases: ['Bubu DXB', 'Bubu'] });
+    expect(ex).not.toBeNull();
+    expect(ex!.people.map((p) => p.name)).toEqual(['Imtinan Qureshi']); // alias→real, deduped to one
+    expect(ex!.personal_facts[0]!.subject).toBe('Imtinan Qureshi'); // fact about the alias is about the client
+  });
+
+  it('with NO learned alias (the guarded fixture today): the step runs but a raw alias echo survives, as in production without a confirmed alias', async () => {
+    const model = emit([P('Bubu DXB')], []);
+    const ex = await extractForEval(model, synthetic, {});
+    expect(ex!.people.map((p) => p.name)).toEqual(['Bubu DXB']); // unchanged — no alias to match; documents the fixture gap
+  });
+});

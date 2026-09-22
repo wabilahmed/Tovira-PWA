@@ -9,7 +9,7 @@ import { redactSensitive } from '../services/redaction/redact.js';
 import { dropSensitivePersonalFacts, isSensitiveFact } from '../services/extraction/health-filter.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { renderThread } from '../services/import/dedup.js';
-import { referenceDateFor } from '../services/extraction/extraction-service.js';
+import { referenceDateFor, normaliseCounterpart } from '../services/extraction/extraction-service.js';
 
 /**
  * The certification standard (redefined once temperature proved unpinnable for
@@ -201,7 +201,7 @@ export async function extractImportFixture(
   return ex;
 }
 
-export async function extractForEval(model: ModelClient, note: EvalNote, opts: { redactIngest?: boolean; sensitiveDrop?: boolean } = {}): Promise<Extraction | null> {
+export async function extractForEval(model: ModelClient, note: EvalNote, opts: { redactIngest?: boolean; sensitiveDrop?: boolean; aliases?: string[] } = {}): Promise<Extraction | null> {
   let text: string;
   // Ingest redaction FIRST — production strips Tier-1 values before extraction, so the
   // model never sees them. The gate tests that shipped guarantee (the leakage bar now
@@ -231,6 +231,15 @@ export async function extractForEval(model: ModelClient, note: EvalNote, opts: {
     return null;
   }
   if (ex === null) return null;
+  // [ALIAS-NORMALISE] Mirror production: extractNote runs normaliseCounterpart(clientName, learned
+  // aliases) at write time — the client is kept in people[] under their REAL name and an alias+real
+  // double is collapsed; a personal_fact about the alias is re-subjected to the real name. Without this
+  // the alias bar measured the RAW model output, overstating the shipped miss (people[] echoes that
+  // production normalises away). NOTE: the learned alias for a client is confirmed at import in
+  // production (aliasesFor); the eval fixture (guarded ground truth) carries no alias, so opts.aliases
+  // defaults to [] and the client-person-alias fixture is NOT fully mirrored until that alias is
+  // supplied — see the audit report. It still normalises any people entry emitted under clientName.
+  normaliseCounterpart(ex, note.clientName, opts.aliases ?? []);
   // Apply the production DATE-INVARIANT (extractNote enforces it at write time): a
   // promise cannot be due before the note's reference date. The gate must score the
   // full pipeline, not the raw prompt output — else an invariant-backed key can't pass.
