@@ -13,6 +13,13 @@ export interface ImportedMessage {
   media: boolean;
   /** Resolved speaker role (P1-6). 'unknown' when we can't identify the client. */
   role: 'client' | 'rep' | 'unknown';
+  /** [SCREEN] Spans the pre-send sensitive detector matched, with their category — for the review UI.
+   *  Structural (not the service type) to keep this port free of a service dependency. */
+  sensitive?: Array<{ category: string; span: string; index: number }>;
+  /** [SCREEN] Held from EVERY model send (extraction payload, embedding, recall, draft, brief) until a
+   *  rep restores it (excluded=false). The message is STILL STORED — it is the rep's own record and the
+   *  receipt source — but never rendered into text sent to a model. Absent/false = not held. */
+  excluded?: boolean;
 }
 
 /** MISFILE-POST (B2): a soft, deterministic suggestion that this note may belong to another

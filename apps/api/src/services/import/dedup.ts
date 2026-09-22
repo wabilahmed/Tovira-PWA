@@ -27,3 +27,15 @@ export function dedupeMessages(existing: ImportedMessage[], incoming: ImportedMe
 export function renderThread(messages: ImportedMessage[]): string {
   return messages.map((m) => `[${m.sentAt ?? ''}] ${m.sender}: ${m.body}`).join('\n');
 }
+
+/**
+ * [SCREEN] The text that is safe to send to ANY model — the thread with excluded (flagged, un-restored)
+ * messages removed. Every model send (extraction payload, embedding, recall excerpt, draft, brief query)
+ * routes through this, so a flagged message is held from all of them by a single chokepoint. For a note
+ * with no structured message array (paste, voice, Ask capture — the rep's OWN words, not third-party
+ * chat), there is nothing to exclude per-message, so the stored rawText is returned unchanged.
+ */
+export function modelSafeText(note: { messages?: ImportedMessage[] | null; rawText?: string | null }): string {
+  if (note.messages && note.messages.length > 0) return renderThread(note.messages.filter((m) => !m.excluded));
+  return note.rawText ?? '';
+}

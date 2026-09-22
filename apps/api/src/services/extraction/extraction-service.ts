@@ -17,6 +17,7 @@ import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, EXTRACTION_MAX_TOKENS, buildU
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
+import { modelSafeText } from '../import/dedup.js';
 import { detectMisfilePostExtraction, nameMatches } from '../import/misfile.js';
 import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { redactTier2 } from '../redaction/tier2.js';
@@ -260,11 +261,23 @@ export class ExtractionService {
     // can never influence another rep; injected into the variable message only.
     const glossary = this.corrections ? buildGlossary(await this.corrections.listByUser(userId)) : [];
     const referenceDate = referenceDateFor(note, today);
+    // [SCREEN] Only NON-EXCLUDED messages ever reach a model. modelSafeText renders the thread with
+    // flagged (held) messages removed; for a note with no message array (paste/voice/Ask — the rep's
+    // own words) it is the stored rawText unchanged. This is the SAME text used for the embedding below.
+    const safeText = modelSafeText(note);
+    if (!safeText.trim()) {
+      // Every message is held for review → nothing to extract and NO model call. The messages stay
+      // stored; mark the note extracted-empty so the sweep stops, and it re-extracts if a rep restores.
+      const empty = { summary: '', promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null, unanswered_questions: [], requirements: [] };
+      await this.notes.update(userId, noteId, { extracted: empty as unknown as typeof note.extracted, status: 'extracted', embedding: null });
+      console.info(`[screen] note ${noteId}: all ${note.messages?.length ?? 0} message(s) held for review; nothing sent to a model`);
+      return { status: 'extracted', flagged: true, message: 'All messages are held for review.' };
+    }
     const userMessage = buildUserMessage({
       today: referenceDate,
       clientName: client?.name ?? 'Unknown',
       source: note.source,
-      text: note.rawText,
+      text: safeText,
       glossary,
     });
 
@@ -312,7 +325,9 @@ export class ExtractionService {
     } else {
       // Chat imports carry speaker-attributed messages → detect client questions
       // the rep never answered (P1-6). Deterministic; never fabricated.
-      extraction.unanswered_questions = note.messages ? detectUnansweredQuestions(note.messages) : [];
+      // [SCREEN] Held messages produce NO derived output either — filter them from the unanswered-question
+      // derivation, so a flagged message yields neither an extracted nor a derived fact until restored.
+      extraction.unanswered_questions = note.messages ? detectUnansweredQuestions(note.messages.filter((m) => !m.excluded)) : [];
       // [ALIAS-NORMALISE] The chat counterpart IS this client, often under a nickname/company alias
       // ("Bubu DXB" → Imtinan). Normalise attribution into the vault: the counterpart is not a
       // separate STAKEHOLDER (drop them from people[]), and a personal fact about the alias is a fact
@@ -342,7 +357,7 @@ export class ExtractionService {
       let embedding: number[] | null = null;
       if (!hold) {
         try {
-          embedding = await this.embedder.embed(note.rawText);
+          embedding = await this.embedder.embed(safeText); // [SCREEN] embed only the model-safe text
         } catch (err) {
           console.warn(`[extract] embedding failed for note ${noteId}; saving facts without a vector`, err);
         }

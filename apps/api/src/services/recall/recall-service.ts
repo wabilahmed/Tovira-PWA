@@ -1,4 +1,5 @@
 import type { Embedder } from '../../ports/embedder.js';
+import { modelSafeText } from '../import/dedup.js';
 import type { NoteRepository, SimilarNote } from '../../ports/note-repository.js';
 import type { ModelClient, ModelUsage } from '../../ports/model.js';
 import { fenceUntrusted } from '../extraction/untrusted.js';
@@ -90,7 +91,7 @@ function capByTokenBudget(receipts: Receipt[], budget: number): Receipt[] {
 }
 
 function toReceipt(m: SimilarNote): Receipt {
-  const text = (m.note.rawText ?? '').trim();
+  const text = modelSafeText(m.note).trim(); // [SCREEN] excerpt excludes held messages — never sent to the model
   return {
     quote: text.length > MAX_QUOTE ? `${text.slice(0, MAX_QUOTE)}…` : text,
     date: isoDate(m.note.createdAt),
@@ -186,7 +187,7 @@ export class RecallService {
 
     const embedding = await this.embedder.embed(question);
     const matches = await this.notes.searchSimilarByUser(userId, embedding, this.config.topK);
-    const relevant = matches.filter((m) => m.similarity >= this.config.minSimilarity && (m.note.rawText ?? '').trim());
+    const relevant = matches.filter((m) => m.similarity >= this.config.minSimilarity && modelSafeText(m.note).trim());
 
     let answer: string;
     let receipts: Receipt[] = [];

@@ -23,6 +23,7 @@ import { extractionState, aggregateExtractionStates } from '../services/notes/ex
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
 import { redactSensitive } from '../services/redaction/redact.js';
+import { screenSensitive } from '../services/screening/sensitive-screen.js';
 
 /** REDACT-2: strip Tier-1 sensitive values before storage; log the COUNT per note
  *  (never the values) so the volume is observable. */
@@ -267,11 +268,16 @@ export async function handleNoteRoute(
       }
       // Redact each message BEFORE dedupe + storage — so both the stored messages and
       // the rendered rawText are clean, and dedupe compares like-for-like (redacted).
+      // [SCREEN] Then screen the (redacted) body for special-category indicators: a flagged message is
+      // marked excluded=true so it is HELD from every model send (extraction/embedding/recall/draft)
+      // until a rep restores it. It is still stored — the rep's record + receipt source. Deterministic,
+      // no model call (a model screen would be the very send we are gating).
       let importRedactions = 0;
       parsed = { ...parsed, messages: parsed.messages.map((m) => {
         const r = redactSensitive(m.body);
         importRedactions += r.total;
-        return { ...m, body: r.redacted };
+        const flags = screenSensitive(r.redacted);
+        return { ...m, body: r.redacted, ...(flags.length > 0 ? { sensitive: flags, excluded: true } : {}) };
       }) };
       if (importRedactions > 0) {
         console.info(`[redact] import (client ${clientId}): ${importRedactions} Tier-1 value(s) redacted across messages`);
@@ -352,6 +358,12 @@ export async function handleNoteRoute(
       // Tag each speaker as client/rep so the extractor can flag unanswered
       // client questions (P1-6). Store ONLY the new slice.
       const messages = assignSpeakerRoles(fresh, client.name);
+      // [SCREEN] Record what was held: the count of flagged messages excluded from extraction. The flags
+      // themselves live on the stored messages (the review UI, next batch, reads them). rawText below is
+      // the FULL thread (the rep's record + receipt source); extraction/embedding read modelSafeText,
+      // which drops the held messages, so a flagged message is stored but never sent to a model.
+      const held = messages.filter((m) => m.excluded).length;
+      if (held > 0) console.info(`[screen] import (client ${clientId}): ${held} of ${messages.length} message(s) flagged sensitive and HELD from extraction pending review`);
       const note = await deps.notes.create(userId, {
         clientId,
         source: 'whatsapp_export',
@@ -369,7 +381,7 @@ export async function handleNoteRoute(
       // never half-writes: messages stay stored, facts are written atomically on
       // success, and the sweep retries. The trial ceiling is discovered by the
       // sweep (the note simply stays pending), not computed here.
-      sendJson(res, 202, { note, imported: fresh.length, status: note.status, ...(misfileOverridden ? { misfileOverridden: true } : {}) });
+      sendJson(res, 202, { note, imported: fresh.length, ...(held > 0 ? { held } : {}), status: note.status, ...(misfileOverridden ? { misfileOverridden: true } : {}) });
       return true;
     }
 
