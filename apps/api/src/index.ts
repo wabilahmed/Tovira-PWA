@@ -39,6 +39,7 @@ import {
   createExtractionLogRepository,
   createArchiveIndexRepository,
   createSpendLedgerRepository,
+  createSensitiveFlagStatsRepository,
   createOpsAlertRepository,
   createRecallDailyCounter,
   createExtractionCounter,
@@ -208,7 +209,9 @@ async function main(): Promise<void> {
   const contactAliases = createContactAliasRepository(config, appPool);
   const repNames = createRepNameRepository(config, appPool);
   const importAck = createImportAckRepository(config, appPool);
-  const flagReview = new FlagReviewService(notes); // [SCREEN-REVIEW] signal sink wired in R2
+  // [RESTORE-SIGNAL] Aggregate detector-FP signal on the root pool (no tenant column, not attributable).
+  const flagStats = createSensitiveFlagStatsRepository(config, appPool);
+  const flagReview = new FlagReviewService(notes, { record: (category, span) => flagStats.recordRestore(category, span) });
   // NUDGE-UNCONFIRMED: extraction persists proposed meetings (confirmed:false) so they can be
   // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
   // COST-IMPORT-METRIC: a rolling per-rep import cost, recorded at extraction time for imports.

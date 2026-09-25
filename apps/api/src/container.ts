@@ -96,6 +96,9 @@ import { PgArchiveIndexRepository } from './adapters/logs/pg-archive-index-repos
 import type { SpendLedgerRepository } from './ports/spend-ledger-repository.js';
 import { InMemorySpendLedgerRepository } from './adapters/spend/in-memory-spend-ledger-repository.js';
 import { PgSpendLedgerRepository } from './adapters/spend/pg-spend-ledger-repository.js';
+import type { SensitiveFlagStatsRepository } from './ports/sensitive-flag-stats-repository.js';
+import { InMemorySensitiveFlagStatsRepository } from './adapters/screening/in-memory-sensitive-flag-stats-repository.js';
+import { PgSensitiveFlagStatsRepository } from './adapters/screening/pg-sensitive-flag-stats-repository.js';
 import type { OpsAlertRepository } from './ports/ops-alert-repository.js';
 import { InMemoryOpsAlertRepository } from './adapters/spend/in-memory-ops-alert-repository.js';
 import { PgOpsAlertRepository } from './adapters/spend/pg-ops-alert-repository.js';
@@ -436,6 +439,14 @@ export function createArchiveIndexRepository(config: AppConfig, appPool?: Pool, 
     return new PgArchiveIndexRepository(appPool, rootPool ?? appPool);
   }
   return new InMemoryArchiveIndexRepository();
+}
+
+export function createSensitiveFlagStatsRepository(config: AppConfig, appPool?: Pool): SensitiveFlagStatsRepository {
+  if (config.authStore === 'postgres') {
+    if (!appPool) throw new Error('authStore=postgres requires a database pool for sensitive_flag_restores');
+    return new PgSensitiveFlagStatsRepository(appPool);
+  }
+  return new InMemorySensitiveFlagStatsRepository();
 }
 
 export function createSpendLedgerRepository(config: AppConfig, appPool?: Pool, rootPool?: Pool): SpendLedgerRepository {
