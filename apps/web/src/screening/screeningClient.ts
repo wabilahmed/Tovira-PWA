@@ -23,9 +23,17 @@ export interface FlagReviewData {
 /** Restore one message by index, or all in a category (optionally a single matched span). */
 export type RestoreSelector = { index: number } | { category: string; span?: string };
 
+/** One note that still holds flagged messages (account-wide), for the review beside the scan. */
+export interface HeldNoteSummary {
+  noteId: string;
+  clientId: string;
+  held: number;
+}
+
 export interface ScreeningApi {
   flags(noteId: string): Promise<FlagReviewData | null>;
   restore(noteId: string, sel: RestoreSelector): Promise<{ restored: number; status: string } | null>;
+  held(): Promise<HeldNoteSummary[]>;
 }
 
 export class ScreeningClient implements ScreeningApi {
@@ -38,6 +46,16 @@ export class ScreeningClient implements ScreeningApi {
       return (await res.json()) as FlagReviewData;
     } catch {
       return null;
+    }
+  }
+
+  async held(): Promise<HeldNoteSummary[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/notes/held`, { credentials: 'include' });
+      if (res.status !== 200) return [];
+      return ((await res.json()) as { notes?: HeldNoteSummary[] }).notes ?? [];
+    } catch {
+      return [];
     }
   }
 

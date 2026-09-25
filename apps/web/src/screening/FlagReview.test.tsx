@@ -24,6 +24,7 @@ function stubApi(over: Partial<ScreeningApi> = {}): ScreeningApi {
   return {
     flags: vi.fn(async () => DATA),
     restore: vi.fn(async () => ({ restored: 1, status: 'pending_extraction' })),
+    held: vi.fn(async () => []),
     ...over,
   };
 }

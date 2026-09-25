@@ -26,6 +26,15 @@ describe('ScreeningClient', () => {
     expect(out).toEqual({ restored: 2, status: 'pending_extraction' });
   });
 
+  it('held() GETs /notes/held and returns the notes list', async () => {
+    const notes = [{ noteId: 'n1', clientId: 'c1', held: 3 }];
+    const fetchMock = vi.fn(() => okJson({ notes }));
+    vi.stubGlobal('fetch', fetchMock);
+    const out = await new ScreeningClient('/api').held();
+    expect(fetchMock).toHaveBeenCalledWith('/api/notes/held', { credentials: 'include' });
+    expect(out).toEqual(notes);
+  });
+
   it('returns null on a non-200 or a network error', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ status: 404 } as Response)));
     expect(await new ScreeningClient().flags('n1')).toBeNull();
