@@ -410,7 +410,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             clientName={(id) => clients.find((c) => c.id === id)?.name ?? 'a client'}
             onChanged={() => setScanKey((k) => k + 1)}
           />
-          <BookScan key={scanKey} api={bookScanApi} />
+          <BookScan refreshSignal={scanKey} api={bookScanApi} />
           <ShareCard api={shareCardApi} referralCode={session.user.referralCode} />
         </>,
       )}

@@ -41,6 +41,26 @@ describe('[BOOKSCAN-STREAM] polling lifecycle', () => {
     expect(scan).toHaveBeenCalledTimes(2);    // …but polling has stopped
   });
 
+  it('[SCREEN-REVIEW] a restore refresh appends new findings below and never moves read ones', async () => {
+    const A = finding('a'), B = finding('b'), C = finding('c');
+    let items: BookScanItem[] = [A, B];
+    const scan = vi.fn<() => Promise<BookScanReport | null>>(async () => rep(true, items));
+    const { rerender } = render(<BookScan api={{ scan }} refreshSignal={0} />);
+    await flushUntil(() => screen.queryAllByTestId('scan-item').length === 2);
+    const before = screen.getAllByTestId('scan-item').map((el) => el.textContent);
+
+    // A restore re-extracts the note → the server now also returns C, and RESORTS it to the front.
+    // The remount would rebuild the list as [C, A, B]; a refresh signal must keep A, B put and append C.
+    items = [C, A, B];
+    rerender(<BookScan api={{ scan }} refreshSignal={1} />);
+    await flushUntil(() => screen.queryAllByTestId('scan-item').length === 3);
+    const after = screen.getAllByTestId('scan-item').map((el) => el.textContent);
+
+    expect(after[0]).toBe(before[0]); // A unmoved
+    expect(after[1]).toBe(before[1]); // B unmoved
+    expect(after[2]).toContain('did you c?'); // C appended BELOW, despite the server sorting it first
+  });
+
   it('keeps polling while still working (does not stop early)', async () => {
     const scan = vi.fn<() => Promise<BookScanReport | null>>().mockResolvedValue(rep(false));
     render(<BookScan api={{ scan }} />);
