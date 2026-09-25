@@ -13,6 +13,17 @@ describe('<NotesTimeline> (P5-1-CEILING-UI)', () => {
     expect(screen.getByText(/the quote is ready/i)).toBeInTheDocument();
   });
 
+  // [SCREEN-REVIEW] the persistent held indicator appears wherever the note appears, so a rep who
+  // skipped review knows this note isn't fully analysed.
+  it('shows the persistent held indicator when a note has held messages', () => {
+    render(<NotesTimeline notes={[note({ held: 4 })]} ceilingNoteIds={new Set()} />);
+    expect(screen.getByTestId('held-notice')).toHaveTextContent(/4 messages held.*not yet analysed/i);
+  });
+  it('shows no held indicator when nothing is held', () => {
+    render(<NotesTimeline notes={[note({})]} ceilingNoteIds={new Set()} />);
+    expect(screen.queryByTestId('held-notice')).toBeNull();
+  });
+
   it('shows the normal "analysing…" state for a pending note', () => {
     render(<NotesTimeline notes={[note({ status: 'pending_extraction' })]} ceilingNoteIds={new Set()} />);
     expect(screen.getByText(/analysing/i)).toBeInTheDocument();

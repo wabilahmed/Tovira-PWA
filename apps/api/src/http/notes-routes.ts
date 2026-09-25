@@ -434,7 +434,10 @@ export async function handleNoteRoute(
       // "N of M analysed", and a failure reads as failed rather than an endless spinner.
       const raw = await deps.notes.listByClient(userId, clientId);
       sendJson(res, 200, {
-        notes: raw.map((n) => ({ ...noteWithReceipts(n), extractionState: extractionState(n) })),
+        notes: raw.map((n) => {
+          const held = (n.messages ?? []).filter((m) => m.excluded === true).length; // [SCREEN-REVIEW] persistent indicator
+          return { ...noteWithReceipts(n), extractionState: extractionState(n), ...(held > 0 ? { held } : {}) };
+        }),
         extraction: aggregateExtractionStates(raw),
       });
       return true;

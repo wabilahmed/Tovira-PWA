@@ -33,6 +33,8 @@ export interface NoteSummary {
   id: string;
   source: 'voice' | 'paste';
   rawText: string | null;
+  /** [SCREEN-REVIEW] count of messages held from analysis pending review — drives the persistent indicator. */
+  held?: number;
   status: string;
   createdAt: number;
   /** [ASYNC-EXTRACT] the rep-facing state the server computes; absent on older responses. */
