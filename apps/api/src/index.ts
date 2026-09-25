@@ -6,6 +6,7 @@ import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
 import { BookScanService } from './services/book-scan/book-scan-service.js';
+import { FlagReviewService } from './services/screening/flag-review-service.js';
 import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { PrioritiesService } from './services/hero/priorities-service.js';
@@ -207,6 +208,7 @@ async function main(): Promise<void> {
   const contactAliases = createContactAliasRepository(config, appPool);
   const repNames = createRepNameRepository(config, appPool);
   const importAck = createImportAckRepository(config, appPool);
+  const flagReview = new FlagReviewService(notes); // [SCREEN-REVIEW] signal sink wired in R2
   // NUDGE-UNCONFIRMED: extraction persists proposed meetings (confirmed:false) so they can be
   // surfaced and confirmed; the timezone resolves a proposed wall-clock to an absolute instant.
   // COST-IMPORT-METRIC: a rolling per-rep import cost, recorded at extraction time for imports.
@@ -417,6 +419,7 @@ async function main(): Promise<void> {
     aliases: contactAliases,
     repNames,
     importAck,
+    flagReview,
     corrections,
     extractionLog: extractionLogs,
     brief,

@@ -10,6 +10,7 @@ import type { NoteRepository } from './ports/note-repository.js';
 import type { Storage } from './ports/storage.js';
 import type { TranscriptionService } from './services/transcription/transcription-service.js';
 import type { ExtractionService } from './services/extraction/extraction-service.js';
+import type { FlagReviewService } from './services/screening/flag-review-service.js';
 import type { FollowUpService } from './services/followup/follow-up-service.js';
 import type { FactsRepository } from './ports/facts-repository.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
@@ -136,6 +137,7 @@ export interface ApiDeps {
   repNames?: RepNameRepository;
   /** [PRIVACY-5] first-import acknowledgement store. */
   importAck: ImportAckRepository;
+  flagReview: FlagReviewService;
   corpus: CorpusStatsService;
   monday: MondayDigestService;
   ledger: LedgerService;
@@ -302,6 +304,7 @@ export function createApiServer(deps: ApiDeps): Server {
           aliases: deps.aliases,
           repNames: deps.repNames,
           importAck: deps.importAck,
+          flagReview: deps.flagReview,
         })
       )
         return;

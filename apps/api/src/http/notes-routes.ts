@@ -24,6 +24,8 @@ import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
 import { redactSensitive } from '../services/redaction/redact.js';
 import { screenSensitive } from '../services/screening/sensitive-screen.js';
+import type { FlagReviewService } from '../services/screening/flag-review-service.js';
+import type { RestoreSelector } from '../services/screening/flag-review.js';
 
 /** REDACT-2: strip Tier-1 sensitive values before storage; log the COUNT per note
  *  (never the values) so the volume is observable. */
@@ -71,6 +73,8 @@ export interface NoteRouteDeps {
   repNames?: RepNameRepository;
   /** [PRIVACY-5] first-import acknowledgement store — gates the first chat-export upload per account. */
   importAck: ImportAckRepository;
+  /** [SCREEN-REVIEW] lists a note's held (flagged) messages and restores selected ones. */
+  flagReview: FlagReviewService;
 }
 
 /** Ledger (P4-11): capturing a note for a client that a scan flagged (going cold
@@ -97,6 +101,8 @@ const FOLLOWUP_RE = /^\/notes\/([^/]+)\/follow-up$/;
 const MOVE_PREVIEW_RE = /^\/notes\/([^/]+)\/move-preview$/; // GET — what a move/undo will carry
 const MOVE_RE = /^\/notes\/([^/]+)\/move$/; // POST { toClientId }
 const UNDO_RE = /^\/notes\/([^/]+)\/undo$/; // POST — undo an import
+const FLAGS_RE = /^\/notes\/([^/]+)\/flags$/; // GET — held-message review, grouped category → span
+const RESTORE_RE = /^\/notes\/([^/]+)\/restore$/; // POST { index } | { category, span? } — un-hold + re-queue
 
 /** Handle /clients/:id/notes* and /notes/:id/audio. Returns true if handled. */
 export async function handleNoteRoute(
@@ -119,7 +125,9 @@ export async function handleNoteRoute(
   const movePreviewMatch = method === 'GET' ? MOVE_PREVIEW_RE.exec(path) : null;
   const moveMatch = method === 'POST' ? MOVE_RE.exec(path) : null;
   const undoMatch = method === 'POST' ? UNDO_RE.exec(path) : null;
-  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch && !movePreviewMatch && !moveMatch && !undoMatch) return false;
+  const flagsMatch = method === 'GET' ? FLAGS_RE.exec(path) : null;
+  const restoreMatch = method === 'POST' ? RESTORE_RE.exec(path) : null;
+  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch && !movePreviewMatch && !moveMatch && !undoMatch && !flagsMatch && !restoreMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -470,6 +478,31 @@ export async function handleNoteRoute(
       }
       const queued = await deps.notes.findByIdForUser(userId, noteId);
       sendJson(res, 202, { note: queued ? noteWithReceipts(queued) : queued, status: 'queued' });
+      return true;
+    }
+
+    // [SCREEN-REVIEW] GET /notes/:id/flags — held messages grouped category → matched span, for review.
+    if (flagsMatch) {
+      const noteId = decodeURIComponent(flagsMatch[1]!);
+      const review = await deps.flagReview.review(userId, noteId);
+      if (!review) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      sendJson(res, 200, review);
+      return true;
+    }
+
+    // [SCREEN-REVIEW] POST /notes/:id/restore — un-hold selected messages (one by index, or all in a
+    // category, optionally a single span) and re-queue extraction. Restore is the ONLY thing that clears
+    // a hold (fail-closed).
+    if (restoreMatch) {
+      const noteId = decodeURIComponent(restoreMatch[1]!);
+      const body = (await readJsonBody(req)) as { category?: unknown; span?: unknown; index?: unknown };
+      let sel: RestoreSelector | null = null;
+      if (typeof body.index === 'number') sel = { index: body.index };
+      else if (typeof body.category === 'string') sel = { category: body.category, ...(typeof body.span === 'string' ? { span: body.span } : {}) };
+      if (!sel) { sendJson(res, 400, { error: 'validation', message: 'Provide an index, or a category (optionally a span), to restore.' }); return true; }
+      const result = await deps.flagReview.restore(userId, noteId, sel);
+      if (!result) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      sendJson(res, 200, result);
       return true;
     }
 
