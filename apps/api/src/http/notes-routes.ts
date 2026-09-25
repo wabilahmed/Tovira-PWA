@@ -127,7 +127,8 @@ export async function handleNoteRoute(
   const undoMatch = method === 'POST' ? UNDO_RE.exec(path) : null;
   const flagsMatch = method === 'GET' ? FLAGS_RE.exec(path) : null;
   const restoreMatch = method === 'POST' ? RESTORE_RE.exec(path) : null;
-  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch && !movePreviewMatch && !moveMatch && !undoMatch && !flagsMatch && !restoreMatch) return false;
+  const heldMatch = method === 'GET' && path === '/notes/held';
+  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch && !movePreviewMatch && !moveMatch && !undoMatch && !flagsMatch && !restoreMatch && !heldMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -478,6 +479,13 @@ export async function handleNoteRoute(
       }
       const queued = await deps.notes.findByIdForUser(userId, noteId);
       sendJson(res, 202, { note: queued ? noteWithReceipts(queued) : queued, status: 'queued' });
+      return true;
+    }
+
+    // [SCREEN-REVIEW] GET /notes/held — every note that still holds flagged messages (account-wide), so a
+    // rep who skipped review and returned still finds them. Feeds the review beside the scan + the indicator.
+    if (heldMatch) {
+      sendJson(res, 200, { notes: await deps.flagReview.heldNotes(userId) });
       return true;
     }
 

@@ -82,6 +82,9 @@ export interface NoteRepository {
    *  — the resume path so a pending note is never stuck if that client's screen
    *  is never reopened. */
   listPendingByUser(userId: string): Promise<NoteRecord[]>;
+  /** [SCREEN-REVIEW] Notes that still hold at least one flagged (excluded) message, newest first —
+   *  powers the account-wide review beside the scan and the persistent held indicator. */
+  listHeldByUser(userId: string): Promise<NoteRecord[]>;
   /** Notes in a given status (e.g. 'pending_confirmation' for the Ask-capture queue), newest first. */
   listByStatusForUser(userId: string, status: string): Promise<NoteRecord[]>;
   /** MISFILE-POST (B2): notes across all the rep's clients that carry a pending move-suggestion. */

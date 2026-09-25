@@ -51,6 +51,17 @@ describe('[SCREEN-REVIEW] FlagReviewService', () => {
     expect(sink.record).not.toHaveBeenCalled();
   });
 
+  it('heldNotes() lists notes that still hold flagged messages, with their counts', async () => {
+    const { notes, note } = await seed();
+    const out = await new FlagReviewService(notes).heldNotes('u');
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ noteId: note.id, held: 2 });
+    // once every flag is restored, the note drops off the held list
+    await new FlagReviewService(notes).restore('u', note.id, { category: 'political_opinion', span: 'party' });
+    await new FlagReviewService(notes).restore('u', note.id, { category: 'health', span: 'hospital' });
+    expect(await new FlagReviewService(notes).heldNotes('u')).toEqual([]);
+  });
+
   it('review() and restore() on a missing note return null', async () => {
     const { notes } = await seed();
     expect(await new FlagReviewService(notes).review('u', 'nope')).toBeNull();

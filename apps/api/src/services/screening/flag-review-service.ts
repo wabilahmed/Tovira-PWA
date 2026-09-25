@@ -21,6 +21,14 @@ export class FlagReviewService {
     private readonly signals?: FlagRestoreSignalSink,
   ) {}
 
+  /** Account-wide: every note that still holds flagged messages, with its held count. Powers the review
+   *  beside the scan and the persistent indicator — so a rep who skips review and returns tomorrow still
+   *  finds their held messages (no just-imported note required). */
+  async heldNotes(userId: string): Promise<Array<{ noteId: string; clientId: string; held: number }>> {
+    const notes = await this.notes.listHeldByUser(userId);
+    return notes.map((n) => ({ noteId: n.id, clientId: n.clientId, held: (n.messages ?? []).filter((m) => m.excluded === true).length }));
+  }
+
   async review(userId: string, noteId: string): Promise<FlagReview | null> {
     const note = await this.notes.findByIdForUser(userId, noteId);
     if (!note) return null;

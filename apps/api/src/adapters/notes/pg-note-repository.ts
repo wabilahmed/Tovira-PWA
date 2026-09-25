@@ -72,6 +72,16 @@ export class PgNoteRepository implements NoteRepository {
     });
   }
 
+  async listHeldByUser(userId: string): Promise<NoteRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      // Notes whose messages jsonb array contains an element with excluded=true (jsonb containment).
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS} FROM notes WHERE messages @> '[{"excluded": true}]'::jsonb ORDER BY created_at DESC`,
+      );
+      return (rows as unknown as NoteRow[]).map(toRecord);
+    });
+  }
+
   async listPendingByUser(userId: string): Promise<NoteRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
