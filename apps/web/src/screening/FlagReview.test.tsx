@@ -1,17 +1,21 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { FlagReview } from './FlagReview.js';
-import type { FlagReviewData, ScreeningApi } from './screeningClient.js';
+import type { FlagReviewData, ScreeningApi, HeldMessageView } from './screeningClient.js';
 
+// 11 "party" messages (>= the bulk threshold of 10) — ten birthdays and one that is NOT — plus a small
+// 2-message health group (below the threshold). Previews let the rep see the odd one out at a glance.
+const partyMsgs: HeldMessageView[] = Array.from({ length: 11 }, (_, i) => ({
+  index: i, sender: 'Client', sentAt: 't',
+  body: i === 7 ? 'he votes for the ruling party every time' : `birthday party on the ${i + 1}th`,
+}));
 const DATA: FlagReviewData = {
-  held: 3,
+  held: 13,
   groups: [
-    { category: 'political_opinion', count: 2, spans: [{ span: 'party', count: 2, messages: [
-      { index: 0, sender: 'Client', sentAt: 't', body: 'the party is on Friday' },
-      { index: 1, sender: 'Client', sentAt: 't', body: 'another party next week' },
-    ] }] },
-    { category: 'health', count: 1, spans: [{ span: 'hospital', count: 1, messages: [
-      { index: 2, sender: 'Client', sentAt: 't', body: 'he is in hospital' },
+    { category: 'political_opinion', count: 11, spans: [{ span: 'party', count: 11, messages: partyMsgs }] },
+    { category: 'health', count: 2, spans: [{ span: 'hospital', count: 2, messages: [
+      { index: 11, sender: 'Client', sentAt: 't', body: 'he is in hospital' },
+      { index: 12, sender: 'Client', sentAt: 't', body: 'back from the hospital now' },
     ] }] },
   ],
 };
@@ -25,13 +29,21 @@ function stubApi(over: Partial<ScreeningApi> = {}): ScreeningApi {
 }
 
 describe('<FlagReview>', () => {
-  it('renders held messages grouped category → span with counts and bodies', async () => {
+  it('renders held messages grouped category → span with counts and per-message previews', async () => {
     render(<FlagReview noteId="n1" api={stubApi()} />);
     expect(await screen.findByTestId('flag-review')).toBeInTheDocument();
     expect(screen.getByTestId('flag-category-political_opinion')).toHaveTextContent(/Political opinion/);
-    expect(screen.getByTestId('flag-span-political_opinion-party')).toHaveTextContent(/party/);
-    expect(screen.getByText('the party is on Friday')).toBeInTheDocument();
-    expect(screen.getByText('he is in hospital')).toBeInTheDocument();
+    // (bodies are split by the highlight <mark>, so assert on the group's concatenated textContent)
+    expect(screen.getByTestId('flag-span-political_opinion-party').textContent).toMatch(/votes for the ruling party/i); // the odd one out is visible
+    expect(screen.getByTestId('flag-span-health-hospital').textContent).toMatch(/he is in hospital/i);
+  });
+
+  it('highlights the matched span inside each preview, so the rep sees the match in context', async () => {
+    render(<FlagReview noteId="n1" api={stubApi()} />);
+    await screen.findByTestId('flag-review');
+    const marks = screen.getAllByTestId('match');
+    expect(marks.length).toBeGreaterThan(0);
+    expect(marks.every((m) => /party|hospital/i.test(m.textContent ?? ''))).toBe(true);
   });
 
   it('carries only the FIRST coverage sentence inside the list', async () => {
@@ -42,30 +54,42 @@ describe('<FlagReview>', () => {
     expect(notice).not.toMatch(/read the conversation, not just the flags/i);
   });
 
-  it('bulk-by-span restores the dominant token in one action', async () => {
+  it('offers bulk restore ONLY above the threshold — party (11) yes, hospital (2) no', async () => {
+    render(<FlagReview noteId="n1" api={stubApi()} />);
+    await screen.findByTestId('flag-review');
+    // party group is >= 10 → bulk offered at span AND category level
+    expect(screen.getByTestId('span-restore-political_opinion-party')).toBeInTheDocument();
+    expect(screen.getByTestId('category-restore-political_opinion')).toBeInTheDocument();
+    // health group is < 10 → NO bulk, individual restores only
+    expect(screen.queryByTestId('span-restore-health-hospital')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('category-restore-health')).not.toBeInTheDocument();
+    expect(screen.getByTestId('msg-restore-11')).toBeInTheDocument(); // individual still available
+  });
+
+  it('bulk-by-span restores the dominant token in one action and reloads', async () => {
     const api = stubApi();
     render(<FlagReview noteId="n1" api={api} onRestored={vi.fn()} />);
     await screen.findByTestId('flag-review');
     fireEvent.click(screen.getByTestId('span-restore-political_opinion-party'));
     await waitFor(() => expect(api.restore).toHaveBeenCalledWith('n1', { category: 'political_opinion', span: 'party' }));
-    expect(api.flags).toHaveBeenCalledTimes(2); // reloaded after restore
+    expect(api.flags).toHaveBeenCalledTimes(2);
   });
 
   it('bulk-by-category and per-message restore call the right selector', async () => {
     const api = stubApi();
     render(<FlagReview noteId="n1" api={api} />);
     await screen.findByTestId('flag-review');
-    fireEvent.click(screen.getByTestId('category-restore-health'));
-    await waitFor(() => expect(api.restore).toHaveBeenCalledWith('n1', { category: 'health' }));
-    fireEvent.click(screen.getByTestId('msg-restore-2'));
-    await waitFor(() => expect(api.restore).toHaveBeenCalledWith('n1', { index: 2 }));
+    fireEvent.click(screen.getByTestId('category-restore-political_opinion'));
+    await waitFor(() => expect(api.restore).toHaveBeenCalledWith('n1', { category: 'political_opinion' }));
+    fireEvent.click(screen.getByTestId('msg-restore-11'));
+    await waitFor(() => expect(api.restore).toHaveBeenCalledWith('n1', { index: 11 }));
   });
 
   it('notifies the parent on a successful restore (so the scan/indicator can update)', async () => {
     const onRestored = vi.fn();
     render(<FlagReview noteId="n1" api={stubApi()} onRestored={onRestored} />);
     await screen.findByTestId('flag-review');
-    fireEvent.click(screen.getByTestId('span-restore-political_opinion-party'));
+    fireEvent.click(screen.getByTestId('msg-restore-11'));
     await waitFor(() => expect(onRestored).toHaveBeenCalled());
   });
 
