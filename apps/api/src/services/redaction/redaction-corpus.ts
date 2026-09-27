@@ -1,4 +1,18 @@
-import type { SensitiveKind } from './redact.js';
+import { redactSensitive, type SensitiveKind } from './redact.js';
+
+/** Arabic-Indic + Extended Arabic-Indic → ASCII (mirrors redact.ts::normalizeDigits) so a "caught"
+ *  check on an Arabic-digit value compares like-for-like against the (normalised) redacted output. */
+export const normDigits = (s: string): string => s.replace(/[٠-٩۰-۹]/g, (d) => { const c = d.codePointAt(0)!; return String(c >= 0x06f0 ? c - 0x06f0 : c - 0x0660); });
+
+export interface CaseOutcome { c: RedactionCase; caught: boolean; firedKinds: string[]; redacted: string }
+
+/** caught = a real identifier's value is gone (redact case), or a control survived untouched (pass case). */
+export function evaluateCase(c: RedactionCase): CaseOutcome {
+  const r = redactSensitive(c.input);
+  const firedKinds = Object.keys(r.counts).filter((k) => (r.counts[k] ?? 0) > 0);
+  const caught = c.expect === 'redact' ? !normDigits(r.redacted).includes(normDigits(c.value ?? '\u0000nope')) : r.total === 0;
+  return { c, caught, firedKinds, redacted: r.redacted };
+}
 
 /**
  * [REDACT-MEASURE] A hand-built, labelled corpus for measuring redaction accuracy in BOTH directions

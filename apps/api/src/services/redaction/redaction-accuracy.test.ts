@@ -1,29 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { redactSensitive } from './redact.js';
-import { CORPUS, type RedactionCase } from './redaction-corpus.js';
+import { CORPUS, evaluateCase, type CaseOutcome, type RedactionCase } from './redaction-corpus.js';
 
 /**
  * [REDACT-MEASURE] Runs the labelled corpus through redactSensitive and prints the accuracy report
  * (per kind + per group, every miss and false positive verbatim). This test MEASURES; it does not gate
- * on the numbers — Task 3 pins the baseline as a regression guard. The console output is the artifact.
+ * on the numbers — the baseline guard (redaction-baseline.test.ts) pins the result. Console output is the artifact.
+ * Classification (caught/miss/FP) uses the shared evaluateCase, so the report and the guard agree exactly.
  */
-
-// Arabic-Indic + Extended Arabic-Indic → ASCII (mirrors redact.ts::normalizeDigits) so a "caught" check
-// on an Arabic-digit value compares like-for-like against the (normalised) redacted output.
-const norm = (s: string): string => s.replace(/[٠-٩۰-۹]/g, (d) => { const c = d.codePointAt(0)!; return String(c >= 0x06f0 ? c - 0x06f0 : c - 0x0660); });
-
-interface Outcome { c: RedactionCase; caught: boolean; firedKinds: string[]; redacted: string }
-function evaluate(c: RedactionCase): Outcome {
-  const r = redactSensitive(c.input);
-  const firedKinds = Object.keys(r.counts).filter((k) => (r.counts[k] ?? 0) > 0);
-  // caught = the value's (normalised) form is gone from the (normalised) output.
-  const caught = c.expect === 'redact' ? !norm(r.redacted).includes(norm(c.value ?? '\u0000nope')) : r.total === 0;
-  return { c, caught, firedKinds, redacted: r.redacted };
-}
+type Outcome = CaseOutcome;
 
 describe('[REDACT-MEASURE] redaction accuracy against the labelled corpus', () => {
   it('measures and prints the report (misses + false positives verbatim)', () => {
-    const outcomes = CORPUS.map(evaluate);
+    const outcomes = CORPUS.map(evaluateCase);
     const KINDS: Array<RedactionCase['kind']> = ['emirates_id', 'iban', 'card', 'passport', 'bank_account', 'credential', 'swift'];
     const rows: string[] = [];
     const misses: Outcome[] = [];
