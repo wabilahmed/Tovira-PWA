@@ -97,6 +97,22 @@ export const CORPUS: RedactionCase[] = [
   { id: 'swift-bare', kind: 'swift', group: 'keyword-anchored', input: 'ADCBAEAA', expect: 'redact', value: 'ADCBAEAA', note: 'BARE BIC, NO label' },
   { id: 'swift-arabic', kind: 'swift', group: 'keyword-anchored', input: 'سويفت ADCBAEAA', expect: 'redact', value: 'ADCBAEAA', note: 'Arabic label (سويفت = SWIFT)' },
 
+  // ── TASK 5 additions: researched Arabic label forms + English unenumerated labels (items 3 & 4) ──────
+  // Passport/visa — researched forms beyond جواز السفر
+  { id: 'pass-arabic-iqama', kind: 'passport', group: 'keyword-anchored', input: 'الإقامة A2345678', expect: 'redact', value: 'A2345678', note: 'Arabic residency-visa label (الإقامة), ubiquitous in the UAE' },
+  { id: 'pass-arabic-visa', kind: 'passport', group: 'keyword-anchored', input: 'تأشيرة 87654321', expect: 'redact', value: '87654321', note: 'Arabic visa label (تأشيرة)' },
+  // Bank — researched forms + English unenumerated label
+  { id: 'acct-arabic-hisab', kind: 'bank_account', group: 'keyword-anchored', input: 'الحساب 87654321', expect: 'redact', value: '87654321', note: 'Arabic label (الحساب = the account)' },
+  { id: 'acct-bank-ac-en', kind: 'bank_account', group: 'keyword-anchored', input: 'bank a/c 11223344', expect: 'redact', value: '11223344', note: 'English unenumerated label "bank a/c"' },
+  // Credential — researched forms (OTP/PIN/password) that dominate real labels
+  { id: 'cred-arabic-otp', kind: 'credential', group: 'keyword-anchored', input: 'رمز التحقق 559182', expect: 'redact', value: '559182', note: 'Arabic OTP label (رمز التحقق = verification code) — the standard UAE bank-SMS wording' },
+  { id: 'cred-arabic-pin', kind: 'credential', group: 'keyword-anchored', input: 'الرقم السري 4321', expect: 'redact', value: '4321', note: 'Arabic PIN label (الرقم السري = secret number)' },
+  { id: 'cred-arabic-pwd', kind: 'credential', group: 'keyword-anchored', input: 'كلمة المرور Hunter2!', expect: 'redact', value: 'Hunter2!', note: 'Arabic password label (كلمة المرور)' },
+  // SWIFT — researched form
+  { id: 'swift-arabic-code', kind: 'swift', group: 'keyword-anchored', input: 'رمز سويفت ADCBAEAA', expect: 'redact', value: 'ADCBAEAA', note: 'Arabic SWIFT-code label (رمز سويفت)' },
+  // IBAN — English unenumerated label variant
+  { id: 'iban-no-en', kind: 'iban', group: 'format-anchored', input: 'IBAN no GB29NWBK60161331926819', expect: 'redact', value: 'GB29NWBK60161331926819', note: 'foreign IBAN via "IBAN no" label variant' },
+
   // ── CONTROLS: must NOT be caught (a false positive here is a product defect) ────────────────────────
   { id: 'ctl-price1', kind: 'control', group: 'control', input: 'the villa is AED 4,500,000', expect: 'pass', note: 'price in AED' },
   { id: 'ctl-price2', kind: 'control', group: 'control', input: 'budget 45000 AED', expect: 'pass', note: 'price, no separators' },
@@ -117,4 +133,7 @@ export const CORPUS: RedactionCase[] = [
   { id: 'ctl-ref16-a', kind: 'control', group: 'control', input: 'order ref 9273641058224671', expect: 'pass', note: '16-digit non-card reference (should pass unless it accidentally satisfies Luhn)' },
   { id: 'ctl-ref16-b', kind: 'control', group: 'control', input: 'tracking 1002003004005006', expect: 'pass', note: 'another 16-digit non-card reference' },
   { id: 'ctl-last4', kind: 'control', group: 'control', input: 'the card ending 4421 was declined', expect: 'pass', note: "a card's last four — deliberately kept" },
+  // Task 5: Arabic near-miss controls — the new Arabic credential/bank labels must NOT fire on these.
+  { id: 'ctl-arabic-postal', kind: 'control', group: 'control', input: 'الرمز البريدي 12345 دبي', expect: 'pass', note: 'postal code (الرمز البريدي) — الرمز is followed by an Arabic word, not a Latin/digit value, so must not redact' },
+  { id: 'ctl-arabic-acct-word', kind: 'control', group: 'control', input: 'الحساب الجاري نشط', expect: 'pass', note: 'the current account is active (الحساب + Arabic word, no number) — must not redact' },
 ];

@@ -21,32 +21,30 @@ import { CORPUS, evaluateCase } from './redaction-corpus.js';
  *
  * BASELINE PINNED 2026-09-27 (corpus n=65). Measured at pin time:
  *   format-anchored 5/21 missed (24%) · keyword-anchored 13/25 missed (52%) · controls 1/19 FP (5%).
- * KNOWN_GAPS = the 18 misses + 1 false positive present at pin time. Every OTHER case must be correct.
- * Each id is a documented gap from the accuracy report; see redaction-corpus.ts for the case + its note.
+ * FLOOR RAISED 2026-09-27 by the Task 5 cheap fixes (same day): 8 of those gaps were closed and removed
+ * from this set, so they are now part of the floor and can never regress. The corpus also grew (n=76)
+ * with researched Arabic-label + English-label cases, all of which are now caught/passing.
+ * KNOWN_GAPS below = the gaps that REMAIN — structural failure modes deliberately left unfixed (bare
+ * unlabelled values, labels separated from their value, cross-message splits, non-Luhn cards). Every
+ * OTHER case must be correct. See redaction-corpus.ts for each case + its note.
  */
 const KNOWN_GAPS: ReadonlySet<string> = new Set([
-  // format-anchored misses (5)
-  'eid-spaces',        // SPACE separators — pattern only tolerated dashes
+  // format-anchored misses that remain (3) — structural
   'eid-split-msg2',    // EID tail sent as its own message (cross-message)
-  'card-typo',         // fails Luhn (a real transposed digit)
+  'card-typo',         // fails Luhn (a real transposed digit — cannot fix without dropping the Luhn guard)
   'card-split-msg2',   // card half sent as its own message (cross-message)
-  'card-newline',      // digits split across a line break within one message
-  // keyword-anchored misses (13)
+  // keyword-anchored misses that remain (8) — structural
   'pass-bare',         // bare passport value, no label
   'pass-separated',    // label separated from value by words
-  'pass-arabic-label', // Arabic label (جواز السفر)
   'acct-bare',         // bare account number, no label
   'acct-separated',    // label separated from value by words
-  'acct-acct',         // unenumerated label "acct"
-  'acct-arabic',       // Arabic label (رقم الحساب)
   'acct-crossmsg',     // value sent as its own message (cross-message)
   'cred-bare',         // bare OTP-looking value, no label
-  'cred-separated',    // only bare "code", separated
-  'cred-arabic',       // Arabic label (الرمز)
+  'cred-separated',    // only bare "code" (not an enumerated keyword), separated
   'swift-bare',        // bare BIC, no label
-  'swift-arabic',      // Arabic label (سويفت)
-  // false positive (1)
-  'ctl-tradelicence',  // "trade licence 654321" wrongly caught by the passport/licence detector
+  // CLOSED by Task 5 (2026-09-27), now part of the floor — do NOT re-add:
+  //   eid-spaces, card-newline, pass-arabic-label, acct-arabic, acct-acct, cred-arabic, swift-arabic,
+  //   ctl-tradelicence (false positive).
 ]);
 
 describe('[REDACT-MEASURE] redaction accuracy regression floor (pinned 2026-09-27)', () => {

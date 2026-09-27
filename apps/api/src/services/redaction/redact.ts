@@ -46,23 +46,34 @@ function normalizeDigits(s: string): string {
   });
 }
 
-// Separators an obfuscated card/IBAN may carry: ASCII space/tab, dot, NBSP, narrow NBSP,
-// non-breaking hyphen, hyphen. NOT "/" — dates use it and are not cards. Luhn + the 13–19
-// digit length is the real guard, so a generous separator set stays false-positive-safe.
-const SEP = ' \\t.\\u00A0\\u202F\\u2011-';
+// Separators an obfuscated card/IBAN may carry: ASCII space/tab, newline/CR (a value split across a
+// line break within ONE message), dot, NBSP, narrow NBSP, non-breaking hyphen, hyphen. NOT "/" — dates
+// use it and are not cards. Luhn + the 13–19 digit length is the real guard, so a generous separator
+// set stays false-positive-safe (a 13–19 digit run that happens to satisfy Luhn is a card, not a price).
+const SEP = ' \\t\\n\\r.\\u00A0\\u202F\\u2011-';
 // Anchored patterns. Order matters: most specific first (Emirates ID before generic runs).
-const EMIRATES_ID = /\b784-?\d{4}-?\d{7}-?\d\b/g; // 784-YYYY-NNNNNNN-C
+const EMIRATES_ID = /\b784[- ]?\d{4}[- ]?\d{7}[- ]?\d\b/g; // 784-YYYY-NNNNNNN-C, dash- or single-space-separated (the 784 prefix + 4/7/1 grouping is the anchor, so spaces don't widen it to ordinary runs)
 // UAE IBAN: AE + 21 digits, tolerating whitespace between digits (the usual 4-char groups,
 // or broken across a line). AE + exactly 21 digits is an IBAN, never a price or quantity.
 const IBAN_AE = /\bAE(?:\s?\d){21}\b/gi;
-const IBAN_KEYWORDED = /\b(?:iban)\b[:\s]*([A-Z]{2}\d{2}[A-Z0-9]{10,30})\b/gi;
+// Keyworded (foreign) IBAN — allow the common "IBAN no"/"IBAN number" label variant before the value.
+const IBAN_KEYWORDED = /\b(?:iban)(?:\s*(?:no|number|#))?\b[:\s]*([A-Z]{2}\d{2}[A-Z0-9]{10,30})\b/gi;
 // Card: 13–19 digits, optionally grouped by any of the separators above; validated by Luhn.
 const CARD_CANDIDATE = new RegExp(`\\b(?:\\d[${SEP}]?){13,19}\\b`, 'g');
-// Keyword-anchored credentials/identifiers — require the label so we never eat a bare number.
-const CREDENTIAL = /\b(?:otp|one[- ]?time (?:code|password)|2fa|pin|password|passcode|api[ -]?key|token|cvv|cvc)\b\s*(?:is|:|=|-)?\s*([A-Za-z0-9._-]{3,})/gi;
-const SWIFT = /\b(?:swift|bic)\b[:\s]*([A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b/gi;
-const BANK_ACCOUNT = /\b(?:account (?:number|no|#)|a\/c (?:no|number)?)\b[:\s]*([0-9]{6,20})\b/gi;
-const PASSPORT = /\b(?:passport|visa|residency|driving licen[cs]e|licence|license)\b(?:\s*(?:no|number|#|is|:|-))?\s*([A-Z0-9]{6,12})\b/gi;
+// Keyword-anchored credentials/identifiers — require the label so we never eat a bare number. English
+// labels keep the \b word-boundary; Arabic labels are listed without \b (Arabic script is not \w, so \b
+// would not fire before/after it). Arabic forms are the ones that actually occur in UAE chats: OTP
+// (رمز التحقق), password (كلمة المرور/السر), PIN (الرقم السري), and the generic code (الرمز). Bare رمز is
+// deliberately excluded — it collides with الرمز البريدي (postal code) and other non-secret uses.
+const CREDENTIAL = /(?:\b(?:otp|one[- ]?time (?:code|password)|2fa|pin|password|passcode|api[ -]?key|token|cvv|cvc)\b|رمز التحقق|كلمة المرور|كلمة السر|الرقم السري|الرمز)\s*(?:is|:|=|-)?\s*([A-Za-z0-9._-]{3,})/gi;
+const SWIFT = /(?:\b(?:swift|bic)\b|رمز سويفت|كود سويفت|سويفت)[:\s]*([A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b/gi;
+// Bank account — English enumerated + unenumerated ("acct", "bank a/c") labels, plus Arabic (رقم الحساب /
+// رقم حساب / حساب بنكي / الحساب). Longest Arabic form first so "رقم الحساب" wins over "الحساب".
+const BANK_ACCOUNT = /(?:\b(?:account (?:number|no|#)|acct(?: (?:no|number|#))?|a\/c(?: (?:no|number))?|bank a\/c)\b|رقم الحساب|رقم حساب|حساب بنكي|الحساب)[:\s]*([0-9]{6,20})\b/gi;
+// Passport / visa / residency. Bare "licence"/"license" is intentionally NOT a keyword: it caught
+// business references (trade/commercial/business licence) as IDs. Only "driving licen[cs]e" (the actual
+// ID document) is kept. Arabic: جواز السفر / رقم الجواز / الجواز (passport), الإقامة (residency), تأشيرة (visa).
+const PASSPORT = /(?:\b(?:passport|visa|residency|driving licen[cs]e)\b|جواز السفر|رقم الجواز|الجواز|الإقامة|تأشيرة)(?:\s*(?:no|number|#|is|:|-))?\s*([A-Z0-9]{6,12})\b/gi;
 
 function bump(counts: Record<string, number>, kind: SensitiveKind): void {
   counts[kind] = (counts[kind] ?? 0) + 1;
