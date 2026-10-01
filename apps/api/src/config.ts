@@ -77,6 +77,12 @@ export interface AppConfig {
    *  switch to the cheaper-write 5-minute tier. */
   extractionCacheTtl: CacheTtl;
   storageDir: string;
+  /** [STORAGE] Blob backend: 's3' (production — the provisioned media bucket) or 'fs' (local dev).
+   *  EXPLICIT, not inferred, so production can never silently fall back to ephemeral container-local
+   *  disk; assertDeployReady refuses to boot a real deployment on 'fs'. */
+  storageBackend: 'fs' | 's3';
+  s3MediaBucket: string | undefined;
+  s3Region: string | undefined;
   // --- auth (P0-3) ---
   authStore: AuthStore;
   sessionTtlHours: number;
@@ -241,6 +247,9 @@ export function loadConfig(env: Env = process.env): AppConfig {
     models: resolveModels(env),
     extractionCacheTtl: parseEnum(env.EXTRACTION_CACHE_TTL, CACHE_TTLS, '1h', 'EXTRACTION_CACHE_TTL'),
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
+    storageBackend: env.STORAGE_BACKEND?.trim() === 's3' ? 's3' : 'fs',
+    s3MediaBucket: isBlank(env.S3_MEDIA_BUCKET) ? undefined : env.S3_MEDIA_BUCKET!.trim(),
+    s3Region: (env.S3_REGION ?? env.AWS_REGION)?.trim() || undefined,
     authStore: parseAuthStore(env.AUTH_STORE),
     sessionTtlHours: parseSessionTtlHours(env.SESSION_TTL_HOURS),
     transcriberProvider: parseTranscriberProvider(env.TRANSCRIBER),
@@ -384,6 +393,18 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
   //     If an archive age is set, a destination is mandatory. Refuse to boot otherwise.
   need(config.trainingArchiveAgeDays > 0 && isBlank(config.trainingArchiveDestination),
     'TRAINING_ARCHIVE_DESTINATION (TRAINING_ARCHIVE_AGE_DAYS > 0 enables archival — a destination is REQUIRED so rows are never removed from the hot table with nowhere durable to put them)');
+
+  // --- Blob storage (STORAGE): media must be DURABLE in any real deployment. Ephemeral Fargate
+  //     local disk loses every recording on deploy/scale-in/crash. If the environment looks like a
+  //     real deployment (a real model or email provider is on, or the app URL is public), the backend
+  //     MUST be s3 — never 'fs'. This makes running production on the filesystem impossible by accident.
+  const looksDeployed = config.modelProvider !== 'stub' || config.emailProvider !== 'stub' || !looksLocal(config.appBaseUrl);
+  need(looksDeployed && config.storageBackend !== 's3',
+    'STORAGE_BACKEND=s3 (a real deployment must not keep media on ephemeral container-local disk — it is lost on every deploy/scale-in/crash; set STORAGE_BACKEND=s3)');
+  if (config.storageBackend === 's3') {
+    need(isBlank(config.s3MediaBucket), 'S3_MEDIA_BUCKET (STORAGE_BACKEND=s3 — the bucket holding audio/ and images/)');
+    need(isBlank(config.s3Region), 'S3_REGION or AWS_REGION (STORAGE_BACKEND=s3)');
+  }
 
   if (missing.length > 0) {
     throw new ConfigError(

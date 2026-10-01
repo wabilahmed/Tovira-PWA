@@ -16,6 +16,7 @@ import { AnthropicModelClient } from './adapters/model/anthropic.js';
 import { MeteredModelClient } from './adapters/model/metered.js';
 import { StubAuthProvider } from './adapters/auth/stub.js';
 import { FsStorage } from './adapters/storage/fs.js';
+import { S3Storage } from './adapters/storage/s3.js';
 import { LocalScheduler } from './adapters/scheduler/local.js';
 import { InMemoryUserRepository } from './adapters/auth/in-memory-user-repository.js';
 import { InMemorySessionRepository } from './adapters/auth/in-memory-session-repository.js';
@@ -260,7 +261,7 @@ export function createServices(config: AppConfig): Services {
   return {
     model: createModelClient(config),
     auth: new StubAuthProvider(),
-    storage: new FsStorage(config.storageDir),
+    storage: createStorage(config),
     scheduler: new LocalScheduler(),
   };
 }
@@ -382,8 +383,12 @@ export function createNoteMoveService(
   return new NoteMoveService(notes, facts, meetings, tx);
 }
 
-/** Blob storage for audio + images (filesystem locally, S3 in prod). */
+/** Blob storage for audio + images: S3 in production (the provisioned media bucket), filesystem for
+ *  local dev. Selected by config.storageBackend; assertDeployReady refuses 'fs' in a real deployment. */
 export function createStorage(config: AppConfig): Storage {
+  if (config.storageBackend === 's3') {
+    return new S3Storage({ bucket: config.s3MediaBucket ?? '', region: config.s3Region ?? '' });
+  }
   return new FsStorage(config.storageDir);
 }
 

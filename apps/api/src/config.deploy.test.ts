@@ -5,10 +5,33 @@ import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning, Con
 // must fail fast with the MISSING KEY NAMED — never a silent half-up service.
 describe('assertDeployReady', () => {
   const base = { DATABASE_URL: 'postgres://tovira:tovira@localhost:5432/tovira' };
+  // [STORAGE] a deployed-looking config must also set a durable blob backend (added to the deploy-ready
+  // bar in this batch); spread this into fixtures that otherwise look like a real deployment.
+  const S3 = { STORAGE_BACKEND: 's3', S3_MEDIA_BUCKET: 'tovira-prod-media-123', S3_REGION: 'eu-north-1' };
   const ready = (env: Record<string, string | undefined>) => () => assertDeployReady(loadConfig(env), env);
 
   it('passes for an all-stub local config (zero real providers → zero required keys)', () => {
     expect(ready(base)).not.toThrow();
+  });
+
+  it('[STORAGE] a real-looking deployment on the filesystem backend fails loud, naming STORAGE_BACKEND', () => {
+    const check = ready({ ...base, APP_BASE_URL: 'https://app.tovira.app' }); // public URL ⇒ looks deployed; backend defaults to fs
+    expect(check).toThrow(ConfigError);
+    expect(check).toThrow(/STORAGE_BACKEND=s3/);
+  });
+
+  it('[STORAGE] STORAGE_BACKEND=s3 without the bucket/region fails, naming them', () => {
+    const check = ready({ ...base, APP_BASE_URL: 'https://app.tovira.app', STORAGE_BACKEND: 's3' });
+    expect(check).toThrow(/S3_MEDIA_BUCKET/);
+    expect(check).toThrow(/S3_REGION or AWS_REGION/);
+  });
+
+  it('[STORAGE] passes once STORAGE_BACKEND=s3 with a bucket + region', () => {
+    expect(ready({ ...base, APP_BASE_URL: 'https://app.tovira.app', STORAGE_BACKEND: 's3', S3_MEDIA_BUCKET: 'tovira-prod-media-123', S3_REGION: 'eu-north-1' })).not.toThrow();
+  });
+
+  it('[STORAGE] the filesystem backend is fine for local dev (all-stub, localhost) — the check does not fire', () => {
+    expect(ready(base)).not.toThrow(); // base has no real provider and a localhost URL
   });
 
   it('MODEL_PROVIDER=anthropic without ANTHROPIC_API_KEY fails, naming the key', () => {
@@ -42,6 +65,7 @@ describe('assertDeployReady', () => {
         SES_REGION: 'me-central-1',
         EMAIL_FROM: 'Tovira <no-reply@tovira.app>',
         APP_BASE_URL: 'https://app.tovira.app',
+        ...S3,
       }),
     ).not.toThrow();
   });
@@ -79,7 +103,7 @@ describe('assertDeployReady', () => {
   });
 
   it('MODEL_PROVIDER=anthropic with a real (bedrock) embedder passes', () => {
-    expect(ready({ ...base, MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-real', EMBEDDER: 'bedrock' })).not.toThrow();
+    expect(ready({ ...base, MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-real', EMBEDDER: 'bedrock', ...S3 })).not.toThrow();
   });
 
   // [VAT-READY] a half-configured VAT state is worse than none.
