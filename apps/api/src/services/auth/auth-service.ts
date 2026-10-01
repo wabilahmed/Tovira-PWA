@@ -96,8 +96,6 @@ export const VERIFY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /** At most this many verification emails per user per calendar day (UTC) — the
  *  server-enforced resend rate limit. Counts the signup token too. */
 export const VERIFY_RESEND_LIMIT = 3;
-/** The current Terms/Privacy version a signup agrees to (P5-4). Bump on change. */
-export const CONSENT_POLICY_VERSION = '2026-08-01';
 const hashToken = (raw: string): string => createHash('sha256').update(raw).digest('hex');
 
 export class AuthService {
