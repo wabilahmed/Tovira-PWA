@@ -5,6 +5,7 @@ import type { ClientRepository } from '../ports/client-repository.js';
 import type { ImageRepository } from '../ports/image-repository.js';
 import type { Storage } from '../ports/storage.js';
 import { BadJsonError, extractToken, readRawBody, sendJson } from './helpers.js';
+import { isAllowedImage, looksLikeAudio, AUDIO_ELSEWHERE_MESSAGE, NOT_AN_IMAGE_MESSAGE } from '../services/media/sniff.js';
 
 export interface ImageRouteDeps {
   auth: AuthService;
@@ -45,6 +46,14 @@ export async function handleImageRoute(
       const bytes = await readRawBody(req);
       if (bytes.length === 0) {
         sendJson(res, 400, { error: 'validation', message: 'No image was uploaded.' });
+        return true;
+      }
+      // [IMAGES-GATE] Allow-list by ACTUAL bytes, not the content-type header or extension: accept only
+      // real images (PNG/JPEG/WebP/HEIC). Audio (incl. opus bytes sent as image/png) is refused with the
+      // voice message; any other non-image with a plain not-an-image message. Closes audio-via-images.
+      const u8 = new Uint8Array(bytes);
+      if (!isAllowedImage(u8)) {
+        sendJson(res, 415, { error: 'unsupported_media', message: looksLikeAudio(u8) ? AUDIO_ELSEWHERE_MESSAGE : NOT_AN_IMAGE_MESSAGE });
         return true;
       }
       const contentType = req.headers['content-type'] ?? 'application/octet-stream';

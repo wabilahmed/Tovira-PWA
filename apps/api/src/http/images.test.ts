@@ -24,7 +24,7 @@ async function createClient(token: string, name: string): Promise<string> {
   const res = await fetch(`${base}/clients`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ name }) });
   return ((await res.json()) as { id: string }).id;
 }
-const img = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+const img = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]); // full 8-byte PNG signature + payload
 function upload(token: string, clientId: string): Promise<Response> {
   return fetch(`${base}/clients/${clientId}/images`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'image/png' }, body: img });
 }
