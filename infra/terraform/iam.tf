@@ -63,10 +63,20 @@ resource "aws_iam_role_policy" "task_s3" {
   role = aws_iam_role.task.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-      Resource = "${aws_s3_bucket.media.arn}/*"
-    }]
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "${aws_s3_bucket.media.arn}/*" # OBJECT operations → object ARN (…/*)
+      },
+      {
+        # [MEDIA-DELETE] The account-deletion prefix-sweep backstop runs ListObjectsV2 over
+        # audio/<uid>/ and images/<uid>/. ListObjectsV2 is authorized by s3:ListBucket on the
+        # BUCKET arn (NOT the object arn, and NOT with /*).
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = aws_s3_bucket.media.arn # BUCKET arn → "arn:aws:s3:::tovira-prod-media-862070608699"
+      },
+    ]
   })
 }

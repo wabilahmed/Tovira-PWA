@@ -55,6 +55,10 @@ resource "aws_ecs_task_definition" "api" {
       { name = "EMBED_DIM", value = "512" },
       { name = "PUSH_SENDER", value = "webpush" },
       { name = "S3_MEDIA_BUCKET", value = aws_s3_bucket.media.bucket },
+      # [STORAGE-S3] Durable media in S3, not ephemeral container disk. STORAGE_BACKEND selects the S3
+      # adapter; the app fails loud at boot if this is unset in a deployed env (assertDeployReady).
+      { name = "STORAGE_BACKEND", value = "s3" },
+      { name = "S3_REGION", value = var.region },
     ]
     secrets = [
       { name = "DATABASE_URL", valueFrom = "${aws_secretsmanager_secret.app.arn}:DATABASE_URL::" },
