@@ -60,4 +60,8 @@ export interface AccessRequestRepository {
   list(status?: AccessRequestStatus): Promise<AccessRequestRecord[]>;
   /** Apply a review outcome (status + reviewer note + optional linked user). Returns the updated row. */
   review(id: string, patch: AccessRequestReview): Promise<AccessRequestRecord | null>;
+  /** [BETA-8] Delete stale requests created before `cutoffMs` — ONLY 'pending' (abandoned) and
+   *  'rejected'. Approved/invited/activated are the authority record and are never deleted. Returns the
+   *  number removed. */
+  deleteStale(cutoffMs: number): Promise<number>;
 }

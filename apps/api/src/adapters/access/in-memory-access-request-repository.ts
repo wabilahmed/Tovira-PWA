@@ -40,6 +40,17 @@ export class InMemoryAccessRequestRepository implements AccessRequestRepository 
     return rec;
   }
 
+  async deleteStale(cutoffMs: number): Promise<number> {
+    let n = 0;
+    for (const [id, rec] of this.byId) {
+      if (rec.createdAt < cutoffMs && (rec.status === 'pending' || rec.status === 'rejected')) {
+        this.byId.delete(id);
+        n++;
+      }
+    }
+    return n;
+  }
+
   /** [BETA-6] Set status only, preserving reviewedAt/note (used by the in-memory invite-activation tx). */
   setStatus(id: string, status: AccessRequestStatus): void {
     const rec = this.byId.get(id);

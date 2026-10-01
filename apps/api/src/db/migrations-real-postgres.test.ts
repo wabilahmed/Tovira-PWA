@@ -230,4 +230,31 @@ suite('[DEPLOY-READY] migrations apply against real Postgres', () => {
     const status = (await pool.query<{ status: string }>(`SELECT status FROM access_requests WHERE id = $1`, [req.id])).rows[0]!.status;
     expect(status).toBe('activated');
   });
+
+  it('PgAccessRequestRepository.deleteStale removes old pending/rejected only, never approved/invited/activated (BETA-8)', async () => {
+    const requests = new PgAccessRequestRepository(pool);
+    const mk = async (status: string, ageDays: number): Promise<string> => {
+      const r = await requests.create({
+        fullName: 'S', workEmail: `stale-${status}-${ageDays}@x.com`, phone: '1', companyName: 'Co', roleTitle: 'R',
+        ownership: 'employed', tradeLicenceNumber: null, conversationOwnership: 'brokerage_employs_me',
+        conversationOwnershipOther: null, expectedVolume: 'under_50', confirmationAcceptedAt: Date.now(), confirmationTextVersion: 'v',
+        sourceIp: null, userAgent: null, referralCode: null,
+      });
+      await pool.query(`UPDATE access_requests SET status = $2, created_at = now() - ($3 || ' days')::interval WHERE id = $1`, [r.id, status, String(ageDays)]);
+      return r.id;
+    };
+    const oldPending = await mk('pending', 100);
+    const oldRejected = await mk('rejected', 100);
+    const freshPending = await mk('pending', 10);
+    const oldActivated = await mk('activated', 100);
+    const oldInvited = await mk('invited', 100);
+
+    const removed = await requests.deleteStale(Date.now() - 90 * 86400_000);
+    expect(removed).toBe(2);
+    expect(await requests.get(oldPending)).toBeNull();
+    expect(await requests.get(oldRejected)).toBeNull();
+    expect(await requests.get(freshPending)).not.toBeNull();
+    expect(await requests.get(oldActivated)).not.toBeNull();
+    expect(await requests.get(oldInvited)).not.toBeNull();
+  });
 });

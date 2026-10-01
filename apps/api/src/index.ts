@@ -8,6 +8,7 @@ import { PgInviteRepository } from './adapters/access/pg-invite-repository.js';
 import { PgAccessApprovalTx } from './adapters/access/pg-access-approval-tx.js';
 import { PgInviteActivationTx } from './adapters/access/pg-invite-activation-tx.js';
 import { AccessApprovalService } from './services/access/access-approval-service.js';
+import { AccessRequestRetentionService, ACCESS_REQUEST_RETENTION_DAYS } from './services/access/access-request-retention.js';
 import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
 import { ScryptHasher } from './services/auth/password.js';
 import { createPool } from './db/pool.js';
@@ -395,6 +396,10 @@ async function main(): Promise<void> {
       // resumed. Deterministic, no model call. Idempotent, so a restart or extra tick is harmless.
       { name: 'outcomes-inference', lockKey: 4711009, intervalMs: 24 * 60 * 60 * 1000,
         run: async () => { const r = await outcomeInference.recompute(Date.now()); console.log(`[outcomes] inferred=${r.inferred} reverted=${r.reverted}`); } },
+      // [BETA-8] Daily: delete stale access requests (rejected + never-acted-on pending) past the
+      // retention window. Approved/invited/activated are never touched (authority record). Idempotent.
+      { name: 'access-request-retention', lockKey: 4711011, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => { const n = await accessRequestRetention.sweep(Date.now()); console.log(`[retention] access-requests deleted ${n} stale (rejected/abandoned) past ${ACCESS_REQUEST_RETENTION_DAYS}d`); } },
     ],
   }, 15_000); // [ASYNC-EXTRACT] tick every 15s (was 30s) so the notes-sweep (15s interval) fires on
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs
@@ -430,6 +435,7 @@ async function main(): Promise<void> {
     applyReferral: (code, userId, email) => referral.apply(code, userId, email),
     appBaseUrl: config.appBaseUrl,
   });
+  const accessRequestRetention = new AccessRequestRetentionService(accessRequests);
   const server = createApiServer({
     pool: appPool,
     auth,

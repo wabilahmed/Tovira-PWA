@@ -100,4 +100,12 @@ export class PgAccessRequestRepository implements AccessRequestRepository {
     );
     return rows[0] ? toRecord(rows[0]) : null;
   }
+
+  async deleteStale(cutoffMs: number): Promise<number> {
+    const { rowCount } = await this.pool.query(
+      `DELETE FROM access_requests WHERE created_at < to_timestamp($1 / 1000.0) AND status IN ('pending', 'rejected')`,
+      [cutoffMs],
+    );
+    return rowCount ?? 0;
+  }
 }

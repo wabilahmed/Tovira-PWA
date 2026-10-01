@@ -43,7 +43,7 @@ const LEDGER_WIRING: Record<LedgerEventType, Wiring> = {
 };
 
 // Every job that must be registered on the ScheduledBrain (asserted present in index.ts).
-const SCHEDULED_JOBS = ['notes-sweep', 'priorities-nightly', 'trial-emails', 'meeting-nudges', 'monday-digest', 'daily-digest', 'daily-scan'];
+const SCHEDULED_JOBS = ['notes-sweep', 'priorities-nightly', 'trial-emails', 'meeting-nudges', 'monday-digest', 'daily-digest', 'daily-scan', 'access-request-retention'];
 
 function nonTestSource(): string {
   const root = dirname(fileURLToPath(import.meta.url));
