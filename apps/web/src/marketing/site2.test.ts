@@ -48,10 +48,11 @@ describe('[SITE2] the funnel is present, in order', () => {
     expect(how, 'one client under several names (alias resolution)').toMatch(/name/i);
   });
 
-  it('every CTA is a plain link to /app (works with no JS) and there is a sticky mobile bar', () => {
+  it('every CTA is a plain link to the beta request form (works with no JS) and there is a sticky mobile bar', () => {
     const ctas = [...d.querySelectorAll<HTMLAnchorElement>('[data-cta]')];
     expect(ctas.length).toBeGreaterThanOrEqual(4); // nav, hero, plans, close, mobile bar
-    for (const a of ctas) expect(a.getAttribute('href')).toBe('/app');
+    // BETA-4: self-registration replaced by request-and-invite; CTAs route to /request-access.
+    for (const a of ctas) expect(a.getAttribute('href')).toBe('/request-access');
     expect(d.querySelector('[data-mobile-cta]')).not.toBeNull();
   });
 

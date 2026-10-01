@@ -47,7 +47,8 @@ describe('[SITE-3] referral pass-through on the real page (the growth loop)', ()
     expect(ctas.length).toBeGreaterThan(0);
     for (const a of ctas) {
       expect(a.getAttribute('href')).toContain('ref=abc123');
-      expect(a.getAttribute('href')!.startsWith('/app')).toBe(true);
+      // BETA-4: CTAs now point at the beta request form; referral/UTM pass-through is preserved.
+      expect(a.getAttribute('href')!.startsWith('/request-access')).toBe(true);
     }
   });
 
@@ -67,7 +68,7 @@ describe('[SITE-3] referral pass-through on the real page (the growth loop)', ()
     const doc = pageDoc();
     enhanceLinks(doc, '', ORIGIN);
     for (const a of doc.querySelectorAll<HTMLAnchorElement>('[data-cta]')) {
-      expect(a.getAttribute('href')).toBe('/app');
+      expect(a.getAttribute('href')).toBe('/request-access');
       expect(a.getAttribute('href')).not.toContain('?');
     }
   });
@@ -81,6 +82,6 @@ describe('[SITE-3] referral pass-through on the real page (the growth loop)', ()
   it('ships CTAs that work with no JS (absolute app hrefs in the source HTML)', () => {
     const doc = pageDoc();
     const ctas = [...doc.querySelectorAll<HTMLAnchorElement>('[data-cta]')];
-    for (const a of ctas) expect(a.getAttribute('href')).toBe('/app');
+    for (const a of ctas) expect(a.getAttribute('href')).toBe('/request-access');
   });
 });
