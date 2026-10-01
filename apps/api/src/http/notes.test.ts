@@ -46,7 +46,7 @@ function uploadVoice(token: string, clientId: string, bytes: Uint8Array): Promis
   });
 }
 
-const audio = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+const audio = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 5, 6, 7, 8]); // WebM/EBML magic + payload (VOICE-GATE requires a real recorder container)
 
 describe('voice note upload', () => {
   it('stores the raw audio and creates a pending-transcription note under the client', async () => {
