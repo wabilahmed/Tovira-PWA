@@ -28,4 +28,9 @@ export class InMemoryInviteRepository implements InviteRepository {
     }
     return false;
   }
+
+  async peek(tokenHash: string, nowMs: number): Promise<boolean> {
+    const inv = this.byHash.get(tokenHash);
+    return !!inv && inv.consumedAt === null && inv.expiresAt > nowMs;
+  }
 }

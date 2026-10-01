@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AuthError, AuthService } from '../services/auth/auth-service.js';
-import { TERMS_VERSION } from '../services/legal/versions.js';
+import { TERMS_VERSION, PRIVACY_VERSION } from '../services/legal/versions.js';
 import {
   BadJsonError,
   clearedSessionCookie,
@@ -152,6 +152,28 @@ export async function handleAuthRoute(
       const token = typeof body.token === 'string' ? body.token : '';
       const password = typeof body.password === 'string' ? body.password : '';
       await auth.resetPassword(token, password); // throws AuthError → handled below
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // [BETA-6] Invite acceptance. GET validates the token WITHOUT consuming it (so the page can show an
+    // invalid/expired link on load) and returns the versions being accepted. POST sets the password +
+    // records terms acceptance, consuming the token atomically — single-use even under concurrency.
+    if (method === 'GET' && url === '/auth/invite') {
+      const token = new URL(req.url ?? '/', 'http://x').searchParams.get('token') ?? '';
+      sendJson(res, 200, { valid: await auth.peekInvite(token), termsVersion: TERMS_VERSION, privacyVersion: PRIVACY_VERSION });
+      return true;
+    }
+    if (method === 'POST' && url === '/auth/accept-invite') {
+      const body = (await readJsonBody(req)) as Record<string, unknown>;
+      const token = typeof body.token === 'string' ? body.token : '';
+      const password = typeof body.password === 'string' ? body.password : '';
+      // Terms acceptance is mandatory on this screen (NOT the access-form confirmation — that was earlier).
+      if (body.acceptTerms !== true) {
+        sendJson(res, 400, { error: 'terms_required', message: 'Please accept the Terms and Privacy Policy to continue.' });
+        return true;
+      }
+      await auth.acceptInvite(token, password, TERMS_VERSION, clientIp(req)); // throws AuthError → handled below
       sendJson(res, 200, { ok: true });
       return true;
     }

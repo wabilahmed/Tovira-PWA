@@ -9,6 +9,7 @@ import { PgJobRunStore, PgAdvisoryLock } from './adapters/scheduler/pg-scheduled
 import { InMemoryJobRunStore, InMemoryAdvisoryLock } from './adapters/scheduler/in-memory-scheduled-jobs.js';
 import type { UserRepository } from './ports/user-repository.js';
 import type { InviteRepository } from './ports/invite-repository.js';
+import type { InviteActivationTx } from './ports/invite-activation-tx.js';
 import type { SessionRepository } from './ports/session-repository.js';
 import { StubModelClient } from './adapters/model/stub.js';
 import { AnthropicModelClient } from './adapters/model/anthropic.js';
@@ -266,7 +267,7 @@ export function createServices(config: AppConfig): Services {
 
 /** Build the auth service, selecting the user/session store from config. `invites`, when supplied,
  *  makes an invite-pending account unreachable by password reset (BETA-5). */
-export function createAuthService(config: AppConfig, pool?: Pool, invites?: InviteRepository): AuthService {
+export function createAuthService(config: AppConfig, pool?: Pool, invites?: InviteRepository, inviteActivation?: InviteActivationTx): AuthService {
   let users: UserRepository;
   let sessions: SessionRepository;
   let passwordResets: PasswordResetRepository;
@@ -291,6 +292,7 @@ export function createAuthService(config: AppConfig, pool?: Pool, invites?: Invi
     hasher: new ScryptHasher(),
     sessionTtlMs: config.sessionTtlHours * 60 * 60 * 1000,
     invites,
+    inviteActivation,
   });
 }
 

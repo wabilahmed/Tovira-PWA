@@ -2,6 +2,7 @@ import { API_BASE } from './apiBase.js';
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
 import { ResetPassword } from './auth/PasswordReset.js';
+import { InviteAccept } from './auth/InviteAccept.js';
 import { RequestAccess } from './access/RequestAccess.js';
 import { HttpAccessRequestClient } from './access/requestAccessClient.js';
 import { LoginScreen } from './auth/LoginScreen.js';
@@ -156,6 +157,12 @@ export function App(): JSX.Element {
       ? new URLSearchParams(window.location.search).get('token')
       : null,
   );
+  // [BETA-6] Reached via the emailed invite link (/invite?token=…), before auth.
+  const [inviteToken, setInviteToken] = useState<string | null>(() =>
+    typeof window !== 'undefined' && window.location.pathname === '/invite'
+      ? new URLSearchParams(window.location.search).get('token')
+      : null,
+  );
   // Reached via the emailed confirmation link (/verify-email?token=…). Works with
   // or without a session — verification is soft and never gates access.
   const [verifyToken, setVerifyToken] = useState<string | null>(() =>
@@ -176,6 +183,18 @@ export function App(): JSX.Element {
   // and /verify-email, it is served by the SPA before the session gate (no infra route needed).
   if (typeof window !== 'undefined' && window.location.pathname === '/request-access') {
     return <RequestAccess client={accessRequestApi} />;
+  }
+  if (inviteToken) {
+    return (
+      <InviteAccept
+        auth={auth}
+        token={inviteToken}
+        onDone={() => {
+          if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
+          setInviteToken(null);
+        }}
+      />
+    );
   }
   if (resetToken) {
     return (

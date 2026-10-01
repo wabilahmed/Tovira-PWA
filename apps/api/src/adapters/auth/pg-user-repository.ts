@@ -82,6 +82,18 @@ export class PgUserRepository implements UserRepository {
     return rows[0]!.id;
   }
 
+  /** [BETA-6] Set the password AND record terms acceptance in one statement, on a caller-supplied tx
+   *  client — so invite consumption, password set, and request activation commit together. users SQL
+   *  stays in this file ([USERS-GUARD]). */
+  async setPasswordAndTermsWithClient(client: PoolClient, userId: string, passwordHash: string, termsVersion: string, termsAcceptedAt: number, termsAcceptedIp: string | null): Promise<void> {
+    await client.query(
+      `UPDATE users SET password_hash = $2, terms_version_accepted = $3,
+         terms_accepted_at = to_timestamp($4 / 1000.0), terms_accepted_ip = $5
+       WHERE id = $1`,
+      [userId, passwordHash, termsVersion, termsAcceptedAt, termsAcceptedIp],
+    );
+  }
+
   async updatePassword(id: string, passwordHash: string): Promise<void> {
     await this.pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [id, passwordHash]);
   }

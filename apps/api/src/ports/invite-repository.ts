@@ -19,4 +19,7 @@ export interface InviteRepository {
   /** Does this user have an invite that is still outstanding (unconsumed AND unexpired)? The signal that
    *  an account is invite-pending, used to keep it unreachable by password reset until the invite is used. */
   hasOutstanding(userId: string, nowMs: number): Promise<boolean>;
+  /** Is this token currently usable (known, unconsumed, unexpired)? A NON-consuming check so the invite
+   *  page can show "this link is invalid/expired" on load without burning the token. */
+  peek(tokenHash: string, nowMs: number): Promise<boolean>;
 }

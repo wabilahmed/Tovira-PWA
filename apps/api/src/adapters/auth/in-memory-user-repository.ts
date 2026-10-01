@@ -55,6 +55,16 @@ export class InMemoryUserRepository implements UserRepository {
     if (rec) rec.emailVerified = true;
   }
 
+  /** [BETA-6] Record terms acceptance (used by the in-memory invite-activation tx). */
+  recordTerms(id: string, termsVersion: string, acceptedAt: number, acceptedIp: string | null): void {
+    const rec = this.byId.get(id);
+    if (rec) {
+      rec.termsVersionAccepted = termsVersion;
+      rec.termsAcceptedAt = acceptedAt;
+      rec.termsAcceptedIp = acceptedIp;
+    }
+  }
+
   async delete(id: string): Promise<void> {
     const rec = this.byId.get(id);
     if (rec) {

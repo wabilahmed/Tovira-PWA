@@ -6,6 +6,7 @@ import { AccessRequestService } from './services/access/access-request-service.j
 import { PgAccessRequestRepository } from './adapters/access/pg-access-request-repository.js';
 import { PgInviteRepository } from './adapters/access/pg-invite-repository.js';
 import { PgAccessApprovalTx } from './adapters/access/pg-access-approval-tx.js';
+import { PgInviteActivationTx } from './adapters/access/pg-invite-activation-tx.js';
 import { AccessApprovalService } from './services/access/access-approval-service.js';
 import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
 import { ScryptHasher } from './services/auth/password.js';
@@ -154,7 +155,8 @@ async function main(): Promise<void> {
   // auth service so an invite-pending account is unreachable by password reset.
   const invites = new PgInviteRepository(appPool);
   const accessRequests = new PgAccessRequestRepository(appPool);
-  const auth = createAuthService(config, appPool, invites);
+  const inviteActivation = new PgInviteActivationTx(appPool, new PgUserRepository(appPool));
+  const auth = createAuthService(config, appPool, invites, inviteActivation);
   const accountEmail = createAccountEmailService(config, appPool);
   const emailFor = (userId: string): Promise<string | null> => auth.getPublicUser(userId).then((u) => u?.email ?? null);
   const clients = createClientRepository(config, appPool);

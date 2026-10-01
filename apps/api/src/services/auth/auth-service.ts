@@ -63,6 +63,14 @@ export class InvalidResetTokenError extends AuthError {
   }
 }
 
+export class InvalidInviteTokenError extends AuthError {
+  override name = 'InvalidInviteTokenError';
+  constructor() {
+    // Generic — unknown / expired / already-used all look identical (no oracle).
+    super(400, 'This invitation link is invalid, has expired, or has already been used.');
+  }
+}
+
 export class InvalidVerificationTokenError extends AuthError {
   override name = 'InvalidVerificationTokenError';
   constructor() {
@@ -88,8 +96,11 @@ export interface AuthServiceDeps {
   now?: () => number;
   /** [BETA-5] Optional invite guard. When present, an account with an OUTSTANDING invite (created by
    *  beta approval, not yet consumed) is invite-pending and must be unreachable by password reset — the
-   *  account cannot be activated by any route except consuming its invite (BETA-6). */
-  invites?: { hasOutstanding(userId: string, nowMs: number): Promise<boolean> };
+   *  account cannot be activated by any route except consuming its invite (BETA-6). `peek` lets the
+   *  invite page check a token's validity without consuming it. */
+  invites?: { hasOutstanding(userId: string, nowMs: number): Promise<boolean>; peek(tokenHash: string, nowMs: number): Promise<boolean> };
+  /** [BETA-6] Atomic invite acceptance (consume + set password + record terms + activate). */
+  inviteActivation?: { activate(input: { tokenHash: string; now: number; passwordHash: string; termsVersion: string; termsAcceptedIp: string | null }): Promise<{ userId: string } | null> };
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -228,6 +239,30 @@ export class AuthService {
     await this.deps.users.updatePassword(userId, passwordHash);
     await this.deps.sessions.deleteByUser(userId); // every existing session dies
     await this.deps.passwordResets.deleteForUser(userId); // and any other outstanding tokens
+  }
+
+  /** [BETA-6] Is a beta invite token currently usable? Non-consuming (for the invite page's load check). */
+  async peekInvite(rawToken: string): Promise<boolean> {
+    if (!this.deps.invites) return false;
+    return this.deps.invites.peek(hashToken(rawToken), this.now());
+  }
+
+  /**
+   * [BETA-6] Accept an invite: set the password (same policy as signup/reset — min 8, unchanged) and
+   * record acceptance of `termsVersion`. The invite is consumed ATOMICALLY as the password is set, so
+   * the same link activates at most once, even under concurrent requests. Throws InvalidInviteTokenError
+   * if the token is unknown / expired / already used. Does not issue a session — the now-active account
+   * logs in normally.
+   */
+  async acceptInvite(rawToken: string, newPassword: string, termsVersion: string, termsAcceptedIp: string | null): Promise<{ userId: string }> {
+    if (!newPassword || newPassword.length < 8) {
+      throw new AuthValidationError('Password must be at least 8 characters.');
+    }
+    if (!this.deps.inviteActivation) throw new Error('invite activation is not configured');
+    const passwordHash = await this.deps.hasher.hash(newPassword);
+    const result = await this.deps.inviteActivation.activate({ tokenHash: hashToken(rawToken), now: this.now(), passwordHash, termsVersion, termsAcceptedIp });
+    if (!result) throw new InvalidInviteTokenError();
+    return result;
   }
 
   /**

@@ -5,6 +5,7 @@ import { loadMigrations, runMigrations } from './migrate.js';
 import { PgAccessRequestRepository } from '../adapters/access/pg-access-request-repository.js';
 import { PgInviteRepository } from '../adapters/access/pg-invite-repository.js';
 import { PgAccessApprovalTx } from '../adapters/access/pg-access-approval-tx.js';
+import { PgInviteActivationTx } from '../adapters/access/pg-invite-activation-tx.js';
 import { PgUserRepository } from '../adapters/auth/pg-user-repository.js';
 
 /**
@@ -201,5 +202,32 @@ suite('[DEPLOY-READY] migrations apply against real Postgres', () => {
     expect(consumed).toEqual({ userId, accessRequestId: req.id });
     expect(await invites.consume('th-approve', now)).toBeNull(); // single-use
     expect(await invites.hasOutstanding(userId, now)).toBe(false);
+  });
+
+  it('PgInviteActivationTx is single-use under CONCURRENCY — two parallel accepts, exactly one wins (BETA-6)', async () => {
+    const requests = new PgAccessRequestRepository(pool);
+    const tx = new PgInviteActivationTx(pool, new PgUserRepository(pool));
+    const now = Date.now();
+    const req = await requests.create({
+      fullName: 'Race', workEmail: 'race@x.com', phone: '1', companyName: 'Co', roleTitle: 'Broker',
+      ownership: 'employed', tradeLicenceNumber: null, conversationOwnership: 'brokerage_employs_me',
+      conversationOwnershipOther: null, expectedVolume: 'under_50', confirmationAcceptedAt: now, confirmationTextVersion: 'v',
+      sourceIp: null, userAgent: null, referralCode: null,
+    });
+    // Seed the invited account + a known invite directly (raw SQL is allowed in tests).
+    const userId = (await pool.query<{ id: string }>(`INSERT INTO users (email, password_hash, referral_code) VALUES ('race@x.com', 'scrypt$unusable', 'rc-race') RETURNING id`)).rows[0]!.id;
+    await pool.query(`UPDATE access_requests SET status = 'invited', linked_user_id = $2 WHERE id = $1`, [req.id, userId]);
+    await pool.query(`INSERT INTO invites (token_hash, access_request_id, user_id, expires_at, created_by) VALUES ('th-race', $1, $2, to_timestamp($3 / 1000.0), 'ops')`, [req.id, userId, now + 7 * 86400_000]);
+
+    const input = { tokenHash: 'th-race', now, passwordHash: 'scrypt$set', termsVersion: '2026-09-22', termsAcceptedIp: '1.1.1.1' };
+    const [a, b] = await Promise.all([tx.activate(input), tx.activate({ ...input, termsAcceptedIp: '2.2.2.2' })]);
+    const wins = [a, b].filter((r) => r !== null);
+    expect(wins).toHaveLength(1); // the row lock lets exactly one consume win
+    expect(wins[0]!.userId).toBe(userId);
+
+    const pw = (await pool.query<{ password_hash: string }>(`SELECT password_hash FROM users WHERE id = $1`, [userId])).rows[0]!.password_hash;
+    expect(pw).toBe('scrypt$set'); // the winner set the password
+    const status = (await pool.query<{ status: string }>(`SELECT status FROM access_requests WHERE id = $1`, [req.id])).rows[0]!.status;
+    expect(status).toBe('activated');
   });
 });

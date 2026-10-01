@@ -75,6 +75,34 @@ export class AuthClient {
     }
   }
 
+  /** [BETA-6] Check an invite token's validity (without consuming it) + the versions being accepted. */
+  async inviteStatus(token: string): Promise<{ valid: boolean; termsVersion: string; privacyVersion: string }> {
+    try {
+      const res = await fetch(this.url(`/auth/invite?token=${encodeURIComponent(token)}`), { credentials: 'include' });
+      if (!res.ok) return { valid: false, termsVersion: '', privacyVersion: '' };
+      return (await res.json()) as { valid: boolean; termsVersion: string; privacyVersion: string };
+    } catch {
+      return { valid: false, termsVersion: '', privacyVersion: '' };
+    }
+  }
+
+  /** [BETA-6] Accept an invite: set a password and accept the terms. */
+  async acceptInvite(token: string, password: string, acceptTerms: boolean): Promise<{ ok: boolean; message?: string }> {
+    try {
+      const res = await fetch(this.url('/auth/accept-invite'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, password, acceptTerms }),
+      });
+      if (res.ok) return { ok: true };
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, message: body.message ?? 'Could not set up your account.' };
+    } catch {
+      return { ok: false, message: 'Network error — please try again.' };
+    }
+  }
+
   async resetPassword(token: string, password: string): Promise<{ ok: boolean; message?: string }> {
     try {
       const res = await fetch(this.url('/auth/reset-password'), {

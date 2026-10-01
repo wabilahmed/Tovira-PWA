@@ -40,6 +40,12 @@ export class InMemoryAccessRequestRepository implements AccessRequestRepository 
     return rec;
   }
 
+  /** [BETA-6] Set status only, preserving reviewedAt/note (used by the in-memory invite-activation tx). */
+  setStatus(id: string, status: AccessRequestStatus): void {
+    const rec = this.byId.get(id);
+    if (rec) rec.status = status;
+  }
+
   async count(): Promise<number> {
     return this.byId.size;
   }

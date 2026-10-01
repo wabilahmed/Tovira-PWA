@@ -23,4 +23,12 @@ export class PgInviteRepository implements InviteRepository {
     );
     return rows.length > 0;
   }
+
+  async peek(tokenHash: string, nowMs: number): Promise<boolean> {
+    const { rows } = await this.pool.query(
+      `SELECT 1 FROM invites WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > to_timestamp($2 / 1000.0) LIMIT 1`,
+      [tokenHash, nowMs],
+    );
+    return rows.length > 0;
+  }
 }

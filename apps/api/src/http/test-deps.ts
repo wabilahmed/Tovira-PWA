@@ -79,6 +79,7 @@ import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-j
 import { InMemoryAccessRequestRepository } from '../adapters/access/in-memory-access-request-repository.js';
 import { InMemoryInviteRepository } from '../adapters/access/in-memory-invite-repository.js';
 import { InMemoryAccessApprovalTx } from '../adapters/access/in-memory-access-approval-tx.js';
+import { InMemoryInviteActivationTx } from '../adapters/access/in-memory-invite-activation-tx.js';
 import { AccessRequestService } from '../services/access/access-request-service.js';
 import { AccessApprovalService } from '../services/access/access-approval-service.js';
 import { ModelMetricsRegistry } from '../services/metrics/model-metrics.js';
@@ -107,6 +108,8 @@ export interface TestDeps extends ApiDeps {
   /** [BETA-5] the approval/invite service + the invite store, exposed for ops + unusable-account tests. */
   accessApproval: AccessApprovalService;
   invites: InMemoryInviteRepository;
+  /** [BETA-5/6] the stub email sender, exposed so tests can read sent emails (e.g. the invite link). */
+  emailSender: StubEmailSender;
 }
 
 /**
@@ -120,7 +123,9 @@ export function buildInMemoryDeps(
   const stubPool = { query: async () => ({ rows: [] }) } as unknown as Pool;
   const authUsers = new InMemoryUserRepository();
   const invites = new InMemoryInviteRepository();
+  const accessRequests = new InMemoryAccessRequestRepository();
   const hasher = new ScryptHasher();
+  const inviteActivation = new InMemoryInviteActivationTx(invites, authUsers, accessRequests);
   const auth = new AuthService({
     users: authUsers,
     sessions: new InMemorySessionRepository(),
@@ -129,6 +134,7 @@ export function buildInMemoryDeps(
     hasher,
     sessionTtlMs: 60 * 60 * 1000,
     invites, // [BETA-5] invite-pending accounts are unreachable by password reset
+    inviteActivation, // [BETA-6] invite acceptance: consume + set password + accept terms, atomic
   });
   const notes = new InMemoryNoteRepository();
   const storage = new InMemoryStorage();
@@ -232,8 +238,8 @@ export function buildInMemoryDeps(
     const today = new Date().toISOString().slice(0, 10);
     for (let i = 0; i < passes; i++) await noteSweep.sweep(today);
   };
-  const accessRequests = new InMemoryAccessRequestRepository();
-  const accountEmail = new AccountEmailService(new StubEmailSender(), new InMemoryEmailLogRepository());
+  const emailSender = new StubEmailSender();
+  const accountEmail = new AccountEmailService(emailSender, new InMemoryEmailLogRepository());
   const referral = new ReferralService(new InMemoryReferralRepository(), billing, (code) => auth.findUserIdByReferralCode(code));
   const accessApproval = new AccessApprovalService({
     requests: accessRequests,
@@ -315,6 +321,7 @@ export function buildInMemoryDeps(
     accessRequests,
     accessApproval,
     invites,
+    emailSender,
     ...overrides,
   } as TestDeps;
 }
