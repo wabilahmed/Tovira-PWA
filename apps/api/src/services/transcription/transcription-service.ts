@@ -27,11 +27,16 @@ export const TRANSCRIBE_MAX_MISSING_ATTEMPTS = 3;
  * it is never silently dropped.
  */
 export class TranscriptionService {
+  private readonly now: () => number;
   constructor(
     private readonly transcriber: Transcriber,
     private readonly notes: NoteRepository,
     private readonly storage: Storage,
-  ) {}
+    /** Injectable clock — the retention clock ([AUDIO-RETENTION]) is stamped from here on success. */
+    now: () => number = () => Date.now(),
+  ) {
+    this.now = now;
+  }
 
   async transcribeNote(userId: string, noteId: string): Promise<TranscribeOutcome> {
     const note = await this.notes.findByIdForUser(userId, noteId);
@@ -80,7 +85,11 @@ export class TranscriptionService {
     if (r.total > 0) {
       console.info(`[redact] voice note ${noteId}: ${r.total} Tier-1 value(s) redacted`);
     }
-    await this.notes.update(userId, noteId, { rawText: r.redacted, status });
+    // [AUDIO-RETENTION] Transcription SUCCEEDED (a transcript was produced and stored — flagged or not).
+    // Stamp the retention clock now: the recording becomes eligible for deletion AUDIO_RETENTION_DAYS
+    // from here, never from upload. The transcription_failed / pending branches above return earlier and
+    // never stamp it, so their recordings are kept.
+    await this.notes.update(userId, noteId, { rawText: r.redacted, status, transcribedAt: this.now() });
     return { status };
   }
 }

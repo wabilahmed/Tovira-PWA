@@ -9,6 +9,7 @@ import { PgAccessApprovalTx } from './adapters/access/pg-access-approval-tx.js';
 import { PgInviteActivationTx } from './adapters/access/pg-invite-activation-tx.js';
 import { AccessApprovalService } from './services/access/access-approval-service.js';
 import { AccessRequestRetentionService, ACCESS_REQUEST_RETENTION_DAYS } from './services/access/access-request-retention.js';
+import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/audio-retention-service.js';
 import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
 import { ScryptHasher } from './services/auth/password.js';
 import { createPool } from './db/pool.js';
@@ -341,6 +342,9 @@ async function main(): Promise<void> {
     allUserIds: () => auth.allUserIds(),
     thresholdDays: config.lostInferredThresholdDays,
   });
+  // [AUDIO-RETENTION] Delete voice recordings AUDIO_RETENTION_DAYS after transcription succeeds. Uses
+  // the main blob store + the per-rep expirable-audio query; runs on the brain below, not a 2nd scheduler.
+  const audioRetention = new AudioRetentionService({ allUserIds: () => auth.allUserIds(), notes, storage });
   const jobRunStore = createJobRunStore(config, appPool);
   const scheduledBrain = new ScheduledBrain({
     store: jobRunStore,
@@ -400,6 +404,12 @@ async function main(): Promise<void> {
       // retention window. Approved/invited/activated are never touched (authority record). Idempotent.
       { name: 'access-request-retention', lockKey: 4711011, intervalMs: 24 * 60 * 60 * 1000,
         run: async () => { const n = await accessRequestRetention.sweep(Date.now()); console.log(`[retention] access-requests deleted ${n} stale (rejected/abandoned) past ${ACCESS_REQUEST_RETENTION_DAYS}d`); } },
+      // [AUDIO-RETENTION] Daily: delete voice recordings past AUDIO_RETENTION_DAYS after transcription
+      // succeeded (notes.transcribed_at); the note keeps its transcript and is marked audio-expired.
+      // transcription_failed + never-transcribed notes are excluded (recording kept). lockKey 4711012:
+      // UNIQUE, the next free key after access-request-retention (…011). Idempotent.
+      { name: 'audio-retention', lockKey: 4711012, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => { const n = await audioRetention.sweep(Date.now()); console.log(`[retention] audio deleted ${n} recording(s) past ${AUDIO_RETENTION_DAYS}d after transcription`); } },
     ],
   }, 15_000); // [ASYNC-EXTRACT] tick every 15s (was 30s) so the notes-sweep (15s interval) fires on
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs

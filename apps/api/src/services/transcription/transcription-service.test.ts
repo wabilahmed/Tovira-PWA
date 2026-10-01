@@ -35,6 +35,32 @@ describe('TranscriptionService', () => {
     expect(updated?.rawText).toBe('revised quote by Friday');
   });
 
+  // [AUDIO-RETENTION] The retention clock starts on SUCCESSFUL transcription, never on upload. A
+  // transcribed note carries transcribed_at; a failed/pending one must not (its recording is kept).
+  it('stamps transcribedAt on successful transcription (the retention clock)', async () => {
+    const CLOCK = 1_700_000_000_000;
+    const t: Transcriber = { transcribe: async () => ({ text: 'revised quote by Friday', quality: 'ok' }) };
+    await new TranscriptionService(t, ctx.notes, ctx.storage, () => CLOCK).transcribeNote('user-A', ctx.note.id);
+    expect((await ctx.notes.findByIdForUser('user-A', ctx.note.id))?.transcribedAt).toBe(CLOCK);
+  });
+
+  // A flagged (empty/low-quality) transcript is STILL a successful transcription — a transcript was
+  // produced and stored — so the clock starts. (Only a FAILED transcription keeps the audio forever.)
+  it('stamps transcribedAt even when the transcript is flagged needs_review', async () => {
+    const CLOCK = 1_700_000_000_001;
+    const t: Transcriber = { transcribe: async () => ({ text: 'mumbled', quality: 'low' }) };
+    await new TranscriptionService(t, ctx.notes, ctx.storage, () => CLOCK).transcribeNote('user-A', ctx.note.id);
+    expect((await ctx.notes.findByIdForUser('user-A', ctx.note.id))?.transcribedAt).toBe(CLOCK);
+  });
+
+  // NEGATIVE: a transcription API error leaves the note pending — NO clock (the recording is kept).
+  it('does NOT stamp transcribedAt when transcription errors (clock stays null)', async () => {
+    const t: Transcriber = { transcribe: async () => { throw new Error('timeout'); } };
+    await new TranscriptionService(t, ctx.notes, ctx.storage, () => 123).transcribeNote('user-A', ctx.note.id);
+    const updated = await ctx.notes.findByIdForUser('user-A', ctx.note.id);
+    expect(updated?.transcribedAt == null).toBe(true);
+  });
+
   // NEGATIVE: API error/timeout → note kept pending + retryable, never dropped.
   it('leaves the note pending for retry when the transcription API errors', async () => {
     const t: Transcriber = { transcribe: async () => { throw new Error('timeout'); } };

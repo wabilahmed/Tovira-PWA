@@ -46,6 +46,13 @@ export interface NoteRecord {
   extracted: unknown | null;
   messages: ImportedMessage[] | null;
   moveSuggestion?: MoveSuggestion | null;
+  /** [AUDIO-RETENTION] When transcription SUCCEEDED (ms). The retention clock starts here, never on
+   *  upload. Null while a note is pending, or terminally transcription_failed — such a note's recording
+   *  is the only copy of the capture and is kept indefinitely. */
+  transcribedAt?: number | null;
+  /** [AUDIO-RETENTION] When the retention sweep deleted the audio object (ms). Set together with
+   *  audioKey → null, so playback reports "no longer kept" instead of a bare 404. */
+  audioExpiredAt?: number | null;
   createdAt: number;
 }
 
@@ -68,6 +75,13 @@ export interface NotePatch {
   moveSuggestion?: MoveSuggestion | null;
   /** MISFILE / NOTE-MOVE (B3): re-file this note under another of the rep's clients. */
   clientId?: string;
+  /** [AUDIO-RETENTION] the audio object key — cleared (null) when the recording is deleted (retention
+   *  sweep or erasure); set at capture only. */
+  audioKey?: string | null;
+  /** [AUDIO-RETENTION] the retention clock: set on successful transcription. */
+  transcribedAt?: number | null;
+  /** [AUDIO-RETENTION] stamped when the recording is deleted (aged out / erased). */
+  audioExpiredAt?: number | null;
 }
 
 export interface SimilarNote {
@@ -90,6 +104,10 @@ export interface NoteRepository {
   /** MISFILE-POST (B2): notes across all the rep's clients that carry a pending move-suggestion. */
   listMoveSuggestionsByUser(userId: string): Promise<NoteRecord[]>;
   findByIdForUser(userId: string, id: string): Promise<NoteRecord | null>;
+  /** [AUDIO-RETENTION] Voice notes whose transcription succeeded at/before `transcribedBeforeMs` and
+   *  still hold an audio object — the retention sweep's work list. Excludes transcription_failed (its
+   *  recording is kept indefinitely) and notes never transcribed (transcribed_at null). */
+  listExpirableAudio(userId: string, transcribedBeforeMs: number): Promise<Array<{ id: string; audioKey: string }>>;
   update(userId: string, id: string, patch: NotePatch): Promise<void>;
   /** Hard-delete a note (Ask-capture reject/expire). The training log survives (0045). */
   delete(userId: string, id: string): Promise<boolean>;

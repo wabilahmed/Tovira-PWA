@@ -14,6 +14,8 @@ interface NoteRow {
   extracted: unknown | null;
   messages: ImportedMessage[] | null;
   move_suggestion: MoveSuggestion | null;
+  transcribed_at: Date | null;
+  audio_expired_at: Date | null;
   created_at: Date;
 }
 
@@ -30,11 +32,13 @@ function toRecord(row: NoteRow): NoteRecord {
     extracted: row.extracted,
     messages: row.messages,
     moveSuggestion: row.move_suggestion ?? null,
+    transcribedAt: row.transcribed_at ? row.transcribed_at.getTime() : null,
+    audioExpiredAt: row.audio_expired_at ? row.audio_expired_at.getTime() : null,
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, move_suggestion, created_at';
+const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, move_suggestion, transcribed_at, audio_expired_at, created_at';
 
 /** Postgres-backed note store; every method runs in a tenant tx (RLS enforced). */
 export class PgNoteRepository implements NoteRepository {
@@ -114,6 +118,22 @@ export class PgNoteRepository implements NoteRepository {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(`SELECT ${COLUMNS} FROM notes WHERE id = $1`, [id]);
       return rows[0] ? toRecord(rows[0] as unknown as NoteRow) : null;
+    });
+  }
+
+  async listExpirableAudio(userId: string, transcribedBeforeMs: number): Promise<Array<{ id: string; audioKey: string }>> {
+    return withTenant(this.pool, userId, async (c) => {
+      // [AUDIO-RETENTION] still-held recordings whose transcription succeeded past the window. Excludes
+      // transcription_failed (recording kept indefinitely) and the never-transcribed (transcribed_at null).
+      const { rows } = await c.query(
+        `SELECT id, audio_key FROM notes
+          WHERE audio_key IS NOT NULL
+            AND transcribed_at IS NOT NULL
+            AND transcribed_at <= $1
+            AND status <> 'transcription_failed'`,
+        [new Date(transcribedBeforeMs)],
+      );
+      return (rows as Array<{ id: string; audio_key: string }>).map((r) => ({ id: r.id, audioKey: r.audio_key }));
     });
   }
 
@@ -200,6 +220,18 @@ export class PgNoteRepository implements NoteRepository {
       if (patch.clientId !== undefined) {
         params.push(patch.clientId);
         sets.push(`client_id = $${params.length}`);
+      }
+      if (patch.audioKey !== undefined) {
+        params.push(patch.audioKey);
+        sets.push(`audio_key = $${params.length}`);
+      }
+      if (patch.transcribedAt !== undefined) {
+        params.push(patch.transcribedAt === null ? null : new Date(patch.transcribedAt));
+        sets.push(`transcribed_at = $${params.length}`);
+      }
+      if (patch.audioExpiredAt !== undefined) {
+        params.push(patch.audioExpiredAt === null ? null : new Date(patch.audioExpiredAt));
+        sets.push(`audio_expired_at = $${params.length}`);
       }
       if (sets.length === 0) return;
       params.push(id);

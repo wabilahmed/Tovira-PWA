@@ -33,6 +33,8 @@ export class InMemoryNoteRepository implements NoteRepository {
       extracted: null,
       messages: note.messages ?? null,
       moveSuggestion: null,
+      transcribedAt: null,
+      audioExpiredAt: null,
       createdAt: Date.now() + this.seq++,
     };
     this.byId.set(record.id, record);
@@ -78,6 +80,19 @@ export class InMemoryNoteRepository implements NoteRepository {
     return note && note.userId === userId ? note : null;
   }
 
+  async listExpirableAudio(userId: string, transcribedBeforeMs: number): Promise<Array<{ id: string; audioKey: string }>> {
+    return [...this.byId.values()]
+      .filter(
+        (n) =>
+          n.userId === userId &&
+          n.audioKey != null &&
+          n.transcribedAt != null &&
+          n.transcribedAt <= transcribedBeforeMs &&
+          n.status !== 'transcription_failed',
+      )
+      .map((n) => ({ id: n.id, audioKey: n.audioKey! }));
+  }
+
   async delete(userId: string, id: string): Promise<boolean> {
     const note = this.byId.get(id);
     if (!note || note.userId !== userId) return false;
@@ -96,6 +111,9 @@ export class InMemoryNoteRepository implements NoteRepository {
     if (patch.messages !== undefined) note.messages = patch.messages;
     if (patch.moveSuggestion !== undefined) note.moveSuggestion = patch.moveSuggestion;
     if (patch.clientId !== undefined) note.clientId = patch.clientId;
+    if (patch.audioKey !== undefined) note.audioKey = patch.audioKey;
+    if (patch.transcribedAt !== undefined) note.transcribedAt = patch.transcribedAt;
+    if (patch.audioExpiredAt !== undefined) note.audioExpiredAt = patch.audioExpiredAt;
     if (patch.embedding !== undefined) {
       if (patch.embedding === null) this.embeddings.delete(id);
       else this.embeddings.set(id, patch.embedding);
