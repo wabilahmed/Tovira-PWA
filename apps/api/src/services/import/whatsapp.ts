@@ -40,7 +40,14 @@ const HEADER_RE =
 const SYSTEM_PREFIX_RE =
   /^(?:\[[^\]]+\]\s*|\d{1,4}[/-]\d{1,2}[/-]\d{1,4},?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?\s*-\s*)/;
 
-const MEDIA_RE = /(?:<\s*media\s+omitted\s*>|\bimage omitted\b|\bvideo omitted\b|<\s*attached:)/i;
+// Detection (sets the `media` flag). "audio omitted" added (VOICE-GATE) — it was missing, so an audio
+// marker would otherwise have been kept as plain text with no flag.
+const MEDIA_RE = /(?:<\s*media\s+omitted\s*>|\b(?:image|video|audio) omitted\b|<\s*attached:)/i;
+// [VOICE-GATE] Full attachment-marker forms to STRIP from a stored body, so neither a filename
+// (e.g. "<attached: 00001234-AUDIO-2024.opus>") nor the marker text is kept as message content or
+// reaches extraction. The whole "<attached: …>" (filename included) is removed, not just its prefix.
+const MEDIA_STRIP_RE = /<\s*attached:[^>]*>|<\s*media\s+omitted\s*>|\b(?:image|video|audio) omitted\b/gi;
+const stripMedia = (s: string): string => s.replace(MEDIA_STRIP_RE, '[media omitted]');
 
 /** Parse the DATE part of a timestamp to {y, mo, d}. Accepts ISO (YYYY-MM-DD) and the real WhatsApp
  *  slash/dash forms, which are DAY-FIRST (DD/MM/YYYY — UAE/most locales; the sample export is
@@ -95,7 +102,7 @@ export function parseWhatsAppExport(text: string): WhatsAppParseResult {
       messages.push({
         sentAt: normaliseTimestamp(tsRaw),
         sender: (m.groups.sender ?? '').trim(),
-        body,
+        body: stripMedia(body), // attachment markers (incl. any filename) never stored as content
         media: MEDIA_RE.test(body),
         role: 'unknown',
       });
@@ -106,8 +113,9 @@ export function parseWhatsAppExport(text: string): WhatsAppParseResult {
     } else if (messages.length > 0) {
       // Continuation of the previous message (multi-line body).
       const prev = messages[messages.length - 1]!;
-      prev.body = prev.body === '' ? line : `${prev.body}\n${line}`;
       if (MEDIA_RE.test(line)) prev.media = true;
+      const cleanLine = stripMedia(line); // strip markers before appending to the stored body
+      prev.body = prev.body === '' ? cleanLine : `${prev.body}\n${cleanLine}`;
     }
     // A non-header, non-system line before any message is export preamble — ignored.
   }

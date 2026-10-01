@@ -23,7 +23,7 @@ import { extractionState, aggregateExtractionStates } from '../services/notes/ex
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
 import { redactSensitive } from '../services/redaction/redact.js';
-import { isAppRecordingContainer, AUDIO_ELSEWHERE_MESSAGE, VOICE_TOO_LONG_MESSAGE } from '../services/media/sniff.js';
+import { isAppRecordingContainer, looksLikeAudio, AUDIO_ELSEWHERE_MESSAGE, VOICE_TOO_LONG_MESSAGE } from '../services/media/sniff.js';
 import { screenSensitive } from '../services/screening/sensitive-screen.js';
 import type { FlagReviewService } from '../services/screening/flag-review-service.js';
 import type { RestoreSelector } from '../services/screening/flag-review.js';
@@ -270,6 +270,14 @@ export async function handleNoteRoute(
           return true;
         }
         const buf = Buffer.from(body.contentBase64, 'base64');
+        // [IMPORT-GATE] A chat payload is only ever a zip or UTF-8 text. If the bytes are an AUDIO file
+        // (e.g. a voice note shared into Tovira via the Android octet-stream share loophole, or an
+        // audio file picked directly), refuse it with the one-line message instead of a confusing
+        // import_failed. Sniffs actual bytes, not the MIME/filename.
+        if (looksLikeAudio(new Uint8Array(buf))) {
+          sendJson(res, 415, { error: 'unsupported_media', message: AUDIO_ELSEWHERE_MESSAGE });
+          return true;
+        }
         const resolved = resolveTranscript(buf);
         if (!resolved.ok) {
           sendJson(res, 422, { error: 'import_failed', reason: resolved.reason });

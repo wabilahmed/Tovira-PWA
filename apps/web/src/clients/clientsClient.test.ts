@@ -35,6 +35,12 @@ describe('ClientsClient', () => {
     expect((fetchMock.mock.calls[0]![1] as RequestInit).credentials).toBe('include');
   });
 
+  it('[IMPORT-GATE] surfaces the server message when an audio file is refused (415) — the share-audio refusal reaches the user', async () => {
+    fetchMock.mockResolvedValueOnce(json(415, { error: 'unsupported_media', message: "Tovira records voice notes inside the app; audio files from other apps can't be added." }));
+    const r = await new ClientsClient('http://api.test').importWhatsApp('c1', { contentBase64: 'b64' }, true);
+    expect(r).toMatchObject({ ok: false, message: "Tovira records voice notes inside the app; audio files from other apps can't be added." });
+  });
+
   it('creates a client and returns it', async () => {
     fetchMock.mockResolvedValueOnce(json(201, { id: '2', name: 'Acme', createdAt: 2 }));
     const client = new ClientsClient('http://api.test');
