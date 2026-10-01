@@ -23,6 +23,7 @@ import { extractionState, aggregateExtractionStates } from '../services/notes/ex
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
 import { redactSensitive } from '../services/redaction/redact.js';
+import { isAppRecordingContainer, AUDIO_ELSEWHERE_MESSAGE, VOICE_TOO_LONG_MESSAGE } from '../services/media/sniff.js';
 import { screenSensitive } from '../services/screening/sensitive-screen.js';
 import type { FlagReviewService } from '../services/screening/flag-review-service.js';
 import type { RestoreSelector } from '../services/screening/flag-review.js';
@@ -39,6 +40,15 @@ function redactForStore(text: string, noteHint: string): string {
 
 const MAX_PASTE_CHARS = 100_000;
 const MAX_IMPORT_CHARS = 5_000_000; // a full multi-year chat export
+// [VOICE-GATE] Server-side length cap on a stored voice note. True duration enforcement would require
+// decoding the WebM/MP4 container (no media decoder in the Node stack; duration is not a cheap header
+// read), which is disproportionate — so this is a byte cap sized to ~10 minutes of the app's own
+// encoding. The recorder pins audioBitsPerSecond = 96 kbps (recorder.ts), so:
+//   10 min × 60 s × 96_000 bit/s ÷ 8 = 7_200_000 bytes nominal; ×1.5 headroom (container + VBR) ≈ 11 MB.
+// Derivation of 10 minutes: a post-meeting note is typically under two minutes; ten minutes is generous
+// for that purpose and makes recording a whole meeting impractical by construction (a 40-min meeting at
+// 96 kbps is ≈29 MB, far over this cap). A rep talking to himself for forty seconds is nowhere near it.
+const VOICE_MAX_BYTES = 11_000_000;
 
 /** MISFILE-DETECT: the known-people (stakeholder map) names across a client's stored notes. */
 function knownPeopleFrom(notes: Array<{ extracted: unknown }>): string[] {
@@ -146,9 +156,27 @@ export async function handleNoteRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const audio = await readRawBody(req);
+      // [VOICE-GATE] Server-side length cap (byte cap ≈ 10 min at the app's pinned bitrate). readRawBody
+      // throws past the limit; a too-long recording is a distinct, named refusal (not "audio from elsewhere").
+      let audio: Buffer;
+      try {
+        audio = await readRawBody(req, VOICE_MAX_BYTES);
+      } catch (err) {
+        if (err instanceof BadJsonError) {
+          sendJson(res, 413, { error: 'too_long', message: VOICE_TOO_LONG_MESSAGE });
+          return true;
+        }
+        throw err;
+      }
       if (audio.length === 0) {
         sendJson(res, 400, { error: 'validation', message: 'No audio was uploaded.' });
+        return true;
+      }
+      // [VOICE-GATE] Accept ONLY the container the app's own recorder produces (WebM, or MP4 on
+      // Safari/iOS), sniffed from the actual leading bytes — never the content-type header or extension.
+      // A WhatsApp .opus (Ogg), an .mp3, a renamed file, etc. is refused with the one-line message.
+      if (!isAppRecordingContainer(new Uint8Array(audio))) {
+        sendJson(res, 415, { error: 'unsupported_media', message: AUDIO_ELSEWHERE_MESSAGE });
         return true;
       }
       const audioKey = `audio/${userId}/${randomUUID()}.webm`;
