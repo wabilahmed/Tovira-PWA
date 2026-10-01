@@ -37,6 +37,14 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
   const [expectedVolume, setExpectedVolume] = useState<'' | AccessRequestPayload['expectedVolume']>('');
   const [confirmed, setConfirmed] = useState(false);
   const [honeypot, setHoneypot] = useState(''); // company_url — stays empty for a human
+  // [BETA-3b] Capture the referral code from the landing URL (?ref=) so it survives the approval delay.
+  const [referralCode] = useState<string | null>(() => {
+    try {
+      return typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ref') : null;
+    } catch {
+      return null;
+    }
+  });
 
   if (submitted) {
     return (
@@ -71,6 +79,7 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
         conversationOwnershipOther: conversationOwnership === 'other' ? conversationOwnershipOther : null,
         expectedVolume,
         confirmationAccepted: confirmed,
+        referralCode,
         company_url: honeypot,
       });
       setSubmitted({ employed: ownership === 'employed' });

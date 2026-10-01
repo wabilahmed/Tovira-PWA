@@ -89,6 +89,15 @@ describe('[BETA-3] AccessRequestService.submit validation', () => {
     expect(await repo.count()).toBe(0);
   });
 
+  it('captures an optional referral code, and stores null when absent or malformed', async () => {
+    const withRef = await service.submit({ ...VALID, referralCode: 'abc123xyz' }, meta);
+    expect(withRef.referralCode).toBe('abc123xyz');
+    const noRef = await service.submit({ ...VALID, workEmail: 'other@x.com' }, meta);
+    expect(noRef.referralCode).toBeNull();
+    const blankRef = await service.submit({ ...VALID, workEmail: 'third@x.com', referralCode: '   ' }, meta);
+    expect(blankRef.referralCode).toBeNull();
+  });
+
   it('is a typed validation error (field + message), never a silent pass', async () => {
     await expect(service.submit({ ...VALID, workEmail: 'x' }, meta)).rejects.toBeInstanceOf(AccessRequestValidationError);
   });

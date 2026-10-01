@@ -31,6 +31,9 @@ export interface RawAccessRequest {
   conversationOwnershipOther?: unknown;
   expectedVolume?: unknown;
   confirmationAccepted?: unknown;
+  /** [BETA-3b] Referral code captured from the landing URL (?ref=). Optional, opaque, persisted for
+   *  application at approval. Never blocks submission. */
+  referralCode?: unknown;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -106,6 +109,10 @@ export class AccessRequestService {
     // (not the sentence) so we can prove later which wording was shown. This is NOT terms acceptance.
     if (raw.confirmationAccepted !== true) throw new AccessRequestValidationError('confirmation', 'Please confirm the information is accurate and that you have authority to share these conversations.');
 
+    // Referral code is opaque + optional; a malformed value is simply ignored (never blocks the request,
+    // mirroring how a bad code never blocks a signup today).
+    const referralCode = typeof raw.referralCode === 'string' && raw.referralCode.trim() !== '' && raw.referralCode.trim().length <= MAX_SHORT ? raw.referralCode.trim() : null;
+
     return this.repo.create({
       fullName,
       workEmail,
@@ -121,6 +128,7 @@ export class AccessRequestService {
       confirmationTextVersion: CONFIRMATION_TEXT_VERSION,
       sourceIp: meta.sourceIp,
       userAgent: meta.userAgent,
+      referralCode,
     });
   }
 }

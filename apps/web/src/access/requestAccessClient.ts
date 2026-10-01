@@ -12,6 +12,8 @@ export interface AccessRequestPayload {
   conversationOwnershipOther: string | null;
   expectedVolume: 'under_50' | '50_200' | '200_500' | '500_plus';
   confirmationAccepted: boolean;
+  /** [BETA-3b] Referral code captured from the landing URL (?ref=), persisted for application at approval. */
+  referralCode?: string | null;
   /** Honeypot — always empty for a human; the hidden field is named to look real to a bot. */
   company_url?: string;
 }

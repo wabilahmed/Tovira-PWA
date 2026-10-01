@@ -30,6 +30,8 @@ export interface AccessRequestInput {
   /** Provenance of the submission (best-effort). */
   sourceIp: string | null;
   userAgent: string | null;
+  /** [BETA-3b] Referral code captured from the landing URL, applied at approval (BETA-5), or null. */
+  referralCode: string | null;
 }
 
 export interface AccessRequestRecord extends AccessRequestInput {

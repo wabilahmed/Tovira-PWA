@@ -160,8 +160,9 @@ suite('[DEPLOY-READY] migrations apply against real Postgres', () => {
       roleTitle: 'Broker', ownership: 'owns_or_manages', tradeLicenceNumber: 'TL-PG',
       conversationOwnership: 'own_clients', conversationOwnershipOther: null, expectedVolume: '200_500',
       confirmationAcceptedAt: 1_750_000_000_000, confirmationTextVersion: 'cft-2026-09-22',
-      sourceIp: '198.51.100.5', userAgent: 'pg-test',
+      sourceIp: '198.51.100.5', userAgent: 'pg-test', referralCode: 'ref-pg',
     });
+    expect(rec.referralCode).toBe('ref-pg');
     expect(rec.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(rec.status).toBe('pending');
     expect(rec.tradeLicenceNumber).toBe('TL-PG');
