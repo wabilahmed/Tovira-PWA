@@ -76,6 +76,8 @@ import { StubPushSender } from '../adapters/push/stub-sender.js';
 import { PushDispatchService } from '../services/push/push-dispatch-service.js';
 import { InMemoryImageRepository } from '../adapters/images/in-memory-image-repository.js';
 import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
+import { InMemoryAccessRequestRepository } from '../adapters/access/in-memory-access-request-repository.js';
+import { AccessRequestService } from '../services/access/access-request-service.js';
 import { ModelMetricsRegistry } from '../services/metrics/model-metrics.js';
 
 export interface TestDeps extends ApiDeps {
@@ -97,6 +99,8 @@ export interface TestDeps extends ApiDeps {
   spend: SpendService;
   /** [SPEND-INSTRUMENT] the durable per-call event store — seed with `.record(...)` to test /ops/spend/by-class. */
   modelCallEvents: InMemoryModelCallEventStore;
+  /** [BETA-3] the in-memory access-request store, exposed so tests can assert persistence (.count()). */
+  accessRequests: InMemoryAccessRequestRepository;
 }
 
 /**
@@ -218,6 +222,8 @@ export function buildInMemoryDeps(
     const today = new Date().toISOString().slice(0, 10);
     for (let i = 0; i < passes; i++) await noteSweep.sweep(today);
   };
+  const accessRequests = new InMemoryAccessRequestRepository();
+
   return {
     pool: stubPool,
     auth,
@@ -284,6 +290,8 @@ export function buildInMemoryDeps(
     appBaseUrl: 'http://localhost:5173',
     jobRuns: new InMemoryJobRunStore(),
     modelMetrics: new ModelMetricsRegistry(),
+    accessRequest: new AccessRequestService(accessRequests),
+    accessRequests,
     ...overrides,
   } as TestDeps;
 }

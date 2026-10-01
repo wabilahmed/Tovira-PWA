@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { loadMigrations, runMigrations } from './migrate.js';
+import { PgAccessRequestRepository } from '../adapters/access/pg-access-request-repository.js';
 
 /**
  * [DEPLOY-READY · REAL-PG] Run the REAL migration set against a REAL Postgres.
@@ -150,5 +151,22 @@ suite('[DEPLOY-READY] migrations apply against real Postgres', () => {
     } finally {
       client.release();
     }
+  });
+
+  it('PgAccessRequestRepository.create round-trips against the real table (column names match) (BETA-3)', async () => {
+    const repo = new PgAccessRequestRepository(pool);
+    const rec = await repo.create({
+      fullName: 'Pg Rep', workEmail: 'pg-rep@x.com', phone: '+971 50 000 0000', companyName: 'Pg Co',
+      roleTitle: 'Broker', ownership: 'owns_or_manages', tradeLicenceNumber: 'TL-PG',
+      conversationOwnership: 'own_clients', conversationOwnershipOther: null, expectedVolume: '200_500',
+      confirmationAcceptedAt: 1_750_000_000_000, confirmationTextVersion: 'cft-2026-09-22',
+      sourceIp: '198.51.100.5', userAgent: 'pg-test',
+    });
+    expect(rec.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(rec.status).toBe('pending');
+    expect(rec.tradeLicenceNumber).toBe('TL-PG');
+    expect(rec.confirmationAcceptedAt).toBe(1_750_000_000_000);
+    expect(rec.reviewedAt).toBeNull();
+    expect(rec.linkedUserId).toBeNull();
   });
 });

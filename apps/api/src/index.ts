@@ -2,6 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning } from './config.js';
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
+import { AccessRequestService } from './services/access/access-request-service.js';
+import { PgAccessRequestRepository } from './adapters/access/pg-access-request-repository.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
@@ -462,6 +464,15 @@ async function main(): Promise<void> {
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),
+    // [BETA-3] Public access-request intake. Limiter: 5 submissions per IP per hour. Derivation: a
+    // genuine applicant submits once; 5/hour tolerates a shared-office NAT or a retry while bounding a
+    // scripted flood. NOTE: this limiter is in-memory and PER-TASK, so across N running API tasks the
+    // effective limit is N×5/hour — accepted for a beta access form (not a security control).
+    accessRequest: new AccessRequestService(new PgAccessRequestRepository(appPool)),
+    accessRequestLimiter: new FixedWindowRateLimiter(5, 60 * 60 * 1000),
+    accessRequestNotify: config.accessRequestNotifyEmail
+      ? (rec) => accountEmail.sendAccessRequestNotification(config.accessRequestNotifyEmail!, rec, `${config.appBaseUrl}/ops/access-requests/${rec.id}/approve`)
+      : undefined,
   });
   server.listen(config.port, () => {
     console.log(`[api] listening on http://0.0.0.0:${config.port} (${config.nodeEnv})`);

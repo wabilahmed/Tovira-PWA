@@ -34,6 +34,9 @@ import type { AccountService } from './services/account/account-service.js';
 import type { ActivationService } from './services/analytics/activation-service.js';
 import { handleAuthRoute } from './http/auth-routes.js';
 import type { AccountEmailService } from './services/email/account-email-service.js';
+import { handleAccessRequestRoute } from './http/access-request-routes.js';
+import type { AccessRequestService } from './services/access/access-request-service.js';
+import type { AccessRequestRecord } from './ports/access-request-repository.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
@@ -169,6 +172,14 @@ export interface ApiDeps {
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
+  /** [BETA-3] Public beta access-request intake. Absent → /access-request is not served. */
+  accessRequest?: AccessRequestService;
+  /** [BETA-3] Per-IP throttle for the access-request form. Counts EVERY request (a submit endpoint has
+   *  no failed-vs-succeeded to key on), unlike loginLimiter which counts only failures. */
+  accessRequestLimiter?: RateLimiter;
+  /** [BETA-3] Best-effort owner notification of a new request. The access_requests row is written FIRST
+   *  and never depends on this; a throw here is logged and swallowed. */
+  accessRequestNotify?: (record: AccessRequestRecord) => Promise<void>;
 }
 
 /**
@@ -286,6 +297,17 @@ export function createApiServer(deps: ApiDeps): Server {
         sendVerifyEmail: (to, verifyUrl) => deps.accountEmail.sendVerification(to, verifyUrl),
         loginLimiter: deps.loginLimiter,
       })) return;
+
+      // [BETA-3] Public beta access-request intake (no session). Served only when wired.
+      if (
+        deps.accessRequest &&
+        (await handleAccessRequestRoute(request, response, {
+          service: deps.accessRequest,
+          limiter: deps.accessRequestLimiter,
+          notify: deps.accessRequestNotify,
+        }))
+      )
+        return;
       // Notes routes are matched before the generic client routes so
       // /clients/:id/notes/* isn't misread as /clients/:id.
       if (

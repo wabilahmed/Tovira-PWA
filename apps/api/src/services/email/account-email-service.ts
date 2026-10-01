@@ -1,6 +1,23 @@
 import type { EmailSender } from '../../ports/email.js';
 import type { EmailLogRepository } from '../../ports/email-log-repository.js';
+import type { AccessRequestRecord } from '../../ports/access-request-repository.js';
 import { renderEmail, type EmailContent } from './templates.js';
+
+/** Human-readable labels for the stored enum codes, for the owner-facing notification email. */
+const OWNERSHIP_LABEL: Record<string, string> = {
+  owns_or_manages: 'Owns or manages the company',
+  employed: 'Employed by the company',
+};
+const CONVO_LABEL: Record<string, string> = {
+  own_clients: 'My own clients (holds the relationship directly)',
+  brokerage_i_manage: 'Clients of the brokerage they own or manage',
+  brokerage_employs_me: 'Clients of the brokerage that employs them',
+  mix: 'A mix of the above',
+  other: 'Other (see note)',
+};
+const VOLUME_LABEL: Record<string, string> = {
+  under_50: 'Under 50', '50_200': '50–200', '200_500': '200–500', '500_plus': '500+',
+};
 
 /** Format an epoch-ms date as "14 Sep 2026" for email bodies (UTC, stable). */
 function stampDate(ms: number): string {
@@ -40,6 +57,42 @@ export class AccountEmailService {
         button: { label: 'Reset password', url: resetUrl },
         outro: ["If this wasn't you, no action is needed — your password stays the same and the link will expire."],
       }),
+    });
+  }
+
+  /**
+   * [BETA-3] Notify the owner of a new beta access request. Carries the FULL submitted content (so the
+   * owner can triage from a phone) plus the request id and a ready-to-paste curl to APPROVE that specific
+   * request. The ops token is NOT in the email — it is left as the placeholder <OPS_TOKEN> for the owner
+   * to fill. NOT idempotency-logged (no userId yet; one email per submission).
+   */
+  async sendAccessRequestNotification(to: string, r: AccessRequestRecord, approveUrl: string): Promise<void> {
+    const lines = [
+      `New beta access request (${r.id}).`,
+      '',
+      `Name:        ${r.fullName}`,
+      `Work email:  ${r.workEmail}`,
+      `Phone:       ${r.phone}`,
+      `Company:     ${r.companyName}`,
+      `Role:        ${r.roleTitle}`,
+      `Ownership:   ${OWNERSHIP_LABEL[r.ownership] ?? r.ownership}`,
+      ...(r.tradeLicenceNumber ? [`Trade licence: ${r.tradeLicenceNumber}`] : []),
+      `Conversations to upload: ${CONVO_LABEL[r.conversationOwnership] ?? r.conversationOwnership}`,
+      ...(r.conversationOwnershipOther ? [`  Note: ${r.conversationOwnershipOther}`] : []),
+      `Expected volume: ${VOLUME_LABEL[r.expectedVolume] ?? r.expectedVolume}`,
+      '',
+      ...(r.ownership === 'employed' ? ['This applicant is EMPLOYED — ask for the company NOC by email before approving.', ''] : []),
+      'To approve this request (fill in your ops token):',
+      '',
+      `curl -X POST '${approveUrl}' \\`,
+      `  -H 'x-ops-token: <OPS_TOKEN>' \\`,
+      `  -H 'content-type: application/json' \\`,
+      `  -d '{"note":""}'`,
+    ];
+    await this.email.send({
+      to,
+      subject: `Beta access request — ${r.fullName} (${r.companyName})`,
+      text: lines.join('\n') + SIGNOFF,
     });
   }
 

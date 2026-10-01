@@ -167,6 +167,9 @@ export interface AppConfig {
   vatRegisteredFromMs: number | null;
   /** Ops token for the /ops/* endpoints (cap override). Unset → the ops routes are disabled (403). */
   opsToken: string | undefined;
+  /** [BETA-3] Owner address that receives new beta access-request notifications. Unset → no email is
+   *  sent (the request is still recorded); set it to the operator's inbox in any env that takes signups. */
+  accessRequestNotifyEmail: string | undefined;
   stripeWebhookSecret: string;
   stripeSecretKey: string | undefined;
   stripePriceId: string;
@@ -264,6 +267,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),
+    accessRequestNotifyEmail: isBlank(env.ACCESS_REQUEST_NOTIFY_TO) ? undefined : env.ACCESS_REQUEST_NOTIFY_TO!.trim(),
     vatRegistered: env.VAT_REGISTERED?.trim() === 'true',
     vatTrn: isBlank(env.VAT_TRN) ? undefined : env.VAT_TRN!.trim(),
     vatRate: parsePositive(env.VAT_RATE, 0.05, 'VAT_RATE'),

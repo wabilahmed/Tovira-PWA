@@ -2,6 +2,8 @@ import { API_BASE } from './apiBase.js';
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
 import { ResetPassword } from './auth/PasswordReset.js';
+import { RequestAccess } from './access/RequestAccess.js';
+import { HttpAccessRequestClient } from './access/requestAccessClient.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
@@ -72,6 +74,7 @@ import { requestMicrophone } from './capture/microphone.js';
 import { startRecording, type ActiveRecording } from './capture/recorder.js';
 
 const auth = new AuthClient(API_BASE);
+const accessRequestApi = new HttpAccessRequestClient(API_BASE);
 const clientsApi = new ClientsClient(API_BASE);
 const onboardingApi = new OnboardingClient(API_BASE);
 const bookScanApi = new BookScanClient(API_BASE);
@@ -169,6 +172,11 @@ export function App(): JSX.Element {
       .finally(() => setLoading(false));
   }, []);
 
+  // Public, pre-auth: the beta access-request form (reached from the landing page). Like /reset-password
+  // and /verify-email, it is served by the SPA before the session gate (no infra route needed).
+  if (typeof window !== 'undefined' && window.location.pathname === '/request-access') {
+    return <RequestAccess client={accessRequestApi} />;
+  }
   if (resetToken) {
     return (
       <ResetPassword

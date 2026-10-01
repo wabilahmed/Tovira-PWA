@@ -1,0 +1,75 @@
+import type { Pool } from 'pg';
+import type { AccessRequestInput, AccessRequestRecord, AccessRequestRepository, AccessRequestStatus, ConversationOwnership, ExpectedVolume, Ownership } from '../../ports/access-request-repository.js';
+
+interface Row {
+  id: string;
+  created_at: Date;
+  status: AccessRequestStatus;
+  full_name: string;
+  work_email: string;
+  phone: string;
+  company_name: string;
+  role_title: string;
+  ownership: Ownership;
+  trade_licence_number: string | null;
+  conversation_ownership: ConversationOwnership;
+  conversation_ownership_other: string | null;
+  expected_volume: ExpectedVolume;
+  confirmation_accepted_at: Date;
+  confirmation_text_version: string;
+  source_ip: string | null;
+  user_agent: string | null;
+  reviewed_at: Date | null;
+  reviewed_note: string | null;
+  linked_user_id: string | null;
+}
+
+function toRecord(r: Row): AccessRequestRecord {
+  return {
+    id: r.id,
+    createdAt: r.created_at.getTime(),
+    status: r.status,
+    fullName: r.full_name,
+    workEmail: r.work_email,
+    phone: r.phone,
+    companyName: r.company_name,
+    roleTitle: r.role_title,
+    ownership: r.ownership,
+    tradeLicenceNumber: r.trade_licence_number,
+    conversationOwnership: r.conversation_ownership,
+    conversationOwnershipOther: r.conversation_ownership_other,
+    expectedVolume: r.expected_volume,
+    confirmationAcceptedAt: r.confirmation_accepted_at.getTime(),
+    confirmationTextVersion: r.confirmation_text_version,
+    sourceIp: r.source_ip,
+    userAgent: r.user_agent,
+    reviewedAt: r.reviewed_at ? r.reviewed_at.getTime() : null,
+    reviewedNote: r.reviewed_note,
+    linkedUserId: r.linked_user_id,
+  };
+}
+
+const COLS =
+  'id, created_at, status, full_name, work_email, phone, company_name, role_title, ownership, trade_licence_number, conversation_ownership, conversation_ownership_other, expected_volume, confirmation_accepted_at, confirmation_text_version, source_ip, user_agent, reviewed_at, reviewed_note, linked_user_id';
+
+/** Postgres-backed access-request store (pre-tenant; no RLS, granted to tovira_app — see 0073). */
+export class PgAccessRequestRepository implements AccessRequestRepository {
+  constructor(private readonly pool: Pool) {}
+
+  async create(input: AccessRequestInput): Promise<AccessRequestRecord> {
+    const { rows } = await this.pool.query<Row>(
+      `INSERT INTO access_requests
+         (full_name, work_email, phone, company_name, role_title, ownership, trade_licence_number,
+          conversation_ownership, conversation_ownership_other, expected_volume,
+          confirmation_accepted_at, confirmation_text_version, source_ip, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, to_timestamp($11 / 1000.0), $12, $13, $14)
+       RETURNING ${COLS}`,
+      [
+        input.fullName, input.workEmail, input.phone, input.companyName, input.roleTitle,
+        input.ownership, input.tradeLicenceNumber, input.conversationOwnership, input.conversationOwnershipOther,
+        input.expectedVolume, input.confirmationAcceptedAt, input.confirmationTextVersion, input.sourceIp, input.userAgent,
+      ],
+    );
+    return toRecord(rows[0]!);
+  }
+}
