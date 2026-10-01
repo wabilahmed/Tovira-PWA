@@ -88,4 +88,67 @@ suite('[DEPLOY-READY] migrations apply against real Postgres', () => {
       client.release();
     }
   });
+
+  // ── BETA-2b: access_requests CHECK invariants + invites single-use burn, proven at the DB ──
+  const ar = (cols: Record<string, string>): string => {
+    const base: Record<string, string> = {
+      full_name: `'A'`, work_email: `'a@x.com'`, phone: `'1'`, company_name: `'C'`, role_title: `'R'`,
+      ownership: `'owns_or_manages'`, conversation_ownership: `'own_clients'`, expected_volume: `'under_50'`,
+      confirmation_accepted_at: 'now()', confirmation_text_version: `'cft-2026-09-22'`,
+      ...cols,
+    };
+    const keys = Object.keys(base);
+    return `INSERT INTO access_requests (${keys.join(', ')}) VALUES (${keys.map((k) => base[k]).join(', ')}) RETURNING id`;
+  };
+
+  it('access_requests enforces the two CHECK invariants (BETA-2b)', async () => {
+    const client = await pool.connect();
+    try {
+      // valid owns_or_manages row WITH a licence is accepted
+      await expect(client.query(ar({ trade_licence_number: `'TL-100'` }))).resolves.toBeTruthy();
+      // employed + a trade licence → rejected (employed applicants structurally have no licence)
+      await expect(
+        client.query(ar({ ownership: `'employed'`, trade_licence_number: `'TL-200'` })),
+      ).rejects.toThrow(/access_requests_employed_no_licence|check constraint/i);
+      // other-text present but conversation_ownership is not 'other' → rejected
+      await expect(
+        client.query(ar({ conversation_ownership: `'mix'`, conversation_ownership_other: `'freeform'` })),
+      ).rejects.toThrow(/access_requests_other_text_only_when_other|check constraint/i);
+    } finally {
+      client.release();
+    }
+  });
+
+  it('invites single-use burn is atomic at the DB — a token consumes once, never twice, never when expired (BETA-2b)', async () => {
+    const client = await pool.connect();
+    try {
+      const uid = (await client.query(
+        `INSERT INTO users (email, password_hash, referral_code) VALUES ('inv-burn@x.com', 'h', 'rc-burn') RETURNING id`,
+      )).rows[0].id as string;
+      const arid = (await client.query(ar({ work_email: `'inv-burn@x.com'`, status: `'approved'` }))).rows[0].id as string;
+      const insertInvite = (hash: string, expiresSql: string) =>
+        client.query(
+          `INSERT INTO invites (token_hash, access_request_id, user_id, expires_at, created_by) VALUES ($1, $2, $3, ${expiresSql}, 'ops')`,
+          [hash, arid, uid],
+        );
+      const burn = (hash: string) =>
+        client.query(
+          `UPDATE invites SET consumed_at = now() WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now() RETURNING user_id`,
+          [hash],
+        );
+
+      await insertInvite('hash-valid', `now() + interval '7 days'`);
+      const first = await burn('hash-valid');
+      expect(first.rowCount).toBe(1);
+      expect(first.rows[0].user_id).toBe(uid);
+      const second = await burn('hash-valid'); // same link reused
+      expect(second.rowCount).toBe(0);
+
+      await insertInvite('hash-expired', `now() - interval '1 day'`);
+      const expired = await burn('hash-expired');
+      expect(expired.rowCount).toBe(0);
+    } finally {
+      client.release();
+    }
+  });
 });
