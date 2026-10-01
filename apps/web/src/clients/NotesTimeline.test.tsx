@@ -38,6 +38,14 @@ describe('<NotesTimeline> (P5-1-CEILING-UI)', () => {
   });
 
   // [ASYNC-EXTRACT] a failed extraction surfaces as failed — never a silent spinner.
+  it('shows a distinct, honest reason for a note whose recording was not found (not "tap to retry")', () => {
+    render(<NotesTimeline notes={[note({ status: 'transcription_failed', rawText: null })]} ceilingNoteIds={new Set()} />);
+    expect(screen.getByTestId('transcription-failed')).toBeInTheDocument();
+    expect(screen.getByText(/recording could.?n.t be found/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('extract-failed')).not.toBeInTheDocument(); // not the generic retry message
+    expect(screen.queryByText(/transcription pending/i)).not.toBeInTheDocument(); // not shown as still pending
+  });
+
   it('shows a distinct FAILED state for a note whose extraction failed', () => {
     render(<NotesTimeline notes={[note({ status: 'needs_review', extractionState: 'failed' })]} ceilingNoteIds={new Set()} />);
     expect(screen.getByTestId('extract-failed')).toBeInTheDocument();

@@ -16,7 +16,7 @@ export type ExtractionState = 'queued' | 'processing' | 'done' | 'failed';
 export function extractionStateOf(n: { status: string; extractionState?: ExtractionState }): ExtractionState {
   if (n.extractionState) return n.extractionState;
   if (n.status === 'extracted') return 'done';
-  if (n.status === 'needs_review' || n.status === 'import_failed') return 'failed';
+  if (n.status === 'needs_review' || n.status === 'import_failed' || n.status === 'transcription_failed') return 'failed';
   if (n.status === 'pending_transcription' || n.status === 'pending_extraction') return 'processing';
   return 'queued';
 }

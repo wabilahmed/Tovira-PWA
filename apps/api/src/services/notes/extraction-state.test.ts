@@ -18,9 +18,10 @@ describe('[ASYNC-EXTRACT] extractionState — four unambiguous, rep-facing state
   });
 
   // The load-bearing rule: a terminal failure reads as FAILED, never as still-processing/stuck.
-  it('failed: needs_review and import_failed both surface as failed', () => {
+  it('failed: needs_review, import_failed and transcription_failed all surface as failed', () => {
     expect(extractionState({ status: 'needs_review', sweepAttempts: 5 })).toBe('failed');
     expect(extractionState({ status: 'import_failed', sweepAttempts: 0 })).toBe('failed');
+    expect(extractionState({ status: 'transcription_failed', sweepAttempts: 3 })).toBe('failed'); // recording not found
   });
 
   it('an unknown non-terminal state waits (queued), never a silent "processing"', () => {

@@ -19,6 +19,7 @@ export function extractionState(note: { status: string; sweepAttempts?: number }
       return 'done';
     case 'needs_review':
     case 'import_failed':
+    case 'transcription_failed': // [TRANSCRIBE-MISSING] recording not found — terminal, surfaced as failed
       return 'failed';
     case 'pending_transcription':
     case 'pending_extraction':

@@ -36,12 +36,18 @@ export function NotesTimeline({
             <small className="tov-stamp">
               {new Date(n.createdAt).toLocaleString()} · {n.source}
               {!ceiling && inProgress && <em style={{ color: 'var(--amber)', fontStyle: 'normal' }}> · {state === 'queued' ? 'queued…' : processingLabel(n.status)}</em>}
-              {/* [ASYNC-EXTRACT] a failure reads as failed — never an endless spinner. */}
-              {!ceiling && state === 'failed' && (
+              {/* [ASYNC-EXTRACT] a failure reads as failed — never an endless spinner. [TRANSCRIBE-MISSING]
+                  a missing recording is a DISTINCT, honest reason — not "tap to retry" (retry can't find it). */}
+              {!ceiling && state === 'failed' && n.status === 'transcription_failed' && (
+                <em data-testid="transcription-failed" style={{ color: 'var(--danger, #b00)', fontStyle: 'normal' }}> · recording not found — couldn’t transcribe</em>
+              )}
+              {!ceiling && state === 'failed' && n.status !== 'transcription_failed' && (
                 <em data-testid="extract-failed" style={{ color: 'var(--danger, #b00)', fontStyle: 'normal' }}> · couldn’t analyse — saved; tap to retry</em>
               )}
             </small>
-            <div style={{ marginTop: 4 }}>{n.rawText ?? <em>(transcription pending)</em>}</div>
+            <div style={{ marginTop: 4 }}>
+              {n.rawText ?? <em>{n.status === 'transcription_failed' ? 'The recording couldn’t be found, so this note couldn’t be transcribed.' : '(transcription pending)'}</em>}
+            </div>
             {/* [SCREEN-REVIEW] persistent held indicator — so a rep who skipped review knows this note
                 isn't fully analysed, wherever it appears. */}
             {typeof n.held === 'number' && n.held > 0 && <HeldNotice variant="indicator" held={n.held} />}

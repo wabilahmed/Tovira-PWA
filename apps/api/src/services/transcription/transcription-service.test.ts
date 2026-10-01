@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { TranscriptionService } from './transcription-service.js';
+import { TranscriptionService, TRANSCRIPTION_FAILED_STATUS, TRANSCRIBE_MAX_MISSING_ATTEMPTS } from './transcription-service.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryStorage } from '../../adapters/storage/in-memory.js';
+import type { Storage } from '../../ports/storage.js';
 import type { Transcriber } from '../../ports/transcriber.js';
+
+const OK: Transcriber = { transcribe: async () => ({ text: 'hello', quality: 'ok' }) };
 
 async function seedVoiceNote() {
   const notes = new InMemoryNoteRepository();
@@ -59,5 +62,40 @@ describe('TranscriptionService', () => {
     expect(out.status).toBe('needs_review');
     const updated = await ctx.notes.findByIdForUser('user-A', ctx.note.id);
     expect(updated?.rawText).toBe('mumbled something'); // stored, not discarded
+  });
+
+  // [TRANSCRIBE-MISSING] A recording that cannot be found must FAIL TERMINALLY after a bounded number
+  // of confirmed-absent attempts, with a distinct status — not retry until the generic needs_review.
+  describe('a permanently missing recording', () => {
+    const missingNote = async () => {
+      const notes = new InMemoryNoteRepository();
+      const storage = new InMemoryStorage(); // 'gone' is never put → get throws, exists()===false
+      const note = await notes.create('user-A', { clientId: 'c1', source: 'voice', rawText: null, audioKey: 'gone', status: 'pending_transcription' });
+      return { notes, storage, note };
+    };
+
+    it('keeps retrying while attempts are below the limit (confirmed absent, but give it a bounded chance)', async () => {
+      const { notes, storage, note } = await missingNote();
+      await notes.update('user-A', note.id, { sweepAttempts: TRANSCRIBE_MAX_MISSING_ATTEMPTS - 1 });
+      const out = await new TranscriptionService(OK, notes, storage).transcribeNote('user-A', note.id);
+      expect(out).toEqual({ status: 'pending_transcription', retry: true });
+      expect((await notes.findByIdForUser('user-A', note.id))?.status).toBe('pending_transcription'); // not terminal yet
+    });
+
+    it('fails terminally with a distinct status once the confirmed-absent attempt limit is reached', async () => {
+      const { notes, storage, note } = await missingNote();
+      await notes.update('user-A', note.id, { sweepAttempts: TRANSCRIBE_MAX_MISSING_ATTEMPTS });
+      const out = await new TranscriptionService(OK, notes, storage).transcribeNote('user-A', note.id);
+      expect(out.status).toBe(TRANSCRIPTION_FAILED_STATUS);
+      expect((await notes.findByIdForUser('user-A', note.id))?.status).toBe(TRANSCRIPTION_FAILED_STATUS); // terminal
+    });
+
+    it('does NOT fail terminally on a transient fetch error it cannot confirm (exists() throws) — only confirmed absence is terminal', async () => {
+      const { notes, note } = await missingNote();
+      await notes.update('user-A', note.id, { sweepAttempts: TRANSCRIBE_MAX_MISSING_ATTEMPTS + 10 });
+      const flaky: Storage = { put: async () => {}, get: async () => { throw new Error('network'); }, exists: async () => { throw new Error('network'); }, delete: async () => {} };
+      const out = await new TranscriptionService(OK, notes, flaky).transcribeNote('user-A', note.id);
+      expect(out).toEqual({ status: 'pending_transcription', retry: true }); // transient → retry, never terminal
+    });
   });
 });

@@ -8,6 +8,18 @@ export interface TranscribeOutcome {
   retry?: boolean;
 }
 
+/** Terminal status when a voice note's recording is confirmed gone — distinct from the generic
+ *  needs_review so the rep sees WHY (the UI renders a human reason for it). */
+export const TRANSCRIPTION_FAILED_STATUS = 'transcription_failed';
+
+/** Confirmed-missing-audio attempts before a voice note fails terminally. Derivation: the notes-sweep
+ *  runs every ~15s; requiring the recording to be CONFIRMED ABSENT (storage.exists() === false — not a
+ *  transient fetch error) on 3 passes (~45s) rules out a brief post-upload read-after-write window while
+ *  failing fast — well before the sweep's generic 5-attempt needs_review budget, and without burning
+ *  cycles on an object that will never appear. Object stores are read-after-write consistent for new
+ *  keys, so a confirmed-absent object is genuinely gone. */
+export const TRANSCRIBE_MAX_MISSING_ATTEMPTS = 3;
+
 /**
  * Turn a voice note's audio into a transcript (P1-5). Principle: never lose a
  * note. A transcription API error leaves the note PENDING for retry; empty or
@@ -30,6 +42,22 @@ export class TranscriptionService {
     try {
       audio = await this.storage.get(note.audioKey);
     } catch {
+      // The fetch failed. Distinguish a GENUINELY ABSENT recording (terminal — it will never appear,
+      // e.g. the object was never durably stored) from a transient fetch error (retry). Only
+      // exists() === false is a confident absence; if exists() itself errors or reports present, treat
+      // it as transient and keep retrying. After TRANSCRIBE_MAX_MISSING_ATTEMPTS confirmed absences the
+      // note fails terminally with a distinct status the UI explains — instead of looking "transcribing"
+      // until the sweep's generic 5-attempt needs_review, burning cycles on work that can never succeed.
+      let present = true;
+      try {
+        present = await this.storage.exists(note.audioKey);
+      } catch {
+        present = true; // can't confirm absence → treat as transient
+      }
+      if (!present && note.sweepAttempts >= TRANSCRIBE_MAX_MISSING_ATTEMPTS) {
+        await this.notes.update(userId, noteId, { status: TRANSCRIPTION_FAILED_STATUS });
+        return { status: TRANSCRIPTION_FAILED_STATUS };
+      }
       return { status: 'pending_transcription', retry: true };
     }
 
