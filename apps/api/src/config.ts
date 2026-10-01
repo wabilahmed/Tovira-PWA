@@ -162,6 +162,9 @@ export interface AppConfig {
   // --- UAE VAT (VAT-READY): fully built, OFF by default. Flip on the day Prospera registers.
   //     An invoice's tax status is date-driven (see VatPolicy), so the boundary is immutable. ---
   vatRegistered: boolean;
+  /** [BETA-7] Public self-registration (/auth/signup). Default OFF — beta is request-and-invite only.
+   *  Set SIGNUP_ENABLED=true only to re-open self-serve signup. */
+  signupEnabled: boolean;
   vatTrn: string | undefined;
   vatRate: number;
   vatRegisteredFromMs: number | null;
@@ -269,6 +272,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),
     accessRequestNotifyEmail: isBlank(env.ACCESS_REQUEST_NOTIFY_TO) ? undefined : env.ACCESS_REQUEST_NOTIFY_TO!.trim(),
     vatRegistered: env.VAT_REGISTERED?.trim() === 'true',
+    signupEnabled: env.SIGNUP_ENABLED?.trim() === 'true', // default false (undefined → off)
     vatTrn: isBlank(env.VAT_TRN) ? undefined : env.VAT_TRN!.trim(),
     vatRate: parsePositive(env.VAT_RATE, 0.05, 'VAT_RATE'),
     vatRegisteredFromMs: parseDateOrNull(env.VAT_REGISTERED_FROM, 'VAT_REGISTERED_FROM'),

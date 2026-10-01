@@ -172,6 +172,8 @@ export interface ApiDeps {
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
+  /** [BETA-7] Public self-registration flag. Default off (prod); /auth/signup 404s when false. */
+  signupEnabled?: boolean;
   /** [BETA-3] Public beta access-request intake. Absent → /access-request is not served. */
   accessRequest?: AccessRequestService;
   /** [BETA-3] Per-IP throttle for the access-request form. Counts EVERY request (a submit endpoint has
@@ -296,6 +298,7 @@ export function createApiServer(deps: ApiDeps): Server {
         sendResetEmail: (to, resetUrl) => deps.accountEmail.sendPasswordReset(to, resetUrl),
         sendVerifyEmail: (to, verifyUrl) => deps.accountEmail.sendVerification(to, verifyUrl),
         loginLimiter: deps.loginLimiter,
+        signupEnabled: deps.signupEnabled ?? false,
       })) return;
 
       // [BETA-3] Public beta access-request intake (no session). Served only when wired.

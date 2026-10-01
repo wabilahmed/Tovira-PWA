@@ -322,6 +322,7 @@ export function buildInMemoryDeps(
     accessApproval,
     invites,
     emailSender,
+    signupEnabled: true, // [BETA-7] tests seed accounts via /auth/signup; prod default is false
     ...overrides,
   } as TestDeps;
 }

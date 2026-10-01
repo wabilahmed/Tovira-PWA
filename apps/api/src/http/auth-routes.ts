@@ -40,6 +40,9 @@ export interface AuthRouteOptions {
   sendVerifyEmail?: (to: string, verifyUrl: string) => Promise<void>;
   /** Throttle failed logins per IP+email (defends against brute force). */
   loginLimiter?: RateLimiter;
+  /** [BETA-7] Public self-registration flag. When false (the default in prod), /auth/signup is
+   *  unreachable (404) — beta is request-and-invite only. The route + handler are unchanged. */
+  signupEnabled?: boolean;
 }
 
 function verifyLink(appBaseUrl: string, token: string): string {
@@ -58,6 +61,12 @@ export async function handleAuthRoute(
 
   try {
     if (method === 'POST' && url === '/auth/signup') {
+      // [BETA-7] Gated off by default: self-registration is replaced by request-and-invite. 404 so the
+      // route is indistinguishable from one that does not exist. Handler below is otherwise unchanged.
+      if (!opts.signupEnabled) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
       const body = (await readJsonBody(req)) as Record<string, unknown>;
       // [P5-4] consent: explicit refusal blocks sensitive storage/processing.
       if (body.consent === false) {

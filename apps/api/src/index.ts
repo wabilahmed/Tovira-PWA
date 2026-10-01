@@ -486,6 +486,8 @@ async function main(): Promise<void> {
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),
+    signupEnabled: config.signupEnabled, // [BETA-7] default false — self-registration is invite-only
+
     // [BETA-3] Public access-request intake. Limiter: 5 submissions per IP per hour. Derivation: a
     // genuine applicant submits once; 5/hour tolerates a shared-office NAT or a retry while bounding a
     // scripted flood. NOTE: this limiter is in-memory and PER-TASK, so across N running API tasks the
