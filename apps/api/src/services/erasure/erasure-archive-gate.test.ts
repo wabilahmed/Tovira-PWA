@@ -24,6 +24,7 @@ const downStorage = (): Storage => ({
   put: vi.fn(async () => {}),
   exists: async () => true,
   delete: async () => {},
+  list: async () => [],
 });
 
 async function make(nowRef: { t: number }) {

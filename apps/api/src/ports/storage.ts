@@ -10,4 +10,7 @@ export interface Storage {
   /** Remove a blob. Idempotent — deleting a missing key is a no-op, not an error. Needed so account
    *  deletion can purge archived training objects (TRAINING-DELETE), not just the hot table rows. */
   delete(key: string): Promise<void>;
+  /** List the keys under a prefix (e.g. `audio/<userId>/`). Used as the ACCOUNT-DELETE backstop to
+   *  sweep orphaned blobs that no DB row still points at; row-driven deletion is the primary path. */
+  list(prefix: string): Promise<string[]>;
 }

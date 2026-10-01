@@ -55,6 +55,11 @@ export class AccountService {
      *  explicitly. Absent → no archive (in-memory/dev without archival); behaves as before. */
     private readonly archiveIndex?: ArchiveIndexRepository,
     private readonly archiveStorage?: Pick<Storage, 'get' | 'delete'>,
+    /** [MEDIA-DELETE] the MAIN blob store (audio + gallery images). The users FK cascade removes the
+     *  note/image ROWS but NOT the S3 objects they point at, so account deletion must delete the blobs
+     *  too — row-driven (the keys the rows hold), collected BEFORE the cascade, with a prefix sweep as a
+     *  backstop for orphans. Absent → skipped (dev without a blob store). */
+    private readonly blobStorage?: Pick<Storage, 'delete' | 'list'>,
   ) {}
 
   async exportData(userId: string): Promise<unknown> {
@@ -120,6 +125,7 @@ export class AccountService {
     // users FK cascade does NOT reach. Do it before deleteUser so that if any object delete fails, the
     // index + user remain intact and the purge is retryable (never a silent partial that orphans PII).
     await this.purgeArchive(userId);
+    await this.purgeBlobs(userId); // [MEDIA-DELETE] audio + image objects — keys read from rows BEFORE the cascade
     await this.recallSessions.purgeUser(userId); // pg also cascades on the users FK; explicit for in-memory
     for (const p of this.purgeables) await p.purgeUser(userId);
     await this.auth.deleteUser(userId); // cascades hot extraction_logs + corrections + the archive index
@@ -128,6 +134,33 @@ export class AccountService {
   /** Delete every archived training object for the rep, then its index rows. Attempts all objects and,
    *  if ANY failed, throws an aggregate error — a partial purge is REPORTED, never silently partial,
    *  and the index stays intact so a retry can complete it. */
+  /**
+   * [MEDIA-DELETE] Delete this rep's audio + gallery-image objects from blob storage.
+   * PRIMARY (row-driven): the keys the DB rows hold, collected NOW — while the rows still exist, because
+   *   the users FK cascade (auth.deleteUser, below) is about to remove them and a key lost to the
+   *   cascade is unreachable forever. A row that knows its key is more reliable than guessing a prefix.
+   * BACKSTOP (prefix sweep): catch orphans no row points at (e.g. from a prior partial deletion).
+   * Known-key deletes are AWAITED — a failure fails the whole deletion (reported 500, retryable, with
+   *   the rows + keys still intact). The backstop is BEST-EFFORT — a List failure (e.g. missing
+   *   s3:ListBucket) is logged, never fatal, since the known blobs are already gone.
+   */
+  private async purgeBlobs(userId: string): Promise<void> {
+    if (!this.blobStorage) return;
+    const known = new Set<string>();
+    for (const c of await this.clients.listByUser(userId)) {
+      for (const n of await this.notes.listByClient(userId, c.id)) if (n.audioKey) known.add(n.audioKey);
+      for (const img of await this.images.listByClient(userId, c.id)) known.add(img.storageKey);
+    }
+    for (const key of known) await this.blobStorage.delete(key);
+    try {
+      const orphans: string[] = [];
+      for (const prefix of [`audio/${userId}/`, `images/${userId}/`]) orphans.push(...(await this.blobStorage.list(prefix)));
+      for (const key of orphans) if (!known.has(key)) await this.blobStorage.delete(key);
+    } catch (err) {
+      console.warn(`[account-delete] blob prefix-sweep backstop failed for ${userId}; known-key blobs were deleted, orphans may remain`, err);
+    }
+  }
+
   private async purgeArchive(userId: string): Promise<void> {
     if (!this.archiveIndex || !this.archiveStorage) return;
     const objects = await this.archiveIndex.listByUser(userId);

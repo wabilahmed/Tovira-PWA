@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, access, rm } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, access, rm, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import type { Storage } from '../../ports/storage.js';
 
@@ -43,6 +43,29 @@ export class FsStorage implements Storage {
 
   async delete(key: string): Promise<void> {
     await rm(this.resolveKey(key), { force: true }); // force: missing key is a no-op
+  }
+
+  async list(prefix: string): Promise<string[]> {
+    // Walk the tree and return keys (base-relative, forward-slashed) that start with the prefix.
+    const out: string[] = [];
+    const walk = async (dir: string): Promise<void> => {
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch {
+        return; // missing dir → no keys
+      }
+      for (const e of entries) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) await walk(full);
+        else {
+          const key = relative(this.base, full).split(/[\\/]/).join('/');
+          if (key.startsWith(prefix)) out.push(key);
+        }
+      }
+    };
+    await walk(this.base);
+    return out;
   }
 }
 

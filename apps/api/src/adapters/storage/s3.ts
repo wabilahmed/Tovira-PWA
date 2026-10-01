@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import type { Storage } from '../../ports/storage.js';
 
 /** The slice of the S3 client this adapter uses. Narrow + injectable so tests can drive the adapter
@@ -61,5 +61,21 @@ export class S3Storage implements Storage {
   async delete(key: string): Promise<void> {
     // S3 DeleteObject is idempotent: deleting a missing key returns 204, not an error.
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  async list(prefix: string): Promise<string[]> {
+    // Paginated ListObjectsV2. Requires s3:ListBucket on the bucket ARN (see the IAM note in the wrap).
+    const keys: string[] = [];
+    let token: string | undefined;
+    do {
+      const res = (await this.client.send(new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, ContinuationToken: token }))) as {
+        Contents?: Array<{ Key?: string }>;
+        IsTruncated?: boolean;
+        NextContinuationToken?: string;
+      };
+      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key);
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+    return keys;
   }
 }

@@ -405,7 +405,7 @@ async function main(): Promise<void> {
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs
   // have long intervals, so a faster due-check is negligible overhead.
   const recallSessions = createRecallSessionRepository(config, appPool);
-  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, archiveIndex, storage);
+  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, archiveIndex, storage, storage);
   const activation = createActivationService(config, appPool);
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.

@@ -30,6 +30,10 @@ class FakeS3 implements S3SendClient {
       case 'DeleteObjectCommand':
         this.store.delete(input.Key); // idempotent, like real S3
         return {};
+      case 'ListObjectsV2Command': {
+        const prefix = (input as unknown as { Prefix?: string }).Prefix ?? '';
+        return { Contents: [...this.store.keys()].filter((k) => k.startsWith(prefix)).map((Key) => ({ Key })), IsTruncated: false };
+      }
       default:
         throw new Error(`unexpected S3 command: ${name}`);
     }
@@ -77,6 +81,14 @@ for (const [name, make] of BACKENDS) {
       await storage.delete(KEY);
       await expect(storage.get(KEY)).rejects.toBeTruthy(); // gone
       await expect(storage.delete(KEY)).resolves.toBeUndefined(); // second delete does not throw
+    });
+
+    it('list returns the keys under a prefix (the account-delete backstop), and nothing under an unrelated prefix', async () => {
+      await storage.put('audio/u1/a.webm', BYTES);
+      await storage.put('audio/u1/b.webm', BYTES);
+      await storage.put('audio/u2/c.webm', BYTES);
+      expect((await storage.list('audio/u1/')).sort()).toEqual(['audio/u1/a.webm', 'audio/u1/b.webm']);
+      expect(await storage.list('images/u1/')).toEqual([]);
     });
   });
 }

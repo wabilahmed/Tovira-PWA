@@ -93,7 +93,7 @@ describe('TranscriptionService', () => {
     it('does NOT fail terminally on a transient fetch error it cannot confirm (exists() throws) — only confirmed absence is terminal', async () => {
       const { notes, note } = await missingNote();
       await notes.update('user-A', note.id, { sweepAttempts: TRANSCRIBE_MAX_MISSING_ATTEMPTS + 10 });
-      const flaky: Storage = { put: async () => {}, get: async () => { throw new Error('network'); }, exists: async () => { throw new Error('network'); }, delete: async () => {} };
+      const flaky: Storage = { put: async () => {}, get: async () => { throw new Error('network'); }, exists: async () => { throw new Error('network'); }, delete: async () => {}, list: async () => [] };
       const out = await new TranscriptionService(OK, notes, flaky).transcribeNote('user-A', note.id);
       expect(out).toEqual({ status: 'pending_transcription', retry: true }); // transient → retry, never terminal
     });
