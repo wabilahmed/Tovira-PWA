@@ -102,22 +102,24 @@ describe('AuthService', () => {
   });
 });
 
-describe('AuthService — signup consent (P5-4)', () => {
-  it('records consent WITH a timestamp and policy version when supplied', async () => {
+describe('AuthService — signup terms acceptance (P5-4; renamed from "consent" — PDPL de-conflation)', () => {
+  it('records the accepted terms version WITH a timestamp and IP when supplied', async () => {
     const clock = 1_700_000_000_000;
     const { service, users } = makeService({ now: () => clock });
-    await service.signup('rep@example.com', 'password123', '2026-08-01');
+    await service.signup('rep@example.com', 'password123', '2026-08-01', undefined, '203.0.113.7');
     const user = await users.findByEmail('rep@example.com');
-    expect(user!.consentVersion).toBe('2026-08-01');
-    expect(user!.consentAt).toBe(clock);
+    expect(user!.termsVersionAccepted).toBe('2026-08-01');
+    expect(user!.termsAcceptedAt).toBe(clock);
+    expect(user!.termsAcceptedIp).toBe('203.0.113.7');
   });
 
-  it('leaves consent null when none is supplied (non-web clients)', async () => {
+  it('leaves terms acceptance null when no version is supplied (non-web clients)', async () => {
     const { service, users } = makeService();
     await service.signup('rep@example.com', 'password123');
     const user = await users.findByEmail('rep@example.com');
-    expect(user!.consentAt).toBeNull();
-    expect(user!.consentVersion).toBeNull();
+    expect(user!.termsAcceptedAt).toBeNull();
+    expect(user!.termsVersionAccepted).toBeNull();
+    expect(user!.termsAcceptedIp).toBeNull();
   });
 });
 

@@ -9,9 +9,12 @@ export interface UserRecord {
   passwordHash: string;
   /** Opaque per-user code for the share/referral link — never the raw user id. */
   referralCode: string;
-  /** When the rep accepted the terms + which policy version (P5-4), or null. */
-  consentAt: number | null;
-  consentVersion: string | null;
+  /** Terms acceptance evidence (P5-4): when the rep accepted, which version, and from which IP, or null
+   *  for an account that never saw a terms screen. Renamed from consent_* — these record acceptance of
+   *  contractual terms, NOT "consent" as a PDPL lawful basis. */
+  termsAcceptedAt: number | null;
+  termsVersionAccepted: string | null;
+  termsAcceptedIp: string | null;
   emailVerified: boolean;
   /** IANA timezone (NUDGE-TZ) — "2 hours before" needs a clock. Defaults to Asia/Dubai. */
   timezone: string;
@@ -22,8 +25,9 @@ export interface CreateUserInput {
   email: string;
   passwordHash: string;
   referralCode: string;
-  consentAt?: number | null;
-  consentVersion?: string | null;
+  termsAcceptedAt?: number | null;
+  termsVersionAccepted?: string | null;
+  termsAcceptedIp?: string | null;
   /** IANA timezone captured from the browser at signup; normalized to a valid zone or the default. */
   timezone?: string;
 }

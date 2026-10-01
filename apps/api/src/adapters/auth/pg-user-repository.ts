@@ -6,8 +6,9 @@ interface UserRow {
   email: string;
   password_hash: string;
   referral_code: string;
-  consent_at: Date | null;
-  consent_version: string | null;
+  terms_accepted_at: Date | null;
+  terms_version_accepted: string | null;
+  terms_accepted_ip: string | null;
   email_verified: boolean;
   timezone: string;
   created_at: Date;
@@ -19,8 +20,9 @@ function toRecord(row: UserRow): UserRecord {
     email: row.email,
     passwordHash: row.password_hash,
     referralCode: row.referral_code,
-    consentAt: row.consent_at ? row.consent_at.getTime() : null,
-    consentVersion: row.consent_version,
+    termsAcceptedAt: row.terms_accepted_at ? row.terms_accepted_at.getTime() : null,
+    termsVersionAccepted: row.terms_version_accepted,
+    termsAcceptedIp: row.terms_accepted_ip,
     emailVerified: row.email_verified,
     timezone: row.timezone,
     createdAt: row.created_at.getTime(),
@@ -33,7 +35,7 @@ export class PgUserRepository implements UserRepository {
 
   async findByEmail(email: string): Promise<UserRecord | null> {
     const { rows } = await this.pool.query<UserRow>(
-      'SELECT id, email, password_hash, referral_code, consent_at, consent_version, email_verified, timezone, created_at FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, referral_code, terms_accepted_at, terms_version_accepted, terms_accepted_ip, email_verified, timezone, created_at FROM users WHERE email = $1',
       [email],
     );
     return rows[0] ? toRecord(rows[0]) : null;
@@ -41,7 +43,7 @@ export class PgUserRepository implements UserRepository {
 
   async findById(id: string): Promise<UserRecord | null> {
     const { rows } = await this.pool.query<UserRow>(
-      'SELECT id, email, password_hash, referral_code, consent_at, consent_version, email_verified, timezone, created_at FROM users WHERE id = $1',
+      'SELECT id, email, password_hash, referral_code, terms_accepted_at, terms_version_accepted, terms_accepted_ip, email_verified, timezone, created_at FROM users WHERE id = $1',
       [id],
     );
     return rows[0] ? toRecord(rows[0]) : null;
@@ -49,7 +51,7 @@ export class PgUserRepository implements UserRepository {
 
   async findByReferralCode(code: string): Promise<UserRecord | null> {
     const { rows } = await this.pool.query<UserRow>(
-      'SELECT id, email, password_hash, referral_code, consent_at, consent_version, email_verified, timezone, created_at FROM users WHERE referral_code = $1',
+      'SELECT id, email, password_hash, referral_code, terms_accepted_at, terms_version_accepted, terms_accepted_ip, email_verified, timezone, created_at FROM users WHERE referral_code = $1',
       [code],
     );
     return rows[0] ? toRecord(rows[0]) : null;
@@ -57,10 +59,10 @@ export class PgUserRepository implements UserRepository {
 
   async create(input: CreateUserInput): Promise<UserRecord> {
     const { rows } = await this.pool.query<UserRow>(
-      `INSERT INTO users (email, password_hash, referral_code, consent_at, consent_version, timezone)
-       VALUES ($1, $2, $3, CASE WHEN $4::bigint IS NULL THEN NULL ELSE to_timestamp($4 / 1000.0) END, $5, COALESCE($6, 'Asia/Dubai'))
-       RETURNING id, email, password_hash, referral_code, consent_at, consent_version, email_verified, timezone, created_at`,
-      [input.email, input.passwordHash, input.referralCode, input.consentAt ?? null, input.consentVersion ?? null, input.timezone ?? null],
+      `INSERT INTO users (email, password_hash, referral_code, terms_accepted_at, terms_version_accepted, terms_accepted_ip, timezone)
+       VALUES ($1, $2, $3, CASE WHEN $4::bigint IS NULL THEN NULL ELSE to_timestamp($4 / 1000.0) END, $5, $6, COALESCE($7, 'Asia/Dubai'))
+       RETURNING id, email, password_hash, referral_code, terms_accepted_at, terms_version_accepted, terms_accepted_ip, email_verified, timezone, created_at`,
+      [input.email, input.passwordHash, input.referralCode, input.termsAcceptedAt ?? null, input.termsVersionAccepted ?? null, input.termsAcceptedIp ?? null, input.timezone ?? null],
     );
     return toRecord(rows[0]!);
   }

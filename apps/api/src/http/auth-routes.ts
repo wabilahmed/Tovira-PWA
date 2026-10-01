@@ -66,10 +66,13 @@ export async function handleAuthRoute(
       const { email, password } = readCredentials(body);
       // The web sends consent:true (an explicit tick). Record which policy
       // version they agreed to; absent consent (non-web clients) is unchanged.
-      const consentVersion = body.consent === true ? CONSENT_POLICY_VERSION : undefined;
+      // The request field stays `consent` (the user's accept tick); the STORED record is terms_* now.
+      // Wire field kept as-is: no external consumers, and renaming it would collide with the unrelated
+      // import-consent field used across the note routes/tests. The compliance fix is the column name.
+      const termsVersion = body.consent === true ? CONSENT_POLICY_VERSION : undefined;
       // NUDGE-TZ: the browser sends its IANA zone; the service validates it (→ default if absent/bad).
       const timezone = typeof body.timezone === 'string' ? body.timezone : undefined;
-      const result = await auth.signup(email, password, consentVersion, timezone);
+      const result = await auth.signup(email, password, termsVersion, timezone, clientIp(req));
       await opts.onSignup?.(result.user.id, result.user.email);
       const ref = typeof body.ref === 'string' ? body.ref.trim() : '';
       // [REFERRAL-ENTRY] Report the outcome so the rep gets a clear message (applied / invalid / none)

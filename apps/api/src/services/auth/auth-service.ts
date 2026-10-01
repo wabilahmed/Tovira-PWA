@@ -110,11 +110,13 @@ export class AuthService {
   }
 
   /**
-   * Create an account. When the caller supplies a `consentVersion` (the web
-   * always does — see the route), it is stored WITH a timestamp against the
-   * user (P5-4), so consent is auditable ("agreed to <version> at <time>").
+   * Create an account. When the caller supplies a `termsVersion` (the web always
+   * does — see the route), the accepted version is stored WITH a timestamp and the
+   * acceptance IP against the user (P5-4), so acceptance is auditable
+   * ("accepted <version> at <time> from <ip>"). Renamed from consent_* — this records
+   * acceptance of contractual terms, not a PDPL "consent" lawful basis.
    */
-  async signup(emailRaw: string, password: string, consentVersion?: string, timezone?: string): Promise<AuthResult> {
+  async signup(emailRaw: string, password: string, termsVersion?: string, timezone?: string, termsAcceptedIp?: string): Promise<AuthResult> {
     const email = normalizeEmail(emailRaw);
     if (!EMAIL_RE.test(email)) throw new AuthValidationError('A valid email is required.');
     if (!password || password.length < 8) {
@@ -130,7 +132,7 @@ export class AuthService {
       passwordHash,
       referralCode,
       timezone: normalizeTimeZone(timezone), // browser-supplied, validated → default if absent/bad
-      ...(consentVersion ? { consentAt: this.now(), consentVersion } : {}),
+      ...(termsVersion ? { termsAcceptedAt: this.now(), termsVersionAccepted: termsVersion, termsAcceptedIp: termsAcceptedIp ?? null } : {}),
     });
     return this.issue(user);
   }
