@@ -11,12 +11,11 @@ drifts from its constant.
 
 - `2026-09-22/` — the current **published** Terms and Privacy (owner-approved). This is the version new
   acceptances record (`TERMS_VERSION` / `PRIVACY_VERSION`). Snapshotted from `apps/web/{terms,privacy}/index.html`.
-- `2026-08-01/` — recovered from git (commit `87f81e8`, the last commit before the pages were published).
-  **These are DRAFTS**, stamped `Version 2026-08-01 · Draft` and marked lawyer-review-required; they were
-  never owner-approved. They are archived because `CONSENT_POLICY_VERSION` was `'2026-08-01'` before the
-  rename, so some accounts may hold `terms_version_accepted = '2026-08-01'`. This is the draft text those
-  routes served at the time, preserved so that record still resolves to real wording — accurately labelled
-  as a draft, not represented as a published version. Those stored values are NOT rewritten (BETA-2c).
+- `2026-08-01/` — **no published text exists for this version**; see `2026-08-01/UNRECOVERABLE.md`. The
+  pages were never published at `2026-08-01` (first published version is `2026-09-22`); the only git
+  artifact bearing that version is a pre-publication lawyer-review skeleton, which no user accepted as
+  terms. An account holding `terms_version_accepted = '2026-08-01'` points at wording this repository
+  cannot produce. Those stored values are NOT rewritten (BETA-2c).
 
 ## Taking a snapshot when the terms change (manual — do NOT automate the overwrite)
 
@@ -37,4 +36,4 @@ but changing the text or the date asserts a revision, and that assertion must be
 
 If git does not contain a version that an acceptance record points at, do not leave a dangling reference:
 create `legal-archive/<id>/UNRECOVERABLE.md` recording that the `<id>` text could not be recovered and
-why. (Not needed today — every referenced version, `2026-09-22` and `2026-08-01`, was recovered above.)
+why. This is exactly the case for `2026-08-01` (see that folder): it was never a published version.
