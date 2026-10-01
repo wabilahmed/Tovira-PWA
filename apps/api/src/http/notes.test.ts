@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
+import { AudioRetentionService } from '../services/media/audio-retention-service.js';
 
 let server: Server;
 let base: string;
@@ -76,6 +77,63 @@ describe('voice note upload', () => {
     expect(res.status).toBe(200);
     const body = new Uint8Array(await res.arrayBuffer());
     expect([...body]).toEqual([...audio]);
+  });
+
+  // [AUDIO-RETENTION Task 2] Once a recording has aged out, playback returns a CLEAR state — not a
+  // bare 404. The rep sees the recording is no longer kept and that the transcript remains.
+  it('returns a clear "no longer kept" state (410), not a bare 404, once the audio has aged out', async () => {
+    const token = await signup('expired@example.com');
+    const clientId = await createClient(token, 'Expiry Co');
+    const note = (await (await uploadVoice(token, clientId, audio)).json()) as { id: string; audioKey: string };
+    // Transcribe (stamps the retention clock), then age the recording out via the real sweep.
+    await fetch(`${base}/notes/${note.id}/transcribe`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    const FAR_FUTURE = Date.now() + 365 * 24 * 60 * 60 * 1000;
+    const swept = await new AudioRetentionService(
+      { allUserIds: () => deps.auth.allUserIds(), notes: deps.notes, storage: deps.storage },
+      () => FAR_FUTURE,
+    ).sweep();
+    expect(swept).toBe(1);
+
+    const res = await fetch(`${base}/notes/${note.id}/audio`, { headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(410); // Gone — a definite, documented state
+    const body = (await res.json()) as { error: string; message: string };
+    expect(body.error).toBe('audio_expired');
+    expect(body.message).toMatch(/no longer kept/i);
+    expect(body.message).toMatch(/transcript remains/i);
+
+    // The transcript itself is untouched — the note still carries it.
+    const list = (await (await fetch(`${base}/clients/${clientId}/notes`, { headers: { authorization: `Bearer ${token}` } })).json()) as { notes: Array<{ id: string; rawText: string | null }> };
+    expect(list.notes.find((n) => n.id === note.id)?.rawText).toBe('clear transcript');
+  });
+
+  // NEGATIVE: a recording that is merely missing (never aged out) stays a 404 — the "no longer kept"
+  // state is reserved for a deliberate retention expiry, never a generic absence.
+  it('a genuinely-missing (not expired) recording still returns 404, not the expiry state', async () => {
+    const token = await signup('missing-obj@example.com');
+    const clientId = await createClient(token, 'Missing Co');
+    const note = (await (await uploadVoice(token, clientId, audio)).json()) as { id: string; audioKey: string };
+    await deps.storage.delete(note.audioKey); // object gone, but the note is NOT marked audio-expired
+
+    const res = await fetch(`${base}/notes/${note.id}/audio`, { headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('not_found');
+  });
+
+  // NEGATIVE: a note that NEVER had a recording (a pasted note: audioKey null, never expired) must not
+  // claim a recording "no longer kept" — it returns 404, so the 410 state means a real retention expiry.
+  it('a note that never had audio returns 404, never the expiry state', async () => {
+    const token = await signup('paste-audio@example.com');
+    const clientId = await createClient(token, 'Paste Co');
+    const note = (await (await fetch(`${base}/clients/${clientId}/notes/paste`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'a pasted message with no recording' }),
+    })).json()) as { id: string };
+
+    const res = await fetch(`${base}/notes/${note.id}/audio`, { headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(404);
+    expect(((await res.json()) as { error: string }).error).toBe('not_found');
   });
 
   // [P1-5] transcribe a voice note (stub transcriber returns "clear transcript")

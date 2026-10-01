@@ -569,7 +569,17 @@ export async function handleNoteRoute(
     if (audioMatch) {
       const noteId = decodeURIComponent(audioMatch[1]!);
       const note = await deps.notes.findByIdForUser(userId, noteId);
-      if (!note || !note.audioKey || !(await deps.storage.exists(note.audioKey))) {
+      if (!note) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      // [AUDIO-RETENTION Task 2] The recording aged out (deleted AUDIO_RETENTION_DAYS after
+      // transcription succeeded) — a clear, documented state, not a bare 404. The transcript remains.
+      if (!note.audioKey && note.audioExpiredAt) {
+        sendJson(res, 410, { error: 'audio_expired', message: 'This recording is no longer kept; the transcript remains.' });
+        return true;
+      }
+      if (!note.audioKey || !(await deps.storage.exists(note.audioKey))) {
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
