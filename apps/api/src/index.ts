@@ -256,7 +256,7 @@ async function main(): Promise<void> {
   // [ERASURE-SUMMARY] the certified extractor for re-summarising a note after the requester's messages
   // are removed. A metered client, but every rewrite request carries spendClass 'erasure' and NO userId,
   // so it records account-less — never a rep's spend cap or extraction ceiling (erasure is legal, not usage).
-  const erasure = new ErasureService({ clients, notes, extractionLog: extractionLogs, audit: createErasureAuditRepository(config, appPool), archiveIndex, archiveStorage: storage, summariser: createModelClient(config, 'extraction') });
+  const erasure = new ErasureService({ clients, notes, extractionLog: extractionLogs, audit: createErasureAuditRepository(config, appPool), archiveIndex, archiveStorage: storage, blobStorage: storage, summariser: createModelClient(config, 'extraction') });
   // [ERASURE-RECEIPT] the proof-of-erasure store uses the ROOT pool (migrationPool): it has no RLS and
   // no user_id/FK, so it is not tenant data and it survives the rep deleting their account.
   const erasureRequests = new ErasureRequestService({ erasure, requests: createErasureRequestRepository(config, appPool), receipts: createErasureReceiptRepository(config, migrationPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });

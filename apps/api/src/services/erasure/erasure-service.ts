@@ -144,6 +144,10 @@ export interface ErasureDeps {
    *  it; absent → the archive is not scanned (dev/in-memory without archival). */
   archiveIndex?: ArchiveIndexRepository;
   archiveStorage?: Storage;
+  /** [ERASURE Task 3] the MAIN blob store (voice recordings). A recording WHOLLY about the requester
+   *  (the note's client IS the erased party) is deleted; a delete failure fails the whole commit
+   *  (retryable), never a silent gap. Absent → audio is not reached (dev/in-memory without a blob store). */
+  blobStorage?: Pick<Storage, 'delete'>;
   /** [ERASURE-SUMMARY] The certified extractor, used to RE-summarise a note after the requester's
    *  messages are removed. Wired in prod to a metered client that classes the call `erasure` with NO
    *  userId — it is Prospera's legal obligation, never the rep's usage, so it never touches their spend
@@ -222,7 +226,7 @@ export class ErasureService {
   /** Execute the erasure. Deletes exact structured matches + confirmed fuzzy + log rows; keeps mentions. */
   async commit(userId: string, requesterNames: string[], opts: CommitOptions = {}): Promise<ErasureResult> {
     const rn = requesterNames.map(norm).filter(Boolean);
-    const counts: Record<string, number> = { people: 0, personal_facts: 0, unanswered_questions: 0, messages: 0, embeddings_cleared: 0, training_logs: 0, training_archive: 0 };
+    const counts: Record<string, number> = { people: 0, personal_facts: 0, unanswered_questions: 0, messages: 0, embeddings_cleared: 0, training_logs: 0, training_archive: 0, recordings_deleted: 0, recordings_already_expired: 0 };
     const needsReview: SummaryCandidate[] = []; // [ERASURE-SUMMARY] rewritten summaries still naming her
     if (rn.length === 0) return { categories: [], needsReview }; // unknown counterparty → nothing happens, nothing recorded
     const clientNames = new Map((await this.deps.clients.listByUser(userId)).map((c) => [c.id, c.name]));
@@ -319,11 +323,31 @@ export class ErasureService {
           }
         }
       }
+      // [ERASURE Task 3] A voice recording WHOLLY about the requester (the note's client IS the erased
+      // party) is deleted — the same reach account deletion has. A recording that is not wholly theirs is
+      // left: it ages out within AUDIO_RETENTION_DAYS, and over-deleting would destroy the rep's own
+      // record of a meeting that involved other people. Deleted-now vs already-expired is recorded so the
+      // receipt is accurate either way. A delete failure throws → the commit fails (retryable), never a
+      // silent gap (same fail-loud doctrine as the archive purge).
+      let audioKeyPatch: string | null | undefined;
+      let audioExpiredPatch: number | undefined;
+      if (this.deps.blobStorage && note.source === 'voice' && matchName(clientNames.get(note.clientId), rn) === 'exact') {
+        if (note.audioKey) {
+          await this.deps.blobStorage.delete(note.audioKey); // idempotent — a missing object is a no-op
+          counts.recordings_deleted! += 1;
+          audioKeyPatch = null;
+          audioExpiredPatch = (this.deps.now ?? Date.now)();
+          changed = true;
+        } else if (note.audioExpiredAt) {
+          counts.recordings_already_expired! += 1;
+        }
+      }
       if (changed) {
         await this.deps.notes.update(userId, note.id, {
           ...(ex ? { extracted: ex } : {}),
           ...(messages !== note.messages ? { messages, rawText } : {}),
           ...(clearEmbedding ? { embedding: null } : {}),
+          ...(audioKeyPatch !== undefined ? { audioKey: audioKeyPatch, audioExpiredAt: audioExpiredPatch } : {}),
         });
       }
     }
