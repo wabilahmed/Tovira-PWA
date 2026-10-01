@@ -43,7 +43,21 @@ export interface AccessRequestRecord extends AccessRequestInput {
   linkedUserId: string | null;
 }
 
+/** A review-outcome patch applied to a request (BETA-5). */
+export interface AccessRequestReview {
+  status: AccessRequestStatus;
+  reviewedAt: number;
+  reviewedNote?: string | null;
+  linkedUserId?: string | null;
+}
+
 export interface AccessRequestRepository {
   /** Persist a new request (status defaults to 'pending'). */
   create(input: AccessRequestInput): Promise<AccessRequestRecord>;
+  /** Fetch one request by id, or null. */
+  get(id: string): Promise<AccessRequestRecord | null>;
+  /** List requests, newest first, optionally filtered by status. */
+  list(status?: AccessRequestStatus): Promise<AccessRequestRecord[]>;
+  /** Apply a review outcome (status + reviewer note + optional linked user). Returns the updated row. */
+  review(id: string, patch: AccessRequestReview): Promise<AccessRequestRecord | null>;
 }

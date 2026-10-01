@@ -4,6 +4,11 @@ import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning } fr
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { AccessRequestService } from './services/access/access-request-service.js';
 import { PgAccessRequestRepository } from './adapters/access/pg-access-request-repository.js';
+import { PgInviteRepository } from './adapters/access/pg-invite-repository.js';
+import { PgAccessApprovalTx } from './adapters/access/pg-access-approval-tx.js';
+import { AccessApprovalService } from './services/access/access-approval-service.js';
+import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
+import { ScryptHasher } from './services/auth/password.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
 import { createApiServer } from './server.js';
@@ -145,7 +150,11 @@ async function main(): Promise<void> {
   // Request-handling queries run through the non-superuser app pool so RLS is
   // enforced (falls back to the superuser URL if APP_DATABASE_URL is unset).
   const appPool = createPool(config.appDatabaseUrl);
-  const auth = createAuthService(config, appPool);
+  // [BETA-5] Beta intake/invite stores (pre-tenant; same app pool). The invite repo is shared with the
+  // auth service so an invite-pending account is unreachable by password reset.
+  const invites = new PgInviteRepository(appPool);
+  const accessRequests = new PgAccessRequestRepository(appPool);
+  const auth = createAuthService(config, appPool, invites);
   const accountEmail = createAccountEmailService(config, appPool);
   const emailFor = (userId: string): Promise<string | null> => auth.getPublicUser(userId).then((u) => u?.email ?? null);
   const clients = createClientRepository(config, appPool);
@@ -408,6 +417,17 @@ async function main(): Promise<void> {
     { clients, notes, facts },
     { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30, promiseStaleThresholdDays: config.promiseStaleThresholdDays },
   );
+  // [BETA-5] Approval/invite provisioning. applyReferral reuses the existing ReferralService (declared
+  // above), so a persisted landing-page referral is credited at approval through the same code path as
+  // a signup — never a second one, and never blocking the approval.
+  const accessApproval = new AccessApprovalService({
+    requests: accessRequests,
+    tx: new PgAccessApprovalTx(appPool, new PgUserRepository(appPool)),
+    hasher: new ScryptHasher(),
+    sendInvite: (to, inviteUrl) => accountEmail.sendInvite(to, inviteUrl),
+    applyReferral: (code, userId, email) => referral.apply(code, userId, email),
+    appBaseUrl: config.appBaseUrl,
+  });
   const server = createApiServer({
     pool: appPool,
     auth,
@@ -460,7 +480,7 @@ async function main(): Promise<void> {
     trainingLog: trainingLogStats,
     spend,
     opsAlerts,
-    opsRoute: { opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents },
+    opsRoute: { opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval },
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),
@@ -468,7 +488,7 @@ async function main(): Promise<void> {
     // genuine applicant submits once; 5/hour tolerates a shared-office NAT or a retry while bounding a
     // scripted flood. NOTE: this limiter is in-memory and PER-TASK, so across N running API tasks the
     // effective limit is N×5/hour — accepted for a beta access form (not a security control).
-    accessRequest: new AccessRequestService(new PgAccessRequestRepository(appPool)),
+    accessRequest: new AccessRequestService(accessRequests),
     accessRequestLimiter: new FixedWindowRateLimiter(5, 60 * 60 * 1000),
     accessRequestNotify: config.accessRequestNotifyEmail
       ? (rec) => accountEmail.sendAccessRequestNotification(config.accessRequestNotifyEmail!, rec, `${config.appBaseUrl}/ops/access-requests/${rec.id}/approve`)

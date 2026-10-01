@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
-import type { AccessRequestInput, AccessRequestRecord, AccessRequestRepository, AccessRequestStatus, ConversationOwnership, ExpectedVolume, Ownership } from '../../ports/access-request-repository.js';
+import type { AccessRequestInput, AccessRequestRecord, AccessRequestRepository, AccessRequestReview, AccessRequestStatus, ConversationOwnership, ExpectedVolume, Ownership } from '../../ports/access-request-repository.js';
 
-interface Row {
+export interface Row {
   id: string;
   created_at: Date;
   status: AccessRequestStatus;
@@ -23,6 +23,10 @@ interface Row {
   reviewed_note: string | null;
   linked_user_id: string | null;
   referral_code: string | null;
+}
+
+export function rowToAccessRequest(r: Row): AccessRequestRecord {
+  return toRecord(r);
 }
 
 function toRecord(r: Row): AccessRequestRecord {
@@ -73,5 +77,27 @@ export class PgAccessRequestRepository implements AccessRequestRepository {
       ],
     );
     return toRecord(rows[0]!);
+  }
+
+  async get(id: string): Promise<AccessRequestRecord | null> {
+    const { rows } = await this.pool.query<Row>(`SELECT ${COLS} FROM access_requests WHERE id = $1`, [id]);
+    return rows[0] ? toRecord(rows[0]) : null;
+  }
+
+  async list(status?: AccessRequestStatus): Promise<AccessRequestRecord[]> {
+    const { rows } = status
+      ? await this.pool.query<Row>(`SELECT ${COLS} FROM access_requests WHERE status = $1 ORDER BY created_at DESC`, [status])
+      : await this.pool.query<Row>(`SELECT ${COLS} FROM access_requests ORDER BY created_at DESC`);
+    return rows.map(toRecord);
+  }
+
+  async review(id: string, patch: AccessRequestReview): Promise<AccessRequestRecord | null> {
+    const { rows } = await this.pool.query<Row>(
+      `UPDATE access_requests
+         SET status = $2, reviewed_at = to_timestamp($3 / 1000.0), reviewed_note = $4, linked_user_id = COALESCE($5, linked_user_id)
+       WHERE id = $1 RETURNING ${COLS}`,
+      [id, patch.status, patch.reviewedAt, patch.reviewedNote ?? null, patch.linkedUserId ?? null],
+    );
+    return rows[0] ? toRecord(rows[0]) : null;
   }
 }

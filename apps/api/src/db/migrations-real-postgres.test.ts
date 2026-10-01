@@ -3,6 +3,9 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { loadMigrations, runMigrations } from './migrate.js';
 import { PgAccessRequestRepository } from '../adapters/access/pg-access-request-repository.js';
+import { PgInviteRepository } from '../adapters/access/pg-invite-repository.js';
+import { PgAccessApprovalTx } from '../adapters/access/pg-access-approval-tx.js';
+import { PgUserRepository } from '../adapters/auth/pg-user-repository.js';
 
 /**
  * [DEPLOY-READY · REAL-PG] Run the REAL migration set against a REAL Postgres.
@@ -169,5 +172,34 @@ suite('[DEPLOY-READY] migrations apply against real Postgres', () => {
     expect(rec.confirmationAcceptedAt).toBe(1_750_000_000_000);
     expect(rec.reviewedAt).toBeNull();
     expect(rec.linkedUserId).toBeNull();
+  });
+
+  it('PgAccessApprovalTx.approve commits user+invite+flip atomically; PgInviteRepository consumes once (BETA-5)', async () => {
+    const requests = new PgAccessRequestRepository(pool);
+    const users = new PgUserRepository(pool);
+    const invites = new PgInviteRepository(pool);
+    const tx = new PgAccessApprovalTx(pool, users);
+    const now = Date.now();
+
+    const req = await requests.create({
+      fullName: 'Tx Rep', workEmail: 'tx-approve@x.com', phone: '1', companyName: 'Co', roleTitle: 'Broker',
+      ownership: 'owns_or_manages', tradeLicenceNumber: 'TL-TX', conversationOwnership: 'own_clients',
+      conversationOwnershipOther: null, expectedVolume: 'under_50', confirmationAcceptedAt: now, confirmationTextVersion: 'v',
+      sourceIp: null, userAgent: null, referralCode: null,
+    });
+
+    const { userId, record } = await tx.approve({
+      accessRequestId: req.id, email: 'tx-approve@x.com', passwordHash: 'scrypt$00$00',
+      userReferralCode: 'rc-tx', invite: { tokenHash: 'th-approve', expiresAt: now + 7 * 86400_000, createdBy: 'ops' },
+      reviewedAt: now,
+    });
+    expect(record.status).toBe('invited');
+    expect(record.linkedUserId).toBe(userId);
+    expect(await invites.hasOutstanding(userId, now)).toBe(true);
+
+    const consumed = await invites.consume('th-approve', now);
+    expect(consumed).toEqual({ userId, accessRequestId: req.id });
+    expect(await invites.consume('th-approve', now)).toBeNull(); // single-use
+    expect(await invites.hasOutstanding(userId, now)).toBe(false);
   });
 });

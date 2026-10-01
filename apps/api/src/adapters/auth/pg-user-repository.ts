@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { CreateUserInput, UserRecord, UserRepository } from '../../ports/user-repository.js';
 
 interface UserRow {
@@ -65,6 +65,21 @@ export class PgUserRepository implements UserRepository {
       [input.email, input.passwordHash, input.referralCode, input.termsAcceptedAt ?? null, input.termsVersionAccepted ?? null, input.termsAcceptedIp ?? null, input.timezone ?? null],
     );
     return toRecord(rows[0]!);
+  }
+
+  /**
+   * [BETA-5] Create an invite-pending user ON A CALLER-SUPPLIED TRANSACTION CLIENT. Lives here so ALL
+   * `users` SQL stays in this one audited file ([USERS-GUARD]); the approval tx runs it on its own client
+   * so the user + invite + request flip commit atomically. The password hash is an unusable random one —
+   * the account cannot be logged into until the invite is consumed (BETA-6). terms_* stay null (nothing
+   * accepted yet); email_verified defaults false.
+   */
+  async createInvitedWithClient(client: PoolClient, email: string, passwordHash: string, referralCode: string): Promise<string> {
+    const { rows } = await client.query<{ id: string }>(
+      `INSERT INTO users (email, password_hash, referral_code) VALUES ($1, $2, $3) RETURNING id`,
+      [email, passwordHash, referralCode],
+    );
+    return rows[0]!.id;
   }
 
   async updatePassword(id: string, passwordHash: string): Promise<void> {

@@ -86,6 +86,10 @@ export interface AuthServiceDeps {
   hasher: PasswordHasher;
   sessionTtlMs: number;
   now?: () => number;
+  /** [BETA-5] Optional invite guard. When present, an account with an OUTSTANDING invite (created by
+   *  beta approval, not yet consumed) is invite-pending and must be unreachable by password reset — the
+   *  account cannot be activated by any route except consuming its invite (BETA-6). */
+  invites?: { hasOutstanding(userId: string, nowMs: number): Promise<boolean> };
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -200,6 +204,10 @@ export class AuthService {
     const email = normalizeEmail(emailRaw);
     const user = await this.deps.users.findByEmail(email);
     if (!user) return null;
+    // [BETA-5] An invite-pending account must not be reachable by password reset — otherwise a reset
+    // link would activate it, bypassing the invite. Behave exactly as for an unknown email (return
+    // null → the route still answers 200, no enumeration), so the ONLY way in is consuming the invite.
+    if (this.deps.invites && (await this.deps.invites.hasOutstanding(user.id, this.now()))) return null;
     const token = randomBytes(32).toString('base64url');
     await this.deps.passwordResets.create({ tokenHash: hashToken(token), userId: user.id, expiresAt: this.now() + RESET_TTL_MS });
     return { user: toPublic(user), token };

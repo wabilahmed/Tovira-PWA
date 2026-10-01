@@ -77,7 +77,10 @@ import { PushDispatchService } from '../services/push/push-dispatch-service.js';
 import { InMemoryImageRepository } from '../adapters/images/in-memory-image-repository.js';
 import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
 import { InMemoryAccessRequestRepository } from '../adapters/access/in-memory-access-request-repository.js';
+import { InMemoryInviteRepository } from '../adapters/access/in-memory-invite-repository.js';
+import { InMemoryAccessApprovalTx } from '../adapters/access/in-memory-access-approval-tx.js';
 import { AccessRequestService } from '../services/access/access-request-service.js';
+import { AccessApprovalService } from '../services/access/access-approval-service.js';
 import { ModelMetricsRegistry } from '../services/metrics/model-metrics.js';
 
 export interface TestDeps extends ApiDeps {
@@ -101,6 +104,9 @@ export interface TestDeps extends ApiDeps {
   modelCallEvents: InMemoryModelCallEventStore;
   /** [BETA-3] the in-memory access-request store, exposed so tests can assert persistence (.count()). */
   accessRequests: InMemoryAccessRequestRepository;
+  /** [BETA-5] the approval/invite service + the invite store, exposed for ops + unusable-account tests. */
+  accessApproval: AccessApprovalService;
+  invites: InMemoryInviteRepository;
 }
 
 /**
@@ -112,13 +118,17 @@ export function buildInMemoryDeps(
   opts: { extractionLimiter?: ExtractionLimiter; enforceVerification?: boolean; modelClient?: ModelClient } = {},
 ): TestDeps {
   const stubPool = { query: async () => ({ rows: [] }) } as unknown as Pool;
+  const authUsers = new InMemoryUserRepository();
+  const invites = new InMemoryInviteRepository();
+  const hasher = new ScryptHasher();
   const auth = new AuthService({
-    users: new InMemoryUserRepository(),
+    users: authUsers,
     sessions: new InMemorySessionRepository(),
     passwordResets: new InMemoryPasswordResetRepository(),
     emailVerifications: new InMemoryEmailVerificationRepository(),
-    hasher: new ScryptHasher(),
+    hasher,
     sessionTtlMs: 60 * 60 * 1000,
+    invites, // [BETA-5] invite-pending accounts are unreachable by password reset
   });
   const notes = new InMemoryNoteRepository();
   const storage = new InMemoryStorage();
@@ -223,6 +233,16 @@ export function buildInMemoryDeps(
     for (let i = 0; i < passes; i++) await noteSweep.sweep(today);
   };
   const accessRequests = new InMemoryAccessRequestRepository();
+  const accountEmail = new AccountEmailService(new StubEmailSender(), new InMemoryEmailLogRepository());
+  const referral = new ReferralService(new InMemoryReferralRepository(), billing, (code) => auth.findUserIdByReferralCode(code));
+  const accessApproval = new AccessApprovalService({
+    requests: accessRequests,
+    tx: new InMemoryAccessApprovalTx(authUsers, invites, accessRequests),
+    hasher,
+    sendInvite: (to, url) => accountEmail.sendInvite(to, url),
+    applyReferral: (code, userId, email) => referral.apply(code, userId, email),
+    appBaseUrl: 'http://localhost:5173',
+  });
 
   return {
     pool: stubPool,
@@ -251,6 +271,7 @@ export function buildInMemoryDeps(
       spend: { status: async () => ({ periodKey: 'test', spentAed: 0, capAed: 45, state: 'ok' }), report: async () => [] },
       allUserIds: () => auth.allUserIds(),
       modelCallEvents,
+      accessApproval,
     },
     // [TRAINING-METRICS] ttl 0 so tests see fresh numbers on every snapshot() (each call refreshes).
     trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections, archiveIndex), 0),
@@ -285,13 +306,15 @@ export function buildInMemoryDeps(
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
     ledger,
-    referral: new ReferralService(new InMemoryReferralRepository(), billing, (code) => auth.findUserIdByReferralCode(code)),
-    accountEmail: new AccountEmailService(new StubEmailSender(), new InMemoryEmailLogRepository()),
+    referral,
+    accountEmail,
     appBaseUrl: 'http://localhost:5173',
     jobRuns: new InMemoryJobRunStore(),
     modelMetrics: new ModelMetricsRegistry(),
     accessRequest: new AccessRequestService(accessRequests),
     accessRequests,
+    accessApproval,
+    invites,
     ...overrides,
   } as TestDeps;
 }

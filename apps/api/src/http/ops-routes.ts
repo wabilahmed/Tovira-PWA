@@ -7,6 +7,10 @@ import type { ErasureRequestService } from '../services/erasure/erasure-request-
 import type { ModelCallEventStore } from '../ports/model-call-event-store.js';
 import { spendByClassReport } from '../services/spend/spend-by-class-report.js';
 import { conversationCostReport } from '../services/spend/conversation-cost-report.js';
+import type { AccessApprovalService } from '../services/access/access-approval-service.js';
+import { AccessRequestNotFoundError } from '../services/access/access-approval-service.js';
+import { NotPendingError } from '../ports/access-approval-tx.js';
+import type { AccessRequestStatus } from '../ports/access-request-repository.js';
 
 export interface OpsRouteDeps {
   /** Unset → the ops routes are disabled (always 403). Never a rep credential. */
@@ -24,7 +28,11 @@ export interface OpsRouteDeps {
   erasureRequests?: Pick<ErasureRequestService, 'open' | 'complete'>;
   /** [SPEND-INSTRUMENT] durable per-call event store — powers GET /ops/spend/by-class. Absent → 404. */
   modelCallEvents?: ModelCallEventStore;
+  /** [BETA-5] Beta access-request review + invite provisioning. Absent → the routes 404. */
+  accessApproval?: Pick<AccessApprovalService, 'list' | 'get' | 'approve' | 'reject'>;
 }
+
+const ACCESS_STATUSES: ReadonlySet<string> = new Set<AccessRequestStatus>(['pending', 'approved', 'rejected', 'invited', 'activated']);
 
 /** Constant-time ops-token check (never leak validity via timing). Shared with the /health split so
  *  the identifying half of the health body is gated by exactly the same credential (HEALTH-LEAK). */
@@ -106,6 +114,56 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
   if (!authed) {
     sendJson(res, 403, { error: 'forbidden' });
     return true;
+  }
+
+  // [BETA-5] Beta access-request review + invite provisioning. API-only (ops token, no UI).
+  //   GET  /ops/access-requests?status=pending   → list (filterable)
+  //   GET  /ops/access-requests/:id              → one request
+  //   POST /ops/access-requests/:id/approve      → create account + single-use invite + email (atomic)
+  //   POST /ops/access-requests/:id/reject {note}→ record status + note, NO email
+  if (deps.accessApproval && url.startsWith('/ops/access-requests')) {
+    const svc = deps.accessApproval;
+    if (req.method === 'GET' && url === '/ops/access-requests') {
+      const statusQ = new URL(req.url ?? '/', 'http://x').searchParams.get('status')?.trim();
+      if (statusQ && !ACCESS_STATUSES.has(statusQ)) {
+        sendJson(res, 400, { error: 'validation', message: 'unknown status filter' });
+        return true;
+      }
+      sendJson(res, 200, { requests: await svc.list(statusQ as AccessRequestStatus | undefined) });
+      return true;
+    }
+    const idMatch = /^\/ops\/access-requests\/([^/]+)(\/approve|\/reject)?$/.exec(url);
+    if (idMatch) {
+      const id = decodeURIComponent(idMatch[1]!);
+      const action = idMatch[2];
+      try {
+        if (req.method === 'GET' && !action) {
+          const record = await svc.get(id);
+          if (!record) { sendJson(res, 404, { error: 'not_found' }); return true; }
+          sendJson(res, 200, { request: record });
+          return true;
+        }
+        if (req.method === 'POST' && action === '/approve') {
+          let body: { reviewedBy?: unknown } = {};
+          try { body = (await readJsonBody(req)) as typeof body; } catch (err) { if (!(err instanceof BadJsonError)) throw err; }
+          const createdBy = typeof body.reviewedBy === 'string' && body.reviewedBy.trim() ? body.reviewedBy.trim() : 'ops';
+          sendJson(res, 200, { request: await svc.approve(id, { createdBy }) });
+          return true;
+        }
+        if (req.method === 'POST' && action === '/reject') {
+          let body: { note?: unknown } = {};
+          try { body = (await readJsonBody(req)) as typeof body; } catch (err) { if (!(err instanceof BadJsonError)) throw err; }
+          const note = typeof body.note === 'string' ? body.note.trim() : '';
+          sendJson(res, 200, { request: await svc.reject(id, note) });
+          return true;
+        }
+      } catch (err) {
+        if (err instanceof AccessRequestNotFoundError) { sendJson(res, 404, { error: 'not_found' }); return true; }
+        if (err instanceof NotPendingError) { sendJson(res, 409, { error: 'not_pending', message: 'This request has already been reviewed.' }); return true; }
+        throw err;
+      }
+    }
+    // falls through to 404 for any other /ops/access-requests* shape
   }
 
   if (req.method === 'POST' && url === '/ops/spend-cap/override') {
