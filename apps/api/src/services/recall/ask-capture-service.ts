@@ -5,13 +5,13 @@ import type { Embedder } from '../../ports/embedder.js';
 import type { ExtractedPromise } from '../extraction/types.js';
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
-import { recordVerdict, REJECTED_FIELD } from '../facts/verdict.js';
+import { recordVerdict } from '../facts/verdict.js';
 
 const PENDING = 'pending_confirmation';
 const DEFAULT_TTL_MS = 14 * 24 * 60 * 60 * 1000; // ASK-CAPTURE constraint 3: 14-day expiry
 
 export interface CaptureExtractor {
-  /** The CERTIFIED extractor, held for confirmation (compute + training-log, no vault commit). */
+  /** The CERTIFIED extractor, held for confirmation (compute + operational log, no vault commit). */
   extractNote(userId: string, noteId: string, today: string, opts?: { holdForConfirmation?: boolean }): Promise<unknown>;
 }
 
@@ -30,7 +30,7 @@ export interface AskCaptureDeps {
   facts: FactsRepository;
   embedder: Embedder;
   extraction: CaptureExtractor;
-  /** [CORRECTIONS-WIRE] label the surviving training-log row + record the rejection verdict. Optional
+  /** [CORRECTIONS-WIRE] label the surviving extraction-log row + record the rejection verdict. Optional
    *  — capture/confirm/expire behave exactly as before without them. */
   corrections?: CorrectionRepository;
   extractionLog?: ExtractionLogRepository;
@@ -41,7 +41,7 @@ export interface AskCaptureDeps {
 /**
  * [ASK-CAPTURE stages 2–3: EXTRACT (certified) + CONFIRM] A detected statement becomes a pending
  * NOTE (source ask_conversation) run through the CERTIFIED extractor but held OUT of the vault; the
- * rep confirms it (→ committed) or rejects/lets it expire (→ deleted, training log survives). One
+ * rep confirms it (→ committed) or rejects/lets it expire (→ deleted, the operational log row survives). One
  * confirm per statement. Nothing enters the vault unconfirmed.
  */
 export class AskCaptureService {
@@ -64,7 +64,7 @@ export class AskCaptureService {
       audioKey: null,
       status: PENDING,
     });
-    // Certified engine, held: facts computed into the note's JSONB + a training-log row, but NO
+    // Certified engine, held: facts computed into the note's JSONB + an operational log row, but NO
     // embedding / spine / touch — so it is invisible to the vault until confirmed.
     await this.deps.extraction.extractNote(userId, note.id, today, { holdForConfirmation: true });
     return { noteId: note.id, clientId, clientName: client.name, statement, capturedAt: this.now() };
@@ -100,9 +100,9 @@ export class AskCaptureService {
     return true;
   }
 
-  /** Reject → delete the pending note. The training-log row survives (constraint 2, migration 0045),
+  /** Reject → delete the pending note. The operational log row survives (constraint 2, migration 0045),
    *  and [CORRECTIONS-WIRE] we LABEL it 'rejected' and record the rejection verdict BEFORE deleting —
-   *  so the surviving row reads as a human "no" (distillation signal + Condition-4 rejection rate),
+   *  so the surviving row reads as a human "no" (Condition-4 rejection rate),
    *  not an indistinguishable still-pending row. Labelling must run before the delete: 0045 nulls
    *  note_id on delete, which would break the lookup. Both writes are isolated — a failure here
    *  never blocks the rejection. */
@@ -120,7 +120,7 @@ export class AskCaptureService {
       await recordVerdict(
         { corrections: this.deps.corrections, extractionLog: this.deps.extractionLog },
         userId,
-        { noteId, entityType: 'ask_capture', entityId: noteId, field: REJECTED_FIELD, before: note.rawText ?? '', after: null },
+        { noteId, entityType: 'ask_capture', entityId: noteId, verdict: 'reject', field: '' },
       );
     }
     return this.deps.notes.delete(userId, noteId);

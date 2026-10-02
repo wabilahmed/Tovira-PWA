@@ -1,8 +1,10 @@
 import type { Pool } from 'pg';
 import type {
   CorrectionEntry,
+  CorrectionKind,
   CorrectionRecord,
   CorrectionRepository,
+  Verdict,
 } from '../../ports/correction-repository.js';
 import { withTenant } from '../../db/tenant.js';
 
@@ -13,8 +15,9 @@ interface Row {
   entity_type: string;
   entity_id: string;
   field: string;
-  before_value: string | null;
-  after_value: string | null;
+  verdict: string;
+  correction_kind: string | null;
+  date_delta_days: number | null;
   prompt_version: string | null;
   created_at: Date;
 }
@@ -27,12 +30,15 @@ function toRecord(row: Row): CorrectionRecord {
     entityType: row.entity_type,
     entityId: row.entity_id,
     field: row.field,
-    before: row.before_value,
-    after: row.after_value,
+    verdict: row.verdict as Verdict,
+    correctionKind: row.correction_kind as CorrectionKind | null,
+    dateDeltaDays: row.date_delta_days,
     promptVersion: row.prompt_version,
     createdAt: row.created_at.getTime(),
   };
 }
+
+const COLS = 'id, user_id, note_id, entity_type, entity_id, field, verdict, correction_kind, date_delta_days, prompt_version, created_at';
 
 export class PgCorrectionRepository implements CorrectionRepository {
   constructor(private readonly pool: Pool) {}
@@ -40,43 +46,18 @@ export class PgCorrectionRepository implements CorrectionRepository {
   async record(userId: string, entry: CorrectionEntry): Promise<void> {
     await withTenant(this.pool, userId, async (c) => {
       await c.query(
-        `INSERT INTO corrections (user_id, note_id, entity_type, entity_id, field, before_value, after_value, prompt_version)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [userId, entry.noteId, entry.entityType, entry.entityId, entry.field, entry.before, entry.after, entry.promptVersion],
+        `INSERT INTO corrections (user_id, note_id, entity_type, entity_id, field, verdict, correction_kind, date_delta_days, prompt_version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [userId, entry.noteId, entry.entityType, entry.entityId, entry.field, entry.verdict, entry.correctionKind, entry.dateDeltaDays, entry.promptVersion],
       );
     });
   }
 
   async listByUser(userId: string): Promise<CorrectionRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
-      const { rows } = await c.query(
-        `SELECT id, user_id, note_id, entity_type, entity_id, field, before_value, after_value, prompt_version, created_at
-         FROM corrections WHERE user_id = $1 ORDER BY created_at DESC`,
-        [userId],
-      );
+      const { rows } = await c.query(`SELECT ${COLS} FROM corrections WHERE user_id = $1 ORDER BY created_at DESC`, [userId]);
       return (rows as unknown as Row[]).map(toRecord);
     });
   }
 
-  async listOlderThan(userId: string, cutoffMs: number): Promise<CorrectionRecord[]> {
-    return withTenant(this.pool, userId, async (c) => {
-      const { rows } = await c.query(
-        `SELECT id, user_id, note_id, entity_type, entity_id, field, before_value, after_value, prompt_version, created_at
-         FROM corrections WHERE user_id = $1 AND created_at < $2 ORDER BY created_at ASC`,
-        [userId, new Date(cutoffMs)],
-      );
-      return (rows as unknown as Row[]).map(toRecord);
-    });
-  }
-
-  async deleteByIds(userId: string, ids: string[]): Promise<number> {
-    if (ids.length === 0) return 0;
-    return withTenant(this.pool, userId, async (c) => {
-      const { rows } = await c.query(
-        `DELETE FROM corrections WHERE user_id = $1 AND id = ANY($2::uuid[]) RETURNING id`,
-        [userId, ids],
-      );
-      return rows.length;
-    });
-  }
 }

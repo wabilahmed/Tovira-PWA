@@ -7,7 +7,7 @@
  */
 
 export interface ErasureCategoryCount {
-  category: string; // e.g. 'people' | 'personal_facts' | 'messages' | 'unanswered_questions' | 'training_logs' | 'flagged_facts'
+  category: string; // e.g. 'people' | 'personal_facts' | 'messages' | 'unanswered_questions' | 'flagged_facts'
   deleted: number;
 }
 

@@ -6,11 +6,11 @@ export interface TrainingLogStatsSnapshot extends TrainingLogStats {
 }
 
 const EMPTY: TrainingLogStatsSnapshot = {
-  total: 0, last24h: 0, emptyOutput: 0, corrections: 0, archived: 0, byPromptVersion: {}, computedAtMs: null,
+  total: 0, last24h: 0, emptyOutput: 0, corrections: 0, byPromptVersion: {}, computedAtMs: null,
 };
 
 /**
- * [TRAINING-METRICS] Caches the training-log aggregate so /health surfaces volume WITHOUT a DB scan
+ * [EXTRACTION-METRICS] Caches the extraction-log aggregate so /health surfaces volume WITHOUT a DB scan
  * on every hit. snapshot() is synchronous and always returns the last computed value instantly (the
  * ALB health check never blocks on the DB); when the value is older than the TTL it kicks off ONE
  * background refresh. So the aggregate query runs at most once per TTL regardless of health-check

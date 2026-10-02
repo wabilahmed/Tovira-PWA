@@ -5,7 +5,7 @@ import { InMemoryClientRepository } from '../../adapters/clients/in-memory-clien
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
-import { InMemoryCorrectionRepository } from '../../adapters/corrections/in-memory-correction-repository.js';
+import { InMemoryRepGlossaryRepository } from '../../adapters/glossary/in-memory-rep-glossary-repository.js';
 import { StubEmbedder } from '../../adapters/embedding/stub.js';
 import type { ModelClient, ModelCompletionRequest } from '../../ports/model.js';
 
@@ -32,12 +32,14 @@ async function runExtraction(opts: { user: string; client: string; today: string
   const notes = new InMemoryNoteRepository();
   const facts = new InMemoryFactsRepository();
   const logs = new InMemoryExtractionLogRepository();
-  const corrections = new InMemoryCorrectionRepository();
-  await corrections.record(opts.user, { noteId: 'n', entityType: 'promise', entityId: 'p', field: 'text', before: opts.glossaryFrom, after: opts.glossaryTo, promptVersion: 'v' });
+  const glossary = new InMemoryRepGlossaryRepository();
+  // Corrected twice → carried into the glossary (which is injected into the variable message, not the prefix).
+  await glossary.upsert(opts.user, opts.glossaryFrom, opts.glossaryTo, 1);
+  await glossary.upsert(opts.user, opts.glossaryFrom, opts.glossaryTo, 2);
   const client = await clients.create(opts.user, opts.client);
   const note = await notes.create(opts.user, { clientId: client.id, source: 'paste', rawText: 'note text here', audioKey: null, status: 'pending_extraction' });
   const cap = capturing();
-  const svc = new ExtractionService(cap.model, clients, notes, facts, new StubEmbedder(8), logs, 'stub', corrections);
+  const svc = new ExtractionService(cap.model, clients, notes, facts, new StubEmbedder(8), logs, 'stub', glossary);
   await svc.extractNote(opts.user, note.id, opts.today);
   return cap.last();
 }

@@ -41,10 +41,9 @@ export class ErasureRequestService {
     const now = this.now();
     const windowEndsAt = now + this.windowDays() * DAY_MS;
     const plan = await this.deps.erasure.preview(userId, requesterNames);
-    const cats = [
-      ...plan.autoDelete.map((i) => i.store),
-      ...(plan.logRowIds.length ? ['training_logs'] : []),
-    ];
+    // [NO-TRAINING-RETENTION] extraction logs hold no content and are not scanned for erasure; the
+    // categories are the structured stores that actually matched.
+    const cats = [...plan.autoDelete.map((i) => i.store)];
     const summary = summariseCategories(cats);
     const req = await this.deps.requests.create(userId, { requesterNames, requestedAt: now, windowEndsAt });
     const until = new Date(windowEndsAt).toISOString().slice(0, 10);

@@ -3,14 +3,24 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
-import { REJECTED_FIELD, CONFIRMED_FIELD } from '../services/facts/verdict.js';
 import { AskCaptureService } from '../services/recall/ask-capture-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
 import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
+import type { ExtractionLogEntry } from '../ports/extraction-log-repository.js';
 
-// [CORRECTIONS-WIRE] Every human verdict — reject, confirm, edit — is recorded as a correction row
-// with its ORIGINAL value, across the entity types that HAVE a verdict surface (promise, meeting,
-// ask-capture). A verdict write must never break the user action; nothing crosses tenants.
+// [CORRECTIONS-WIRE / NO-TRAINING-RETENTION] Every human verdict — reject, confirm, edit — is recorded
+// as a correction row with its VERDICT + (for reject/edit) KIND — never before/after content — across
+// the entity types that have a verdict surface (promise, meeting, ask-capture). A verdict write must
+// never break the user action; nothing crosses tenants.
+
+/** A metadata-only extraction-log entry (no content). */
+function logEntry(over: Partial<ExtractionLogEntry>): ExtractionLogEntry {
+  return {
+    noteId: 'n1', promptVersion: 'tovira-extract-vX', model: 'stub', status: 'extracted',
+    inputTokens: 1, outputTokens: 1, latencyMs: 1, factsProposed: 0, factsAccepted: 0, factsRejected: 0,
+    rejectedByReason: {}, ...over,
+  };
+}
 
 let server: Server;
 let base: string;
@@ -47,31 +57,29 @@ async function seedPromiseAndGetId(token: string, userId: string, noteId = 'n1')
 }
 
 describe('[CORRECTIONS-WIRE] promise verdicts', () => {
-  it('REJECT records a rejection correction with the original value, then still deletes the promise', async () => {
+  it('REJECT records a reject verdict (should_not_exist), then still deletes the promise', async () => {
     const { token, userId } = await signup('rej-promise@example.com');
-    // A logged extraction exists for the note → the correction is stamped with its prompt version.
-    await deps.extractionLog.log(userId, {
-      noteId: 'n1', promptVersion: 'tovira-extract-vX', model: 'stub', input: 'x', rawOutput: '{}',
-      status: 'extracted', inputTokens: 1, outputTokens: 1, latencyMs: 1,
-    });
+    // A logged extraction exists for the note → the verdict is stamped with its prompt version.
+    await deps.extractionLog.log(userId, logEntry({ noteId: 'n1' }));
     const id = await seedPromiseAndGetId(token, userId);
 
     const del = await fetch(`${base}/promises/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
     expect(del.status).toBe(200);
 
     const rows = await deps.corrections.listByUser(userId);
-    const rejected = rows.find((r) => r.field === REJECTED_FIELD);
+    const rejected = rows.find((r) => r.verdict === 'reject');
     expect(rejected).toBeTruthy();
     expect(rejected!.entityType).toBe('promise');
-    expect(rejected!.after).toBeNull();
-    expect(rejected!.before).toContain('send the proposal'); // the ORIGINAL value is retained
+    expect(rejected!.correctionKind).toBe('should_not_exist');
+    expect(rejected!).not.toHaveProperty('before');
+    expect(rejected!).not.toHaveProperty('after');
     expect(rejected!.promptVersion).toBe('tovira-extract-vX');
 
     // The fact itself is gone, exactly as before.
     expect(await deps.facts.getPromise(userId, id)).toBeNull();
   });
 
-  it('CONFIRM records a confirmation correction (model was uncertain and right)', async () => {
+  it('CONFIRM records a confirm verdict (kind null — model was uncertain and right)', async () => {
     const { token, userId } = await signup('conf-promise@example.com');
     const id = await seedPromiseAndGetId(token, userId);
 
@@ -79,14 +87,13 @@ describe('[CORRECTIONS-WIRE] promise verdicts', () => {
     expect(conf.status).toBe(200);
 
     const rows = await deps.corrections.listByUser(userId);
-    const confirmed = rows.find((r) => r.field === CONFIRMED_FIELD);
+    const confirmed = rows.find((r) => r.verdict === 'confirm');
     expect(confirmed).toBeTruthy();
     expect(confirmed!.entityType).toBe('promise');
-    expect(confirmed!.after).toBe('confirmed');
-    expect(confirmed!.before).toContain('send the proposal');
+    expect(confirmed!.correctionKind).toBeNull();
   });
 
-  it('EDIT still records a per-field correction with before/after (regression)', async () => {
+  it('EDIT records a per-field edit verdict with its inferred kind', async () => {
     const { token, userId } = await signup('edit-promise@example.com');
     const id = await seedPromiseAndGetId(token, userId);
 
@@ -100,8 +107,9 @@ describe('[CORRECTIONS-WIRE] promise verdicts', () => {
     const rows = await deps.corrections.listByUser(userId);
     const edit = rows.find((r) => r.field === 'text');
     expect(edit).toBeTruthy();
-    expect(edit!.before).toBe('send the proposal');
-    expect(edit!.after).toBe('send the REVISED proposal');
+    expect(edit!.verdict).toBe('edit');
+    expect(edit!.correctionKind).toBe('wrong_value');
+    expect(edit!).not.toHaveProperty('before');
   });
 
   it('nothing crosses tenants — a reject in tenant A leaves tenant B with no corrections', async () => {
@@ -142,7 +150,7 @@ describe('[CORRECTIONS-WIRE] isolation — a failing correction write never brea
 });
 
 describe('[CORRECTIONS-WIRE] meeting verdicts (model-proposed only)', () => {
-  it('REJECT and CONFIRM of a model-proposed meeting record corrections; a rep-created meeting records none', async () => {
+  it('REJECT and CONFIRM of a model-proposed meeting record verdicts; a rep-created meeting records none', async () => {
     const { token, userId } = await signup('meet@example.com');
     const client = await deps.clients.create(userId, 'Falcon');
     // Model-proposed (has a source noteId) → verdict recorded.
@@ -162,11 +170,11 @@ describe('[CORRECTIONS-WIRE] meeting verdicts (model-proposed only)', () => {
     const rows = await deps.corrections.listByUser(userId);
     const meetingVerdicts = rows.filter((r) => r.entityType === 'meeting');
     expect(meetingVerdicts).toHaveLength(1); // only the proposed meeting's confirm
-    expect(meetingVerdicts[0]!.field).toBe(CONFIRMED_FIELD);
+    expect(meetingVerdicts[0]!.verdict).toBe('confirm');
     expect(meetingVerdicts[0]!.entityId).toBe(proposed.id);
   });
 
-  it('REJECT of a model-proposed meeting records a rejection with the original value', async () => {
+  it('REJECT of a model-proposed meeting records a reject verdict', async () => {
     const { token, userId } = await signup('meet-rej@example.com');
     const client = await deps.clients.create(userId, 'Delta');
     const proposed = await deps.meetings.create(userId, {
@@ -175,16 +183,15 @@ describe('[CORRECTIONS-WIRE] meeting verdicts (model-proposed only)', () => {
     const del = await fetch(`${base}/meetings/${proposed.id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
     expect(del.status).toBe(200);
     const rows = await deps.corrections.listByUser(userId);
-    const rej = rows.find((r) => r.entityType === 'meeting' && r.field === REJECTED_FIELD);
+    const rej = rows.find((r) => r.entityType === 'meeting' && r.verdict === 'reject');
     expect(rej).toBeTruthy();
-    expect(rej!.after).toBeNull();
-    expect(rej!.before).toContain('Thursday 4pm');
+    expect(rej!.correctionKind).toBe('should_not_exist');
     expect(await deps.meetings.findByIdForUser(userId, proposed.id)).toBeNull(); // still deleted
   });
 });
 
 describe('[CORRECTIONS-WIRE] ask-capture rejection is labelled, not merely retained', () => {
-  it('reject labels the surviving extraction_logs row and records a rejection correction', async () => {
+  it('reject labels the surviving extraction_logs row and records a reject verdict', async () => {
     const notes = deps.notes;
     const clients = deps.clients;
     const facts = deps.facts;
@@ -198,10 +205,7 @@ describe('[CORRECTIONS-WIRE] ask-capture rejection is labelled, not merely retai
       clientId: client.id, source: 'ask_conversation', rawText: 'I promised them a discount', audioKey: null, status: 'pending_confirmation',
     });
     // The certified (held) extraction logged a row, surviving with status pending_confirmation.
-    await extractionLog.log(userId, {
-      noteId: note.id, promptVersion: 'tovira-extract-vX', model: 'stub', input: 'I promised them a discount',
-      rawOutput: '{"promises":[]}', status: 'pending_confirmation', inputTokens: 5, outputTokens: 5, latencyMs: 3,
-    });
+    await extractionLog.log(userId, logEntry({ noteId: note.id, status: 'pending_confirmation', inputTokens: 5, outputTokens: 5, latencyMs: 3 }));
 
     const svc = new AskCaptureService({
       notes, clients, facts, embedder,
@@ -217,11 +221,10 @@ describe('[CORRECTIONS-WIRE] ask-capture rejection is labelled, not merely retai
     expect(logs).toHaveLength(1);
     expect(logs[0]!.status).toBe('rejected');
 
-    // And the rejection is recorded as training signal.
+    // And the rejection is recorded as a verdict.
     const rows = await corrections.listByUser(userId);
-    const rej = rows.find((r) => r.entityType === 'ask_capture' && r.field === REJECTED_FIELD);
+    const rej = rows.find((r) => r.entityType === 'ask_capture' && r.verdict === 'reject');
     expect(rej).toBeTruthy();
-    expect(rej!.before).toContain('I promised them a discount');
-    expect(rej!.after).toBeNull();
+    expect(rej!.correctionKind).toBe('should_not_exist');
   });
 });

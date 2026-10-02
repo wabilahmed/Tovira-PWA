@@ -4,7 +4,6 @@ import { ErasureRequestService } from './erasure-request-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryStorage } from '../../adapters/storage/in-memory.js';
-import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryErasureAuditRepository } from '../../adapters/erasure/in-memory-erasure-audit-repository.js';
 import { InMemoryErasureRequestRepository } from '../../adapters/erasure/in-memory-erasure-request-repository.js';
 import { InMemoryErasureReceiptRepository } from '../../adapters/erasure/in-memory-erasure-receipt-repository.js';
@@ -28,7 +27,6 @@ function makeErasure(opts: {
   return new ErasureService({
     clients: opts.clients,
     notes: opts.notes,
-    extractionLog: new InMemoryExtractionLogRepository(),
     audit: new InMemoryErasureAuditRepository(),
     blobStorage: opts.blobStorage,
     now: () => NOW,
@@ -107,7 +105,7 @@ describe('[ERASURE Task 3] erasure reaches audio', () => {
     const n = await notes.create('u', { clientId: c.id, source: 'voice', audioKey: 'audio/u/z.webm', status: 'extracted', rawText: 'voice memo' });
     await notes.update('u', n.id, { transcribedAt: NOW });
 
-    const erasure = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit: new InMemoryErasureAuditRepository(), blobStorage: storage, now: () => now.t });
+    const erasure = new ErasureService({ clients, notes, audit: new InMemoryErasureAuditRepository(), blobStorage: storage, now: () => now.t });
     const svc = new ErasureRequestService({ erasure, requests: new InMemoryErasureRequestRepository(), receipts, notifications: new InMemoryNotificationRepository(), dispatch: async () => {}, now: () => now.t });
 
     const req = await svc.open('u', ['Zelda Quorn']);

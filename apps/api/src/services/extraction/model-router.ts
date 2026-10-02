@@ -2,7 +2,7 @@
  * Per-account extraction model routing (P5-7). Trial accounts get Sonnet-grade
  * extraction regardless of unit cost (best first impression); paid accounts use
  * the P1-9-selected production model. The route is resolved ONCE per note so a
- * retry never switches models mid-sequence (cache + training-log consistency).
+ * retry never switches models mid-sequence (cache + log consistency).
  */
 import type { ModelClient } from '../../ports/model.js';
 

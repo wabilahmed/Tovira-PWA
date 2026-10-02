@@ -3,7 +3,6 @@ import { ErasureService } from './erasure-service.js';
 import { ErasureRequestService } from './erasure-request-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
-import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryErasureAuditRepository } from '../../adapters/erasure/in-memory-erasure-audit-repository.js';
 import { InMemoryErasureRequestRepository } from '../../adapters/erasure/in-memory-erasure-request-repository.js';
 import { InMemoryNotificationRepository } from '../../adapters/notifications/in-memory-notification-repository.js';
@@ -60,7 +59,7 @@ describe('[ERASURE-SUMMARY] rewrite the summary after removing the requester', (
     const clients = new InMemoryClientRepository(); const notes = new InMemoryNoteRepository();
     const n = await seed(clients, notes, 'u');
     const before = await exOf(notes, 'u', n.id);
-    const svc = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit: new InMemoryErasureAuditRepository(), summariser: stubSummariser('Alex acknowledged the update.') });
+    const svc = new ErasureService({ clients, notes, audit: new InMemoryErasureAuditRepository(), summariser: stubSummariser('Alex acknowledged the update.') });
     const res = await svc.commit('u', ['Zelda Quorn']);
     const after = await exOf(notes, 'u', n.id);
     expect(after.summary).toBe('Alex acknowledged the update.'); // rewritten, no Zelda
@@ -74,7 +73,7 @@ describe('[ERASURE-SUMMARY] rewrite the summary after removing the requester', (
   it('a rewrite that STILL names her is SURFACED as needsReview, not silently accepted', async () => {
     const clients = new InMemoryClientRepository(); const notes = new InMemoryNoteRepository();
     const n = await seed(clients, notes, 'u');
-    const svc = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit: new InMemoryErasureAuditRepository(), summariser: stubSummariser('Zelda Quorn is still keen; Alex noted.') });
+    const svc = new ErasureService({ clients, notes, audit: new InMemoryErasureAuditRepository(), summariser: stubSummariser('Zelda Quorn is still keen; Alex noted.') });
     const res = await svc.commit('u', ['Zelda Quorn']);
     expect(res.needsReview).toHaveLength(1);
     expect(res.needsReview[0]!.id).toBe(`${n.id}:summary:0`);
@@ -84,7 +83,7 @@ describe('[ERASURE-SUMMARY] rewrite the summary after removing the requester', (
   it('flagging the surfaced summary deletes it WHOLE on the next commit', async () => {
     const clients = new InMemoryClientRepository(); const notes = new InMemoryNoteRepository();
     const n = await seed(clients, notes, 'u');
-    const svc = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit: new InMemoryErasureAuditRepository(), summariser: stubSummariser('Zelda Quorn is still keen.') });
+    const svc = new ErasureService({ clients, notes, audit: new InMemoryErasureAuditRepository(), summariser: stubSummariser('Zelda Quorn is still keen.') });
     const res = await svc.commit('u', ['Zelda Quorn'], { flaggedMentionIds: [`${n.id}:summary:0`] });
     expect(res.needsReview).toEqual([]); // flagged → deleted whole, nothing left to review
     expect((await exOf(notes, 'u', n.id)).summary).toBeNull(); // whole deletion (never an edit)
@@ -98,7 +97,7 @@ describe('[ERASURE-SUMMARY] rewrite the summary after removing the requester', (
     const spend = vi.fn(async () => {}) as unknown as SpendSink['record'];
     setSpendSink({ record: spend } as SpendSink);
     const metered = new MeteredModelClient(stubSummariser('Alex noted.', (r) => seen.push(r)), 'extraction', 'claude-sonnet-5', new ModelMetricsRegistry());
-    const svc = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit: new InMemoryErasureAuditRepository(), summariser: metered });
+    const svc = new ErasureService({ clients, notes, audit: new InMemoryErasureAuditRepository(), summariser: metered });
     await svc.commit('u', ['Zelda Quorn']);
     expect(seen).toHaveLength(1);
     expect(seen[0]!.spendClass).toBe('erasure');
@@ -112,7 +111,7 @@ describe('[ERASURE-SUMMARY] complete() refuses while a candidate is unreviewed',
     const clients = new InMemoryClientRepository(); const notes = new InMemoryNoteRepository();
     await seed(clients, notes, 'u');
     const now = { t: Date.parse('2026-09-20T09:00:00Z') };
-    const erasure = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit: new InMemoryErasureAuditRepository(), summariser: stubSummariser('Zelda Quorn is still keen.') });
+    const erasure = new ErasureService({ clients, notes, audit: new InMemoryErasureAuditRepository(), summariser: stubSummariser('Zelda Quorn is still keen.') });
     const svc = new ErasureRequestService({ erasure, requests: new InMemoryErasureRequestRepository(), notifications: new InMemoryNotificationRepository(), dispatch: async () => {}, now: () => now.t });
     const req = await svc.open('u', ['Zelda Quorn']);
 

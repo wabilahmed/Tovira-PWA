@@ -2,10 +2,10 @@ import type { Pool } from 'pg';
 import type { TrainingLogStats, TrainingLogStatsRepository } from '../../ports/training-log-stats-repository.js';
 
 /**
- * [TRAINING-METRICS] Cross-tenant training-log aggregate for /health. NO withTenant/RLS — it must see
- * every tenant, so give it the SUPERUSER pool (DATABASE_URL), like the cache advisor. Reads only
- * counts + prompt_version (never PII). Throttled by TrainingLogStatsService so these scans run at
- * most once per TTL, not per health check.
+ * [EXTRACTION-METRICS] Cross-tenant extraction-log aggregate for /health. NO withTenant/RLS — it must
+ * see every tenant, so give it the SUPERUSER pool (DATABASE_URL), like the cache advisor. Reads only
+ * counts + prompt_version (never content; [NO-TRAINING-RETENTION] there is none to read). Throttled by
+ * TrainingLogStatsService so these scans run at most once per TTL, not per health check.
  */
 export class PgTrainingLogStatsRepository implements TrainingLogStatsRepository {
   constructor(private readonly pool: Pool) {}
@@ -13,9 +13,9 @@ export class PgTrainingLogStatsRepository implements TrainingLogStatsRepository 
   async aggregate(nowMs: number): Promise<TrainingLogStats> {
     const sinceMs = nowMs - 24 * 60 * 60 * 1000;
     const totals = await this.pool.query<{ total: string; last24h: string; empty_output: string }>(
-      `SELECT count(*)                                                                   AS total,
-              count(*) FILTER (WHERE created_at >= to_timestamp($1 / 1000.0))            AS last24h,
-              count(*) FILTER (WHERE raw_output IS NULL OR btrim(raw_output) = '')       AS empty_output
+      `SELECT count(*)                                                        AS total,
+              count(*) FILTER (WHERE created_at >= to_timestamp($1 / 1000.0)) AS last24h,
+              count(*) FILTER (WHERE facts_proposed = 0)                      AS empty_output
          FROM extraction_logs`,
       [sinceMs],
     );
@@ -23,7 +23,6 @@ export class PgTrainingLogStatsRepository implements TrainingLogStatsRepository 
       `SELECT prompt_version, count(*) AS n FROM extraction_logs GROUP BY prompt_version`,
     );
     const corr = await this.pool.query<{ n: string }>(`SELECT count(*) AS n FROM corrections`);
-    const arch = await this.pool.query<{ n: string }>(`SELECT COALESCE(sum(row_count), 0) AS n FROM training_archive_objects`);
 
     const row = totals.rows[0] ?? { total: '0', last24h: '0', empty_output: '0' };
     const byPromptVersion: Record<string, number> = {};
@@ -34,7 +33,6 @@ export class PgTrainingLogStatsRepository implements TrainingLogStatsRepository 
       last24h: Number(row.last24h),
       emptyOutput: Number(row.empty_output),
       corrections: Number(corr.rows[0]?.n ?? '0'),
-      archived: Number(arch.rows[0]?.n ?? '0'),
       byPromptVersion,
     };
   }

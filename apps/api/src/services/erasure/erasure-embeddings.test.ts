@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { ErasureService } from './erasure-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
-import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryErasureAuditRepository } from '../../adapters/erasure/in-memory-erasure-audit-repository.js';
 import type { ImportedMessage } from '../../ports/note-repository.js';
 
@@ -15,7 +14,7 @@ import type { ImportedMessage } from '../../ports/note-repository.js';
 function make() {
   const clients = new InMemoryClientRepository();
   const notes = new InMemoryNoteRepository();
-  const svc = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit: new InMemoryErasureAuditRepository() });
+  const svc = new ErasureService({ clients, notes, audit: new InMemoryErasureAuditRepository() });
   return { clients, notes, svc };
 }
 const msg = (sender: string, body: string): ImportedMessage => ({ sentAt: '2026-01-01T10:00:00', sender, body, media: false, role: 'unknown' });

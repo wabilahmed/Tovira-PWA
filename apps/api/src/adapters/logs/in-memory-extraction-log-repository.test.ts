@@ -1,16 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { InMemoryExtractionLogRepository } from './in-memory-extraction-log-repository.js';
 
+// [NO-TRAINING-RETENTION] a log row is operational metadata only — no note input, no raw model output.
 const entry = {
   noteId: 'n1',
   promptVersion: 'tovira-extract-v0.1',
   model: 'stub',
-  input: 'TODAY... NOTE...',
-  rawOutput: '{}',
   status: 'extracted',
   inputTokens: 10,
   outputTokens: 5,
   latencyMs: 42,
+  factsProposed: 3,
+  factsAccepted: 2,
+  factsRejected: 1,
+  rejectedByReason: { health: 1 },
 };
 
 describe('InMemoryExtractionLogRepository', () => {

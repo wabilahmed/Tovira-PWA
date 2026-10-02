@@ -4,7 +4,6 @@ import { ErasureRequestService } from './erasure-request-service.js';
 import { AccountService, type UserPurgeable } from '../account/account-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
-import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryErasureAuditRepository } from '../../adapters/erasure/in-memory-erasure-audit-repository.js';
 import { InMemoryErasureRequestRepository } from '../../adapters/erasure/in-memory-erasure-request-repository.js';
 import { InMemoryErasureReceiptRepository } from '../../adapters/erasure/in-memory-erasure-receipt-repository.js';
@@ -48,7 +47,7 @@ async function completeAnErasure() {
     personal_facts: [], promises: [], key_dates: [], concerns: [], next_steps: [], meeting: null, unanswered_questions: [],
   } });
 
-  const erasure = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit });
+  const erasure = new ErasureService({ clients, notes, audit });
   const svc = new ErasureRequestService({ erasure, requests: new InMemoryErasureRequestRepository(), receipts, notifications: new InMemoryNotificationRepository(), dispatch: async () => {}, now: () => now.t });
 
   const req = await svc.open('u', ['Zelda Quorn']);

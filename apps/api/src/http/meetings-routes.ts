@@ -7,7 +7,8 @@ import type { CorrectionRepository } from '../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../ports/extraction-log-repository.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 import { zonedTodayIso, zonedWallClockToInstant } from '../services/time/zone.js';
-import { recordVerdict, serialiseMeeting, REJECTED_FIELD, CONFIRMED_FIELD } from '../services/facts/verdict.js';
+import { recordVerdict } from '../services/facts/verdict.js';
+import type { Verdict } from '../ports/correction-repository.js';
 import { withReceipt } from '../services/receipts/receipt.js';
 
 export interface MeetingRouteDeps {
@@ -16,7 +17,7 @@ export interface MeetingRouteDeps {
   meetings: MeetingRepository;
   parser: MeetingParser;
   /** [CORRECTIONS-WIRE] verdicts on a MODEL-PROPOSED meeting (one with a source noteId) feed the
-   *  training log + rejection-rate monitor. Optional — a rep-created meeting has no extraction to
+   *  corrections log + rejection-rate monitor. Optional — a rep-created meeting has no extraction to
    *  judge, and without these deps meeting routes behave exactly as before. */
   corrections?: CorrectionRepository;
   extractionLog?: ExtractionLogRepository;
@@ -39,15 +40,16 @@ async function recordMeetingVerdict(
   userId: string,
   noteId: string,
   meetingId: string,
-  field: string,
-  before: string | null,
-  after: string | null,
+  verdict: Verdict,
+  field = '',
+  before?: string | null,
+  after?: string | null,
 ): Promise<void> {
   if (!deps.corrections || !deps.extractionLog) return;
   await recordVerdict(
     { corrections: deps.corrections, extractionLog: deps.extractionLog },
     userId,
-    { noteId, entityType: 'meeting', entityId: meetingId, field, before, after },
+    { noteId, entityType: 'meeting', entityId: meetingId, verdict, field, before, after },
   );
 }
 
@@ -148,10 +150,10 @@ export async function handleMeetingRoute(
       // Editing a MODEL-PROPOSED meeting's time/title is a correction of the model's proposal.
       if (meeting && before?.noteId) {
         if ('datetime' in patch && (patch.datetime ?? null) !== before.datetime) {
-          await recordMeetingVerdict(deps, userId, before.noteId, meetingId, 'datetime', before.datetime, patch.datetime ?? null);
+          await recordMeetingVerdict(deps, userId, before.noteId, meetingId, 'edit', 'datetime', before.datetime, patch.datetime ?? null);
         }
         if ('title' in patch && (patch.title ?? null) !== before.title) {
-          await recordMeetingVerdict(deps, userId, before.noteId, meetingId, 'title', before.title, patch.title ?? null);
+          await recordMeetingVerdict(deps, userId, before.noteId, meetingId, 'edit', 'title', before.title, patch.title ?? null);
         }
       }
       sendJson(res, meeting ? 200 : 404, meeting ? withReceipt(meeting) : { error: 'not_found' });
@@ -163,10 +165,7 @@ export async function handleMeetingRoute(
       const meeting = await deps.meetings.confirm(userId, decodeURIComponent(confirmMatch[1]!));
       // A confirmed proposal is training signal — the model proposed it and a human said yes.
       if (meeting?.noteId) {
-        await recordMeetingVerdict(
-          deps, userId, meeting.noteId, meeting.id, CONFIRMED_FIELD,
-          serialiseMeeting(meeting), 'confirmed',
-        );
+        await recordMeetingVerdict(deps, userId, meeting.noteId, meeting.id, 'confirm');
       }
       sendJson(res, meeting ? 200 : 404, meeting ? withReceipt(meeting) : { error: 'not_found' });
       return true;
@@ -178,10 +177,7 @@ export async function handleMeetingRoute(
       const rejected = await deps.meetings.findByIdForUser(userId, meetingId);
       const ok = await deps.meetings.delete(userId, meetingId);
       if (ok && rejected?.noteId) {
-        await recordMeetingVerdict(
-          deps, userId, rejected.noteId, meetingId, REJECTED_FIELD,
-          serialiseMeeting(rejected), null,
-        );
+        await recordMeetingVerdict(deps, userId, rejected.noteId, meetingId, 'reject');
       }
       sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
       return true;

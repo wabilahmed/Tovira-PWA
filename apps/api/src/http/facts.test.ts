@@ -133,7 +133,8 @@ describe('[P4-1] open promises tracker', () => {
 });
 
 describe('[P2-3] confirm & correct', () => {
-  it('edits a promise and records a before/after correction (training data)', async () => {
+  // [NO-TRAINING-RETENTION] an edit records a VERDICT + inferred KIND — never the before/after text.
+  it('edits a promise and records an edit verdict (wrong_value), with no content', async () => {
     const { token, userId } = await signup('edit@example.com');
     const id = await seedPromise(userId);
     const res = await fetch(`${base}/promises/${id}`, {
@@ -147,8 +148,10 @@ describe('[P2-3] confirm & correct', () => {
     const corrections = await deps.corrections.listByUser(userId);
     expect(corrections).toHaveLength(1);
     expect(corrections[0]!.field).toBe('text');
-    expect(corrections[0]!.before).toBe('send plan');
-    expect(corrections[0]!.after).toBe('send the FINAL plan');
+    expect(corrections[0]!.verdict).toBe('edit');
+    expect(corrections[0]!.correctionKind).toBe('wrong_value');
+    expect(corrections[0]!).not.toHaveProperty('before');
+    expect(corrections[0]!).not.toHaveProperty('after');
   });
 
   it('does not double-count a correction when nothing changed', async () => {
@@ -189,14 +192,16 @@ describe('[P2-3] confirm & correct', () => {
   });
 });
 
+// [NO-TRAINING-RETENTION] a log row is operational metadata only — no note input, no raw model output.
 const logEntry = (noteId: string, promptVersion: string) => ({
-  noteId, promptVersion, model: 'stub', input: 'raw note', rawOutput: '{}',
+  noteId, promptVersion, model: 'stub',
   status: 'ok', inputTokens: 0, outputTokens: 0, latencyMs: 1,
+  factsProposed: 0, factsAccepted: 0, factsRejected: 0, rejectedByReason: {},
 });
 
-describe('[P7-2] capture corrections as training data', () => {
-  // POSITIVE: fixing an extracted date yields a training record with
-  // original, corrected, note id, AND the prompt version that produced it.
+describe('[P7-2] capture corrections as operational verdicts', () => {
+  // POSITIVE: fixing an extracted date yields a verdict record with its KIND (date_wrong),
+  // the note id, AND the prompt version that produced it — but no before/after content.
   it('stamps the correction with the prompt version of the original extraction', async () => {
     const { token, userId } = await signup('training@example.com');
     await deps.extractionLog.log(userId, logEntry('note-x', 'tovira-extract-vX'));
@@ -213,14 +218,16 @@ describe('[P7-2] capture corrections as training data', () => {
     expect(corrections).toHaveLength(1);
     const c = corrections[0]!;
     expect(c.field).toBe('due_date');
-    expect(c.before).toBeNull();          // original: no date
-    expect(c.after).toBe('2026-07-20');   // corrected value
+    expect(c.verdict).toBe('edit');
+    expect(c.correctionKind).toBe('date_wrong'); // a date field was edited
+    expect(c).not.toHaveProperty('before');       // no original value retained
+    expect(c).not.toHaveProperty('after');        // no corrected value retained
     expect(c.noteId).toBe('note-x');      // context
     expect(c.promptVersion).toBe('tovira-extract-vX'); // the prompt that produced it
   });
 
   // NEGATIVE: never fabricate a prompt version. If the note has no extraction
-  // log, the training record must record null, not a guessed version.
+  // log, the verdict record must record null, not a guessed version.
   it('records a null prompt version when no extraction log exists (never fabricates)', async () => {
     const { token, userId } = await signup('nolog@example.com');
     const id = await seedPromise(userId); // no extraction log seeded
@@ -236,7 +243,7 @@ describe('[P7-2] capture corrections as training data', () => {
     expect(corrections[0]!.promptVersion).toBeNull();
   });
 
-  // NEGATIVE: the training store is tenant-scoped — corrections and the prompt
+  // NEGATIVE: the corrections store is tenant-scoped — verdicts and the prompt
   // version resolved from one rep's log never leak to another tenant.
   it('does not leak corrections across tenants', async () => {
     const a = await signup('a-train@example.com');

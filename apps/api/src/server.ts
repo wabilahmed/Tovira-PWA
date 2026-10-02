@@ -14,6 +14,7 @@ import type { FlagReviewService } from './services/screening/flag-review-service
 import type { FollowUpService } from './services/followup/follow-up-service.js';
 import type { FactsRepository } from './ports/facts-repository.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
+import type { RepGlossaryRepository } from './ports/rep-glossary-repository.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import type { BriefService } from './services/brief/brief-service.js';
 import type { MeetingRepository } from './ports/meeting-repository.js';
@@ -114,6 +115,8 @@ export interface ApiDeps {
   facts: FactsRepository;
   corrections: CorrectionRepository;
   extractionLog: ExtractionLogRepository;
+  /** [NO-TRAINING-RETENTION] operational per-rep glossary (P4-9) — fed by edit verdicts. */
+  repGlossary: RepGlossaryRepository;
   brief: BriefService;
   meetings: MeetingRepository;
   meetingParser: MeetingParser;
@@ -159,10 +162,10 @@ export interface ApiDeps {
   importCost?: ImportCostMetrics;
   /** Extraction health — starved-output count, surfaced in /health (EXTRACT-STOPREASON). */
   extractionHealth?: { snapshot(): { starvedOutputs: number } };
-  /** Training-log volume — total / last24h / empty-output / corrections / archived / by-version,
-   *  surfaced in /health so an empty log can never masquerade as a working one (TRAINING-METRICS).
-   *  hot `total` + `archived` = the true corpus size. Cached. */
-  trainingLog?: { snapshot(): { total: number; last24h: number; emptyOutput: number; corrections: number; archived: number; byPromptVersion: Record<string, number>; computedAtMs: number | null } };
+  /** Extraction-log volume — total / last24h / empty-output / corrections / by-version, surfaced in
+   *  /health so an empty log can never masquerade as a working one (EXTRACTION-METRICS). Counts only,
+   *  no content ([NO-TRAINING-RETENTION]). Cached. */
+  trainingLog?: { snapshot(): { total: number; last24h: number; emptyOutput: number; corrections: number; byPromptVersion: Record<string, number>; computedAtMs: number | null } };
   /** Per-account spend cap config, surfaced in /health (SPEND-CAP). */
   spend?: { snapshot(): { capAed: number; warnFraction: number; trialCapAed?: number } };
   /** Recent ops alerts (e.g. spend warnings), surfaced in /health for the operator (SPEND-CAP). */
@@ -261,9 +264,7 @@ export function createApiServer(deps: ApiDeps): Server {
             ...(deps.recallMetrics ? { recall: deps.recallMetrics.snapshot() } : {}),
             ...(deps.importCost ? { imports: deps.importCost.snapshot() } : {}),
             ...(deps.extractionHealth ? { extraction: deps.extractionHealth.snapshot() } : {}),
-            ...(deps.trainingLog
-              ? { trainingLog: { ...deps.trainingLog.snapshot(), archiveJob: jobs?.find((j) => j.name === 'training-archive') ?? null } }
-              : {}),
+            ...(deps.trainingLog ? { trainingLog: deps.trainingLog.snapshot() } : {}),
             ...(deps.spend ? { spend: { ...deps.spend.snapshot(), ...(spendAlerts ? { alerts: spendAlerts } : {}) } } : {}),
           });
         } catch {
@@ -347,6 +348,7 @@ export function createApiServer(deps: ApiDeps): Server {
           facts: deps.facts,
           corrections: deps.corrections,
           extractionLog: deps.extractionLog,
+          glossary: deps.repGlossary,
           ledger: deps.ledger,
           meetings: deps.meetings,
           notes: deps.notes,

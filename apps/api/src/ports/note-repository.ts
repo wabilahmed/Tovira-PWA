@@ -109,7 +109,7 @@ export interface NoteRepository {
    *  recording is kept indefinitely) and notes never transcribed (transcribed_at null). */
   listExpirableAudio(userId: string, transcribedBeforeMs: number): Promise<Array<{ id: string; audioKey: string }>>;
   update(userId: string, id: string, patch: NotePatch): Promise<void>;
-  /** Hard-delete a note (Ask-capture reject/expire). The training log survives (0045). */
+  /** Hard-delete a note (Ask-capture reject/expire). The operational log row survives (0045). */
   delete(userId: string, id: string): Promise<boolean>;
   /** Semantic search over a client's notes by embedding similarity. */
   searchSimilar(userId: string, clientId: string, queryEmbedding: number[], limit: number): Promise<SimilarNote[]>;

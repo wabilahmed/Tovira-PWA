@@ -35,7 +35,6 @@ import { InMemorySpendLedgerRepository } from '../adapters/spend/in-memory-spend
 import { InMemoryModelCallEventStore } from '../adapters/spend/in-memory-model-call-event-store.js';
 import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
 import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
-import { InMemoryArchiveIndexRepository } from '../adapters/logs/in-memory-archive-index-repository.js';
 import { InMemorySpendOverrideRepository } from '../adapters/spend/in-memory-spend-override-repository.js';
 
 /** [HEALTH-LEAK] a known ops token so tests can exercise the authenticated /health + /ops surfaces. */
@@ -46,6 +45,7 @@ import type { ExtractionLimiter } from '../services/extraction/limiter.js';
 import { BriefService } from '../services/brief/brief-service.js';
 import { FollowUpService } from '../services/followup/follow-up-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
+import { InMemoryRepGlossaryRepository } from '../adapters/glossary/in-memory-rep-glossary-repository.js';
 import { InMemoryContactAliasRepository, InMemoryRepNameRepository } from '../adapters/import/in-memory-contact-alias-repository.js';
 import { InMemoryImportAckRepository } from '../adapters/import/in-memory-import-ack-repository.js';
 import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
@@ -93,7 +93,6 @@ export interface TestDeps extends ApiDeps {
   inventoryMatches: InMemoryInventoryMatchRepository;
   requirements: InMemoryRequirementRepository;
   ledger: LedgerService;
-  archiveIndex: InMemoryArchiveIndexRepository;
   recallSessions: InMemoryRecallSessionRepository;
   extractionCounter: InMemoryExtractionCounter;
   /** [ASYNC-EXTRACT] Run the background sweep (the real async processor) N passes — how tests drive
@@ -138,7 +137,6 @@ export function buildInMemoryDeps(
   });
   const notes = new InMemoryNoteRepository();
   const storage = new InMemoryStorage();
-  const archiveIndex = new InMemoryArchiveIndexRepository(); // [TRAINING-DELETE] archive index for tests
   const clients = new InMemoryClientRepository();
   const inventoryRepo = new InMemoryInventoryRepository();
   const facts = new InMemoryFactsRepository();
@@ -151,6 +149,7 @@ export function buildInMemoryDeps(
   const inventory = new InventoryService(inventoryRepo, embedder, ledger, matching); // direction 2 trigger
   const extractionLog = new InMemoryExtractionLogRepository();
   const corrections = new InMemoryCorrectionRepository();
+  const repGlossary = new InMemoryRepGlossaryRepository();
   const contactAliases = new InMemoryContactAliasRepository();
   const repNames = new InMemoryRepNameRepository();
   const importAck = new InMemoryImportAckRepository();
@@ -175,7 +174,7 @@ export function buildInMemoryDeps(
     embedder,
     extractionLog,
     'stub',
-    corrections,
+    repGlossary,
     undefined, // router
     extractionLimiter,
     undefined, // cacheTtl
@@ -269,6 +268,7 @@ export function buildInMemoryDeps(
     aliases: contactAliases,
     repNames,
     corrections,
+    repGlossary,
     extractionLog,
     // [HEALTH-LEAK] ops surface with a known token; only opsToken is read by the /health split.
     opsRoute: {
@@ -280,7 +280,7 @@ export function buildInMemoryDeps(
       accessApproval,
     },
     // [TRAINING-METRICS] ttl 0 so tests see fresh numbers on every snapshot() (each call refreshes).
-    trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections, archiveIndex), 0),
+    trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections), 0),
     brief,
     meetings,
     meetingParser,
@@ -297,8 +297,7 @@ export function buildInMemoryDeps(
     // [PRIVACY-3] purgeables covers every in-memory store the users FK cascade purges in Postgres, so
     // account deletion leaves zero rows in the in-memory model too (recall + S3 archive are purged by
     // AccountService directly). A new store added here without a purge fails the deletion test.
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter], undefined, undefined, extractionLog, corrections, archiveIndex, storage, storage),
-    archiveIndex,
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary], undefined, undefined, extractionLog, corrections, repGlossary, storage),
     recallSessions,
     extractionCounter,
     runSweep,

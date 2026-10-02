@@ -59,81 +59,42 @@ describe('[P5-4] data trust & control', () => {
     expect(Array.isArray(data.meetings)).toBe(true);
   });
 
-  // [EXPORT-TRAINING] The training log is the highest-concentration PII store in the product and was
-  // silently omitted — a false "all their data" claim in a data-subject-access context. It must export.
-  it('exports the training log (extraction_logs) and rep corrections', async () => {
+  // [NO-TRAINING-RETENTION] The export must still carry the rep's extraction metadata, verdicts, and
+  // per-rep glossary — their own data in a DSAR context — but these now hold NO conversation content.
+  it('exports the extraction log, rep verdicts, and per-rep glossary (metadata only)', async () => {
     const res = await fetch(`${base}/auth/signup`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email: 'export-training@example.com', password: 'password123' }),
     });
     const { token, user } = (await res.json()) as { token: string; user: { id: string } };
-    // Seed one extraction-log row + one correction for this rep.
+    // Seed one extraction-log row + one verdict + one glossary term for this rep.
     await deps.extractionLog.log(user.id, {
-      noteId: 'n-exp', promptVersion: 'tovira-extract-vX', model: 'stub', input: 'my raw note text',
-      rawOutput: '{"promises":[]}', status: 'extracted', inputTokens: 3, outputTokens: 3, latencyMs: 2,
+      noteId: 'n-exp', promptVersion: 'tovira-extract-vX', model: 'stub',
+      status: 'extracted', inputTokens: 3, outputTokens: 3, latencyMs: 2,
+      factsProposed: 1, factsAccepted: 1, factsRejected: 0, rejectedByReason: {},
     });
     await deps.corrections.record(user.id, {
       noteId: 'n-exp', entityType: 'promise', entityId: 'p1', field: 'text',
-      before: 'send plan', after: 'send the plan', promptVersion: 'tovira-extract-vX',
+      verdict: 'edit', correctionKind: 'wrong_value', dateDeltaDays: null, promptVersion: 'tovira-extract-vX',
     });
+    await deps.repGlossary.upsert(user.id, 'Meridiun', 'Meridian', Date.now());
 
     const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as {
-      extractionLogs: Array<{ input: string }>; corrections: Array<{ before: string | null }>;
+      extractionLogs: Array<Record<string, unknown>>;
+      corrections: Array<Record<string, unknown>>;
+      repGlossary: Array<{ wrongTerm: string; rightTerm: string }>;
     };
     expect(Array.isArray(data.extractionLogs)).toBe(true);
-    expect(data.extractionLogs.some((r) => r.input === 'my raw note text')).toBe(true);
+    expect(data.extractionLogs).toHaveLength(1);
+    expect(data.extractionLogs[0]).not.toHaveProperty('input');
+    expect(data.extractionLogs[0]).not.toHaveProperty('rawOutput');
     expect(Array.isArray(data.corrections)).toBe(true);
-    expect(data.corrections.some((r) => r.before === 'send plan')).toBe(true);
-  });
-
-  // [TRAINING-DELETE] Archived training rows live in object storage, which the FK cascade can't reach.
-  // Export must include them; deletion must purge them; a partial purge must be reported, not silent.
-  it('export includes archived training rows, and account deletion purges them from object storage', async () => {
-    const res = await fetch(`${base}/auth/signup`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'archive-del@example.com', password: 'password123' }),
-    });
-    const { token, user } = (await res.json()) as { token: string; user: { id: string } };
-    const key = `training-archive/extraction_logs/${user.id}/2026-09.ndjson`;
-    const enc = new TextEncoder();
-    await deps.storage.put(key, enc.encode(JSON.stringify({ id: 'r1', noteId: 'n1', promptVersion: 'v0.9.4', input: 'archived note text' }) + '\n'));
-    await deps.archiveIndex.upsert(user.id, { collection: 'extraction_logs', partition: '2026-09', objectKey: key, rowCount: 1 });
-
-    // Export carries the archived row.
-    const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as {
-      archivedTraining: Array<{ input?: string }>;
-    };
-    expect(data.archivedTraining.some((r) => r.input === 'archived note text')).toBe(true);
-
-    // Deletion purges the object AND the index entry.
-    expect((await fetch(`${base}/account`, { method: 'DELETE', headers: auth(token) })).status).toBe(200);
-    expect(deps.storage.has(key)).toBe(false);
-    expect(await deps.archiveIndex.listByUser(user.id)).toEqual([]);
-  });
-
-  it('a purge that fails partway is REPORTED (500), not silently partial — the archive stays for retry', async () => {
-    const d = buildInMemoryDeps();
-    d.storage.delete = async () => { throw new Error('object store unavailable'); };
-    const srv = createApiServer(d);
-    await new Promise<void>((r) => srv.listen(0, r));
-    const b = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
-    try {
-      const res = await fetch(`${b}/auth/signup`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: 'archive-fail@example.com', password: 'password123' }),
-      });
-      const { token, user } = (await res.json()) as { token: string; user: { id: string } };
-      const key = `training-archive/extraction_logs/${user.id}/2026-09.ndjson`;
-      await d.storage.put(key, new TextEncoder().encode('{"id":"r1"}\n'));
-      await d.archiveIndex.upsert(user.id, { collection: 'extraction_logs', partition: '2026-09', objectKey: key, rowCount: 1 });
-
-      // The object delete throws → deletion is reported as a failure, not a silent partial success.
-      expect((await fetch(`${b}/account`, { method: 'DELETE', headers: auth(token) })).status).toBe(500);
-      // The archive index is intact (the user still exists) so the purge is retryable.
-      expect(await d.archiveIndex.listByUser(user.id)).toHaveLength(1);
-    } finally {
-      await new Promise<void>((r) => srv.close(() => r()));
-    }
+    expect(data.corrections).toHaveLength(1);
+    expect(data.corrections[0]).not.toHaveProperty('before');
+    expect(data.corrections[0]).not.toHaveProperty('after');
+    expect(data.corrections[0]!.verdict).toBe('edit');
+    expect(Array.isArray(data.repGlossary)).toBe(true);
+    expect(data.repGlossary.some((r) => r.wrongTerm === 'Meridiun' && r.rightTerm === 'Meridian')).toBe(true);
   });
 
   // NEGATIVE: after delete, the data does not reappear.

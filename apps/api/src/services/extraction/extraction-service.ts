@@ -3,8 +3,8 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
-import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
-import type { CorrectionRepository } from '../../ports/correction-repository.js';
+import type { ExtractionLogRepository, RejectionReason } from '../../ports/extraction-log-repository.js';
+import type { RepGlossaryRepository } from '../../ports/rep-glossary-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { RequirementRepository, RequirementInput } from '../../ports/requirement-repository.js';
 import type { MatchingService } from '../inventory/matching-service.js';
@@ -20,10 +20,21 @@ import { detectUnansweredQuestions } from '../import/unanswered.js';
 import { modelSafeText } from '../import/dedup.js';
 import { detectMisfilePostExtraction, nameMatches } from '../import/misfile.js';
 import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
-import { redactTier2 } from '../redaction/tier2.js';
 import { dropSensitivePersonalFacts } from './health-filter.js';
 import type { ImportCostRecord } from '../metrics/import-cost-metrics.js';
 import type { Extraction } from './types.js';
+
+/** [NO-TRAINING-RETENTION] Count the facts a model emitted (for the operational log's quality counts —
+ *  a number, never content). Sums the extracted arrays + the single proposed meeting. */
+function countFacts(ex: Extraction): number {
+  const e = ex as unknown as Record<string, unknown>;
+  const n = (v: unknown): number => (Array.isArray(v) ? v.length : 0);
+  return (
+    n(e.promises) + n(e.key_dates) + n(e.people) + n(e.personal_facts) +
+    n(e.unanswered_questions) + n(e.requirements) + n(e.next_steps) + n(e.concerns) +
+    (e.meeting ? 1 : 0)
+  );
+}
 
 export interface ExtractOutcome {
   status: string;
@@ -99,7 +110,7 @@ export function referenceDateFor(note: { messages?: { sentAt: string | null }[] 
  * Turn a note's raw text into structured facts (P1-6). The prompt is [cacheable
  * prefix] → [variable message with today's date]. On malformed/invalid output we
  * retry ONCE, then flag the note for review and write NOTHING structured. Every
- * extraction — success OR failure — writes exactly one training-log row (P1-8).
+ * extraction — success OR failure — writes exactly one operational log row (P1-8; no content).
  */
 export class ExtractionService {
   private readonly now = () => Date.now();
@@ -113,8 +124,9 @@ export class ExtractionService {
     private readonly logs: ExtractionLogRepository,
     /** Model id recorded in the log (e.g. 'stub' or 'claude-haiku-4-5-…'). */
     private readonly modelId: string = 'stub',
-    /** Corrections drive the per-rep glossary (P4-9). Optional. */
-    private readonly corrections?: CorrectionRepository,
+    /** [NO-TRAINING-RETENTION] The operational per-rep glossary (P4-9) — term pairs the rep has
+     *  corrected, injected into the extraction call. Replaces the former corrections-derived glossary. */
+    private readonly repGlossary?: RepGlossaryRepository,
     /** Per-account model routing (P5-7). Optional — falls back to model/modelId. */
     private readonly router?: ModelRouter,
     /** Trial extraction ceiling (P5-1). Optional — unlimited when absent. */
@@ -259,7 +271,7 @@ export class ExtractionService {
     const client = await this.clients.findByIdForUser(userId, note.clientId);
     // Per-rep glossary from THIS user's corrections (P4-9). Tenant-scoped, so it
     // can never influence another rep; injected into the variable message only.
-    const glossary = this.corrections ? buildGlossary(await this.corrections.listByUser(userId)) : [];
+    const glossary = this.repGlossary ? buildGlossary(await this.repGlossary.listByUser(userId)) : [];
     const referenceDate = referenceDateFor(note, today);
     // [SCREEN] Only NON-EXCLUDED messages ever reach a model. modelSafeText renders the thread with
     // flagged (held) messages removed; for a note with no message array (paste/voice/Ask — the rep's
@@ -318,11 +330,18 @@ export class ExtractionService {
     // same counter before spending; recording after keeps the bound honest and monotonic.
     if (spend.calls > 0) await this.limiter?.record?.(userId);
 
+    // [NO-TRAINING-RETENTION] Fact-quality counts for the operational log (metadata, no content).
+    // `factsProposed` = facts the model emitted (counted at parse, below); the rest are derived from the
+    // deterministic write-time drops. A failed extraction leaves them 0/{}.
+    let factsProposed = 0;
+    let factsAccepted = 0;
+    const rejectedByReason: Partial<Record<RejectionReason, number>> = {};
     let status: string;
     if (!extraction) {
       await this.notes.update(userId, noteId, { status: 'needs_review' });
       status = 'needs_review';
     } else {
+      factsProposed = countFacts(extraction);
       // Chat imports carry speaker-attributed messages → detect client questions
       // the rep never answered (P1-6). Deterministic; never fabricated.
       // [SCREEN] Held messages produce NO derived output either — filter them from the unanswered-question
@@ -343,13 +362,16 @@ export class ExtractionService {
       // of the model. Free-text health is deliberately NOT touched (a scrub would edit stored evidence
       // and eat legitimate words); it stays a Rule-7/Tier-2 concern.
       const droppedSensitive = dropSensitivePersonalFacts(extraction);
-      if (droppedSensitive > 0) console.info(`[sensitive-exclusion] note ${noteId}: dropped ${droppedSensitive} sensitive personal_fact(s) at write time`);
+      if (droppedSensitive > 0) {
+        console.info(`[sensitive-exclusion] note ${noteId}: dropped ${droppedSensitive} sensitive personal_fact(s) at write time`);
+        rejectedByReason.health = droppedSensitive;
+      }
       // Embedding is the semantic-search substrate, NOT the facts. If the embedder is
       // down or denied (e.g. Bedrock model access not yet granted), we must still save
       // the extracted facts — "never lose a recording". The note is 'extracted' with a
       // null vector; recall for it is degraded until a re-embed. Best-effort, never fatal.
       // [ASK-CAPTURE] hold-for-confirmation: an Ask-captured statement is extracted by the CERTIFIED
-      // engine (facts computed, training-log row written below) but held OUT of the vault — no
+      // engine (facts computed, operational log row written below) but held OUT of the vault — no
       // embedding (so recall retrieval, which requires a vector, can never surface it), no facts
       // spine, no meeting persist. It stays 'pending_confirmation' until the rep confirms; only then
       // is it embedded + committed. This is how "nothing enters the vault until confirmed" holds.
@@ -412,26 +434,31 @@ export class ExtractionService {
         }
       }
       status = hold ? 'pending_confirmation' : 'extracted';
+      // [NO-TRAINING-RETENTION] accepted vs held. Held (low-confidence / Ask-capture) facts are computed
+      // but not committed to the vault, so none count as "accepted" until the rep confirms.
+      const keptAfterHealth = factsProposed - (rejectedByReason.health ?? 0);
+      if (hold) rejectedByReason.held_for_confirmation = keptAfterHealth;
+      factsAccepted = hold ? 0 : keptAfterHealth;
     }
 
-    // Exactly one log row per extraction, success or failure.
-    // [TIER2-INPUT] The model saw the FULL userMessage (unchanged — no prompt change, no re-cert);
-    // we scrub Tier-2 (special-category) content from the STORED training copy only, so the corpus we
-    // train on never archives a third party's health/religion/orientation/criminal history. Narrow +
-    // anchored (precision over recall) — a best-effort net, not a guarantee (see redactTier2 / report).
-    const storedInput = redactTier2(userMessage).redacted;
+    // Exactly one OPERATIONAL log row per extraction, success or failure. [NO-TRAINING-RETENTION,
+    // 2026-10-02] It records NO conversation content — no input text, no raw model output — only metadata
+    // and the fact-quality counts. The note's text is in `notes` and accepted facts in `facts`.
+    const factsRejected = (rejectedByReason.health ?? 0) + (rejectedByReason.held_for_confirmation ?? 0);
     await this.logs.log(userId, {
       noteId,
       promptVersion: PROMPT_VERSION,
       model: route.modelId,
-      input: storedInput,
-      rawOutput: last.raw,
       status,
       inputTokens: last.inputTokens,
       outputTokens: last.outputTokens,
       latencyMs: this.now() - start,
       cacheCreationTokens: last.cacheCreationTokens,
       cacheReadTokens: last.cacheReadTokens,
+      factsProposed,
+      factsAccepted,
+      factsRejected,
+      rejectedByReason,
     });
 
     // [COST-IMPORT-METRIC] A chat import is one heavy extraction call over the whole transcript;

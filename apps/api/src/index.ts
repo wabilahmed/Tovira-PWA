@@ -47,7 +47,6 @@ import {
   createLedgerService,
   createFollowUpService,
   createExtractionLogRepository,
-  createArchiveIndexRepository,
   createSpendLedgerRepository,
   createSensitiveFlagStatsRepository,
   createOpsAlertRepository,
@@ -57,6 +56,7 @@ import {
   createSpendOverrideRepository,
   createBriefService,
   createCorrectionRepository,
+  createRepGlossaryRepository,
   createMeetingRepository,
   createRequirementRepository,
   createInventoryMatchRepository,
@@ -91,7 +91,6 @@ import {
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
 import { OutcomeInferenceService } from './services/outcomes/outcome-inference-service.js';
-import { TrainingArchiveService } from './services/facts/training-archive.js';
 import { TrainingLogStatsService } from './services/facts/training-log-stats.js';
 import { PgTrainingLogStatsRepository } from './adapters/logs/pg-training-log-stats-repository.js';
 import { MeetingNudgeService } from './services/scheduler/meeting-nudge-service.js';
@@ -169,6 +168,7 @@ async function main(): Promise<void> {
   const facts = createFactsRepository(config, appPool);
   const extractionLogs = createExtractionLogRepository(config, appPool);
   const corrections = createCorrectionRepository(config, appPool);
+  const repGlossary = createRepGlossaryRepository(config, appPool);
   // Billing is created early so the extraction router can read trial status (P5-7).
   const billingEmailHook = {
     paymentFailed: async (userId: string, eventId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendPaymentFailed(userId, to, eventId); },
@@ -232,13 +232,13 @@ async function main(): Promise<void> {
   // COST-IMPORT-METRIC: a rolling per-rep import cost, recorded at extraction time for imports.
   const importCost = new ImportCostMetrics();
   const extractionHealth = new ExtractionHealthRegistry(); // [EXTRACT-STOPREASON] starved-output counter
-  // [TRAINING-METRICS] training-log volume on /health, via the SUPERUSER pool (cross-tenant, RLS would
-  // hide it). Cached by the service so the ALB health check never triggers a DB scan. Warmed at startup.
+  // [EXTRACTION-METRICS] extraction-log volume on /health, via the SUPERUSER pool (cross-tenant, RLS
+  // would hide it). Cached by the service so the ALB health check never triggers a DB scan. Warmed at startup.
   const trainingLogStats = new TrainingLogStatsService(new PgTrainingLogStatsRepository(migrationPool));
   void trainingLogStats.refresh();
   // [TRIAL-FARM] Extraction — the one paid, unbounded-cost operation — is gated on a verified email.
   const verifiedGate = { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) };
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, corrections, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));
@@ -250,13 +250,11 @@ async function main(): Promise<void> {
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
   const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications);
-  // [ERASURE] single-counterparty erasure (Terms 4.9), operator-run via the ops route. Covers the
-  // training archive (object storage, outside the DB cascade) — archiveIndex + storage passed in.
-  const archiveIndex = createArchiveIndexRepository(config, appPool, migrationPool);
+  // [ERASURE] single-counterparty erasure (Terms 4.9), operator-run via the ops route.
   // [ERASURE-SUMMARY] the certified extractor for re-summarising a note after the requester's messages
   // are removed. A metered client, but every rewrite request carries spendClass 'erasure' and NO userId,
   // so it records account-less — never a rep's spend cap or extraction ceiling (erasure is legal, not usage).
-  const erasure = new ErasureService({ clients, notes, extractionLog: extractionLogs, audit: createErasureAuditRepository(config, appPool), archiveIndex, archiveStorage: storage, blobStorage: storage, summariser: createModelClient(config, 'extraction') });
+  const erasure = new ErasureService({ clients, notes, audit: createErasureAuditRepository(config, appPool), blobStorage: storage, repGlossary, summariser: createModelClient(config, 'extraction') });
   // [ERASURE-RECEIPT] the proof-of-erasure store uses the ROOT pool (migrationPool): it has no RLS and
   // no user_id/FK, so it is not tenant data and it survives the rep deleting their account.
   const erasureRequests = new ErasureRequestService({ erasure, requests: createErasureRequestRepository(config, appPool), receipts: createErasureReceiptRepository(config, migrationPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
@@ -321,20 +319,8 @@ async function main(): Promise<void> {
     runAll: (userId, nowMs) => scan.runAll(userId, nowMs, scanConfigFrom(config)),
     dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs).then(() => undefined),
   });
-  // [TRAINING-ARCHIVE] archive (never delete) the training corpus on the scheduled seam. Disabled
-  // until TRAINING_ARCHIVE_AGE_DAYS + _DESTINATION are set; archives to the same blob store as the
-  // gallery, removes from the hot RDS table only AFTER a confirmed write. Retention is indefinite.
-  const trainingArchive = new TrainingArchiveService({
-    storage,
-    index: archiveIndex,
-    collections: [
-      { name: 'extraction_logs', listOlderThan: (u, c) => extractionLogs.listOlderThan(u, c), deleteByIds: (u, ids) => extractionLogs.deleteByIds(u, ids) },
-      { name: 'corrections', listOlderThan: (u, c) => corrections.listOlderThan(u, c), deleteByIds: (u, ids) => corrections.deleteByIds(u, ids) },
-    ],
-    allUserIds: () => auth.allUserIds(),
-    ageDays: config.trainingArchiveAgeDays,
-    destination: config.trainingArchiveDestination,
-  });
+  // [NO-TRAINING-RETENTION, 2026-10-02] The training archive was deleted: extraction_logs + corrections
+  // are operational metadata only (no conversation content), so there is no corpus to archive.
   // [OUTCOME-2] The nightly deterministic silence rule: mark long-silent open clients lost_inferred,
   // revert when activity resumes. No model call. Rep-set outcomes are never touched.
   const outcomeInference = new OutcomeInferenceService({
@@ -386,16 +372,8 @@ async function main(): Promise<void> {
       // fix re-verifies on the next restart. Logs the reasoning headroom so decay shows BEFORE it breaks.
       { name: 'extraction-canary', lockKey: 4711007, intervalMs: 6 * 60 * 60 * 1000,
         run: async () => { const r = await extractionCanary.run(); console.log(`[canary] extraction ok stop=${r.stopReason} thinking=${r.thinkingTokens} headroom=${r.headroomTokens}`); } },
-      // [TRAINING-ARCHIVE] Daily: archive (NEVER delete) training-log rows older than the configured
-      // age to object storage, removing them from the hot table only after a confirmed write. DISABLED
-      // until TRAINING_ARCHIVE_AGE_DAYS + _DESTINATION are set. Recorded in scheduled_job_runs.
-      { name: 'training-archive', lockKey: 4711008, intervalMs: 24 * 60 * 60 * 1000,
-        run: async () => {
-          const r = await trainingArchive.archive(Date.now());
-          console.log(r.enabled
-            ? `[archive] training-log: archived ${r.archived} rows across ${r.partitions} partitions (age ${config.trainingArchiveAgeDays}d → ${config.trainingArchiveDestination})`
-            : `[archive] training-log archival DISABLED (set TRAINING_ARCHIVE_AGE_DAYS + _DESTINATION) — nothing moved, nothing deleted`);
-        } },
+      // [NO-TRAINING-RETENTION, 2026-10-02] the training-archive job (lockKey 4711008) was removed with
+      // the archive subsystem — extraction_logs/corrections are metadata only, nothing to archive.
       // [OUTCOME-2] Daily: mark long-silent open clients lost_inferred and revert those whose activity
       // resumed. Deterministic, no model call. Idempotent, so a restart or extra tick is harmless.
       { name: 'outcomes-inference', lockKey: 4711009, intervalMs: 24 * 60 * 60 * 1000,
@@ -415,7 +393,7 @@ async function main(): Promise<void> {
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs
   // have long intervals, so a faster due-check is negligible overhead.
   const recallSessions = createRecallSessionRepository(config, appPool);
-  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, archiveIndex, storage, storage);
+  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, repGlossary, storage);
   const activation = createActivationService(config, appPool);
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
@@ -464,6 +442,7 @@ async function main(): Promise<void> {
     importAck,
     flagReview,
     corrections,
+    repGlossary,
     extractionLog: extractionLogs,
     brief,
     meetings,

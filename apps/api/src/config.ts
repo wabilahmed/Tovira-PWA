@@ -112,15 +112,6 @@ export interface AppConfig {
   // "Activity" is operationalised as clients.last_touched_at (the same clock going-cold reads); true
   // per-message direction lives in extraction, which is out of this batch's scope.
   lostInferredThresholdDays: number;
-  // [TRAINING-ARCHIVE] Retention is INDEFINITE — the corpus exists to build a distillation model years
-  // out and must never be deleted by age. The daily sweep ARCHIVES rows older than this many days to
-  // object storage and removes them from the hot (RDS) table; it never deletes. 0 = DISABLED (keep
-  // everything hot). There is deliberately no "retention/delete after N days" setting.
-  trainingArchiveAgeDays: number;
-  // [TRAINING-ARCHIVE] Object-storage key prefix the archive NDJSON is written under. REQUIRED (non-
-  // empty) when trainingArchiveAgeDays > 0 — assertDeployReady refuses to enable archival without a
-  // destination, so rows are never removed from the hot table with nowhere durable to put them.
-  trainingArchiveDestination: string;
   heroMinClients: number;
   heroMinNotes: number;
   // --- billing (P5) ---
@@ -264,10 +255,6 @@ export function loadConfig(env: Env = process.env): AppConfig {
     promiseStaleThresholdDays: parsePositive(env.PROMISE_STALE_THRESHOLD_DAYS, 90, 'PROMISE_STALE_THRESHOLD_DAYS'),
     // [OUTCOME-2] default 90 — derivation recorded on the interface field above (not settled).
     lostInferredThresholdDays: parsePositive(env.LOST_INFERRED_THRESHOLD_DAYS, 90, 'LOST_INFERRED_THRESHOLD_DAYS'),
-    // [TRAINING-ARCHIVE] 0 = disabled (keep all rows hot). When > 0, archive (never delete) rows older
-    // than this to TRAINING_ARCHIVE_DESTINATION.
-    trainingArchiveAgeDays: parseNonNegative(env.TRAINING_ARCHIVE_AGE_DAYS, 0, 'TRAINING_ARCHIVE_AGE_DAYS'),
-    trainingArchiveDestination: (env.TRAINING_ARCHIVE_DESTINATION ?? '').trim(),
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
     trialDays: parsePositive(env.TRIAL_DAYS, DEFAULT_TRIAL_DAYS, 'TRIAL_DAYS'),
@@ -388,11 +375,6 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
     need(config.vatRegisteredFromMs === null, 'VAT_REGISTERED_FROM (VAT_REGISTERED=true requires the registration date — the immutable tax boundary)');
   }
 
-  // --- Training-log archival: the one catastrophic misconfiguration here is archival enabled with
-  //     nowhere to put the rows — it would remove them from the hot table and drop them on the floor.
-  //     If an archive age is set, a destination is mandatory. Refuse to boot otherwise.
-  need(config.trainingArchiveAgeDays > 0 && isBlank(config.trainingArchiveDestination),
-    'TRAINING_ARCHIVE_DESTINATION (TRAINING_ARCHIVE_AGE_DAYS > 0 enables archival — a destination is REQUIRED so rows are never removed from the hot table with nowhere durable to put them)');
 
   // --- Blob storage (STORAGE): media must be DURABLE in any real deployment. Ephemeral Fargate
   //     local disk loses every recording on deploy/scale-in/crash. If the environment looks like a
@@ -458,14 +440,6 @@ function parsePositive(raw: string | undefined, fallback: number, name: string):
   if (isBlank(raw)) return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) throw new ConfigError(`Invalid ${name}: "${raw}". Expected a positive number.`);
-  return n;
-}
-
-/** Like parsePositive but allows 0 — used where 0 is a meaningful "disabled" (TRAINING-RETENTION). */
-function parseNonNegative(raw: string | undefined, fallback: number, name: string): number {
-  if (isBlank(raw)) return fallback;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) throw new ConfigError(`Invalid ${name}: "${raw}". Expected zero or a positive number.`);
   return n;
 }
 

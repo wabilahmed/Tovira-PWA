@@ -6,7 +6,6 @@ import { ErasureService } from '../services/erasure/erasure-service.js';
 import { ErasureRequestService } from '../services/erasure/erasure-request-service.js';
 import { InMemoryClientRepository } from '../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-repository.js';
-import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryErasureAuditRepository } from '../adapters/erasure/in-memory-erasure-audit-repository.js';
 import { InMemoryErasureRequestRepository } from '../adapters/erasure/in-memory-erasure-request-repository.js';
 import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
@@ -29,7 +28,7 @@ async function setup() {
   const notes = new InMemoryNoteRepository();
   const requests = new InMemoryErasureRequestRepository();
   const notifications = new InMemoryNotificationRepository();
-  const erasure = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit: new InMemoryErasureAuditRepository() });
+  const erasure = new ErasureService({ clients, notes, audit: new InMemoryErasureAuditRepository() });
   const erasureRequests = new ErasureRequestService({ erasure, requests, notifications, dispatch: vi.fn(async () => {}) });
   // A note with data about Khalid, so a valid-token preview is non-empty.
   const c = await clients.create('u', 'Marina Estates');

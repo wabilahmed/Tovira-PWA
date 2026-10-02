@@ -5,9 +5,10 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 
 // REDACT-2 + REDACT-4: a Tier-1 value pasted into a note must be redacted BEFORE storage,
-// and must therefore appear nowhere downstream — not in the stored note, not in the
-// extraction training log (which retains input + output for training).
-describe('[REDACT-2/4] Tier-1 values never reach storage or the training log', () => {
+// and must therefore appear nowhere downstream — not in the stored note, and not in the
+// extraction log. [NO-TRAINING-RETENTION] the log now retains NO content at all, so this is the
+// strongest form of the guarantee: there is no field for a Tier-1 value to leak into.
+describe('[REDACT-2/4] Tier-1 values never reach storage or the extraction log', () => {
   let server: Server;
   let base: string;
   let deps: TestDeps;
@@ -41,12 +42,21 @@ describe('[REDACT-2/4] Tier-1 values never reach storage or the training log', (
     expect(note.rawText).not.toContain('4539');
     expect(note.rawText).not.toContain(IBAN);
 
-    // Extract, then assert the training log (input + output) carries no Tier-1 value.
-    await fetch(`${base}/notes/${note.id}/extract`, { method: 'POST', headers: auth });
-    const rows = await deps.extractionLog!.listByUser((await (await fetch(`${base}/me`, { headers: { authorization: `Bearer ${token}` } })).json() as { user: { id: string } }).user.id);
-    const blob = rows.map((r) => `${r.input}\n${r.rawOutput ?? ''}`).join('\n');
-    expect(blob).not.toContain('4539');
-    expect(blob).not.toContain('0343');
-    expect(blob).not.toContain(IBAN);
+    // Extract (synchronously — the HTTP route only queues), then assert the extraction log carries no
+    // note content at all: the strongest form of the old "no Tier-1 value in the log" guarantee.
+    // [NO-TRAINING-RETENTION] the log is operational metadata only.
+    const userId = (await (await fetch(`${base}/me`, { headers: { authorization: `Bearer ${token}` } })).json() as { user: { id: string } }).user.id;
+    await deps.extraction.extractNote(userId, note.id, '2026-08-01');
+    const rows = await deps.extractionLog!.listByUser(userId);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r).not.toHaveProperty('input');
+      expect(r).not.toHaveProperty('rawOutput');
+      // No stringifiable field holds the card or IBAN.
+      const blob = JSON.stringify(r);
+      expect(blob).not.toContain('4539');
+      expect(blob).not.toContain('0343');
+      expect(blob).not.toContain(IBAN);
+    }
   });
 });

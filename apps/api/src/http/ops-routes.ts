@@ -84,7 +84,7 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
 
     if (req.method === 'POST' && url === '/ops/erasure/preview') {
       // Unauth (or a valid token on an unknown counterparty) → the SAME empty plan. Byte-identical.
-      const empty = { requesterNames: names, autoDelete: [], fuzzyCandidates: [], keptMentions: [], logRowIds: [] };
+      const empty = { requesterNames: names, autoDelete: [], fuzzyCandidates: [], keptMentions: [] };
       const plan = authed && deps.erasure && userId ? await deps.erasure.preview(userId, names) : empty;
       sendJson(res, 200, plan);
       return true;

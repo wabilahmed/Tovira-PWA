@@ -277,8 +277,10 @@ describe('ExtractionService', () => {
     expect(rows[0]!.model).toBe('stub');
     expect(rows[0]!.promptVersion).toBe('tovira-extract-v0.9.7');
     expect(rows[0]!.status).toBe('extracted');
-    expect(rows[0]!.input).toContain('revised quote');
-    expect(rows[0]!.rawOutput).toBe(VALID);
+    // [NO-TRAINING-RETENTION] the log records fact-quality COUNTS, never content (no input / rawOutput).
+    expect(rows[0]!.factsAccepted).toBeGreaterThan(0);
+    expect(rows[0]!).not.toHaveProperty('input');
+    expect(rows[0]!).not.toHaveProperty('rawOutput');
   });
 
   it('logs exactly one row even when a retry happens', async () => {
@@ -294,7 +296,9 @@ describe('ExtractionService', () => {
     const rows = await logs.listByUser('user-A');
     expect(rows).toHaveLength(1);
     expect(rows[0]!.status).toBe('needs_review');
-    expect(rows[0]!.rawOutput).toBe('still garbage'); // the failed output is captured
+    // [NO-TRAINING-RETENTION] a failed extraction proposes no usable facts; no content is captured.
+    expect(rows[0]!.factsProposed).toBe(0);
+    expect(rows[0]!).not.toHaveProperty('rawOutput');
   });
 
   // P5-1: a trial account over the extraction ceiling is stopped before the model
@@ -630,12 +634,12 @@ describe('[TIER2-INPUT] Tier-2 is scrubbed from the STORED training-log input on
     const sentContent = String(cap.last()?.messages?.[0]?.content ?? '');
     expect(sentContent).toContain('diagnosed with cancer');
 
-    // The STORED training-log input is scrubbed, but legitimate context is preserved.
+    // [NO-TRAINING-RETENTION] there is no STORED training-log input at all now — no conversation content
+    // is retained, so there is nothing (health or otherwise) to scrub or to leak.
     const rows = await logs.listByUser('user-A');
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.input).not.toContain('cancer');
-    expect(rows[0]!.input).toContain('[health detail removed]');
-    expect(rows[0]!.input).toContain('send the revised quote by Friday');
+    expect(rows[0]!).not.toHaveProperty('input');
+    expect(rows[0]!).not.toHaveProperty('rawOutput');
 
     // The rep's own note is untouched (their vault; Rule 7 governs extracted FACTS, verified elsewhere).
     const storedNote = await notes.findByIdForUser('user-A', note.id);

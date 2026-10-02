@@ -1,16 +1,22 @@
 /**
- * Port: the extraction training log (P1-8). Every extraction attempt is logged —
- * input, raw model output, model id, prompt version, tokens, latency — so we can
- * later train a self-hosted model and analyse failures. It is PII, so it is
- * tenant-scoped like every other user table.
+ * Port: the extraction OPERATIONAL log (P1-8). One row per extraction attempt, holding only what
+ * operating the service needs — model id, prompt version, tokens, latency, outcome, and counts of facts
+ * proposed/accepted/rejected-by-reason. [NO-TRAINING-RETENTION, 2026-10-02] It records NO conversation
+ * content: no input text, no raw model output. The note's text already lives in `notes` and accepted
+ * facts in `facts`, so the log needs none of it to be investigable. Still tenant-scoped (operational
+ * per-user data).
  */
+
+/** [NO-TRAINING-RETENTION] Why a proposed fact did not reach the vault — a fixed, extensible set of COUNT
+ *  keys, never free text. Derivation: the deterministic write-time drops the extractor applies — `health`
+ *  (dropSensitivePersonalFacts), `date_invariant` (a due date before the note's reference date, nulled +
+ *  dropped to low), `held_for_confirmation` (low-confidence / Ask-capture held out of the vault). */
+export type RejectionReason = 'health' | 'date_invariant' | 'held_for_confirmation';
 
 export interface ExtractionLogEntry {
   noteId: string;
   promptVersion: string;
   model: string;
-  input: string;
-  rawOutput: string | null;
   status: string;
   inputTokens: number;
   outputTokens: number;
@@ -20,6 +26,14 @@ export interface ExtractionLogEntry {
    *  when the provider doesn't cache (stub/local). Drives the tier advisor. */
   cacheCreationTokens?: number;
   cacheReadTokens?: number;
+  /** [NO-TRAINING-RETENTION] Fact-quality counts (metadata, no content). `factsProposed` = facts the
+   *  model emitted; `factsAccepted` = facts stored; `rejectedByReason` = per-reason counts of proposed
+   *  facts that did not reach the vault; `factsRejected` is their sum. A count is enough to monitor
+   *  quality; content is not needed. */
+  factsProposed: number;
+  factsAccepted: number;
+  factsRejected: number;
+  rejectedByReason: Partial<Record<RejectionReason, number>>;
 }
 
 export interface ExtractionLogRecord extends ExtractionLogEntry {
@@ -45,13 +59,4 @@ export interface ExtractionLogRepository {
    * delete, breaking the lookup). Tenant-scoped. Returns rows updated.
    */
   labelOutcomeByNote(userId: string, noteId: string, status: string): Promise<number>;
-  /**
-   * [TRAINING-ARCHIVE] This tenant's log rows created strictly before `cutoffMs`, oldest first — the
-   * candidates for archival. Full records (archived verbatim to object storage). Tenant-scoped.
-   * NB: there is deliberately NO delete-by-age method — rows leave the hot table ONLY via deleteByIds,
-   * and only after their archive write is confirmed, so no misconfiguration can destroy the corpus.
-   */
-  listOlderThan(userId: string, cutoffMs: number): Promise<ExtractionLogRecord[]>;
-  /** [TRAINING-ARCHIVE] Remove exactly these rows (already archived + verified). Tenant-scoped. */
-  deleteByIds(userId: string, ids: string[]): Promise<number>;
 }

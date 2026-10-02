@@ -3,7 +3,6 @@ import { ErasureRequestService, DEFAULT_ERASURE_WINDOW_DAYS } from './erasure-re
 import { ErasureService } from './erasure-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
-import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryErasureAuditRepository } from '../../adapters/erasure/in-memory-erasure-audit-repository.js';
 import { InMemoryErasureRequestRepository } from '../../adapters/erasure/in-memory-erasure-request-repository.js';
 import { InMemoryNotificationRepository } from '../../adapters/notifications/in-memory-notification-repository.js';
@@ -20,7 +19,7 @@ async function make(nowRef: { t: number }) {
   const notifications = new InMemoryNotificationRepository();
   const pushed: PushableAlert[] = [];
   const dispatch = vi.fn(async (_u: string, alerts: PushableAlert[]) => { pushed.push(...alerts); });
-  const erasure = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit });
+  const erasure = new ErasureService({ clients, notes, audit });
   const svc = new ErasureRequestService({ erasure, requests, notifications, dispatch, now: () => nowRef.t });
   const c = await clients.create('u', 'Marina Estates');
   const n = await notes.create('u', { clientId: c.id, source: 'whatsapp_export', audioKey: null, status: 'extracted', rawText: 'x', messages: [{ sentAt: '2026-01-01T10:00:00', sender: 'Khalid', body: 'i have five million', media: false, role: 'unknown' }] });
@@ -84,7 +83,7 @@ describe('[ERASURE Task 4] telling the rep + the retention window', () => {
     const ref = { t: NOW };
     const clients = new InMemoryClientRepository();
     const notes = new InMemoryNoteRepository();
-    const erasure = new ErasureService({ clients, notes, extractionLog: new InMemoryExtractionLogRepository(), audit: new InMemoryErasureAuditRepository() });
+    const erasure = new ErasureService({ clients, notes, audit: new InMemoryErasureAuditRepository() });
     const svc = new ErasureRequestService({ erasure, requests: new InMemoryErasureRequestRepository(), notifications: new InMemoryNotificationRepository(), dispatch: async () => {}, now: () => ref.t, windowDays: 30 });
     const req = await svc.open('u', ['Khalid']);
     expect(req.windowEndsAt).toBe(NOW + 30 * DAY);

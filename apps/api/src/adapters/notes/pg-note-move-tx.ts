@@ -57,7 +57,7 @@ export class PgNoteMoveTx implements NoteMoveTx {
       const m = await c.query('DELETE FROM meetings WHERE note_id = $1 RETURNING id', [noteId]);
       // Requirements go too; their inventory matches cascade via the FK (0049 ON DELETE CASCADE).
       const rq = await c.query('DELETE FROM requirements WHERE note_id = $1 RETURNING id', [noteId]);
-      await c.query('DELETE FROM notes WHERE id = $1', [noteId]); // training log survives (0045, no FK)
+      await c.query('DELETE FROM notes WHERE id = $1', [noteId]); // extraction log survives (0045, no FK)
       await this.recompute(c, from);
       const counts: NoteMoveCounts = { messages: Array.isArray(messages) ? messages.length : 0, promises: p.rows.length, keyDates: k.rows.length, meetings: m.rows.length, requirements: rq.rows.length };
       await c.query(

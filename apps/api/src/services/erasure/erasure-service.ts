@@ -1,15 +1,12 @@
 import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository, NoteRecord, ImportedMessage } from '../../ports/note-repository.js';
-import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
 import type { ErasureAuditRepository, ErasureCategoryCount } from '../../ports/erasure-audit-repository.js';
-import type { ArchiveIndexRepository } from '../../ports/archive-index-repository.js';
 import type { Storage } from '../../ports/storage.js';
 import type { ModelClient } from '../../ports/model.js';
+import type { RepGlossaryRepository } from '../../ports/rep-glossary-repository.js';
 import { renderThread } from '../import/dedup.js';
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_MAX_TOKENS, buildUserMessage } from '../extraction/prompt.js';
 
-const enc = new TextEncoder();
-const dec = new TextDecoder();
 
 /**
  * [ERASURE] Single-counterparty erasure (Privacy Policy §10 / Terms 4.9): delete facts ABOUT a named
@@ -50,7 +47,7 @@ function mentions(text: string | null | undefined, requesterNorm: string[]): boo
   return requesterNorm.some((rn) => rn.split(' ').some((w) => w.length > 1 && t.includes(` ${w} `)));
 }
 
-type WhoStore = 'people' | 'personal_facts' | 'unanswered_questions' | 'messages' | 'archive';
+type WhoStore = 'people' | 'personal_facts' | 'unanswered_questions' | 'messages';
 
 export interface ErasureItem {
   noteId: string;
@@ -58,34 +55,8 @@ export interface ErasureItem {
   store: WhoStore;
   match: 'exact' | 'fuzzy';
   who: string; // the matched who-field value (shown in the preview; not persisted to the audit)
-  /** [ARCHIVE] set for archived-blob rows: which object + row this item points at (for commit). */
-  objectKey?: string;
-  rowId?: string;
 }
 
-/** Classify one archived NDJSON row (an extraction-log or correction record) by the SAME who-field
- *  rule as the DB stores, using its rawOutput extraction. exact/fuzzy → about; mention → name present
- *  only in free text; none → not the requester. */
-function classifyArchiveRow(row: Record<string, unknown>, requesterNorm: string[]): { match: 'exact' | 'fuzzy' | 'mention' | 'none'; who: string } {
-  let best: MatchKind = 'none';
-  let who = '';
-  const rawOutput = typeof row.rawOutput === 'string' ? row.rawOutput : '';
-  try {
-    const ex = JSON.parse(rawOutput) as Record<string, unknown>;
-    for (const [store, field] of [['people', 'name'], ['personal_facts', 'subject'], ['unanswered_questions', 'sender']] as Array<[string, string]>) {
-      for (const e of asArr(ex[store])) {
-        const m = matchName(e[field] as string, requesterNorm);
-        if (rankOf(m) > rankOf(best)) { best = m; who = String(e[field] ?? ''); }
-      }
-    }
-  } catch { /* not an extraction row (e.g. a correction) → fall through to mention check */ }
-  if (best !== 'none') return { match: best, who };
-  if (mentions(rawOutput, requesterNorm) || mentions(String(row.input ?? ''), requesterNorm) || mentions(JSON.stringify(row), requesterNorm)) {
-    return { match: 'mention', who: '' };
-  }
-  return { match: 'none', who: '' };
-}
-const rankOf = (m: MatchKind): number => (m === 'exact' ? 2 : m === 'fuzzy' ? 1 : 0);
 export interface MentionItem {
   /** Stable id the operator references to FLAG this mention for whole deletion (ERASURE-FLAGS). Derived
    *  from note+store+array-index, so it is identical across previews of the same extraction and lets
@@ -109,15 +80,12 @@ export interface ErasurePlan {
   autoDelete: ErasureItem[]; // exact structured matches — deleted on commit
   fuzzyCandidates: ErasureItem[]; // partial matches — deleted ONLY if confirmed
   keptMentions: MentionItem[]; // free-text mentions — kept
-  logRowIds: string[]; // extraction-log rows referencing the requester — purged on commit
 }
 
 /** Which fuzzy candidates the operator confirmed (by note + store + who). */
 export interface FuzzyKey { noteId: string; store: WhoStore; who: string }
 export interface CommitOptions {
   confirmFuzzy?: FuzzyKey[];
-  /** [ARCHIVE] fuzzy-match archive rows the operator confirmed (by object + row id). */
-  confirmArchiveRows?: Array<{ objectKey: string; rowId: string }>;
   /** [ERASURE-FLAGS] keptMention ids the operator judged to be ABOUT the requester. Each names a
    *  free-text array element (key_date/next_step/concern) by its stable id; commit deletes that element
    *  WHOLE — never edits it, never touches an unflagged sibling. Ids for other notes/stores are ignored. */
@@ -138,12 +106,10 @@ interface Extraction2 { [k: string]: unknown }
 export interface ErasureDeps {
   clients: ClientRepository;
   notes: NoteRepository;
-  extractionLog: ExtractionLogRepository;
   audit: ErasureAuditRepository;
-  /** [ARCHIVE] the training archive (object storage, outside the DB cascade). Both required to cover
-   *  it; absent → the archive is not scanned (dev/in-memory without archival). */
-  archiveIndex?: ArchiveIndexRepository;
-  archiveStorage?: Storage;
+  /** [NO-TRAINING-RETENTION] the per-rep glossary — rows matching the requester's names/aliases are
+   *  deleted on erasure. Absent → not scanned (dev/in-memory without it). */
+  repGlossary?: RepGlossaryRepository;
   /** [ERASURE Task 3] the MAIN blob store (voice recordings). A recording WHOLLY about the requester
    *  (the note's client IS the erased party) is deleted; a delete failure fails the whole commit
    *  (retryable), never a silent gap. Absent → audio is not reached (dev/in-memory without a blob store). */
@@ -170,7 +136,7 @@ export class ErasureService {
   /** Compute the erasure plan WITHOUT changing anything. */
   async preview(userId: string, requesterNames: string[]): Promise<ErasurePlan> {
     const rn = requesterNames.map(norm).filter(Boolean);
-    const plan: ErasurePlan = { requesterNames, autoDelete: [], fuzzyCandidates: [], keptMentions: [], logRowIds: [] };
+    const plan: ErasurePlan = { requesterNames, autoDelete: [], fuzzyCandidates: [], keptMentions: [] };
     if (rn.length === 0) return plan; // no identity → nothing (unknown-counterparty is a no-op)
 
     for (const note of await this.allNotes(userId)) {
@@ -197,60 +163,19 @@ export class ErasureService {
       asArr(ex.personal_facts).forEach((f, idx) => { if (matchName(f.subject as string, rn) === 'none' && mentions(f.fact as string, rn)) plan.keptMentions.push({ id: mentionId(note.id, 'personal_fact_body', idx), noteId: note.id, clientId: note.clientId, store: 'personal_fact_body', snippet: String(f.fact) }); });
     }
 
-    // Training-log hot table (ruling 3): rows whose free-text input/output names the requester.
-    for (const row of await this.deps.extractionLog.listByUser(userId)) {
-      if (mentions(row.input, rn) || mentions(row.rawOutput, rn)) plan.logRowIds.push(row.id);
-    }
-
-    // Training ARCHIVE (object storage, outside the DB cascade) — same who-field rule per row. Listed
-    // alongside the DB rows so the operator sees one preview. Best-effort per object here; commit is
-    // the fail-loud gate (Task 4).
-    if (this.deps.archiveIndex && this.deps.archiveStorage) {
-      for (const obj of await this.deps.archiveIndex.listByUser(userId)) {
-        let rows: Array<Record<string, unknown>>;
-        try { rows = parseNdjson(await this.deps.archiveStorage.get(obj.objectKey)); } catch { continue; }
-        for (const row of rows) {
-          const { match, who } = classifyArchiveRow(row, rn);
-          if (match === 'exact' || match === 'fuzzy') {
-            const item: ErasureItem = { noteId: String(row.noteId ?? ''), clientId: '', store: 'archive', match, who, objectKey: obj.objectKey, rowId: String(row.id ?? '') };
-            (match === 'exact' ? plan.autoDelete : plan.fuzzyCandidates).push(item);
-          } else if (match === 'mention') {
-            plan.keptMentions.push({ id: mentionId(String(row.noteId ?? ''), `archive:${obj.collection}`, 0), noteId: String(row.noteId ?? ''), clientId: '', store: `archive:${obj.collection}`, snippet: '(archived training row — mention only)' });
-          }
-        }
-      }
-    }
+    // [NO-TRAINING-RETENTION, 2026-10-02] The extraction log holds NO conversation content any more
+    // (metadata only) and the training archive was deleted, so there is nothing in either to match or
+    // erase — both passes are gone. The per-rep glossary is purged by term in commit().
     return plan;
   }
 
   /** Execute the erasure. Deletes exact structured matches + confirmed fuzzy + log rows; keeps mentions. */
   async commit(userId: string, requesterNames: string[], opts: CommitOptions = {}): Promise<ErasureResult> {
     const rn = requesterNames.map(norm).filter(Boolean);
-    const counts: Record<string, number> = { people: 0, personal_facts: 0, unanswered_questions: 0, messages: 0, embeddings_cleared: 0, training_logs: 0, training_archive: 0, recordings_deleted: 0, recordings_already_expired: 0 };
+    const counts: Record<string, number> = { people: 0, personal_facts: 0, unanswered_questions: 0, messages: 0, embeddings_cleared: 0, recordings_deleted: 0, recordings_already_expired: 0, glossary_terms: 0 };
     const needsReview: SummaryCandidate[] = []; // [ERASURE-SUMMARY] rewritten summaries still naming her
     if (rn.length === 0) return { categories: [], needsReview }; // unknown counterparty → nothing happens, nothing recorded
     const clientNames = new Map((await this.deps.clients.listByUser(userId)).map((c) => [c.id, c.name]));
-
-    // [ARCHIVE] Purge the training archive FIRST (Task 2). It is object storage outside the DB cascade
-    // and the riskiest step; going first keeps a storage failure retryable (nothing else changed yet)
-    // and makes commit the fail-loud gate — a throw here means the erasure does NOT complete (Task 4).
-    if (this.deps.archiveIndex && this.deps.archiveStorage) {
-      const confirmedArchive = new Set((opts.confirmArchiveRows ?? []).map((k) => `${k.objectKey}|${k.rowId}`));
-      for (const obj of await this.deps.archiveIndex.listByUser(userId)) {
-        const rows = parseNdjson(await this.deps.archiveStorage.get(obj.objectKey)); // throws if unreachable → fail loud
-        const survivors = rows.filter((row) => {
-          const { match } = classifyArchiveRow(row, rn);
-          if (match === 'exact') return false; // about → purge (whole row)
-          if (match === 'fuzzy') return !confirmedArchive.has(`${obj.objectKey}|${String(row.id ?? '')}`);
-          return true; // mention / none → keep whole
-        });
-        if (survivors.length !== rows.length) {
-          counts.training_archive! += rows.length - survivors.length;
-          await this.deps.archiveStorage.put(obj.objectKey, enc.encode(toNdjson(survivors)));
-          await this.deps.archiveIndex.upsert(userId, { collection: obj.collection, partition: obj.partition, objectKey: obj.objectKey, rowCount: survivors.length });
-        }
-      }
-    }
 
     const confirmed = new Set((opts.confirmFuzzy ?? []).map((k) => `${k.noteId}|${k.store}|${norm(k.who)}`));
     const flagged = new Set(opts.flaggedMentionIds ?? []); // [ERASURE-FLAGS] operator-flagged free-text ids
@@ -352,8 +277,12 @@ export class ErasureService {
       }
     }
 
-    const logIds = (await this.deps.extractionLog.listByUser(userId)).filter((r) => mentions(r.input, rn) || mentions(r.rawOutput, rn)).map((r) => r.id);
-    if (logIds.length > 0) counts.training_logs = await this.deps.extractionLog.deleteByIds(userId, logIds);
+    // [NO-TRAINING-RETENTION] The per-rep glossary (rep_glossary) often holds client names/aliases. Delete
+    // every glossary pair whose wrong/right term matches one of the requester's names/aliases.
+    if (this.deps.repGlossary) {
+      const removed = await this.deps.repGlossary.deleteByTerms(userId, requesterNames);
+      if (removed > 0) counts.glossary_terms = removed;
+    }
 
     const categories = toCategories(counts);
     await this.deps.audit.record(userId, { requesterNames, categories, outcome: 'committed' });
@@ -386,14 +315,6 @@ export class ErasureService {
 
 function asArr(v: unknown): Array<Record<string, unknown>> {
   return Array.isArray(v) ? (v as Array<Record<string, unknown>>) : [];
-}
-function toNdjson(rows: unknown[]): string {
-  return rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : '');
-}
-function parseNdjson(bytes: Uint8Array): Array<Record<string, unknown>> {
-  const text = dec.decode(bytes).trim();
-  if (!text) return [];
-  return text.split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 function toCategories(counts: Record<string, number>): ErasureCategoryCount[] {
   return Object.entries(counts).filter(([, n]) => n > 0).map(([category, deleted]) => ({ category, deleted }));

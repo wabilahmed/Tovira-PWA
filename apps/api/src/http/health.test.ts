@@ -90,22 +90,21 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
   });
 });
 
-// [TRAINING-METRICS] /health must surface training-log volume so an empty log can never look like a
-// working one (the dark-metrics shape). Cached aggregate — no DB scan per health check.
-describe('[TRAINING-METRICS] /health surfaces training-log volume', () => {
+// [EXTRACTION-METRICS] /health must surface extraction-log volume so an empty log can never look like a
+// working one (the dark-metrics shape). Counts only, no content ([NO-TRAINING-RETENTION]). Cached
+// aggregate — no DB scan per health check.
+describe('[EXTRACTION-METRICS] /health surfaces extraction-log volume', () => {
   let server: Server;
   let base: string;
   let deps: ReturnType<typeof buildInMemoryDeps>;
 
   beforeAll(async () => {
     deps = buildInMemoryDeps();
-    // Seed: two usable rows + one empty-output (starved) row, on two prompt versions, + a correction.
-    await deps.extractionLog.log('u1', { noteId: 'n1', promptVersion: PROMPT_VERSION, model: 'stub', input: 'a', rawOutput: '{}', status: 'extracted', inputTokens: 1, outputTokens: 1, latencyMs: 1 });
-    await deps.extractionLog.log('u1', { noteId: 'n2', promptVersion: PROMPT_VERSION, model: 'stub', input: 'b', rawOutput: '', status: 'needs_review', inputTokens: 1, outputTokens: 0, latencyMs: 1 });
-    await deps.extractionLog.log('u2', { noteId: 'n3', promptVersion: 'tovira-extract-v0.9.1', model: 'stub', input: 'c', rawOutput: '{}', status: 'extracted', inputTokens: 1, outputTokens: 1, latencyMs: 1 });
-    await deps.corrections.record('u1', { noteId: 'n1', entityType: 'promise', entityId: 'p', field: 'text', before: 'x', after: 'y', promptVersion: PROMPT_VERSION });
-    // An archived partition (2 rows) — hot total + archived = the true corpus size.
-    await deps.archiveIndex.upsert('u2', { collection: 'extraction_logs', partition: '2026-08', objectKey: 'training-archive/extraction_logs/u2/2026-08.ndjson', rowCount: 2 });
+    // Seed: two normal rows + one starved (zero facts proposed) row, on two prompt versions, + a verdict.
+    await deps.extractionLog.log('u1', { noteId: 'n1', promptVersion: PROMPT_VERSION, model: 'stub', status: 'extracted', inputTokens: 1, outputTokens: 1, latencyMs: 1, factsProposed: 2, factsAccepted: 2, factsRejected: 0, rejectedByReason: {} });
+    await deps.extractionLog.log('u1', { noteId: 'n2', promptVersion: PROMPT_VERSION, model: 'stub', status: 'needs_review', inputTokens: 1, outputTokens: 0, latencyMs: 1, factsProposed: 0, factsAccepted: 0, factsRejected: 0, rejectedByReason: {} });
+    await deps.extractionLog.log('u2', { noteId: 'n3', promptVersion: 'tovira-extract-v0.9.1', model: 'stub', status: 'extracted', inputTokens: 1, outputTokens: 1, latencyMs: 1, factsProposed: 1, factsAccepted: 1, factsRejected: 0, rejectedByReason: {} });
+    await deps.corrections.record('u1', { noteId: 'n1', entityType: 'promise', entityId: 'p', field: 'text', verdict: 'edit', correctionKind: 'wrong_value', dateDeltaDays: null, promptVersion: PROMPT_VERSION });
     await (deps.trainingLog as TrainingLogStatsService).refresh(); // warm the cache for a deterministic read
     server = createApiServer(deps);
     await new Promise<void>((r) => server.listen(0, r));
@@ -116,16 +115,17 @@ describe('[TRAINING-METRICS] /health surfaces training-log volume', () => {
   it('reports total / last24h / empty-output / corrections / by-version', async () => {
     const res = await fetch(`${base}/health`, ops); // trainingLog is ops-token-gated (HEALTH-LEAK)
     const body = (await res.json()) as {
-      trainingLog: { total: number; last24h: number; emptyOutput: number; corrections: number; archived: number; byPromptVersion: Record<string, number>; archiveJob: unknown };
+      trainingLog: { total: number; last24h: number; emptyOutput: number; corrections: number; byPromptVersion: Record<string, number> };
     };
     expect(body.trainingLog.total).toBe(3);
     expect(body.trainingLog.last24h).toBe(3); // all just written
-    expect(body.trainingLog.emptyOutput).toBe(1); // the starved row
+    expect(body.trainingLog.emptyOutput).toBe(1); // the starved row (zero facts proposed)
     expect(body.trainingLog.corrections).toBe(1);
-    expect(body.trainingLog.archived).toBe(2); // hot total (3) + archived (2) = true corpus
     expect(body.trainingLog.byPromptVersion[PROMPT_VERSION]).toBe(2);
     expect(body.trainingLog.byPromptVersion['tovira-extract-v0.9.1']).toBe(1);
-    expect('archiveJob' in body.trainingLog).toBe(true); // the archive job's last run rides in the block
+    // [NO-TRAINING-RETENTION] the archive subsystem is gone — no `archived` count, no `archiveJob`.
+    expect(body.trainingLog).not.toHaveProperty('archived');
+    expect(body.trainingLog).not.toHaveProperty('archiveJob');
   });
 });
 

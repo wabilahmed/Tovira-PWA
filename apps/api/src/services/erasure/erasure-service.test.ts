@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { ErasureService } from './erasure-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
-import { InMemoryExtractionLogRepository } from '../../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryErasureAuditRepository } from '../../adapters/erasure/in-memory-erasure-audit-repository.js';
 
 /**
@@ -13,10 +12,9 @@ import { InMemoryErasureAuditRepository } from '../../adapters/erasure/in-memory
 function make() {
   const clients = new InMemoryClientRepository();
   const notes = new InMemoryNoteRepository();
-  const extractionLog = new InMemoryExtractionLogRepository();
   const audit = new InMemoryErasureAuditRepository();
-  const svc = new ErasureService({ clients, notes, extractionLog, audit });
-  return { clients, notes, extractionLog, audit, svc };
+  const svc = new ErasureService({ clients, notes, audit });
+  return { clients, notes, audit, svc };
 }
 
 // A note whose extraction has: a personal_fact ABOUT Khalid, a person entry for Khalid, and a

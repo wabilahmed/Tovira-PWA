@@ -93,9 +93,6 @@ import type { ExtractionLimiter } from './services/extraction/limiter.js';
 import type { ExtractionLogRepository } from './ports/extraction-log-repository.js';
 import { InMemoryExtractionLogRepository } from './adapters/logs/in-memory-extraction-log-repository.js';
 import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-repository.js';
-import type { ArchiveIndexRepository } from './ports/archive-index-repository.js';
-import { InMemoryArchiveIndexRepository } from './adapters/logs/in-memory-archive-index-repository.js';
-import { PgArchiveIndexRepository } from './adapters/logs/pg-archive-index-repository.js';
 import type { SpendLedgerRepository } from './ports/spend-ledger-repository.js';
 import { InMemorySpendLedgerRepository } from './adapters/spend/in-memory-spend-ledger-repository.js';
 import { PgSpendLedgerRepository } from './adapters/spend/pg-spend-ledger-repository.js';
@@ -128,6 +125,9 @@ import { FollowUpService } from './services/followup/follow-up-service.js';
 import type { CorrectionRepository } from './ports/correction-repository.js';
 import { InMemoryCorrectionRepository } from './adapters/corrections/in-memory-correction-repository.js';
 import { PgCorrectionRepository } from './adapters/corrections/pg-correction-repository.js';
+import type { RepGlossaryRepository } from './ports/rep-glossary-repository.js';
+import { InMemoryRepGlossaryRepository } from './adapters/glossary/in-memory-rep-glossary-repository.js';
+import { PgRepGlossaryRepository } from './adapters/glossary/pg-rep-glossary-repository.js';
 import type { MeetingRepository } from './ports/meeting-repository.js';
 import { InMemoryMeetingRepository } from './adapters/meetings/in-memory-meeting-repository.js';
 import { PgMeetingRepository } from './adapters/meetings/pg-meeting-repository.js';
@@ -434,21 +434,13 @@ export function createEmbedder(config: AppConfig): Embedder {
   return new StubEmbedder(config.embedDim);
 }
 
-/** The extraction training log (P1-8), RLS-backed on pg. */
+/** The extraction operational log (P1-8), RLS-backed on pg. [NO-TRAINING-RETENTION] metadata only. */
 export function createExtractionLogRepository(config: AppConfig, pool?: Pool): ExtractionLogRepository {
   if (config.authStore === 'postgres') {
     if (!pool) throw new Error('authStore=postgres requires a database pool');
     return new PgExtractionLogRepository(pool);
   }
   return new InMemoryExtractionLogRepository();
-}
-
-export function createArchiveIndexRepository(config: AppConfig, appPool?: Pool, rootPool?: Pool): ArchiveIndexRepository {
-  if (config.authStore === 'postgres') {
-    if (!appPool) throw new Error('authStore=postgres requires a database pool');
-    return new PgArchiveIndexRepository(appPool, rootPool ?? appPool);
-  }
-  return new InMemoryArchiveIndexRepository();
 }
 
 export function createSensitiveFlagStatsRepository(config: AppConfig, appPool?: Pool): SensitiveFlagStatsRepository {
@@ -540,7 +532,7 @@ export function createExtractionService(
   notes: NoteRepository,
   facts: FactsRepository,
   logs: ExtractionLogRepository,
-  corrections?: CorrectionRepository,
+  repGlossary?: RepGlossaryRepository,
   router?: ModelRouter,
   limiter?: ExtractionLimiter,
   meetings?: MeetingRepository,
@@ -554,7 +546,16 @@ export function createExtractionService(
   verifiedGate?: { isVerified(userId: string): Promise<boolean> },
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, corrections, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, spendGate, aliasesFor, health, verifiedGate);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, spendGate, aliasesFor, health, verifiedGate);
+}
+
+/** [NO-TRAINING-RETENTION] The operational per-rep glossary (P4-9), RLS-backed on pg. */
+export function createRepGlossaryRepository(config: AppConfig, pool?: Pool): RepGlossaryRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgRepGlossaryRepository(pool);
+  }
+  return new InMemoryRepGlossaryRepository();
 }
 
 /** The requirements spine store (INV-MATCH), RLS-backed on pg. */
@@ -594,7 +595,8 @@ export function createExtractionModelRouter(
   );
 }
 
-/** The rep-corrections training log (P2-3), RLS-backed on pg. */
+/** The rep-corrections log (P2-3) — human verdicts (confirm/reject/edit) + inferred kind, RLS-backed on
+ *  pg. [NO-TRAINING-RETENTION] operational metadata, no before/after content. */
 export function createCorrectionRepository(config: AppConfig, pool?: Pool): CorrectionRepository {
   if (config.authStore === 'postgres') {
     if (!pool) throw new Error('authStore=postgres requires a database pool');
@@ -742,15 +744,14 @@ export function createBillingService(config: AppConfig, pool?: Pool, emailHook?:
   return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook, vat, invoiceTax);
 }
 
-export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository, archiveIndex?: ArchiveIndexRepository, archiveStorage?: Storage, blobStorage?: Storage): AccountService {
-  // On Postgres, deleting the user cascades all data (FKs, incl. extraction_logs + corrections) — no
-  // explicit purge list. Recall sessions, aliases + rep name are purged explicitly (also cascade-
-  // backed) so delete works in-memory too.
-  const purgeables = [aliases, repNames].filter((p): p is ContactAliasRepository | RepNameRepository => !!p);
-  // [EXPORT-TRAINING] pass the training-log + correction repos so the account EXPORT carries them.
-  // [TRAINING-DELETE] pass the archive index + blob store so deletion purges archived objects (the FK
-  // cascade can't reach object storage) and export reads them back.
-  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases, extractionLog, corrections, archiveIndex, archiveStorage, blobStorage);
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository, repGlossary?: RepGlossaryRepository, blobStorage?: Storage): AccountService {
+  // On Postgres, deleting the user cascades all data (FKs, incl. extraction_logs + corrections +
+  // rep_glossary) — no explicit purge list. Recall sessions, aliases, rep name + glossary are purged
+  // explicitly (also cascade-backed) so delete works in-memory too.
+  const purgeables = [aliases, repNames, repGlossary].filter((p): p is NonNullable<typeof p> => !!p);
+  // Pass the extraction-log + correction + glossary repos so the account EXPORT carries them (all
+  // operational, no conversation content — [NO-TRAINING-RETENTION]).
+  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases, extractionLog, corrections, repGlossary, blobStorage);
 }
 
 export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {

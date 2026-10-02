@@ -3,12 +3,13 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { FactsRepository, PromisePatch } from '../ports/facts-repository.js';
 import type { NoteRepository } from '../ports/note-repository.js';
 import type { CorrectionRepository } from '../ports/correction-repository.js';
+import type { RepGlossaryRepository } from '../ports/rep-glossary-repository.js';
 import type { ExtractionLogRepository } from '../ports/extraction-log-repository.js';
 import type { LedgerService } from '../services/ledger/ledger-service.js';
 import type { MeetingRepository } from '../ports/meeting-repository.js';
 import { pendingConfirmations } from '../services/facts/confirmation.js';
 import { isStalePromise } from '../services/facts/promise-lifecycle.js';
-import { recordVerdict, serialisePromise, REJECTED_FIELD, CONFIRMED_FIELD } from '../services/facts/verdict.js';
+import { recordVerdict } from '../services/facts/verdict.js';
 import { withReceipt } from '../services/receipts/receipt.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
@@ -17,6 +18,8 @@ export interface FactsRouteDeps {
   facts: FactsRepository;
   corrections: CorrectionRepository;
   extractionLog: ExtractionLogRepository;
+  /** [NO-TRAINING-RETENTION] operational per-rep glossary — edit verdicts upsert term pairs here. */
+  glossary?: RepGlossaryRepository;
   ledger?: LedgerService;
   /** NUDGE-UNCONFIRMED: unconfirmed proposed meetings ride the same confirmation queue. */
   meetings?: MeetingRepository;
@@ -104,9 +107,8 @@ export async function handleFactsRoute(
         noteId: confirmed.noteId,
         entityType: 'promise',
         entityId: promiseId,
-        field: CONFIRMED_FIELD,
-        before: serialisePromise(confirmed),
-        after: 'confirmed',
+        verdict: 'confirm',
+        field: '',
       });
     }
     sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
@@ -143,9 +145,8 @@ export async function handleFactsRoute(
         noteId: rejected.noteId,
         entityType: 'promise',
         entityId: id,
-        field: REJECTED_FIELD,
-        before: serialisePromise(rejected),
-        after: null,
+        verdict: 'reject',
+        field: '',
       });
     }
     // No orphaned value claims: dropping the promise removes any ledger entry (P4-11).
@@ -154,7 +155,7 @@ export async function handleFactsRoute(
     return true;
   }
 
-  // PATCH: edit + record before/after as training data.
+  // PATCH: edit + record the verdict (edit) and inferred kind — no before/after content retained.
   try {
     const before = await deps.facts.getPromise(userId, id);
     if (!before) {
@@ -182,7 +183,7 @@ export async function handleFactsRoute(
       await recordVerdict(
         deps,
         userId,
-        { noteId: before.noteId, entityType: 'promise', entityId: id, field: logField, before: beforeVal, after },
+        { noteId: before.noteId, entityType: 'promise', entityId: id, verdict: 'edit', field: logField, before: beforeVal, after },
         promptVersion,
       );
     }
