@@ -47,8 +47,8 @@ resource "aws_iam_role_policy" "task_bedrock" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["bedrock:InvokeModel"]
+      Effect = "Allow"
+      Action = ["bedrock:InvokeModel"]
       # All-region foundation-model scope (not pinned to one region): InvokeModel on a
       # foundation model is the only Bedrock right the task needs, and pinning the region
       # is what silently denied us when BEDROCK_REGION and this ARN drifted apart. The `*`
