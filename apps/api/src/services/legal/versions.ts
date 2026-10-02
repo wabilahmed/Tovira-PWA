@@ -10,17 +10,20 @@
  * one source of truth, not three.
  */
 
-/** Terms of Service version. Derivation: matches "Last updated: 22 September 2026" on the published
- *  Terms page (apps/web/terms/index.html) — the last time the Terms wording changed. The reconcile
- *  guard proves the page and this constant agree. (The former CONSENT_POLICY_VERSION was '2026-08-01',
- *  a pre-publication DRAFT stamp; accounts that recorded it keep it — an accurate record of the draft
- *  text they saw, archived under legal-archive/2026-08-01/.) */
-export const TERMS_VERSION = '2026-09-22';
+/** Terms of Service version. Derivation: matches "Last updated: 2 October 2026" on the published Terms
+ *  page (apps/web/terms/index.html) — the last time the Terms wording changed (the 2026-10-02 revision
+ *  rewrote the voice-note clause to 4.10). The reconcile guard proves the page and this constant agree.
+ *  (The former CONSENT_POLICY_VERSION was '2026-08-01', a pre-publication DRAFT stamp; accounts that
+ *  recorded it keep it — an accurate record of the draft text they saw, archived under
+ *  legal-archive/2026-08-01/. The prior published version is legal-archive/2026-09-22/.) */
+export const TERMS_VERSION = '2026-10-02';
 
-/** Privacy Policy version. Derivation: matches "Last updated: 22 September 2026" on the published
- *  Privacy page (apps/web/privacy/index.html). Tracked separately from TERMS so the two can diverge
- *  when only one document changes; today they are the same date. */
-export const PRIVACY_VERSION = '2026-09-22';
+/** Privacy Policy version. Derivation: matches "Last updated: 2 October 2026" on the published Privacy
+ *  page (apps/web/privacy/index.html) — the 2026-10-02 revision corrected the voice redaction claim,
+ *  added the recording-retention and access-request disclosures, and the image-storage statement.
+ *  Tracked separately from TERMS so the two can diverge when only one document changes; today they are
+ *  the same date. Prior published version: legal-archive/2026-09-22/. */
+export const PRIVACY_VERSION = '2026-10-02';
 
 /** Version of the access-request confirmation checkbox wording (BETA-3). Derivation: the date that
  *  exact confirmation sentence was fixed — authored in this batch, 2026-10-01. It is NOT terms

@@ -40,8 +40,8 @@ describe('[BETA-6] invite acceptance routes', () => {
     const res = await req('GET', `/auth/invite?token=${encodeURIComponent(token)}`);
     const body = await res.json() as { valid: boolean; termsVersion: string; privacyVersion: string };
     expect(body.valid).toBe(true);
-    expect(body.termsVersion).toBe('2026-09-22');
-    expect(body.privacyVersion).toBe('2026-09-22');
+    expect(body.termsVersion).toBe('2026-10-02');
+    expect(body.privacyVersion).toBe('2026-10-02');
     // peeking did not consume it
     expect((await (await req('GET', `/auth/invite?token=${encodeURIComponent(token)}`)).json() as { valid: boolean }).valid).toBe(true);
     expect((await req('GET', '/auth/invite?token=bogus')).status).toBe(200);

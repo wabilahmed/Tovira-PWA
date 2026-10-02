@@ -53,9 +53,14 @@ describe('[SITE / LEGAL] Privacy & Terms are published, not drafts', () => {
     expect(t).toMatch(/export your data first/i); // 12.4 — deletion is immediate
   });
 
-  it('[LEGAL-REVIEW] terms carry the revised clauses (4.4g, 4.6, 4.7, 4.9, 6.2, 6.6, 10.1-10.3, 13.3)', () => {
+  it('[LEGAL-REVIEW] terms carry the revised clauses (4.10, 4.6, 4.7, 4.9, 6.2, 6.6, 10.1-10.3, 13.3)', () => {
     const t = read(TERMS);
-    expect(t).toMatch(/Voice notes are for your own record of a meeting/i); // 4.4(g)
+    // 4.10 (the 2026-10-02 revision; replaced the old 4.4(g) voice-note warranty): the stronger
+    // voice-note clause — the ceiling wording "no feature for adding an audio file recorded elsewhere"
+    // (never "mic only", never "we detect circumvention") plus the UAE criminal-offence notice.
+    expect(t).toMatch(/Tovira's voice capture is for recording your own notes/i); // 4.10
+    expect(t).toMatch(/no feature for adding an audio file recorded elsewhere/i);
+    expect(t).toMatch(/criminal offence in the United Arab Emirates/i);
     expect(t).toMatch(/we record your organisation, your role, and the basis/i); // 4.6 reasonable checks
     expect(t).toMatch(/may suspend or remove content we reasonably believe/i); // 4.6 suspend suspect content
     expect(t).toMatch(/only to the extent they are caused by your breach/i); // 4.7 indemnity narrowed
