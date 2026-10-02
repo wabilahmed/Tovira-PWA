@@ -1,7 +1,17 @@
-/* Tovira self-hosted typefaces (§ brand): Fraunces (display) + IBM Plex
- * Sans/Arabic/Mono. Only the slices actually used are imported — the same
- * subset as the product app. No CDN, no extra weights. */
+/* Tovira self-hosted typefaces (§ brand): Fraunces (display, still used by the product app + email) +
+ * IBM Plex Sans/Arabic/Mono, and Archivo (display) for the Starfield marketing landing. Self-hosted via
+ * @fontsource — NO CDN (the landing's Google Fonts <link> was removed per the brand's no-CDN rule).
+ * Only the slices actually used are imported. */
 @import '@fontsource-variable/fraunces/standard.css';
+/* Archivo — the Starfield landing's display face (weights 400–800, matching its headings/nav/mark). No
+ * @fontsource package exists for "Archivo Condensed", and the landing declares but never uses it, so it
+ * is not imported (the --font-cond token falls back to Archivo). */
+@import '@fontsource/archivo/latin-400.css';
+@import '@fontsource/archivo/latin-500.css';
+@import '@fontsource/archivo/latin-600.css';
+@import '@fontsource/archivo/latin-700.css';
+@import '@fontsource/archivo/latin-800.css';
+@import '@fontsource/ibm-plex-sans/latin-300.css';
 @import '@fontsource/ibm-plex-sans/latin-400.css';
 @import '@fontsource/ibm-plex-sans/latin-500.css';
 @import '@fontsource/ibm-plex-sans/latin-600.css';

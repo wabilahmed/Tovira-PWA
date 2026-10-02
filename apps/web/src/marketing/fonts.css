@@ -1,0 +1,6 @@
+/* [STARFIELD] The landing page's font loader. The landing styles itself INLINE in index.html and does
+ * NOT load site.css (that is the legal pages' stylesheet, which drags in the light Ledger primitives).
+ * It still needs the self-hosted faces, so it links this one file, which pulls the shared brand registry
+ * (Archivo + IBM Plex Sans/Mono — and Fraunces, which the landing does not use but the registry carries
+ * for the app/email). No CDN. */
+@import '../../../../packages/brand/fonts.css';

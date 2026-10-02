@@ -59,10 +59,12 @@ describe('[SITE-5] meta & SEO', () => {
   });
 });
 
-describe('[SITE-5] visible focus (brass) in the stylesheet', () => {
-  it('defines a visible brass focus ring', () => {
-    const css = read('apps/web/src/marketing/site.css');
+describe('[SITE-5] visible focus ring', () => {
+  // CONTRACT: a visible focus ring exists. The Starfield landing styles itself inline in index.html and
+  // its ring is the page's --focus (not the brand --brass), so assert a visible 2px ring where it lives.
+  it('defines a visible focus-visible ring in the landing page', () => {
+    const css = read(EN);
     expect(css).toMatch(/:focus-visible/);
-    expect(css).toMatch(/outline:\s*2px solid var\(--brass\)/);
+    expect(css).toMatch(/outline:\s*2px solid var\(--focus\)/);
   });
 });

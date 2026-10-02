@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en" data-theme="ledger">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f4f1ea" />
+    <meta name="theme-color" content="#0B0918" />
     <title>Tovira: Remember every client conversation</title>
     <meta name="description" content="Forty clients, ten thousand details, one memory. Tovira reads the WhatsApp chats and voice notes you already have and hands back the promise, the question, the personal detail the moment you need them. Field sales, UAE. AED 299/month." />
     <link rel="canonical" href="https://tovira.com/" />
@@ -22,317 +22,472 @@
     <meta name="twitter:title" content="Tovira: Remember every client conversation" />
     <meta name="twitter:description" content="Forty clients, ten thousand details, one memory." />
     <meta name="twitter:image" content="https://tovira.com/og.png" />
-    <link rel="stylesheet" href="/src/marketing/site.css" />
-    <!-- Progressive enhancement: mark that JS is on, so reveal-hidden states apply
-         ONLY with JS. With JS off, everything is visible (see site.css). -->
+    <!-- [STARFIELD] Self-hosted faces only (Archivo + IBM Plex Sans/Mono), no CDN. The page styles itself
+         inline below; it does NOT load site.css (that is the legal pages' light stylesheet). -->
+    <link rel="stylesheet" href="/src/marketing/fonts.css" />
+    <!-- Progressive enhancement: mark that JS is on. (This page is static/visible without it.) -->
     <script>
       document.documentElement.classList.add('js');
     </script>
     <script type="module" src="/src/marketing/main.ts"></script>
+
+    <style>
+      /* FOCUS — a hero that will not hold still, resolving into one bright, certain page.
+         Three acts: overwhelmed -> resolving -> calm. The palette, the density,
+         the type and the words all travel the same arc. DARK ONLY by design. */
+      :root {
+        --a1-bg:#0B0918; --a1-ink:#E8E4F6; --a1-ink2:#817AA6; --a1-line:#1C1734; --a1-frag:rgba(255,255,255,.05);
+        --a2-bg:#120F22; --a2-ink:#E2DEF2; --a2-ink2:#8B84AC; --a2-line:#221D3A; --a2-card:#191430; --a2-inset:#110D22;
+        --a3-bg:#08070F; --a3-end:#211C66; --a3-ink:#F2F0FF; --a3-ink2:#A9A4E0; --a3-line:#30299A; --a3-accent:#9D8BFF;
+        --sig1:#F472A0; --sig2:#4FD1E0; --sig3:#A78BFA; --focus:#9D8BFF;
+        color-scheme: dark;
+        --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+        --font-cond: "Archivo Condensed", "Archivo", Arial, sans-serif;
+        --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--a3-end);
+        color: var(--a3-ink);
+        font-family: var(--font-body);
+        font-size: 17px; line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 68rem; margin: 0 auto; padding-inline: 20px; }
+      .col { max-width: 40rem; }
+      :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+      /* ============ ACT I — overwhelmed ============ */
+      .act1 {
+        position: relative; overflow: hidden;
+        background: linear-gradient(180deg,
+          var(--a1-bg) 0%, var(--a1-bg) 72%, var(--a2-bg) 100%);
+        color: var(--a1-ink);
+      }
+      /* decorative layer dissolves before the act ends, so no edge is visible */
+      .act1::before {
+        content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+        background: radial-gradient(760px 520px at 24% 12%, rgba(120,95,230,.46) 0%, transparent 60%), radial-gradient(700px 480px at 82% 46%, rgba(50,130,200,.36) 0%, transparent 58%);
+        -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 92%);
+        mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 92%);
+      }
+      .act1 .wrap { position: relative; z-index: 2; }
+
+      nav { display:flex; align-items:center; gap:12px; padding-block:18px; flex-wrap:wrap; }
+      .mark { font-family:var(--font-display); font-weight:800; font-size:20px; letter-spacing:-.03em; margin-right:auto; color:var(--a1-ink); }
+      .navlink { font-size:13px; color:var(--a1-ink2); text-decoration:none; font-weight:500; }
+      .navlink:hover { color:var(--a1-ink); }
+
+      .btn { display:inline-block; font-size:14px; font-weight:600; text-decoration:none;
+        padding:10px 18px; border-radius:14px; border:1px solid transparent; cursor:pointer;
+        background:var(--a1-ink); color:var(--a1-bg); }
+      .btn-lg { font-size:16px; padding:14px 26px; }
+      .btn-calm { background:var(--a3-accent); color:var(--a3-bg); }
+      .btn:hover { opacity:.9; }
+
+      /* the pile of unread fragments */
+      .pile {
+        position:absolute; inset:0; z-index:1; pointer-events:none; filter: blur(2.6px);
+        -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 98%);
+        mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 98%);
+      }
+      .frag {
+        position:absolute;
+        font-family:var(--font-mono); font-size:12px; line-height:1.45;
+        background:var(--a1-frag); color:var(--a1-ink2);
+        border:1px solid var(--a1-line);
+        border-radius:14px; padding:7px 10px; max-width:270px;
+        opacity:.6; backdrop-filter: blur(6px);
+      }
+
+      .act1-head {
+        font-family:var(--font-display); font-weight:700;
+        font-size:clamp(2.1rem, 6.2vw, 3.6rem); line-height:1.02;
+        letter-spacing:-.032em; text-wrap:balance; margin:0 0 12px; color:var(--a1-ink);
+      }
+      .act1-sub { font-size:1.0625rem; color:var(--a1-ink2); margin:0 0 10px; line-height:1.5; max-width:34rem; }
+      .eyebrow { font-family:var(--font-mono); font-size:10px; letter-spacing:.16em;
+        text-transform:uppercase; margin:0 0 14px; color:var(--a1-ink2); opacity:.85; }
+
+      .act1-inner { padding-top: clamp(14px,2.2vw,26px); padding-bottom: clamp(54px,6.6vw,78px); }
+
+      /* ============ ACT II — resolving ============ */
+      .act2 {
+        background: linear-gradient(180deg,
+          var(--a2-bg) 0%, var(--a2-bg) 56%, var(--a3-bg) 100%);
+        color: var(--a2-ink); position:relative;
+      }
+      .act2 .wrap { padding-block: clamp(2px,.6vw,7px) clamp(45px,6.3vw,72px); }
+      .act2-head { font-family:var(--font-display); font-weight:700;
+        font-size:clamp(1.7rem,3.8vw,2.3rem); line-height:1.1; letter-spacing:-.028em;
+        text-wrap:balance; margin:0 0 9px; color:var(--a2-ink); }
+      .act2-sub { color:var(--a2-ink2); margin:0 0 14px; max-width:34rem; }
+      .eyebrow.a2 { color:var(--a2-ink2); }
+
+      .grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(255px,1fr)); align-items:start; }
+      .grid > * { min-width:0; }
+
+      .receipt { background:var(--a2-card); border:1px solid var(--a2-line); border-radius:14px; padding:16px 17px; }
+      .receipt .fact { font-weight:600; font-size:.9375rem; line-height:1.4; margin:0 0 11px; color:var(--a2-ink); }
+      .receipt .src { font-family:var(--font-mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; margin:0 0 6px; }
+      .receipt blockquote { font-family:var(--font-mono); font-size:.8125rem; line-height:1.55;
+        background:var(--a2-inset); color:var(--a2-ink); margin:0; padding:10px 11px; border-radius:14px; overflow-wrap:anywhere; }
+      .receipt .stamp { font-family:var(--font-mono); font-size:10.5px; color:var(--a2-ink2); margin:8px 0 0; font-variant-numeric:tabular-nums; }
+      blockquote::before, blockquote::after { content:'"'; font-weight:500; }
+      .s1 .src, .s1 blockquote::before, .s1 blockquote::after { color:var(--sig1); }
+      .s2 .src, .s2 blockquote::before, .s2 blockquote::after { color:var(--sig2); }
+      .s3 .src, .s3 blockquote::before, .s3 blockquote::after { color:var(--sig3); }
+
+      /* Security — a quiet row (not a card grid) in the resolving act, where trust belongs. Hairlines only. */
+      .security { margin-top: clamp(28px,4.4vw,48px); }
+      .security h3 { font-family:var(--font-display); font-weight:600; font-size:1.0625rem; letter-spacing:-.02em; color:var(--a2-ink); margin:0 0 4px; }
+      .claims { display:grid; gap:0 26px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+      .claim { padding:14px 0; border-top:1px solid var(--a2-line); }
+      .claim p { margin:0; font-size:.875rem; line-height:1.5; color:var(--a2-ink); }
+      .claim .claim__h { font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--a2-ink2); margin:0 0 6px; }
+
+      /* ============ ACT III — calm ============ */
+      .act3 { background: linear-gradient(180deg, var(--a3-bg) 0%, var(--a3-end) 76%, var(--a3-end) 100%); color:var(--a3-ink); }
+      .act3 .wrap { padding-block: clamp(4px,1vw,14px) clamp(42px,5.5vw,62px); }
+      .act3-head {
+        font-family:var(--font-display); font-weight:600;
+        font-size:clamp(2.2rem,5.6vw,3.3rem); line-height:1.1;
+        letter-spacing:-.034em; text-wrap:balance; margin:0 0 22px; color:var(--a3-ink);
+      }
+      .act3 p { color:var(--a3-ink2); font-size:1.125rem; line-height:1.7; margin:0 0 1.2em; max-width:33rem; }
+      .act3 .lines { margin:0 0 20px; }
+      .act3 .lines p { margin:0 0 .55em; font-size:1.25rem; color:var(--a3-ink); font-weight:500; }
+      .turn {
+        font-family:var(--font-display); font-weight:600;
+        font-size:clamp(1.5rem,3.2vw,2rem); line-height:1.18; letter-spacing:-.026em;
+        color:var(--a3-ink) !important; text-wrap:balance; margin:0 0 1.4em !important; max-width:30rem;
+      }
+      .pricing { margin:0 0 26px; }
+      .price { font-size:1.125rem; color:var(--a3-ink); margin:0; max-width:33rem; }
+      .price strong { color:var(--a3-accent); font-weight:600; }
+      .cta-row { display:flex; flex-wrap:wrap; align-items:center; gap:16px; }
+      .note { font-size:.875rem; margin:0; color:var(--a3-ink2); }
+
+      /* FAQ — hairlines, no boxes; the calm act must not acquire six cards at the end. */
+      .faq { margin: clamp(30px,5vw,52px) 0 0; border-top:1px solid var(--a3-line); }
+      .faq details { border-bottom:1px solid var(--a3-line); }
+      .faq summary { cursor:pointer; list-style:none; padding:16px 0;
+        font-family:var(--font-display); font-weight:600; font-size:1.0625rem; color:var(--a3-ink);
+        display:flex; justify-content:space-between; gap:18px; }
+      .faq summary::-webkit-details-marker { display:none; }
+      .faq summary::after { content:"+"; color:var(--a3-ink2); font-weight:400; }
+      .faq details[open] summary::after { content:"\2212"; }
+      .faq details p { margin:0 0 16px; color:var(--a3-ink2); font-size:1rem; line-height:1.6; max-width:34rem; }
+
+      footer { background:var(--a3-end); color:var(--a3-ink2); font-size:.8125rem; }
+      footer .wrap { padding-block:2px 24px; }
+      footer a { color:var(--a3-ink2); text-decoration:none; } footer a:hover { color:var(--a3-ink); }
+      .foot-row { display:flex; flex-wrap:wrap; gap:16px; align-items:baseline; }
+      .foot-row .spacer { margin-left:auto; }
+      .mark.foot { color:var(--a3-ink); font-size:14px; }
+
+      /* Mobile sticky CTA — ships hidden, un-hidden by reveal.ts, slides in once Act I scrolls away. */
+      .mobile-cta { position:fixed; left:0; right:0; bottom:0; z-index:50; display:none;
+        align-items:center; gap:12px; padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+        background:var(--a1-bg); border-top:1px solid var(--a1-line);
+        transform:translateY(110%); transition:transform .25s ease-out; }
+      .mobile-cta span { font-size:12px; color:var(--a1-ink2); margin-right:auto; }
+      .mobile-cta.is-visible { transform:translateY(0); }
+
+      /* ACT I will not hold still: the lens hunts for focus and the fragments twitch. */
+      .pile { animation: hunt 5.2s ease-in-out infinite; }
+      @keyframes hunt {
+        0%,100% { filter: blur(2.6px); }
+        22%     { filter: blur(.9px); }
+        34%     { filter: blur(4.4px); }
+        56%     { filter: blur(1.4px); }
+        71%     { filter: blur(3.6px); }
+      }
+      .frag { animation: twitch 7.5s steps(1) infinite; }
+      .frag:nth-child(2n) { animation-duration: 6.1s;  animation-delay: -1.7s; }
+      .frag:nth-child(3n) { animation-duration: 9.4s;  animation-delay: -4.2s; }
+      .frag:nth-child(5n) { animation-duration: 5.3s;  animation-delay: -2.9s; }
+      .frag:nth-child(7n) { animation-duration: 8.2s;  animation-delay: -6.1s; }
+      @keyframes twitch {
+        0%   { translate: 0 0; }
+        11%  { translate: 10px -7px; }
+        19%  { translate: -13px 5px; }
+        28%  { translate: 4px 12px; }
+        37%  { translate: -8px -10px; }
+        46%  { translate: 15px 3px; }
+        54%  { translate: -5px 9px; }
+        63%  { translate: 11px -12px; }
+        72%  { translate: -14px -4px; }
+        81%  { translate: 6px 8px; }
+        90%  { translate: -9px 2px; }
+        100% { translate: 0 0; }
+      }
+      .act1::before { animation: breathe 11s ease-in-out infinite alternate; }
+      @keyframes breathe { from { transform: scale(1); } to { transform: scale(1.08); } }
+
+      /* ACT II still has the twitch in it — but smaller than Act I, and only in
+         bursts. Each card carries its own signal colour, which flares as it fires. */
+      .act2 .receipt { animation: residual 11s linear infinite; }
+      .act2 .receipt.s1 { --sig-self: var(--sig1); }
+      .act2 .receipt.s2 { --sig-self: var(--sig2); animation-duration: 8.5s;  animation-delay: -3.1s; }
+      .act2 .receipt.s3 { --sig-self: var(--sig3); animation-duration: 13.5s; animation-delay: -6.4s; }
+      @keyframes residual {
+        0%, 85%, 100% { translate: 0 0;        border-color: var(--a2-line); }
+        86%           { translate: 2px -1px;   border-color: var(--sig-self); }
+        87.5%         { translate: -2px 1px;   border-color: var(--sig-self); }
+        89%           { translate: 1px 2px;    border-color: var(--sig-self); }
+        90.5%         { translate: -1px -2px;  border-color: var(--sig-self); }
+        92%           { translate: 2px 1px;    border-color: var(--sig-self); }
+        93.5%         { translate: -1px 0;     border-color: var(--sig-self); }
+        95%           { translate: 0 0;        border-color: var(--a2-line); }
+      }
+
+      /* ACT III ambient — covers the whole section, and is masked at the top so the
+         hand-off from Act II is never interrupted. */
+      .act3 { position: relative; overflow: hidden; }
+      .act3 .wrap { position: relative; z-index: 2; }
+      .ambient {
+        position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden;
+        -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 24%, #000 100%);
+        mask-image: linear-gradient(180deg, transparent 0%, #000 24%, #000 100%);
+      }
+      .ambient > * { position:absolute; inset:-22%; }
+
+      /* ORBS — each one its own element, so each glows on its own clock. */
+      .lyr { position:absolute; inset:-24%; }
+      .lf { animation: pan 64s linear infinite alternate; }
+      .lm { animation: pan 41s linear infinite alternate; }
+      .ln { animation: pan 26s linear infinite alternate; }
+      @keyframes pan { from { transform: translate(5%, 2%); } to { transform: translate(-5%,-2%); } }
+      .orb { position:absolute; border-radius:50%; display:block;
+        animation-name: glow; animation-iteration-count: infinite;
+        animation-direction: alternate; animation-timing-function: ease-in-out; }
+      @keyframes glow { from { opacity:.10; transform: scale(.72); }
+                        to   { opacity:1;   transform: scale(1.14); } }
+
+      @media (max-width: 760px) { .frag:nth-child(n+6) { display:none; } .mobile-cta { display:flex; } }
+      @media (max-width: 480px) { body { font-size:16px; } .act1-inner { padding-bottom: 54px; } }
+
+      /* prefers-reduced-motion is respected globally — kept LAST. */
+      @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+    </style>
   </head>
   <body>
-    <header class="site-head">
-      <div class="wrap site-head__row">
-        <span class="wordmark"><span class="wordmark__accent">T</span>o<span class="wordmark__accent">v</span>ira</span>
-        <nav aria-label="Primary" class="site-head__nav">
-          <a class="site-head__login" href="/app">Log in</a>
-          <a class="cta cta--sm" data-cta href="/request-access">Request beta access</a>
-        </nav>
-      </div>
-    </header>
-
     <main>
-      <!-- §1 HERO - the problem, then the promise -->
-      <section class="sec hero" aria-labelledby="hero-h">
-        <div class="wrap sec__grid">
-          <div class="sec__copy" data-reveal>
-            <p class="eyebrow">FOR FIELD SALES · UAE</p>
-            <h1 id="hero-h">Forty clients.<br />Ten thousand details.<br />One memory.</h1>
-            <p>Every meeting adds something you are expected to remember: what they asked for, what you promised, who really signs off, the daughter starting university. The details that win deals are scattered across your chat history and your head, and neither was built to hold them.</p>
-            <p class="lede">Tovira keeps every one of them, and hands them back the moment you need them.</p>
-            <div class="actions">
-              <a class="cta" data-cta href="/request-access">Request beta access</a>
-              <a class="cta-link" href="#how">See how it works ↓</a>
-            </div>
-            <p class="trust">Tovira is invite-only during beta. We review requests within 2 business days.</p>
-            <p class="trust">AED 299 / month</p>
-          </div>
-          <div class="sec__visual" data-reveal>
-            <div class="device" role="img" aria-label="A Tovira pre-meeting brief: a client, two receipt chits quoting past messages with their dates, and one open promise.">
-              <div class="device__notch" aria-hidden="true"></div>
-              <div class="device__screen">
-                <p class="device__title">A client</p>
-                <p class="device__meta">on file since MAR 2026 · 34 moments</p>
-                <div class="tov-receipt">
-                  <div class="tov-receipt__q">“send the revised quote by Thursday”</div>
-                  <div class="tov-stamp">WHATSAPP · 14 MAR 2026</div>
-                </div>
-                <div class="tov-receipt">
-                  <div class="tov-receipt__q">“the enterprise tier is above our budget”</div>
-                  <div class="tov-stamp">WHATSAPP · 02 APR 2026</div>
-                </div>
-                <p class="device__label">Open promise</p>
-                <p class="device__promise"><span class="tov-dot tov-dot--claret" aria-hidden="true"></span> Revised quote, no sign it was sent</p>
-              </div>
-            </div>
+      <!-- ============ ACT I — the problem ============ -->
+      <section class="act1 hero" aria-label="The problem">
+        <div class="pile" aria-hidden="true">
+          <div class="frag" style="top:46%;  left:-3%;  transform:rotate(-6deg);">can you resend the floor plan? i lost the chat</div>
+          <div class="frag" style="top:58%;  left:14%;  transform:rotate(4deg);">what is the service charge per sqft on this one</div>
+          <div class="frag" style="top:70%;  left:2%;   transform:rotate(-2deg);">any update from the owner on the 2.4?</div>
+          <div class="frag" style="top:52%;  right:4%;  transform:rotate(5deg);">we are still looking, wife wants a second bathroom</div>
+          <div class="frag" style="top:66%;  right:-2%; transform:rotate(-8deg);">no problem take your time</div>
+          <div class="frag" style="top:78%;  right:18%; transform:rotate(3deg);">is it chiller free or no</div>
+          <div class="frag" style="top:84%;  left:28%;  transform:rotate(-4deg);">i'll send it tonight inshallah</div>
+          <div class="frag" style="top:62%;  left:42%;  transform:rotate(6deg);">brother any news</div>
+        </div>
+
+        <div class="wrap act1-inner">
+          <header>
+            <nav>
+              <span class="mark">Tovira</span>
+              <a class="navlink" href="/app">Log in</a>
+              <a class="btn" data-cta href="/request-access">Request beta access</a>
+            </nav>
+          </header>
+
+          <div class="col" style="padding-top:clamp(10px,1.8vw,20px)">
+            <p class="eyebrow">Somewhere in here</p>
+            <h1 class="act1-head">Four hundred clients. Two years of chat. One of them is going cold tonight and you don't know which one.</h1>
+            <p class="act1-sub">A floor plan you promised in March. A question you answered half of. Someone who stopped replying right after you did. It is all still in there. You have just never read it back.</p>
           </div>
         </div>
       </section>
 
-      <div class="lead" data-reveal aria-hidden="true"><span class="lead__line"></span><span class="lead__dot"></span></div>
-
-      <!-- §2 THE COST - deepen the tension -->
-      <section class="sec sec--cost" aria-labelledby="cost-h">
-        <div class="wrap sec__grid sec--reverse">
-          <div class="sec__copy" data-reveal>
-            <h2 id="cost-h">Forgetting is silent.</h2>
-            <p>You never feel the deal you lost to a forgotten promise. There is no moment where it goes wrong. Only a client who slowly stops replying, and a reason you never learn.</p>
-            <p>Twenty relationships is already more than memory holds. Forty is not close.</p>
-          </div>
-          <div class="sec__visual" data-reveal data-stagger aria-hidden="false">
-            <ul class="silence" aria-label="Clients gone quiet">
-              <li class="silence__row" data-stagger-item><span class="silence__name">A client</span><span class="silence__days">silent 21 days</span></li>
-              <li class="silence__row" data-stagger-item><span class="silence__name">Another client</span><span class="silence__days">silent 34 days</span></li>
-              <li class="silence__row" data-stagger-item><span class="silence__name">A third client</span><span class="silence__days">silent 52 days</span></li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <div class="lead" data-reveal aria-hidden="true"><span class="lead__line"></span><span class="lead__dot"></span></div>
-
-      <!-- §3 THE TURN - the promise, plainly -->
-      <section class="sec sec--turn" aria-labelledby="turn-h">
-        <div class="wrap prose-center" data-reveal>
-          <h2 id="turn-h">What if the record kept itself.</h2>
-          <p>You already have the raw material. Every conversation you have had with every client is sitting in your phone. What is missing is something that reads it, remembers it, and speaks up at the right moment.</p>
-          <p class="lede">That is the whole of Tovira.</p>
-        </div>
-      </section>
-
-      <div class="lead" data-reveal aria-hidden="true"><span class="lead__line"></span><span class="lead__dot"></span></div>
-
-      <!-- §4 HOW IT WORKS - three steps, sticky phone on desktop -->
-      <section class="sec" id="how" aria-labelledby="how-h">
+      <!-- ============ ACT II — what Tovira returns ============ -->
+      <section class="act2" aria-label="What Tovira returns">
         <div class="wrap">
-          <h2 id="how-h" data-reveal>Three steps. About a minute of your day.</h2>
-          <div class="how__grid">
-            <ol class="steps">
-              <li class="step" data-reveal data-step="0">
-                <p class="step__n">01 · Capture</p>
-                <p>Talk for thirty seconds in the car after a meeting. Or paste a message. Or export a whole WhatsApp chat and send it over. Months of history in three taps.</p>
-              </li>
-              <li class="step" data-reveal data-step="1">
-                <p class="step__n">02 · Tovira reads it</p>
-                <p>Promises, people, dates, concerns, personal details, pulled out and filed against the right client — even when that client is saved under one name in your phone and goes by another in the chat. Arabic, English, Hindi, Urdu, including all four in one sentence.</p>
-              </li>
-              <li class="step" data-reveal data-step="2">
-                <p class="step__n">03 · It comes back when you need it</p>
-                <p>A brief before the meeting. The day's clients ranked by who needs you, and why. A statement on Monday morning. A quiet word when a client goes quiet. Tovira speaks rarely. When it speaks, act.</p>
-              </li>
-            </ol>
-            <!-- Desktop: this frame pins while the steps scroll; its screen swaps per
-                 step (data-step-screen). Mobile: each step carries its own inline frame. -->
-            <div class="how__frame" aria-hidden="true">
-              <div class="device">
-                <div class="device__notch"></div>
-                <div class="device__screen how__screens">
-                  <div class="how__screen" data-step-screen="0" data-active>
-                    <p class="device__label">Capture</p>
-                    <p class="device__promise"><span class="tov-dot tov-dot--claret"></span> Recording · 00:31</p>
-                    <p class="device__meta">Tap to stop. Kept on your device until it uploads.</p>
-                  </div>
-                  <div class="how__screen" data-step-screen="1">
-                    <p class="device__label">Extracted</p>
-                    <div class="tov-receipt"><div class="tov-receipt__q">Promise · send revised quote</div><div class="tov-stamp">DUE · THIS WEEK</div></div>
-                    <div class="tov-receipt"><div class="tov-receipt__q">Person · the one who signs off</div><div class="tov-stamp">ROLE · DECISION MAKER</div></div>
-                  </div>
-                  <div class="how__screen" data-step-screen="2">
-                    <p class="device__label">The brief</p>
-                    <p class="device__title">A client</p>
-                    <div class="tov-receipt"><div class="tov-receipt__q">“the enterprise tier is above our budget”</div><div class="tov-stamp">WHATSAPP · 02 APR 2026</div></div>
-                  </div>
-                </div>
+          <div class="col">
+            <p class="eyebrow a2">Then it starts coming back</p>
+            <h2 class="act2-head">It hands you back what you dropped.</h2>
+            <p class="act2-sub">Every item carries the exact message it came from, word for word, with its date. Not a summary. Receipts.</p>
+          </div>
+
+          <div class="grid">
+            <div class="receipt s1">
+              <p class="fact">You promised the Marina Gate floor plan. Still open.</p>
+              <p class="src">Promise</p>
+              <blockquote>sure, i'll send you the floor plan for the 2 bed tonight inshallah</blockquote>
+              <p class="stamp">You · 14 Mar · 21:47</p>
+            </div>
+            <div class="receipt s2">
+              <p class="fact">A client asked about service charge. You never answered.</p>
+              <p class="src">Unanswered</p>
+              <blockquote>and what is the service charge per sqft on this one? also is it chiller free</blockquote>
+              <p class="stamp">Received · 2 Apr · 11:03</p>
+            </div>
+            <div class="receipt s3">
+              <p class="fact">A live client has gone quiet. You stopped replying first.</p>
+              <p class="src">Gone quiet</p>
+              <blockquote>no problem, take your time. let me know when you hear back from the owner</blockquote>
+              <p class="stamp">Last message · 9 weeks ago</p>
+            </div>
+          </div>
+
+          <!-- Security — the four sanctioned claims, ported verbatim from the previous page, as a quiet row. -->
+          <div class="security">
+            <h3>It is your book. It stays yours.</h3>
+            <div class="claims">
+              <div class="claim">
+                <p class="claim__h">Isolated and encrypted</p>
+                <p>Your data is encrypted in transit and at rest, and every rep's book is isolated at the database level. One rep can never read another's.</p>
+              </div>
+              <div class="claim">
+                <p class="claim__h">No WhatsApp access</p>
+                <p>Tovira never connects to your WhatsApp account. You send it a file; that is the whole integration. It cannot send messages as you.</p>
+              </div>
+              <div class="claim">
+                <p class="claim__h">Drafts, never autosends</p>
+                <p>Follow-up drafts open in WhatsApp with the text ready. You press send.</p>
+              </div>
+              <div class="claim">
+                <p class="claim__h">Yours to export or erase</p>
+                <p>Export everything, any time, in one file. Delete your account and it is gone, including from our training records.</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <div class="lead" data-reveal aria-hidden="true"><span class="lead__line"></span><span class="lead__dot"></span></div>
-
-      <!-- §5 THE PROOF - receipts deal out (the signature moment) -->
-      <section class="sec sec--proof" aria-labelledby="proof-h">
-        <div class="wrap sec__grid">
-          <div class="sec__copy" data-reveal>
-            <h2 id="proof-h">It never tells you something it cannot show you.</h2>
-            <p>Every fact Tovira surfaces carries the message it came from: the words, the date, the source. If it has nothing on record, it says so rather than filling the gap with something plausible.</p>
-            <p class="standard"><strong>The standard it had to pass:</strong> zero invented commitments. Zero guessed dates. Verified across repeated runs on real conversations, in four languages.</p>
+      <!-- ============ ACT III — what your week looks like ============ -->
+      <section class="act3" aria-label="What your week looks like">
+        <div class="ambient" aria-hidden="true">
+          <div class="lyr lf">
+            <i class="orb" style="left:8.9%;top:50.3%;width:9.6px;height:9.6px;background:radial-gradient(circle,rgba(255,255,255,0.52) 0%,rgba(173,160,255,0.22) 40%,transparent 70%);animation-duration:5.6s;animation-delay:-1.3s"></i>
+            <i class="orb" style="left:60.9%;top:56.1%;width:10.9px;height:10.9px;background:radial-gradient(circle,rgba(255,255,255,0.44) 0%,rgba(173,160,255,0.18) 40%,transparent 70%);animation-duration:9.4s;animation-delay:-7.2s"></i>
+            <i class="orb" style="left:77.1%;top:59.3%;width:8.2px;height:8.2px;background:radial-gradient(circle,rgba(255,255,255,0.45) 0%,rgba(173,160,255,0.19) 40%,transparent 70%);animation-duration:5.7s;animation-delay:-4.6s"></i>
+            <i class="orb" style="left:44.6%;top:84.0%;width:10.4px;height:10.4px;background:radial-gradient(circle,rgba(255,255,255,0.47) 0%,rgba(173,160,255,0.20) 40%,transparent 70%);animation-duration:6.3s;animation-delay:-1.6s"></i>
+            <i class="orb" style="left:101.8%;top:96.4%;width:11.0px;height:11.0px;background:radial-gradient(circle,rgba(255,255,255,0.55) 0%,rgba(173,160,255,0.23) 40%,transparent 70%);animation-duration:8.1s;animation-delay:-0.6s"></i>
+            <i class="orb" style="left:32.8%;top:56.2%;width:8.5px;height:8.5px;background:radial-gradient(circle,rgba(255,255,255,0.41) 0%,rgba(173,160,255,0.17) 40%,transparent 70%);animation-duration:10.3s;animation-delay:-7.2s"></i>
+            <i class="orb" style="left:58.4%;top:-1.3%;width:10.6px;height:10.6px;background:radial-gradient(circle,rgba(255,255,255,0.39) 0%,rgba(173,160,255,0.16) 40%,transparent 70%);animation-duration:7.5s;animation-delay:-3.0s"></i>
+            <i class="orb" style="left:59.3%;top:49.8%;width:7.6px;height:7.6px;background:radial-gradient(circle,rgba(255,255,255,0.43) 0%,rgba(173,160,255,0.18) 40%,transparent 70%);animation-duration:9.5s;animation-delay:-5.7s"></i>
+            <i class="orb" style="left:49.0%;top:95.0%;width:8.3px;height:8.3px;background:radial-gradient(circle,rgba(255,255,255,0.40) 0%,rgba(173,160,255,0.17) 40%,transparent 70%);animation-duration:10.6s;animation-delay:-5.1s"></i>
+            <i class="orb" style="left:51.9%;top:-1.3%;width:8.1px;height:8.1px;background:radial-gradient(circle,rgba(255,255,255,0.33) 0%,rgba(173,160,255,0.14) 40%,transparent 70%);animation-duration:5.3s;animation-delay:-3.7s"></i>
+            <i class="orb" style="left:91.8%;top:7.1%;width:10.1px;height:10.1px;background:radial-gradient(circle,rgba(255,255,255,0.42) 0%,rgba(173,160,255,0.18) 40%,transparent 70%);animation-duration:7.9s;animation-delay:-1.8s"></i>
+            <i class="orb" style="left:91.7%;top:63.7%;width:9.3px;height:9.3px;background:radial-gradient(circle,rgba(255,255,255,0.42) 0%,rgba(173,160,255,0.18) 40%,transparent 70%);animation-duration:10.6s;animation-delay:-10.4s"></i>
+            <i class="orb" style="left:54.9%;top:56.5%;width:10.3px;height:10.3px;background:radial-gradient(circle,rgba(255,255,255,0.38) 0%,rgba(173,160,255,0.16) 40%,transparent 70%);animation-duration:9.8s;animation-delay:-4.9s"></i>
+            <i class="orb" style="left:47.7%;top:91.5%;width:9.2px;height:9.2px;background:radial-gradient(circle,rgba(255,255,255,0.37) 0%,rgba(173,160,255,0.16) 40%,transparent 70%);animation-duration:6.6s;animation-delay:-0.2s"></i>
+            <i class="orb" style="left:66.8%;top:60.5%;width:9.3px;height:9.3px;background:radial-gradient(circle,rgba(255,255,255,0.43) 0%,rgba(173,160,255,0.18) 40%,transparent 70%);animation-duration:7.9s;animation-delay:-7.3s"></i>
+            <i class="orb" style="left:24.1%;top:48.4%;width:9.6px;height:9.6px;background:radial-gradient(circle,rgba(255,255,255,0.51) 0%,rgba(173,160,255,0.21) 40%,transparent 70%);animation-duration:9.8s;animation-delay:-5.5s"></i>
+            <i class="orb" style="left:94.0%;top:85.8%;width:8.6px;height:8.6px;background:radial-gradient(circle,rgba(255,255,255,0.53) 0%,rgba(173,160,255,0.22) 40%,transparent 70%);animation-duration:5.6s;animation-delay:-3.9s"></i>
+            <i class="orb" style="left:80.8%;top:51.6%;width:9.3px;height:9.3px;background:radial-gradient(circle,rgba(255,255,255,0.54) 0%,rgba(173,160,255,0.23) 40%,transparent 70%);animation-duration:10.8s;animation-delay:-9.1s"></i>
+            <i class="orb" style="left:47.7%;top:2.9%;width:8.3px;height:8.3px;background:radial-gradient(circle,rgba(255,255,255,0.42) 0%,rgba(173,160,255,0.18) 40%,transparent 70%);animation-duration:5.6s;animation-delay:-4.2s"></i>
+            <i class="orb" style="left:40.4%;top:44.5%;width:7.1px;height:7.1px;background:radial-gradient(circle,rgba(255,255,255,0.30) 0%,rgba(173,160,255,0.13) 40%,transparent 70%);animation-duration:8.5s;animation-delay:-7.9s"></i>
+            <i class="orb" style="left:5.0%;top:81.7%;width:8.2px;height:8.2px;background:radial-gradient(circle,rgba(255,255,255,0.46) 0%,rgba(173,160,255,0.19) 40%,transparent 70%);animation-duration:9.5s;animation-delay:-9.1s"></i>
+            <i class="orb" style="left:68.2%;top:64.6%;width:7.8px;height:7.8px;background:radial-gradient(circle,rgba(255,255,255,0.38) 0%,rgba(173,160,255,0.16) 40%,transparent 70%);animation-duration:8.5s;animation-delay:-6.5s"></i>
           </div>
-          <div class="sec__visual" data-reveal data-deal aria-hidden="false">
-            <div class="scan">
-              <div class="tov-receipt" data-deal-item>
-                <div class="tov-receipt__label">Open promise</div>
-                <div class="tov-receipt__q">“I'll send the revised quote by Thursday”</div>
-                <div class="tov-stamp">WHATSAPP · 14 MAR 2026</div>
-              </div>
-              <div class="tov-receipt" data-deal-item>
-                <div class="tov-receipt__label">Unanswered question</div>
-                <div class="tov-receipt__q">“can you do better on the bulk price?”</div>
-                <div class="tov-stamp">WHATSAPP · 02 APR 2026</div>
-              </div>
-              <div class="tov-receipt tov-receipt--amber" data-deal-item>
-                <div class="tov-receipt__label">Date to confirm</div>
-                <div class="tov-receipt__q">Their exhibition · March</div>
-                <div class="tov-stamp"><span class="chip-amber">NO YEAR STATED · confirm</span></div>
-              </div>
-            </div>
+          <div class="lyr lm">
+            <i class="orb" style="left:98.6%;top:49.1%;width:17.0px;height:17.0px;background:radial-gradient(circle,rgba(255,255,255,0.49) 0%,rgba(173,160,255,0.21) 40%,transparent 70%);animation-duration:4.5s;animation-delay:-2.6s"></i>
+            <i class="orb" style="left:99.5%;top:90.6%;width:15.5px;height:15.5px;background:radial-gradient(circle,rgba(255,255,255,0.48) 0%,rgba(173,160,255,0.20) 40%,transparent 70%);animation-duration:6.5s;animation-delay:-6.1s"></i>
+            <i class="orb" style="left:80.6%;top:94.8%;width:14.1px;height:14.1px;background:radial-gradient(circle,rgba(255,255,255,0.57) 0%,rgba(173,160,255,0.24) 40%,transparent 70%);animation-duration:7.1s;animation-delay:-3.7s"></i>
+            <i class="orb" style="left:17.2%;top:-2.5%;width:12.7px;height:12.7px;background:radial-gradient(circle,rgba(255,255,255,0.72) 0%,rgba(173,160,255,0.30) 40%,transparent 70%);animation-duration:3.7s;animation-delay:-1.3s"></i>
+            <i class="orb" style="left:34.2%;top:79.1%;width:12.2px;height:12.2px;background:radial-gradient(circle,rgba(255,255,255,0.60) 0%,rgba(173,160,255,0.25) 40%,transparent 70%);animation-duration:5.0s;animation-delay:-1.5s"></i>
+            <i class="orb" style="left:31.2%;top:9.1%;width:18.6px;height:18.6px;background:radial-gradient(circle,rgba(255,255,255,0.62) 0%,rgba(173,160,255,0.26) 40%,transparent 70%);animation-duration:7.1s;animation-delay:-1.1s"></i>
+            <i class="orb" style="left:52.1%;top:42.8%;width:14.4px;height:14.4px;background:radial-gradient(circle,rgba(255,255,255,0.63) 0%,rgba(173,160,255,0.26) 40%,transparent 70%);animation-duration:6.6s;animation-delay:-0.5s"></i>
+            <i class="orb" style="left:39.1%;top:17.1%;width:18.5px;height:18.5px;background:radial-gradient(circle,rgba(255,255,255,0.46) 0%,rgba(173,160,255,0.19) 40%,transparent 70%);animation-duration:6.0s;animation-delay:-5.0s"></i>
+            <i class="orb" style="left:44.8%;top:77.5%;width:13.3px;height:13.3px;background:radial-gradient(circle,rgba(255,255,255,0.66) 0%,rgba(173,160,255,0.28) 40%,transparent 70%);animation-duration:7.5s;animation-delay:-1.0s"></i>
+            <i class="orb" style="left:53.2%;top:80.8%;width:15.6px;height:15.6px;background:radial-gradient(circle,rgba(255,255,255,0.74) 0%,rgba(173,160,255,0.31) 40%,transparent 70%);animation-duration:4.2s;animation-delay:-3.6s"></i>
+            <i class="orb" style="left:38.1%;top:41.9%;width:14.9px;height:14.9px;background:radial-gradient(circle,rgba(255,255,255,0.47) 0%,rgba(173,160,255,0.20) 40%,transparent 70%);animation-duration:4.9s;animation-delay:-1.7s"></i>
+            <i class="orb" style="left:24.5%;top:49.7%;width:17.5px;height:17.5px;background:radial-gradient(circle,rgba(255,255,255,0.57) 0%,rgba(173,160,255,0.24) 40%,transparent 70%);animation-duration:5.6s;animation-delay:-1.8s"></i>
+            <i class="orb" style="left:48.1%;top:9.0%;width:17.6px;height:17.6px;background:radial-gradient(circle,rgba(255,255,255,0.69) 0%,rgba(173,160,255,0.29) 40%,transparent 70%);animation-duration:7.2s;animation-delay:-6.1s"></i>
+            <i class="orb" style="left:21.0%;top:99.0%;width:18.2px;height:18.2px;background:radial-gradient(circle,rgba(255,255,255,0.64) 0%,rgba(173,160,255,0.27) 40%,transparent 70%);animation-duration:5.3s;animation-delay:-4.2s"></i>
+            <i class="orb" style="left:87.7%;top:68.4%;width:18.7px;height:18.7px;background:radial-gradient(circle,rgba(255,255,255,0.56) 0%,rgba(173,160,255,0.23) 40%,transparent 70%);animation-duration:4.2s;animation-delay:-2.4s"></i>
+            <i class="orb" style="left:57.8%;top:54.1%;width:12.8px;height:12.8px;background:radial-gradient(circle,rgba(255,255,255,0.66) 0%,rgba(173,160,255,0.28) 40%,transparent 70%);animation-duration:6.0s;animation-delay:-3.4s"></i>
           </div>
-        </div>
-      </section>
-
-      <div class="lead" data-reveal aria-hidden="true"><span class="lead__line"></span><span class="lead__dot"></span></div>
-
-      <!-- §6 USE CASES - three verticals -->
-      <section class="sec" aria-labelledby="use-h">
-        <div class="wrap">
-          <h2 id="use-h" data-reveal>Built for people whose deals are relationships.</h2>
-          <div class="usecases" data-reveal data-stagger>
-            <article class="usecase tov-card" data-stagger-item>
-              <p class="usecase__label">Real estate</p>
-              <p>Forty buyers, each with a budget, a preferred community, a school-run constraint, and a spouse who has the real veto. Tovira holds every preference and reminds you which listing belongs to whom.</p>
-              <div class="tov-receipt"><div class="tov-receipt__q">“somewhere in Arabian Ranches, budget 3.2M, near the school”</div><div class="tov-stamp">WHATSAPP · 11 FEB 2026</div></div>
-            </article>
-            <article class="usecase tov-card" data-stagger-item>
-              <p class="usecase__label">Insurance and brokerage</p>
-              <p>Renewal dates are the business. Tovira tracks every one, along with the objection they raised last year and the claim that made them cautious.</p>
-              <div class="tov-receipt"><div class="tov-receipt__q">“renewal is in June, last year the excess was too high”</div><div class="tov-stamp">WHATSAPP · 20 JAN 2026</div></div>
-            </article>
-            <article class="usecase tov-card" data-stagger-item>
-              <p class="usecase__label">Wealth and private clients</p>
-              <p>Relationships measured in years, not quarters. The personal details, the graduation, the surgery, the football club, are the relationship. Tovira never loses one.</p>
-              <div class="tov-receipt"><div class="tov-receipt__q">“daughter graduates from LSE in July, he's flying over”</div><div class="tov-stamp">WHATSAPP · 03 MAR 2026</div></div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <div class="lead" data-reveal aria-hidden="true"><span class="lead__line"></span><span class="lead__dot"></span></div>
-
-      <!-- §7 SECURITY - brief, and strictly true -->
-      <section class="sec sec--band" aria-labelledby="sec-h">
-        <div class="wrap">
-          <h2 id="sec-h" data-reveal>It is your book. It stays yours.</h2>
-          <div class="assurances" data-reveal data-stagger>
-            <article class="usecase tov-card" data-stagger-item>
-              <p class="usecase__label">Isolated and encrypted</p>
-              <p>Your data is encrypted in transit and at rest, and every rep's book is isolated at the database level. One rep can never read another's.</p>
-            </article>
-            <article class="usecase tov-card" data-stagger-item>
-              <p class="usecase__label">No WhatsApp access</p>
-              <p>Tovira never connects to your WhatsApp account. You send it a file; that is the whole integration. It cannot send messages as you.</p>
-            </article>
-            <article class="usecase tov-card" data-stagger-item>
-              <p class="usecase__label">Drafts, never autosends</p>
-              <p>Follow-up drafts open in WhatsApp with the text ready. You press send.</p>
-            </article>
-            <article class="usecase tov-card" data-stagger-item>
-              <p class="usecase__label">Yours to export or erase</p>
-              <p>Export everything, any time, in one file. Delete your account and it is gone, including from our training records.</p>
-            </article>
+          <div class="lyr ln">
+            <i class="orb" style="left:19.2%;top:27.8%;width:23.2px;height:23.2px;background:radial-gradient(circle,rgba(255,255,255,0.74) 0%,rgba(173,160,255,0.31) 40%,transparent 70%);animation-duration:2.9s;animation-delay:-0.8s"></i>
+            <i class="orb" style="left:99.1%;top:14.5%;width:28.2px;height:28.2px;background:radial-gradient(circle,rgba(255,255,255,0.82) 0%,rgba(173,160,255,0.34) 40%,transparent 70%);animation-duration:5.1s;animation-delay:-0.9s"></i>
+            <i class="orb" style="left:64.0%;top:50.7%;width:23.3px;height:23.3px;background:radial-gradient(circle,rgba(255,255,255,0.84) 0%,rgba(173,160,255,0.35) 40%,transparent 70%);animation-duration:3.6s;animation-delay:-1.1s"></i>
+            <i class="orb" style="left:24.2%;top:2.8%;width:24.9px;height:24.9px;background:radial-gradient(circle,rgba(255,255,255,0.86) 0%,rgba(173,160,255,0.36) 40%,transparent 70%);animation-duration:5.2s;animation-delay:-2.2s"></i>
+            <i class="orb" style="left:-2.3%;top:6.4%;width:20.3px;height:20.3px;background:radial-gradient(circle,rgba(255,255,255,0.59) 0%,rgba(173,160,255,0.25) 40%,transparent 70%);animation-duration:4.9s;animation-delay:-2.8s"></i>
+            <i class="orb" style="left:97.1%;top:33.8%;width:29.4px;height:29.4px;background:radial-gradient(circle,rgba(255,255,255,0.76) 0%,rgba(173,160,255,0.32) 40%,transparent 70%);animation-duration:4.8s;animation-delay:-3.0s"></i>
+            <i class="orb" style="left:95.9%;top:30.1%;width:22.6px;height:22.6px;background:radial-gradient(circle,rgba(255,255,255,0.71) 0%,rgba(173,160,255,0.30) 40%,transparent 70%);animation-duration:5.9s;animation-delay:-5.2s"></i>
+            <i class="orb" style="left:70.1%;top:89.0%;width:28.2px;height:28.2px;background:radial-gradient(circle,rgba(255,255,255,0.87) 0%,rgba(173,160,255,0.37) 40%,transparent 70%);animation-duration:3.9s;animation-delay:-3.7s"></i>
+            <i class="orb" style="left:34.5%;top:75.4%;width:25.2px;height:25.2px;background:radial-gradient(circle,rgba(255,255,255,0.56) 0%,rgba(173,160,255,0.23) 40%,transparent 70%);animation-duration:5.0s;animation-delay:-1.4s"></i>
+            <i class="orb" style="left:99.5%;top:82.4%;width:21.5px;height:21.5px;background:radial-gradient(circle,rgba(255,255,255,0.82) 0%,rgba(173,160,255,0.34) 40%,transparent 70%);animation-duration:3.7s;animation-delay:-3.3s"></i>
+            <i class="orb" style="left:54.6%;top:33.0%;width:26.7px;height:26.7px;background:radial-gradient(circle,rgba(255,255,255,0.80) 0%,rgba(173,160,255,0.34) 40%,transparent 70%);animation-duration:3.0s;animation-delay:-1.8s"></i>
           </div>
         </div>
-      </section>
-
-      <div class="lead" data-reveal aria-hidden="true"><span class="lead__line"></span><span class="lead__dot"></span></div>
-
-      <!-- §8 PLANS -->
-      <section class="sec" aria-labelledby="plans-h">
-        <div class="wrap">
-          <h2 id="plans-h" data-reveal>One price. Everything included.</h2>
-          <div class="plans" data-reveal data-stagger>
-            <article class="plan tov-card" data-stagger-item>
-              <p class="plan__name">Monthly</p>
-              <p class="plan__figure">AED 299 <span>/ month</span></p>
-              <p>Every feature from day one. Cancel from Settings in one click.</p>
-            </article>
-            <article class="plan tov-card" data-stagger-item>
-              <p class="plan__name">Yearly <span class="plan__marker">two months free</span></p>
-              <p class="plan__figure">AED 2,990 <span>/ year</span></p>
-              <p>Two months free. The same product, paid once.</p>
-            </article>
+        <div class="wrap col">
+          <h2 class="act3-head">Everyday. Planned and prepped. Peace and calm</h2>
+          <div class="lines">
+            <p>One client asked twice. Call them.</p>
+            <p>One floor plan, nine weeks overdue. Send it.</p>
+            <p>A meeting at four. Here is what they want.</p>
           </div>
-          <div class="plans__foot" data-reveal>
-            <p class="trust">No tiers, no add-ons, no seats to count.</p>
-            <a class="cta" data-cta href="/request-access">Request beta access</a>
-            <p class="trust">Tovira is invite-only during beta. We review requests within 2 business days.</p>
-            <p class="fineprint">One recovered deal covers a year.</p>
+          <p>Every rep carries the details for his best ten clients. The second bathroom. The daughter starting school in September. The handover they are quietly worried about. The ten who get remembered are the ten who buy.</p>
+          <p class="turn">Tovira carries them for all four hundred.</p>
+          <p>Export one chat and read what comes back. If it does not show you something about your own book you did not already know, do not pay for it.</p>
+
+          <!-- Pricing — both plans, the annual framing, stated plainly. Replaces the single price line. -->
+          <div class="pricing">
+            <p class="price"><strong>AED 299</strong> a month, or <strong>AED 2,990</strong> a year — two months free. One price everywhere, everything included. One deal covers years of it.</p>
           </div>
-        </div>
-      </section>
 
-      <div class="lead" data-reveal aria-hidden="true"><span class="lead__line"></span><span class="lead__dot"></span></div>
+          <div class="cta-row">
+            <a class="btn btn-lg btn-calm" data-cta href="/request-access">Request beta access</a>
+            <p class="note">Invite-only during beta. Reviewed within 2 business days.</p>
+          </div>
 
-      <!-- §9 FAQ - accordion on mobile, open two-column on desktop -->
-      <section class="sec" aria-labelledby="faq-h">
-        <div class="wrap">
-          <h2 id="faq-h" data-reveal>Questions</h2>
-          <div class="faq" data-reveal>
-            <details class="faq__item" open>
+          <!-- FAQ — six questions, first open, ported verbatim from the previous page. -->
+          <div class="faq">
+            <details open>
               <summary>Do I have to connect my WhatsApp?</summary>
               <p>No. WhatsApp has an Export Chat button; you send Tovira the file it produces. Tovira never connects to your account and cannot send messages as you.</p>
             </details>
-            <details class="faq__item">
+            <details>
               <summary>Does it work in Arabic?</summary>
               <p>Yes, including mixed with English, Hindi, and Urdu in the same sentence. That is what it was built for.</p>
             </details>
-            <details class="faq__item">
+            <details>
               <summary>Is it a CRM?</summary>
               <p>No. A CRM is a form you fill in for your manager. Tovira is a memory that fills itself in for you. If you have a CRM, keep it.</p>
             </details>
-            <details class="faq__item">
+            <details>
               <summary>Why not just use ChatGPT?</summary>
               <p>You can paste a thread into a chat window and get a decent answer. You cannot paste forty clients into it every morning, and it will never tell you on a Tuesday that a client has gone quiet.</p>
             </details>
-            <details class="faq__item">
+            <details>
               <summary>What happens if I stop paying?</summary>
               <p>Export your entire book first. Nothing is held hostage.</p>
             </details>
-            <details class="faq__item">
+            <details>
               <summary>Who is it not for?</summary>
               <p>It is for people who sell in person, where one commission is worth more than a year of the price and the relationship runs for years. If you sell on recorded video calls where every word is already transcribed, your conversations are captured — this is built for the ones that are not.</p>
             </details>
           </div>
         </div>
       </section>
-
-      <div class="lead" data-reveal aria-hidden="true"><span class="lead__line"></span><span class="lead__dot"></span></div>
-
-      <!-- §10 CLOSE -->
-      <section class="sec sec--close" aria-labelledby="close-h">
-        <div class="wrap prose-center" data-reveal>
-          <h2 id="close-h">Your client book is an asset.<br />This is where it's kept.</h2>
-          <div class="actions actions--center">
-            <a class="cta" data-cta href="/request-access">Request beta access</a>
-          </div>
-          <p class="trust">AED 299 / month</p>
-        </div>
-      </section>
     </main>
 
-    <footer class="site-foot">
+    <footer>
       <div class="wrap">
-        <p>Tovira · Dubai, UAE</p>
-        <nav aria-label="Footer">
-          <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
-        </nav>
+        <div class="foot-row">
+          <span class="mark foot">Tovira</span>
+          <span class="spacer"></span>
+          <a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/app">Log in</a>
+        </div>
+        <p style="margin:14px 0 0">A product by Prospera Technologies</p>
       </div>
     </footer>
 
-    <!-- Mobile-only sticky conversion bar (appears after the hero). -->
+    <!-- Mobile-only sticky conversion bar (un-hidden by reveal.ts after Act I scrolls away). -->
     <div class="mobile-cta" data-mobile-cta hidden>
       <span>Invite-only beta</span>
-      <a class="cta cta--sm" data-cta href="/request-access">Request beta access</a>
+      <a class="btn" data-cta href="/request-access">Request beta access</a>
     </div>
   </body>
 </html>

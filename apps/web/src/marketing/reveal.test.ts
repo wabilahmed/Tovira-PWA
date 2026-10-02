@@ -10,13 +10,13 @@ const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8')
 const fresh = (): Document => new DOMParser().parseFromString(html, 'text/html');
 
 describe('initMarketingMotion (observer-absent fallback)', () => {
-  it('reveals every [data-reveal] block when IntersectionObserver is unavailable', () => {
+  // CONTRACT (was "reveal every [data-reveal]"): the page never leaves content hidden without JS. The
+  // Starfield redesign dropped the reveal-on-scroll system entirely — everything is statically visible —
+  // so the guard is now the inverse: NO reveal-hidden content ships, and init is a safe no-op for it.
+  it('ships no reveal-hidden content (static page is fully visible without JS)', () => {
     const d = fresh();
-    expect(d.querySelectorAll('[data-reveal]').length).toBeGreaterThan(0);
-    initMarketingMotion(d);
-    for (const el of d.querySelectorAll('[data-reveal]')) {
-      expect(el.hasAttribute('data-revealed')).toBe(true);
-    }
+    expect(d.querySelectorAll('[data-reveal]').length).toBe(0);
+    expect(() => initMarketingMotion(d)).not.toThrow();
   });
 
   it('un-hides the mobile CTA (it is only hidden until JS decides to show it)', () => {
