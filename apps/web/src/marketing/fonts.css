@@ -1,6 +1,19 @@
-/* [STARFIELD] The landing page's font loader. The landing styles itself INLINE in index.html and does
- * NOT load site.css (that is the legal pages' stylesheet, which drags in the light Ledger primitives).
- * It still needs the self-hosted faces, so it links this one file, which pulls the shared brand registry
- * (Archivo + IBM Plex Sans/Mono — and Fraunces, which the landing does not use but the registry carries
- * for the app/email). No CDN. */
-@import '../../../../packages/brand/fonts.css';
+/* [STARFIELD] The landing page's font loader — ONLY the three families the page actually uses, latin
+ * only. This is the first page a prospective user loads, empty cache, on a phone, in the UAE — the one
+ * page where transfer size converts, so it does NOT pull the shared packages/brand/fonts.css (that drags
+ * in Fraunces and IBM Plex Sans Arabic, which the landing never renders). The landing styles itself
+ * inline in index.html and does not load site.css (the legal pages' stylesheet). No CDN.
+ *
+ * Weights match the page: Archivo 400–800 (headings/nav/mark), IBM Plex Sans 300–600 (body/nav),
+ * IBM Plex Mono 400/500 (eyebrows, receipt quotes, stamps). */
+@import '@fontsource/archivo/latin-400.css';
+@import '@fontsource/archivo/latin-500.css';
+@import '@fontsource/archivo/latin-600.css';
+@import '@fontsource/archivo/latin-700.css';
+@import '@fontsource/archivo/latin-800.css';
+@import '@fontsource/ibm-plex-sans/latin-300.css';
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';

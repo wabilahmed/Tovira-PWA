@@ -11,10 +11,23 @@ describe('[SITE-5] accessibility & landmarks', () => {
   it('the English page has exactly one h1 and the core landmarks', () => {
     const d = parse(EN);
     expect(d.querySelectorAll('h1')).toHaveLength(1);
-    expect(d.querySelector('header')).not.toBeNull();
     expect(d.querySelector('main')).not.toBeNull();
     expect(d.querySelector('footer')).not.toBeNull();
     expect(d.querySelector('nav')).not.toBeNull();
+  });
+
+  // CONTRACT: the <header> is a real BANNER landmark. A <header> nested inside article/aside/main/nav/
+  // section is NOT role="banner" — only one that is a direct child of <body>. This is what the landmark
+  // list and a screen-reader "jump to banner" actually need; asserting a <header> merely EXISTS let a
+  // nested one pass while providing no banner. So assert it is a direct child of body, and that no
+  // header is nested inside a sectioning element.
+  it('the header is a banner landmark (a direct child of body, not nested in a section)', () => {
+    const d = parse(EN);
+    expect(d.querySelector('body > header'), 'a <header> that is a direct child of <body>').not.toBeNull();
+    expect(
+      d.querySelector('main header, section header, article header, aside header, nav header'),
+      'no <header> nested inside a sectioning element (that would not be a banner)',
+    ).toBeNull();
   });
 
   it('every role="img" carries real alt text (aria-label)', () => {

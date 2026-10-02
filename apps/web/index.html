@@ -42,7 +42,6 @@
         --sig1:#F472A0; --sig2:#4FD1E0; --sig3:#A78BFA; --focus:#9D8BFF;
         color-scheme: dark;
         --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
-        --font-cond: "Archivo Condensed", "Archivo", Arial, sans-serif;
         --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
         --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
       }
@@ -76,6 +75,9 @@
       }
       .act1 .wrap { position: relative; z-index: 2; }
 
+      /* The banner is a direct child of <body> (role=banner), laid OVER Act I so the starfield shows
+         behind it. Act I's content is pushed down to clear it (see .act1-inner padding-top). */
+      header { position:absolute; top:0; left:0; right:0; z-index:10; }
       nav { display:flex; align-items:center; gap:12px; padding-block:18px; flex-wrap:wrap; }
       .mark { font-family:var(--font-display); font-weight:800; font-size:20px; letter-spacing:-.03em; margin-right:auto; color:var(--a1-ink); }
       .navlink { font-size:13px; color:var(--a1-ink2); text-decoration:none; font-weight:500; }
@@ -112,7 +114,10 @@
       .eyebrow { font-family:var(--font-mono); font-size:10px; letter-spacing:.16em;
         text-transform:uppercase; margin:0 0 14px; color:var(--a1-ink2); opacity:.85; }
 
-      .act1-inner { padding-top: clamp(14px,2.2vw,26px); padding-bottom: clamp(54px,6.6vw,78px); }
+      /* padding-top clears the absolute banner. Derivation: the nav is ~56px tall on desktop and wraps to
+         ~100px on a narrow phone (mark + Log in + CTA); clamp(88px…112px) keeps the hero clear of it in
+         both, with breathing room. */
+      .act1-inner { padding-top: clamp(88px,13vw,112px); padding-bottom: clamp(54px,6.6vw,78px); }
 
       /* ============ ACT II — resolving ============ */
       .act2 {
@@ -276,6 +281,17 @@
     </style>
   </head>
   <body>
+    <!-- Banner: a direct child of <body> so it is a role=banner landmark, laid over Act I. -->
+    <header>
+      <div class="wrap">
+        <nav>
+          <span class="mark">Tovira</span>
+          <a class="navlink" href="/app">Log in</a>
+          <a class="btn" data-cta href="/request-access">Request beta access</a>
+        </nav>
+      </div>
+    </header>
+
     <main>
       <!-- ============ ACT I — the problem ============ -->
       <section class="act1 hero" aria-label="The problem">
@@ -291,15 +307,7 @@
         </div>
 
         <div class="wrap act1-inner">
-          <header>
-            <nav>
-              <span class="mark">Tovira</span>
-              <a class="navlink" href="/app">Log in</a>
-              <a class="btn" data-cta href="/request-access">Request beta access</a>
-            </nav>
-          </header>
-
-          <div class="col" style="padding-top:clamp(10px,1.8vw,20px)">
+          <div class="col">
             <p class="eyebrow">Somewhere in here</p>
             <h1 class="act1-head">Four hundred clients. Two years of chat. One of them is going cold tonight and you don't know which one.</h1>
             <p class="act1-sub">A floor plan you promised in March. A question you answered half of. Someone who stopped replying right after you did. It is all still in there. You have just never read it back.</p>
@@ -434,7 +442,7 @@
 
           <!-- Pricing — both plans, the annual framing, stated plainly. Replaces the single price line. -->
           <div class="pricing">
-            <p class="price"><strong>AED 299</strong> a month, or <strong>AED 2,990</strong> a year — two months free. One price everywhere, everything included. One deal covers years of it.</p>
+            <p class="price"><strong>AED 299</strong> a month, or <strong>AED 2,990</strong> a year — two months free.<br />Everything included. No tiers.</p>
           </div>
 
           <div class="cta-row">
