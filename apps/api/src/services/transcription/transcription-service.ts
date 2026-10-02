@@ -21,6 +21,21 @@ export const TRANSCRIPTION_FAILED_STATUS = 'transcription_failed';
 export const TRANSCRIBE_MAX_MISSING_ATTEMPTS = 3;
 
 /**
+ * [AUDIO-RETENTION] Minimum real-content length (non-whitespace characters, whitespace collapsed) for a
+ * transcript to START the retention clock. Below it — an EMPTY or NEAR-EMPTY transcript (silence, noise,
+ * or a stray filler token that produced nothing usable) — the recording is the ONLY copy of the capture,
+ * so it is KEPT indefinitely like a transcription_failed note and NO clock starts; deleting it at
+ * AUDIO_RETENTION_DAYS would destroy the rep's note. A transcript WITH content — including the
+ * transcriber's low-quality kind, which still has words — starts the clock.
+ *
+ * DERIVATION: a genuine spoken note, even a terse one ("revised quote Friday"), clears ~20 chars; empties
+ * and one-word fillers ("uh", "okay", "thanks") fall well under. Set at 12 and erring LOW-TO-KEEP: the
+ * safe error here is retaining a borderline recording ~30 days longer, never destroying a capture — so a
+ * short-but-real note is kept, not lost. JUDGEMENT CALL (flagged for the owner to tune).
+ */
+export const MIN_TRANSCRIPT_CONTENT_CHARS = 12;
+
+/**
  * Turn a voice note's audio into a transcript (P1-5). Principle: never lose a
  * note. A transcription API error leaves the note PENDING for retry; empty or
  * low-quality audio still stores whatever we got but FLAGS the note for review —
@@ -85,11 +100,17 @@ export class TranscriptionService {
     if (r.total > 0) {
       console.info(`[redact] voice note ${noteId}: ${r.total} Tier-1 value(s) redacted`);
     }
-    // [AUDIO-RETENTION] Transcription SUCCEEDED (a transcript was produced and stored — flagged or not).
-    // Stamp the retention clock now: the recording becomes eligible for deletion AUDIO_RETENTION_DAYS
-    // from here, never from upload. The transcription_failed / pending branches above return earlier and
-    // never stamp it, so their recordings are kept.
-    await this.notes.update(userId, noteId, { rawText: r.redacted, status, transcribedAt: this.now() });
+    // [AUDIO-RETENTION] Start the retention clock ONLY when the transcript actually has CONTENT — not
+    // merely because a transcript exists. An empty or near-empty transcript (silence/noise → nothing
+    // usable) must keep its recording, for the same reason transcription_failed does: it is the only copy
+    // of the capture. A low-quality transcript that still has words DOES have content, so its clock starts.
+    // (The transcription_failed / pending branches above return earlier and never stamp it either.)
+    const hasContent = text.replace(/\s+/g, ' ').trim().length >= MIN_TRANSCRIPT_CONTENT_CHARS;
+    await this.notes.update(userId, noteId, {
+      rawText: r.redacted,
+      status,
+      ...(hasContent ? { transcribedAt: this.now() } : {}),
+    });
     return { status };
   }
 }

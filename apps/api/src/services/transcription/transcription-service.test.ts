@@ -44,13 +44,31 @@ describe('TranscriptionService', () => {
     expect((await ctx.notes.findByIdForUser('user-A', ctx.note.id))?.transcribedAt).toBe(CLOCK);
   });
 
-  // A flagged (empty/low-quality) transcript is STILL a successful transcription — a transcript was
-  // produced and stored — so the clock starts. (Only a FAILED transcription keeps the audio forever.)
-  it('stamps transcribedAt even when the transcript is flagged needs_review', async () => {
+  // A low-quality transcript that STILL HAS CONTENT is a usable (if imperfect) note — the clock starts.
+  // ("needs_review" from low quality is text-intact; only the EMPTY kind produced nothing usable.)
+  it('stamps transcribedAt for a low-quality transcript that has real content', async () => {
     const CLOCK = 1_700_000_000_001;
-    const t: Transcriber = { transcribe: async () => ({ text: 'mumbled', quality: 'low' }) };
+    const t: Transcriber = { transcribe: async () => ({ text: 'mumbled something about the revised quote', quality: 'low' }) };
     await new TranscriptionService(t, ctx.notes, ctx.storage, () => CLOCK).transcribeNote('user-A', ctx.note.id);
     expect((await ctx.notes.findByIdForUser('user-A', ctx.note.id))?.transcribedAt).toBe(CLOCK);
+  });
+
+  // NEGATIVE (the product's trust rule): an EMPTY transcript produced nothing usable — the recording is
+  // the only copy of the capture, so it is KEPT like transcription_failed. The note is still flagged for
+  // review, but NO retention clock starts.
+  it('does NOT stamp transcribedAt for an empty transcript (recording kept, like transcription_failed)', async () => {
+    const t: Transcriber = { transcribe: async () => ({ text: '   ' }) };
+    await new TranscriptionService(t, ctx.notes, ctx.storage, () => 999).transcribeNote('user-A', ctx.note.id);
+    const updated = await ctx.notes.findByIdForUser('user-A', ctx.note.id);
+    expect(updated?.status).toBe('needs_review'); // still surfaced for the rep
+    expect(updated?.transcribedAt == null).toBe(true); // but NO clock — the recording stays
+  });
+
+  // NEGATIVE: a NEAR-EMPTY transcript (a stray token out of silence/noise) is also nothing usable → kept.
+  it('does NOT stamp transcribedAt for a near-empty transcript', async () => {
+    const t: Transcriber = { transcribe: async () => ({ text: 'uh' }) };
+    await new TranscriptionService(t, ctx.notes, ctx.storage, () => 888).transcribeNote('user-A', ctx.note.id);
+    expect((await ctx.notes.findByIdForUser('user-A', ctx.note.id))?.transcribedAt == null).toBe(true);
   });
 
   // NEGATIVE: a transcription API error leaves the note pending — NO clock (the recording is kept).
