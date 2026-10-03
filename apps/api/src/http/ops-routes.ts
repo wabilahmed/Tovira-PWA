@@ -30,6 +30,8 @@ export interface OpsRouteDeps {
   modelCallEvents?: ModelCallEventStore;
   /** [BETA-5] Beta access-request review + invite provisioning. Absent → the routes 404. */
   accessApproval?: Pick<AccessApprovalService, 'list' | 'get' | 'approve' | 'reject'>;
+  /** [USAGE-ALLOWANCE · D14] the runtime kill switch — set/clear via /ops/ai-pause. Absent → 404. */
+  aiPause?: { getPaused(): Promise<boolean>; setPaused(paused: boolean): Promise<void> };
 }
 
 const ACCESS_STATUSES: ReadonlySet<string> = new Set<AccessRequestStatus>(['pending', 'approved', 'rejected', 'invited', 'activated']);
@@ -113,6 +115,19 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
   // Ops auth — a single token, constant-time compared. No token configured → disabled.
   if (!authed) {
     sendJson(res, 403, { error: 'forbidden' });
+    return true;
+  }
+
+  // [USAGE-ALLOWANCE · D14] Runtime kill switch (token-gated, fail-closed above). GET reports it; POST
+  // { paused: bool } sets/clears it. The gate reads it within its <=30s cache.
+  if (url === '/ops/ai-pause' && (req.method === 'GET' || req.method === 'POST')) {
+    if (!deps.aiPause) { sendJson(res, 404, { error: 'not_found' }); return true; }
+    if (req.method === 'GET') { sendJson(res, 200, { paused: await deps.aiPause.getPaused() }); return true; }
+    let body: { paused?: unknown } = {};
+    try { body = (await readJsonBody(req)) as typeof body; } catch { /* validated below */ }
+    if (typeof body.paused !== 'boolean') { sendJson(res, 400, { error: 'validation', message: 'paused must be true or false' }); return true; }
+    await deps.aiPause.setPaused(body.paused);
+    sendJson(res, 200, { ok: true, paused: body.paused });
     return true;
   }
 

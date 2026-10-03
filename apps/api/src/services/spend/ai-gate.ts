@@ -1,5 +1,30 @@
 import type { AiAllowanceRepository } from '../../ports/ai-allowance-repository.js';
+import type { AiPauseRepository } from '../../ports/ai-pause-repository.js';
 import { allowanceWindow, type AllowanceWindowInput } from './ai-period.js';
+
+/**
+ * [USAGE-ALLOWANCE · D14 runtime kill switch] Reads the DB pause flag with a cache of at most `ttlMs`
+ * (default 30s), so the gate stays fast but a runtime pause takes effect within the window. The
+ * `envForced` boot flag (AI_PAUSED env) forces pause ON regardless of the DB. On a read error the last
+ * known value is kept (fail to the last-good state, never crash a call).
+ */
+export class PauseFlagCache {
+  private cached = false;
+  private at = -Infinity;
+  constructor(
+    private readonly repo: AiPauseRepository,
+    private readonly envForced = false,
+    private readonly ttlMs = 30_000,
+    private readonly now: () => number = () => Date.now(),
+  ) {}
+  async paused(): Promise<boolean> {
+    if (this.envForced) return true;
+    if (this.now() - this.at >= this.ttlMs) {
+      try { this.cached = await this.repo.getPaused(); this.at = this.now(); } catch { /* keep last good */ }
+    }
+    return this.cached;
+  }
+}
 
 /**
  * [USAGE-ALLOWANCE · Task 3] THE GATE. Every paid model call goes through `run()`. Nothing else may
@@ -42,8 +67,8 @@ export interface AiGateDeps {
   alertThresholdAed: number;
   /** The rep's billing window, to derive the monthly allowance period. */
   billingWindowFor: (userId: string) => Promise<AllowanceWindowInput>;
-  /** The manual kill switch (D14). Injected as a function so a runtime source can replace the boot config. */
-  isPaused: () => boolean;
+  /** The manual kill switch (D14). May be async (it reads the cached runtime flag). */
+  isPaused: () => boolean | Promise<boolean>;
   /** Fired ONCE when the global monthly total crosses the alert threshold. */
   onAlert?: (ym: string, totalAed: number) => void | Promise<void>;
   now?: () => number;
@@ -73,7 +98,7 @@ export class AiGate {
 
   async run<T>(call: GateCall<T>): Promise<T> {
     // 1. Kill switch — refuse before anything, unless this call is exempt (erasure).
-    if (this.deps.isPaused() && !call.exemptFromPause) throw new AiGateRefused('kill_switch');
+    if (!call.exemptFromPause && (await this.deps.isPaused())) throw new AiGateRefused('kill_switch');
 
     // 2–4. Reserve the worst case against the account's OWN allowance (ownerless calls skip this).
     let reservationId: string | null = null;

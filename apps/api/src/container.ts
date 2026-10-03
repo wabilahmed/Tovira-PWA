@@ -99,6 +99,9 @@ import { PgSpendLedgerRepository } from './adapters/spend/pg-spend-ledger-reposi
 import type { AiAllowanceRepository } from './ports/ai-allowance-repository.js';
 import { InMemoryAiAllowanceRepository } from './adapters/spend/in-memory-ai-allowance-repository.js';
 import { PgAiAllowanceRepository } from './adapters/spend/pg-ai-allowance-repository.js';
+import type { AiPauseRepository } from './ports/ai-pause-repository.js';
+import { InMemoryAiPauseRepository } from './adapters/spend/in-memory-ai-pause-repository.js';
+import { PgAiPauseRepository } from './adapters/spend/pg-ai-pause-repository.js';
 import { GatedModelClient, GatedEmbedder, GatedTranscriber } from './adapters/spend/gated-ai-clients.js';
 import type { SensitiveFlagStatsRepository } from './ports/sensitive-flag-stats-repository.js';
 import { InMemorySensitiveFlagStatsRepository } from './adapters/screening/in-memory-sensitive-flag-stats-repository.js';
@@ -469,6 +472,15 @@ export function createAiAllowanceRepository(config: AppConfig, appPool?: Pool, r
     return new PgAiAllowanceRepository(appPool, rootPool);
   }
   return new InMemoryAiAllowanceRepository();
+}
+
+/** [USAGE-ALLOWANCE · D14] The runtime kill-switch flag — platform-global, on the superuser pool. */
+export function createAiPauseRepository(config: AppConfig, rootPool?: Pool): AiPauseRepository {
+  if (config.authStore === 'postgres') {
+    if (!rootPool) throw new Error('authStore=postgres requires the superuser pool');
+    return new PgAiPauseRepository(rootPool);
+  }
+  return new InMemoryAiPauseRepository();
 }
 
 export function createOpsAlertRepository(config: AppConfig, rootPool?: Pool): OpsAlertRepository {

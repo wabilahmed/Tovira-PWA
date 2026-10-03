@@ -49,6 +49,7 @@ import {
   createExtractionLogRepository,
   createSpendLedgerRepository,
   createAiAllowanceRepository,
+  createAiPauseRepository,
   createEmailSender,
   createSensitiveFlagStatsRepository,
   createOpsAlertRepository,
@@ -105,7 +106,7 @@ import { ExtractionCanaryService } from './services/extraction/extraction-canary
 import { SpendService } from './services/spend/spend-service.js';
 import { periodKeyFrom } from './services/spend/period.js';
 import { setSpendSink, setModelCallEventSink } from './adapters/model/metered.js';
-import { AiGate, setAiGate } from './services/spend/ai-gate.js';
+import { AiGate, setAiGate, PauseFlagCache } from './services/spend/ai-gate.js';
 import { AllowanceStatusService } from './services/spend/allowance-status.js';
 import { allowanceWindow } from './services/spend/ai-period.js';
 import { ModelCallEventService } from './services/spend/model-call-event-service.js';
@@ -207,6 +208,10 @@ async function main(): Promise<void> {
   // (model/embedder/transcriber) reserves against the rep's monthly allowance before each call and
   // settles the actual after. The global monthly total feeds a one-shot email alert; it never blocks.
   const aiAllowance = createAiAllowanceRepository(config, appPool, migrationPool);
+  // [USAGE-ALLOWANCE · D14] runtime kill switch: DB-backed, read by the gate with a <=30s cache; the
+  // AI_PAUSED env still forces pause ON at boot.
+  const aiPause = createAiPauseRepository(config, migrationPool);
+  const pauseFlag = new PauseFlagCache(aiPause, config.aiPaused);
   const aiAlertSender = createEmailSender(config);
   const aiBillingWindowFor = (uid: string) =>
     billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }));
@@ -215,7 +220,7 @@ async function main(): Promise<void> {
     allowanceAed: config.monthlyAiAllowanceAed,
     alertThresholdAed: config.aiSpendAlertAed,
     billingWindowFor: aiBillingWindowFor,
-    isPaused: () => config.aiPaused,
+    isPaused: () => pauseFlag.paused(),
     onAlert: async (ym, totalAed) => {
       console.error(`[ai-spend-alert] global AI spend for ${ym} crossed AED ${config.aiSpendAlertAed}: now AED ${totalAed.toFixed(2)}`);
       if (config.accessRequestNotifyEmail) {
@@ -525,7 +530,7 @@ async function main(): Promise<void> {
     trainingLog: trainingLogStats,
     spend,
     opsAlerts,
-    opsRoute: { opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval },
+    opsRoute: { opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause },
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),

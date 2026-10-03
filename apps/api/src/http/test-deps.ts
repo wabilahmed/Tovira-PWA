@@ -33,6 +33,7 @@ import { periodKeyFrom } from '../services/spend/period.js';
 import { SpendService } from '../services/spend/spend-service.js';
 import { InMemorySpendLedgerRepository } from '../adapters/spend/in-memory-spend-ledger-repository.js';
 import { InMemoryAiAllowanceRepository } from '../adapters/spend/in-memory-ai-allowance-repository.js';
+import { InMemoryAiPauseRepository } from '../adapters/spend/in-memory-ai-pause-repository.js';
 import { AllowanceStatusService } from '../services/spend/allowance-status.js';
 import { allowanceWindow } from '../services/spend/ai-period.js';
 import { topUpOptionById } from '../config.js';
@@ -108,6 +109,7 @@ export interface TestDeps extends ApiDeps {
   spend: SpendService;
   /** [USAGE-ALLOWANCE] the monthly-allowance ledger + status — seed to test the stopped state (D4/D5). */
   aiAllowance: InMemoryAiAllowanceRepository;
+  aiPause: InMemoryAiPauseRepository;
   allowanceStatus: AllowanceStatusService;
   /** [SPEND-INSTRUMENT] the durable per-call event store — seed with `.record(...)` to test /ops/spend/by-class. */
   modelCallEvents: InMemoryModelCallEventStore;
@@ -230,6 +232,7 @@ export function buildInMemoryDeps(
   // [USAGE-ALLOWANCE] The monthly-allowance ledger + status (mirrors prod). Exposed on deps so a test can
   // exhaust an account (reserve/settle to 100%, or trigger a refusal for the sticky-exhausted display).
   const aiAllowance = new InMemoryAiAllowanceRepository();
+  const aiPause = new InMemoryAiPauseRepository();
   const allowanceStatus = new AllowanceStatusService({
     allowance: aiAllowance,
     allowanceAed: 40,
@@ -312,6 +315,7 @@ export function buildInMemoryDeps(
       allUserIds: () => auth.allUserIds(),
       modelCallEvents,
       accessApproval,
+      aiPause,
     },
     // [TRAINING-METRICS] ttl 0 so tests see fresh numbers on every snapshot() (each call refreshes).
     trainingLog: new TrainingLogStatsService(new InMemoryTrainingLogStatsRepository(extractionLog, corrections), 0),
@@ -338,6 +342,7 @@ export function buildInMemoryDeps(
     exhaustAllowance,
     spend,
     aiAllowance,
+    aiPause,
     allowanceStatus,
     allowanceExhausted: (u: string) => allowanceStatus.isExhausted(u),
     modelCallEvents,
