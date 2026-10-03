@@ -46,6 +46,7 @@ const RLS_EXEMPT: Record<string, string> = {
   push_budget: 'push send-budget; written by the scheduled push dispatcher (system, no tenant session)',
   erasure_receipts: 'post-erasure receipt (ERASURE §10); deliberately carries no user_id — the subject may be erased — so it cannot be tenant-scoped; operator-written',
   sensitive_flag_restores: 'global aggregate (SCREEN-REVIEW); has no user/note/client column by design, so there is nothing to tenant-scope',
+  ai_global_month: 'USAGE-ALLOWANCE global spend record, one row per calendar month across ALL accounts (no user_id); for the email alert only, written+read on the superuser pool — nothing to tenant-scope',
 };
 
 describe('[BETA-9] every table is tenant-RLS enforced at the DB, or explicitly exempt with a reason', () => {

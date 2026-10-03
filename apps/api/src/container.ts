@@ -96,6 +96,9 @@ import { PgExtractionLogRepository } from './adapters/logs/pg-extraction-log-rep
 import type { SpendLedgerRepository } from './ports/spend-ledger-repository.js';
 import { InMemorySpendLedgerRepository } from './adapters/spend/in-memory-spend-ledger-repository.js';
 import { PgSpendLedgerRepository } from './adapters/spend/pg-spend-ledger-repository.js';
+import type { AiAllowanceRepository } from './ports/ai-allowance-repository.js';
+import { InMemoryAiAllowanceRepository } from './adapters/spend/in-memory-ai-allowance-repository.js';
+import { PgAiAllowanceRepository } from './adapters/spend/pg-ai-allowance-repository.js';
 import type { SensitiveFlagStatsRepository } from './ports/sensitive-flag-stats-repository.js';
 import { InMemorySensitiveFlagStatsRepository } from './adapters/screening/in-memory-sensitive-flag-stats-repository.js';
 import { PgSensitiveFlagStatsRepository } from './adapters/screening/pg-sensitive-flag-stats-repository.js';
@@ -457,6 +460,16 @@ export function createSpendLedgerRepository(config: AppConfig, appPool?: Pool, r
     return new PgSpendLedgerRepository(appPool, rootPool);
   }
   return new InMemorySpendLedgerRepository();
+}
+
+/** [USAGE-ALLOWANCE] The monthly AI-allowance ledger (Task 2). Postgres needs BOTH the app pool (RLS,
+ *  per-account ops) and the superuser pool (the stale-reservation sweep + the un-scoped global record). */
+export function createAiAllowanceRepository(config: AppConfig, appPool?: Pool, rootPool?: Pool): AiAllowanceRepository {
+  if (config.authStore === 'postgres') {
+    if (!appPool || !rootPool) throw new Error('authStore=postgres requires both the app and superuser pools');
+    return new PgAiAllowanceRepository(appPool, rootPool);
+  }
+  return new InMemoryAiAllowanceRepository();
 }
 
 export function createOpsAlertRepository(config: AppConfig, rootPool?: Pool): OpsAlertRepository {
