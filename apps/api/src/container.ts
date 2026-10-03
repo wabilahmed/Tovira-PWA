@@ -106,15 +106,12 @@ import { PgSensitiveFlagStatsRepository } from './adapters/screening/pg-sensitiv
 import type { OpsAlertRepository } from './ports/ops-alert-repository.js';
 import { InMemoryOpsAlertRepository } from './adapters/spend/in-memory-ops-alert-repository.js';
 import { PgOpsAlertRepository } from './adapters/spend/pg-ops-alert-repository.js';
-import type { RecallDailyCounter } from './ports/recall-daily-counter.js';
 import type { ContactAliasRepository, RepNameRepository } from './ports/contact-alias-repository.js';
 import { InMemoryContactAliasRepository, InMemoryRepNameRepository } from './adapters/import/in-memory-contact-alias-repository.js';
 import { PgContactAliasRepository, PgRepNameRepository } from './adapters/import/pg-contact-alias-repository.js';
 import { InMemoryImportAckRepository } from './adapters/import/in-memory-import-ack-repository.js';
 import { PgImportAckRepository } from './adapters/import/pg-import-ack-repository.js';
 import type { ImportAckRepository } from './ports/import-ack-repository.js';
-import { InMemoryRecallDailyCounter } from './adapters/spend/in-memory-recall-daily-counter.js';
-import { PgRecallDailyCounter } from './adapters/spend/pg-recall-daily-counter.js';
 import type { ExtractionCounterRepository } from './ports/extraction-counter.js';
 import { InMemoryExtractionCounter } from './adapters/extraction/in-memory-extraction-counter.js';
 import { PgExtractionCounter } from './adapters/extraction/pg-extraction-counter.js';
@@ -234,7 +231,7 @@ export function createRecallService(
   sessions?: RecallSessionRepository,
   capture?: AskCaptureService,
   clients?: ClientRepository,
-  recallGate?: { check(userId: string, day: string): Promise<{ allowed: boolean }> },
+  allowanceExhausted?: (userId: string) => Promise<boolean>,
 ): RecallService {
   // Detection runs on the cheap recall model (Haiku); it only classifies (statement vs question),
   // never extracts. The capture pipeline routes a detected statement to the CERTIFIED engine.
@@ -242,7 +239,7 @@ export function createRecallService(
   const clientDirectory = capture && clients
     ? async (userId: string) => (await clients.listByUser(userId)).map((c) => ({ id: c.id, name: c.name }))
     : undefined;
-  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, recallGate);
+  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, allowanceExhausted);
 }
 
 /**
@@ -507,13 +504,6 @@ export function createRepNameRepository(config: AppConfig, appPool?: Pool): RepN
   return new InMemoryRepNameRepository();
 }
 
-export function createRecallDailyCounter(config: AppConfig, appPool?: Pool): RecallDailyCounter {
-  if (config.authStore === 'postgres') {
-    if (!appPool) throw new Error('authStore=postgres requires a database pool');
-    return new PgRecallDailyCounter(appPool);
-  }
-  return new InMemoryRecallDailyCounter();
-}
 
 /** [SPEND-INSTRUMENT] The durable per-call model-spend event store (cross-tenant ops accounting). */
 export function createModelCallEventStore(config: AppConfig, rootPool?: Pool): ModelCallEventStore {
@@ -555,13 +545,13 @@ export function createExtractionService(
   requirements?: RequirementRepository,
   matching?: MatchingService,
   importCost?: ImportCostMetrics,
-  spendGate?: { canSpend(userId: string): Promise<boolean> },
+  allowanceExhausted?: (userId: string) => Promise<boolean>,
   aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
   health?: { recordStarvedOutput(): void },
   verifiedGate?: { isVerified(userId: string): Promise<boolean> },
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, spendGate, aliasesFor, health, verifiedGate);
+  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate);
 }
 
 /** [NO-TRAINING-RETENTION] The operational per-rep glossary (P4-9), RLS-backed on pg. */

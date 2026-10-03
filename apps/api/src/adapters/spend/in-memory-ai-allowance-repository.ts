@@ -38,7 +38,7 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
       .filter((m) => m.userId === userId && m.periodStartMs < periodStartMs)
       .sort((a, b) => b.periodStartMs - a.periodStartMs)[0];
     const carriedTopup = prev ? Math.max(0, prev.topupAed - Math.max(0, prev.spentAed - prev.allowanceAed)) : 0;
-    const row: AiMonth = { userId, periodKey, periodStartMs, allowanceAed, topupAed: carriedTopup, spentAed: 0, reservedAed: 0 };
+    const row: AiMonth = { userId, periodKey, periodStartMs, allowanceAed, topupAed: carriedTopup, spentAed: 0, reservedAed: 0, displayExhausted: false };
     this.months.set(k, row);
     return { ...row };
   }
@@ -48,7 +48,10 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
     if (!row) return { ok: false };
     // ATOMIC: no await between the check and the write.
     const available = row.allowanceAed + row.topupAed;
-    if (row.spentAed + row.reservedAed + estimateAed > available) return { ok: false };
+    if (row.spentAed + row.reservedAed + estimateAed > available) {
+      row.displayExhausted = true; // [sticky] a refusal pins the meter to 100% until allowance is added
+      return { ok: false };
+    }
     row.reservedAed += estimateAed;
     const id = randomUUID();
     this.reservations.set(id, { id, userId, periodKey, estimateAed, status: 'open', expiresAtMs });
@@ -88,7 +91,10 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
 
   async topUp(userId: string, periodKey: string, addedAed: number): Promise<void> {
     const row = this.months.get(this.key(userId, periodKey));
-    if (row) row.topupAed += Math.max(0, addedAed);
+    if (row) {
+      row.topupAed += Math.max(0, addedAed);
+      row.displayExhausted = false; // allowance added → clear the sticky stop (D8)
+    }
   }
 
   async getMonth(userId: string, periodKey: string): Promise<AiMonth | null> {

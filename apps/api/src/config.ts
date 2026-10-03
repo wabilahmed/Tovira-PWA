@@ -155,7 +155,6 @@ export interface AppConfig {
    *  Enforced pre-spend, degrade-not-break. NOT settled. */
   trialSpendCapAed: number;
   spendWarnFraction: number;
-  recallDailyCapAtCap: number;
   /** [USAGE-ALLOWANCE · D1] Each rep's monthly AI-cost allowance (100%). Derivation: AED 40 is ~13% of
    *  the AED 299 subscription — the most AI cost one seat may consume before the subscription stops
    *  covering it with margin. Replaces the earlier AED 45 soft cap. Overridable via
@@ -278,7 +277,6 @@ export function loadConfig(env: Env = process.env): AppConfig {
     sweepConcurrency: parsePositive(env.SWEEP_CONCURRENCY, 5, 'SWEEP_CONCURRENCY'),
     trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, 20, 'TRIAL_SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
-    recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),
     monthlyAiAllowanceAed: parsePositive(env.MONTHLY_AI_ALLOWANCE_AED, 40, 'MONTHLY_AI_ALLOWANCE_AED'),
     aiSpendAlertAed: parsePositive(env.AI_SPEND_ALERT_AED, 300, 'AI_SPEND_ALERT_AED'),
     aiPaused: env.AI_PAUSED?.trim() === 'true', // default false (undefined → not paused)

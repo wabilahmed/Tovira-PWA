@@ -145,6 +145,10 @@ export interface ApiDeps {
   importAck: ImportAckRepository;
   flagReview: FlagReviewService;
   corpus: CorpusStatsService;
+  /** [USAGE-ALLOWANCE · D4] true when the rep is at 100% of the allowance → import refused, questions
+   *  paused. Read-only status for the meter is `allowanceStatus`. Optional (local/old wiring). */
+  allowanceExhausted?: (userId: string) => Promise<boolean>;
+  allowanceStatus?: { status(userId: string): Promise<{ percentUsed: number; exhausted: boolean }> };
   monday: MondayDigestService;
   ledger: LedgerService;
   referral: ReferralService;
@@ -331,6 +335,7 @@ export function createApiServer(deps: ApiDeps): Server {
           repNames: deps.repNames,
           importAck: deps.importAck,
           flagReview: deps.flagReview,
+          allowanceExhausted: deps.allowanceExhausted,
         })
       )
         return;

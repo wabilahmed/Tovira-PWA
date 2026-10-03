@@ -85,6 +85,9 @@ export interface NoteRouteDeps {
   importAck: ImportAckRepository;
   /** [SCREEN-REVIEW] lists a note's held (flagged) messages and restores selected ones. */
   flagReview: FlagReviewService;
+  /** [USAGE-ALLOWANCE · D4] at 100% of the allowance, a chat-export upload is REFUSED (not queued).
+   *  Optional — without it, imports are never allowance-gated (local/old wiring). */
+  allowanceExhausted?: (userId: string) => Promise<boolean>;
 }
 
 /** Ledger (P4-11): capturing a note for a client that a scan flagged (going cold
@@ -234,6 +237,13 @@ export async function handleNoteRoute(
       const client = await deps.clients.findByIdForUser(userId, clientId);
       if (!client) {
         sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      // [USAGE-ALLOWANCE · D4] At 100% of the allowance, a chat import is REFUSED up front — not parsed,
+      // not queued — because it is the heaviest AI operation. The rep adds usage (or subscribes, in trial)
+      // and retries. Everything else about the account still works.
+      if (deps.allowanceExhausted && (await deps.allowanceExhausted(userId))) {
+        sendJson(res, 402, { error: 'allowance_exhausted', message: "You've used this month's AI allowance, so importing is paused. Add usage, or wait for your allowance to reset, then try again." });
         return true;
       }
       const body = (await readJsonBody(req)) as { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown; confirmImport?: unknown; counterpart?: unknown; firstImportAck?: unknown };

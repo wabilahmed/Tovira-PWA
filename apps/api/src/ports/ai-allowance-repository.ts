@@ -16,6 +16,10 @@ export interface AiMonth {
   topupAed: number;
   spentAed: number;
   reservedAed: number;
+  /** [USAGE-ALLOWANCE · sticky exhaustion] Set true the moment a reserve is REFUSED for insufficient
+   *  allowance this window; the meter then reads 100% even if settled spend is below the allowance
+   *  (the worst-case estimate over-locks). Cleared by a top-up (and reset by a new window). */
+  displayExhausted: boolean;
 }
 
 export interface ReserveResult {

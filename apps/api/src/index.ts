@@ -52,7 +52,6 @@ import {
   createEmailSender,
   createSensitiveFlagStatsRepository,
   createOpsAlertRepository,
-  createRecallDailyCounter,
   createExtractionCounter,
   createModelCallEventStore,
   createSpendOverrideRepository,
@@ -107,8 +106,8 @@ import { SpendService } from './services/spend/spend-service.js';
 import { periodKeyFrom } from './services/spend/period.js';
 import { setSpendSink, setModelCallEventSink } from './adapters/model/metered.js';
 import { AiGate, setAiGate } from './services/spend/ai-gate.js';
+import { AllowanceStatusService } from './services/spend/allowance-status.js';
 import { ModelCallEventService } from './services/spend/model-call-event-service.js';
-import { RecallSpendGate } from './services/spend/recall-spend-gate.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -208,12 +207,13 @@ async function main(): Promise<void> {
   // settles the actual after. The global monthly total feeds a one-shot email alert; it never blocks.
   const aiAllowance = createAiAllowanceRepository(config, appPool, migrationPool);
   const aiAlertSender = createEmailSender(config);
+  const aiBillingWindowFor = (uid: string) =>
+    billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }));
   const aiGate = new AiGate({
     allowance: aiAllowance,
     allowanceAed: config.monthlyAiAllowanceAed,
     alertThresholdAed: config.aiSpendAlertAed,
-    billingWindowFor: (uid) =>
-      billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart })),
+    billingWindowFor: aiBillingWindowFor,
     isPaused: () => config.aiPaused,
     onAlert: async (ym, totalAed) => {
       console.error(`[ai-spend-alert] global AI spend for ${ym} crossed AED ${config.aiSpendAlertAed}: now AED ${totalAed.toFixed(2)}`);
@@ -227,8 +227,12 @@ async function main(): Promise<void> {
     },
   });
   setAiGate(aiGate);
+  // [USAGE-ALLOWANCE · D4] The rep-facing status + the pre-call "is AI stopped?" check used by import,
+  // questions, and the scheduled AI jobs so they refuse/skip up front instead of calling a model to
+  // discover it.
+  const allowanceStatus = new AllowanceStatusService({ allowance: aiAllowance, allowanceAed: config.monthlyAiAllowanceAed, billingWindowFor: aiBillingWindowFor });
+  const aiExhausted = (uid: string) => allowanceStatus.isExhausted(uid);
   // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
-  const recallGate = new RecallSpendGate(spend, createRecallDailyCounter(config, appPool), config.recallDailyCapAtCap);
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
   // [TRIAL-FARM] Durable, monotonic extraction counter (not prunable log rows) backs the ceilings.
   const extractionCounter = createExtractionCounter(config, appPool);
@@ -265,7 +269,7 @@ async function main(): Promise<void> {
   void trainingLogStats.refresh();
   // [TRIAL-FARM] Extraction — the one paid, unbounded-cost operation — is gated on a verified email.
   const verifiedGate = { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) };
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, spend, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));
@@ -309,7 +313,7 @@ async function main(): Promise<void> {
     extract: (u, id, today) => extraction.extractNote(u, id, today).then(() => undefined),
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
-    canSpend: (u) => spend.canSpend(u), // SPEND-CAP: a capped rep's queue waits, untouched
+    canSpend: (u) => aiExhausted(u).then((x) => !x), // [USAGE-ALLOWANCE · D4] an exhausted rep's queue waits, untouched (replaces the retired cap)
     isVerified: (u) => verifiedGate.isVerified(u), // TRIAL-FARM: an unverified rep's queue waits too
     allow: (u) => extractionLimiter.allow(u), // ASYNC-EXTRACT: a rep at the extraction ceiling waits (no needs_review)
     onSettled: (u, id) => importCompletion.onNoteSettled(u, id), // IMPORT-DONE
@@ -430,7 +434,7 @@ async function main(): Promise<void> {
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
   const askCapture = createAskCaptureService(config, notes, clients, facts, extraction, corrections, extractionLogs);
-  const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients, recallGate);
+  const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients, aiExhausted);
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId), matching);
   const ledger = createLedgerService(config, appPool);
@@ -473,6 +477,8 @@ async function main(): Promise<void> {
     repNames,
     importAck,
     flagReview,
+    allowanceExhausted: aiExhausted,
+    allowanceStatus,
     corrections,
     repGlossary,
     extractionLog: extractionLogs,

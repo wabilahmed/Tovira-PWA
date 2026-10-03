@@ -32,6 +32,9 @@ import { TrialExtractionLimiter } from '../services/extraction/limiter.js';
 import { periodKeyFrom } from '../services/spend/period.js';
 import { SpendService } from '../services/spend/spend-service.js';
 import { InMemorySpendLedgerRepository } from '../adapters/spend/in-memory-spend-ledger-repository.js';
+import { InMemoryAiAllowanceRepository } from '../adapters/spend/in-memory-ai-allowance-repository.js';
+import { AllowanceStatusService } from '../services/spend/allowance-status.js';
+import { allowanceWindow } from '../services/spend/ai-period.js';
 import { InMemoryModelCallEventStore } from '../adapters/spend/in-memory-model-call-event-store.js';
 import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
 import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
@@ -98,8 +101,13 @@ export interface TestDeps extends ApiDeps {
   /** [ASYNC-EXTRACT] Run the background sweep (the real async processor) N passes — how tests drive
    *  extraction now that /extract only accepts + queues. Defaults to 2 passes (transcription → extraction). */
   runSweep: (passes?: number) => Promise<void>;
+  /** [USAGE-ALLOWANCE] drive an account to 100% of the monthly allowance (stopped-state tests). */
+  exhaustAllowance: (userId: string) => Promise<void>;
   /** [SPEND-INSTRUMENT] the spend cap service — seed spend with `spend.recordAed(...)` to test at-cap behaviour. */
   spend: SpendService;
+  /** [USAGE-ALLOWANCE] the monthly-allowance ledger + status — seed to test the stopped state (D4/D5). */
+  aiAllowance: InMemoryAiAllowanceRepository;
+  allowanceStatus: AllowanceStatusService;
   /** [SPEND-INSTRUMENT] the durable per-call event store — seed with `.record(...)` to test /ops/spend/by-class. */
   modelCallEvents: InMemoryModelCallEventStore;
   /** [BETA-3] the in-memory access-request store, exposed so tests can assert persistence (.count()). */
@@ -183,9 +191,9 @@ export function buildInMemoryDeps(
     requirements,
     matching, // direction 1 trigger
     undefined, // importCost
-    // [SPEND-INSTRUMENT] extraction spend gate — forward-refs `spend` (declared below); invoked only at
-    // extraction time, so the reference is resolved by then. Extraction defers when the rep is at cap.
-    { canSpend: (uid: string) => spend.canSpend(uid) }, // spendGate
+    // [USAGE-ALLOWANCE · D4] extraction defers when the rep is at 100% of the allowance (forward-refs
+    // `allowanceStatus`, declared below; invoked only at extraction time). Replaces the retired cap.
+    (uid: string) => allowanceStatus.isExhausted(uid), // allowanceExhausted
     (uid, cid) => contactAliases.listByClient(uid, cid), // [ALIAS-NORMALISE]
     undefined, // health
     // [TRIAL-FARM] verification gate — extraction requires a verified email (the one paid op). Tests
@@ -218,6 +226,14 @@ export function buildInMemoryDeps(
     (uid, now) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key),
     { capAed: 45, trialCapAed: 20, warnFraction: 0.8 },
   );
+  // [USAGE-ALLOWANCE] The monthly-allowance ledger + status (mirrors prod). Exposed on deps so a test can
+  // exhaust an account (reserve/settle to 100%, or trigger a refusal for the sticky-exhausted display).
+  const aiAllowance = new InMemoryAiAllowanceRepository();
+  const allowanceStatus = new AllowanceStatusService({
+    allowance: aiAllowance,
+    allowanceAed: 40,
+    billingWindowFor: (uid) => billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart })),
+  });
   const modelCallEvents = new InMemoryModelCallEventStore();
   // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via
   // the SWEEP (the real path), not by an inline /extract. `runSweep()` runs a bounded number of passes
@@ -231,11 +247,19 @@ export function buildInMemoryDeps(
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     isVerified: opts.enforceVerification ? (u: string) => auth.getPublicUser(u).then((x) => x?.emailVerified ?? false) : undefined,
     allow: (u: string) => extractionLimiter.allow(u), // [ASYNC-EXTRACT] ceiling skip (mirrors prod)
-    canSpend: (u: string) => spend.canSpend(u), // [SPEND-INSTRUMENT] spend-cap skip (mirrors prod)
+    canSpend: (u: string) => allowanceStatus.isExhausted(u).then((x) => !x), // [USAGE-ALLOWANCE · D4] exhausted rep's queue waits
   });
   const runSweep = async (passes = 2): Promise<void> => {
     const today = new Date().toISOString().slice(0, 10);
     for (let i = 0; i < passes; i++) await noteSweep.sweep(today);
+  };
+  // [USAGE-ALLOWANCE] Drive an account to 100% for stopped-state tests: reserve the whole allowance in
+  // this rep's current window (leaves it exhausted — spent+reserved >= available).
+  const exhaustAllowance = async (userId: string): Promise<void> => {
+    const e = await billing.entitlement(userId, Date.now());
+    const w = allowanceWindow({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, Date.now());
+    await aiAllowance.ensureMonth(userId, w.key, w.startMs, 40);
+    await aiAllowance.reserve(userId, w.key, 40, Date.now() + 3_600_000);
   };
   const emailSender = new StubEmailSender();
   const accountEmail = new AccountEmailService(emailSender, new InMemoryEmailLogRepository());
@@ -301,12 +325,16 @@ export function buildInMemoryDeps(
     recallSessions,
     extractionCounter,
     runSweep,
+    exhaustAllowance,
     spend,
+    aiAllowance,
+    allowanceStatus,
+    allowanceExhausted: (u: string) => allowanceStatus.isExhausted(u),
     modelCallEvents,
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
-    recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions),
+    recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions, undefined, undefined, undefined, (u) => allowanceStatus.isExhausted(u)),
     askCapture,
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),

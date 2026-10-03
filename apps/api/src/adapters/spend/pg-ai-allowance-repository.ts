@@ -15,6 +15,7 @@ interface MonthRow {
   topup_aed: string;
   spent_aed: string;
   reserved_aed: string;
+  display_exhausted: boolean;
 }
 
 function toMonth(r: MonthRow): AiMonth {
@@ -26,10 +27,11 @@ function toMonth(r: MonthRow): AiMonth {
     topupAed: Number(r.topup_aed),
     spentAed: Number(r.spent_aed),
     reservedAed: Number(r.reserved_aed),
+    displayExhausted: r.display_exhausted,
   };
 }
 
-const MONTH_COLS = 'user_id, period_key, period_start_ms, allowance_aed, topup_aed, spent_aed, reserved_aed';
+const MONTH_COLS = 'user_id, period_key, period_start_ms, allowance_aed, topup_aed, spent_aed, reserved_aed, display_exhausted';
 
 /**
  * [USAGE-ALLOWANCE] Postgres AI-allowance ledger. Per-account ops run as the app role under RLS
@@ -74,7 +76,11 @@ export class PgAiAllowanceRepository implements AiAllowanceRepository {
          RETURNING user_id`,
         [userId, periodKey, estimateAed],
       );
-      if (upd.rows.length === 0) return { ok: false };
+      if (upd.rows.length === 0) {
+        // [sticky] pin the meter to 100% until allowance is added.
+        await c.query(`UPDATE ai_usage_month SET display_exhausted = true, updated_at = now() WHERE user_id = $1 AND period_key = $2`, [userId, periodKey]);
+        return { ok: false };
+      }
       const ins = await c.query(
         `INSERT INTO ai_reservation (user_id, period_key, estimate_aed, status, expires_at)
          VALUES ($1, $2, $3, 'open', to_timestamp($4 / 1000.0)) RETURNING id`,
@@ -156,7 +162,7 @@ export class PgAiAllowanceRepository implements AiAllowanceRepository {
   async topUp(userId: string, periodKey: string, addedAed: number): Promise<void> {
     await withTenant(this.appPool, userId, async (c) => {
       await c.query(
-        `UPDATE ai_usage_month SET topup_aed = topup_aed + $3, updated_at = now() WHERE user_id = $1 AND period_key = $2`,
+        `UPDATE ai_usage_month SET topup_aed = topup_aed + $3, display_exhausted = false, updated_at = now() WHERE user_id = $1 AND period_key = $2`,
         [userId, periodKey, Math.max(0, addedAed)],
       );
     });

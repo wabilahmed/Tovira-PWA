@@ -538,10 +538,11 @@ describe('ExtractionService — import cost metric', () => {
   });
 });
 
-// [SPEND-CAP] Over the cap, extraction DEFERS: no model call, the note is left pending and intact,
-// and it processes on release. Server-side — there is no client input that disables the gate.
-describe('ExtractionService — spend cap defers extraction (CAP-ENFORCE)', () => {
-  async function setupCapped(canSpend: () => Promise<boolean>) {
+// [USAGE-ALLOWANCE · D4] At 100% of the monthly allowance, extraction DEFERS: no model call, the note is
+// left pending and intact, and it processes on reset/top-up. Server-side — no client input disables it.
+// (Replaces the retired AED-45 canSpend cap defer.)
+describe('ExtractionService — allowance exhaustion defers extraction (D4)', () => {
+  async function setupCapped(allowanceExhausted: () => Promise<boolean>) {
     const clients = new InMemoryClientRepository();
     const notes = new InMemoryNoteRepository();
     const facts = new InMemoryFactsRepository();
@@ -552,13 +553,13 @@ describe('ExtractionService — spend cap defers extraction (CAP-ENFORCE)', () =
     const note = await notes.create('u', { clientId: client.id, source: 'paste', rawText: "I'll send the quote Friday", audioKey: null, status: 'pending_extraction' });
     const svc = new ExtractionService(
       spyModel, clients, notes, facts, new StubEmbedder(8), logs, 'stub',
-      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { canSpend },
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, allowanceExhausted,
     );
     return { svc, notes, note, callsRef: () => calls };
   }
 
   it('returns spend_capped without a model call, leaving the note pending and intact', async () => {
-    const { svc, notes, note, callsRef } = await setupCapped(async () => false);
+    const { svc, notes, note, callsRef } = await setupCapped(async () => true); // exhausted
     const outcome = await svc.extractNote('u', note.id, '2026-07-09');
     expect(outcome).toEqual({ status: 'spend_capped', flagged: true });
     expect(callsRef()).toBe(0); // never spent
@@ -567,11 +568,11 @@ describe('ExtractionService — spend cap defers extraction (CAP-ENFORCE)', () =
     expect(after?.extracted ?? null).toBeNull(); // no facts written
   });
 
-  it('processes the same note once the rep is back under the cap (resume on release)', async () => {
-    let capped = true;
-    const { svc, notes, note } = await setupCapped(async () => !capped);
+  it('processes the same note once the rep has allowance again (resume on reset/top-up)', async () => {
+    let exhausted = true;
+    const { svc, notes, note } = await setupCapped(async () => exhausted);
     await svc.extractNote('u', note.id, '2026-07-09'); // deferred
-    capped = false; // an ops override / new period releases the queue
+    exhausted = false; // a reset / top-up releases the queue
     const outcome = await svc.extractNote('u', note.id, '2026-07-09');
     expect(outcome.status).toBe('extracted');
     expect((await notes.findByIdForUser('u', note.id))?.status).toBe('extracted');

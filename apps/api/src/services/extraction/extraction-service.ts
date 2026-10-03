@@ -146,7 +146,7 @@ export class ExtractionService {
     /** [COST-IMPORT-METRIC] rolling per-rep import cost sink. Optional — extraction runs unchanged. */
     private readonly importCost?: { record(r: ImportCostRecord): void },
     /** [SPEND-CAP] over-cap gate: when canSpend is false, extraction defers (note stays pending). */
-    private readonly spendGate?: { canSpend(userId: string): Promise<boolean> },
+    private readonly allowanceExhausted?: (userId: string) => Promise<boolean>,
     /** [ALIAS-NORMALISE] learned aliases for a client, to normalise counterpart attribution. */
     private readonly aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
     /** [EXTRACT-STOPREASON] observability sink for starved (no-text) extraction outputs. */
@@ -260,11 +260,11 @@ export class ExtractionService {
     if (this.limiter && !(await this.limiter.allow(userId))) {
       return { status: 'trial_limit', flagged: true };
     }
-    // [SPEND-CAP] Over the per-account spend cap: DEFER extraction (the expensive, deferrable path).
-    // Return before any model call — the raw note is already stored and simply stays pending; the
-    // sweep drains it once the rep is under cap (next billing period, or an ops override). Never a
-    // model call, never a lost note.
-    if (this.spendGate && !(await this.spendGate.canSpend(userId))) {
+    // [USAGE-ALLOWANCE · D4] At 100% of the monthly allowance: DEFER extraction (the expensive,
+    // deferrable path). Return before any model call — the raw note is already stored and simply stays
+    // pending; the sweep drains it once the rep has allowance again (reset or top-up). Never a model
+    // call, never a lost note. (Replaces the retired AED-45 canSpend cap.)
+    if (this.allowanceExhausted && (await this.allowanceExhausted(userId))) {
       return { status: 'spend_capped', flagged: true };
     }
 

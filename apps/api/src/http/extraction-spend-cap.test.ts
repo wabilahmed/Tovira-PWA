@@ -1,9 +1,8 @@
 /**
- * [SPEND-INSTRUMENT] Now that extraction is metered, a rep can hit the spend cap on extraction — and
- * extraction must QUEUE, never fail. The sweep skips spend-capped reps (leaving the note UNTOUCHED — no
- * attempt bump, never needs_review), so a capped rep's extraction simply waits. This path was never
- * exercised for extraction before (extraction was unmetered, so it never reached the cap); here it is,
- * end to end.
+ * [USAGE-ALLOWANCE · D4] At 100% of the monthly allowance, extraction must QUEUE, never fail. The sweep
+ * skips exhausted reps (leaving the note UNTOUCHED — no attempt bump, never needs_review), so an
+ * exhausted rep's extraction simply waits for a reset/top-up. Capture + export still work. (Replaces the
+ * retired AED-45 spend-cap defer test.)
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
@@ -29,12 +28,12 @@ async function signup(email: string): Promise<{ token: string; userId: string }>
   return { token: b.token, userId: b.user.id };
 }
 
-describe('[SPEND-INSTRUMENT] at-cap extraction queues (sweep skip), never fails', () => {
-  it('a spend-capped rep\'s extraction stays queued and UNTOUCHED; capture + export still work', async () => {
+describe('[USAGE-ALLOWANCE · D4] at-allowance extraction queues (sweep skip), never fails', () => {
+  it('an exhausted rep\'s extraction stays queued and UNTOUCHED; capture + export still work', async () => {
     const { token, userId } = await signup('spend-capped@example.com');
-    // Push the rep to their (trial) spend cap — as metered extraction now would.
-    await deps.spend.recordAed(userId, 'extraction', 20);
-    expect(await deps.spend.canSpend(userId)).toBe(false);
+    // Drive the rep to 100% of the monthly allowance.
+    await deps.exhaustAllowance(userId);
+    expect(await deps.allowanceExhausted!(userId)).toBe(true);
 
     const clientId = ((await (await fetch(`${base}/clients`, { method: 'POST', headers: H(token), body: JSON.stringify({ name: 'Acme' }) })).json()) as { id: string }).id;
     // Capture still works at the cap (never lose a capture) — the note queues.
@@ -42,9 +41,8 @@ describe('[SPEND-INSTRUMENT] at-cap extraction queues (sweep skip), never fails'
 
     await deps.runSweep();
 
-    // The sweep SKIPS the capped rep: the note is left exactly as captured — queued, not failed, and its
-    // retry budget untouched (attempt count 0). This is the sweep skip, not the extraction gate (which
-    // would have bumped the attempt count).
+    // The sweep SKIPS the exhausted rep: the note is left exactly as captured — queued, not failed, and
+    // its retry budget untouched (attempt count 0).
     const note = (await deps.notes.findByIdForUser(userId, noteId))!;
     expect(note.status).toBe('pending_extraction');
     expect(note.sweepAttempts).toBe(0); // UNTOUCHED — no attempt bump
@@ -56,9 +54,9 @@ describe('[SPEND-INSTRUMENT] at-cap extraction queues (sweep skip), never fails'
     expect((await fetch(`${base}/account`, { method: 'DELETE', headers: H(token) })).status).toBe(200);
   });
 
-  it('an UNCAPPED rep\'s extraction runs normally (the skip is specific to being capped)', async () => {
+  it('a rep WITH allowance extracts normally (the skip is specific to being exhausted)', async () => {
     const { token, userId } = await signup('spend-ok@example.com');
-    expect(await deps.spend.canSpend(userId)).toBe(true); // fresh rep, no spend
+    expect(await deps.allowanceExhausted!(userId)).toBe(false); // fresh rep, full allowance
     const clientId = ((await (await fetch(`${base}/clients`, { method: 'POST', headers: H(token), body: JSON.stringify({ name: 'Beta' }) })).json()) as { id: string }).id;
     const noteId = ((await (await fetch(`${base}/clients/${clientId}/notes/paste`, { method: 'POST', headers: H(token), body: JSON.stringify({ text: 'a note to analyse' }) })).json()) as { id: string }).id;
     await deps.runSweep();
