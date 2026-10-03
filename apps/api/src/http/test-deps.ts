@@ -35,6 +35,7 @@ import { InMemorySpendLedgerRepository } from '../adapters/spend/in-memory-spend
 import { InMemoryAiAllowanceRepository } from '../adapters/spend/in-memory-ai-allowance-repository.js';
 import { AllowanceStatusService } from '../services/spend/allowance-status.js';
 import { allowanceWindow } from '../services/spend/ai-period.js';
+import { topUpOptionById } from '../config.js';
 import { InMemoryModelCallEventStore } from '../adapters/spend/in-memory-model-call-event-store.js';
 import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
 import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
@@ -233,6 +234,15 @@ export function buildInMemoryDeps(
     allowance: aiAllowance,
     allowanceAed: 40,
     billingWindowFor: (uid) => billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart })),
+  });
+  // [USAGE-ALLOWANCE · D12] credit a confirmed top-up to the rep's current window (mirrors index.ts).
+  billing.setTopUpHandler(async (userId, optionId) => {
+    const opt = topUpOptionById(optionId);
+    if (!opt) return;
+    const e = await billing.entitlement(userId, Date.now());
+    const w = allowanceWindow({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, Date.now());
+    await aiAllowance.ensureMonth(userId, w.key, w.startMs, 40);
+    await aiAllowance.topUp(userId, w.key, opt.addedAed);
   });
   const modelCallEvents = new InMemoryModelCallEventStore();
   // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via

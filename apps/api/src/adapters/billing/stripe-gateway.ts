@@ -77,6 +77,37 @@ export class StripeGatewayImpl implements StripeGateway {
     return { url: session.url ?? '', sessionId: session.id, customerId };
   }
 
+  async createTopUpCheckout(
+    userId: string,
+    email: string,
+    topUpOptionId: string,
+    amountAed: number,
+    details: { existingCustomerId?: string } = {},
+  ): Promise<StripeCheckout> {
+    const customerId = details.existingCustomerId
+      ?? (await this.stripe.customers.create({ email: email || undefined, metadata: this.metadataFor(userId) })).id;
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: 'aed',
+          unit_amount: Math.round(amountAed * 100), // fils
+          product_data: { name: `Tovira AI usage top-up (${topUpOptionId})` },
+        },
+      }],
+      customer: customerId,
+      client_reference_id: userId,
+      // The webhook credits the right allowance by reading this metadata. On the session AND the
+      // payment_intent so it survives either event shape.
+      metadata: { tovira_user_id: userId, topup_option_id: topUpOptionId },
+      payment_intent_data: { metadata: { tovira_user_id: userId, topup_option_id: topUpOptionId } },
+      success_url: this.opts.successUrl,
+      cancel_url: this.opts.cancelUrl,
+    });
+    return { url: session.url ?? '', sessionId: session.id, customerId };
+  }
+
   async updateCustomer(customerId: string, details: CustomerDetails): Promise<void> {
     await this.stripe.customers.update(customerId, {
       ...(details.name !== undefined ? { name: details.name } : {}),
@@ -106,10 +137,15 @@ export class StripeGatewayImpl implements StripeGateway {
     const custAddr = obj.customer_address as { country?: unknown } | null | undefined;
     const totalMinor = typeof obj.total === 'number' ? obj.total : typeof obj.amount_paid === 'number' ? obj.amount_paid : undefined;
     const createdSec = typeof obj.created === 'number' ? obj.created : undefined;
+    // [USAGE-ALLOWANCE · D12] checkout mode + the top-up option id (session or payment_intent metadata).
+    const meta = (obj.metadata as Record<string, unknown> | null | undefined) ?? undefined;
+    const topUpOptionId = meta && typeof meta.topup_option_id === 'string' ? meta.topup_option_id : undefined;
+    const mode = obj.mode === 'payment' || obj.mode === 'subscription' ? obj.mode : undefined;
     return {
       id: event.id,
       type: event.type,
-      userId: typeof obj.client_reference_id === 'string' ? obj.client_reference_id : undefined,
+      userId: typeof obj.client_reference_id === 'string' ? obj.client_reference_id
+        : meta && typeof meta.tovira_user_id === 'string' ? meta.tovira_user_id : undefined,
       customerId: typeof obj.customer === 'string' ? obj.customer : undefined,
       subscriptionId: typeof obj.subscription === 'string' ? obj.subscription : undefined,
       ...(periodEndSec !== undefined ? { currentPeriodEnd: periodEndSec * 1000 } : {}),
@@ -118,6 +154,8 @@ export class StripeGatewayImpl implements StripeGateway {
       ...(isInvoice && totalMinor !== undefined ? { invoiceTotalFils: totalMinor } : {}),
       ...(isInvoice && custAddr && typeof custAddr.country === 'string' ? { invoiceCountry: custAddr.country } : {}),
       ...(isInvoice && createdSec !== undefined ? { invoiceIssuedAtMs: createdSec * 1000 } : {}),
+      ...(mode ? { mode } : {}),
+      ...(topUpOptionId ? { topUpOptionId } : {}),
     };
   }
 }

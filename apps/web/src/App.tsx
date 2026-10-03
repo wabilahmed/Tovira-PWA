@@ -33,6 +33,8 @@ import { Alerts } from './proactive/Alerts.js';
 import { MeetingsClient } from './meetings/meetingsClient.js';
 import { Meetings } from './meetings/Meetings.js';
 import { BillingClient } from './billing/billingClient.js';
+import { AllowanceClient } from './usage/allowanceClient.js';
+import { UsageMeter } from './usage/UsageMeter.js';
 import { Billing } from './billing/Billing.js';
 import { AccountClient } from './account/accountClient.js';
 import { AccountControls } from './account/AccountControls.js';
@@ -86,6 +88,7 @@ const heroApi = new HeroClient(API_BASE);
 const proactiveApi = new ProactiveClient(API_BASE);
 const meetingsApi = new MeetingsClient(API_BASE);
 const billingApi = new BillingClient(API_BASE);
+const usageApi = new AllowanceClient(API_BASE);
 const accountApi = new AccountClient(API_BASE);
 const imagesApi = new ImagesClient(API_BASE);
 const recallApi = new RecallClient(API_BASE);
@@ -463,6 +466,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           </p>
           {!session.user.emailVerified && <VerifyBanner api={auth} />}
           <Billing api={billingApi} />
+          <UsageMeter api={usageApi} />
           <ThemeToggle />
           <TimezoneSetting current={session.user.timezone} api={auth} />
           <DisclosureLine />

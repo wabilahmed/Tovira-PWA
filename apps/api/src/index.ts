@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning } from './config.js';
+import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning, topUpOptionById } from './config.js';
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { AccessRequestService } from './services/access/access-request-service.js';
 import { PgAccessRequestRepository } from './adapters/access/pg-access-request-repository.js';
@@ -107,6 +107,7 @@ import { periodKeyFrom } from './services/spend/period.js';
 import { setSpendSink, setModelCallEventSink } from './adapters/model/metered.js';
 import { AiGate, setAiGate } from './services/spend/ai-gate.js';
 import { AllowanceStatusService } from './services/spend/allowance-status.js';
+import { allowanceWindow } from './services/spend/ai-period.js';
 import { ModelCallEventService } from './services/spend/model-call-event-service.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 
@@ -232,6 +233,15 @@ async function main(): Promise<void> {
   // discover it.
   const allowanceStatus = new AllowanceStatusService({ allowance: aiAllowance, allowanceAed: config.monthlyAiAllowanceAed, billingWindowFor: aiBillingWindowFor });
   const aiExhausted = (uid: string) => allowanceStatus.isExhausted(uid);
+  // [USAGE-ALLOWANCE · D12] Credit a confirmed top-up to the rep's current window (idempotent via the
+  // webhook_events dedupe). Set here because the allowance repo is built after billing.
+  billing.setTopUpHandler(async (userId, optionId) => {
+    const opt = topUpOptionById(optionId);
+    if (!opt) { console.warn(`[usage-allowance] unknown top-up option ${optionId} for ${userId}`); return; }
+    const w = allowanceWindow(await aiBillingWindowFor(userId), Date.now());
+    await aiAllowance.ensureMonth(userId, w.key, w.startMs, config.monthlyAiAllowanceAed);
+    await aiAllowance.topUp(userId, w.key, opt.addedAed);
+  });
   // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
   // [TRIAL-FARM] Durable, monotonic extraction counter (not prunable log rows) backs the ceilings.

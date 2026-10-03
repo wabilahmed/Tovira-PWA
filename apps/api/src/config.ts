@@ -19,6 +19,32 @@ export type PushProvider = 'stub' | 'webpush';
 export type EmailProvider = 'stub' | 'ses' | 'resend';
 
 /**
+ * [USAGE-ALLOWANCE · D6] One-time top-up products. `addedAed` is the AI-cost allowance added (a share of
+ * the AED 40 monthly allowance); `priceAed` is what the rep PAYS. These are PRODUCT PRICES set by the
+ * owner — NOT derived from cost — so they are hard-coded here, not env-tunable. Top-ups never expire and
+ * are spent only after the monthly allowance (D7); buying one drops the meter (D8).
+ */
+export interface TopUpOption {
+  id: string;
+  /** Allowance (AI cost, AED) this top-up adds. */
+  addedAed: number;
+  /** What the rep pays, AED. */
+  priceAed: number;
+  /** Share of the monthly allowance, for the label (e.g. '+25%'). */
+  label: string;
+}
+export const TOP_UP_OPTIONS: readonly TopUpOption[] = [
+  { id: 'topup_15', addedAed: 6, priceAed: 50, label: '+15%' },
+  { id: 'topup_25', addedAed: 10, priceAed: 65, label: '+25%' },
+  { id: 'topup_50', addedAed: 20, priceAed: 85, label: '+50%' },
+  { id: 'topup_75', addedAed: 30, priceAed: 100, label: '+75%' },
+  { id: 'topup_100', addedAed: 40, priceAed: 120, label: '+100%' },
+];
+export function topUpOptionById(id: string): TopUpOption | undefined {
+  return TOP_UP_OPTIONS.find((o) => o.id === id);
+}
+
+/**
  * The AI task classes (P1-9 hybrid routing). Each has its own model setting,
  * config-overridable per class with no code change. Extraction is gate-locked to
  * Sonnet; every other class defaults to Haiku (cheaper, and non-extraction work

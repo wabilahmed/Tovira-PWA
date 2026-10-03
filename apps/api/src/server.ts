@@ -67,6 +67,8 @@ import type { LedgerService } from './services/ledger/ledger-service.js';
 import { handleShareCardRoute } from './http/share-card-routes.js';
 import type { ReferralService } from './services/referral/referral-service.js';
 import { handleBillingRoute } from './http/billing-routes.js';
+import { handleAllowanceRoute } from './http/allowance-routes.js';
+import type { AllowanceStatusService } from './services/spend/allowance-status.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
 import { sendJson } from './http/helpers.js';
@@ -148,7 +150,7 @@ export interface ApiDeps {
   /** [USAGE-ALLOWANCE · D4] true when the rep is at 100% of the allowance → import refused, questions
    *  paused. Read-only status for the meter is `allowanceStatus`. Optional (local/old wiring). */
   allowanceExhausted?: (userId: string) => Promise<boolean>;
-  allowanceStatus?: { status(userId: string): Promise<{ percentUsed: number; exhausted: boolean }> };
+  allowanceStatus?: AllowanceStatusService;
   monday: MondayDigestService;
   ledger: LedgerService;
   referral: ReferralService;
@@ -393,6 +395,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger, clients: deps.clients })) return;
       if (await handleShareCardRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing })) return;
+      if (await handleAllowanceRoute(request, response, { auth: deps.auth, allowanceStatus: deps.allowanceStatus, billing: deps.billing })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;

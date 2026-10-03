@@ -56,6 +56,23 @@ export class BillingService {
     private readonly now: () => number = () => Date.now(),
   ) {}
 
+  /** [USAGE-ALLOWANCE · D12] Credit a confirmed top-up to the rep's allowance. Set at boot AFTER the
+   *  allowance repo is built (it is constructed after billing). Called by the webhook on a mode:'payment'
+   *  success, AFTER the webhook_events dedupe — so a replayed event credits once. */
+  private onTopUp?: (userId: string, topUpOptionId: string) => Promise<void>;
+  setTopUpHandler(fn: (userId: string, topUpOptionId: string) => Promise<void>): void {
+    this.onTopUp = fn;
+  }
+
+  /** [USAGE-ALLOWANCE · D6/D10/D12] Open a one-time top-up checkout. Trial accounts (no card on file)
+   *  cannot buy top-ups — the caller enforces D10 and this throws if reached in trial as a backstop. */
+  async topUpCheckout(userId: string, email: string, topUpOptionId: string, amountAed: number): Promise<{ url: string }> {
+    const existingCustomerId = (await this.subs.get(userId))?.stripeCustomerId ?? undefined;
+    const session = await this.stripe.createTopUpCheckout(userId, email, topUpOptionId, amountAed, { existingCustomerId });
+    if (session.customerId) await this.subs.update(userId, { stripeCustomerId: session.customerId });
+    return { url: session.url };
+  }
+
   /** Fire a lifecycle email without ever letting it break the caller (1d). */
   private async notify(fn: () => Promise<void>): Promise<void> {
     try {
@@ -153,6 +170,12 @@ export class BillingService {
     if (await this.events.seen(event.id)) return 200; // idempotent replay
     await this.events.record(event.id);
 
+    // [USAGE-ALLOWANCE · D12] A one-time top-up (mode:'payment') — credit the allowance, do NOT touch
+    // subscription status. Runs AFTER the webhook_events dedupe above, so a replayed event credits once.
+    if (event.type === 'checkout.session.completed' && event.mode === 'payment' && event.userId && event.topUpOptionId) {
+      if (this.onTopUp) await this.notify(() => this.onTopUp!(event.userId!, event.topUpOptionId!));
+      return 200;
+    }
     if (event.type === 'checkout.session.completed' && event.userId) {
       await this.subs.update(event.userId, {
         status: 'active',

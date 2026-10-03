@@ -17,6 +17,8 @@ export interface AllowanceStatus {
   percentUsed: number;
   /** True when spent + reserved leaves no headroom — AI features stop (D4). */
   exhausted: boolean;
+  /** When this window's allowance resets (ms) — the "paused until …" banner date (D9). */
+  resetAtMs: number;
 }
 
 export interface AllowanceStatusDeps {
@@ -52,6 +54,7 @@ export class AllowanceStatusService {
       availableAed,
       percentUsed,
       exhausted,
+      resetAtMs: w.endMs,
     };
   }
 

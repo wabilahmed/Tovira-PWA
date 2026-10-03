@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import { extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
+import { TOP_UP_OPTIONS, topUpOptionById } from '../config.js';
 
 export interface BillingRouteDeps {
   auth: AuthService;
@@ -27,7 +28,8 @@ export async function handleBillingRoute(
   const isCheckout = method === 'POST' && path === '/billing/checkout';
   const isStatus = method === 'GET' && path === '/billing/status';
   const isCustomer = method === 'PATCH' && path === '/billing/customer';
-  if (!isCheckout && !isStatus && !isCustomer) return false;
+  const isTopUp = method === 'POST' && path === '/billing/top-up';
+  if (!isCheckout && !isStatus && !isCustomer && !isTopUp) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -38,6 +40,25 @@ export async function handleBillingRoute(
 
   if (isStatus) {
     sendJson(res, 200, await deps.billing.entitlement(userId, Date.now()));
+    return true;
+  }
+
+  // [USAGE-ALLOWANCE · D6/D10/D12] One-time top-up checkout. Trial accounts (no card on file) can't buy
+  // top-ups — refuse with a message pointing to subscribing instead.
+  if (isTopUp) {
+    const ent = await deps.billing.entitlement(userId, Date.now());
+    if (ent.status !== 'active') {
+      sendJson(res, 403, { error: 'top_up_requires_subscription', message: 'Top-ups are available once you subscribe. During the trial, subscribe to add usage.' });
+      return true;
+    }
+    const body = (await readJsonBody(req).catch(() => ({}))) as { optionId?: unknown };
+    const option = typeof body.optionId === 'string' ? topUpOptionById(body.optionId) : undefined;
+    if (!option) {
+      sendJson(res, 400, { error: 'validation', message: 'Choose a top-up option.', options: TOP_UP_OPTIONS });
+      return true;
+    }
+    const user = await deps.auth.getPublicUser(userId);
+    sendJson(res, 200, await deps.billing.topUpCheckout(userId, user?.email ?? '', option.id, option.priceAed));
     return true;
   }
 

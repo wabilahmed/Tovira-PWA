@@ -92,6 +92,10 @@ export interface StripeWebhookEvent {
   invoiceTotalFils?: number;
   invoiceCountry?: string;
   invoiceIssuedAtMs?: number;
+  /** [USAGE-ALLOWANCE · D12] Checkout mode — 'payment' marks a one-time top-up vs a 'subscription'. */
+  mode?: 'subscription' | 'payment';
+  /** [USAGE-ALLOWANCE · D12] The top-up product id (from checkout metadata), on a completed top-up. */
+  topUpOptionId?: string;
 }
 
 export type Plan = 'monthly' | 'annual';
@@ -107,6 +111,16 @@ export interface StripeGateway {
   ): Promise<StripeCheckout>;
   /** Sync a name/company change to an existing Stripe customer (Settings). */
   updateCustomer(customerId: string, details: CustomerDetails): Promise<void>;
+  /** [USAGE-ALLOWANCE · D6/D12] Open a ONE-TIME (mode:'payment') checkout for a top-up: `amountAed` is
+   *  what the rep pays; `topUpOptionId` is carried in metadata so the webhook can credit the right
+   *  allowance exactly once. Test mode only — the owner provisions live top-up products. */
+  createTopUpCheckout(
+    userId: string,
+    email: string,
+    topUpOptionId: string,
+    amountAed: number,
+    details?: { existingCustomerId?: string },
+  ): Promise<StripeCheckout>;
   /** Verify + parse a webhook; returns null if the signature is invalid. */
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null;
 }
