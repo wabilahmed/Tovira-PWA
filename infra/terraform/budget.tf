@@ -23,6 +23,27 @@ variable "bedrock_monthly_budget_usd" {
   default     = 100
 }
 
+# [TASK-7 CHECK] Anthropic Claude invoked via Bedrock may bill under the "Amazon Bedrock" SERVICE, OR as
+# an AWS MARKETPLACE line item (Service = "AWS Marketplace", under the Anthropic listing) — depending on
+# how the account subscribed to the model. A budget filtered on "Amazon Bedrock" ALONE could then never
+# trip. I cannot know this account's exact Marketplace value offline, so the Service filter is a VARIABLE
+# you set after checking Cost Explorer (see the step-by-step note below). The budget's cost filter is an
+# OR over these Service values.
+#
+# HOW TO FIND THE RIGHT VALUE(S) — in AWS Cost Explorer, for a day that definitely had Claude usage:
+#   1. Set GROUP BY = "Service". If the Claude spend shows under "Amazon Bedrock", the default is correct.
+#   2. If a chunk shows under "AWS Marketplace", GROUP BY = "Legal entity name" (expect "Anthropic PBC" or
+#      similar) to confirm it is Claude, then ADD the Service value that carries it to the list below
+#      (usually "AWS Marketplace"). Note: Service = "AWS Marketplace" catches ALL marketplace spend; if you
+#      run other marketplace subscriptions, isolate Claude with a Cost Category instead (account-specific,
+#      out of scope here) and point the budget at that category.
+# Do NOT guess the value — set it from what Cost Explorer actually shows for this account.
+variable "bedrock_budget_services" {
+  description = "Cost Explorer SERVICE dimension values the Bedrock budget sums (OR). Add the Marketplace service value if Claude bills as a Marketplace line item — see the note in budget.tf and verify in Cost Explorer first."
+  type        = list(string)
+  default     = ["Amazon Bedrock"]
+}
+
 # The deny policy. Created but NOT attached in normal operation — the budget action attaches it at 100%.
 # An explicit Deny overrides the task role's Allow on bedrock:InvokeModel (iam.tf), so once attached no
 # model call can succeed until it is detached.
@@ -72,10 +93,10 @@ resource "aws_budgets_budget" "bedrock_monthly" {
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
 
-  # Scope the budget to Amazon Bedrock spend only.
+  # Scope the budget to the Service value(s) that carry Claude-on-Bedrock spend (see bedrock_budget_services).
   cost_filter {
     name   = "Service"
-    values = ["Amazon Bedrock"]
+    values = var.bedrock_budget_services
   }
 
   # Email at 80% (early warning) and at 100% (which is also the action threshold).
