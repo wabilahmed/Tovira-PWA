@@ -97,4 +97,28 @@ describe('[USAGE-ALLOWANCE · D12] the top-up webhook credits exactly once', () 
     expect(await topUpEvent('evt_topup_once', userId, 'topup_25')).toBe(200);
     expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(10);
   });
+
+  // [FIX 5] A credit failure must not lose the top-up: the event is NOT recorded, the webhook returns
+  // non-2xx, and Stripe's retry credits it exactly once.
+  it('a credit failure leaves the event un-recorded; the retry credits once', async () => {
+    const { userId } = await signup('topup-retry@example.com');
+    // Fail the first credit (simulate a DB blip mid-transaction), succeed on the retry.
+    const realTopUp = deps.aiAllowance.topUp.bind(deps.aiAllowance);
+    let failedOnce = false;
+    deps.aiAllowance.topUp = async (u, pk, aed) => {
+      if (!failedOnce) { failedOnce = true; throw new Error('db blip mid-credit'); }
+      return realTopUp(u, pk, aed);
+    };
+    try {
+      const first = await topUpEvent('evt_topup_retry', userId, 'topup_25');
+      expect(first).toBe(500); // non-2xx → Stripe will retry
+      expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(0); // nothing credited, event not recorded
+      // Stripe retries the SAME event id → now it credits (the event was never recorded as processed).
+      const retry = await topUpEvent('evt_topup_retry', userId, 'topup_25');
+      expect(retry).toBe(200);
+      expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(10);
+    } finally {
+      deps.aiAllowance.topUp = realTopUp;
+    }
+  });
 });

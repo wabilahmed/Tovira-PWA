@@ -56,6 +56,20 @@ export interface AiAllowanceRepository {
   /** Credit a confirmed top-up to this window (D6/D12): raises available, so the meter's % drops (D8). */
   topUp(userId: string, periodKey: string, addedAed: number): Promise<void>;
 
+  /** [FIX 5] Credit a top-up EXACTLY ONCE for a Stripe event, atomically. In ONE transaction: record the
+   *  event as processed (insert-gated on `eventId`) AND credit the window. Returns true if it credited,
+   *  false if the event was already processed (idempotent replay). If the credit fails the whole
+   *  transaction rolls back — the event is NOT recorded — so the caller returns a non-2xx and Stripe's
+   *  retry credits it. This replaces record-before-process for the top-up path, so a credit is never lost. */
+  creditTopUpOnce(
+    eventId: string,
+    userId: string,
+    periodKey: string,
+    periodStartMs: number,
+    allowanceAed: number,
+    addedAed: number,
+  ): Promise<boolean>;
+
   /** The current window row, for the meter. null if none yet. */
   getMonth(userId: string, periodKey: string): Promise<AiMonth | null>;
 

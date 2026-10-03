@@ -56,11 +56,12 @@ export class BillingService {
     private readonly now: () => number = () => Date.now(),
   ) {}
 
-  /** [USAGE-ALLOWANCE · D12] Credit a confirmed top-up to the rep's allowance. Set at boot AFTER the
-   *  allowance repo is built (it is constructed after billing). Called by the webhook on a mode:'payment'
-   *  success, AFTER the webhook_events dedupe — so a replayed event credits once. */
-  private onTopUp?: (userId: string, topUpOptionId: string) => Promise<void>;
-  setTopUpHandler(fn: (userId: string, topUpOptionId: string) => Promise<void>): void {
+  /** [USAGE-ALLOWANCE · D12/FIX5] Credit a confirmed top-up to the rep's allowance, EXACTLY ONCE and
+   *  transactionally (records the event + credits in one DB tx — see creditTopUpOnce). Set at boot after
+   *  the allowance repo is built. MUST throw on a DB failure so the webhook returns non-2xx and Stripe
+   *  retries (the credit is never lost); a replay after success is a no-op. */
+  private onTopUp?: (eventId: string, userId: string, topUpOptionId: string) => Promise<void>;
+  setTopUpHandler(fn: (eventId: string, userId: string, topUpOptionId: string) => Promise<void>): void {
     this.onTopUp = fn;
   }
 
@@ -167,15 +168,22 @@ export class BillingService {
   async handleWebhook(payload: string, signature: string): Promise<number> {
     const event = this.stripe.constructEvent(payload, signature);
     if (!event) return 400; // invalid signature → rejected
+
+    // [USAGE-ALLOWANCE · D12/FIX5] A one-time top-up (mode:'payment') — handled BEFORE the generic
+    // record-before-process dedupe, because the credit must record the event ONLY if the credit
+    // succeeds, in one transaction (creditTopUpOnce). NOT swallowed: a DB failure throws → the webhook
+    // returns non-2xx → Stripe retries and credits; a replay after success is a no-op.
+    if (event.type === 'checkout.session.completed' && event.mode === 'payment' && event.userId && event.topUpOptionId) {
+      if (this.onTopUp) await this.onTopUp(event.id, event.userId, event.topUpOptionId);
+      return 200;
+    }
+
+    // Generic dedupe for subscription/invoice events. (FIX5 note: this path still records-before-process;
+    // left as-is because wrapping each subscription write + the event record in one tx is not a contained
+    // change — listed in the batch report. Top-ups, where a lost credit = a lost payment, are fixed above.)
     if (await this.events.seen(event.id)) return 200; // idempotent replay
     await this.events.record(event.id);
 
-    // [USAGE-ALLOWANCE · D12] A one-time top-up (mode:'payment') — credit the allowance, do NOT touch
-    // subscription status. Runs AFTER the webhook_events dedupe above, so a replayed event credits once.
-    if (event.type === 'checkout.session.completed' && event.mode === 'payment' && event.userId && event.topUpOptionId) {
-      if (this.onTopUp) await this.notify(() => this.onTopUp!(event.userId!, event.topUpOptionId!));
-      return 200;
-    }
     if (event.type === 'checkout.session.completed' && event.userId) {
       await this.subs.update(event.userId, {
         status: 'active',

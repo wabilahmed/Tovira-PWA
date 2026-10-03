@@ -168,6 +168,42 @@ export class PgAiAllowanceRepository implements AiAllowanceRepository {
     });
   }
 
+  // [FIX 5] Record the Stripe event AND credit the window in ONE transaction. The webhook_events insert
+  // is the idempotency gate (ON CONFLICT DO NOTHING → already processed → no credit). If any step throws,
+  // withTenant ROLLS BACK — including the event insert — so the caller returns non-2xx and Stripe's
+  // retry credits it. A replay after success is a no-op. The credit is therefore never lost nor doubled.
+  async creditTopUpOnce(eventId: string, userId: string, periodKey: string, periodStartMs: number, allowanceAed: number, addedAed: number): Promise<boolean> {
+    return withTenant(this.appPool, userId, async (c) => {
+      const ins = await c.query('INSERT INTO webhook_events (id) VALUES ($1) ON CONFLICT (id) DO NOTHING RETURNING id', [eventId]);
+      if (ins.rows.length === 0) return false; // already processed → do not credit again
+      // Ensure the window row (carrying forward the previous window's remaining top-up), inline.
+      const existing = await c.query('SELECT 1 FROM ai_usage_month WHERE user_id = $1 AND period_key = $2', [userId, periodKey]);
+      if (existing.rows.length === 0) {
+        const prev = await c.query(
+          `SELECT allowance_aed, topup_aed, spent_aed FROM ai_usage_month
+           WHERE user_id = $1 AND period_start_ms < $2 ORDER BY period_start_ms DESC LIMIT 1`,
+          [userId, periodStartMs],
+        );
+        let carried = 0;
+        if (prev.rows[0]) {
+          const p = prev.rows[0] as { allowance_aed: string; topup_aed: string; spent_aed: string };
+          carried = Math.max(0, Number(p.topup_aed) - Math.max(0, Number(p.spent_aed) - Number(p.allowance_aed)));
+        }
+        await c.query(
+          `INSERT INTO ai_usage_month (user_id, period_key, period_start_ms, allowance_aed, topup_aed)
+           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id, period_key) DO NOTHING`,
+          [userId, periodKey, periodStartMs, allowanceAed, carried],
+        );
+      }
+      await c.query(
+        `UPDATE ai_usage_month SET topup_aed = topup_aed + $3, display_exhausted = false, updated_at = now()
+         WHERE user_id = $1 AND period_key = $2`,
+        [userId, periodKey, Math.max(0, addedAed)],
+      );
+      return true;
+    });
+  }
+
   async getMonth(userId: string, periodKey: string): Promise<AiMonth | null> {
     return withTenant(this.appPool, userId, async (c) => {
       const r = await c.query(`SELECT ${MONTH_COLS} FROM ai_usage_month WHERE user_id = $1 AND period_key = $2`, [userId, periodKey]);

@@ -240,12 +240,11 @@ async function main(): Promise<void> {
   const aiExhausted = (uid: string) => allowanceStatus.isExhausted(uid);
   // [USAGE-ALLOWANCE · D12] Credit a confirmed top-up to the rep's current window (idempotent via the
   // webhook_events dedupe). Set here because the allowance repo is built after billing.
-  billing.setTopUpHandler(async (userId, optionId) => {
+  billing.setTopUpHandler(async (eventId, userId, optionId) => {
     const opt = topUpOptionById(optionId);
     if (!opt) { console.warn(`[usage-allowance] unknown top-up option ${optionId} for ${userId}`); return; }
     const w = allowanceWindow(await aiBillingWindowFor(userId), Date.now());
-    await aiAllowance.ensureMonth(userId, w.key, w.startMs, config.monthlyAiAllowanceAed);
-    await aiAllowance.topUp(userId, w.key, opt.addedAed);
+    await aiAllowance.creditTopUpOnce(eventId, userId, w.key, w.startMs, config.monthlyAiAllowanceAed, opt.addedAed);
   });
   // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));

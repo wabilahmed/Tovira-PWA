@@ -239,13 +239,12 @@ export function buildInMemoryDeps(
     billingWindowFor: (uid) => billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart })),
   });
   // [USAGE-ALLOWANCE · D12] credit a confirmed top-up to the rep's current window (mirrors index.ts).
-  billing.setTopUpHandler(async (userId, optionId) => {
+  billing.setTopUpHandler(async (eventId, userId, optionId) => {
     const opt = topUpOptionById(optionId);
     if (!opt) return;
     const e = await billing.entitlement(userId, Date.now());
     const w = allowanceWindow({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, Date.now());
-    await aiAllowance.ensureMonth(userId, w.key, w.startMs, 40);
-    await aiAllowance.topUp(userId, w.key, opt.addedAed);
+    await aiAllowance.creditTopUpOnce(eventId, userId, w.key, w.startMs, 40, opt.addedAed);
   });
   const modelCallEvents = new InMemoryModelCallEventStore();
   // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via

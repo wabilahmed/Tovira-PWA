@@ -97,6 +97,19 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
     }
   }
 
+  // [FIX 5] Events already credited. The CREDIT runs first and the id is recorded only AFTER it
+  // succeeds, mirroring the pg "insert-gated, same transaction, rollback-on-failure" contract: a failed
+  // credit leaves the event un-recorded (retryable), and a replay after success is a no-op.
+  private readonly creditedEvents = new Set<string>();
+
+  async creditTopUpOnce(eventId: string, userId: string, periodKey: string, periodStartMs: number, allowanceAed: number, addedAed: number): Promise<boolean> {
+    if (this.creditedEvents.has(eventId)) return false; // idempotent replay
+    await this.ensureMonth(userId, periodKey, periodStartMs, allowanceAed);
+    await this.topUp(userId, periodKey, addedAed); // if this throws, the id is NOT recorded → retryable
+    this.creditedEvents.add(eventId);
+    return true;
+  }
+
   async getMonth(userId: string, periodKey: string): Promise<AiMonth | null> {
     const row = this.months.get(this.key(userId, periodKey));
     return row ? { ...row } : null;
