@@ -10,13 +10,12 @@
  * one source of truth, not three.
  */
 
-/** Terms of Service version. Derivation: matches "Last updated: 2 October 2026" on the published Terms
- *  page (apps/web/terms/index.html) — the last time the Terms wording changed (the 2026-10-02 revision
- *  rewrote the voice-note clause to 4.10). The reconcile guard proves the page and this constant agree.
- *  (The former CONSENT_POLICY_VERSION was '2026-08-01', a pre-publication DRAFT stamp; accounts that
- *  recorded it keep it — an accurate record of the draft text they saw, archived under
- *  legal-archive/2026-08-01/. The prior published version is legal-archive/2026-09-22/.) */
-export const TERMS_VERSION = '2026-10-02';
+/** Terms of Service version. Derivation: matches "Last updated: 3 October 2026" on the published Terms
+ *  page (apps/web/terms/index.html) — the last time the Terms wording changed (the 2026-10-03 revision
+ *  added clause 6.9, the usage-allowance + top-ups wording, for the monthly AI allowance batch). The
+ *  reconcile guard proves the page and this constant agree. Prior published versions are archived under
+ *  legal-archive/2026-10-02/ (voice-note clause 4.10) and legal-archive/2026-09-22/ (first published). */
+export const TERMS_VERSION = '2026-10-03';
 
 /** Privacy Policy version. Derivation: matches "Last updated: 2 October 2026" on the published Privacy
  *  page (apps/web/privacy/index.html) — the 2026-10-02 revision corrected the voice redaction claim,

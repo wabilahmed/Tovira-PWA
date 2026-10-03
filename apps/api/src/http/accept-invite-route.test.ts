@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { TERMS_VERSION, PRIVACY_VERSION } from '../services/legal/versions.js';
 import type { AccessRequestInput } from '../ports/access-request-repository.js';
 
 const REQ = (over: Partial<AccessRequestInput> = {}): AccessRequestInput => ({
@@ -40,8 +41,10 @@ describe('[BETA-6] invite acceptance routes', () => {
     const res = await req('GET', `/auth/invite?token=${encodeURIComponent(token)}`);
     const body = await res.json() as { valid: boolean; termsVersion: string; privacyVersion: string };
     expect(body.valid).toBe(true);
-    expect(body.termsVersion).toBe('2026-10-02');
-    expect(body.privacyVersion).toBe('2026-10-02');
+    // Assert against the version constants so a legitimate Terms/Privacy bump never silently drifts
+    // this test (it reports the versions a new account is accepting).
+    expect(body.termsVersion).toBe(TERMS_VERSION);
+    expect(body.privacyVersion).toBe(PRIVACY_VERSION);
     // peeking did not consume it
     expect((await (await req('GET', `/auth/invite?token=${encodeURIComponent(token)}`)).json() as { valid: boolean }).valid).toBe(true);
     expect((await req('GET', '/auth/invite?token=bogus')).status).toBe(200);
