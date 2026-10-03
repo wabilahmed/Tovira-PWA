@@ -29,7 +29,7 @@ export class BedrockEmbedder implements Embedder {
     this.client = opts.client ?? (new BedrockRuntimeClient({ region: opts.region }) as unknown as BedrockInvoker);
   }
 
-  async embed(text: string): Promise<number[]> {
+  async embed(_userId: string, text: string): Promise<number[]> {
     try {
       const res = await this.client.send(
         new InvokeModelCommand({

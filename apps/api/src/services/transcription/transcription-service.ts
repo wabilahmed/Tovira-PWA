@@ -84,7 +84,7 @@ export class TranscriptionService {
     let text: string;
     let quality: 'ok' | 'low' | undefined;
     try {
-      const result = await this.transcriber.transcribe(audio);
+      const result = await this.transcriber.transcribe(userId, audio);
       text = result.text ?? '';
       quality = result.quality;
     } catch {

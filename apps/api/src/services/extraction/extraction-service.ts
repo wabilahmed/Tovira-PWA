@@ -169,7 +169,7 @@ export class ExtractionService {
     for (const r of reqs) {
       let embedding: number[] | null = null;
       try {
-        embedding = await this.embedder.embed(r.requirement_raw || r.text);
+        embedding = await this.embedder.embed(userId, r.requirement_raw || r.text);
       } catch (err) {
         console.warn(`[requirements] embed failed for note ${noteId}; requirement stored without a vector`, err);
       }
@@ -379,7 +379,7 @@ export class ExtractionService {
       let embedding: number[] | null = null;
       if (!hold) {
         try {
-          embedding = await this.embedder.embed(safeText); // [SCREEN] embed only the model-safe text
+          embedding = await this.embedder.embed(userId, safeText); // [SCREEN] embed only the model-safe text
         } catch (err) {
           console.warn(`[extract] embedding failed for note ${noteId}; saving facts without a vector`, err);
         }

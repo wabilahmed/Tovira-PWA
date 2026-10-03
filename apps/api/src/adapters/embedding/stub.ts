@@ -12,7 +12,7 @@ export class StubEmbedder implements Embedder {
     this.dimension = dimension;
   }
 
-  async embed(text: string): Promise<number[]> {
+  async embed(_userId: string, text: string): Promise<number[]> {
     const vec = new Array<number>(this.dimension);
     let seed = createHash('sha256').update(text).digest();
     for (let i = 0; i < this.dimension; i++) {

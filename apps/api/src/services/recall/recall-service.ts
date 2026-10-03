@@ -185,7 +185,7 @@ export class RecallService {
       history = await this.sessions.recentMessages(userId, sessionId, this.config.historyWindow ?? DEFAULT_HISTORY_WINDOW);
     }
 
-    const embedding = await this.embedder.embed(question);
+    const embedding = await this.embedder.embed(userId, question);
     const matches = await this.notes.searchSimilarByUser(userId, embedding, this.config.topK);
     const relevant = matches.filter((m) => m.similarity >= this.config.minSimilarity && modelSafeText(m.note).trim());
 

@@ -46,7 +46,7 @@ export class InventoryService {
   ) {}
 
   async create(userId: string, input: CreateItemInput): Promise<InventoryItemRecord> {
-    const embedding = await this.embed(input.title, input.description);
+    const embedding = await this.embed(userId, input.title, input.description);
     const item = await this.repo.create(userId, { title: input.title, description: input.description, quantity: input.quantity, embedding });
     await this.match(userId, item, embedding);
     return item;
@@ -75,7 +75,7 @@ export class InventoryService {
     // Re-embed only when the matching surface (title/description) actually changed.
     let reEmbedded: number[] | null | undefined;
     if (patch.title !== undefined || patch.description !== undefined) {
-      reEmbedded = await this.embed(patch.title ?? existing.title, patch.description ?? existing.description);
+      reEmbedded = await this.embed(userId, patch.title ?? existing.title, patch.description ?? existing.description);
       repoPatch.embedding = reEmbedded;
     }
 
@@ -176,9 +176,9 @@ export class InventoryService {
   }
 
   /** Embed title + description; best-effort — null on failure, never throws. */
-  private async embed(title: string, description: string): Promise<number[] | null> {
+  private async embed(userId: string, title: string, description: string): Promise<number[] | null> {
     try {
-      return await this.embedder.embed(`${title}\n${description}`);
+      return await this.embedder.embed(userId, `${title}\n${description}`);
     } catch {
       return null;
     }

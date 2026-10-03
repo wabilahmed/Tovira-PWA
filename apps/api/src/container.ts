@@ -99,6 +99,7 @@ import { PgSpendLedgerRepository } from './adapters/spend/pg-spend-ledger-reposi
 import type { AiAllowanceRepository } from './ports/ai-allowance-repository.js';
 import { InMemoryAiAllowanceRepository } from './adapters/spend/in-memory-ai-allowance-repository.js';
 import { PgAiAllowanceRepository } from './adapters/spend/pg-ai-allowance-repository.js';
+import { GatedModelClient, GatedEmbedder, GatedTranscriber } from './adapters/spend/gated-ai-clients.js';
 import type { SensitiveFlagStatsRepository } from './ports/sensitive-flag-stats-repository.js';
 import { InMemorySensitiveFlagStatsRepository } from './adapters/screening/in-memory-sensitive-flag-stats-repository.js';
 import { PgSensitiveFlagStatsRepository } from './adapters/screening/pg-sensitive-flag-stats-repository.js';
@@ -257,7 +258,9 @@ export function createModelClient(config: AppConfig, taskClass: AiTaskClass = 'e
       ? new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model, timeoutMs: config.modelTimeoutMs })
       : new StubModelClient();
   // CACHE-1: meter every call's cache outcome per task class (→ /health, observability).
-  return new MeteredModelClient(inner, taskClass, model);
+  // [USAGE-ALLOWANCE] then GATE it (outermost): every complete() reserves against the allowance before
+  // the call and settles the actual after. No-ops until setAiGate() runs at boot (tests/eval).
+  return new GatedModelClient(new MeteredModelClient(inner, taskClass, model), model);
 }
 
 export function createServices(config: AppConfig): Services {
@@ -395,21 +398,20 @@ export function createStorage(config: AppConfig): Storage {
   return new FsStorage(config.storageDir);
 }
 
-/** Speech-to-text: stub locally, Groq/Whisper when configured. */
+/** Speech-to-text: stub locally, Groq/Whisper when configured. [USAGE-ALLOWANCE] always gated. */
 export function createTranscriber(config: AppConfig): Transcriber {
-  if (config.transcriberProvider === 'groq') {
-    try {
-      return new GroqTranscriber({
-        apiKey: config.groqApiKey ?? '',
-        baseUrl: config.groqBaseUrl,
-        model: config.groqModel,
-      });
-    } catch (err) {
-      console.warn(`[transcribe] groq disabled (missing/invalid key: ${err instanceof Error ? err.message : String(err)}). Add a real key to enable voice notes.`);
-      return new StubTranscriber();
+  const inner: Transcriber = (() => {
+    if (config.transcriberProvider === 'groq') {
+      try {
+        return new GroqTranscriber({ apiKey: config.groqApiKey ?? '', baseUrl: config.groqBaseUrl, model: config.groqModel });
+      } catch (err) {
+        console.warn(`[transcribe] groq disabled (missing/invalid key: ${err instanceof Error ? err.message : String(err)}). Add a real key to enable voice notes.`);
+        return new StubTranscriber();
+      }
     }
-  }
-  return new StubTranscriber();
+    return new StubTranscriber();
+  })();
+  return new GatedTranscriber(inner, config.groqModel);
 }
 
 export function createTranscriptionService(
@@ -429,12 +431,12 @@ export function createFactsRepository(config: AppConfig, pool?: Pool): FactsRepo
   return new InMemoryFactsRepository();
 }
 
-/** Text embeddings: stub locally, Bedrock (Titan v2) when configured. */
+/** Text embeddings: stub locally, Bedrock (Titan v2) when configured. [USAGE-ALLOWANCE] always gated. */
 export function createEmbedder(config: AppConfig): Embedder {
-  if (config.embedderProvider === 'bedrock') {
-    return new BedrockEmbedder({ region: config.bedrockRegion, modelId: config.embedModel, dimension: config.embedDim });
-  }
-  return new StubEmbedder(config.embedDim);
+  const inner: Embedder = config.embedderProvider === 'bedrock'
+    ? new BedrockEmbedder({ region: config.bedrockRegion, modelId: config.embedModel, dimension: config.embedDim })
+    : new StubEmbedder(config.embedDim);
+  return new GatedEmbedder(inner);
 }
 
 /** The extraction operational log (P1-8), RLS-backed on pg. [NO-TRAINING-RETENTION] metadata only. */

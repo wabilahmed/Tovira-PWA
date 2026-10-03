@@ -4,7 +4,9 @@
  */
 export interface Embedder {
   readonly dimension: number;
-  embed(text: string): Promise<number[]>;
+  /** [USAGE-ALLOWANCE] `userId` attributes the embedding's (estimated) cost to the rep's allowance via
+   *  the gate. It is always in scope at every call site (no ownerless embeddings). */
+  embed(userId: string, text: string): Promise<number[]>;
 }
 
 export class EmbeddingError extends Error {

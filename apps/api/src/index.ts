@@ -48,6 +48,8 @@ import {
   createFollowUpService,
   createExtractionLogRepository,
   createSpendLedgerRepository,
+  createAiAllowanceRepository,
+  createEmailSender,
   createSensitiveFlagStatsRepository,
   createOpsAlertRepository,
   createRecallDailyCounter,
@@ -104,6 +106,7 @@ import { ExtractionCanaryService } from './services/extraction/extraction-canary
 import { SpendService } from './services/spend/spend-service.js';
 import { periodKeyFrom } from './services/spend/period.js';
 import { setSpendSink, setModelCallEventSink } from './adapters/model/metered.js';
+import { AiGate, setAiGate } from './services/spend/ai-gate.js';
 import { ModelCallEventService } from './services/spend/model-call-event-service.js';
 import { RecallSpendGate } from './services/spend/recall-spend-gate.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
@@ -200,6 +203,30 @@ async function main(): Promise<void> {
   // (system calls recorded account-less). Cross-tenant ops accounting → the root pool.
   const modelCallEvents = createModelCallEventStore(config, migrationPool);
   setModelCallEventSink(new ModelCallEventService(modelCallEvents, (uid) => spendPeriodFor(uid, Date.now())));
+  // [USAGE-ALLOWANCE] THE GATE. Built here and armed with setAiGate so every gated provider wrapper
+  // (model/embedder/transcriber) reserves against the rep's monthly allowance before each call and
+  // settles the actual after. The global monthly total feeds a one-shot email alert; it never blocks.
+  const aiAllowance = createAiAllowanceRepository(config, appPool, migrationPool);
+  const aiAlertSender = createEmailSender(config);
+  const aiGate = new AiGate({
+    allowance: aiAllowance,
+    allowanceAed: config.monthlyAiAllowanceAed,
+    alertThresholdAed: config.aiSpendAlertAed,
+    billingWindowFor: (uid) =>
+      billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart })),
+    isPaused: () => config.aiPaused,
+    onAlert: async (ym, totalAed) => {
+      console.error(`[ai-spend-alert] global AI spend for ${ym} crossed AED ${config.aiSpendAlertAed}: now AED ${totalAed.toFixed(2)}`);
+      if (config.accessRequestNotifyEmail) {
+        await aiAlertSender.send({
+          to: config.accessRequestNotifyEmail,
+          subject: `Tovira AI spend alert — ${ym} crossed AED ${config.aiSpendAlertAed}`,
+          text: `Total AI spend across all accounts for ${ym} is now AED ${totalAed.toFixed(2)}, past the AED ${config.aiSpendAlertAed} alert threshold. This is an alert only — nothing was paused or blocked.`,
+        });
+      }
+    },
+  });
+  setAiGate(aiGate);
   // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
   const recallGate = new RecallSpendGate(spend, createRecallDailyCounter(config, appPool), config.recallDailyCapAtCap);
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
@@ -388,6 +415,11 @@ async function main(): Promise<void> {
       // UNIQUE, the next free key after access-request-retention (…011). Idempotent.
       { name: 'audio-retention', lockKey: 4711012, intervalMs: 24 * 60 * 60 * 1000,
         run: async () => { const n = await audioRetention.sweep(Date.now()); console.log(`[retention] audio deleted ${n} recording(s) past ${AUDIO_RETENTION_DAYS}d after transcription`); } },
+      // [USAGE-ALLOWANCE] Free the reservations of calls that crashed mid-flight (expiry past
+      // AI_RESERVATION_TTL_MS), so a lost reservation can never permanently eat a rep's headroom.
+      // lockKey 4711013: UNIQUE, the next free key. Cross-tenant sweep (superuser pool). Idempotent.
+      { name: 'ai-reservation-sweep', lockKey: 4711013, intervalMs: 60_000,
+        run: async () => { const n = await aiAllowance.expireStale(Date.now()); if (n > 0) console.log(`[usage-allowance] expired ${n} stale AI reservation(s)`); } },
     ],
   }, 15_000); // [ASYNC-EXTRACT] tick every 15s (was 30s) so the notes-sweep (15s interval) fires on
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs

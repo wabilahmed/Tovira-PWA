@@ -88,7 +88,7 @@ export class AskCaptureService {
     if (!note || note.status !== PENDING) return false;
     const ex = (note.extracted ?? {}) as { promises?: ExtractedPromise[]; key_dates?: unknown[] };
     let embedding: number[] | null = null;
-    try { embedding = await this.deps.embedder.embed(note.rawText ?? ''); } catch { /* degraded search, still committed */ }
+    try { embedding = await this.deps.embedder.embed(userId, note.rawText ?? ''); } catch { /* degraded search, still committed */ }
     await this.deps.notes.update(userId, noteId, { status: 'extracted', embedding });
     await this.deps.facts.saveExtraction(userId, {
       noteId,

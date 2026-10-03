@@ -120,7 +120,7 @@ export class BriefService {
     // exactly like extraction, recall and draft. The caller already passes full notes (listByClient).
     const focus = notes.find((n) => modelSafeText(n).trim());
     if (!focus) return [];
-    const query = await this.embedder.embed(modelSafeText(focus));
+    const query = await this.embedder.embed(userId, modelSafeText(focus));
     const sims = await this.notes.searchSimilar(userId, clientId, query, 5);
     return sims
       .filter((s) => s.note.id !== focus.id && s.similarity >= RELATED_THRESHOLD)

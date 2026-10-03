@@ -156,6 +156,20 @@ export interface AppConfig {
   trialSpendCapAed: number;
   spendWarnFraction: number;
   recallDailyCapAtCap: number;
+  /** [USAGE-ALLOWANCE · D1] Each rep's monthly AI-cost allowance (100%). Derivation: AED 40 is ~13% of
+   *  the AED 299 subscription — the most AI cost one seat may consume before the subscription stops
+   *  covering it with margin. Replaces the earlier AED 45 soft cap. Overridable via
+   *  MONTHLY_AI_ALLOWANCE_AED; the default IS the product value. */
+  monthlyAiAllowanceAed: number;
+  /** [USAGE-ALLOWANCE · D13] Global monthly AI-spend ALERT threshold. When total spend this calendar
+   *  month crosses it, the owner is emailed ONCE. It NEVER blocks or pauses anything (the global ceiling
+   *  was removed). Derivation: beta of ~3 reps × AED 40 + founder testing + headroom; raise deliberately
+   *  as paying users grow. Read from config so it changes without a deploy. */
+  aiSpendAlertAed: number;
+  /** [USAGE-ALLOWANCE · D14] Manual platform-wide kill switch. When true, every metered AI call is
+   *  refused immediately (erasure re-summarisation is the sole exemption — a legal obligation). For when
+   *  the owner sees something wrong and needs AI to stop now. */
+  aiPaused: boolean;
   // --- UAE VAT (VAT-READY): fully built, OFF by default. Flip on the day Prospera registers.
   //     An invoice's tax status is date-driven (see VatPolicy), so the boundary is immutable. ---
   vatRegistered: boolean;
@@ -265,6 +279,9 @@ export function loadConfig(env: Env = process.env): AppConfig {
     trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, 20, 'TRIAL_SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     recallDailyCapAtCap: parsePositive(env.RECALL_DAILY_CAP_AT_CAP, 100, 'RECALL_DAILY_CAP_AT_CAP'),
+    monthlyAiAllowanceAed: parsePositive(env.MONTHLY_AI_ALLOWANCE_AED, 40, 'MONTHLY_AI_ALLOWANCE_AED'),
+    aiSpendAlertAed: parsePositive(env.AI_SPEND_ALERT_AED, 300, 'AI_SPEND_ALERT_AED'),
+    aiPaused: env.AI_PAUSED?.trim() === 'true', // default false (undefined → not paused)
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),
     accessRequestNotifyEmail: isBlank(env.ACCESS_REQUEST_NOTIFY_TO) ? undefined : env.ACCESS_REQUEST_NOTIFY_TO!.trim(),
     vatRegistered: env.VAT_REGISTERED?.trim() === 'true',

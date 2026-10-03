@@ -38,7 +38,7 @@ function capturingModel(): { client: ModelClient; seenText: () => string } {
 /** An embedder that records the exact text it was asked to embed. */
 function capturingEmbedder(): { embedder: Embedder; seen: () => string[] } {
   const seen: string[] = [];
-  return { embedder: { dimension: 8, embed: async (t: string) => { seen.push(t); return new Array(8).fill(0); } }, seen: () => seen };
+  return { embedder: { dimension: 8, embed: async (_userId: string, t: string) => { seen.push(t); return new Array(8).fill(0); } }, seen: () => seen };
 }
 
 async function seedNote(notes: InMemoryNoteRepository, clients: InMemoryClientRepository, messages: ImportedMessage[]) {

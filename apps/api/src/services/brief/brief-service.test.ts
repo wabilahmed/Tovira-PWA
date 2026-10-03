@@ -8,7 +8,7 @@ import type { Extraction } from '../extraction/types.js';
 
 // A fake embedder returning a fixed vector per exact text (so we control similarity).
 function fakeEmbedder(map: Record<string, number[]>): Embedder {
-  return { dimension: 3, embed: async (t: string) => map[t] ?? [0, 0, 0] };
+  return { dimension: 3, embed: async (_userId: string, t: string) => map[t] ?? [0, 0, 0] };
 }
 
 const extraction = (over: Partial<Extraction>): Extraction => ({
@@ -150,7 +150,7 @@ describe('[SCREEN] brief related-notes query embedding excludes held messages', 
   it('embeds only model-safe text — a flagged message never reaches the embedder (Titan)', async () => {
     const { clients, notes, facts, client } = await seed();
     const seen: string[] = [];
-    const embedder: Embedder = { dimension: 3, embed: async (t: string) => { seen.push(t); return [0, 0, 0]; } };
+    const embedder: Embedder = { dimension: 3, embed: async (_userId: string, t: string) => { seen.push(t); return [0, 0, 0]; } };
     const HEALTH = 'he is in hospital after surgery';
     const CLEAN = 'send the floor plan for unit 12';
     const note = await notes.create('user-A', {

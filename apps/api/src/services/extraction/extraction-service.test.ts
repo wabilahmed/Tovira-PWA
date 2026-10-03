@@ -445,7 +445,7 @@ describe('ExtractionService', () => {
     expect(stored[0]!.embedded).toBe(true); // has its own vector — matching is precise, not note-blended
     expect(stored[0]!.statedOn).toBe('2026-07-09');
     // searchable by vector (the reverse match direction will use this)
-    expect(await requirements.searchByEmbedding('u', (await new StubEmbedder(8).embed('looking for a 2-bed near the marina')), 5)).toHaveLength(1);
+    expect(await requirements.searchByEmbedding('u', (await new StubEmbedder(8).embed('u', 'looking for a 2-bed near the marina')), 5)).toHaveLength(1);
   });
 
   // INV-MATCH (A4b) #9, end-to-end: extraction triggers matching, which is RETRIEVAL — it must add
@@ -469,7 +469,7 @@ describe('ExtractionService', () => {
     const matching = new MatchingService(new InMemoryInventoryMatchRepository(), requirements, inventory);
     const embedder = new StubEmbedder(8);
     // Seed a matching item: same text → identical stub vector → cosine 1.0 → a strong match.
-    await inventory.create('u', { title: 'Marina Heights 402', description: raw, quantity: 1, embedding: await embedder.embed(raw) });
+    await inventory.create('u', { title: 'Marina Heights 402', description: raw, quantity: 1, embedding: await embedder.embed('u', raw) });
 
     const client = await clients.create('u', 'Marina Estates');
     const note = await notes.create('u', { clientId: client.id, source: 'voice', rawText: raw, audioKey: null, status: 'pending_extraction' });
