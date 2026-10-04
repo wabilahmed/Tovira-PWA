@@ -70,6 +70,32 @@ export interface Meeting {
   source_message_at?: string | null;
 }
 
+/** [POINTERS] Which section a pointer belongs to. The second section depends on the deal state (D6):
+ *  'close' (open / going-cold → reopen), 'next_opportunity' (won), 'retrospective' (rep-confirmed loss). */
+export type PointerSection = 'relationship' | 'close' | 'next_opportunity' | 'retrospective';
+
+/** [POINTERS · D6] Where the deal stands, passed to the extraction so it chooses the right second
+ *  section. 'going_cold' covers a silence-inferred loss too (D6: an inferred loss is treated as cold,
+ *  never as a rep-confirmed loss / retrospective). 'lost' means ONLY a rep-confirmed loss. */
+export type DealState = 'open' | 'going_cold' | 'won' | 'lost';
+
+/** [POINTERS · D3] A pointer's grounding in the client's own messages. There is no stable message id in
+ *  this codebase, so — exactly like fact receipts — a cited message is a verbatim span + its timestamp. */
+export interface PointerReceipt {
+  source_span: string;
+  source_message_at: string | null; // null only for an untimestamped note (voice/paste)
+}
+
+/** [POINTERS] A relationship/closing pointer grounded in THIS client's messages (D2: specific or
+ *  nothing). `receipts` cite the message(s) it came from (D3); `inferred` marks a tone/behaviour
+ *  inference vs something stated (D4). Validated + screened by deterministic code before saving. */
+export interface Pointer {
+  section: PointerSection;
+  text: string;
+  receipts: PointerReceipt[];
+  inferred?: boolean;
+}
+
 export interface Extraction {
   summary: string;
   promises: ExtractedPromise[];
@@ -83,6 +109,10 @@ export interface Extraction {
    *  asExtraction defaults it to []. */
   requirements?: Requirement[];
   meeting: Meeting | null;
+  /** [POINTERS] Per-client relationship + closing pointers produced by the model (D1 — same call).
+   *  Optional in the TYPE so older stored extractions + the guarded pre-pointers eval ground truth still
+   *  satisfy it; asExtraction defaults it to []. Deterministically validated/screened before saving. */
+  pointers?: Pointer[];
   // Deterministic post-extraction field (P1-6). NOT produced by the model — the
   // extraction service computes it from a chat export's speaker-attributed
   // messages. Optional: absent/[] for non-chat notes; populated for chat imports.

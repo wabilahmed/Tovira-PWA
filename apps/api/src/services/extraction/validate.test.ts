@@ -69,4 +69,20 @@ describe('validateExtraction', () => {
     expect(validateExtraction('not json').ok).toBe(false);
     expect(validateExtraction(null).ok).toBe(false);
   });
+
+  // [POINTERS] optional container; defaulted to [] when absent; well-formed when present.
+  it('defaults pointers to [] when the model omits them', () => {
+    expect(asExtraction(valid)!.pointers).toEqual([]);
+  });
+
+  it('accepts well-formed pointers', () => {
+    const withP = { ...valid, pointers: [{ section: 'relationship', text: 'keeps asking about parking', receipts: [{ source_span: 'parking?', source_message_at: null }], inferred: true }] };
+    expect(validateExtraction(withP).ok).toBe(true);
+    expect(asExtraction(withP)!.pointers).toHaveLength(1);
+  });
+
+  it('rejects a pointer with an invalid section or a non-array receipts', () => {
+    expect(validateExtraction({ ...valid, pointers: [{ section: 'wat', text: 'x', receipts: [] }] }).ok).toBe(false);
+    expect(validateExtraction({ ...valid, pointers: [{ section: 'close', text: 'x', receipts: 'nope' }] }).ok).toBe(false);
+  });
 });

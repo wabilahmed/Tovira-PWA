@@ -8,6 +8,7 @@ export interface ValidationResult {
 const OWNERS = new Set(['rep', 'client']);
 const CONFIDENCES = new Set(['high', 'low']);
 const DECISION_ROLES = new Set(['decision_maker', 'influencer', 'blocker', 'unknown']);
+const POINTER_SECTIONS = new Set(['relationship', 'close', 'next_opportunity', 'retrospective']);
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -62,6 +63,22 @@ export function validateExtraction(value: unknown): ValidationResult {
     }
   }
 
+  // [POINTERS] optional container (older output omits it → defaulted in asExtraction); when present
+  // every entry must be structurally well-formed. The deterministic post-check (receipts, sensitive
+  // screen, retrospective rules) runs AFTER this, on the validated shape.
+  if (value.pointers !== undefined) {
+    if (!Array.isArray(value.pointers)) {
+      errors.push('pointers must be an array');
+    } else {
+      value.pointers.forEach((p, i) => {
+        if (!isObj(p)) return errors.push(`pointers[${i}] must be an object`);
+        if (!POINTER_SECTIONS.has(p.section as string)) errors.push(`pointers[${i}].section invalid`);
+        if (typeof p.text !== 'string') errors.push(`pointers[${i}].text must be a string`);
+        if (!Array.isArray(p.receipts)) errors.push(`pointers[${i}].receipts must be an array`);
+      });
+    }
+  }
+
   if (value.meeting !== null) {
     if (!isObj(value.meeting)) {
       errors.push('meeting must be an object or null');
@@ -80,5 +97,5 @@ export function validateExtraction(value: unknown): ValidationResult {
 export function asExtraction(value: unknown): Extraction | null {
   if (!validateExtraction(value).ok) return null;
   const v = value as Extraction;
-  return { ...v, requirements: v.requirements ?? [], unanswered_questions: v.unanswered_questions ?? [] };
+  return { ...v, requirements: v.requirements ?? [], pointers: v.pointers ?? [], unanswered_questions: v.unanswered_questions ?? [] };
 }

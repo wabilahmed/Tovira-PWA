@@ -275,7 +275,7 @@ describe('ExtractionService', () => {
     const rows = await logs.listByUser('user-A');
     expect(rows).toHaveLength(1);
     expect(rows[0]!.model).toBe('stub');
-    expect(rows[0]!.promptVersion).toBe('tovira-extract-v0.9.7');
+    expect(rows[0]!.promptVersion).toBe('tovira-extract-v0.9.8');
     expect(rows[0]!.status).toBe('extracted');
     // [NO-TRAINING-RETENTION] the log records fact-quality COUNTS, never content (no input / rawOutput).
     expect(rows[0]!.factsAccepted).toBeGreaterThan(0);
