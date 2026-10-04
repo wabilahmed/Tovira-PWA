@@ -66,7 +66,18 @@ async function setup(m: ModelClient, cacheTtl?: '5m' | '1h', embedder: Embedder 
 }
 
 describe('ExtractionService — pointers (Task 3)', () => {
-  async function pointerSetup(extractionJson: string) {
+  // [POINTERS · Task 2] Pointers are a SEPARATE call AFTER extraction. The fake model returns the
+  // extraction JSON first (facts, no pointers), then the pointer JSON — and records BOTH requests, so a
+  // test can inspect the extraction request (reqs[0]) and the pointer request (reqs[1]) independently.
+  const EXTRACTION_RESP = JSON.stringify({ summary: 'x', promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null });
+  function pointerModel(pointerJson: string) {
+    const reqs: Array<Parameters<ModelClient['complete']>[0]> = [];
+    const responses = [EXTRACTION_RESP, pointerJson];
+    let i = 0;
+    const client: ModelClient = { complete: async (req) => { reqs.push(req); return { text: responses[Math.min(i++, responses.length - 1)]! }; } };
+    return { client, reqs: () => reqs };
+  }
+  async function pointerSetup(pointerJson: string) {
     const clients = new InMemoryClientRepository();
     const notes = new InMemoryNoteRepository();
     const facts = new InMemoryFactsRepository();
@@ -78,14 +89,15 @@ describe('ExtractionService — pointers (Task 3)', () => {
       rawText: '[2026-01-01T10:00] Layla: is there parking?',
       messages: [{ sentAt: '2026-01-01T10:00', sender: 'Layla', body: 'is there parking?', media: false, role: 'client' }],
     });
-    const cap = capturingModel(extractionJson);
+    const cap = pointerModel(pointerJson);
     const service = new ExtractionService(
       cap.client, clients, notes, facts, new StubEmbedder(8), logs, 'stub',
       undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pointers,
     );
     return { service, pointers, note, client, cap, clients };
   }
-  const EX = (pointers: unknown[]) => JSON.stringify({ summary: 'x', promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null, pointers });
+  /** The POINTER model response (the second call) — { pointers: [...] }. */
+  const EX = (pointers: unknown[]) => JSON.stringify({ pointers });
 
   it('post-checks and saves the client pointer set; a grounded pointer survives, an ungrounded one is dropped', async () => {
     const { service, pointers, note, client } = await pointerSetup(EX([
@@ -98,17 +110,27 @@ describe('ExtractionService — pointers (Task 3)', () => {
     expect(set!.pointers[0]!.text).toBe('keeps asking about parking');
   });
 
-  // NOTE: deal state + current pointers are NOT in the extraction prompt (the certified v0.9.7 prefix is
-  // frozen). They feed the SEPARATE pointer call — asserted in the pointer-call tests (Task 2). The
-  // extraction prompt must NOT carry them:
+  // The certified extraction prompt (call 1) must NOT carry deal state or current pointers.
   it('does NOT inject deal state or current pointers into the (certified) extraction prompt', async () => {
     const { service, pointers, note, client, cap } = await pointerSetup(EX([]));
     await pointers.save('u', client.id, { pointers: [{ section: 'relationship', text: 'cares about price', receipts: [{ source_span: 'price', source_message_at: '2025-12-01T09:00' }] }], retrospectiveDisclosure: null }, 1);
     await service.extractNote('u', note.id, '2026-02-01');
-    const content = cap.last()!.messages[0]!.content;
-    expect(content).not.toMatch(/DEAL STATE/);
-    expect(content).not.toContain('cares about price');
-    expect((content.match(/<<<TOVIRA_UNTRUSTED_BEGIN>>>/g) ?? []).length).toBe(1); // still one fence
+    const extractionReq = cap.reqs()[0]!.messages[0]!.content as string;
+    expect(extractionReq).not.toMatch(/DEAL STATE/);
+    expect(extractionReq).not.toContain('cares about price');
+    expect((extractionReq.match(/<<<TOVIRA_UNTRUSTED_BEGIN>>>/g) ?? []).length).toBe(1);
+  });
+
+  // The SEPARATE pointer call (call 2) carries the deal state + current pointers, inside ONE fence (D6/D7).
+  it('feeds deal state + current pointers into the pointer call, inside the single fence', async () => {
+    const { service, pointers, note, client, cap } = await pointerSetup(EX([]));
+    await pointers.save('u', client.id, { pointers: [{ section: 'relationship', text: 'cares about price', receipts: [{ source_span: 'price', source_message_at: '2025-12-01T09:00' }] }], retrospectiveDisclosure: null }, 1);
+    await service.extractNote('u', note.id, '2026-02-01');
+    expect(cap.reqs()).toHaveLength(2); // exactly two model calls: extraction, then pointers
+    const pointerReq = cap.reqs()[1]!.messages[0]!.content as string;
+    expect(pointerReq).toMatch(/DEAL STATE: open/); // default outcome, recently touched
+    expect(pointerReq).toContain('cares about price'); // current pointer fed back for update (D7)
+    expect((pointerReq.match(/<<<TOVIRA_UNTRUSTED_BEGIN>>>/g) ?? []).length).toBe(1); // one fence
   });
 
   // [POINTERS · Task 5] GUARD 1 — no pointer without a valid receipt reaches STORAGE (D3). The trust

@@ -1,6 +1,6 @@
 import type { CacheTtl, ModelClient } from '../../ports/model.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
-import type { NoteRepository } from '../../ports/note-repository.js';
+import type { NoteRepository, NoteRecord } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
 import type { ExtractionLogRepository, RejectionReason } from '../../ports/extraction-log-repository.js';
@@ -8,10 +8,11 @@ import type { RepGlossaryRepository } from '../../ports/rep-glossary-repository.
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { RequirementRepository, RequirementInput } from '../../ports/requirement-repository.js';
 import type { MatchingService } from '../inventory/matching-service.js';
-import type { Meeting, Requirement, DealState } from './types.js';
+import type { Meeting, Requirement, DealState, Pointer } from './types.js';
 import type { ClientRecord } from '../../ports/client-repository.js';
 import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
 import { checkPointers } from './pointer-postcheck.js';
+import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from './pointer-prompt.js';
 import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
 import type { ModelRouter } from './model-router.js';
@@ -438,26 +439,6 @@ export class ExtractionService {
           keyDates: extraction.key_dates,
           captureAt: referenceDate, // the note's conversation date, not the fact-row/import time
         });
-        // [POINTERS] Validate the model's pointers deterministically (receipts → sensitive screen →
-        // retrospective rules), then REPLACE the client's set (D7 keep/revise/retire/add). Best-effort —
-        // a failure never loses the extracted facts.
-        if (this.pointers) {
-          try {
-            const checked = checkPointers({
-              pointers: extraction.pointers ?? [],
-              inputText: safeText,
-              inputMessageAts: new Set((note.messages ?? []).map((m) => m.sentAt).filter((s): s is string => !!s)),
-              currentPointers: currentPointerSet?.pointers ?? [],
-              dealState,
-            });
-            await this.pointers.save(userId, note.clientId, { pointers: checked.pointers, retrospectiveDisclosure: checked.retrospectiveDisclosure }, this.now());
-            // [D8] The client thread shows a single pointers card rendered from this stored set — it
-            // appears once pointers first exist (a chat import) and updates in place on later voice/paste
-            // extractions (silently, no new message). No separate notification is posted.
-          } catch (err) {
-            console.warn(`[pointers] post-check/save failed for note ${noteId}`, err);
-          }
-        }
         // NUDGE-UNCONFIRMED: persist a proposed meeting so it can be confirmed and nudged.
         // Best-effort — a failure here must never lose the extracted facts (never lose a recording).
         if (this.meetings && extraction.meeting) {
@@ -485,6 +466,10 @@ export class ExtractionService {
         } catch (err) {
           console.warn(`[misfile-post] detection failed for note ${noteId}`, err);
         }
+        // [POINTERS · Task 2] Pointers are a SEPARATE model call, made only now that extraction has
+        // succeeded and been saved. A failure here (or an exhausted allowance) never fails or rolls back
+        // the extraction — the chat's pointers simply stay as they were.
+        await this.generatePointers(userId, note, client, route.model, safeText, dealState, currentPointerSet?.pointers ?? [], referenceDate);
       }
       status = hold ? 'pending_confirmation' : 'extracted';
       // [NO-TRAINING-RETENTION] accepted vs held. Held (low-confidence / Ask-capture) facts are computed
@@ -536,6 +521,77 @@ export class ExtractionService {
     }
 
     return extraction ? { status } : { status, flagged: true };
+  }
+
+  /**
+   * [POINTERS · Task 2] The SEPARATE pointer call, made after extraction has succeeded and been saved.
+   * Best-effort and fully isolated from extraction: any failure is logged and swallowed — the chat's
+   * pointers stay as they were, and the extraction (facts) is never failed or rolled back. The call is
+   * NOT covered by forceAllowance: if the account is exhausted it is skipped SILENTLY and runs on this
+   * client's next extraction. One chat per call (isolation guard), same deterministic post-check + save.
+   */
+  private async generatePointers(
+    userId: string,
+    note: NoteRecord,
+    client: ClientRecord | null,
+    model: ModelClient,
+    safeText: string,
+    dealState: DealState,
+    currentPointers: Pointer[],
+    referenceDate: string,
+  ): Promise<void> {
+    if (!this.pointers) return; // pointers not wired (local/old config)
+    // NOT covered by forceAllowance — skip silently when exhausted (never force-reserve for pointers).
+    if (this.allowanceExhausted && (await this.allowanceExhausted(userId))) {
+      console.info(`[pointers] note ${note.id}: allowance exhausted — pointer call skipped, runs on next extraction`);
+      return;
+    }
+    try {
+      const userMessage = buildPointerUserMessage({
+        today: referenceDate,
+        clientName: client?.name ?? 'Unknown',
+        source: note.source,
+        text: safeText,
+        dealState,
+        currentPointers,
+      });
+      const spendClass = note.source === 'whatsapp_export' ? 'import' : 'extraction';
+      const res = await this.callPointers(model, userMessage, userId, spendClass);
+      if (res === null) { console.warn(`[pointers] note ${note.id}: pointer call returned nothing — set unchanged`); return; }
+      const checked = checkPointers({
+        pointers: parsePointers(res),
+        inputText: safeText,
+        inputMessageAts: new Set((note.messages ?? []).map((m) => m.sentAt).filter((s): s is string => !!s)),
+        currentPointers,
+        dealState,
+      });
+      // [D8] The client thread shows a single card rendered from this stored set — it appears once
+      // pointers first exist and updates in place on later voice/paste extractions (silently).
+      await this.pointers.save(userId, note.clientId, { pointers: checked.pointers, retrospectiveDisclosure: checked.retrospectiveDisclosure }, this.now());
+    } catch (err) {
+      console.warn(`[pointers] generation failed for note ${note.id} — set unchanged`, err);
+    }
+  }
+
+  /** The pointer call's own model request: its own cached system prefix + its own max_tokens, metered
+   *  like extraction but NEVER force-reserving (forceReserve stays false). Returns the raw JSON text, or
+   *  null on any model/parse failure (the caller leaves the stored pointers unchanged). */
+  private async callPointers(model: ModelClient, userMessage: string, userId: string, spendClass: string): Promise<unknown | null> {
+    try {
+      const res = await model.complete({
+        system: POINTER_SYSTEM_PROMPT,
+        cacheSystemPrompt: true,
+        cacheTtl: this.cacheTtl,
+        messages: [{ role: 'user', content: userMessage }],
+        maxTokens: POINTER_MAX_TOKENS,
+        userId,
+        spendClass,
+        forceReserve: false, // pointers are never force-reserved — skipped silently when exhausted
+      });
+      return extractJsonObject(res.text);
+    } catch {
+      return null;
+    }
   }
 
   private async call(model: ModelClient, userMessage: string, userId: string, spendClass: string, forceReserve = false): Promise<Attempt> {
