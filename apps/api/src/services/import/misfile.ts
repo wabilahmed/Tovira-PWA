@@ -36,16 +36,20 @@ export type MisfileDetection =
   | { status: 'ok'; counterparts: string[]; counterpart: string | null; group: boolean; learnRepName: string | null }
   | { status: 'mismatch'; counterparts: string[]; counterpart: string | null; group: boolean; suggestion: { id: string; name: string } | null; learnRepName: string | null };
 
-const norm = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, ' ');
+// [IMPORT-IDENTITY] Normalisation for matching names/numbers: trim, lower-case, collapse internal
+// whitespace. Chosen so display casing and stray spacing never cause a spurious non-match (or a merge);
+// Unicode (Arabic/mixed-script/emoji) is preserved as-is — we compare the normalised form but always
+// DISPLAY the original. Exported so the bulk-import parser matches EXACTLY as single-file misfile does.
+export const norm = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
 /** A participant token that is just a phone number (unsaved contact) — digits, +, spaces, dashes. */
-function isPhone(sender: string): boolean {
+export function isPhone(sender: string): boolean {
   const digits = sender.replace(/[^0-9]/g, '');
   return digits.length >= 7 && /^[+0-9()\-\s]+$/.test(sender.trim());
 }
 
 /** Two phone numbers match on their last 8 significant digits (ignores country-code formatting). */
-function phonesMatch(a: string, b: string): boolean {
+export function phonesMatch(a: string, b: string): boolean {
   const da = a.replace(/[^0-9]/g, '');
   const db = b.replace(/[^0-9]/g, '');
   if (da.length < 7 || db.length < 7) return false;
