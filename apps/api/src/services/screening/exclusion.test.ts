@@ -95,27 +95,29 @@ describe('[SCREEN] extraction payload + embedding never receive a flagged messag
   });
 });
 
-describe('[SCREEN] a fully-clean note extracts normally; a restored message returns on the next pass', () => {
+describe('[SCREEN] a fully-clean note extracts normally', () => {
   it('a note with no flags sends the whole thread', async () => {
     const clients = new InMemoryClientRepository(); const notes = new InMemoryNoteRepository();
     const cap = capturingModel(); const emb = capturingEmbedder();
     const clean = msgs().map((m) => ({ ...m, excluded: false, sensitive: undefined }));
     const note = await seedNote(notes, clients, clean);
     await makeService(cap.client, emb.embedder, clients, notes).extractNote('u', note.id, '2026-01-02');
-    expect(cap.seenText()).toContain(HEALTH); // nothing held → everything sent
+    expect(cap.seenText()).toContain(HEALTH); // nothing flagged → everything sent
   });
+});
 
-  it('restoring the flagged message (excluded=false) sends it on the next extraction', async () => {
+// [SCREEN · WITHHOLD] The product rule: flagged = withheld, automatically and permanently. There is no
+// rep review and no restore — a flagged message is simply never sent to the model. This guard asserts
+// that on the ACTUAL model request body, and is mutation-proven: break modelSafeText (stop filtering
+// excluded) and this goes RED.
+describe('[SCREEN · WITHHOLD GUARD] a flagged message never appears in a model request body', () => {
+  it('GUARD: the flagged body is absent from the extraction request; the clean messages are present', async () => {
     const clients = new InMemoryClientRepository(); const notes = new InMemoryNoteRepository();
     const cap = capturingModel(); const emb = capturingEmbedder();
     const note = await seedNote(notes, clients, msgs());
-    const svc = makeService(cap.client, emb.embedder, clients, notes);
-    await svc.extractNote('u', note.id, '2026-01-02');
-    expect(cap.seenText()).not.toContain(HEALTH); // held first pass
-    // rep restores it
-    const restored = (await notes.findByIdForUser('u', note.id))!.messages!.map((m) => (m.body === HEALTH ? { ...m, excluded: false } : m));
-    await notes.update('u', note.id, { messages: restored, status: 'pending_extraction' });
-    await svc.extractNote('u', note.id, '2026-01-02');
-    expect(cap.seenText()).toContain(HEALTH); // now sent
+    await makeService(cap.client, emb.embedder, clients, notes).extractNote('u', note.id, '2026-01-02');
+    expect(cap.seenText()).not.toContain(HEALTH); // the withheld message is not in the request body
+    expect(cap.seenText()).toContain(CLEAN_A);
+    expect(cap.seenText()).toContain(CLEAN_B);
   });
 });

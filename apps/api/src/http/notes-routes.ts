@@ -26,8 +26,6 @@ import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requir
 import { redactSensitive } from '../services/redaction/redact.js';
 import { isAppRecordingContainer, looksLikeAudio, AUDIO_ELSEWHERE_MESSAGE, VOICE_TOO_LONG_MESSAGE } from '../services/media/sniff.js';
 import { screenSensitive } from '../services/screening/sensitive-screen.js';
-import type { FlagReviewService } from '../services/screening/flag-review-service.js';
-import type { RestoreSelector } from '../services/screening/flag-review.js';
 
 /** REDACT-2: strip Tier-1 sensitive values before storage; log the COUNT per note
  *  (never the values) so the volume is observable. */
@@ -84,8 +82,6 @@ export interface NoteRouteDeps {
   repNames?: RepNameRepository;
   /** [PRIVACY-5] first-import acknowledgement store — gates the first chat-export upload per account. */
   importAck: ImportAckRepository;
-  /** [SCREEN-REVIEW] lists a note's held (flagged) messages and restores selected ones. */
-  flagReview: FlagReviewService;
   /** [USAGE-ALLOWANCE · D4] at 100% of the allowance, a chat-export upload is REFUSED (not queued).
    *  Optional — without it, imports are never allowance-gated (local/old wiring). */
   allowanceExhausted?: (userId: string) => Promise<boolean>;
@@ -115,8 +111,6 @@ const FOLLOWUP_RE = /^\/notes\/([^/]+)\/follow-up$/;
 const MOVE_PREVIEW_RE = /^\/notes\/([^/]+)\/move-preview$/; // GET — what a move/undo will carry
 const MOVE_RE = /^\/notes\/([^/]+)\/move$/; // POST { toClientId }
 const UNDO_RE = /^\/notes\/([^/]+)\/undo$/; // POST — undo an import
-const FLAGS_RE = /^\/notes\/([^/]+)\/flags$/; // GET — held-message review, grouped category → span
-const RESTORE_RE = /^\/notes\/([^/]+)\/restore$/; // POST { index } | { category, span? } — un-hold + re-queue
 
 /** Handle /clients/:id/notes* and /notes/:id/audio. Returns true if handled. */
 export async function handleNoteRoute(
@@ -139,10 +133,7 @@ export async function handleNoteRoute(
   const movePreviewMatch = method === 'GET' ? MOVE_PREVIEW_RE.exec(path) : null;
   const moveMatch = method === 'POST' ? MOVE_RE.exec(path) : null;
   const undoMatch = method === 'POST' ? UNDO_RE.exec(path) : null;
-  const flagsMatch = method === 'GET' ? FLAGS_RE.exec(path) : null;
-  const restoreMatch = method === 'POST' ? RESTORE_RE.exec(path) : null;
-  const heldMatch = method === 'GET' && path === '/notes/held';
-  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch && !movePreviewMatch && !moveMatch && !undoMatch && !flagsMatch && !restoreMatch && !heldMatch) return false;
+  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch && !movePreviewMatch && !moveMatch && !undoMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -365,9 +356,9 @@ export async function handleNoteRoute(
       // Redact each message BEFORE dedupe + storage — so both the stored messages and
       // the rendered rawText are clean, and dedupe compares like-for-like (redacted).
       // [SCREEN] Then screen the (redacted) body for special-category indicators: a flagged message is
-      // marked excluded=true so it is HELD from every model send (extraction/embedding/recall/draft)
-      // until a rep restores it. It is still stored — the rep's record + receipt source. Deterministic,
-      // no model call (a model screen would be the very send we are gating).
+      // marked excluded=true so it is withheld from every model send (extraction/embedding/recall/draft),
+      // automatically and permanently — flagged = withheld, no rep review. It is still stored (the rep's
+      // record + receipt source). Deterministic, no model call (a model screen would be the very send we gate).
       let importRedactions = 0;
       parsed = { ...parsed, messages: parsed.messages.map((m) => {
         const r = redactSensitive(m.body);
@@ -459,7 +450,7 @@ export async function handleNoteRoute(
       // the FULL thread (the rep's record + receipt source); extraction/embedding read modelSafeText,
       // which drops the held messages, so a flagged message is stored but never sent to a model.
       const held = messages.filter((m) => m.excluded).length;
-      if (held > 0) console.info(`[screen] import (client ${clientId}): ${held} of ${messages.length} message(s) flagged sensitive and HELD from extraction pending review`);
+      if (held > 0) console.info(`[screen] import (client ${clientId}): ${held} of ${messages.length} message(s) flagged sensitive and withheld from the model (stored, not sent)`);
       const note = await deps.notes.create(userId, {
         clientId,
         source: 'whatsapp_export',
@@ -521,10 +512,7 @@ export async function handleNoteRoute(
       // "N of M analysed", and a failure reads as failed rather than an endless spinner.
       const raw = await deps.notes.listByClient(userId, clientId);
       sendJson(res, 200, {
-        notes: raw.map((n) => {
-          const held = (n.messages ?? []).filter((m) => m.excluded === true).length; // [SCREEN-REVIEW] persistent indicator
-          return { ...noteWithReceipts(n), extractionState: extractionState(n), ...(held > 0 ? { held } : {}) };
-        }),
+        notes: raw.map((n) => ({ ...noteWithReceipts(n), extractionState: extractionState(n) })),
         extraction: aggregateExtractionStates(raw),
       });
       return true;
@@ -569,38 +557,6 @@ export async function handleNoteRoute(
       }
       const queued = await deps.notes.findByIdForUser(userId, noteId);
       sendJson(res, 202, { note: queued ? noteWithReceipts(queued) : queued, status: 'queued' });
-      return true;
-    }
-
-    // [SCREEN-REVIEW] GET /notes/held — every note that still holds flagged messages (account-wide), so a
-    // rep who skipped review and returned still finds them. Feeds the review beside the scan + the indicator.
-    if (heldMatch) {
-      sendJson(res, 200, { notes: await deps.flagReview.heldNotes(userId) });
-      return true;
-    }
-
-    // [SCREEN-REVIEW] GET /notes/:id/flags — held messages grouped category → matched span, for review.
-    if (flagsMatch) {
-      const noteId = decodeURIComponent(flagsMatch[1]!);
-      const review = await deps.flagReview.review(userId, noteId);
-      if (!review) { sendJson(res, 404, { error: 'not_found' }); return true; }
-      sendJson(res, 200, review);
-      return true;
-    }
-
-    // [SCREEN-REVIEW] POST /notes/:id/restore — un-hold selected messages (one by index, or all in a
-    // category, optionally a single span) and re-queue extraction. Restore is the ONLY thing that clears
-    // a hold (fail-closed).
-    if (restoreMatch) {
-      const noteId = decodeURIComponent(restoreMatch[1]!);
-      const body = (await readJsonBody(req)) as { category?: unknown; span?: unknown; index?: unknown };
-      let sel: RestoreSelector | null = null;
-      if (typeof body.index === 'number') sel = { index: body.index };
-      else if (typeof body.category === 'string') sel = { category: body.category, ...(typeof body.span === 'string' ? { span: body.span } : {}) };
-      if (!sel) { sendJson(res, 400, { error: 'validation', message: 'Provide an index, or a category (optionally a span), to restore.' }); return true; }
-      const result = await deps.flagReview.restore(userId, noteId, sel);
-      if (!result) { sendJson(res, 404, { error: 'not_found' }); return true; }
-      sendJson(res, 200, result);
       return true;
     }
 

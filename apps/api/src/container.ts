@@ -107,9 +107,6 @@ import type { AiPauseRepository } from './ports/ai-pause-repository.js';
 import { InMemoryAiPauseRepository } from './adapters/spend/in-memory-ai-pause-repository.js';
 import { PgAiPauseRepository } from './adapters/spend/pg-ai-pause-repository.js';
 import { GatedModelClient, GatedEmbedder, GatedTranscriber } from './adapters/spend/gated-ai-clients.js';
-import type { SensitiveFlagStatsRepository } from './ports/sensitive-flag-stats-repository.js';
-import { InMemorySensitiveFlagStatsRepository } from './adapters/screening/in-memory-sensitive-flag-stats-repository.js';
-import { PgSensitiveFlagStatsRepository } from './adapters/screening/pg-sensitive-flag-stats-repository.js';
 import type { OpsAlertRepository } from './ports/ops-alert-repository.js';
 import { InMemoryOpsAlertRepository } from './adapters/spend/in-memory-ops-alert-repository.js';
 import { PgOpsAlertRepository } from './adapters/spend/pg-ops-alert-repository.js';
@@ -452,13 +449,6 @@ export function createExtractionLogRepository(config: AppConfig, pool?: Pool): E
   return new InMemoryExtractionLogRepository();
 }
 
-export function createSensitiveFlagStatsRepository(config: AppConfig, appPool?: Pool): SensitiveFlagStatsRepository {
-  if (config.authStore === 'postgres') {
-    if (!appPool) throw new Error('authStore=postgres requires a database pool for sensitive_flag_restores');
-    return new PgSensitiveFlagStatsRepository(appPool);
-  }
-  return new InMemorySensitiveFlagStatsRepository();
-}
 
 export function createSpendLedgerRepository(config: AppConfig, appPool?: Pool, rootPool?: Pool): SpendLedgerRepository {
   if (config.authStore === 'postgres') {

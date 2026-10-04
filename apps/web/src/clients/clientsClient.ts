@@ -34,8 +34,6 @@ export interface NoteSummary {
   id: string;
   source: 'voice' | 'paste';
   rawText: string | null;
-  /** [SCREEN-REVIEW] count of messages held from analysis pending review — drives the persistent indicator. */
-  held?: number;
   status: string;
   createdAt: number;
   /** [ASYNC-EXTRACT] the rep-facing state the server computes; absent on older responses. */
@@ -65,7 +63,7 @@ export interface Stakeholder {
 }
 
 export type ImportResult =
-  | { ok: true; imported: number; held?: number; ceilingReached?: boolean; duplicate?: boolean; pending?: boolean; truncated?: boolean }
+  | { ok: true; imported: number; ceilingReached?: boolean; duplicate?: boolean; pending?: boolean; truncated?: boolean }
   | { ok: false; error: 'misfile'; message: string; counterparts: string[]; suggestion: { id: string; name: string } | null }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
 
@@ -194,14 +192,13 @@ export class ClientsClient {
     // ALL are successes — the refresh loop must never read a correct dedupe as a
     // failure. The Book Scan populates as the sweep drains the pending note.
     if (res.status === 202 || res.status === 201 || res.status === 200) {
-      const body = (await res.json().catch(() => ({}))) as { imported?: number; held?: number; ceilingReached?: boolean; duplicate?: boolean; status?: string; truncated?: boolean };
+      const body = (await res.json().catch(() => ({}))) as { imported?: number; ceilingReached?: boolean; duplicate?: boolean; status?: string; truncated?: boolean };
       const imported = body.imported ?? 0;
-      const held = typeof body.held === 'number' && body.held > 0 ? { held: body.held } : {};
       const trunc = body.truncated ? { truncated: true as const } : {};
       if (body.duplicate) return { ok: true, imported, duplicate: true, ...trunc };
       // Only attach a flag when it applies — keeps the common { ok, imported } shape clean.
-      if (body.ceilingReached) return { ok: true, imported, ...held, ceilingReached: true, ...trunc };
-      return body.status === 'pending_extraction' ? { ok: true, imported, ...held, pending: true, ...trunc } : { ok: true, imported, ...held, ...trunc };
+      if (body.ceilingReached) return { ok: true, imported, ceilingReached: true, ...trunc };
+      return body.status === 'pending_extraction' ? { ok: true, imported, pending: true, ...trunc } : { ok: true, imported, ...trunc };
     }
     if (res.status === 409) {
       // MISFILE-DETECT: the transcript's counterpart does not look like this client. Surface the

@@ -80,12 +80,6 @@ export class InMemoryNoteRepository implements NoteRepository {
     return count;
   }
 
-  async listHeldByUser(userId: string): Promise<NoteRecord[]> {
-    return [...this.byId.values()]
-      .filter((n) => n.userId === userId && (n.messages ?? []).some((m) => m.excluded === true))
-      .sort((a, b) => b.createdAt - a.createdAt);
-  }
-
   async listByStatusForUser(userId: string, status: string): Promise<NoteRecord[]> {
     return [...this.byId.values()]
       .filter((n) => n.userId === userId && n.status === status)

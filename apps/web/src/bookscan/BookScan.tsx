@@ -19,14 +19,7 @@ const POLL_MS = 4000;
  * client-side via appendFindings + findingId), with an always-visible progress signal so a partial scan
  * is never mistaken for a finished one.
  */
-/**
- * [SCREEN-REVIEW] `refreshSignal` lets a parent (a flag restore) prompt a re-fetch WITHOUT remounting.
- * A remount would reset `shown` and rebuild the list in server order — a rep who just restored would
- * watch everything they were reading rearrange. Bumping this instead re-runs the poll effect, which
- * re-ticks and resumes polling into the EXISTING append-ordered `shown` (via appendFindings): read
- * findings stay put, newly-extracted ones append below.
- */
-export function BookScan({ api, now = Date.now(), refreshSignal }: { api: BookScanApi; now?: number; refreshSignal?: number }): JSX.Element {
+export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: number }): JSX.Element {
   const [report, setReport] = useState<BookScanReport | null>(null);
   const [shown, setShown] = useState<BookScanItem[]>([]); // append-only, arrival order — never re-sorted
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -49,9 +42,7 @@ export function BookScan({ api, now = Date.now(), refreshSignal }: { api: BookSc
     void tick();
     timer.id = setInterval(() => { void tick(); }, POLL_MS);
     return () => { live = false; stop(); };
-    // [SCREEN-REVIEW] refreshSignal in deps: a restore re-runs this effect (re-tick + resume polling)
-    // without resetting `shown`, so the append-ordered list is preserved.
-  }, [api, refreshSignal]);
+  }, [api]);
 
   // Accumulate append-only: keep every finding already shown in place, add new ones at the end.
   useEffect(() => {

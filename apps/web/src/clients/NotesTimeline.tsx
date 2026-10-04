@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import type { NoteSummary } from './clientsClient.js';
 import { extractionStateOf } from './clientsClient.js';
-import { HeldNotice } from '../screening/HeldNotice.js';
 import { CeilingNotice } from '../import/CeilingNotice.js';
 
 function processingLabel(status: string): string {
@@ -48,9 +47,6 @@ export function NotesTimeline({
             <div style={{ marginTop: 4 }}>
               {n.rawText ?? <em>{n.status === 'transcription_failed' ? 'The recording couldn’t be found, so this note couldn’t be transcribed.' : '(transcription pending)'}</em>}
             </div>
-            {/* [SCREEN-REVIEW] persistent held indicator — so a rep who skipped review knows this note
-                isn't fully analysed, wherever it appears. */}
-            {typeof n.held === 'number' && n.held > 0 && <HeldNotice variant="indicator" held={n.held} />}
             {ceiling && <CeilingNotice />}
             {!ceiling && n.rawText && renderFollowUp?.(n.id)}
           </li>

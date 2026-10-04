@@ -14,8 +14,6 @@ import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
 import { BulkImportClient } from './import/bulkImportClient.js';
 import { BookScan } from './bookscan/BookScan.js';
-import { ScreeningClient } from './screening/screeningClient.js';
-import { HeldReview } from './screening/HeldReview.js';
 import { Inventory } from './inventory/Inventory.js';
 import { InventoryClient } from './inventory/inventoryClient.js';
 import { ClientInventory } from './inventory/ClientInventory.js';
@@ -84,7 +82,6 @@ const clientsApi = new ClientsClient(API_BASE);
 const onboardingApi = new OnboardingClient(API_BASE);
 const bulkImportApi = new BulkImportClient(API_BASE);
 const bookScanApi = new BookScanClient(API_BASE);
-const screeningApi = new ScreeningClient(API_BASE);
 const inventoryApi = new InventoryClient(API_BASE);
 const promisesApi = new PromisesClient(API_BASE);
 const heroApi = new HeroClient(API_BASE);
@@ -238,7 +235,6 @@ export function App(): JSX.Element {
 
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
-  const [scanKey, setScanKey] = useState(0); // [SCREEN-REVIEW] bump to remount the scan after a restore
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -436,15 +432,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'bookscan' && gated(
         <>
-          {/* [SCREEN-REVIEW] Option C: the held-message review sits BESIDE the streaming scan — value and
-              the held count in the same moment, non-blocking. A restore remounts the scan to pull the
-              newly-extracted findings. */}
-          <HeldReview
-            api={screeningApi}
-            clientName={(id) => clients.find((c) => c.id === id)?.name ?? 'a client'}
-            onChanged={() => setScanKey((k) => k + 1)}
-          />
-          <BookScan refreshSignal={scanKey} api={bookScanApi} />
+          <BookScan api={bookScanApi} />
           <ShareCard api={shareCardApi} referralCode={session.user.referralCode} />
         </>,
       )}
