@@ -11,6 +11,7 @@ import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { renderThread } from '../services/import/dedup.js';
 import { referenceDateFor, normaliseCounterpart } from '../services/extraction/extraction-service.js';
 import { checkPointers } from '../services/extraction/pointer-postcheck.js';
+import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from '../services/extraction/pointer-prompt.js';
 import type { Pointer } from '../services/extraction/types.js';
 import type { PointerFixture } from './pointer-fixtures.js';
 
@@ -262,11 +263,11 @@ export async function extractForEval(model: ModelClient, note: EvalNote, opts: {
 }
 
 /**
- * [POINTERS · Task 4] Extract a pointer fixture through the SHIPPED pointer pipeline: the certified
- * prompt with this fixture's deal state + current pointers in the variable message, then the
- * deterministic post-check (checkPointers) that drops receipt-less / sensitive / illegitimate-retrospective
- * pointers. Returns exactly what production would SAVE — the pointers the fixture scorer then judges.
- * Bracketed `[timestamp]` prefixes in the fixture chat are the message timestamps a receipt may cite.
+ * [POINTERS · Task 2/4] Run a pointer fixture through the SHIPPED pointer pipeline: the DEDICATED pointer
+ * prompt (POINTER_SYSTEM_PROMPT, its own cache prefix) with this fixture's conversation + deal state +
+ * current pointers inside the one untrusted fence, then the deterministic post-check (checkPointers) that
+ * drops receipt-less / sensitive / illegitimate-retrospective pointers. Returns exactly what production
+ * would SAVE. Bracketed `[timestamp]` prefixes in the fixture chat are the timestamps a receipt may cite.
  */
 export async function extractPointersForEval(
   model: ModelClient,
@@ -275,22 +276,21 @@ export async function extractPointersForEval(
   let text: string;
   try {
     const res = await model.complete({
-      system: EXTRACTION_SYSTEM_PROMPT,
+      system: POINTER_SYSTEM_PROMPT,
       cacheSystemPrompt: true,
       cacheTtl: '1h',
-      // NOTE: rewired to the dedicated pointer prompt in Task 2 (pointers are their own call). This
-      // Task-1 form only keeps the file compiling after the extraction prompt was restored; the pointer
-      // gate run is owner-triggered and happens after Task 2.
       messages: [{
-        content: buildUserMessage({
+        content: buildPointerUserMessage({
           today: '2026-01-10',
           clientName: fixture.clientName,
           source: 'whatsapp_export',
           text: redactSensitive(fixture.note).redacted,
+          dealState: fixture.dealState,
+          currentPointers: fixture.currentPointers ?? [],
         }),
         role: 'user',
       }],
-      maxTokens: EXTRACTION_MAX_TOKENS,
+      maxTokens: POINTER_MAX_TOKENS,
     });
     text = res.text;
   } catch {
@@ -298,18 +298,11 @@ export async function extractPointersForEval(
   }
   const parsed = extractJsonObject(text);
   if (parsed === null) return null;
-  let ex: Extraction | null;
-  try {
-    ex = asExtraction(parsed);
-  } catch {
-    return null;
-  }
-  if (ex === null) return null;
   // The timestamps a receipt may cite = the bracketed prefixes in the fixture chat.
   const inputMessageAts = new Set<string>();
   for (const m of fixture.note.matchAll(/\[([^\]]+)\]/g)) inputMessageAts.add(m[1]!);
   const checked = checkPointers({
-    pointers: ex.pointers ?? [],
+    pointers: parsePointers(parsed),
     inputText: fixture.note,
     inputMessageAts,
     currentPointers: fixture.currentPointers ?? [],

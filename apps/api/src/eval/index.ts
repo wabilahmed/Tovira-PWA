@@ -97,6 +97,25 @@ async function main(): Promise<void> {
       return res;
     },
   };
+
+  // [POINTERS] Pointer-fixtures-only run (no fact runs): GATE_POINTERS_ONLY=1 exercises just the
+  // dedicated pointer call against the planted-signal fixtures and reports pass/fail + spend, so the
+  // pointer prompt can be iterated without paying for the full fact gate.
+  if (process.env.GATE_POINTERS_ONLY === '1') {
+    console.log(`\n[gate] === POINTER FIXTURES ONLY (${POINTER_FIXTURES.length}) — model: ${modelId} ===`);
+    let pass = 0;
+    for (const f of POINTER_FIXTURES) {
+      const r = await extractPointersForEval(model, f);
+      if (r === null) { console.log(`[gate]   ${f.id}: FAIL — pointer call returned nothing`); continue; }
+      const s = scorePointerFixture(f, r.pointers, r.disclosure);
+      if (s.pass) pass += 1;
+      console.log(`[gate]   ${f.id}: ${s.pass ? 'PASS' : 'FAIL'} — ${s.reason} (${r.pointers.length} pointer(s) saved)`);
+    }
+    const bp = budget.report();
+    console.log(`[gate]   POINTERS: ${pass}/${POINTER_FIXTURES.length} planted signals handled · spend $${bp.totalUsd.toFixed(3)} (AED ${bp.totalAed.toFixed(2)})`);
+    return;
+  }
+
   const allScores: NoteScore[] = [];
   const allReceipts: ReceiptScore[] = [];
   // [TIER2-SPLIT] every Tier-2 leak, attributed to fixture/term/field/class/run, so the bars can be
