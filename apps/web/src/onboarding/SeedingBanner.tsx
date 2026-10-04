@@ -1,9 +1,11 @@
 import type { SeedingStatus } from './onboardingClient.js';
 
 /**
- * First-session seeding guidance (P5-3). Walks the rep through exporting ONE
- * WhatsApp chat — never paste-based bulk entry — and offers fallbacks so a rep
- * who skips isn't left with an empty app.
+ * First-session seeding guidance (P5-3 / BULK-IMPORT Task 5). Leads with the bulk ask — export your
+ * ten most active chats and select them all at once — never paste-based bulk entry, and offers
+ * fallbacks so a rep who skips isn't left with an empty app. The per-state next-step line and the
+ * platform guides below the ask are server-driven and still phrased for a single chat; reconciling them
+ * with the bulk ask is copy the bulk-import spec did not provide (flagged, not invented).
  */
 export function SeedingBanner({
   status,
@@ -16,7 +18,8 @@ export function SeedingBanner({
 }): JSX.Element {
   return (
     <section aria-label="Get started" style={box}>
-      <h2 style={{ marginTop: 0 }}>Seed Tovira in three taps</h2>
+      <h2 style={{ marginTop: 0 }}>Start with your ten most active clients.</h2>
+      <p style={{ marginTop: 0 }}>Export each chat from WhatsApp — choose <strong>Without media</strong>, it&rsquo;s faster — then select them all here at once.</p>
       <p style={{ marginTop: 0 }}>{status.nextStep}</p>
 
       <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>

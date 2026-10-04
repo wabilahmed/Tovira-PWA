@@ -26,6 +26,14 @@ const STATUS: SeedingStatus = {
 };
 
 describe('<SeedingBanner>', () => {
+  it('leads with the bulk ask: ten most active clients, exported Without media, selected all at once', () => {
+    render(<SeedingBanner status={STATUS} onStartImport={vi.fn()} onFallback={vi.fn()} />);
+    expect(screen.getByText(/start with your ten most active clients/i)).toBeInTheDocument();
+    expect(screen.getByText(/select them all here at once/i)).toBeInTheDocument();
+    // "Without media" is bold in the ask AND appears in the step list → two occurrences
+    expect(screen.getAllByText(/without media/i).length).toBeGreaterThanOrEqual(2);
+  });
+
   it('shows the next step and both platform guides (no paste bulk entry)', () => {
     render(<SeedingBanner status={STATUS} onStartImport={vi.fn()} onFallback={vi.fn()} />);
     expect(screen.getByText(/three taps, no typing/i)).toBeInTheDocument();
