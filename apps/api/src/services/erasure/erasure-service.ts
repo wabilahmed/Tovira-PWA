@@ -6,6 +6,7 @@ import type { ModelClient } from '../../ports/model.js';
 import type { RepGlossaryRepository } from '../../ports/rep-glossary-repository.js';
 import { renderThread } from '../import/dedup.js';
 import { purgeUserBatches } from '../import/bulk-batch-store.js';
+import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_MAX_TOKENS, buildUserMessage } from '../extraction/prompt.js';
 
 
@@ -121,6 +122,8 @@ export interface ErasureDeps {
    *  cap or extraction ceiling. Absent → no rewrite (dev/in-memory); the old summary is left, and if it
    *  still names the requester it surfaces as an unreviewed candidate. */
   summariser?: ModelClient;
+  /** [POINTERS · D10] drop a touched client's pointer set so it regenerates from what remains. */
+  clientPointers?: Pick<ClientPointerRepository, 'deleteForClient'>;
   now?: () => number;
 }
 
@@ -181,6 +184,7 @@ export class ErasureService {
     const confirmed = new Set((opts.confirmFuzzy ?? []).map((k) => `${k.noteId}|${k.store}|${norm(k.who)}`));
     const flagged = new Set(opts.flaggedMentionIds ?? []); // [ERASURE-FLAGS] operator-flagged free-text ids
     const STORE_KEY: Record<string, string> = { key_date: 'key_dates', next_step: 'next_steps', concern: 'concerns' };
+    const touchedClients = new Set<string>(); // [POINTERS · D10] clients whose notes the erasure changed
     const shouldDelete = (noteId: string, store: WhoStore, who: string | null | undefined): boolean => {
       const m = matchName(who, rn);
       if (m === 'exact') return true;
@@ -269,6 +273,7 @@ export class ErasureService {
         }
       }
       if (changed) {
+        touchedClients.add(note.clientId); // [POINTERS · D10] its pointers may cite erased messages
         await this.deps.notes.update(userId, note.id, {
           ...(ex ? { extracted: ex } : {}),
           ...(messages !== note.messages ? { messages, rawText } : {}),
@@ -276,6 +281,14 @@ export class ErasureService {
           ...(audioKeyPatch !== undefined ? { audioKey: audioKeyPatch, audioExpiredAt: audioExpiredPatch } : {}),
         });
       }
+    }
+
+    // [POINTERS · D10] Delete the pointer set of every client the erasure touched — a pointer may cite
+    // one of the erased party's messages. The set regenerates from what remains on that client's next
+    // extraction. (Whole-set delete: pointers aren't indexed by counterparty, and leaving one standing
+    // that quotes an erased message would violate the erasure.)
+    if (this.deps.clientPointers) {
+      for (const clientId of touchedClients) await this.deps.clientPointers.deleteForClient(userId, clientId);
     }
 
     // [NO-TRAINING-RETENTION] The per-rep glossary (rep_glossary) often holds client names/aliases. Delete

@@ -16,6 +16,7 @@ import { StubEmbedder } from '../../adapters/embedding/stub.js';
 import { ImportCostMetrics } from '../metrics/import-cost-metrics.js';
 import { TrialExtractionLimiter } from './limiter.js';
 import { InMemoryExtractionCounter } from '../../adapters/extraction/in-memory-extraction-counter.js';
+import { InMemoryClientPointerRepository } from '../../adapters/import/in-memory-client-pointer-repository.js';
 import type { ModelClient } from '../../ports/model.js';
 import type { Embedder } from '../../ports/embedder.js';
 
@@ -63,6 +64,50 @@ async function setup(m: ModelClient, cacheTtl?: '5m' | '1h', embedder: Embedder 
   const service = new ExtractionService(m, clients, notes, facts, embedder, logs, 'stub', undefined, undefined, undefined, cacheTtl);
   return { service, notes, facts, note, logs };
 }
+
+describe('ExtractionService — pointers (Task 3)', () => {
+  async function pointerSetup(extractionJson: string) {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const logs = new InMemoryExtractionLogRepository();
+    const pointers = new InMemoryClientPointerRepository();
+    const client = await clients.create('u', 'Layla');
+    const note = await notes.create('u', {
+      clientId: client.id, source: 'whatsapp_export', status: 'pending_extraction', audioKey: null,
+      rawText: '[2026-01-01T10:00] Layla: is there parking?',
+      messages: [{ sentAt: '2026-01-01T10:00', sender: 'Layla', body: 'is there parking?', media: false, role: 'client' }],
+    });
+    const cap = capturingModel(extractionJson);
+    const service = new ExtractionService(
+      cap.client, clients, notes, facts, new StubEmbedder(8), logs, 'stub',
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pointers,
+    );
+    return { service, pointers, note, client, cap };
+  }
+  const EX = (pointers: unknown[]) => JSON.stringify({ summary: 'x', promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null, pointers });
+
+  it('post-checks and saves the client pointer set; a grounded pointer survives, an ungrounded one is dropped', async () => {
+    const { service, pointers, note, client } = await pointerSetup(EX([
+      { section: 'relationship', text: 'keeps asking about parking', receipts: [{ source_span: 'is there parking?', source_message_at: '2026-01-01T10:00' }], inferred: false },
+      { section: 'close', text: 'invented pointer', receipts: [{ source_span: 'nope', source_message_at: '1999-01-01T00:00' }] },
+    ]));
+    await service.extractNote('u', note.id, '2026-02-01');
+    const set = await pointers.getForClient('u', client.id);
+    expect(set!.pointers).toHaveLength(1);
+    expect(set!.pointers[0]!.text).toBe('keeps asking about parking');
+  });
+
+  it('passes the deal state and current pointers into the extraction prompt (inside the one fence)', async () => {
+    const { service, pointers, note, client, cap } = await pointerSetup(EX([]));
+    await pointers.save('u', client.id, { pointers: [{ section: 'relationship', text: 'cares about price', receipts: [{ source_span: 'price', source_message_at: '2025-12-01T09:00' }] }], retrospectiveDisclosure: null }, 1);
+    await service.extractNote('u', note.id, '2026-02-01');
+    const content = cap.last()!.messages[0]!.content;
+    expect(content).toMatch(/DEAL STATE: open/); // default outcome, recently touched
+    expect(content).toContain('cares about price'); // current pointer fed back for update (D7)
+    expect((content.match(/<<<TOVIRA_UNTRUSTED_BEGIN>>>/g) ?? []).length).toBe(1); // still one fence
+  });
+});
 
 describe('ExtractionService', () => {
   it('stores facts to JSONB, promises to the spine, and marks the note extracted', async () => {

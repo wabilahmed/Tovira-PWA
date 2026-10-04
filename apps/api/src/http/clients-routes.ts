@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository, ClientOutcome } from '../ports/client-repository.js';
+import type { ClientPointerRepository } from '../ports/client-pointer-repository.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
 /** Handle a /clients or /clients/:id request. Returns true if it handled it. */
@@ -9,6 +10,7 @@ export async function handleClientRoute(
   res: ServerResponse,
   auth: AuthService,
   clients: ClientRepository,
+  pointers?: ClientPointerRepository,
 ): Promise<boolean> {
   const method = req.method ?? 'GET';
   const path = (req.url ?? '/').split('?')[0]!;
@@ -91,6 +93,15 @@ export async function handleClientRoute(
       const query = new URL(req.url ?? '/', 'http://localhost').searchParams.get('q')?.trim();
       const list = query ? await clients.search(userId, query) : await clients.listByUser(userId);
       sendJson(res, 200, { clients: list });
+      return true;
+    }
+
+    // [POINTERS · D8] the client's current pointer set, for the thread card.
+    const pointersMatch = method === 'GET' ? /^\/clients\/([^/]+)\/pointers$/.exec(path) : null;
+    if (pointersMatch) {
+      const id = decodeURIComponent(pointersMatch[1]!);
+      const set = pointers ? await pointers.getForClient(userId, id) : null;
+      sendJson(res, 200, { pointers: set?.pointers ?? [], disclosure: set?.retrospectiveDisclosure ?? null });
       return true;
     }
 

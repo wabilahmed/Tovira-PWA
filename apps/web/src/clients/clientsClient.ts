@@ -1,4 +1,5 @@
 import { LOCKED, type Locked } from '../billing/gated.js';
+import type { Pointer } from './PointersCard.js';
 
 export interface ClientSummary {
   id: string;
@@ -50,6 +51,9 @@ export interface Brief {
   personalNotes: Array<{ subject: string; fact: string }>;
   concerns: string[];
   relatedNotes: Array<{ noteId: string; snippet: string }>;
+  /** [POINTERS · D9] the client's current relationship/closing pointers + the retrospective disclosure. */
+  pointers?: Pointer[];
+  pointersDisclosure?: string | null;
 }
 
 export interface Stakeholder {
@@ -260,6 +264,18 @@ export class ClientsClient {
     if (res.status === 402) return LOCKED; // trial lapsed → the embedded surface shows <Locked>
     if (res.status !== 200) return null;
     return (await res.json()) as Brief;
+  }
+
+  /** [POINTERS · D8] the client's current pointer set, for the thread card. */
+  async getPointers(clientId: string): Promise<{ pointers: Pointer[]; disclosure: string | null }> {
+    try {
+      const res = await fetch(this.url(`/clients/${clientId}/pointers`), { credentials: 'include' });
+      if (res.status !== 200) return { pointers: [], disclosure: null };
+      const body = (await res.json()) as { pointers?: Pointer[]; disclosure?: string | null };
+      return { pointers: body.pointers ?? [], disclosure: body.disclosure ?? null };
+    } catch {
+      return { pointers: [], disclosure: null };
+    }
   }
 
   /** Draft an editable follow-up message from a note (P4-4). Never sends. */

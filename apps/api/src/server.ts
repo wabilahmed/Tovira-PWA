@@ -46,6 +46,7 @@ import { handleNoteRoute } from './http/notes-routes.js';
 import { handleBulkImportRoute } from './http/bulk-import-routes.js';
 import type { BulkImportService } from './services/import/bulk-import-service.js';
 import type { BulkUpsellService } from './services/import/bulk-upsell.js';
+import type { ClientPointerRepository } from './ports/client-pointer-repository.js';
 import type { NoteMoveService } from './services/import/note-move-service.js';
 import type { ContactAliasRepository, RepNameRepository } from './ports/contact-alias-repository.js';
 import type { ImportAckRepository } from './ports/import-ack-repository.js';
@@ -138,6 +139,8 @@ export interface ApiDeps {
   account: AccountService;
   activation: ActivationService;
   bookScan: BookScanService;
+  /** [POINTERS] per-client relationship/closing pointer store — read for the thread card (D8). */
+  clientPointers?: ClientPointerRepository;
   /** [BULK-IMPORT] multi-file chat import: local parse + review + parallel per-chat extraction. */
   bulkImport?: BulkImportService;
   /** [BULK-IMPORT · RULING 2] the top-up / subscribe upsell for a batch that exceeds the allowance. */
@@ -416,7 +419,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleAllowanceRoute(request, response, { auth: deps.auth, allowanceStatus: deps.allowanceStatus, billing: deps.billing })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
-      if (await handleClientRoute(request, response, deps.auth, deps.clients)) return;
+      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers)) return;
       if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing, matching: deps.matching })) return;
 
       if (request.method === 'GET' && url === '/') {

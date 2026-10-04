@@ -54,6 +54,9 @@ import { PgNoteMoveAuditRepository } from './adapters/notes/pg-note-move-audit-r
 import type { NoteMoveAuditRepository } from './ports/note-move-audit-repository.js';
 import { NoteMoveService } from './services/import/note-move-service.js';
 import { IsolatingModelClient } from './services/import/chat-isolation.js';
+import type { ClientPointerRepository } from './ports/client-pointer-repository.js';
+import { InMemoryClientPointerRepository } from './adapters/import/in-memory-client-pointer-repository.js';
+import { PgClientPointerRepository } from './adapters/import/pg-client-pointer-repository.js';
 import { InMemoryNoteMoveTx } from './adapters/notes/in-memory-note-move-tx.js';
 import { PgNoteMoveTx } from './adapters/notes/pg-note-move-tx.js';
 import type { NoteMoveTx } from './ports/note-move-tx.js';
@@ -544,6 +547,15 @@ export function createSpendOverrideRepository(config: AppConfig, rootPool?: Pool
   return new InMemorySpendOverrideRepository();
 }
 
+/** [POINTERS] Per-client pointer store — pg (RLS) in prod, in-memory for local/stub. */
+export function createClientPointerRepository(config: AppConfig, pool?: Pool): ClientPointerRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgClientPointerRepository(pool);
+  }
+  return new InMemoryClientPointerRepository();
+}
+
 export function createExtractionService(
   config: AppConfig,
   clients: ClientRepository,
@@ -562,12 +574,13 @@ export function createExtractionService(
   aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
   health?: { recordStarvedOutput(): void },
   verifiedGate?: { isVerified(userId: string): Promise<boolean> },
+  pointers?: ClientPointerRepository,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
   // [BULK-IMPORT · Task 4 / D1] Every extraction request carries exactly one chat. extractNote reads a
   // single note, so this holds structurally; the IsolatingModelClient makes it enforced, not merely
   // true by convention — a request body with two chats throws before it can reach a provider.
-  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate);
+  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate, pointers);
 }
 
 /** [NO-TRAINING-RETENTION] The operational per-rep glossary (P4-9), RLS-backed on pg. */
@@ -765,14 +778,14 @@ export function createBillingService(config: AppConfig, pool?: Pool, emailHook?:
   return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook, vat, invoiceTax);
 }
 
-export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository, repGlossary?: RepGlossaryRepository, blobStorage?: Storage): AccountService {
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository, repGlossary?: RepGlossaryRepository, blobStorage?: Storage, pointers?: ClientPointerRepository): AccountService {
   // On Postgres, deleting the user cascades all data (FKs, incl. extraction_logs + corrections +
-  // rep_glossary) — no explicit purge list. Recall sessions, aliases, rep name + glossary are purged
-  // explicitly (also cascade-backed) so delete works in-memory too.
-  const purgeables = [aliases, repNames, repGlossary].filter((p): p is NonNullable<typeof p> => !!p);
+  // rep_glossary + client_pointers) — no explicit purge list. Recall sessions, aliases, rep name,
+  // glossary + pointers are purged explicitly (also cascade-backed) so delete works in-memory too.
+  const purgeables = [aliases, repNames, repGlossary, pointers].filter((p): p is NonNullable<typeof p> => !!p);
   // Pass the extraction-log + correction + glossary repos so the account EXPORT carries them (all
-  // operational, no conversation content — [NO-TRAINING-RETENTION]).
-  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases, extractionLog, corrections, repGlossary, blobStorage);
+  // operational, no conversation content — [NO-TRAINING-RETENTION]); pointers for the export too (D10).
+  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases, extractionLog, corrections, repGlossary, blobStorage, pointers);
 }
 
 export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {
@@ -813,8 +826,9 @@ export function createBriefService(
   clients: ClientRepository,
   notes: NoteRepository,
   facts: FactsRepository,
+  pointers?: ClientPointerRepository,
 ): BriefService {
-  return new BriefService(clients, notes, facts, createEmbedder(config));
+  return new BriefService(clients, notes, facts, createEmbedder(config), pointers);
 }
 
 /** Transactional email: stub locally (records), AWS SES in prod. */

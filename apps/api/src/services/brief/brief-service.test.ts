@@ -3,6 +3,7 @@ import { BriefService } from './brief-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
+import { InMemoryClientPointerRepository } from '../../adapters/import/in-memory-client-pointer-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
 import type { Extraction } from '../extraction/types.js';
 
@@ -54,6 +55,19 @@ describe('BriefService', () => {
     expect(brief.keyPeople.map((p) => p.name)).toContain('Jordan');
     expect(brief.concerns).toContain('Timeline is tight');
     expect(brief.personalNotes[0]!.subject).toBe('Jordan');
+  });
+
+  // [POINTERS · D9] the brief surfaces the client's current pointers + the retrospective disclosure.
+  it('surfaces the client pointers in the brief', async () => {
+    const { clients, notes, facts, client } = await seed();
+    const pointers = new InMemoryClientPointerRepository();
+    await pointers.save('user-A', client.id, {
+      pointers: [{ section: 'relationship', text: 'keeps asking about parking', receipts: [{ source_span: 'parking?', source_message_at: '2026-01-01T10:00' }] }],
+      retrospectiveDisclosure: null,
+    }, 1);
+    const brief = (await new BriefService(clients, notes, facts, fakeEmbedder({}), pointers).buildBrief('user-A', client.id))!;
+    expect(brief.pointers).toHaveLength(1);
+    expect(brief.pointers[0]!.text).toBe('keeps asking about parking');
   });
 
   // NEGATIVE: a client with no data → honest empty, not a fabricated summary.

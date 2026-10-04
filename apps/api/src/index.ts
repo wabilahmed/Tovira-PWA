@@ -64,6 +64,7 @@ import {
   createBriefService,
   createCorrectionRepository,
   createRepGlossaryRepository,
+  createClientPointerRepository,
   createMeetingRepository,
   createRequirementRepository,
   createInventoryMatchRepository,
@@ -178,6 +179,7 @@ async function main(): Promise<void> {
   const extractionLogs = createExtractionLogRepository(config, appPool);
   const corrections = createCorrectionRepository(config, appPool);
   const repGlossary = createRepGlossaryRepository(config, appPool);
+  const clientPointers = createClientPointerRepository(config, appPool); // [POINTERS]
   // Billing is created early so the extraction router can read trial status (P5-7).
   const billingEmailHook = {
     paymentFailed: async (userId: string, eventId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendPaymentFailed(userId, to, eventId); },
@@ -288,12 +290,12 @@ async function main(): Promise<void> {
   void trainingLogStats.refresh();
   // [TRIAL-FARM] Extraction — the one paid, unbounded-cost operation — is gated on a verified email.
   const verifiedGate = { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) };
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate, clientPointers);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));
   const followUp = createFollowUpService(config, notes);
-  const brief = createBriefService(config, clients, notes, facts);
+  const brief = createBriefService(config, clients, notes, facts, clientPointers);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
   const scan = createScanService(clients, meetings, facts, notifications, notes, (userId) => auth.timezoneFor(userId));
@@ -304,7 +306,7 @@ async function main(): Promise<void> {
   // [ERASURE-SUMMARY] the certified extractor for re-summarising a note after the requester's messages
   // are removed. A metered client, but every rewrite request carries spendClass 'erasure' and NO userId,
   // so it records account-less — never a rep's spend cap or extraction ceiling (erasure is legal, not usage).
-  const erasure = new ErasureService({ clients, notes, audit: createErasureAuditRepository(config, appPool), blobStorage: storage, repGlossary, summariser: createModelClient(config, 'extraction') });
+  const erasure = new ErasureService({ clients, notes, audit: createErasureAuditRepository(config, appPool), blobStorage: storage, repGlossary, summariser: createModelClient(config, 'extraction'), clientPointers });
   // [ERASURE-RECEIPT] the proof-of-erasure store uses the ROOT pool (migrationPool): it has no RLS and
   // no user_id/FK, so it is not tenant data and it survives the rep deleting their account.
   const erasureRequests = new ErasureRequestService({ erasure, requests: createErasureRequestRepository(config, appPool), receipts: createErasureReceiptRepository(config, migrationPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
@@ -460,7 +462,7 @@ async function main(): Promise<void> {
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs
   // have long intervals, so a faster due-check is negligible overhead.
   const recallSessions = createRecallSessionRepository(config, appPool);
-  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, repGlossary, storage);
+  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, repGlossary, storage, clientPointers);
   const activation = createActivationService(config, appPool);
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
@@ -550,6 +552,7 @@ async function main(): Promise<void> {
     account,
     activation,
     bookScan,
+    clientPointers,
     bulkImport,
     bulkUpsell,
     recall,

@@ -8,6 +8,7 @@ import { HttpAccessRequestClient } from './access/requestAccessClient.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
+import { PointersCard, type Pointer } from './clients/PointersCard.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
 import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
@@ -550,8 +551,12 @@ function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; 
   // Notes the server refused to extract because of the trial seeding ceiling. We
   // stop retrying them and show the non-scary ceiling state (no client-side math).
   const [ceilingNoteIds, setCeilingNoteIds] = useState<Set<string>>(new Set());
+  // [POINTERS · D8] the client-thread pointers card — appears once pointers exist (after an import),
+  // and updates silently as later voice/paste extractions revise the set (refreshed with the notes).
+  const [pointers, setPointers] = useState<{ pointers: Pointer[]; disclosure: string | null }>({ pointers: [], disclosure: null });
 
   const refresh = (): void => {
+    void clientsApi.getPointers(client.id).then(setPointers);
     void clientsApi.listNotes(client.id).then(async (list) => {
       setNotes(list);
       // Advance any notes through the pipeline: transcribe, then extract. Skip
@@ -637,6 +642,12 @@ function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; 
           setPhone(updated ? updated.phone : p);
         }}
       />
+
+      {pointers.pointers.length > 0 && (
+        <div style={{ margin: '0.75rem 0' }}>
+          <PointersCard clientName={client.name} pointers={pointers.pointers} disclosure={pointers.disclosure} />
+        </div>
+      )}
 
       <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)}>Pre-meeting brief</button>
       {brief === LOCKED ? (
@@ -732,6 +743,11 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
     <section style={briefBox}>
       <h2 style={{ marginTop: 0, marginBottom: '0.25rem' }}>{brief.clientName}</h2>
       <p className="tov-stamp" style={{ margin: '0 0 0.5rem' }}>Pre-meeting brief</p>
+      {brief.pointers && brief.pointers.length > 0 && (
+        <div style={briefSection}>
+          <PointersCard clientName={brief.clientName} pointers={brief.pointers} disclosure={brief.pointersDisclosure ?? null} />
+        </div>
+      )}
       {brief.openPromises.length > 0 && (
         <div style={briefSection}>
           <div className="tov-stamp">Open promises</div>

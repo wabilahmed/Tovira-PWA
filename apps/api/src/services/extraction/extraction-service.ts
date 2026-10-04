@@ -8,7 +8,10 @@ import type { RepGlossaryRepository } from '../../ports/rep-glossary-repository.
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { RequirementRepository, RequirementInput } from '../../ports/requirement-repository.js';
 import type { MatchingService } from '../inventory/matching-service.js';
-import type { Meeting, Requirement } from './types.js';
+import type { Meeting, Requirement, DealState } from './types.js';
+import type { ClientRecord } from '../../ports/client-repository.js';
+import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
+import { checkPointers } from './pointer-postcheck.js';
 import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
 import type { ModelRouter } from './model-router.js';
@@ -23,6 +26,24 @@ import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budg
 import { dropSensitivePersonalFacts } from './health-filter.js';
 import type { ImportCostRecord } from '../metrics/import-cost-metrics.js';
 import type { Extraction } from './types.js';
+
+/** [POINTERS · D6] Days of silence after which an untouched OPEN deal is treated as going cold.
+ *  Derivation: matches the scan's default cold threshold (ScanConfig.coldThresholdDays = 30) so the
+ *  pointer sections and the going-cold nudge agree. Not wired to that config (a plain constant) — flagged;
+ *  if the scan threshold becomes per-rep, thread it in here too. */
+const POINTER_GOING_COLD_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** [POINTERS · D6] Map a client's stored outcome (+ silence) onto the deal state the extraction needs.
+ *  A rep-confirmed loss → 'lost' (→ retrospective). A silence-inferred loss, or an open deal gone quiet,
+ *  → 'going_cold' (never a retrospective — D6). */
+function dealStateOf(client: ClientRecord, nowMs: number): DealState {
+  if (client.outcome === 'won') return 'won';
+  if (client.outcome === 'lost_confirmed') return 'lost';
+  const cold = client.lastTouchedAt != null && nowMs - client.lastTouchedAt > POINTER_GOING_COLD_DAYS * DAY_MS;
+  if (client.outcome === 'lost_inferred' || cold) return 'going_cold';
+  return 'open';
+}
 
 /** [NO-TRAINING-RETENTION] Count the facts a model emitted (for the operational log's quality counts —
  *  a number, never content). Sums the extracted arrays + the single proposed meeting. */
@@ -155,6 +176,8 @@ export class ExtractionService {
      *  so it (and ONLY it) requires a verified email. Unverified → defer (note stays pending), never
      *  a model call, never a lost note. Optional — ungated when absent (reading/capture stay open). */
     private readonly verifiedGate?: { isVerified(userId: string): Promise<boolean> },
+    /** [POINTERS · Task 3] the per-client pointer store (read current, save the post-checked set). */
+    private readonly pointers?: ClientPointerRepository,
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -290,12 +313,18 @@ export class ExtractionService {
       console.info(`[screen] note ${noteId}: all ${note.messages?.length ?? 0} message(s) held for review; nothing sent to a model`);
       return { status: 'extracted', flagged: true, message: 'All messages are held for review.' };
     }
+    // [POINTERS] The client's current pointers (to update, D7) and the deal state (which second section
+    // to produce, D6) feed the same single extraction call. Best-effort load — never block extraction.
+    const currentPointerSet = this.pointers ? await this.pointers.getForClient(userId, note.clientId).catch(() => null) : null;
+    const dealState = client ? dealStateOf(client, this.now()) : 'open';
     const userMessage = buildUserMessage({
       today: referenceDate,
       clientName: client?.name ?? 'Unknown',
       source: note.source,
       text: safeText,
       glossary,
+      dealState,
+      currentPointers: currentPointerSet?.pointers ?? [],
     });
 
     // Resolve the model ONCE (P5-7): a retry must use the same model as the
@@ -410,6 +439,26 @@ export class ExtractionService {
           keyDates: extraction.key_dates,
           captureAt: referenceDate, // the note's conversation date, not the fact-row/import time
         });
+        // [POINTERS] Validate the model's pointers deterministically (receipts → sensitive screen →
+        // retrospective rules), then REPLACE the client's set (D7 keep/revise/retire/add). Best-effort —
+        // a failure never loses the extracted facts.
+        if (this.pointers) {
+          try {
+            const checked = checkPointers({
+              pointers: extraction.pointers ?? [],
+              inputText: safeText,
+              inputMessageAts: new Set((note.messages ?? []).map((m) => m.sentAt).filter((s): s is string => !!s)),
+              currentPointers: currentPointerSet?.pointers ?? [],
+              dealState,
+            });
+            await this.pointers.save(userId, note.clientId, { pointers: checked.pointers, retrospectiveDisclosure: checked.retrospectiveDisclosure }, this.now());
+            // [D8] The client thread shows a single pointers card rendered from this stored set — it
+            // appears once pointers first exist (a chat import) and updates in place on later voice/paste
+            // extractions (silently, no new message). No separate notification is posted.
+          } catch (err) {
+            console.warn(`[pointers] post-check/save failed for note ${noteId}`, err);
+          }
+        }
         // NUDGE-UNCONFIRMED: persist a proposed meeting so it can be confirmed and nudged.
         // Best-effort — a failure here must never lose the extracted facts (never lose a recording).
         if (this.meetings && extraction.meeting) {

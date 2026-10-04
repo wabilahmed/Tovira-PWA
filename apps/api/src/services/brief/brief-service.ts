@@ -3,7 +3,8 @@ import type { NoteRepository, ImportedMessage } from '../../ports/note-repositor
 import { modelSafeText } from '../import/dedup.js';
 import type { FactsRepository, PromiseRecord } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
-import type { Extraction, ExtractedPerson, PersonalFact } from '../extraction/types.js';
+import type { Extraction, ExtractedPerson, PersonalFact, Pointer } from '../extraction/types.js';
+import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
 import { presentableAsSettledFact, promiseNeedsConfirmation } from '../facts/confirmation.js';
 import { withReceipt, withExtractedReceipt, type FactReceipt } from '../receipts/receipt.js';
 
@@ -41,6 +42,10 @@ export interface Brief {
   personalNotes: Array<PersonalFact & { receipt: FactReceipt }>;
   concerns: string[];
   relatedNotes: RelatedNote[];
+  /** [POINTERS · D9] the client's current pointers, the moment they matter most. Empty when none. */
+  pointers: Pointer[];
+  /** [D6] the exact retrospective disclosure, when the pointer set contains a retrospective. */
+  pointersDisclosure: string | null;
 }
 
 function extractedOf(value: unknown): Extraction {
@@ -61,6 +66,8 @@ export class BriefService {
     private readonly notes: NoteRepository,
     private readonly facts: FactsRepository,
     private readonly embedder: Embedder,
+    /** [POINTERS · D9] the per-client pointer store; optional (older wiring omits it → no pointers). */
+    private readonly pointers?: ClientPointerRepository,
   ) {}
 
   async buildBrief(userId: string, clientId: string): Promise<Brief | null> {
@@ -95,6 +102,8 @@ export class BriefService {
     }));
 
     const relatedNotes = await this.related(userId, clientId, notes);
+    // [POINTERS · D9] the client's current pointers, shown at the moment they matter most.
+    const pointerSet = this.pointers ? await this.pointers.getForClient(userId, clientId).catch(() => null) : null;
 
     const empty = notes.length === 0 && promises.length === 0;
     return {
@@ -106,6 +115,8 @@ export class BriefService {
       keyPeople,
       personalNotes,
       concerns,
+      pointers: pointerSet?.pointers ?? [],
+      pointersDisclosure: pointerSet?.retrospectiveDisclosure ?? null,
       relatedNotes,
     };
   }

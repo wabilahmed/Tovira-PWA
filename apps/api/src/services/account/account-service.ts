@@ -55,6 +55,9 @@ export class AccountService {
      *  too — row-driven (the keys the rows hold), collected BEFORE the cascade, with a prefix sweep as a
      *  backstop for orphans. Absent → skipped (dev without a blob store). */
     private readonly blobStorage?: Pick<Storage, 'delete' | 'list'>,
+    /** [POINTERS · D10] the rep's per-client pointer sets — carried in the DSAR export. Deletion is
+     *  handled by the purgeables list (pg cascades too). */
+    private readonly pointers?: { listByUser(userId: string): Promise<unknown[]> },
   ) {}
 
   async exportData(userId: string): Promise<unknown> {
@@ -82,6 +85,8 @@ export class AccountService {
       extractionLogs: this.extractionLog ? await this.extractionLog.listByUser(userId) : [],
       corrections: this.corrections ? await this.corrections.listByUser(userId) : [],
       repGlossary: this.repGlossary ? await this.repGlossary.listByUser(userId) : [],
+      // [POINTERS · D10] the rep's per-client relationship/closing pointers.
+      clientPointers: this.pointers ? await this.pointers.listByUser(userId) : [],
     };
   }
 

@@ -57,6 +57,7 @@ import { BriefService } from '../services/brief/brief-service.js';
 import { FollowUpService } from '../services/followup/follow-up-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
 import { InMemoryRepGlossaryRepository } from '../adapters/glossary/in-memory-rep-glossary-repository.js';
+import { InMemoryClientPointerRepository } from '../adapters/import/in-memory-client-pointer-repository.js';
 import { InMemoryContactAliasRepository, InMemoryRepNameRepository } from '../adapters/import/in-memory-contact-alias-repository.js';
 import { InMemoryImportAckRepository } from '../adapters/import/in-memory-import-ack-repository.js';
 import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
@@ -167,6 +168,7 @@ export function buildInMemoryDeps(
   const extractionLog = new InMemoryExtractionLogRepository();
   const corrections = new InMemoryCorrectionRepository();
   const repGlossary = new InMemoryRepGlossaryRepository();
+  const clientPointers = new InMemoryClientPointerRepository(); // [POINTERS]
   const contactAliases = new InMemoryContactAliasRepository();
   const repNames = new InMemoryRepNameRepository();
   const importAck = new InMemoryImportAckRepository();
@@ -212,8 +214,9 @@ export function buildInMemoryDeps(
     opts.enforceVerification
       ? { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) }
       : { isVerified: async () => true },
+    clientPointers, // [POINTERS]
   );
-  const brief = new BriefService(clients, notes, facts, embedder);
+  const brief = new BriefService(clients, notes, facts, embedder, clientPointers);
   const followUp = new FollowUpService(new StubModelClient(), notes);
   const meetings = new InMemoryMeetingRepository();
   const noteMove = new NoteMoveService(notes, facts, meetings, new InMemoryNoteMoveTx(notes, facts, meetings, clients, new InMemoryNoteMoveAuditRepository(), requirements, inventoryMatches));
@@ -321,6 +324,7 @@ export function buildInMemoryDeps(
     pool: stubPool,
     auth,
     clients,
+    clientPointers,
     bulkImport,
     bulkUpsell,
     inventory,
@@ -368,7 +372,7 @@ export function buildInMemoryDeps(
     // [PRIVACY-3] purgeables covers every in-memory store the users FK cascade purges in Postgres, so
     // account deletion leaves zero rows in the in-memory model too (recall + S3 archive are purged by
     // AccountService directly). A new store added here without a purge fails the deletion test.
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary], undefined, undefined, extractionLog, corrections, repGlossary, storage),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary, clientPointers], undefined, undefined, extractionLog, corrections, repGlossary, storage, clientPointers),
     recallSessions,
     extractionCounter,
     runSweep,
