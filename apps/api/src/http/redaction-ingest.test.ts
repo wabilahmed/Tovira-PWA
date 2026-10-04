@@ -55,7 +55,8 @@ describe('[REDACT-2/4] Tier-1 values never reach storage or the extraction log',
       // No CONTENT-bearing field holds the card or IBAN. The server-generated id fields (noteId/id/
       // userId) are random hex UUIDs that can coincidentally contain a 4-char card prefix — they carry
       // no note content, so they are excluded; every remaining field is still checked.
-      const { noteId: _n, id: _i, userId: _u, ...content } = r as Record<string, unknown>;
+      const content = { ...(r as unknown as Record<string, unknown>) };
+      delete content.noteId; delete content.id; delete content.userId; // random hex UUIDs, not content
       const blob = JSON.stringify(content);
       expect(blob).not.toContain('4539');
       expect(blob).not.toContain('0343');
