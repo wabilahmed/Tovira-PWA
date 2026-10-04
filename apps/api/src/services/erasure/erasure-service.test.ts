@@ -5,6 +5,7 @@ import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repo
 import { InMemoryErasureAuditRepository } from '../../adapters/erasure/in-memory-erasure-audit-repository.js';
 import { InMemoryStorage } from '../../adapters/storage/in-memory.js';
 import { putBatchFile, listBatchFiles } from '../import/bulk-batch-store.js';
+import { InMemoryClientPointerRepository } from '../../adapters/import/in-memory-client-pointer-repository.js';
 
 /**
  * [ERASURE Task 2] Delete facts ABOUT the requester (structured who-field = requester); keep facts
@@ -143,5 +144,28 @@ describe('[ERASURE Task 2] delete about, keep mention', () => {
     const svc = new ErasureService({ clients, notes, audit, blobStorage: storage });
     await svc.commit('u', ['Khalid']);
     expect(await listBatchFiles(storage, 'u', 'b1')).toEqual([]); // staged content reached by erasure
+  });
+
+  // [POINTERS · Task 5] GUARD 5 — erasure reaches pointers (D10): a client whose note the erasure CHANGED
+  // has its pointer set deleted (a pointer may cite an erased message; it regenerates next extraction).
+  // MUTATION-PROVEN: comment out the `for (const clientId of touchedClients) await
+  // this.deps.clientPointers.deleteForClient(...)` loop in erasure-service.ts → the stale set survives → RED.
+  it('GUARD 5: committing an erasure deletes the pointer set of every client it touched', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const audit = new InMemoryErasureAuditRepository();
+    const clientPointers = new InMemoryClientPointerRepository();
+    const c = await clients.create('u', 'Marina Estates');
+    await seedNote(notes, 'u', c.id); // a note with a personal_fact + person entry ABOUT Khalid → erasure changes it
+    await clientPointers.save('u', c.id, {
+      pointers: [{ section: 'relationship', text: 'Khalid said he has the funds', receipts: [{ source_span: 'I have five million ready', source_message_at: '2026-01-01T10:00:00' }] }],
+      retrospectiveDisclosure: null,
+    }, 1);
+    expect(await clientPointers.getForClient('u', c.id)).not.toBeNull(); // precondition: the set exists
+
+    const svc = new ErasureService({ clients, notes, audit, clientPointers });
+    await svc.commit('u', ['Khalid']);
+
+    expect(await clientPointers.getForClient('u', c.id)).toBeNull(); // the touched client's pointers are gone
   });
 });

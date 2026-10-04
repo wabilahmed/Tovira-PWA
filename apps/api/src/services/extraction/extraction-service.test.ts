@@ -83,7 +83,7 @@ describe('ExtractionService — pointers (Task 3)', () => {
       cap.client, clients, notes, facts, new StubEmbedder(8), logs, 'stub',
       undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pointers,
     );
-    return { service, pointers, note, client, cap };
+    return { service, pointers, note, client, cap, clients };
   }
   const EX = (pointers: unknown[]) => JSON.stringify({ summary: 'x', promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null, pointers });
 
@@ -106,6 +106,53 @@ describe('ExtractionService — pointers (Task 3)', () => {
     expect(content).toMatch(/DEAL STATE: open/); // default outcome, recently touched
     expect(content).toContain('cares about price'); // current pointer fed back for update (D7)
     expect((content.match(/<<<TOVIRA_UNTRUSTED_BEGIN>>>/g) ?? []).length).toBe(1); // still one fence
+  });
+
+  // [POINTERS · Task 5] GUARD 1 — no pointer without a valid receipt reaches STORAGE (D3). The trust
+  // spine is the service calling checkPointers before save, not the model policing itself.
+  // MUTATION-PROVEN: delete the `if (receipts.length === 0) continue;` line in pointer-postcheck.ts
+  // (or the receiptValid filter) → the receipt-less and the bogus-receipt pointers survive → RED.
+  it('GUARD 1: a pointer with no receipt, and one with a receipt citing nothing in the chat, are never saved', async () => {
+    const { service, pointers, note, client } = await pointerSetup(EX([
+      { section: 'relationship', text: 'no receipt at all', receipts: [] },
+      { section: 'close', text: 'receipt cites a message that is not in this chat', receipts: [{ source_span: 'never said this', source_message_at: '1999-01-01T00:00' }] },
+    ]));
+    await service.extractNote('u', note.id, '2026-02-01');
+    const set = await pointers.getForClient('u', client.id);
+    expect(set!.pointers).toEqual([]); // both dropped — nothing ungrounded is stored
+  });
+
+  // [POINTERS · Task 5] GUARD 2 — the sensitive screen runs on EVERY pointer before saving (D5), same
+  // categories as facts. MUTATION-PROVEN: remove the `if (screenSensitive(p.text).length > 0) continue;`
+  // line in pointer-postcheck.ts → the health pointer is stored → RED.
+  it('GUARD 2: a pointer whose text carries sensitive (health) content is never saved', async () => {
+    const { service, pointers, note, client } = await pointerSetup(EX([
+      { section: 'relationship', text: 'avoid calls while he is recovering from surgery', receipts: [{ source_span: 'is there parking?', source_message_at: '2026-01-01T10:00' }] },
+    ]));
+    await service.extractNote('u', note.id, '2026-02-01');
+    const set = await pointers.getForClient('u', client.id);
+    expect(set!.pointers).toEqual([]); // the sensitive pointer is screened out before storage
+  });
+
+  // [POINTERS · Task 5] GUARD 3 — a retrospective is produced ONLY for a rep-confirmed loss, and when it
+  // survives it ALWAYS carries the exact disclosure (D6). MUTATION-PROVEN: remove the
+  // `p.section === 'retrospective' && input.dealState !== 'lost'` drop in pointer-postcheck.ts → the
+  // open-deal retrospective survives → the first assertion goes RED.
+  it('GUARD 3: a retrospective is dropped on an open deal, and kept WITH the exact disclosure on a confirmed loss', async () => {
+    const retro = EX([{ section: 'retrospective', text: 'pricing was never competitive', receipts: [{ source_span: 'is there parking?', source_message_at: '2026-01-01T10:00' }] }]);
+    // (a) open deal → no retrospective survives, no disclosure.
+    const open = await pointerSetup(retro);
+    await open.service.extractNote('u', open.note.id, '2026-02-01');
+    const openSet = await open.pointers.getForClient('u', open.client.id);
+    expect(openSet!.pointers).toEqual([]);
+    expect(openSet!.retrospectiveDisclosure).toBeNull();
+    // (b) rep-confirmed loss → the retrospective survives WITH the exact, code-appended disclosure.
+    const lost = await pointerSetup(retro);
+    await lost.clients.setOutcome('u', lost.client.id, 'lost_confirmed', 'rep', Date.now());
+    await lost.service.extractNote('u', lost.note.id, '2026-02-01');
+    const lostSet = await lost.pointers.getForClient('u', lost.client.id);
+    expect(lostSet!.pointers.map((p) => p.section)).toEqual(['retrospective']);
+    expect(lostSet!.retrospectiveDisclosure).toBe('This is our best reading of what happened, based on your messages. It may not be accurate.');
   });
 });
 
