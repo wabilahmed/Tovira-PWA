@@ -22,13 +22,26 @@ export const BULK_MAX_FILE_CHARS = 5_000_000;
  */
 export const MAX_IMPORT_UPLOAD_BYTES = BULK_MAX_FILE_CHARS * 2; // 10 MB (~9.5 MiB)
 
+/**
+ * [FOLLOW-UP 2] Cap a transcript at maxChars, keeping the MOST RECENT part. A WhatsApp export is
+ * chronological (oldest first, newest last), so the recent messages are at the END — we keep the tail
+ * and drop the partial first line so only whole messages remain. Returns whether it was truncated.
+ */
+export function truncateToRecent(text: string, maxChars: number): { text: string; truncated: boolean } {
+  if (text.length <= maxChars) return { text, truncated: false };
+  const tail = text.slice(text.length - maxChars);
+  const nl = tail.indexOf('\n');
+  return { text: nl >= 0 ? tail.slice(nl + 1) : tail, truncated: true };
+}
+
 /** Decode one uploaded file's RAW bytes to its transcript text (the readRawBody path). .zip → inner
- *  transcript (media dropped); bare .txt → UTF-8 text. Oversized decoded text → '' (unparseable row). */
+ *  transcript (media dropped); bare .txt → UTF-8 text. A transcript longer than BULK_MAX_FILE_CHARS is
+ *  truncated to its most recent part (flagged), not dropped. A corrupt/unreadable file → '' (unparseable). */
 export function decodeBulkFileBytes(name: string, bytes: Uint8Array): BulkInputFile {
   try {
     const r = resolveTranscript(Buffer.from(bytes));
-    const text = r.ok ? r.text : '';
-    return { name, content: text.length > BULK_MAX_FILE_CHARS ? '' : text };
+    const { text, truncated } = truncateToRecent(r.ok ? r.text : '', BULK_MAX_FILE_CHARS);
+    return { name, content: text, ...(truncated ? { truncated: true } : {}) };
   } catch {
     return { name, content: '' };
   }
@@ -43,10 +56,13 @@ export interface RawBulkFile {
 }
 
 export function decodeBulkFiles(raw: RawBulkFile[]): BulkInputFile[] {
-  return raw.map((f) => ({ name: f.name, content: decodeOne(f) }));
+  return raw.map((f) => {
+    const { text, truncated } = decodeOne(f);
+    return { name: f.name, content: text, ...(truncated ? { truncated: true } : {}) };
+  });
 }
 
-function decodeOne(f: RawBulkFile): string {
+function decodeOne(f: RawBulkFile): { text: string; truncated: boolean } {
   let text = '';
   if (typeof f.contentBase64 === 'string' && f.contentBase64.length > 0) {
     try {
@@ -58,6 +74,6 @@ function decodeOne(f: RawBulkFile): string {
   } else if (typeof f.content === 'string') {
     text = f.content;
   }
-  // Oversized → drop to unparseable rather than failing the whole batch (same ceiling as single import).
-  return text.length > BULK_MAX_FILE_CHARS ? '' : text;
+  // Oversized → keep the most recent part (flagged), not dropped (FOLLOW-UP 2).
+  return truncateToRecent(text, BULK_MAX_FILE_CHARS);
 }

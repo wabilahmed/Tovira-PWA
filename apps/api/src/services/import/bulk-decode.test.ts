@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { deflateRawSync } from 'node:zlib';
-import { decodeBulkFiles, BULK_MAX_FILE_CHARS } from './bulk-decode.js';
+import { decodeBulkFiles, decodeBulkFileBytes, truncateToRecent, BULK_MAX_FILE_CHARS } from './bulk-decode.js';
 import { parseBatch } from './bulk-parse.js';
 
 // Synthetic ZIP builder (same shape as resolve.test.ts) — no real export committed.
@@ -67,8 +67,33 @@ describe('[BULK-IMPORT] file decode (.txt AND .zip per file)', () => {
     expect(r.rows.find((x) => x.fileName === 'good.txt')!.counterpart).toBe('Layla');
   });
 
-  it('an oversized file is dropped to unparseable rather than failing the batch', () => {
-    const [file] = decodeBulkFiles([{ name: 'huge.txt', content: 'a'.repeat(BULK_MAX_FILE_CHARS + 1) }]);
-    expect(file!.content).toBe('');
+  it('[FOLLOW-UP 2] truncateToRecent keeps the MOST RECENT part and drops the partial first line', () => {
+    const r = truncateToRecent('OLDEST\nmid\nNEWEST', 11); // last 11 chars straddle a line boundary
+    expect(r.truncated).toBe(true);
+    expect(r.text).not.toContain('OLDEST'); // the oldest messages are dropped
+    expect(r.text).toContain('NEWEST'); // the most recent are kept
+    expect(r.text.startsWith('mid') || r.text.startsWith('NEWEST')).toBe(true); // no partial first line
+  });
+
+  it('[FOLLOW-UP 2] an oversized chat is TRUNCATED to its recent part (flagged), not dropped', () => {
+    const chatText = `OLD_FIRST x\n${'y'.repeat(BULK_MAX_FILE_CHARS)}\nNEW_LAST z`;
+    const file = decodeBulkFileBytes('huge.txt', new TextEncoder().encode(chatText));
+    expect(file.truncated).toBe(true);
+    expect(file.content).not.toContain('OLD_FIRST'); // oldest dropped
+    expect(file.content).toContain('NEW_LAST'); // most recent kept
+    expect(file.content.length).toBeLessThanOrEqual(BULK_MAX_FILE_CHARS);
+  });
+
+  it('[FOLLOW-UP 2] a truncated chat surfaces truncated=true on its parse row', () => {
+    const line = (n: number) => `13/07/2019, 1:00 am - ${n % 2 === 0 ? 'Wabil' : 'Layla'}: m${n} ${'x'.repeat(60)}`;
+    const big: string[] = ['13/07/2019, 1:00 am - Layla: OLD_FIRST'];
+    let size = 40;
+    for (let i = 0; size < BULK_MAX_FILE_CHARS + 500; i += 1) { const l = line(i); big.push(l); size += l.length + 1; }
+    big.push('13/07/2019, 1:00 am - Layla: NEW_LAST');
+    const files = decodeBulkFiles([{ name: 'a.txt', content: big.join('\n') }]);
+    const r = parseBatch(files, [], 'Wabil');
+    expect(r.rows[0]!.truncated).toBe(true);
+    expect(files[0]!.content).toContain('NEW_LAST');
+    expect(files[0]!.content).not.toContain('OLD_FIRST');
   });
 });

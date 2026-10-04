@@ -34,10 +34,12 @@ export class BulkImportClient implements BulkImportApi {
   }
 
   async uploadFile(batchId: string, index: number, name: string, bytes: Uint8Array): Promise<{ ok: boolean; tooLarge?: boolean }> {
-    const q = new URLSearchParams({ batchId, index: String(index), name });
-    // [FIX 1] Raw binary — the bytes ARE the body; metadata rides in the query (no 1 MB JSON cap).
-    const res = await fetch(`${this.baseUrl}/import/bulk/files?${q.toString()}`, {
-      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/octet-stream' }, body: bytes as unknown as BodyInit,
+    // [FIX 1 / FOLLOW-UP 1] Raw binary — the bytes ARE the body; metadata rides in X-Tovira-* HEADERS,
+    // never the URL (a file name is personal data; query strings land in access logs).
+    const res = await fetch(`${this.baseUrl}/import/bulk/files`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'content-type': 'application/octet-stream', 'X-Tovira-Batch-Id': batchId, 'X-Tovira-Index': String(index), 'X-Tovira-Name': encodeURIComponent(name) },
+      body: bytes as unknown as BodyInit,
     });
     if (res.status === 413) return { ok: false, tooLarge: true };
     return { ok: res.status === 200 };

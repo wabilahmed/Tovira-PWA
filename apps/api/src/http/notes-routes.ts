@@ -13,7 +13,7 @@ import type { BillingService } from '../services/billing/billing-service.js';
 import type { NoteMoveService } from '../services/import/note-move-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { resolveTranscript } from '../services/import/resolve.js';
-import { MAX_IMPORT_UPLOAD_BYTES } from '../services/import/bulk-decode.js';
+import { MAX_IMPORT_UPLOAD_BYTES, truncateToRecent } from '../services/import/bulk-decode.js';
 import { detectMisfileAtImport } from '../services/import/misfile.js';
 import type { ContactAliasRepository, RepNameRepository } from '../ports/contact-alias-repository.js';
 import type { ImportAckRepository } from '../ports/import-ack-repository.js';
@@ -249,8 +249,9 @@ export async function handleNoteRoute(
       }
       // [FIX 1] A chat uploads as RAW BINARY (no base64 + no 1 MB JSON cap, so a long-history export —
       // the Book Scan's core case — fits). The file bytes ARE the body; the small metadata (consent,
-      // acks, counterpart) ride in the query. Legacy JSON callers (content-type: application/json) keep
-      // the old body shape. `rawFileBytes` is set only on the raw path; the decode below handles both.
+      // acks, counterpart) ride in X-Tovira-* HEADERS — never the URL, since a counterpart name is
+      // personal data and query strings land in access logs (FOLLOW-UP 1). Legacy JSON callers
+      // (content-type: application/json) keep the old body shape.
       const isRawUpload = !String(req.headers['content-type'] ?? '').includes('json');
       let body: { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown; confirmImport?: unknown; counterpart?: unknown; firstImportAck?: unknown };
       let rawFileBytes: Buffer | null = null;
@@ -261,13 +262,14 @@ export async function handleNoteRoute(
           sendJson(res, 413, { error: 'too_large', message: 'This file is too large.' });
           return true;
         }
-        const q = new URL(req.url ?? '', 'http://x').searchParams;
+        const h = req.headers;
+        const cp = typeof h['x-tovira-counterpart'] === 'string' ? h['x-tovira-counterpart'] : '';
         body = {
-          consent: q.get('consent') === '1',
-          misfileAck: q.get('misfileAck') === '1',
-          confirmImport: q.get('confirmImport') === '1',
-          firstImportAck: q.get('firstImportAck') === '1',
-          ...(q.get('counterpart') ? { counterpart: q.get('counterpart') as string } : {}),
+          consent: h['x-tovira-consent'] === '1',
+          misfileAck: h['x-tovira-misfile-ack'] === '1',
+          confirmImport: h['x-tovira-confirm-import'] === '1',
+          firstImportAck: h['x-tovira-first-import-ack'] === '1',
+          ...(cp ? { counterpart: decodeURIComponent(cp) } : {}), // percent-encoded on the client (UTF-8 names)
         };
       } else {
         body = (await readJsonBody(req)) as typeof body;
@@ -339,12 +341,13 @@ export async function handleNoteRoute(
         sendJson(res, 400, { error: 'validation', message: 'The export file is empty.' });
         return true;
       }
+      // [FOLLOW-UP 2] A very long chat is not rejected — keep its MOST RECENT part (a WhatsApp export is
+      // chronological, so the recent messages are at the end) and tell the rep on the result.
+      let truncated = false;
       if (content.length > MAX_IMPORT_CHARS) {
-        sendJson(res, 413, {
-          error: 'too_large',
-          message: `Export is too large (max ${MAX_IMPORT_CHARS.toLocaleString()} characters).`,
-        });
-        return true;
+        const t = truncateToRecent(content, MAX_IMPORT_CHARS);
+        content = t.text;
+        truncated = t.truncated;
       }
       let parsed;
       try {
@@ -474,7 +477,7 @@ export async function handleNoteRoute(
       // never half-writes: messages stay stored, facts are written atomically on
       // success, and the sweep retries. The trial ceiling is discovered by the
       // sweep (the note simply stays pending), not computed here.
-      sendJson(res, 202, { note, imported: fresh.length, ...(held > 0 ? { held } : {}), status: note.status, ...(misfileOverridden ? { misfileOverridden: true } : {}) });
+      sendJson(res, 202, { note, imported: fresh.length, ...(held > 0 ? { held } : {}), status: note.status, ...(misfileOverridden ? { misfileOverridden: true } : {}), ...(truncated ? { truncated: true } : {}) });
       return true;
     }
 

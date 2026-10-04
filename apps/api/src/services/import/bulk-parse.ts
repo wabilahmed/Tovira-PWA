@@ -21,6 +21,8 @@ const SELF_LABELS = new Set(['me', 'you']);
 export interface BulkInputFile {
   name: string;
   content: string;
+  /** [FOLLOW-UP 2] the decoded transcript exceeded the ceiling and was cut to its most recent part. */
+  truncated?: boolean;
 }
 export interface BulkClient {
   id: string;
@@ -56,6 +58,8 @@ export interface BulkRow {
   /** [existing] how many messages are NEW vs what is already stored for the client (0 → up to date).
    *  Filled by the service (parseBatch has no access to stored notes). */
   newMessageCount?: number;
+  /** [FOLLOW-UP 2] only the most recent part of a very long chat was imported. */
+  truncated?: boolean;
   /** [duplicate] the file this is a duplicate of. */
   duplicateOfFileName?: string;
   /** [group / needs_rep_id] the distinct senders, so the rep can pick the client / pick themselves. */
@@ -228,6 +232,11 @@ export function parseBatch(files: BulkInputFile[], clients: BulkClient[], stored
       if (subset) rows[i] = { ...rows[i]!, state: 'duplicate', duplicateOfFileName: parsed[keep]!.name };
     }
   }
+
+  // [FOLLOW-UP 2] Surface the truncation flag from the (decoded) input file onto its row, so the review
+  // can tell the rep only the most recent part of a very long chat was imported.
+  const truncatedNames = new Set(files.filter((f) => f.truncated).map((f) => f.name));
+  for (const r of rows) if (truncatedNames.has(r.fileName)) r.truncated = true;
 
   return { rows, repName, needsRepId };
 }

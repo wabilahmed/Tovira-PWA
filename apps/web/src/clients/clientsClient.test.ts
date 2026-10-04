@@ -122,17 +122,33 @@ describe('ClientsClient', () => {
   });
 
   // --- WhatsApp import (P1-4b) ---
-  it('imports a WhatsApp export: POSTs the chat as RAW BINARY with metadata in the query (FIX 1)', async () => {
+  it('imports a WhatsApp export: RAW BINARY body, metadata in X-Tovira-* headers, NO query string (FOLLOW-UP 1)', async () => {
     fetchMock.mockResolvedValueOnce(json(201, { imported: 4, note: {} }));
     const client = new ClientsClient('http://api.test');
     const r = await client.importWhatsApp('c1', 'chat', true);
     expect(r).toEqual({ ok: true, imported: 4 });
     const [url, init] = fetchMock.mock.calls[0]!;
-    // consent rides in the query; the body is the raw file bytes, not a JSON envelope.
-    expect(String(url)).toBe('http://api.test/clients/c1/notes/import?consent=1');
+    // No personal data in the URL — the request URL carries no query string at all.
+    expect(String(url)).toBe('http://api.test/clients/c1/notes/import');
+    expect(String(url)).not.toContain('?');
     expect((init as RequestInit).method).toBe('POST');
-    expect((init as RequestInit).headers).toMatchObject({ 'content-type': 'application/octet-stream' });
+    expect((init as RequestInit).headers).toMatchObject({ 'content-type': 'application/octet-stream', 'X-Tovira-Consent': '1' });
     expect(new TextDecoder().decode((init as RequestInit).body as Uint8Array)).toBe('chat');
+  });
+
+  it('carries truncated through from the server (FOLLOW-UP 2)', async () => {
+    fetchMock.mockResolvedValueOnce(json(202, { imported: 3, truncated: true }));
+    const r = await new ClientsClient('http://api.test').importWhatsApp('c1', 'chat', true);
+    expect(r).toMatchObject({ ok: true, imported: 3, truncated: true });
+  });
+
+  it('percent-encodes a counterpart name into the header, never the URL (FOLLOW-UP 1)', async () => {
+    fetchMock.mockResolvedValueOnce(json(202, { imported: 1 }));
+    const client = new ClientsClient('http://api.test');
+    await client.importWhatsApp('c1', { content: 'x', counterpart: 'خالد المرينا' }, true);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).not.toContain('?'); // the Arabic name is NOT in the URL
+    expect((init as RequestInit).headers).toMatchObject({ 'X-Tovira-Counterpart': encodeURIComponent('خالد المرينا') });
   });
 
   // [P5-1-CEILING-UI] the server signals when the trial ceiling stopped extraction.

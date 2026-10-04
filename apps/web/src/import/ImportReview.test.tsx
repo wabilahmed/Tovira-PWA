@@ -26,6 +26,13 @@ describe('<ImportReview>', () => {
     ]);
   });
 
+  it('[FOLLOW-UP 2] shows the truncation notice on a very long chat\'s row', () => {
+    render(<ImportReview result={result({ rows: [
+      row({ fileName: 'a.txt', state: 'new', counterpart: 'Layla', truncated: true }),
+    ] })} onImport={vi.fn()} />);
+    expect(within(screen.getByTestId('review-row-a.txt')).getByText(/very long chat: only the most recent part was imported\./i)).toBeInTheDocument();
+  });
+
   it('a possible match blocks Import until the rep answers Same person?; Yes merges, No makes a new client', async () => {
     const onImport = vi.fn();
     render(<ImportReview result={result({ rows: [

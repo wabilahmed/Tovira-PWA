@@ -121,10 +121,13 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
   // [FIX 1] One file uploads as RAW BINARY (no base64 + no 1 MB JSON cap): the bytes ARE the body and
   // the small metadata rides in the query. JSON uploads still work (legacy, below).
   if (isFiles && !String(req.headers['content-type'] ?? '').includes('json')) {
-    const q = new URL(req.url ?? '', 'http://x').searchParams;
-    const batchId = q.get('batchId') ?? '';
-    const name = q.get('name') ?? '';
-    const index = Number.parseInt(q.get('index') ?? '', 10);
+    // [FOLLOW-UP 1] metadata in X-Tovira-* headers, never the URL — a file name is personal data and
+    // query strings land in access logs. The name is percent-encoded on the client (UTF-8 names).
+    const h = req.headers;
+    const batchId = typeof h['x-tovira-batch-id'] === 'string' ? h['x-tovira-batch-id'] : '';
+    const rawName = typeof h['x-tovira-name'] === 'string' ? h['x-tovira-name'] : '';
+    const name = rawName ? decodeURIComponent(rawName) : '';
+    const index = Number.parseInt(typeof h['x-tovira-index'] === 'string' ? h['x-tovira-index'] : '', 10);
     if (!BATCH_ID_RE.test(batchId) || !name || !Number.isInteger(index)) {
       sendJson(res, 400, { error: 'validation', message: 'A file upload needs batchId, index and name.' });
       return true;

@@ -501,8 +501,10 @@ describe('[FIX 1] single import — raw-binary upload', () => {
     return out.join('\n');
   }
   const importRaw = (token: string, clientId: string, bytes: Uint8Array) =>
-    fetch(`${base}/clients/${clientId}/notes/import?consent=1&firstImportAck=1`, {
-      method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' }, body: Buffer.from(bytes),
+    fetch(`${base}/clients/${clientId}/notes/import`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream', 'x-tovira-consent': '1', 'x-tovira-first-import-ack': '1' },
+      body: Buffer.from(bytes),
     });
 
   it('imports a 2 MB .txt', async () => {
@@ -524,5 +526,18 @@ describe('[FIX 1] single import — raw-binary upload', () => {
     const cid = await createClient(token, 'Khalid');
     const res = await importRaw(token, cid, new Uint8Array(MAX_IMPORT_UPLOAD_BYTES + 1));
     expect(res.status).toBe(413);
+  });
+
+  it('[FOLLOW-UP 2] a chat over MAX_IMPORT_CHARS is truncated to its most recent messages, flagged', async () => {
+    const { token } = await signup('single-trunc@example.com');
+    const cid = await createClient(token, 'Layla');
+    // ~5.5 MB of chars: OLD_FIRST near the start, NEW_LAST at the very end (chronological order).
+    const big = `13/07/2019, 1:00 am - Layla: OLD_FIRST\n${bigChat('Layla', 5_500_000)}\n13/07/2019, 1:00 am - Layla: NEW_LAST here`;
+    const res = await importRaw(token, cid, new TextEncoder().encode(big));
+    expect(res.status).toBe(202);
+    expect(((await res.json()) as { truncated?: boolean }).truncated).toBe(true);
+    const notes = await listNotes(token, cid);
+    expect(notes[0]!.messages!.some((m) => m.body.includes('NEW_LAST'))).toBe(true); // most recent kept
+    expect(notes[0]!.messages!.some((m) => m.body.includes('OLD_FIRST'))).toBe(false); // oldest dropped
   });
 });

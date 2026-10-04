@@ -59,10 +59,12 @@ const chat = (rep: string, other: string) =>
 const post = (path: string, token: string, body: unknown) =>
   fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
 const bytesOf = (s: string) => new TextEncoder().encode(s);
-// [FIX 1] Files upload as RAW BINARY — bytes in the body, metadata in the query.
+// [FIX 1 / FOLLOW-UP 1] Files upload as RAW BINARY — bytes in the body, metadata in X-Tovira-* headers.
 const upload = (token: string, batchId: string, index: number, name: string, bytes: Uint8Array) =>
-  fetch(`${base}/import/bulk/files?batchId=${encodeURIComponent(batchId)}&index=${index}&name=${encodeURIComponent(name)}`, {
-    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' }, body: bytes,
+  fetch(`${base}/import/bulk/files`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream', 'x-tovira-batch-id': batchId, 'x-tovira-index': String(index), 'x-tovira-name': encodeURIComponent(name) },
+    body: bytes,
   });
 async function pollDone(token: string, batchId: string): Promise<{ jobs: Array<{ key: string; state: string }>; done: boolean; upsell?: unknown }> {
   for (let i = 0; i < 50; i += 1) {

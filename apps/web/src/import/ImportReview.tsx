@@ -40,6 +40,8 @@ export interface ReviewRow {
   matchKind?: 'phone' | 'name';
   /** [existing] messages that are new vs what's already stored (0 → already up to date). */
   newMessageCount?: number;
+  /** [FOLLOW-UP 2] only the most recent part of a very long chat was imported. */
+  truncated?: boolean;
   duplicateOfFileName?: string;
   participants?: string[];
 }
@@ -188,6 +190,7 @@ export function ImportReview({ result, onImport, upsell, onTopUp, onSubscribe }:
         {result.rows.map((r) => (
           <li key={r.fileName} data-testid={`review-row-${r.fileName}`} style={{ border: '1px solid var(--border, #ddd)', borderRadius: '0.5rem', padding: '0.75rem' }}>
             <Row row={r} choice={choices[r.fileName]} onChoice={(patch) => setChoice(r.fileName, patch)} repResolved={repResolved} repChoice={repChoice} />
+            {r.truncated && <p style={{ margin: '0.25rem 0 0', fontSize: '0.85em', color: 'var(--text-secondary)' }}>Very long chat: only the most recent part was imported.</p>}
           </li>
         ))}
       </ul>
