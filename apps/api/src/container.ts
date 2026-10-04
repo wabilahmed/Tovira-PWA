@@ -53,6 +53,7 @@ import { InMemoryNoteMoveAuditRepository } from './adapters/notes/in-memory-note
 import { PgNoteMoveAuditRepository } from './adapters/notes/pg-note-move-audit-repository.js';
 import type { NoteMoveAuditRepository } from './ports/note-move-audit-repository.js';
 import { NoteMoveService } from './services/import/note-move-service.js';
+import { IsolatingModelClient } from './services/import/chat-isolation.js';
 import { InMemoryNoteMoveTx } from './adapters/notes/in-memory-note-move-tx.js';
 import { PgNoteMoveTx } from './adapters/notes/pg-note-move-tx.js';
 import type { NoteMoveTx } from './ports/note-move-tx.js';
@@ -563,7 +564,10 @@ export function createExtractionService(
   verifiedGate?: { isVerified(userId: string): Promise<boolean> },
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
-  return new ExtractionService(createModelClient(config), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate);
+  // [BULK-IMPORT · Task 4 / D1] Every extraction request carries exactly one chat. extractNote reads a
+  // single note, so this holds structurally; the IsolatingModelClient makes it enforced, not merely
+  // true by convention — a request body with two chats throws before it can reach a provider.
+  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate);
 }
 
 /** [NO-TRAINING-RETENTION] The operational per-rep glossary (P4-9), RLS-backed on pg. */

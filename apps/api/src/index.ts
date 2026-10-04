@@ -10,6 +10,8 @@ import { PgInviteActivationTx } from './adapters/access/pg-invite-activation-tx.
 import { AccessApprovalService } from './services/access/access-approval-service.js';
 import { AccessRequestRetentionService, ACCESS_REQUEST_RETENTION_DAYS } from './services/access/access-request-retention.js';
 import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/audio-retention-service.js';
+import { BulkImportService } from './services/import/bulk-import-service.js';
+import { bulkConcurrency } from './services/import/bulk-extraction.js';
 import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
 import { ScryptHasher } from './services/auth/password.js';
 import { createPool } from './db/pool.js';
@@ -462,6 +464,18 @@ async function main(): Promise<void> {
     { clients, notes, facts },
     { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30, promiseStaleThresholdDays: config.promiseStaleThresholdDays },
   );
+  // [BULK-IMPORT · Task 4] Multi-file import: local parse + review + parallel per-chat extraction. Runs
+  // one lane below the background sweep so a big import never starves the live capture path.
+  const bulkImport = new BulkImportService({
+    clients,
+    notes,
+    extract: (u, id, today) => extraction.extractNote(u, id, today),
+    isExhausted: aiExhausted,
+    concurrency: bulkConcurrency(config.sweepConcurrency),
+    allowanceAed: config.monthlyAiAllowanceAed,
+    modelId: config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub',
+    repNames,
+  });
   // [BETA-5] Approval/invite provisioning. applyReferral reuses the existing ReferralService (declared
   // above), so a persisted landing-page referral is credited at approval through the same code path as
   // a signup — never a second one, and never blocking the approval.
@@ -512,6 +526,7 @@ async function main(): Promise<void> {
     account,
     activation,
     bookScan,
+    bulkImport,
     recall,
     askCapture,
     corpus,

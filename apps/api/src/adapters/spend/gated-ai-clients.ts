@@ -11,30 +11,18 @@ import type { Embedder } from '../../ports/embedder.js';
 import type { Transcriber, TranscriptionResult } from '../../ports/transcriber.js';
 import { currentAiGate } from '../../services/spend/ai-gate.js';
 import {
-  AI_PRICES,
   anthropicCostUsd,
+  anthropicEstimateAed,
   embeddingCostUsd,
   transcriptionCostUsd,
   estimateAudioSeconds,
   usdToAed,
 } from '../../services/spend/ai-prices.js';
 
-const ANTHROPIC_FALLBACK = AI_PRICES.anthropic['claude-sonnet-5']!;
-
-/** Worst-case AED for an Anthropic call: ALL input chars counted as tokens (a true ceiling — a BPE token
- *  covers ≥1 char) priced at the cache-WRITE rate (the highest input-side rate, so a cold cache-writing
- *  call is still covered), plus max_tokens priced as output. Never below actual on cold, warm, or dense input.
- *  We deliberately use this cheap, provable upper bound rather than Anthropic's token-counting endpoint
- *  (count_tokens — which IS available on the prod Anthropic-API path, MODEL_PROVIDER=anthropic): a
- *  reservation only needs to never UNDER-count, and avoiding a second round-trip per call keeps the
- *  capture path fast. If tighter reservations are ever wanted, count_tokens is the drop-in there. */
-export function anthropicEstimateAed(modelId: string, req: ModelCompletionRequest): number {
-  const p = AI_PRICES.anthropic[modelId] ?? ANTHROPIC_FALLBACK;
-  const inputChars = (req.system?.length ?? 0) + req.messages.reduce((n, m) => n + m.content.length, 0);
-  const maxOut = req.maxTokens ?? 0;
-  const usd = (inputChars * p.cacheWritePerMTok + maxOut * p.outputPerMTok) / 1_000_000;
-  return usdToAed(usd);
-}
+// anthropicEstimateAed lives with the price table (services/spend/ai-prices.ts) — it is pure pricing
+// domain logic, and keeping it there lets the services layer (e.g. the bulk-import estimate) reuse it
+// without importing an adapter. Re-exported here for the callers that reach it through the gate.
+export { anthropicEstimateAed };
 
 export class GatedModelClient implements ModelClient {
   constructor(readonly inner: ModelClient, private readonly modelId: string) {}

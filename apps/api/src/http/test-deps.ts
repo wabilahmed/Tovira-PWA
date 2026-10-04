@@ -16,6 +16,9 @@ import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-reposit
 import { InMemoryNoteMoveAuditRepository } from '../adapters/notes/in-memory-note-move-audit-repository.js';
 import { InMemoryNoteMoveTx } from '../adapters/notes/in-memory-note-move-tx.js';
 import { NoteMoveService } from '../services/import/note-move-service.js';
+import { IsolatingModelClient } from '../services/import/chat-isolation.js';
+import { BulkImportService } from '../services/import/bulk-import-service.js';
+import { bulkConcurrency } from '../services/import/bulk-extraction.js';
 import { InMemoryRequirementRepository } from '../adapters/requirements/in-memory-requirement-repository.js';
 import { InMemoryInventoryMatchRepository } from '../adapters/inventory/in-memory-inventory-match-repository.js';
 import { MatchingService } from '../services/inventory/matching-service.js';
@@ -178,7 +181,8 @@ export function buildInMemoryDeps(
   );
   const extractionLimiter = opts.extractionLimiter ?? defaultExtractionLimiter;
   const extraction = new ExtractionService(
-    opts.modelClient ?? new StubModelClient(),
+    // [BULK-IMPORT · Task 4 / D1] enforce one-chat-per-request in the harness too.
+    new IsolatingModelClient(opts.modelClient ?? new StubModelClient()),
     clients,
     notes,
     facts,
@@ -285,10 +289,22 @@ export function buildInMemoryDeps(
     appBaseUrl: 'http://localhost:5173',
   });
 
+  const bulkImport = new BulkImportService({
+    clients,
+    notes,
+    extract: (u, id, today) => extraction.extractNote(u, id, today),
+    isExhausted: (u) => allowanceStatus.isExhausted(u),
+    concurrency: bulkConcurrency(5),
+    allowanceAed: 40,
+    modelId: 'stub',
+    repNames,
+  });
+
   return {
     pool: stubPool,
     auth,
     clients,
+    bulkImport,
     inventory,
     matching,
     inventoryRepo,
