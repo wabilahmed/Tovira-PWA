@@ -44,6 +44,7 @@ function makeService(over: Partial<ConstructorParameters<typeof BulkImportServic
   const svc = new BulkImportService({
     clients, notes, extract,
     isExhausted: over.isExhausted ?? (async () => false),
+    isPaused: over.isPaused,
     concurrency: over.concurrency ?? 4,
     allowanceAed: over.allowanceAed ?? 45,
     modelId: over.modelId ?? 'claude-sonnet-5',
@@ -75,9 +76,26 @@ describe('[BULK-IMPORT] BulkImportService', () => {
     expect(notes.all[0]!.source).toBe('whatsapp_export');
     expect(extract).toHaveBeenCalledTimes(1);
     expect(extract).toHaveBeenCalledWith('u', notes.all[0]!.id, '2026-10-04');
-    expect(res.jobs).toEqual([{ noteId: notes.all[0]!.id, state: 'done' }]);
+    expect(res.jobs).toEqual([{ key: 'a.txt', noteId: notes.all[0]!.id, state: 'done' }]);
+    expect(res.created).toBe(1);
     // the pipeline ran: the counterpart's messages are tagged as the client
     expect(notes.all[0]!.messages!.some((m) => m.role === 'client')).toBe(true);
+  });
+
+  it('RULING 2: when the allowance is exhausted, nothing is started — no client, no note, content discarded', async () => {
+    const { svc, clients, notes, extract } = makeService({ isExhausted: async () => true });
+    const res = await svc.importConfirmed('u', [
+      { name: 'a.txt', content: androidChat('Wabil', 'Layla') },
+      { name: 'b.txt', content: androidChat('Wabil', 'Omar') },
+    ], [
+      { fileName: 'a.txt', action: 'new', name: 'Layla' },
+      { fileName: 'b.txt', action: 'new', name: 'Omar' },
+    ], '2026-10-04');
+    expect(res.jobs.every((j) => j.state === 'failed_usage_limit')).toBe(true);
+    expect(res.created).toBe(0);
+    expect(clients.all).toHaveLength(0); // no client created for a discarded chat
+    expect(notes.all).toHaveLength(0); // content not stored
+    expect(extract).not.toHaveBeenCalled();
   });
 
   it('a "merge" decision files under the existing client and creates NO new client', async () => {

@@ -294,6 +294,7 @@ export function buildInMemoryDeps(
     notes,
     extract: (u, id, today) => extraction.extractNote(u, id, today),
     isExhausted: (u) => allowanceStatus.isExhausted(u),
+    isPaused: () => aiPause.getPaused(),
     concurrency: bulkConcurrency(5),
     allowanceAed: 40,
     modelId: 'stub',

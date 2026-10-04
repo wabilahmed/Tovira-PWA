@@ -69,11 +69,11 @@ describe('[BULK-IMPORT] POST /import/bulk', () => {
       ],
     });
     expect(res.status).toBe(202);
-    const body = (await res.json()) as { jobs: Array<{ noteId: string; state: string }>; created: number; skipped: number };
+    const body = (await res.json()) as { jobs: Array<{ key: string; noteId?: string; state: string }>; created: number; skipped: number };
     expect(body.created).toBe(2);
     // The stub model returns valid JSON, so each chat extracts to done — one note, one call each.
     expect(body.jobs).toHaveLength(2);
-    expect(body.jobs.every((j) => j.state === 'done')).toBe(true);
+    expect(body.jobs.every((j) => j.state === 'done' && j.noteId)).toBe(true);
     // The two clients were created under the confirmed names.
     const listed = (await (await fetch(`${base}/clients`, { headers: { authorization: `Bearer ${token}` } })).json()) as { clients: Array<{ name: string }> };
     expect(listed.clients.map((c) => c.name).sort()).toEqual(['Layla', 'Omar']);

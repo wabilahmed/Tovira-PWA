@@ -471,6 +471,7 @@ async function main(): Promise<void> {
     notes,
     extract: (u, id, today) => extraction.extractNote(u, id, today),
     isExhausted: aiExhausted,
+    isPaused: () => pauseFlag.paused(),
     concurrency: bulkConcurrency(config.sweepConcurrency),
     allowanceAed: config.monthlyAiAllowanceAed,
     modelId: config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub',
