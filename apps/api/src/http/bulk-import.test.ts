@@ -1,8 +1,27 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import { deflateRawSync } from 'node:zlib';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+
+const u16 = (n: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
+const u32 = (n: number) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
+function makeZip(entries: Array<{ name: string; data: Buffer; deflate?: boolean }>): Buffer {
+  const locals: Buffer[] = []; const centrals: Buffer[] = []; let offset = 0;
+  for (const e of entries) {
+    const nameBuf = Buffer.from(e.name, 'utf8');
+    const method = e.deflate ? 8 : 0;
+    const stored = e.deflate ? deflateRawSync(e.data) : e.data;
+    const lfh = Buffer.concat([u32(0x04034b50), u16(20), u16(0), u16(method), u16(0), u16(0), u32(0), u32(stored.length), u32(e.data.length), u16(nameBuf.length), u16(0), nameBuf, stored]);
+    locals.push(lfh);
+    centrals.push(Buffer.concat([u32(0x02014b50), u16(20), u16(20), u16(0), u16(method), u16(0), u16(0), u32(0), u32(stored.length), u32(e.data.length), u16(nameBuf.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), nameBuf]));
+    offset += lfh.length;
+  }
+  const cd = Buffer.concat(centrals); const localAll = Buffer.concat(locals);
+  const eocd = Buffer.concat([u32(0x06054b50), u16(0), u16(0), u16(entries.length), u16(entries.length), u32(cd.length), u32(localAll.length), u16(0)]);
+  return Buffer.concat([localAll, cd, eocd]);
+}
 
 let server: Server;
 let base: string;
@@ -82,6 +101,19 @@ describe('[BULK-IMPORT] POST /import/bulk', () => {
     // The two clients were created under the confirmed names.
     const listed = (await (await fetch(`${base}/clients`, { headers: { authorization: `Bearer ${token}` } })).json()) as { clients: Array<{ name: string }> };
     expect(listed.clients.map((c) => c.name).sort()).toEqual(['Layla', 'Omar']);
+  });
+
+  it('accepts a base64 iOS .zip file (decoded to its transcript, media dropped)', async () => {
+    const token = await signup('bulkzip@example.com');
+    const zip = makeZip([
+      { name: '_chat.txt', data: Buffer.from(chat('Wabil', 'Imtinan')), deflate: true },
+      { name: 'IMG.jpg', data: Buffer.from([0xff, 0xd8, 0xff, 0xe0]) },
+    ]);
+    const res = await post('/import/bulk/parse', token, { repName: 'Wabil', files: [{ name: 'chat.zip', contentBase64: zip.toString('base64') }] });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { result: { rows: Array<{ counterpart: string | null; state: string }> } };
+    expect(body.result.rows[0]!.counterpart).toBe('Imtinan');
+    expect(body.result.rows[0]!.state).not.toBe('unparseable');
   });
 
   it('rejects a batch over the 20-file cap', async () => {

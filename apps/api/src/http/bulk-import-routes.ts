@@ -5,6 +5,7 @@ import type { BulkUpsellService } from '../services/import/bulk-upsell.js';
 import type { ImportAckRepository } from '../ports/import-ack-repository.js';
 import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
 import { BULK_MAX_FILES, type BulkInputFile, type RowState } from '../services/import/bulk-parse.js';
+import { decodeBulkFiles, type RawBulkFile } from '../services/import/bulk-decode.js';
 import { extractToken, readJsonBody, sendJson, BadJsonError } from './helpers.js';
 
 /**
@@ -26,14 +27,19 @@ export interface BulkImportRouteDeps {
 
 const NON_IMPORTABLE: ReadonlySet<RowState> = new Set<RowState>(['group', 'duplicate', 'unparseable']);
 
-function parseFiles(raw: unknown): BulkInputFile[] | null {
+/** Validate the raw uploaded files. Each needs a name plus text (`content`) OR bytes (`contentBase64`,
+ *  a .zip or .txt). Decoding to transcript text happens via decodeBulkFiles (iOS .zip supported). */
+function rawFiles(raw: unknown): RawBulkFile[] | null {
   if (!Array.isArray(raw)) return null;
-  const files: BulkInputFile[] = [];
+  const files: RawBulkFile[] = [];
   for (const f of raw) {
     if (!f || typeof f !== 'object') return null;
-    const { name, content } = f as { name?: unknown; content?: unknown };
-    if (typeof name !== 'string' || typeof content !== 'string') return null;
-    files.push({ name, content });
+    const { name, content, contentBase64 } = f as { name?: unknown; content?: unknown; contentBase64?: unknown };
+    if (typeof name !== 'string') return null;
+    const hasText = typeof content === 'string';
+    const hasBytes = typeof contentBase64 === 'string';
+    if (!hasText && !hasBytes) return null;
+    files.push({ name, ...(hasText ? { content: content as string } : {}), ...(hasBytes ? { contentBase64: contentBase64 as string } : {}) });
   }
   return files;
 }
@@ -64,15 +70,16 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
     return true;
   }
 
-  const files = parseFiles(body.files);
-  if (!files || files.length === 0) {
+  const raw = rawFiles(body.files);
+  if (!raw || raw.length === 0) {
     sendJson(res, 400, { error: 'validation', message: 'Upload at least one chat export.' });
     return true;
   }
-  if (files.length > BULK_MAX_FILES) {
+  if (raw.length > BULK_MAX_FILES) {
     sendJson(res, 413, { error: 'too_many_files', message: `Import up to ${BULK_MAX_FILES} chats at a time. You can run a second batch after.` });
     return true;
   }
+  const files: BulkInputFile[] = decodeBulkFiles(raw); // .txt passthrough; .zip (iOS) → inner transcript, media dropped
   const repName = typeof body.repName === 'string' ? body.repName : null;
 
   if (isParse) {
