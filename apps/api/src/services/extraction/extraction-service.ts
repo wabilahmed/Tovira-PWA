@@ -264,10 +264,12 @@ export class ExtractionService {
     // deferrable path). Return before any model call — the raw note is already stored and simply stays
     // pending; the sweep drains it once the rep has allowance again (reset or top-up). Never a model
     // call, never a lost note. (Replaces the retired AED-45 canSpend cap.)
-    // [RULING 2] A bulk chat whose start-gate already passed sets forceAllowance: the chat has STARTED,
-    // so it must finish even if the account is now exhausted. Skip the defer; its calls force-reserve
-    // (overshoot absorbed by the gate).
-    if (!opts?.forceAllowance && this.allowanceExhausted && (await this.allowanceExhausted(userId))) {
+    // [RULING 2 items 5b/6] forceAllowance is HONOURED only for a note already claimed ('extracting') —
+    // a STARTED chat, which must finish even if the account is now exhausted (skip the defer; its calls
+    // force-reserve, overshoot absorbed by the gate). A forceAllowance on an unclaimed note is NOT
+    // honoured, so it can never pre-authorise spend for a chat that hasn't been started.
+    const honourForce = opts?.forceAllowance === true && note.status === 'extracting';
+    if (!honourForce && this.allowanceExhausted && (await this.allowanceExhausted(userId))) {
       return { status: 'spend_capped', flagged: true };
     }
 
@@ -308,7 +310,7 @@ export class ExtractionService {
     const spend = { calls: 0, input: 0, output: 0, thinking: 0, cacheWrite: 0, cacheRead: 0 };
     const spendClass = note.source === 'whatsapp_export' ? 'import' : 'extraction';
     for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
-      last = await this.call(route.model, userMessage, userId, spendClass, opts?.forceAllowance === true);
+      last = await this.call(route.model, userMessage, userId, spendClass, honourForce);
       spend.calls += 1;
       spend.input += last.inputTokens;
       spend.output += last.outputTokens;

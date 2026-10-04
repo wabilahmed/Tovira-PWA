@@ -568,6 +568,18 @@ describe('ExtractionService — allowance exhaustion defers extraction (D4)', ()
     expect(after?.extracted ?? null).toBeNull(); // no facts written
   });
 
+  it('RULING 2 item 5b: forceAllowance is honoured ONLY for a note already claimed (extracting)', async () => {
+    const { svc, notes, note, callsRef } = await setupCapped(async () => true); // exhausted
+    // An UNCLAIMED (pending) note: forceAllowance is NOT honoured → still defers, no model call.
+    expect((await svc.extractNote('u', note.id, '2026-07-09', { forceAllowance: true })).status).toBe('spend_capped');
+    expect(callsRef()).toBe(0);
+    // Claim it (pending_extraction → extracting). Now it is a STARTED chat → forceAllowance is honoured.
+    await notes.claimForExtraction('u', note.id, Date.now());
+    const outcome = await svc.extractNote('u', note.id, '2026-07-09', { forceAllowance: true });
+    expect(outcome.status).toBe('extracted');
+    expect(callsRef()).toBe(1);
+  });
+
   it('processes the same note once the rep has allowance again (resume on reset/top-up)', async () => {
     let exhausted = true;
     const { svc, notes, note } = await setupCapped(async () => exhausted);
