@@ -34,8 +34,8 @@ describe('<GetStarted>', () => {
         onFallback={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: /import a chat/i })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /import a chat/i }));
+    expect(screen.getByRole('button', { name: /import chats/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /import chats/i }));
     expect(await screen.findByLabelText(/pasted chat export/i)).toBeInTheDocument();
     expect(screen.getByText(/import acme's chat/i)).toBeInTheDocument();
   });
@@ -55,7 +55,7 @@ describe('<GetStarted>', () => {
         onFallback={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole('button', { name: /import a chat/i }));
+    await user.click(screen.getByRole('button', { name: /import chats/i }));
     await user.type(screen.getByLabelText(/client name/i), 'Sara Lee');
     await user.click(screen.getByRole('button', { name: /continue/i }));
     expect(onCreateClient).toHaveBeenCalledWith('Sara Lee');
@@ -75,7 +75,7 @@ describe('<GetStarted>', () => {
         onFallback={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole('button', { name: /import a chat/i }));
+    await user.click(screen.getByRole('button', { name: /import chats/i }));
     await user.type(await screen.findByLabelText(/pasted chat export/i), 'Sara: hi');
     await user.click(screen.getByLabelText(/consent to import/i));
     await user.click(screen.getByRole('button', { name: /import chat/i }));

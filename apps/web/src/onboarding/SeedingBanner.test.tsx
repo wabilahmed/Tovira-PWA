@@ -26,28 +26,25 @@ const STATUS: SeedingStatus = {
 };
 
 describe('<SeedingBanner>', () => {
-  it('leads with the bulk ask: ten most active clients, exported Without media, selected all at once', () => {
+  it('leads with the ask and the bulk next step (select up to 20)', () => {
     render(<SeedingBanner status={STATUS} onStartImport={vi.fn()} onFallback={vi.fn()} />);
     expect(screen.getByText(/start with your ten most active clients/i)).toBeInTheDocument();
-    expect(screen.getByText(/select them all here at once/i)).toBeInTheDocument();
-    // "Without media" is bold in the ask AND appears in the step list → two occurrences
-    expect(screen.getAllByText(/without media/i).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/export a chat from whatsapp, then come back here\. you can select up to 20 at once\./i)).toBeInTheDocument();
   });
 
-  it('shows the next step and both platform guides (no paste bulk entry)', () => {
+  it('shows both platform guides (no paste bulk entry)', () => {
     render(<SeedingBanner status={STATUS} onStartImport={vi.fn()} onFallback={vi.fn()} />);
-    expect(screen.getByText(/three taps, no typing/i)).toBeInTheDocument();
     expect(screen.getByText(/on android/i)).toBeInTheDocument();
     expect(screen.getByText(/on iphone/i)).toBeInTheDocument();
     expect(screen.getByText(/share it to tovira/i)).toBeInTheDocument();
     expect(screen.getByText(/upload the .txt/i)).toBeInTheDocument();
   });
 
-  it('starts the import when the primary button is clicked', async () => {
+  it('starts the multi-select import when the primary button is clicked', async () => {
     const user = userEvent.setup();
     const onStartImport = vi.fn();
     render(<SeedingBanner status={STATUS} onStartImport={onStartImport} onFallback={vi.fn()} />);
-    await user.click(screen.getByRole('button', { name: /import a chat/i }));
+    await user.click(screen.getByRole('button', { name: /import chats/i }));
     expect(onStartImport).toHaveBeenCalledOnce();
   });
 
