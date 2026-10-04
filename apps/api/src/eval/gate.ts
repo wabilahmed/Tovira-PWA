@@ -10,6 +10,9 @@ import { dropSensitivePersonalFacts, isSensitiveFact } from '../services/extract
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { renderThread } from '../services/import/dedup.js';
 import { referenceDateFor, normaliseCounterpart } from '../services/extraction/extraction-service.js';
+import { checkPointers } from '../services/extraction/pointer-postcheck.js';
+import type { Pointer } from '../services/extraction/types.js';
+import type { PointerFixture } from './pointer-fixtures.js';
 
 /**
  * The certification standard (redefined once temperature proved unpinnable for
@@ -256,6 +259,62 @@ export async function extractForEval(model: ModelClient, note: EvalNote, opts: {
   // sensitiveDrop:false to see the RAW pre-filter output — how often the model TAGGED these categories.
   if (opts.sensitiveDrop !== false) dropSensitivePersonalFacts(ex);
   return ex;
+}
+
+/**
+ * [POINTERS · Task 4] Extract a pointer fixture through the SHIPPED pointer pipeline: the certified
+ * prompt with this fixture's deal state + current pointers in the variable message, then the
+ * deterministic post-check (checkPointers) that drops receipt-less / sensitive / illegitimate-retrospective
+ * pointers. Returns exactly what production would SAVE — the pointers the fixture scorer then judges.
+ * Bracketed `[timestamp]` prefixes in the fixture chat are the message timestamps a receipt may cite.
+ */
+export async function extractPointersForEval(
+  model: ModelClient,
+  fixture: PointerFixture,
+): Promise<{ pointers: Pointer[]; disclosure: string | null } | null> {
+  let text: string;
+  try {
+    const res = await model.complete({
+      system: EXTRACTION_SYSTEM_PROMPT,
+      cacheSystemPrompt: true,
+      cacheTtl: '1h',
+      messages: [{
+        content: buildUserMessage({
+          today: '2026-01-10',
+          clientName: fixture.clientName,
+          source: 'whatsapp_export',
+          text: redactSensitive(fixture.note).redacted,
+          dealState: fixture.dealState,
+          currentPointers: fixture.currentPointers ?? [],
+        }),
+        role: 'user',
+      }],
+      maxTokens: EXTRACTION_MAX_TOKENS,
+    });
+    text = res.text;
+  } catch {
+    return null;
+  }
+  const parsed = extractJsonObject(text);
+  if (parsed === null) return null;
+  let ex: Extraction | null;
+  try {
+    ex = asExtraction(parsed);
+  } catch {
+    return null;
+  }
+  if (ex === null) return null;
+  // The timestamps a receipt may cite = the bracketed prefixes in the fixture chat.
+  const inputMessageAts = new Set<string>();
+  for (const m of fixture.note.matchAll(/\[([^\]]+)\]/g)) inputMessageAts.add(m[1]!);
+  const checked = checkPointers({
+    pointers: ex.pointers ?? [],
+    inputText: fixture.note,
+    inputMessageAts,
+    currentPointers: fixture.currentPointers ?? [],
+    dealState: fixture.dealState,
+  });
+  return { pointers: checked.pointers, disclosure: checked.retrospectiveDisclosure };
 }
 
 /**

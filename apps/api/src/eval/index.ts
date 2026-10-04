@@ -1,6 +1,7 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
-import { extractForEval, extractImportFixture, evaluateGate, softGate, fabricationGate, tier1Residual, requirementsGate, structuredSensitiveCount, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
+import { extractForEval, extractImportFixture, extractPointersForEval, evaluateGate, softGate, fabricationGate, tier1Residual, requirementsGate, structuredSensitiveCount, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
+import { POINTER_FIXTURES, scorePointerFixture } from './pointer-fixtures.js';
 import { classifyLeaks, tier2Bars, tier2ClassOf, type LeakRecord, type Tier2Class } from './tier2-classify.js';
 import { IMPORT_FIXTURES, RECALL_BASELINES } from './import-fixtures.js';
 import { scoreInvariants } from './score-invariants.js';
@@ -277,6 +278,23 @@ async function main(): Promise<void> {
       console.log(`[gate]   ${f.id} [invariant]: GATE ${r.wrongness.length === 0 ? 'PASS' : 'FAIL'} · RECALL ${recall.toFixed(2)} (${prevRecall(f.id)}) [reported]${wrongTxt}${missTxt}`);
     }
   }
+
+  // [POINTERS · Task 4] The pointer fixtures, run through the SHIPPED pointer pipeline (prompt + the
+  // deterministic post-check) and judged by the planted-signal scorer. REPORTED, not folded into the
+  // deploy gate: pointers are a NEW stochastic signal with no measured tolerance yet (a single run can
+  // flake a catch), and the batch planted the signals without naming a pass-rate — gating on an
+  // unmeasured threshold is exactly the flaw the fabrication/Tier-2 bars start provisional to avoid.
+  // Each line is one fixture's verdict; the owner reads these alongside the fact baselines.
+  console.log(`\n[gate] === POINTER FIXTURES (${POINTER_FIXTURES.length}: planted-signal, reported) ===`);
+  let pointerPass = 0;
+  for (const f of POINTER_FIXTURES) {
+    const r = await extractPointersForEval(model, f);
+    if (r === null) { console.log(`[gate]   ${f.id}: FAIL — extraction returned nothing`); continue; }
+    const s = scorePointerFixture(f, r.pointers, r.disclosure);
+    if (s.pass) pointerPass += 1;
+    console.log(`[gate]   ${f.id}: ${s.pass ? 'PASS' : 'FAIL'} — ${s.reason} (${r.pointers.length} pointer(s) saved)`);
+  }
+  console.log(`[gate]   POINTERS: ${pointerPass}/${POINTER_FIXTURES.length} planted signals handled (reported, not gated — tolerance unmeasured)`);
 
   const b = budget.report();
   const hitPct = calls > 0 ? (hits / calls) * 100 : 0;
