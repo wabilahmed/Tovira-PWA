@@ -127,7 +127,7 @@ describe('ExtractionService — pointers (Task 3)', () => {
   // line in pointer-postcheck.ts → the health pointer is stored → RED.
   it('GUARD 2: a pointer whose text carries sensitive (health) content is never saved', async () => {
     const { service, pointers, note, client } = await pointerSetup(EX([
-      { section: 'relationship', text: 'avoid calls while he is recovering from surgery', receipts: [{ source_span: 'is there parking?', source_message_at: '2026-01-01T10:00' }] },
+      { section: 'relationship', text: 'avoid calls during his chemotherapy on Tuesdays', receipts: [{ source_span: 'is there parking?', source_message_at: '2026-01-01T10:00' }] },
     ]));
     await service.extractNote('u', note.id, '2026-02-01');
     const set = await pointers.getForClient('u', client.id);

@@ -47,52 +47,77 @@ export interface SensitiveMatch {
 }
 
 /**
- * Per category: `latin` terms are matched with word boundaries and case-insensitively; `script` terms
- * (Arabic) are matched as substrings, because JS `\b` does not behave on non-ASCII letters — so an
- * Arabic term is found even with an attached article (العملية contains عملية). Arabizi transliterations
- * live in `latin` (they are ASCII).
+ * Per category, three kinds of term:
+ *   • `latin`  — matched with BOTH word boundaries, case-insensitively: the exact word only (`\bword\b`).
+ *                Used for terms whose inflections would collide with ordinary words if stemmed
+ *                (e.g. "ill" → illegal, "trans" → transfer, "party" → partner, "court" → courtyard).
+ *                Arabizi transliterations live here too (they are ASCII).
+ *   • `stems`  — matched with a LEADING boundary + a trailing word-char run (`\bstem\w*`), so the stem's
+ *                common inflections and compounds are caught: "chemo" → chemotherapy, "diabet" →
+ *                diabetes/diabetic, "pregnan" → pregnant/pregnancy/pregnancies. Each stem is chosen so no
+ *                ordinary business/real-estate word merely SHARES its prefix (verified by the clean-set
+ *                tests): e.g. "chemo" ≠ chemical, "diabet" ≠ diabolo, "police" ≠ policy, "communis" ≠
+ *                community, "caste" ≠ castle, "minist" ≠ administration, "activis" ≠ activity. See the
+ *                audit note in the batch report for every stem and why it is safe.
+ *   • `script` — Arabic, matched as a SUBSTRING (JS `\b` does not behave on non-ASCII letters), so an
+ *                Arabic term is found even with an attached article (العملية contains عملية).
  */
-const LEXICON: Record<SensitiveCategory, { latin: string[]; script: string[] }> = {
+const LEXICON: Record<SensitiveCategory, { latin: string[]; stems: string[]; script: string[] }> = {
   health: {
-    latin: ['hospital', 'surgery', 'operation', 'sick', 'ill', 'illness', 'disease', 'doctor', 'clinic',
-      'medicine', 'medication', 'treatment', 'cancer', 'diabetes', 'diagnosis', 'therapy', 'depression',
-      'anxiety', 'pregnant', 'pregnancy', 'injury', 'injured', 'disability', 'disabled', 'prescription',
-      'pain', 'back', 'chemo', 'covid', 'stroke', 'heart attack', 'blood pressure',
+    // kept exact (inflection would collide): ill/illness (illegal, illustrate), back (backyard),
+    // operation (operations=business), treatment (treaty/treat), surgery (surge/surging=price surge),
+    // hospital (hospitality), doctor (doctoral), clinic.
+    latin: ['hospital', 'surgery', 'operation', 'ill', 'illness', 'doctor', 'clinic', 'treatment',
+      'pain', 'back', 'covid', 'stroke', 'heart attack', 'blood pressure',
       // Arabizi
       'mustashfa', 'mareed', '3amaliya', 'dawa', '3ilaj', 'doktor'],
+    stems: ['chemo', 'diabet', 'pregnan', 'cancer', 'diagnos', 'therap', 'medic', 'anxi', 'depress',
+      'injur', 'prescri', 'disease', 'disab', 'sick'],
     script: ['مستشفى', 'عملية', 'مريض', 'طبيب', 'دكتور', 'دواء', 'علاج', 'سرطان', 'حامل', 'مرض'],
   },
   religion: {
-    latin: ['church', 'mosque', 'temple', 'synagogue', 'prayer', 'praying', 'Ramadan', 'Eid', 'Diwali',
-      'Quran', 'Koran', 'Bible', 'Torah', 'halal', 'haram', 'fasting', 'Hajj', 'Umrah', 'pilgrimage',
-      'Christian', 'Muslim', 'Hindu', 'Jewish', 'Sikh', 'Buddhist', 'Catholic', 'baptism', 'pastor',
-      'imam', 'priest',
+    // kept exact: pastor (pastoral land), Jewish (Jew → jewelry), fasting (deliberate: not "fast").
+    latin: ['Ramadan', 'Eid', 'Diwali', 'Quran', 'Koran', 'Bible', 'Torah', 'halal', 'haram', 'fasting',
+      'Hajj', 'Umrah', 'Jewish', 'pastor',
       // Arabizi
       'salah', 'salat', 'jumaa', 'jumua', 'masjid', 'kaneesa'],
+    stems: ['pray', 'christian', 'muslim', 'hindu', 'sikh', 'buddh', 'catholic', 'bapti', 'pilgrim',
+      'mosque', 'synagogue', 'church', 'temple', 'imam', 'priest'],
     script: ['صلاة', 'مسجد', 'جمعة', 'رمضان', 'عيد', 'حلال', 'حرام', 'كنيسة', 'مسيحي', 'مسلم', 'صيام'],
   },
   ethnicity: {
-    latin: ['Indian', 'Pakistani', 'Filipino', 'Filipina', 'Bangladeshi', 'Nepali', 'Sri Lankan', 'Egyptian',
-      'Emirati', 'Syrian', 'Lebanese', 'Jordanian', 'Palestinian', 'Iraqi', 'Iranian', 'Sudanese', 'Yemeni',
-      'Kerala', 'Punjabi', 'Arab', 'African', 'Asian', 'European', 'Western', 'tribe', 'tribal', 'caste',
-      'ethnic', 'expat', 'expatriate', 'immigrant'],
+    // kept exact: Arab (Arabian Ranches), tribe/tribal (tribute/tribunal), Western (western-facing),
+    // Kerala, Sri Lankan (multiword).
+    latin: ['Sri Lankan', 'Kerala', 'Arab', 'Arabs', 'Western', 'tribe', 'tribal', 'tribes'],
+    stems: ['indian', 'pakistani', 'filipin', 'bangladeshi', 'nepali', 'egyptian', 'syrian', 'lebanese',
+      'jordanian', 'palestinian', 'iraqi', 'iranian', 'sudanese', 'yemeni', 'punjabi', 'emirati',
+      'ethnic', 'expat', 'immigra', 'caste', 'african', 'asian', 'european'],
     script: ['هندي', 'باكستاني', 'فلبيني', 'مصري', 'سوري', 'لبناني', 'عربي', 'قبيلة', 'بدون'],
   },
   political_opinion: {
-    latin: ['party', 'vote', 'voted', 'voting', 'election', 'government', 'opposition', 'protest', 'regime',
-      'minister', 'democracy', 'communist', 'socialist', 'liberal', 'conservative', 'politics', 'political',
-      'sanctions', 'boycott', 'activist'],
+    // kept exact: party (partner/partnership), election (electric/electronic), socialist/socialism
+    // (socialise), conservative (conservation), regime (regimen/regiment), protest (Protestant),
+    // opposition.
+    latin: ['party', 'parties', 'election', 'elections', 'electoral', 'opposition', 'protest', 'protests',
+      'protester', 'regime', 'regimes', 'socialist', 'socialism', 'conservative', 'conservatives'],
+    stems: ['vot', 'govern', 'minist', 'democra', 'communis', 'liberal', 'politic', 'sanction', 'boycott',
+      'activis'],
     script: ['حزب', 'انتخابات', 'حكومة', 'وزير', 'معارضة', 'سياسة', 'مقاطعة'],
   },
   criminal: {
-    latin: ['arrest', 'arrested', 'jail', 'jailed', 'prison', 'police', 'court', 'crime', 'criminal', 'fraud',
-      'theft', 'stolen', 'lawsuit', 'sued', 'convicted', 'conviction', 'charged', 'bail', 'offence', 'offense',
-      'illegal', 'smuggling', 'drugs', 'prosecution', 'custody', 'deported', 'deportation', 'absconded'],
+    // kept exact: court (courtyard/courthouse), charged (a fee), bail (name), custody (custodian),
+    // crime/criminal (crimson/Crimea), stolen, sued, offence/offense.
+    latin: ['court', 'crime', 'crimes', 'criminal', 'stolen', 'sued', 'charged', 'bail', 'offence',
+      'offences', 'offense', 'offenses', 'custody'],
+    stems: ['arrest', 'jail', 'prison', 'police', 'fraud', 'theft', 'lawsuit', 'convict', 'illegal',
+      'smuggl', 'drug', 'prosecut', 'deport', 'abscond'],
     script: ['شرطة', 'سجن', 'محكمة', 'قضية', 'مخدرات', 'جريمة', 'اعتقال'],
   },
   sexual_life: {
-    latin: ['gay', 'lesbian', 'bisexual', 'LGBT', 'LGBTQ', 'queer', 'transgender', 'trans', 'mistress',
-      'affair', 'adultery', 'sexual', 'sexuality', 'orientation'],
+    // kept exact: gay (names), trans (transfer/transaction/transit), queer, LGBT/LGBTQ, orientation
+    // (building orientation).
+    latin: ['gay', 'gays', 'LGBT', 'LGBTQ', 'queer', 'trans', 'orientation'],
+    stems: ['lesbian', 'bisexual', 'mistress', 'adulter', 'sexual', 'transgender', 'affair'],
     script: ['مثلي', 'زنا', 'عشيقة'],
   },
 };
@@ -101,12 +126,17 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Compiled once per category: a word-bounded case-insensitive Latin regex and a substring script regex. */
-const COMPILED: Array<{ category: SensitiveCategory; latin: RegExp | null; script: RegExp | null }> = SENSITIVE_CATEGORIES.map((category) => {
-  const { latin, script } = LEXICON[category];
+/**
+ * Compiled once per category: an exact word-bounded Latin regex (`\bword\b`), a stem regex that matches a
+ * stem plus any trailing word chars so inflections/compounds are caught (`\bstem\w*`), and a substring
+ * script regex. All case-insensitive except script (no case in Arabic).
+ */
+const COMPILED: Array<{ category: SensitiveCategory; latin: RegExp | null; stem: RegExp | null; script: RegExp | null }> = SENSITIVE_CATEGORIES.map((category) => {
+  const { latin, stems, script } = LEXICON[category];
   return {
     category,
     latin: latin.length ? new RegExp(`\\b(?:${latin.map(escapeRegExp).join('|')})\\b`, 'gi') : null,
+    stem: stems.length ? new RegExp(`\\b(?:${stems.map(escapeRegExp).join('|')})\\w*`, 'gi') : null,
     script: script.length ? new RegExp(`(?:${script.map(escapeRegExp).join('|')})`, 'g') : null,
   };
 });
@@ -118,8 +148,8 @@ const COMPILED: Array<{ category: SensitiveCategory; latin: RegExp | null; scrip
 export function screenSensitive(text: string): SensitiveMatch[] {
   if (!text) return [];
   const out: SensitiveMatch[] = [];
-  for (const { category, latin, script } of COMPILED) {
-    for (const re of [latin, script]) {
+  for (const { category, latin, stem, script } of COMPILED) {
+    for (const re of [latin, stem, script]) {
       if (!re) continue;
       re.lastIndex = 0;
       let m: RegExpExecArray | null;
@@ -129,5 +159,14 @@ export function screenSensitive(text: string): SensitiveMatch[] {
       }
     }
   }
-  return out.sort((a, b) => a.index - b.index);
+  // A stem and its exact-word twin (e.g. latin "disease" and stem "disease") both match the same span.
+  // Drop any match whose text range is fully contained within a longer same-category match, and collapse
+  // identical same-category ranges to one, so each indicator is reported once (the longest span wins).
+  const kept = out.filter((m, i) => !out.some((o, j) => {
+    if (j === i || o.category !== m.category) return false;
+    const covers = o.index <= m.index && o.index + o.span.length >= m.index + m.span.length;
+    if (!covers) return false;
+    return o.span.length > m.span.length || (o.span.length === m.span.length && j < i);
+  }));
+  return kept.sort((a, b) => a.index - b.index);
 }

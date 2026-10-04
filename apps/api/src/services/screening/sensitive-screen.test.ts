@@ -60,6 +60,66 @@ describe('[SCREEN] over-flagging is INTENDED — benign cases are flagged, not s
   it('flags "church" (building/landmark) as religion', () => expect(catsOf('the villa near the church')).toContain('religion'));
 });
 
+describe('[SCREEN] health/term inflections and compounds are caught (whole-word-only gap fix)', () => {
+  // The lexicon used to match only the exact base word, so "chemo" was flagged but "chemotherapy" was
+  // not — a MISS that sent special-category data to the model. Each base term must now catch its common
+  // inflections and compounds. These are the extended forms, grouped by the stem that must catch them.
+  const CAUGHT: Record<SensitiveCategory, string[]> = {
+    health: [
+      'he starts chemotherapy next week', 'he is diabetic now', 'her pregnancy is going well',
+      'two pregnancies in three years', 'the tumour is cancerous', 'he was diagnosed on Tuesday',
+      'she sees a therapist weekly', 'the medical report is attached', 'he has been anxious lately',
+      'he seemed very depressed', 'multiple injuries from the fall', 'the doctor prescribed rest',
+      'he is diseased', 'the apartment has disabilities access needs noted', 'a bout of sickness',
+    ],
+    religion: [
+      'he converted to Christianity', 'the Muslims in the building', 'raised in Hinduism',
+      'he practises Buddhism', 'the baby was baptized', 'the pilgrims return next week', 'their daily prayers',
+    ],
+    ethnicity: [
+      'three Pakistanis on the crew', 'the Filipinos who cleaned', 'several Egyptians applied',
+      'his immigration status', 'a question of ethnicity', 'the expatriates on the floor',
+    ],
+    political_opinion: [
+      'the voters turned out', 'the new governor spoke', 'two ministers attended', 'a democratic process',
+      'accused of communism', 'he is a politician', 'the goods were sanctioned', 'they are boycotting the mall',
+      'years of activism',
+    ],
+    criminal: [
+      'three arrests last month', 'the prisoner was moved', 'a policeman came by', 'the claim was fraudulent',
+      'his prior convictions', 'a known smuggler', 'he was prosecuted', 'facing deportation', 'he kept absconding',
+    ],
+    sexual_life: [
+      'the lesbians next door', 'two bisexuals in the group', 'accused of adultery', 'questions about his sexuality',
+      'he kept a mistress for years', 'transgenders were welcomed',
+    ],
+  };
+  for (const category of SENSITIVE_CATEGORIES) {
+    for (const text of CAUGHT[category]) {
+      it(`${category}: flags "${text}"`, () => expect(catsOf(text)).toContain(category));
+    }
+  }
+});
+
+describe('[SCREEN] inflection matching does NOT catch unrelated words that merely share a prefix', () => {
+  // The whole-word-only fix must widen matching to inflections WITHOUT bleeding into ordinary business /
+  // real-estate words that happen to start the same way. Each of these must produce ZERO matches.
+  const CLEAN = [
+    'a chemical smell in unit 7', 'the diabolo set in the playroom', 'see our privacy policy',
+    'review the building policies', 'such a friendly community', 'clear communication throughout',
+    'my business partner is in', 'sign the partnership agreement', 'an electric car charger',
+    'the electricity bill is high', 'send the bank transfer today', 'the transaction has closed',
+    'five-star hospitality on site', 'a villa with a courtyard', 'inside a conservation area',
+    "let's socialise after the viewing", 'a villa in Arabian Ranches', 'we pay tribute to the founder',
+    'the matter went to tribunal', 'a shop selling gold jewelry', 'twenty acres of pastoral land',
+    'a restored medieval castle', 'the administration office upstairs', 'a weekend activity for kids',
+    'this layout liberates the space',
+  ];
+  for (const text of CLEAN) {
+    it(`clean: "${text}"`, () => expect(screenSensitive(text)).toEqual([]));
+  }
+});
+
 describe('[SCREEN] shape', () => {
   it('exposes all six categories', () => {
     expect(new Set(SENSITIVE_CATEGORIES)).toEqual(new Set(['health', 'religion', 'ethnicity', 'political_opinion', 'criminal', 'sexual_life']));
