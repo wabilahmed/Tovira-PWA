@@ -58,6 +58,7 @@ export function chatStateFor(status: string): ChatJobState {
   switch (status) {
     case 'extracted':
     case 'pending_confirmation':
+    case 'claimed_elsewhere': // the sweep won the claim — the note is being extracted, not failed
       return 'done';
     case 'spend_capped':
     case 'trial_limit':

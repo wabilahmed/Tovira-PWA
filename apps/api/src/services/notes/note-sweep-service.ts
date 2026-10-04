@@ -37,6 +37,9 @@ export interface NoteSweepDeps {
    *  needs_review) via the sweep, so an import completion can notify the waiting rep. Best-effort —
    *  a failure here never affects the sweep. Fires once because a terminal note is never re-listed. */
   onSettled?(userId: string, noteId: string): Promise<void>;
+  /** [RULING 2 item 2] Optional crash recovery: flip this rep's stale 'extracting' notes (a worker that
+   *  claimed then crashed) back to pending_extraction so they re-drain. Run per rep before listing. */
+  reclaim?(userId: string): Promise<void>;
 }
 
 export interface SweepResult {
@@ -46,6 +49,13 @@ export interface SweepResult {
 
 export const DEFAULT_MAX_SWEEP_ATTEMPTS = 5;
 export const DEFAULT_SWEEP_CONCURRENCY = 1;
+
+/** [RULING 2 item 2] How long a note may sit 'extracting' before the sweep treats its worker as crashed
+ *  and reclaims it. Derivation: one extraction is a single model call plus at most one retry; even a
+ *  slow Sonnet call that spends the full EXTRACTION_MAX_TOKENS budget is tens of seconds, so a legitimate
+ *  claim clears in well under two minutes. 10 minutes is a generous ceiling that never reclaims a still-
+ *  running worker, while recovering a genuinely crashed one within a sweep cadence or two. */
+export const EXTRACTION_CLAIM_TIMEOUT_MS = 10 * 60 * 1000;
 
 export class NoteSweepService {
   constructor(
@@ -70,6 +80,9 @@ export class NoteSweepService {
     // Gather each eligible rep's pending notes (apply the per-user skips ONCE, up front).
     const perUser: Array<{ userId: string; notes: SweepableNote[] }> = [];
     for (const userId of await this.deps.allUserIds()) {
+      // [RULING 2 item 2] Recover any note a crashed worker left stuck in 'extracting' (older than the
+      // timeout) back to pending_extraction, BEFORE the gates, so it resumes once the gates allow.
+      if (this.deps.reclaim) await this.deps.reclaim(userId);
       // [SPEND-CAP] capped, [TRIAL-FARM] unverified, [ASYNC-EXTRACT] over the extraction ceiling —
       // each leaves the rep's queue untouched (no attempt bump, no needs_review), to resume intact.
       if (this.deps.canSpend && !(await this.deps.canSpend(userId))) continue;

@@ -35,6 +35,7 @@ export class InMemoryNoteRepository implements NoteRepository {
       moveSuggestion: null,
       transcribedAt: null,
       audioExpiredAt: null,
+      claimedAt: null,
       createdAt: Date.now() + this.seq++,
     };
     this.byId.set(record.id, record);
@@ -55,6 +56,28 @@ export class InMemoryNoteRepository implements NoteRepository {
     return [...this.byId.values()]
       .filter((n) => n.userId === userId && (n.status === 'pending_transcription' || n.status === 'pending_extraction'))
       .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  // [RULING 2 item 2] ATOMIC claim — the check and the write run with NO await between them, so on the
+  // single JS thread exactly one concurrent caller can flip pending_extraction → extracting.
+  async claimForExtraction(userId: string, noteId: string, nowMs: number): Promise<boolean> {
+    const n = this.byId.get(noteId);
+    if (!n || n.userId !== userId || n.status !== 'pending_extraction') return false;
+    n.status = 'extracting';
+    n.claimedAt = nowMs;
+    return true;
+  }
+
+  async reclaimStaleExtracting(userId: string, nowMs: number, staleMs: number): Promise<number> {
+    let count = 0;
+    for (const n of this.byId.values()) {
+      if (n.userId === userId && n.status === 'extracting' && (n.claimedAt ?? 0) <= nowMs - staleMs) {
+        n.status = 'pending_extraction';
+        n.claimedAt = null;
+        count += 1;
+      }
+    }
+    return count;
   }
 
   async listHeldByUser(userId: string): Promise<NoteRecord[]> {

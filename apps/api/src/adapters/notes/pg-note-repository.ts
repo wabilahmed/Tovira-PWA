@@ -16,6 +16,7 @@ interface NoteRow {
   move_suggestion: MoveSuggestion | null;
   transcribed_at: Date | null;
   audio_expired_at: Date | null;
+  claimed_at: Date | null;
   created_at: Date;
 }
 
@@ -34,11 +35,12 @@ function toRecord(row: NoteRow): NoteRecord {
     moveSuggestion: row.move_suggestion ?? null,
     transcribedAt: row.transcribed_at ? row.transcribed_at.getTime() : null,
     audioExpiredAt: row.audio_expired_at ? row.audio_expired_at.getTime() : null,
+    claimedAt: row.claimed_at ? row.claimed_at.getTime() : null,
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, move_suggestion, transcribed_at, audio_expired_at, created_at';
+const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, move_suggestion, transcribed_at, audio_expired_at, claimed_at, created_at';
 
 /** Postgres-backed note store; every method runs in a tenant tx (RLS enforced). */
 export class PgNoteRepository implements NoteRepository {
@@ -102,6 +104,30 @@ export class PgNoteRepository implements NoteRepository {
         [status],
       );
       return (rows as unknown as NoteRow[]).map(toRecord);
+    });
+  }
+
+  // [RULING 2 item 2] A SINGLE atomic conditional UPDATE — never read-then-write — so exactly one worker
+  // flips a note pending_extraction → extracting even under a concurrent sweep + orchestrator race.
+  async claimForExtraction(userId: string, noteId: string, nowMs: number): Promise<boolean> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `UPDATE notes SET status = 'extracting', claimed_at = to_timestamp($2::double precision / 1000)
+         WHERE id = $1 AND status = 'pending_extraction' RETURNING id`,
+        [noteId, nowMs],
+      );
+      return rows.length > 0;
+    });
+  }
+
+  async reclaimStaleExtracting(userId: string, nowMs: number, staleMs: number): Promise<number> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `UPDATE notes SET status = 'pending_extraction', claimed_at = NULL
+         WHERE status = 'extracting' AND claimed_at <= to_timestamp($1::double precision / 1000) RETURNING id`,
+        [nowMs - staleMs],
+      );
+      return rows.length;
     });
   }
 

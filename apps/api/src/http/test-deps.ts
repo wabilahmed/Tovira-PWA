@@ -29,7 +29,8 @@ import { StubTranscriber } from '../adapters/transcription/stub.js';
 import { TranscriptionService } from '../services/transcription/transcription-service.js';
 import { StubModelClient } from '../adapters/model/stub.js';
 import type { ModelClient } from '../ports/model.js';
-import { NoteSweepService } from '../services/notes/note-sweep-service.js';
+import { NoteSweepService, EXTRACTION_CLAIM_TIMEOUT_MS } from '../services/notes/note-sweep-service.js';
+import { createClaimAndExtract } from '../services/notes/claim-and-extract.js';
 import { InMemoryFactsRepository } from '../adapters/facts/in-memory-facts-repository.js';
 import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
 import { InMemoryExtractionCounter } from '../adapters/extraction/in-memory-extraction-counter.js';
@@ -256,11 +257,16 @@ export function buildInMemoryDeps(
   // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via
   // the SWEEP (the real path), not by an inline /extract. `runSweep()` runs a bounded number of passes
   // (transcription → extraction takes two), mirroring index.ts wiring incl. the verification skip.
+  const claimAndExtract = createClaimAndExtract({
+    claim: (u, id, now) => notes.claimForExtraction(u, id, now),
+    extract: (u, id, today, o) => extraction.extractNote(u, id, today, o),
+  });
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),
     listPending: (u) => notes.listPendingByUser(u).then((rows) => rows.map((n) => ({ id: n.id, status: n.status, sweepAttempts: n.sweepAttempts }))),
     transcribe: (u, id) => transcription.transcribeNote(u, id).then(() => undefined),
-    extract: (u, id, today) => extraction.extractNote(u, id, today).then(() => undefined),
+    extract: (u, id, today) => claimAndExtract(u, id, today).then(() => undefined),
+    reclaim: (u) => notes.reclaimStaleExtracting(u, Date.now(), EXTRACTION_CLAIM_TIMEOUT_MS).then(() => undefined),
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     isVerified: opts.enforceVerification ? (u: string) => auth.getPublicUser(u).then((x) => x?.emailVerified ?? false) : undefined,
@@ -294,7 +300,7 @@ export function buildInMemoryDeps(
   const bulkImport = new BulkImportService({
     clients,
     notes,
-    extract: (u, id, today) => extraction.extractNote(u, id, today, { forceAllowance: true }),
+    extract: (u, id, today) => claimAndExtract(u, id, today),
     isExhausted: (u) => allowanceStatus.isExhausted(u),
     isPaused: () => aiPause.getPaused(),
     concurrency: bulkConcurrency(5),

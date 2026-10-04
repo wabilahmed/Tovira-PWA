@@ -53,6 +53,9 @@ export interface NoteRecord {
   /** [AUDIO-RETENTION] When the retention sweep deleted the audio object (ms). Set together with
    *  audioKey → null, so playback reports "no longer kept" instead of a bare 404. */
   audioExpiredAt?: number | null;
+  /** [BULK-IMPORT · RULING 2 item 2] When a worker atomically claimed this note for extraction (ms).
+   *  Set with status 'extracting'; a claim older than the timeout is reclaimable (crash recovery). */
+  claimedAt?: number | null;
   createdAt: number;
 }
 
@@ -108,6 +111,14 @@ export interface NoteRepository {
    *  still hold an audio object — the retention sweep's work list. Excludes transcription_failed (its
    *  recording is kept indefinitely) and notes never transcribed (transcribed_at null). */
   listExpirableAudio(userId: string, transcribedBeforeMs: number): Promise<Array<{ id: string; audioKey: string }>>;
+  /** [RULING 2 item 2] Atomically claim a note for extraction: pending_extraction → extracting, stamping
+   *  claimedAt. A single conditional update (never read-then-write), so only ONE worker ever claims a
+   *  note — the orchestrator and the background sweep can both drain the same queue with no double
+   *  extraction. Returns true iff THIS call won the claim. */
+  claimForExtraction(userId: string, noteId: string, nowMs: number): Promise<boolean>;
+  /** [RULING 2 item 2] Crash recovery: flip this rep's notes stuck in 'extracting' with a claim older
+   *  than staleMs back to pending_extraction, so the sweep re-drains them. Returns the count. */
+  reclaimStaleExtracting(userId: string, nowMs: number, staleMs: number): Promise<number>;
   update(userId: string, id: string, patch: NotePatch): Promise<void>;
   /** Hard-delete a note (Ask-capture reject/expire). The operational log row survives (0045). */
   delete(userId: string, id: string): Promise<boolean>;

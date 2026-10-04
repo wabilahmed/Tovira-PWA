@@ -23,7 +23,8 @@ import { FlagReviewService } from './services/screening/flag-review-service.js';
 import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { PrioritiesService } from './services/hero/priorities-service.js';
-import { NoteSweepService, DEFAULT_MAX_SWEEP_ATTEMPTS } from './services/notes/note-sweep-service.js';
+import { NoteSweepService, DEFAULT_MAX_SWEEP_ATTEMPTS, EXTRACTION_CLAIM_TIMEOUT_MS } from './services/notes/note-sweep-service.js';
+import { createClaimAndExtract } from './services/notes/claim-and-extract.js';
 import { ImportCompletionService } from './services/notes/import-completion-service.js';
 import { TrialEmailService } from './services/email/trial-email-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
@@ -323,11 +324,18 @@ async function main(): Promise<void> {
     clients,
     dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs),
   });
+  // [RULING 2 items 2/5/6] The single claim-then-extract path shared by the sweep and the bulk
+  // orchestrator. It is the ONE call site that passes forceAllowance (inside createClaimAndExtract).
+  const claimAndExtract = createClaimAndExtract({
+    claim: (u, id, now) => notes.claimForExtraction(u, id, now),
+    extract: (u, id, today, opts) => extraction.extractNote(u, id, today, opts),
+  });
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),
     listPending: (u) => notes.listPendingByUser(u).then((rows) => rows.map((n) => ({ id: n.id, status: n.status, sweepAttempts: n.sweepAttempts }))),
     transcribe: (u, id) => transcription.transcribeNote(u, id).then(() => undefined),
-    extract: (u, id, today) => extraction.extractNote(u, id, today).then(() => undefined),
+    extract: (u, id, today) => claimAndExtract(u, id, today).then(() => undefined),
+    reclaim: (u) => notes.reclaimStaleExtracting(u, Date.now(), EXTRACTION_CLAIM_TIMEOUT_MS).then(() => undefined),
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     canSpend: (u) => aiExhausted(u).then((x) => !x), // [USAGE-ALLOWANCE · D4] an exhausted rep's queue waits, untouched (replaces the retired cap)
@@ -470,7 +478,7 @@ async function main(): Promise<void> {
   const bulkImport = new BulkImportService({
     clients,
     notes,
-    extract: (u, id, today) => extraction.extractNote(u, id, today, { forceAllowance: true }),
+    extract: (u, id, today) => claimAndExtract(u, id, today),
     isExhausted: aiExhausted,
     isPaused: () => pauseFlag.paused(),
     concurrency: bulkConcurrency(config.sweepConcurrency),

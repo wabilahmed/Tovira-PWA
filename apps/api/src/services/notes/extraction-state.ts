@@ -21,6 +21,8 @@ export function extractionState(note: { status: string; sweepAttempts?: number }
     case 'import_failed':
     case 'transcription_failed': // [TRANSCRIBE-MISSING] recording not found — terminal, surfaced as failed
       return 'failed';
+    case 'extracting': // [RULING 2 item 2] atomically claimed, model call in flight
+      return 'processing';
     case 'pending_transcription':
     case 'pending_extraction':
       return (note.sweepAttempts ?? 0) > 0 ? 'processing' : 'queued';
