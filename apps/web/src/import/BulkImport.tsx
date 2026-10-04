@@ -9,19 +9,13 @@ import type { BulkImportApi } from './bulkImportClient.js';
  * progress/result view that polls the batch status. Mobile-first (one column, works at 375px).
  */
 export const BULK_MAX_FILES = 20;
-/** Per-file upload ceiling. Derivation: the API caps a JSON body at 1 MB; base64 inflates bytes by ~1.37×
- *  and the JSON envelope adds a little, so a file over ~700 KB would overflow the request. Oversized files
- *  are shown on their own row ("too large") and never uploaded, so they can't fail the batch. */
-export const BULK_MAX_UPLOAD_BYTES = 700_000;
+/** Per-file upload ceiling. [FIX 1] Files upload as RAW BINARY (no base64/JSON inflation), so the cap is
+ *  the server's MAX_IMPORT_UPLOAD_BYTES = 2 × MAX_IMPORT_CHARS (10 MB) — a full long-history export fits.
+ *  Kept in sync with the server constant. Oversized files show a "too large" row and are never uploaded,
+ *  so they can't fail the batch. */
+export const BULK_MAX_UPLOAD_BYTES = 10_000_000;
 
 type Step = 'pick' | 'uploading' | 'review' | 'ack' | 'progress';
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  return btoa(binary);
-}
 
 export function BulkImport({ api, pollMs = 400 }: { api: BulkImportApi; pollMs?: number }): JSX.Element {
   const [step, setStep] = useState<Step>('pick');
@@ -57,7 +51,7 @@ export function BulkImport({ api, pollMs = 400 }: { api: BulkImportApi; pollMs?:
           continue;
         }
         const buf = new Uint8Array(await file.arrayBuffer());
-        const up = await api.uploadFile(id, index, { name: file.name, contentBase64: bytesToBase64(buf) });
+        const up = await api.uploadFile(id, index, file.name, buf);
         if (up.tooLarge) tooLargeRows.push({ fileName: file.name, platform: null, state: 'too_large', counterpart: null });
         index += 1;
       }

@@ -12,6 +12,28 @@ import type { BulkInputFile } from './bulk-parse.js';
 /** Same per-file ceiling as single import (notes-routes MAX_IMPORT_CHARS): a full multi-year export. */
 export const BULK_MAX_FILE_CHARS = 5_000_000;
 
+/**
+ * [FIX 1] Max RAW bytes for one uploaded chat file (single and bulk upload through readRawBody — no
+ * base64/JSON inflation). Derivation: the largest transcript we accept is BULK_MAX_FILE_CHARS
+ * (= MAX_IMPORT_CHARS) characters; a WhatsApp export is text at up to ~2 UTF-8 bytes/char for the
+ * scripts we see (Latin + Arabic), so 2 × that many bytes admits any in-ceiling .txt. A .zip is smaller
+ * raw (compressed) and its decompressed size is independently capped at BULK_MAX_FILE_CHARS by the zip
+ * reader. The decoded TEXT is still truncated to BULK_MAX_FILE_CHARS, so this is only the transport cap.
+ */
+export const MAX_IMPORT_UPLOAD_BYTES = BULK_MAX_FILE_CHARS * 2; // 10 MB (~9.5 MiB)
+
+/** Decode one uploaded file's RAW bytes to its transcript text (the readRawBody path). .zip → inner
+ *  transcript (media dropped); bare .txt → UTF-8 text. Oversized decoded text → '' (unparseable row). */
+export function decodeBulkFileBytes(name: string, bytes: Uint8Array): BulkInputFile {
+  try {
+    const r = resolveTranscript(Buffer.from(bytes));
+    const text = r.ok ? r.text : '';
+    return { name, content: text.length > BULK_MAX_FILE_CHARS ? '' : text };
+  } catch {
+    return { name, content: '' };
+  }
+}
+
 export interface RawBulkFile {
   name: string;
   /** A pasted / Android `.txt` transcript as text. */

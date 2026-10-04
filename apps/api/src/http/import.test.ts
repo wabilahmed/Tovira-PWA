@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import { deflateRawSync } from 'node:zlib';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { MAX_IMPORT_UPLOAD_BYTES } from '../services/import/bulk-decode.js';
 
 let server: Server;
 let base: string;
@@ -474,5 +476,53 @@ describe('[NOTE-MOVE/IMPORT-UNDO] move and undo routes (B3/B4)', () => {
     const re = await importChat(token, meridian, { content: AHMED_CHAT, consent: true, misfileAck: true });
     expect(re.status).toBe(202); // not 200/duplicate — the undo cleared the prior messages
     expect(((await re.json()) as { imported: number }).imported).toBeGreaterThan(0);
+  });
+});
+
+// [FIX 1] Single import accepts RAW BINARY (readRawBody) — a long-history export (the Book Scan's
+// core case) is no longer blocked by the 1 MB JSON body / ~750 KB base64 ceiling.
+describe('[FIX 1] single import — raw-binary upload', () => {
+  const u16 = (n: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
+  const u32 = (n: number) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
+  function makeZip(name: string, data: Buffer): Buffer {
+    const nameBuf = Buffer.from(name, 'utf8'); const stored = deflateRawSync(data);
+    const lfh = Buffer.concat([u32(0x04034b50), u16(20), u16(0), u16(8), u16(0), u16(0), u32(0), u32(stored.length), u32(data.length), u16(nameBuf.length), u16(0), nameBuf, stored]);
+    const cdr = Buffer.concat([u32(0x02014b50), u16(20), u16(20), u16(0), u16(8), u16(0), u16(0), u32(0), u32(stored.length), u32(data.length), u16(nameBuf.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(0), nameBuf]);
+    const eocd = Buffer.concat([u32(0x06054b50), u16(0), u16(0), u16(1), u16(1), u32(cdr.length), u32(lfh.length), u16(0)]);
+    return Buffer.concat([lfh, cdr, eocd]);
+  }
+  function bigChat(other: string, approxBytes: number): string {
+    const out: string[] = [];
+    let size = 0;
+    for (let i = 0; size < approxBytes; i += 1) {
+      const line = `13/07/2019, 1:00 am - ${i % 2 === 0 ? 'Wabil' : other}: message ${i} ${'x'.repeat(120)}`;
+      out.push(line); size += line.length + 1;
+    }
+    return out.join('\n');
+  }
+  const importRaw = (token: string, clientId: string, bytes: Uint8Array) =>
+    fetch(`${base}/clients/${clientId}/notes/import?consent=1&firstImportAck=1`, {
+      method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' }, body: Buffer.from(bytes),
+    });
+
+  it('imports a 2 MB .txt', async () => {
+    const { token } = await signup('single-raw-txt@example.com');
+    const cid = await createClient(token, 'Layla'); // counterpart matches the client → no misfile prompt
+    const res = await importRaw(token, cid, Buffer.from(bigChat('Layla', 2_000_000)));
+    expect(res.status).toBe(202);
+  });
+
+  it('imports a 2 MB-equivalent .zip', async () => {
+    const { token } = await signup('single-raw-zip@example.com');
+    const cid = await createClient(token, 'Omar');
+    const res = await importRaw(token, cid, makeZip('_chat.txt', Buffer.from(bigChat('Omar', 2_000_000))));
+    expect(res.status).toBe(202);
+  });
+
+  it('rejects a file over the per-file byte limit with 413', async () => {
+    const { token } = await signup('single-raw-big@example.com');
+    const cid = await createClient(token, 'Khalid');
+    const res = await importRaw(token, cid, new Uint8Array(MAX_IMPORT_UPLOAD_BYTES + 1));
+    expect(res.status).toBe(413);
   });
 });

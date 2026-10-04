@@ -17,8 +17,8 @@ export interface BulkStatusResponse {
 }
 
 export interface BulkImportApi {
-  /** Upload one file into the pending batch. `tooLarge` when the server refused it for size. */
-  uploadFile(batchId: string, index: number, file: { name: string; contentBase64?: string; content?: string }): Promise<{ ok: boolean; tooLarge?: boolean }>;
+  /** Upload one file's RAW bytes into the pending batch. `tooLarge` when the server refused it for size. */
+  uploadFile(batchId: string, index: number, name: string, bytes: Uint8Array): Promise<{ ok: boolean; tooLarge?: boolean }>;
   parse(batchId: string, repName?: string | null): Promise<BulkParseResponse>;
   /** Start the (background) import. `needAck` when the first-upload acknowledgement is required. */
   startImport(batchId: string, decisions: unknown[], firstImportAck?: boolean): Promise<{ started: boolean; needAck?: boolean }>;
@@ -31,8 +31,12 @@ export class BulkImportClient implements BulkImportApi {
     return fetch(`${this.baseUrl}${path}`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   }
 
-  async uploadFile(batchId: string, index: number, file: { name: string; contentBase64?: string; content?: string }): Promise<{ ok: boolean; tooLarge?: boolean }> {
-    const res = await this.post('/import/bulk/files', { batchId, index, ...file });
+  async uploadFile(batchId: string, index: number, name: string, bytes: Uint8Array): Promise<{ ok: boolean; tooLarge?: boolean }> {
+    const q = new URLSearchParams({ batchId, index: String(index), name });
+    // [FIX 1] Raw binary — the bytes ARE the body; metadata rides in the query (no 1 MB JSON cap).
+    const res = await fetch(`${this.baseUrl}/import/bulk/files?${q.toString()}`, {
+      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/octet-stream' }, body: bytes as unknown as BodyInit,
+    });
     if (res.status === 413) return { ok: false, tooLarge: true };
     return { ok: res.status === 200 };
   }

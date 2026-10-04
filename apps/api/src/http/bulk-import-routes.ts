@@ -6,9 +6,9 @@ import type { BulkUpsellService } from '../services/import/bulk-upsell.js';
 import type { ImportAckRepository } from '../ports/import-ack-repository.js';
 import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
 import { BULK_MAX_FILES, type RowState } from '../services/import/bulk-parse.js';
-import { decodeBulkFiles } from '../services/import/bulk-decode.js';
+import { decodeBulkFiles, decodeBulkFileBytes, MAX_IMPORT_UPLOAD_BYTES } from '../services/import/bulk-decode.js';
 import { putBatchFile, listBatchFiles, writeBatchStatus, readBatchStatus, clearBatch } from '../services/import/bulk-batch-store.js';
-import { extractToken, readJsonBody, sendJson, BadJsonError } from './helpers.js';
+import { extractToken, readJsonBody, readRawBody, sendJson, BadJsonError } from './helpers.js';
 
 /**
  * [BULK-IMPORT page] The bulk endpoints. The API caps a JSON body at 1 MB and 20 exports far exceed that,
@@ -62,6 +62,34 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
     const batchId = decodeURIComponent(statusMatch[1]!);
     const status = await readBatchStatus<BatchStatus>(deps.storage, userId, batchId);
     sendJson(res, 200, status ?? { jobs: [], done: false });
+    return true;
+  }
+
+  // [FIX 1] One file uploads as RAW BINARY (no base64 + no 1 MB JSON cap): the bytes ARE the body and
+  // the small metadata rides in the query. JSON uploads still work (legacy, below).
+  if (isFiles && !String(req.headers['content-type'] ?? '').includes('json')) {
+    const q = new URL(req.url ?? '', 'http://x').searchParams;
+    const batchId = q.get('batchId') ?? '';
+    const name = q.get('name') ?? '';
+    const index = Number.parseInt(q.get('index') ?? '', 10);
+    if (!BATCH_ID_RE.test(batchId) || !name || !Number.isInteger(index)) {
+      sendJson(res, 400, { error: 'validation', message: 'A file upload needs batchId, index and name.' });
+      return true;
+    }
+    if (index < 0 || index >= BULK_MAX_FILES) {
+      sendJson(res, 413, { error: 'too_many_files', message: `Import up to ${BULK_MAX_FILES} chats at a time.` });
+      return true;
+    }
+    let bytes: Buffer;
+    try {
+      bytes = await readRawBody(req, MAX_IMPORT_UPLOAD_BYTES);
+    } catch {
+      sendJson(res, 413, { error: 'too_large', message: 'This file is too large.' });
+      return true;
+    }
+    const file = decodeBulkFileBytes(name, new Uint8Array(bytes));
+    await putBatchFile(deps.storage, userId, batchId, index, file);
+    sendJson(res, 200, { ok: true, fileName: file.name });
     return true;
   }
 

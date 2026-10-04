@@ -122,15 +122,17 @@ describe('ClientsClient', () => {
   });
 
   // --- WhatsApp import (P1-4b) ---
-  it('imports a WhatsApp export: POSTs content + consent, returns the imported count', async () => {
+  it('imports a WhatsApp export: POSTs the chat as RAW BINARY with metadata in the query (FIX 1)', async () => {
     fetchMock.mockResolvedValueOnce(json(201, { imported: 4, note: {} }));
     const client = new ClientsClient('http://api.test');
     const r = await client.importWhatsApp('c1', 'chat', true);
     expect(r).toEqual({ ok: true, imported: 4 });
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe('http://api.test/clients/c1/notes/import');
+    // consent rides in the query; the body is the raw file bytes, not a JSON envelope.
+    expect(String(url)).toBe('http://api.test/clients/c1/notes/import?consent=1');
     expect((init as RequestInit).method).toBe('POST');
-    expect((init as RequestInit).body).toBe(JSON.stringify({ content: 'chat', consent: true }));
+    expect((init as RequestInit).headers).toMatchObject({ 'content-type': 'application/octet-stream' });
+    expect(new TextDecoder().decode((init as RequestInit).body as Uint8Array)).toBe('chat');
   });
 
   // [P5-1-CEILING-UI] the server signals when the trial ceiling stopped extraction.

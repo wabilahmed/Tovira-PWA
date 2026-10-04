@@ -13,6 +13,7 @@ import type { BillingService } from '../services/billing/billing-service.js';
 import type { NoteMoveService } from '../services/import/note-move-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { resolveTranscript } from '../services/import/resolve.js';
+import { MAX_IMPORT_UPLOAD_BYTES } from '../services/import/bulk-decode.js';
 import { detectMisfileAtImport } from '../services/import/misfile.js';
 import type { ContactAliasRepository, RepNameRepository } from '../ports/contact-alias-repository.js';
 import type { ImportAckRepository } from '../ports/import-ack-repository.js';
@@ -246,7 +247,31 @@ export async function handleNoteRoute(
         sendJson(res, 402, { error: 'allowance_exhausted', message: "You've used this month's AI allowance, so importing is paused. Add usage, or wait for your allowance to reset, then try again." });
         return true;
       }
-      const body = (await readJsonBody(req)) as { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown; confirmImport?: unknown; counterpart?: unknown; firstImportAck?: unknown };
+      // [FIX 1] A chat uploads as RAW BINARY (no base64 + no 1 MB JSON cap, so a long-history export —
+      // the Book Scan's core case — fits). The file bytes ARE the body; the small metadata (consent,
+      // acks, counterpart) ride in the query. Legacy JSON callers (content-type: application/json) keep
+      // the old body shape. `rawFileBytes` is set only on the raw path; the decode below handles both.
+      const isRawUpload = !String(req.headers['content-type'] ?? '').includes('json');
+      let body: { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown; confirmImport?: unknown; counterpart?: unknown; firstImportAck?: unknown };
+      let rawFileBytes: Buffer | null = null;
+      if (isRawUpload) {
+        try {
+          rawFileBytes = await readRawBody(req, MAX_IMPORT_UPLOAD_BYTES);
+        } catch {
+          sendJson(res, 413, { error: 'too_large', message: 'This file is too large.' });
+          return true;
+        }
+        const q = new URL(req.url ?? '', 'http://x').searchParams;
+        body = {
+          consent: q.get('consent') === '1',
+          misfileAck: q.get('misfileAck') === '1',
+          confirmImport: q.get('confirmImport') === '1',
+          firstImportAck: q.get('firstImportAck') === '1',
+          ...(q.get('counterpart') ? { counterpart: q.get('counterpart') as string } : {}),
+        };
+      } else {
+        body = (await readJsonBody(req)) as typeof body;
+      }
       // [PRIVACY-5] Before the FIRST import in this account, the rep must acknowledge they have the
       // right to upload messages written by other people. Once acknowledged (stored, once per account),
       // later imports skip this. Declining = not sending firstImportAck: the import does not proceed and
@@ -272,7 +297,20 @@ export async function handleNoteRoute(
       // browsers routinely report the wrong MIME. A zip is unpacked and the transcript chosen by
       // which entry parses. A pasted chat still arrives as `content` text (path unchanged).
       let content: string;
-      if (typeof body.contentBase64 === 'string' && body.contentBase64.length > 0) {
+      if (rawFileBytes) {
+        // [FIX 1] Raw-binary path: the bytes are the file. Detect format by CONTENT (zip vs text), and
+        // refuse an audio file sniffed from the bytes (the octet-stream share loophole) just as below.
+        if (looksLikeAudio(new Uint8Array(rawFileBytes))) {
+          sendJson(res, 415, { error: 'unsupported_media', message: AUDIO_ELSEWHERE_MESSAGE });
+          return true;
+        }
+        const resolved = resolveTranscript(rawFileBytes);
+        if (!resolved.ok) {
+          sendJson(res, 422, { error: 'import_failed', reason: resolved.reason });
+          return true;
+        }
+        content = resolved.text;
+      } else if (typeof body.contentBase64 === 'string' && body.contentBase64.length > 0) {
         // Cap the raw upload before decoding (a compressed chat export is small; this bounds the
         // base64 blow-up and the buffer we hold). Decompression caps live in the zip reader.
         if (body.contentBase64.length > MAX_IMPORT_CHARS * 2) {

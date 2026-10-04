@@ -11,7 +11,7 @@ function fakeApi(over: Partial<BulkImportApi> = {}): BulkImportApi {
     { fileName: 'b.txt', platform: 'android', state: 'new', counterpart: 'Omar' },
   ];
   return {
-    uploadFile: vi.fn(async () => ({ ok: true })),
+    uploadFile: vi.fn(async (_b: string, _i: number, _n: string, _bytes: Uint8Array) => ({ ok: true })),
     parse: vi.fn(async () => ({ result: { rows, repName: 'Wabil', needsRepId: false }, percentOfAllowance: 12 })),
     startImport: vi.fn(async () => ({ started: true })),
     status: vi.fn(async () => ({ jobs: [{ key: 'a.txt', state: 'done' as const }, { key: 'b.txt', state: 'done' as const }], done: true })),
@@ -66,8 +66,8 @@ describe('<BulkImport>', () => {
     await userEvent.upload(screen.getByLabelText(/choose chat exports/i), [zip, txt('b.txt')]);
     await waitFor(() => expect(screen.getByRole('button', { name: /^import/i })).toBeInTheDocument());
     expect(api.uploadFile).toHaveBeenCalledTimes(2);
-    // the .zip was sent as base64 bytes (content-by-decode on the server)
-    expect((api.uploadFile as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[2].name === 'chat.zip' && typeof c[2].contentBase64 === 'string')).toBe(true);
+    // the .zip was sent as raw bytes (content-by-decode on the server)
+    expect((api.uploadFile as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[2] === 'chat.zip' && c[3] instanceof Uint8Array)).toBe(true);
   });
 
   it('shows the right-to-upload acknowledgement when the server asks, then retries', async () => {
