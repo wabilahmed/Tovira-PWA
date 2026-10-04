@@ -98,13 +98,16 @@ describe('ExtractionService — pointers (Task 3)', () => {
     expect(set!.pointers[0]!.text).toBe('keeps asking about parking');
   });
 
-  it('passes the deal state and current pointers into the extraction prompt (inside the one fence)', async () => {
+  // NOTE: deal state + current pointers are NOT in the extraction prompt (the certified v0.9.7 prefix is
+  // frozen). They feed the SEPARATE pointer call — asserted in the pointer-call tests (Task 2). The
+  // extraction prompt must NOT carry them:
+  it('does NOT inject deal state or current pointers into the (certified) extraction prompt', async () => {
     const { service, pointers, note, client, cap } = await pointerSetup(EX([]));
     await pointers.save('u', client.id, { pointers: [{ section: 'relationship', text: 'cares about price', receipts: [{ source_span: 'price', source_message_at: '2025-12-01T09:00' }] }], retrospectiveDisclosure: null }, 1);
     await service.extractNote('u', note.id, '2026-02-01');
     const content = cap.last()!.messages[0]!.content;
-    expect(content).toMatch(/DEAL STATE: open/); // default outcome, recently touched
-    expect(content).toContain('cares about price'); // current pointer fed back for update (D7)
+    expect(content).not.toMatch(/DEAL STATE/);
+    expect(content).not.toContain('cares about price');
     expect((content.match(/<<<TOVIRA_UNTRUSTED_BEGIN>>>/g) ?? []).length).toBe(1); // still one fence
   });
 
@@ -367,7 +370,7 @@ describe('ExtractionService', () => {
     const rows = await logs.listByUser('user-A');
     expect(rows).toHaveLength(1);
     expect(rows[0]!.model).toBe('stub');
-    expect(rows[0]!.promptVersion).toBe('tovira-extract-v0.9.8');
+    expect(rows[0]!.promptVersion).toBe('tovira-extract-v0.9.7');
     expect(rows[0]!.status).toBe('extracted');
     // [NO-TRAINING-RETENTION] the log records fact-quality COUNTS, never content (no input / rawOutput).
     expect(rows[0]!.factsAccepted).toBeGreaterThan(0);

@@ -313,8 +313,9 @@ export class ExtractionService {
       console.info(`[screen] note ${noteId}: all ${note.messages?.length ?? 0} message(s) held for review; nothing sent to a model`);
       return { status: 'extracted', flagged: true, message: 'All messages are held for review.' };
     }
-    // [POINTERS] The client's current pointers (to update, D7) and the deal state (which second section
-    // to produce, D6) feed the same single extraction call. Best-effort load — never block extraction.
+    // [POINTERS] Pointers are produced by a SEPARATE call after extraction (see the pointer generation
+    // below / PointerService), NOT inside the certified extraction prompt — so the deal state and the
+    // client's current pointers are loaded for that, never injected into this extraction call.
     const currentPointerSet = this.pointers ? await this.pointers.getForClient(userId, note.clientId).catch(() => null) : null;
     const dealState = client ? dealStateOf(client, this.now()) : 'open';
     const userMessage = buildUserMessage({
@@ -323,8 +324,6 @@ export class ExtractionService {
       source: note.source,
       text: safeText,
       glossary,
-      dealState,
-      currentPointers: currentPointerSet?.pointers ?? [],
     });
 
     // Resolve the model ONCE (P5-7): a retry must use the same model as the

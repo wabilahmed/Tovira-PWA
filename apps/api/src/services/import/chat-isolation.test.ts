@@ -45,21 +45,16 @@ describe('[BULK-IMPORT] chat isolation (D1: one chat, one call)', () => {
     expect(inner.complete).toHaveBeenCalledOnce();
   });
 
-  // [POINTERS · Task 5] GUARD 4 — the pointer feature stays ONE call per chat (D1): the current pointers
-  // it feeds back (D7) go INSIDE the single fence, and the deal state is a trusted header outside it, so
-  // the message still carries EXACTLY one fenced chat — no second fence, no second call.
-  // MUTATION-PROVEN: in prompt.ts buildUserMessage, move `${pointersBlock}` outside the fence into its own
-  // UNTRUSTED_BEGIN/END pair → two fences → assertSingleChatRequest throws → RED.
-  it('GUARD 4: a message carrying deal state + current pointers is still exactly one fenced chat', () => {
+  // [POINTERS · Task 5] GUARD 4 — extraction stays ONE chat per call. Pointers moved to their OWN call
+  // (Task 2): the pointer prompt's one-chat isolation is guarded in pointer-isolation.test.ts. Here we
+  // keep the extraction side explicit — an extraction message is always exactly one fenced chat.
+  it('GUARD 4 (extraction): an extraction message is exactly one fenced chat', () => {
     const content = buildUserMessage({
       today: '2026-10-04', clientName: 'Khalid', source: 'whatsapp_export', text: 'is the Marina unit still available?',
-      dealState: 'going_cold',
-      currentPointers: [{ section: 'relationship', text: 'cares most about service charge', receipts: [{ source_span: 'service charge?', source_message_at: '2026-09-01T09:00' }] }],
     });
     const req: ModelCompletionRequest = { messages: [{ role: 'user', content }], userId: 'u1' };
     expect(() => assertSingleChatRequest(req)).not.toThrow();
     expect((content.match(/<<<TOVIRA_UNTRUSTED_BEGIN>>>/g) ?? []).length).toBe(1);
-    expect(content).toContain('cares most about service charge'); // the pointer really is in the message (guard isn't vacuous)
   });
 
   it('IsolatingModelClient throws BEFORE calling inner when two chats are present', async () => {

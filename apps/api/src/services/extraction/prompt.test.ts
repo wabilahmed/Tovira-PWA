@@ -1,13 +1,28 @@
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
   EXTRACTION_SYSTEM_PROMPT,
+  EXTRACTION_MAX_TOKENS,
   buildUserMessage,
   estimateTokens,
   PROMPT_VERSION,
-  EXTRACTION_MAX_TOKENS,
 } from './prompt.js';
 import { asExtraction } from './validate.js';
-import { assertSingleChatRequest } from '../import/chat-isolation.js';
+
+// [CERT-LOCK] The certified extraction prefix is frozen to its v0.9.7 certification (commit 0eba4f3).
+// This hash pins it byte-for-byte so it can NEVER drift without a deliberate re-certification: changing
+// EXTRACTION_SYSTEM_PROMPT (even a space) fails this test, forcing a new PROMPT_VERSION + a gate run.
+// Pointers live in their OWN prompt/call (pointer-prompt.ts), never in this prefix.
+describe('[CERT-LOCK] extraction prefix is frozen to the v0.9.7 certification', () => {
+  const CERTIFIED_V097_SHA256 = '48effce2225e45702c8abce7d4be26007fa9d08caab2af303affe497a39e87f5';
+  it('EXTRACTION_SYSTEM_PROMPT is byte-identical to the certified v0.9.7 prefix (0eba4f3)', () => {
+    expect(createHash('sha256').update(EXTRACTION_SYSTEM_PROMPT, 'utf8').digest('hex')).toBe(CERTIFIED_V097_SHA256);
+  });
+  it('the certified version string and max_tokens are the v0.9.7 values', () => {
+    expect(PROMPT_VERSION).toBe('tovira-extract-v0.9.7');
+    expect(EXTRACTION_MAX_TOKENS).toBe(20_000);
+  });
+});
 
 // [P1-6] The caching contract: a big, byte-identical prefix, with today's date
 // kept OUT of it (in the variable message) so the cache doesn't break daily.
@@ -50,7 +65,7 @@ describe('extraction prompt', () => {
   });
 
   it('exposes a prompt version for logging', () => {
-    expect(PROMPT_VERSION).toBe('tovira-extract-v0.9.8');
+    expect(PROMPT_VERSION).toBe('tovira-extract-v0.9.7');
   });
 
   // v0.8: a THIRD PARTY's stated action (the client's own manager / internal team) is
@@ -110,39 +125,6 @@ describe('extraction prompt', () => {
         expect(['high', 'low'], `example promise confidence [${label}…]`).toContain(p.confidence);
       }
     }
-  });
-
-  // [POINTERS] the prefix instructs pointers per D2/D4/D6, and keeps the cache contract (no date token).
-  it('instructs the model on pointers: specific-or-nothing, the sections, and inference', () => {
-    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/## Pointers/);
-    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/specific or nothing/i);
-    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/NEVER pad with generic/i);
-    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/next_opportunity/);
-    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/retrospective/);
-    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/"inferred": true/);
-    expect(EXTRACTION_SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/); // cache contract holds
-    expect(EXTRACTION_MAX_TOKENS).toBe(24_000); // raised to fit pointers
-  });
-
-  // [POINTERS · constraints 1 + D6/D7] deal state (trusted) in the header; current pointers (untrusted)
-  // INSIDE the single existing fence, after the note — never a second fence, never trusted context.
-  it('places deal state in the header and current pointers inside the ONE fence', () => {
-    const msg = buildUserMessage({
-      today: '2026-07-09', clientName: 'C', source: 'whatsapp_export', text: 'the imported chat',
-      dealState: 'going_cold',
-      currentPointers: [{ section: 'relationship', text: 'keeps asking about parking', receipts: [{ source_span: 'parking?', source_message_at: '2026-01-01T10:00' }] }],
-    });
-    const begin = msg.indexOf('<<<TOVIRA_UNTRUSTED_BEGIN>>>');
-    const end = msg.indexOf('<<<TOVIRA_UNTRUSTED_END>>>');
-    expect(msg.indexOf('DEAL STATE: going_cold')).toBeGreaterThanOrEqual(0);
-    expect(msg.indexOf('DEAL STATE: going_cold')).toBeLessThan(begin); // trusted header, before the fence
-    const cp = msg.indexOf('keeps asking about parking');
-    expect(cp).toBeGreaterThan(begin); // untrusted, inside the fence
-    expect(cp).toBeLessThan(end);
-    // exactly one fence pair — the isolation guard still accepts it as a single chat.
-    expect((msg.match(/<<<TOVIRA_UNTRUSTED_BEGIN>>>/g) ?? []).length).toBe(1);
-    expect((msg.match(/<<<TOVIRA_UNTRUSTED_END>>>/g) ?? []).length).toBe(1);
-    expect(() => assertSingleChatRequest({ messages: [{ role: 'user', content: msg }], userId: 'u' })).not.toThrow();
   });
 
   // P4-9: the glossary goes in the VARIABLE message only — the cached prefix

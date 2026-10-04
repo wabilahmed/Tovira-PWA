@@ -278,14 +278,15 @@ export async function extractPointersForEval(
       system: EXTRACTION_SYSTEM_PROMPT,
       cacheSystemPrompt: true,
       cacheTtl: '1h',
+      // NOTE: rewired to the dedicated pointer prompt in Task 2 (pointers are their own call). This
+      // Task-1 form only keeps the file compiling after the extraction prompt was restored; the pointer
+      // gate run is owner-triggered and happens after Task 2.
       messages: [{
         content: buildUserMessage({
           today: '2026-01-10',
           clientName: fixture.clientName,
           source: 'whatsapp_export',
           text: redactSensitive(fixture.note).redacted,
-          dealState: fixture.dealState,
-          currentPointers: fixture.currentPointers ?? [],
         }),
         role: 'user',
       }],
