@@ -114,6 +114,9 @@ describe('[BULK-IMPORT] the bulk endpoints (individual upload → parse → asyn
     const final = await pollDone(token, 'b2');
     expect(final.jobs).toHaveLength(2);
     expect(final.jobs.every((j) => j.state === 'done')).toBe(true);
+    // [FIX 2a] the staged input files are deleted once the import completes.
+    const staged = (await deps.storage.list('bulk-import/')).filter((k) => k.includes('/b2/') && /\/f\d+\.json$/.test(k));
+    expect(staged).toEqual([]);
     const listed = (await (await fetch(`${base}/clients`, { headers: { authorization: `Bearer ${token}` } })).json()) as { clients: Array<{ name: string }> };
     expect(listed.clients.map((c) => c.name).sort()).toEqual(['Layla', 'Omar']);
   });

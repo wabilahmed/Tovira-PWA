@@ -5,6 +5,7 @@ import type { Storage } from '../../ports/storage.js';
 import type { ModelClient } from '../../ports/model.js';
 import type { RepGlossaryRepository } from '../../ports/rep-glossary-repository.js';
 import { renderThread } from '../import/dedup.js';
+import { purgeUserBatches } from '../import/bulk-batch-store.js';
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_MAX_TOKENS, buildUserMessage } from '../extraction/prompt.js';
 
 
@@ -113,7 +114,7 @@ export interface ErasureDeps {
   /** [ERASURE Task 3] the MAIN blob store (voice recordings). A recording WHOLLY about the requester
    *  (the note's client IS the erased party) is deleted; a delete failure fails the whole commit
    *  (retryable), never a silent gap. Absent → audio is not reached (dev/in-memory without a blob store). */
-  blobStorage?: Pick<Storage, 'delete'>;
+  blobStorage?: Pick<Storage, 'delete'> & Partial<Pick<Storage, 'list'>>;
   /** [ERASURE-SUMMARY] The certified extractor, used to RE-summarise a note after the requester's
    *  messages are removed. Wired in prod to a metered client that classes the call `erasure` with NO
    *  userId — it is Prospera's legal obligation, never the rep's usage, so it never touches their spend
@@ -282,6 +283,15 @@ export class ErasureService {
     if (this.deps.repGlossary) {
       const removed = await this.deps.repGlossary.deleteByTerms(userId, requesterNames);
       if (removed > 0) counts.glossary_terms = removed;
+    }
+
+    // [BULK-IMPORT · FIX 2] Staged (pre-review) uploads may hold the requester's chat but aren't yet
+    // parsed/assigned to a counterparty, so they can't be scrubbed in place. They are transient and
+    // re-uploadable, so erase this rep's staged batches wholesale — reaching staged content, which the
+    // erasure obligation requires. (Over-broad if a batch about someone else is mid-review; rare, and the
+    // legal duty wins — flagged.)
+    if (this.deps.blobStorage && typeof this.deps.blobStorage.list === 'function') {
+      await purgeUserBatches(this.deps.blobStorage as Pick<Storage, 'list' | 'delete'>, userId);
     }
 
     const categories = toCategories(counts);

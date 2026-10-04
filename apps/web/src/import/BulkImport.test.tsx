@@ -15,6 +15,7 @@ function fakeApi(over: Partial<BulkImportApi> = {}): BulkImportApi {
     parse: vi.fn(async () => ({ result: { rows, repName: 'Wabil', needsRepId: false }, percentOfAllowance: 12 })),
     startImport: vi.fn(async () => ({ started: true })),
     status: vi.fn(async () => ({ jobs: [{ key: 'a.txt', state: 'done' as const }, { key: 'b.txt', state: 'done' as const }], done: true })),
+    abandon: vi.fn(async () => {}),
     ...over,
   };
 }

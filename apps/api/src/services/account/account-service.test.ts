@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { AccountService } from './account-service.js';
+import { InMemoryStorage } from '../../adapters/storage/in-memory.js';
+import { putBatchFile, listBatchFiles } from '../import/bulk-batch-store.js';
 
 // Minimal fakes — deleteAccount only touches auth (getPublicUser + deleteUser),
 // the purgeables, and the onDeleted hook.
@@ -40,5 +42,16 @@ describe('[EMAIL-HOOKS 1c] AccountService.deleteAccount', () => {
     await svc.deleteAccount('u');
     expect(purge.purgeUser).toHaveBeenCalled();
     expect(auth.deleteUser).toHaveBeenCalled();
+  });
+
+  it('[BULK-IMPORT · FIX 2] purges the rep\'s staged bulk-import batches on account deletion', async () => {
+    const storage = new InMemoryStorage();
+    await putBatchFile(storage, 'u', 'b1', 0, { name: 'a.txt', content: 'staged third-party chat' }, 1);
+    const auth = { getPublicUser: async () => ({ id: 'u', email: 'r@x', referralCode: 'r' }), deleteUser: async () => {} };
+    const empty = { listByUser: async () => [], listByClient: async () => [] };
+    const recallSessions = { exportForUser: async () => [], purgeUser: async () => {} };
+    const svc = new AccountService(auth as never, empty as never, empty as never, {} as never, {} as never, empty as never, recallSessions as never, [], undefined, undefined, undefined, undefined, undefined, storage);
+    await svc.deleteAccount('u');
+    expect(await listBatchFiles(storage, 'u', 'b1')).toEqual([]); // staged content gone
   });
 });

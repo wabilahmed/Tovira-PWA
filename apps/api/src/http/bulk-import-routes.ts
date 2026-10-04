@@ -29,6 +29,7 @@ export interface BulkImportRouteDeps {
 
 const NON_IMPORTABLE: ReadonlySet<RowState> = new Set<RowState>(['group', 'duplicate', 'unparseable']);
 const STATUS_RE = /^\/import\/bulk\/([^/]+)\/status$/;
+const ABANDON_RE = /^\/import\/bulk\/([^/]+)$/; // DELETE — the rep left the review without importing
 const BATCH_ID_RE = /^[A-Za-z0-9_-]{1,100}$/;
 
 interface BatchStatus {
@@ -41,10 +42,11 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
   const method = req.method ?? 'GET';
   const path = (req.url ?? '/').split('?')[0]!;
   const statusMatch = method === 'GET' ? STATUS_RE.exec(path) : null;
+  const abandonMatch = method === 'DELETE' ? ABANDON_RE.exec(path) : null;
   const isFiles = method === 'POST' && path === '/import/bulk/files';
   const isParse = method === 'POST' && path === '/import/bulk/parse';
   const isImport = method === 'POST' && path === '/import/bulk';
-  if (!statusMatch && !isFiles && !isParse && !isImport) return false;
+  if (!statusMatch && !abandonMatch && !isFiles && !isParse && !isImport) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -62,6 +64,15 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
     const batchId = decodeURIComponent(statusMatch[1]!);
     const status = await readBatchStatus<BatchStatus>(deps.storage, userId, batchId);
     sendJson(res, 200, status ?? { jobs: [], done: false });
+    return true;
+  }
+
+  // [FIX 2b] Abandon — the rep left the review screen without importing. Delete the staged content now
+  // (best-effort; the client calls this on leaving, and the retention sweep is the backstop).
+  if (abandonMatch) {
+    const batchId = decodeURIComponent(abandonMatch[1]!);
+    if (BATCH_ID_RE.test(batchId)) await clearBatch(deps.storage, userId, batchId);
+    sendJson(res, 200, { ok: true });
     return true;
   }
 
@@ -88,7 +99,7 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
       return true;
     }
     const file = decodeBulkFileBytes(name, new Uint8Array(bytes));
-    await putBatchFile(deps.storage, userId, batchId, index, file);
+    await putBatchFile(deps.storage, userId, batchId, index, file, Date.now());
     sendJson(res, 200, { ok: true, fileName: file.name });
     return true;
   }
@@ -119,7 +130,7 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
       return true;
     }
     const [file] = decodeBulkFiles([{ name: body.name, ...(typeof body.content === 'string' ? { content: body.content } : {}), ...(typeof body.contentBase64 === 'string' ? { contentBase64: body.contentBase64 } : {}) }]);
-    await putBatchFile(deps.storage, userId, batchId, index, file!);
+    await putBatchFile(deps.storage, userId, batchId, index, file!, Date.now());
     sendJson(res, 200, { ok: true, fileName: file!.name });
     return true;
   }
@@ -162,14 +173,17 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
   const onProgress = (jobs: ChatJob[]): void => { void writeBatchStatus(deps.storage, userId, batchId, { jobs, done: false }); };
   void deps.bulkImport.importConfirmed(userId, files, decisions, today, onProgress)
     .then(async (result) => {
+      // [FIX 2a] Delete the staged files BEFORE marking the batch done, so a client that polls done=true
+      // can trust the staged conversation content is already gone.
+      await clearBatchInputs(deps.storage, userId, batchId);
       const limited = result.jobs.filter((j) => j.state === 'failed_usage_limit').length;
       const upsell = limited > 0 && deps.bulkUpsell ? await deps.bulkUpsell.forResult(userId, limited) : undefined;
       await writeBatchStatus(deps.storage, userId, batchId, { jobs: result.jobs, done: true, ...(upsell ? { upsell } : {}) });
     })
     .catch(async () => {
+      await clearBatchInputs(deps.storage, userId, batchId);
       await writeBatchStatus(deps.storage, userId, batchId, { jobs: decisions.map((d) => ({ key: d.fileName, state: 'failed' as const })), done: true });
-    })
-    .finally(() => { void clearBatchInputs(deps.storage, userId, batchId); });
+    });
 
   sendJson(res, 202, { batchId });
   return true;

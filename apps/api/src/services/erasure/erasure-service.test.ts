@@ -3,6 +3,8 @@ import { ErasureService } from './erasure-service.js';
 import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import { InMemoryErasureAuditRepository } from '../../adapters/erasure/in-memory-erasure-audit-repository.js';
+import { InMemoryStorage } from '../../adapters/storage/in-memory.js';
+import { putBatchFile, listBatchFiles } from '../import/bulk-batch-store.js';
 
 /**
  * [ERASURE Task 2] Delete facts ABOUT the requester (structured who-field = requester); keep facts
@@ -130,5 +132,16 @@ describe('[ERASURE Task 2] delete about, keep mention', () => {
     expect(rec!.outcome).toBe('committed');
     expect(rec!.categories.find((c2) => c2.category === 'people')!.deleted).toBe(1);
     expect(JSON.stringify(rec)).not.toContain('five million'); // no erased content in the audit
+  });
+
+  it('[BULK-IMPORT · FIX 2] erasure purges the rep\'s staged bulk-import batches', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const audit = new InMemoryErasureAuditRepository();
+    const storage = new InMemoryStorage();
+    await putBatchFile(storage, 'u', 'b1', 0, { name: 'a.txt', content: 'staged chat that may name Khalid' }, 1);
+    const svc = new ErasureService({ clients, notes, audit, blobStorage: storage });
+    await svc.commit('u', ['Khalid']);
+    expect(await listBatchFiles(storage, 'u', 'b1')).toEqual([]); // staged content reached by erasure
   });
 });

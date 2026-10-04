@@ -23,6 +23,8 @@ export interface BulkImportApi {
   /** Start the (background) import. `needAck` when the first-upload acknowledgement is required. */
   startImport(batchId: string, decisions: unknown[], firstImportAck?: boolean): Promise<{ started: boolean; needAck?: boolean }>;
   status(batchId: string): Promise<BulkStatusResponse>;
+  /** [FIX 2b] Best-effort delete of the staged batch when the rep leaves the review without importing. */
+  abandon(batchId: string): Promise<void>;
 }
 
 export class BulkImportClient implements BulkImportApi {
@@ -55,5 +57,11 @@ export class BulkImportClient implements BulkImportApi {
   async status(batchId: string): Promise<BulkStatusResponse> {
     const res = await fetch(`${this.baseUrl}/import/bulk/${encodeURIComponent(batchId)}/status`, { credentials: 'include' });
     return (await res.json()) as BulkStatusResponse;
+  }
+
+  async abandon(batchId: string): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/import/bulk/${encodeURIComponent(batchId)}`, { method: 'DELETE', credentials: 'include' });
+    } catch { /* best effort — the 24h retention sweep is the backstop */ }
   }
 }

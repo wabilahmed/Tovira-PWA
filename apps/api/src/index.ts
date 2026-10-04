@@ -11,6 +11,7 @@ import { AccessApprovalService } from './services/access/access-approval-service
 import { AccessRequestRetentionService, ACCESS_REQUEST_RETENTION_DAYS } from './services/access/access-request-retention.js';
 import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/audio-retention-service.js';
 import { BulkImportService } from './services/import/bulk-import-service.js';
+import { BulkBatchRetentionService, BULK_BATCH_TTL_MS } from './services/import/bulk-batch-retention.js';
 import { BulkUpsellService } from './services/import/bulk-upsell.js';
 import { bulkConcurrency } from './services/import/bulk-extraction.js';
 import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
@@ -387,6 +388,7 @@ async function main(): Promise<void> {
   // [AUDIO-RETENTION] Delete voice recordings AUDIO_RETENTION_DAYS after transcription succeeds. Uses
   // the main blob store + the per-rep expirable-audio query; runs on the brain below, not a 2nd scheduler.
   const audioRetention = new AudioRetentionService({ allUserIds: () => auth.allUserIds(), notes, storage });
+  const bulkBatchRetention = new BulkBatchRetentionService(storage);
   const jobRunStore = createJobRunStore(config, appPool);
   const scheduledBrain = new ScheduledBrain({
     store: jobRunStore,
@@ -449,6 +451,10 @@ async function main(): Promise<void> {
       // lockKey 4711013: UNIQUE, the next free key. Cross-tenant sweep (superuser pool). Idempotent.
       { name: 'ai-reservation-sweep', lockKey: 4711013, intervalMs: 60_000,
         run: async () => { const n = await aiAllowance.expireStale(Date.now()); if (n > 0) console.log(`[usage-allowance] expired ${n} stale AI reservation(s)`); } },
+      // [BULK-IMPORT · FIX 2c] Drop staged chat-upload batches older than the TTL (crash/abandoned-tab
+      // leftovers). lockKey 4711014: UNIQUE, next free. Scans the blob store; idempotent.
+      { name: 'bulk-batch-retention', lockKey: 4711014, intervalMs: 60 * 60 * 1000,
+        run: async () => { const n = await bulkBatchRetention.sweep(Date.now()); if (n > 0) console.log(`[retention] bulk-import deleted ${n} staged batch(es) past ${BULK_BATCH_TTL_MS / 3_600_000}h`); } },
     ],
   }, 15_000); // [ASYNC-EXTRACT] tick every 15s (was 30s) so the notes-sweep (15s interval) fires on
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs

@@ -125,7 +125,8 @@ export class AccountService {
     for (const key of known) await this.blobStorage.delete(key);
     try {
       const orphans: string[] = [];
-      for (const prefix of [`audio/${userId}/`, `images/${userId}/`]) orphans.push(...(await this.blobStorage.list(prefix)));
+      // [BULK-IMPORT · FIX 2] staged (pre-review) chat uploads are this rep's third-party content too.
+      for (const prefix of [`audio/${userId}/`, `images/${userId}/`, `bulk-import/${userId}/`]) orphans.push(...(await this.blobStorage.list(prefix)));
       for (const key of orphans) if (!known.has(key)) await this.blobStorage.delete(key);
     } catch (err) {
       console.warn(`[account-delete] blob prefix-sweep backstop failed for ${userId}; known-key blobs were deleted, orphans may remain`, err);

@@ -47,6 +47,7 @@ describe('<GetStarted>', () => {
       parse: vi.fn(),
       startImport: vi.fn(),
       status: vi.fn(),
+      abandon: vi.fn(),
     };
     render(
       <GetStarted

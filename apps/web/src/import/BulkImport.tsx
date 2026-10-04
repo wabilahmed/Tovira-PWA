@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ImportReview, type ReviewResult, type ReviewRow, type ReviewDecision, type Upsell } from './ImportReview.js';
 import { BulkImportResult, type BulkJob } from './BulkImportResult.js';
 import type { BulkImportApi } from './bulkImportClient.js';
@@ -28,6 +28,15 @@ export function BulkImport({ api, pollMs = 400 }: { api: BulkImportApi; pollMs?:
   const [jobs, setJobs] = useState<BulkJob[]>([]);
   const [resultUpsell, setResultUpsell] = useState<Upsell | undefined>(undefined);
   const [done, setDone] = useState(false);
+
+  // [FIX 2b] If the rep leaves the review (or ack) without importing, delete the staged upload — the
+  // batch holds third-party chat content. Best-effort on unmount; the 24h sweep is the backstop.
+  const batchIdRef = useRef('');
+  const importStartedRef = useRef(false);
+  batchIdRef.current = batchId;
+  useEffect(() => () => {
+    if (batchIdRef.current && !importStartedRef.current) void api.abandon(batchIdRef.current);
+  }, [api]);
 
   function onPick(list: FileList | null): void {
     setError(null);
@@ -71,6 +80,7 @@ export function BulkImport({ api, pollMs = 400 }: { api: BulkImportApi; pollMs?:
     const r = await api.startImport(batchId, decisions, firstImportAck);
     if (r.needAck) { setStep('ack'); return; }
     if (!r.started) { setError('Import could not start. Try again.'); return; }
+    importStartedRef.current = true; // the server now owns cleanup of the staged files
     setStep('progress');
     void poll();
   }

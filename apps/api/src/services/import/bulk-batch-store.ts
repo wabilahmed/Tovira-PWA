@@ -20,12 +20,19 @@ function fileKey(userId: string, batchId: string, index: number): string {
 function statusKey(userId: string, batchId: string): string {
   return `bulk-import/${userId}/${batchId}/status.json`;
 }
+function metaKey(userId: string, batchId: string): string {
+  return `bulk-import/${userId}/${batchId}/meta.json`;
+}
 function prefix(userId: string, batchId: string): string {
   return `bulk-import/${userId}/${batchId}/`;
 }
+/** Every staged batch lives under this root; the retention sweep + account/erasure purge scan it. */
+export const BULK_BATCH_ROOT = 'bulk-import/';
 
-export async function putBatchFile(storage: Storage, userId: string, batchId: string, index: number, file: BulkInputFile): Promise<void> {
+export async function putBatchFile(storage: Storage, userId: string, batchId: string, index: number, file: BulkInputFile, nowMs = Date.now()): Promise<void> {
   await storage.put(fileKey(userId, batchId, index), enc.encode(JSON.stringify(file)));
+  // A creation marker so the retention sweep can find and drop batches older than the TTL.
+  await storage.put(metaKey(userId, batchId), enc.encode(JSON.stringify({ createdAt: nowMs })));
 }
 
 /** All uploaded files for a batch, in upload order (the status blob is skipped). */
@@ -54,7 +61,37 @@ export async function readBatchStatus<T>(storage: Storage, userId: string, batch
   }
 }
 
-/** Remove the whole batch (input files + status) once it is imported or abandoned. */
+/** Remove the whole batch (input files + status + meta) once it is imported or abandoned. */
 export async function clearBatch(storage: Storage, userId: string, batchId: string): Promise<void> {
   for (const k of await storage.list(prefix(userId, batchId))) await storage.delete(k);
+}
+
+/** Delete every staged batch belonging to a rep — for account deletion and third-party erasure, which
+ *  must reach staged (pre-review) conversation content too, not only the stored notes. */
+export async function purgeUserBatches(storage: Pick<Storage, 'list' | 'delete'>, userId: string): Promise<void> {
+  for (const k of await storage.list(`${BULK_BATCH_ROOT}${userId}/`)) await storage.delete(k);
+}
+
+/** Every staged batch, with its creation time — for the retention sweep (c). Scans ALL reps. */
+export async function listBatches(storage: Storage): Promise<Array<{ userId: string; batchId: string; createdAt: number }>> {
+  const keys = await storage.list(BULK_BATCH_ROOT);
+  const seen = new Set<string>();
+  const out: Array<{ userId: string; batchId: string; createdAt: number }> = [];
+  for (const k of keys) {
+    const parts = k.split('/'); // bulk-import / <userId> / <batchId> / <file>
+    if (parts.length < 4) continue;
+    const userId = parts[1]!;
+    const batchId = parts[2]!;
+    const id = `${userId}/${batchId}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    let createdAt = 0;
+    try {
+      createdAt = (JSON.parse(dec.decode(await storage.get(metaKey(userId, batchId)))) as { createdAt: number }).createdAt;
+    } catch {
+      createdAt = 0; // no meta → treat as ancient so a stray batch is always swept
+    }
+    out.push({ userId, batchId, createdAt });
+  }
+  return out;
 }
