@@ -78,11 +78,11 @@ describe('[SCREEN] health/term inflections and compounds are caught (whole-word-
     ],
     ethnicity: [
       'three Pakistanis on the crew', 'the Filipinos who cleaned', 'several Egyptians applied',
-      'his immigration status', 'a question of ethnicity', 'the expatriates on the floor',
+      'his immigrant status is still pending', 'a question of ethnicity', 'the expatriates on the floor',
     ],
     political_opinion: [
       'the voters turned out', 'the new governor spoke', 'two ministers attended', 'a democratic process',
-      'accused of communism', 'he is a politician', 'the goods were sanctioned', 'they are boycotting the mall',
+      'accused of communism', 'he is a politician', 'he opposes the sanctions', 'they are boycotting the mall',
       'years of activism',
     ],
     criminal: [
@@ -118,6 +118,37 @@ describe('[SCREEN] inflection matching does NOT catch unrelated words that merel
   for (const text of CLEAN) {
     it(`clean: "${text}"`, () => expect(screenSensitive(text)).toEqual([]));
   }
+});
+
+describe('[SCREEN] -therapy suffix compounds are caught (health), lookalikes are not', () => {
+  // A compound ending in a therapy root is health regardless of its prefix — the `therap` stem only
+  // catches therapy/therapist at a word start, so physio/psycho/hydro-therapy need the suffix pattern.
+  for (const text of ['he starts physiotherapy Monday', 'she is in psychotherapy', 'they recommended hydrotherapy',
+    'his radiotherapy schedule', 'she sees a physiotherapist', 'ongoing psychotherapist sessions']) {
+    it(`flags "${text}"`, () => expect(catsOf(text)).toContain('health'));
+  }
+  // Words that merely share letters with "therapy", and the aromatherapy spa amenity, are NOT health.
+  for (const text of ['that is my theory about the price', 'therefore we should close this week',
+    'the rap music from unit 9', 'an aromatherapy spa on the podium']) {
+    it(`clean: "${text}"`, () => expect(screenSensitive(text)).toEqual([]));
+  }
+});
+
+describe('[SCREEN] routine Dubai real-estate register must NOT over-flag (false-positive cost)', () => {
+  // The owner's list: words that are genuinely sensitive about a PERSON but here name an amenity, a
+  // landmark, an admin fee or a market segment. Each must produce zero matches. The sensitive sense of
+  // the same word still flags (asserted elsewhere: "his Indian visa", "near the church", "medical report").
+  for (const text of ['government fee', 'government transfer fee', 'golden visa',
+    'the bank sanctioned the loan', 'prayer room on every floor', 'medical centre nearby',
+    'near the Indian school', 'expat-friendly community', 'European buyers', 'the church roundabout']) {
+    it(`clean: "${text}"`, () => expect(screenSensitive(text)).toEqual([]));
+  }
+  // The sensitive sense of these same words STILL flags — narrowing is context-specific, not removal.
+  it('still flags "medical report" (health)', () => expect(catsOf('send me his medical report')).toContain('health'));
+  it('still flags "voted against the government" (political)', () => expect(catsOf('he voted against the government')).toContain('political_opinion'));
+  it('still flags "near the church" with no landmark noun (religion)', () => expect(catsOf('the villa near the church')).toContain('religion'));
+  it('still flags "his Indian visa" (ethnicity)', () => expect(catsOf('waiting on his Indian visa')).toContain('ethnicity'));
+  it('still flags "immigrant status" (ethnicity)', () => expect(catsOf('his immigrant status is pending')).toContain('ethnicity'));
 });
 
 describe('[SCREEN] shape', () => {
