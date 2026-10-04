@@ -117,14 +117,15 @@ describe('[BULK-IMPORT] unsaved numbers (D5)', () => {
     expect(r.rows[0]!.counterpart).toContain('+971'); // still the number until confirmed
   });
 
-  it('a bare number matching an existing client\'s phone is a possible_match across formats (D3)', () => {
+  it('a bare number EXACTLY matching an existing client\'s phone auto-attaches across formats (item 4)', () => {
     const clients: BulkClient[] = [{ id: 'c1', name: 'Khalid', phone: '+971501234567' }];
     const c = [
       A('13/07/2019, 1:00 am', 'Wabil', 'hello'),
       A('13/07/2019, 1:01 am', '050 123 4567', "Hi, I'm Khalid"), // local format + an intro
     ].join('\n');
     const r = parseBatch([file('a.txt', c)], clients, 'Wabil');
-    expect(r.rows[0]!.state).toBe('possible_match'); // phone match wins over the intro guess
+    expect(r.rows[0]!.state).toBe('existing'); // phone match auto-attaches (no question), over the intro guess
+    expect(r.rows[0]!.matchKind).toBe('phone');
     expect(r.rows[0]!.matchClientId).toBe('c1');
   });
 

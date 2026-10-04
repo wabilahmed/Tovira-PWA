@@ -19,6 +19,7 @@ import { useMemo, useState } from 'react';
 
 export type ReviewRowState =
   | 'new'
+  | 'existing'
   | 'possible_match'
   | 'unsaved_intro'
   | 'unsaved_no_intro'
@@ -35,6 +36,9 @@ export interface ReviewRow {
   suggestedName?: string;
   matchClientId?: string;
   matchClientName?: string;
+  matchKind?: 'phone' | 'name';
+  /** [existing] messages that are new vs what's already stored (0 → already up to date). */
+  newMessageCount?: number;
   duplicateOfFileName?: string;
   participants?: string[];
 }
@@ -86,6 +90,10 @@ function decide(row: ReviewRow, choice: Choice | undefined, repName: string | nu
   switch (row.state) {
     case 'new':
       return { fileName: row.fileName, action: 'new', name: typed || (row.counterpart ?? row.fileName) };
+    case 'existing':
+      // Auto-attach to the existing client — unless there is nothing new to add (already up to date).
+      if (row.newMessageCount === 0 || !row.matchClientId) return null;
+      return { fileName: row.fileName, action: 'merge', clientId: row.matchClientId };
     case 'possible_match':
       if (choice?.answer === 'yes' && row.matchClientId) return { fileName: row.fileName, action: 'merge', clientId: row.matchClientId };
       return { fileName: row.fileName, action: 'new', name: row.counterpart ?? row.fileName };
@@ -264,6 +272,18 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
             <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)' }}>Name</span>
             <input aria-label={`Name for ${row.fileName}`} value={choice?.name ?? label} onChange={(e) => onChoice({ name: e.target.value })} style={{ width: '100%' }} />
           </label>
+        </div>
+      );
+
+    case 'existing':
+      return (
+        <div>
+          <strong>✓ {row.matchClientName ?? label}</strong>{' '}
+          <span style={{ color: 'var(--text-secondary)' }}>
+            {row.newMessageCount === 0
+              ? '— existing client. Already up to date.'
+              : `— existing client, ${row.newMessageCount ?? ''} new message${row.newMessageCount === 1 ? '' : 's'}.`}
+          </span>
         </div>
       );
 

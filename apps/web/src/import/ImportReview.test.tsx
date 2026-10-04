@@ -42,6 +42,29 @@ describe('<ImportReview>', () => {
     expect(onImport).toHaveBeenCalledWith([{ fileName: 'a.txt', action: 'merge', clientId: 'c1' }]);
   });
 
+  it('an existing-client match auto-attaches with no question, showing the new-message count', async () => {
+    const onImport = vi.fn();
+    render(<ImportReview result={result({ rows: [
+      row({ fileName: 'a.txt', state: 'existing', counterpart: 'Khalid', matchClientId: 'c1', matchClientName: 'Khalid', matchKind: 'phone', newMessageCount: 7 }),
+    ] })} onImport={onImport} />);
+    expect(screen.getByText(/existing client, 7 new messages/i)).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).toBeNull(); // no "Same person?" question
+    expect(screen.getByRole('button', { name: /^import/i })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: /^import/i }));
+    expect(onImport).toHaveBeenCalledWith([{ fileName: 'a.txt', action: 'merge', clientId: 'c1' }]);
+  });
+
+  it('an existing-client match with no new messages reads "Already up to date" and is not imported', async () => {
+    const onImport = vi.fn();
+    render(<ImportReview result={result({ rows: [
+      row({ fileName: 'a.txt', state: 'existing', counterpart: 'Khalid', matchClientId: 'c1', matchClientName: 'Khalid', matchKind: 'phone', newMessageCount: 0 }),
+      row({ fileName: 'b.txt', state: 'new', counterpart: 'Omar' }),
+    ] })} onImport={onImport} />);
+    expect(within(screen.getByTestId('review-row-a.txt')).getByText(/already up to date/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^import/i }));
+    expect(onImport).toHaveBeenCalledWith([{ fileName: 'b.txt', action: 'new', name: 'Omar' }]); // up-to-date row excluded
+  });
+
   it('a possible match answered No imports as a new client under the chat name', async () => {
     const onImport = vi.fn();
     render(<ImportReview result={result({ rows: [

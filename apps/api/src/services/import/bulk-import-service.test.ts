@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BulkImportService } from './bulk-import-service.js';
+import { parseWhatsAppExport } from './whatsapp.js';
 import type { ClientRecord, ClientRepository } from '../../ports/client-repository.js';
-import type { NoteRecord, NoteRepository, NewNote } from '../../ports/note-repository.js';
+import type { NoteRecord, NoteRepository, NewNote, ImportedMessage } from '../../ports/note-repository.js';
 import type { ExtractOutcome } from '../extraction/extraction-service.js';
 
 // Tiny in-memory repos — only the methods the service touches.
@@ -120,6 +121,78 @@ describe('[BULK-IMPORT] BulkImportService', () => {
     expect(extract).toHaveBeenCalledTimes(3);
     const calledNoteIds = (extract as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[1]).sort();
     expect(calledNoteIds).toEqual(notes.all.map((n) => n.id).sort());
+  });
+
+  // --- RULING 2 item 4: existing clients are added to, not duplicated ---
+  const chatFrom = (pairs: Array<[string, string]>) =>
+    pairs.map(([s, b], i) => `13/07/2019, 1:${String(i).padStart(2, '0')} am - ${s}: ${b}`).join('\n');
+  const seedNote = (notes: NoteRepository & { all: NoteRecord[] }, clientId: string, chatText: string) => {
+    const msgs = parseWhatsAppExport(chatText);
+    notes.all.push({ id: `seed-${clientId}`, userId: 'u', clientId, source: 'whatsapp_export', status: 'extracted', messages: msgs.ok ? (msgs.messages as ImportedMessage[]) : [], createdAt: 0 } as unknown as NoteRecord);
+  };
+
+  it('parse: an exact phone match auto-attaches (existing) and counts only the NEW messages', async () => {
+    const clients = fakeClients([clientRecord('cX', 'u', 'Khalid', '+971501234567')]);
+    const notes = fakeNotes();
+    const storedPairs: Array<[string, string]> = [['Wabil', 'hi'], ['050 123 4567', 'hello']];
+    seedNote(notes, 'cX', chatFrom(storedPairs));
+    const { svc } = makeService({ clients, notes });
+    const upload = chatFrom([...storedPairs, ['Wabil', 'and?'], ['050 123 4567', 'yes new']]);
+    const out = await svc.parse('u', [{ name: 'a.txt', content: upload }], 'Wabil');
+    expect(out.result.rows[0]!.state).toBe('existing');
+    expect(out.result.rows[0]!.matchKind).toBe('phone');
+    expect(out.result.rows[0]!.matchClientId).toBe('cX');
+    expect(out.result.rows[0]!.newMessageCount).toBe(2); // only the 2 new messages
+  });
+
+  it('parse: a same-chat re-export under a different saved name auto-attaches by message overlap', async () => {
+    const clients = fakeClients([clientRecord('cX', 'u', 'Imtinan')]);
+    const notes = fakeNotes();
+    const stored: Array<[string, string]> = [['Wabil', 'salaam'], ['Bubu DXB', 'the Marina unit?']];
+    seedNote(notes, 'cX', chatFrom(stored));
+    const { svc } = makeService({ clients, notes });
+    const upload = chatFrom([...stored, ['Wabil', 'still interested?'], ['Bubu DXB', 'yes']]);
+    const out = await svc.parse('u', [{ name: 'a.txt', content: upload }], 'Wabil');
+    expect(out.result.rows[0]!.state).toBe('existing'); // attached by overlap, no question
+    expect(out.result.rows[0]!.matchClientId).toBe('cX');
+    expect(out.result.rows[0]!.newMessageCount).toBe(2);
+  });
+
+  it('parse: a name-only match with no message overlap STILL asks "Same person?" (never auto-attach)', async () => {
+    const clients = fakeClients([clientRecord('cX', 'u', 'Ahmed')]);
+    const notes = fakeNotes(); // no stored messages → no overlap
+    const { svc } = makeService({ clients, notes });
+    const out = await svc.parse('u', [{ name: 'a.txt', content: androidChat('Wabil', 'Ahmed') }], 'Wabil');
+    expect(out.result.rows[0]!.state).toBe('possible_match');
+    expect(out.result.rows[0]!.matchKind).toBe('name');
+  });
+
+  it('importConfirmed merge: 30 stored + 10 new → extracts only the 10 new, no duplicate facts', async () => {
+    const clients = fakeClients([clientRecord('cX', 'u', 'Khalid')]);
+    const notes = fakeNotes();
+    const oldPairs: Array<[string, string]> = Array.from({ length: 15 }, (_, i) => ['Khalid', `m${i}`] as [string, string]); // 15 msgs
+    const old = chatFrom(oldPairs);
+    seedNote(notes, 'cX', old);
+    const { svc, extract } = makeService({ clients, notes });
+    const upload = chatFrom([...oldPairs, ...Array.from({ length: 10 }, (_, i) => ['Khalid', `n${i}`] as [string, string])]);
+    await svc.importConfirmed('u', [{ name: 'a.txt', content: upload }], [{ fileName: 'a.txt', action: 'merge', clientId: 'cX' }], '2026-10-04');
+    const created = notes.all.filter((n) => n.id !== 'seed-cX');
+    expect(created).toHaveLength(1);
+    expect(created[0]!.messages).toHaveLength(10); // only the new tail stored + extracted
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
+
+  it('importConfirmed merge: nothing new → "Already up to date", not imported', async () => {
+    const clients = fakeClients([clientRecord('cX', 'u', 'Khalid')]);
+    const notes = fakeNotes();
+    const chat = chatFrom([['Khalid', 'a'], ['Khalid', 'b']]);
+    seedNote(notes, 'cX', chat);
+    const { svc, extract } = makeService({ clients, notes });
+    const res = await svc.importConfirmed('u', [{ name: 'a.txt', content: chat }], [{ fileName: 'a.txt', action: 'merge', clientId: 'cX' }], '2026-10-04');
+    expect(res.skipped).toBe(1);
+    expect(res.created).toBe(0);
+    expect(notes.all.filter((n) => n.id !== 'seed-cX')).toHaveLength(0);
+    expect(extract).not.toHaveBeenCalled();
   });
 
   it('one chat failing to extract never fails the batch', async () => {

@@ -14,7 +14,7 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository, ImportedMessage } from '../../ports/note-repository.js';
 import type { RepNameRepository } from '../../ports/contact-alias-repository.js';
 import type { ExtractOutcome } from '../extraction/extraction-service.js';
-import { parseWhatsAppExport } from './whatsapp.js';
+import { parseWhatsAppExport, type ParsedMessage } from './whatsapp.js';
 import { parseBatch, type BulkInputFile, type BulkClient, type BulkParseResult, type RowState } from './bulk-parse.js';
 import { dedupeMessages, renderThread } from './dedup.js';
 import { assignSpeakerRoles } from './unanswered.js';
@@ -70,10 +70,73 @@ export class BulkImportService {
     const repName = storedRepName ?? (this.deps.repNames ? await this.deps.repNames.get(userId) : null);
     const result = parseBatch(files, bulkClients, repName);
 
-    const byName = new Map(files.map((f) => [f.name, f.content]));
-    const chats = result.rows.filter((r) => !NON_IMPORTABLE.has(r.state)).map((r) => byName.get(r.fileName) ?? '');
+    // [RULING 2 item 4] Enrich with stored-note knowledge (parseBatch has none): detect a same-chat
+    // re-export (message overlap → auto-attach, even without a phone/name match), and compute how many
+    // messages are NEW vs already stored for an auto-attached client (0 → "already up to date").
+    const byName = new Map(files.map((f) => [f.name, f]));
+    const storedCache = new Map<string, ImportedMessage[]>();
+    const storedFor = async (clientId: string): Promise<ImportedMessage[]> => {
+      const hit = storedCache.get(clientId);
+      if (hit) return hit;
+      const msgs = (await this.deps.notes.listByClient(userId, clientId)).flatMap((n) => n.messages ?? []);
+      storedCache.set(clientId, msgs);
+      return msgs;
+    };
+
+    const rows = [];
+    for (const row of result.rows) {
+      const r = { ...row };
+      const file = byName.get(r.fileName);
+      const parsed = file ? parseWhatsAppExport(file.content) : null;
+      const msgs = parsed && parsed.ok ? this.screen(parsed.messages) : [];
+
+      // Same-chat re-export: a new/name-match row whose messages overlap an existing client attaches to it.
+      if (msgs.length > 0 && (r.state === 'new' || r.state === 'possible_match')) {
+        const overlap = await this.overlapClient(msgs, existing, storedFor, r.matchClientId);
+        if (overlap) { r.state = 'existing'; r.matchClientId = overlap.id; r.matchClientName = overlap.name; }
+      }
+      if (r.state === 'existing' && r.matchClientId) {
+        r.newMessageCount = dedupeMessages(await storedFor(r.matchClientId), msgs).length;
+      }
+      rows.push(r);
+    }
+    result.rows = rows;
+
+    // Estimate only over chats that will actually extract: importable, and not an already-up-to-date attach.
+    const chats = result.rows
+      .filter((r) => !NON_IMPORTABLE.has(r.state) && !(r.state === 'existing' && r.newMessageCount === 0))
+      .map((r) => byName.get(r.fileName)?.content ?? '');
     const estimateAed = estimateBulkAed(chats, this.deps.modelId);
     return { result, estimateAed, percentOfAllowance: percentOfAllowance(estimateAed, this.deps.allowanceAed) };
+  }
+
+  /** Redact + screen each message exactly as the import pipeline does, so dedupe compares like-for-like. */
+  private screen(messages: ParsedMessage[]): ImportedMessage[] {
+    return messages.map((m) => {
+      const red = redactSensitive(m.body);
+      const flags = screenSensitive(red.redacted);
+      return { ...m, body: red.redacted, ...(flags.length > 0 ? { sensitive: flags, excluded: true } : {}) } as ImportedMessage;
+    });
+  }
+
+  /** The client this chat is a re-export of: prefer the already-matched client if its stored messages
+   *  overlap, else the first client with any overlap. Null when the chat shares nothing with any client. */
+  private async overlapClient(
+    msgs: ImportedMessage[],
+    clients: Array<{ id: string; name: string }>,
+    storedFor: (clientId: string) => Promise<ImportedMessage[]>,
+    preferId?: string,
+  ): Promise<{ id: string; name: string } | null> {
+    const overlaps = async (clientId: string): Promise<boolean> => dedupeMessages(await storedFor(clientId), msgs).length < msgs.length;
+    if (preferId) {
+      const pc = clients.find((c) => c.id === preferId);
+      if (pc && (await overlaps(pc.id))) return pc;
+    }
+    for (const c of clients) {
+      if (c.id === preferId) continue;
+      if (await overlaps(c.id)) return c;
+    }
+    return null;
   }
 
   async importConfirmed(userId: string, files: BulkInputFile[], decisions: BulkDecision[], today: string): Promise<BulkImportOutcome> {
@@ -90,11 +153,7 @@ export class BulkImportService {
       const parsed = parseWhatsAppExport(file.content);
       if (!parsed.ok || parsed.messages.length === 0) { skipped += 1; continue; }
 
-      const screened: ImportedMessage[] = parsed.messages.map((m) => {
-        const r = redactSensitive(m.body);
-        const flags = screenSensitive(r.redacted);
-        return { ...m, body: r.redacted, ...(flags.length > 0 ? { sensitive: flags, excluded: true } : {}) } as ImportedMessage;
-      });
+      const screened = this.screen(parsed.messages);
 
       const targetClientId = decision.action === 'merge' ? decision.clientId : null;
       const prior = targetClientId ? await this.deps.notes.listByClient(userId, targetClientId) : [];

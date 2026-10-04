@@ -31,7 +31,8 @@ export interface BulkClient {
 
 export type RowState =
   | 'new' // clear counterpart name, no existing match → new client
-  | 'possible_match' // normalised-name/phone match to an existing client → "Same person?" (D3)
+  | 'existing' // STRONG match (phone, or same chat re-exported) → auto-attach, no question (RULING 2 item 4)
+  | 'possible_match' // name-only match to an existing client → "Same person?" (D3)
   | 'unsaved_intro' // bare number, a self-introduction found → suggest the name (D5)
   | 'unsaved_no_intro' // bare number, no intro → "Who is this?" (D5)
   | 'group' // >2 senders → skipped by default (D4)
@@ -47,9 +48,14 @@ export interface BulkRow {
   counterpart: string | null;
   /** [D5] suggested name from a self-introduction (unsaved_intro only) — the rep confirms it. */
   suggestedName?: string;
-  /** [possible_match] the existing client this chat might be. */
+  /** [existing / possible_match] the existing client this chat matches. */
   matchClientId?: string;
   matchClientName?: string;
+  /** How the match was made: 'phone' auto-attaches (existing); 'name' asks "Same person?". */
+  matchKind?: 'phone' | 'name';
+  /** [existing] how many messages are NEW vs what is already stored for the client (0 → up to date).
+   *  Filled by the service (parseBatch has no access to stored notes). */
+  newMessageCount?: number;
   /** [duplicate] the file this is a duplicate of. */
   duplicateOfFileName?: string;
   /** [group / needs_rep_id] the distinct senders, so the rep can pick the client / pick themselves. */
@@ -185,18 +191,19 @@ export function parseBatch(files: BulkInputFile[], clients: BulkClient[], stored
     if (!counterpart) return { fileName: f.name, platform: f.platform, state: 'unparseable', counterpart: null };
 
     if (isPhone(counterpart)) {
-      // A stored client phone is the STRONGEST signal — a bare number that matches one is a possible
-      // match (D3), ahead of any self-intro guess.
+      // A stored client phone is the STRONGEST identity signal — an EXACT phone match auto-attaches to
+      // that existing client with no question (RULING 2 item 4), ahead of any self-intro guess.
       const phoneMatch = matchClient(counterpart, clients);
-      if (phoneMatch) return { fileName: f.name, platform: f.platform, state: 'possible_match', counterpart, matchClientId: phoneMatch.id, matchClientName: phoneMatch.name };
+      if (phoneMatch) return { fileName: f.name, platform: f.platform, state: 'existing', counterpart, matchClientId: phoneMatch.id, matchClientName: phoneMatch.name, matchKind: 'phone' };
       const suggested = findIntro(f.messages, norm(counterpart));
       return suggested
         ? { fileName: f.name, platform: f.platform, state: 'unsaved_intro', counterpart, suggestedName: suggested }
         : { fileName: f.name, platform: f.platform, state: 'unsaved_no_intro', counterpart };
     }
+    // A NAME match is not strong enough to attach silently (two different people share a name) — ask.
     const match = matchClient(counterpart, clients);
     return match
-      ? { fileName: f.name, platform: f.platform, state: 'possible_match', counterpart, matchClientId: match.id, matchClientName: match.name }
+      ? { fileName: f.name, platform: f.platform, state: 'possible_match', counterpart, matchClientId: match.id, matchClientName: match.name, matchKind: 'name' }
       : { fileName: f.name, platform: f.platform, state: 'new', counterpart };
   });
 
@@ -204,7 +211,7 @@ export function parseBatch(files: BulkInputFile[], clients: BulkClient[], stored
   // file with that counterpart are re-exports of the same chat (D: "share both senders"); keep the
   // largest, mark the rest duplicate. Non-overlapping same-name files are distinct chats — kept.
   const byCounterpart = new Map<string, number[]>(); // counterpartNorm → row indices (importable states)
-  const importable = new Set<RowState>(['new', 'possible_match']);
+  const importable = new Set<RowState>(['new', 'existing', 'possible_match']);
   rows.forEach((r, i) => {
     if (r.counterpart && importable.has(r.state)) {
       const k = norm(r.counterpart);
