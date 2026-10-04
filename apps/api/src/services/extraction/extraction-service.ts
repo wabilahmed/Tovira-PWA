@@ -243,7 +243,7 @@ export class ExtractionService {
     });
   }
 
-  async extractNote(userId: string, noteId: string, today: string, opts?: { holdForConfirmation?: boolean }): Promise<ExtractOutcome> {
+  async extractNote(userId: string, noteId: string, today: string, opts?: { holdForConfirmation?: boolean; forceAllowance?: boolean }): Promise<ExtractOutcome> {
     const note = await this.notes.findByIdForUser(userId, noteId);
     if (!note) return { status: 'not_found' };
     if (!note.rawText || !note.rawText.trim()) return { status: note.status };
@@ -264,7 +264,10 @@ export class ExtractionService {
     // deferrable path). Return before any model call — the raw note is already stored and simply stays
     // pending; the sweep drains it once the rep has allowance again (reset or top-up). Never a model
     // call, never a lost note. (Replaces the retired AED-45 canSpend cap.)
-    if (this.allowanceExhausted && (await this.allowanceExhausted(userId))) {
+    // [RULING 2] A bulk chat whose start-gate already passed sets forceAllowance: the chat has STARTED,
+    // so it must finish even if the account is now exhausted. Skip the defer; its calls force-reserve
+    // (overshoot absorbed by the gate).
+    if (!opts?.forceAllowance && this.allowanceExhausted && (await this.allowanceExhausted(userId))) {
       return { status: 'spend_capped', flagged: true };
     }
 
@@ -305,7 +308,7 @@ export class ExtractionService {
     const spend = { calls: 0, input: 0, output: 0, thinking: 0, cacheWrite: 0, cacheRead: 0 };
     const spendClass = note.source === 'whatsapp_export' ? 'import' : 'extraction';
     for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
-      last = await this.call(route.model, userMessage, userId, spendClass);
+      last = await this.call(route.model, userMessage, userId, spendClass, opts?.forceAllowance === true);
       spend.calls += 1;
       spend.input += last.inputTokens;
       spend.output += last.outputTokens;
@@ -485,7 +488,7 @@ export class ExtractionService {
     return extraction ? { status } : { status, flagged: true };
   }
 
-  private async call(model: ModelClient, userMessage: string, userId: string, spendClass: string): Promise<Attempt> {
+  private async call(model: ModelClient, userMessage: string, userId: string, spendClass: string, forceReserve = false): Promise<Attempt> {
     let raw: string | null = null;
     let inputTokens = 0;
     let outputTokens = 0;
@@ -502,6 +505,7 @@ export class ExtractionService {
         maxTokens: EXTRACTION_MAX_TOKENS, // reasoning + text share this budget (EXTRACT-MAXTOKENS)
         userId,
         spendClass, // 'import' for a chat import, 'extraction' for a daily note (SPEND-CAP)
+        forceReserve, // [RULING 2] a started bulk chat is never refused for the allowance (overshoot absorbed)
         // NB: temperature is deprecated for claude-sonnet-5 (the API 400s on any
         // value), so it is intentionally NOT set here — the model manages its own
         // low-variance sampling. The port still forwards temperature for models

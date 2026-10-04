@@ -292,7 +292,7 @@ export function buildInMemoryDeps(
   const bulkImport = new BulkImportService({
     clients,
     notes,
-    extract: (u, id, today) => extraction.extractNote(u, id, today),
+    extract: (u, id, today) => extraction.extractNote(u, id, today, { forceAllowance: true }),
     isExhausted: (u) => allowanceStatus.isExhausted(u),
     isPaused: () => aiPause.getPaused(),
     concurrency: bulkConcurrency(5),

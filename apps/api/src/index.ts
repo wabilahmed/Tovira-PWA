@@ -469,7 +469,7 @@ async function main(): Promise<void> {
   const bulkImport = new BulkImportService({
     clients,
     notes,
-    extract: (u, id, today) => extraction.extractNote(u, id, today),
+    extract: (u, id, today) => extraction.extractNote(u, id, today, { forceAllowance: true }),
     isExhausted: aiExhausted,
     isPaused: () => pauseFlag.paused(),
     concurrency: bulkConcurrency(config.sweepConcurrency),

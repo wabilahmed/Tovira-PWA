@@ -39,6 +39,12 @@ export interface ModelCompletionRequest {
    *  = the 1-based turn. Absent for one-shot calls (extraction/import) — those are not conversations. */
   conversationId?: string;
   turnIndex?: number;
+  /** [BULK-IMPORT · RULING 2] Set for a call belonging to an already-STARTED bulk chat. The gate then
+   *  never refuses it for the allowance: if there is room it charges normally; if the account is already
+   *  over, the call still runs and its overshoot is recorded globally (cost tracking) but NOT charged to
+   *  the rep's allowance — so it can't eat a later top-up or carry into the next month. The kill switch
+   *  still applies. */
+  forceReserve?: boolean;
 }
 
 export interface ModelUsage {

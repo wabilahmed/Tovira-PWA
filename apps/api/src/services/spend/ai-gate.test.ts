@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AiGate, AiGateRefused } from './ai-gate.js';
+import { allowanceWindow } from './ai-period.js';
 import { InMemoryAiAllowanceRepository } from '../../adapters/spend/in-memory-ai-allowance-repository.js';
 
 // [USAGE-ALLOWANCE · Task 3] The gate: kill switch, account-only reservation, settle actual, release on
@@ -36,6 +37,60 @@ describe('[GATE] kill switch (D14)', () => {
     const r = await gate.run({ userId: null, estimateAed: 0, exemptFromPause: true, exec: async () => { called = true; return { aed: 0.1 }; }, actualAedFrom: (x) => x.aed });
     expect(called).toBe(true);
     expect(r.aed).toBe(0.1);
+  });
+
+  it('a forceReserve call is STILL refused by the kill switch', async () => {
+    const { gate } = makeGate({ paused: true });
+    let called = false;
+    await expect(
+      gate.run({ userId: 'u', estimateAed: 1, forceReserve: true, exec: async () => { called = true; return { aed: 0 }; }, actualAedFrom: (r) => r.aed }),
+    ).rejects.toBeInstanceOf(AiGateRefused);
+    expect(called).toBe(false); // kill switch is not bypassed by forceReserve
+  });
+});
+
+describe('[GATE] RULING 2 — in-flight chats finish, overshoot absorbed', () => {
+  const WIN_KEY = allowanceWindow(WINDOW, Date.parse('2026-10-10T00:00:00Z')).key;
+
+  it('forceReserve runs when the account is exhausted; a normal call is refused', async () => {
+    const { gate, allowance } = makeGate({ allowanceAed: 1 });
+    // Spend the whole allowance.
+    await gate.run({ userId: 'u', estimateAed: 1, exec: async () => ({ aed: 1 }), actualAedFrom: (r) => r.aed });
+    // A normal call is now refused…
+    await expect(
+      gate.run({ userId: 'u', estimateAed: 1, exec: async () => ({ aed: 1 }), actualAedFrom: (r) => r.aed }),
+    ).rejects.toBeInstanceOf(AiGateRefused);
+    // …but a started chat (forceReserve) runs anyway.
+    let ran = false;
+    await gate.run({ userId: 'u', estimateAed: 1, forceReserve: true, exec: async () => { ran = true; return { aed: 5 }; }, actualAedFrom: (r) => r.aed });
+    expect(ran).toBe(true);
+    // The overshoot is NOT charged to the rep: per-user spent stays at the allowance, never above it.
+    const m = (await allowance.getMonth('u', WIN_KEY))!;
+    expect(m.spentAed).toBe(1);
+  });
+
+  it('absorbed overshoot is NOT deducted from a later top-up', async () => {
+    const { gate, allowance } = makeGate({ allowanceAed: 1 });
+    await gate.run({ userId: 'u', estimateAed: 1, exec: async () => ({ aed: 1 }), actualAedFrom: (r) => r.aed }); // spend the allowance
+    await gate.run({ userId: 'u', estimateAed: 1, forceReserve: true, exec: async () => ({ aed: 5 }), actualAedFrom: (r) => r.aed }); // overshoot 5, absorbed
+    await allowance.topUp('u', WIN_KEY, 2); // the rep tops up +2
+    // The full +2 headroom is available — the overshoot did not eat it.
+    let ran = false;
+    await gate.run({ userId: 'u', estimateAed: 2, exec: async () => { ran = true; return { aed: 2 }; }, actualAedFrom: (r) => r.aed });
+    expect(ran).toBe(true);
+    const m = (await allowance.getMonth('u', WIN_KEY))!;
+    expect(m.spentAed).toBe(3); // 1 (allowance) + 2 (top-up); the absorbed 5 never counted
+  });
+
+  it('the absorbed overshoot IS still recorded globally for cost tracking', async () => {
+    const { gate, allowance } = makeGate({ allowanceAed: 1 });
+    const totals: number[] = [];
+    const orig = allowance.recordGlobal.bind(allowance);
+    allowance.recordGlobal = async (ym, aed, t) => { const r = await orig(ym, aed, t); totals.push(r.totalAed); return r; };
+    await gate.run({ userId: 'u', estimateAed: 1, exec: async () => ({ aed: 1 }), actualAedFrom: (r) => r.aed });
+    await gate.run({ userId: 'u', estimateAed: 1, forceReserve: true, exec: async () => ({ aed: 5 }), actualAedFrom: (r) => r.aed });
+    // Global running total includes the overshoot (1 + 5), even though only 1 was charged to the rep.
+    expect(totals.at(-1)!).toBeCloseTo(6, 6);
   });
 });
 

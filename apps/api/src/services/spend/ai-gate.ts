@@ -82,6 +82,10 @@ export interface GateCall<T> {
   estimateAed: number;
   /** True ONLY for the erasure re-summarisation (a legal obligation) — exempt from the kill switch. */
   exemptFromPause?: boolean;
+  /** [RULING 2] An already-started operation (a bulk chat past its start-gate) that must not be refused
+   *  for the allowance. If there is room it reserves/charges normally; if not, it runs anyway and its
+   *  overshoot is recorded globally but NOT charged to the account (absorbed). Kill switch still applies. */
+  forceReserve?: boolean;
   /** The provider call itself. */
   exec: () => Promise<T>;
   /** The EXACT cost of the call, AED, from its result. */
@@ -106,8 +110,14 @@ export class AiGate {
       const w = allowanceWindow(await this.deps.billingWindowFor(call.userId), this.now());
       await this.deps.allowance.ensureMonth(call.userId, w.key, w.startMs, this.deps.allowanceAed);
       const r = await this.deps.allowance.reserve(call.userId, w.key, call.estimateAed, this.now() + this.ttl);
-      if (!r.ok) throw new AiGateRefused('account_limit');
-      reservationId = r.reservationId!;
+      if (!r.ok) {
+        // [RULING 2] An already-started chat is never refused for the allowance. With no reservation
+        // its actual is left OUT of the per-user settle below (reservationId stays null) — absorbed, so
+        // it can't eat a later top-up or carry forward — but it is still recorded globally for cost.
+        if (!call.forceReserve) throw new AiGateRefused('account_limit');
+      } else {
+        reservationId = r.reservationId!;
+      }
     }
 
     // 5–7. Run the call, then settle the ACTUAL (or release on error — the provider charged nothing we

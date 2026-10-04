@@ -35,6 +35,8 @@ export class GatedModelClient implements ModelClient {
       estimateAed: anthropicEstimateAed(this.modelId, req),
       // The ONLY exempt paid call: erasure re-summarisation (a legal obligation) runs even when paused.
       exemptFromPause: req.spendClass === 'erasure',
+      // [RULING 2] An already-started bulk chat is never refused for the allowance (overshoot absorbed).
+      forceReserve: req.forceReserve === true,
       exec: () => this.inner.complete(req),
       actualAedFrom: (res) => usdToAed(anthropicCostUsd(this.modelId, res.usage ?? { inputTokens: 0, outputTokens: 0 })),
     });
