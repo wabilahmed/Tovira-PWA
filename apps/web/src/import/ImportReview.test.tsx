@@ -110,6 +110,48 @@ describe('<ImportReview>', () => {
     expect(onImport).toHaveBeenCalledWith([{ fileName: 'b.txt', action: 'new', name: 'Omar' }]);
   });
 
+  it('shows the top-up upsell before Import when the batch exceeds the remaining allowance', async () => {
+    const onTopUp = vi.fn();
+    render(<ImportReview
+      result={result({ rows: [row({ fileName: 'a.txt', state: 'new', counterpart: 'Layla' })] })}
+      onImport={vi.fn()}
+      onTopUp={onTopUp}
+      upsell={{ shortfall: true, n: 8, canTopUp: true, recommendedOptionId: 'topup_50', options: [
+        { id: 'topup_15', label: '+15%', priceAed: 50 },
+        { id: 'topup_50', label: '+50%', priceAed: 85 },
+      ] }}
+    />);
+    expect(screen.getByText(/needs more usage than you have left this month/i)).toBeInTheDocument();
+    expect(screen.getByText(/import all 8/i)).toBeInTheDocument();
+    const rec = screen.getByTestId('topup-recommended');
+    expect(rec).toHaveTextContent(/\+50%.*AED\s*85/i);
+    await userEvent.click(rec);
+    expect(onTopUp).toHaveBeenCalledWith('topup_50');
+    expect(screen.getByRole('button', { name: /^import/i })).toBeEnabled(); // Import still allowed without topping up
+  });
+
+  it('a trial sees Subscribe (not top-up prices) when the batch exceeds the allowance', async () => {
+    const onSubscribe = vi.fn();
+    render(<ImportReview
+      result={result({ rows: [row({ fileName: 'a.txt', state: 'new', counterpart: 'Layla' })] })}
+      onImport={vi.fn()}
+      onSubscribe={onSubscribe}
+      upsell={{ shortfall: true, n: 3, canTopUp: false, recommendedOptionId: null, options: [] }}
+    />);
+    await userEvent.click(screen.getByRole('button', { name: /subscribe to keep importing/i }));
+    expect(onSubscribe).toHaveBeenCalledOnce();
+    expect(screen.queryByText(/AED/i)).toBeNull(); // no top-up prices for a trial
+  });
+
+  it('no upsell banner when the batch fits the allowance', () => {
+    render(<ImportReview
+      result={result({ rows: [row({ fileName: 'a.txt', state: 'new', counterpart: 'Layla' })] })}
+      onImport={vi.fn()}
+      upsell={{ shortfall: false, n: 1, canTopUp: true, recommendedOptionId: null, options: [] }}
+    />);
+    expect(screen.queryByText(/needs more usage/i)).toBeNull();
+  });
+
   it('needs_rep_id: asks "which of these is you?" once, and Import is blocked until the rep answers', async () => {
     const onImport = vi.fn();
     render(<ImportReview result={result({ repName: null, needsRepId: true, rows: [

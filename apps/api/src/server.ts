@@ -45,6 +45,7 @@ import { handleInventoryRoute } from './http/inventory-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
 import { handleBulkImportRoute } from './http/bulk-import-routes.js';
 import type { BulkImportService } from './services/import/bulk-import-service.js';
+import type { BulkUpsellService } from './services/import/bulk-upsell.js';
 import type { NoteMoveService } from './services/import/note-move-service.js';
 import type { ContactAliasRepository, RepNameRepository } from './ports/contact-alias-repository.js';
 import type { ImportAckRepository } from './ports/import-ack-repository.js';
@@ -139,6 +140,8 @@ export interface ApiDeps {
   bookScan: BookScanService;
   /** [BULK-IMPORT] multi-file chat import: local parse + review + parallel per-chat extraction. */
   bulkImport?: BulkImportService;
+  /** [BULK-IMPORT · RULING 2] the top-up / subscribe upsell for a batch that exceeds the allowance. */
+  bulkUpsell?: BulkUpsellService;
   recall: RecallService;
   /** [ASK-CAPTURE] pending-capture queue + confirm/reject. */
   askCapture?: AskCaptureService;
@@ -350,6 +353,7 @@ export function createApiServer(deps: ApiDeps): Server {
           auth: deps.auth,
           bulkImport: deps.bulkImport,
           importAck: deps.importAck,
+          bulkUpsell: deps.bulkUpsell,
         })
       )
         return;

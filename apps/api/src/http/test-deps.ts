@@ -18,7 +18,9 @@ import { InMemoryNoteMoveTx } from '../adapters/notes/in-memory-note-move-tx.js'
 import { NoteMoveService } from '../services/import/note-move-service.js';
 import { IsolatingModelClient } from '../services/import/chat-isolation.js';
 import { BulkImportService } from '../services/import/bulk-import-service.js';
+import { BulkUpsellService } from '../services/import/bulk-upsell.js';
 import { bulkConcurrency } from '../services/import/bulk-extraction.js';
+import { TOP_UP_OPTIONS } from '../config.js';
 import { InMemoryRequirementRepository } from '../adapters/requirements/in-memory-requirement-repository.js';
 import { InMemoryInventoryMatchRepository } from '../adapters/inventory/in-memory-inventory-match-repository.js';
 import { MatchingService } from '../services/inventory/matching-service.js';
@@ -300,12 +302,21 @@ export function buildInMemoryDeps(
     modelId: 'stub',
     repNames,
   });
+  const bulkUpsell = new BulkUpsellService({
+    topUpOptions: TOP_UP_OPTIONS,
+    remainingAllowanceAed: async (uid) => {
+      const s = await allowanceStatus.status(uid);
+      return Math.max(0, s.availableAed - s.spentAed - s.reservedAed);
+    },
+    canTopUp: async (uid) => (await billing.entitlement(uid, Date.now())).status === 'active',
+  });
 
   return {
     pool: stubPool,
     auth,
     clients,
     bulkImport,
+    bulkUpsell,
     inventory,
     matching,
     inventoryRepo,

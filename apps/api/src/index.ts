@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning, topUpOptionById } from './config.js';
+import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning, topUpOptionById, TOP_UP_OPTIONS } from './config.js';
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { AccessRequestService } from './services/access/access-request-service.js';
 import { PgAccessRequestRepository } from './adapters/access/pg-access-request-repository.js';
@@ -11,6 +11,7 @@ import { AccessApprovalService } from './services/access/access-approval-service
 import { AccessRequestRetentionService, ACCESS_REQUEST_RETENTION_DAYS } from './services/access/access-request-retention.js';
 import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/audio-retention-service.js';
 import { BulkImportService } from './services/import/bulk-import-service.js';
+import { BulkUpsellService } from './services/import/bulk-upsell.js';
 import { bulkConcurrency } from './services/import/bulk-extraction.js';
 import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
 import { ScryptHasher } from './services/auth/password.js';
@@ -477,6 +478,14 @@ async function main(): Promise<void> {
     modelId: config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub',
     repNames,
   });
+  const bulkUpsell = new BulkUpsellService({
+    topUpOptions: TOP_UP_OPTIONS,
+    remainingAllowanceAed: async (uid) => {
+      const s = await allowanceStatus.status(uid);
+      return Math.max(0, s.availableAed - s.spentAed - s.reservedAed);
+    },
+    canTopUp: async (uid) => (await billing.entitlement(uid, Date.now())).status === 'active',
+  });
   // [BETA-5] Approval/invite provisioning. applyReferral reuses the existing ReferralService (declared
   // above), so a persisted landing-page referral is credited at approval through the same code path as
   // a signup — never a second one, and never blocking the approval.
@@ -528,6 +537,7 @@ async function main(): Promise<void> {
     activation,
     bookScan,
     bulkImport,
+    bulkUpsell,
     recall,
     askCapture,
     corpus,

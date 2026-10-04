@@ -45,6 +45,21 @@ export interface ReviewResult {
   needsRepId: boolean;
 }
 
+/** [RULING 2] The top-up / subscribe upsell for a batch that would exceed the allowance. Carries only
+ *  percentage labels + prices (and which option to highlight) — never an AED usage value. */
+export interface TopUpChoice {
+  id: string;
+  label: string;
+  priceAed: number;
+}
+export interface Upsell {
+  shortfall: boolean;
+  n: number;
+  canTopUp: boolean;
+  options: TopUpChoice[];
+  recommendedOptionId: string | null;
+}
+
 /** One confirmed instruction per IMPORTED chat. A merge targets an existing client; a new chat carries
  *  the name the rep settled on (the chat name, a confirmed suggestion, or the bare number). */
 export type ReviewDecision =
@@ -92,9 +107,13 @@ function decide(row: ReviewRow, choice: Choice | undefined, repName: string | nu
   }
 }
 
-export function ImportReview({ result, onImport }: {
+export function ImportReview({ result, onImport, upsell, onTopUp, onSubscribe }: {
   result: ReviewResult;
   onImport: (decisions: ReviewDecision[]) => void;
+  /** [RULING 2] when the batch would exceed the allowance, the top-up / subscribe prompt. */
+  upsell?: Upsell;
+  onTopUp?: (optionId: string) => void;
+  onSubscribe?: () => void;
 }): JSX.Element {
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const [repChoice, setRepChoice] = useState<string | null>(result.repName);
@@ -163,6 +182,15 @@ export function ImportReview({ result, onImport }: {
         ))}
       </ul>
 
+      {upsell?.shortfall && (
+        <UpsellBanner
+          upsell={upsell}
+          lead={`This batch needs more usage than you have left this month. Top up now to import all ${upsell.n}.`}
+          onTopUp={onTopUp}
+          onSubscribe={onSubscribe}
+        />
+      )}
+
       {!canImport && (
         <p role="status" data-testid="import-disabled-reason" style={{ margin: 0, color: 'var(--text-secondary)' }}>
           {disabledReason}
@@ -178,6 +206,43 @@ export function ImportReview({ result, onImport }: {
         Import
       </button>
     </section>
+  );
+}
+
+/** [RULING 2] The top-up (or Subscribe, for a trial) prompt. Prices + percentages only — never a usage
+ *  value. The recommended option (smallest covering the shortfall) is highlighted. */
+export function UpsellBanner({ upsell, lead, onTopUp, onSubscribe }: {
+  upsell: Upsell;
+  lead: string;
+  onTopUp?: (optionId: string) => void;
+  onSubscribe?: () => void;
+}): JSX.Element {
+  return (
+    <div role="status" data-testid="bulk-upsell" style={{ border: '1px solid var(--border, #ddd)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+      <p style={{ margin: 0 }}>{lead}</p>
+      {upsell.canTopUp ? (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {upsell.options.map((o) => {
+            const recommended = o.id === upsell.recommendedOptionId;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => onTopUp?.(o.id)}
+                data-testid={recommended ? 'topup-recommended' : undefined}
+                aria-label={`Top up ${o.label} for AED ${o.priceAed}`}
+                className={recommended ? 'tov-primary' : undefined}
+                aria-pressed={recommended}
+              >
+                {o.label} — AED {o.priceAed}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <button type="button" className="tov-primary" onClick={() => onSubscribe?.()}>Subscribe to keep importing</button>
+      )}
+    </div>
   );
 }
 

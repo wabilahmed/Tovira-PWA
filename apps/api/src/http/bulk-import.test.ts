@@ -43,10 +43,15 @@ describe('[BULK-IMPORT] POST /import/bulk', () => {
       files: [{ name: 'a.txt', content: chat('Wabil', 'Layla') }, { name: 'b.txt', content: chat('Wabil', 'Omar') }],
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { result: { rows: unknown[] }; estimateAed: number; percentOfAllowance: number };
+    const raw = await res.text();
+    expect(raw).not.toContain('estimateAed'); // D3: no AED usage value reaches the client
+    expect(raw).not.toContain('addedAed');
+    const body = JSON.parse(raw) as { result: { rows: unknown[] }; percentOfAllowance: number; upsell: { canTopUp: boolean; shortfall: boolean; options: unknown[] } };
     expect(body.result.rows).toHaveLength(2);
-    expect(body.estimateAed).toBeGreaterThan(0);
     expect(body.percentOfAllowance).toBeGreaterThan(0);
+    // A fresh (unsubscribed) account is a trial → no top-up options (the web shows Subscribe).
+    expect(body.upsell.canTopUp).toBe(false);
+    expect(body.upsell.options).toEqual([]);
   });
 
   it('the first import requires the right-to-upload acknowledgement (428)', async () => {

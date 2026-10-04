@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { BulkImportService, BulkDecision } from '../services/import/bulk-import-service.js';
+import type { BulkUpsellService } from '../services/import/bulk-upsell.js';
 import type { ImportAckRepository } from '../ports/import-ack-repository.js';
 import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
-import { BULK_MAX_FILES, type BulkInputFile } from '../services/import/bulk-parse.js';
+import { BULK_MAX_FILES, type BulkInputFile, type RowState } from '../services/import/bulk-parse.js';
 import { extractToken, readJsonBody, sendJson, BadJsonError } from './helpers.js';
 
 /**
@@ -19,7 +20,11 @@ export interface BulkImportRouteDeps {
   auth: AuthService;
   bulkImport?: BulkImportService;
   importAck: ImportAckRepository;
+  /** [RULING 2] the top-up / subscribe upsell. Optional — without it, no upsell is attached. */
+  bulkUpsell?: BulkUpsellService;
 }
+
+const NON_IMPORTABLE: ReadonlySet<RowState> = new Set<RowState>(['group', 'duplicate', 'unparseable']);
 
 function parseFiles(raw: unknown): BulkInputFile[] | null {
   if (!Array.isArray(raw)) return null;
@@ -72,7 +77,10 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
 
   if (isParse) {
     const out = await deps.bulkImport.parse(userId, files, repName);
-    sendJson(res, 200, out);
+    const n = out.result.rows.filter((r) => !NON_IMPORTABLE.has(r.state)).length;
+    const upsell = deps.bulkUpsell ? await deps.bulkUpsell.forBatch(userId, out.estimateAed, n) : undefined;
+    // D3: the client sees the % of allowance and the upsell (prices + labels) — NEVER the raw AED estimate.
+    sendJson(res, 200, { result: out.result, percentOfAllowance: out.percentOfAllowance, ...(upsell ? { upsell } : {}) });
     return true;
   }
 
@@ -93,6 +101,8 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
   // Notes are created and durably stored even when the allowance is spent — extraction pauses per chat
   // ("paused: usage limit") rather than losing the rep's confirmed work (never lose a recording).
   const result = await deps.bulkImport.importConfirmed(userId, files, decisions, new Date().toISOString().slice(0, 10));
-  sendJson(res, 202, result);
+  const limitedCount = result.jobs.filter((j) => j.state === 'failed_usage_limit').length;
+  const upsell = limitedCount > 0 && deps.bulkUpsell ? await deps.bulkUpsell.forResult(userId, limitedCount) : undefined;
+  sendJson(res, 202, { ...result, ...(upsell ? { upsell } : {}) });
   return true;
 }
