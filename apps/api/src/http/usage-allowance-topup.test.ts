@@ -3,6 +3,10 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { topUpOptionById } from '../config.js';
+
+// +25% of the AED 60 allowance = AED 15. Read from config so this can never drift from the top-up amount.
+const TOPUP25 = topUpOptionById('topup_25')!.addedAed;
 
 /**
  * [USAGE-ALLOWANCE · D6/D10/D12] Top-ups: the meter status, the checkout (trial refused, subscribed
@@ -89,13 +93,13 @@ describe('[USAGE-ALLOWANCE · D6/D10] top-up checkout', () => {
 describe('[USAGE-ALLOWANCE · D12] the top-up webhook credits exactly once', () => {
   it('a replayed webhook event credits the allowance only once', async () => {
     const { userId } = await signup('topup-webhook@example.com');
-    // +25% = AED 10 credited.
+    // +25% = AED 15 credited (TOPUP25, derived from the allowance).
     expect(await topUpEvent('evt_topup_once', userId, 'topup_25')).toBe(200);
     const after = (await deps.allowanceStatus.status(userId)).topupAed;
-    expect(after).toBe(10);
+    expect(after).toBe(TOPUP25);
     // Replay the SAME event id — must NOT credit again (D12).
     expect(await topUpEvent('evt_topup_once', userId, 'topup_25')).toBe(200);
-    expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(10);
+    expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(TOPUP25);
   });
 
   // [FIX 5] A credit failure must not lose the top-up: the event is NOT recorded, the webhook returns
@@ -116,7 +120,7 @@ describe('[USAGE-ALLOWANCE · D12] the top-up webhook credits exactly once', () 
       // Stripe retries the SAME event id → now it credits (the event was never recorded as processed).
       const retry = await topUpEvent('evt_topup_retry', userId, 'topup_25');
       expect(retry).toBe(200);
-      expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(10);
+      expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(TOPUP25);
     } finally {
       deps.aiAllowance.topUp = realTopUp;
     }

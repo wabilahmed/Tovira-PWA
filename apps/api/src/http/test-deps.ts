@@ -20,7 +20,7 @@ import { IsolatingModelClient } from '../services/import/chat-isolation.js';
 import { BulkImportService } from '../services/import/bulk-import-service.js';
 import { BulkUpsellService } from '../services/import/bulk-upsell.js';
 import { bulkConcurrency } from '../services/import/bulk-extraction.js';
-import { TOP_UP_OPTIONS } from '../config.js';
+import { TOP_UP_OPTIONS, DEFAULT_MONTHLY_AI_ALLOWANCE_AED } from '../config.js';
 import { InMemoryRequirementRepository } from '../adapters/requirements/in-memory-requirement-repository.js';
 import { InMemoryInventoryMatchRepository } from '../adapters/inventory/in-memory-inventory-match-repository.js';
 import { MatchingService } from '../services/inventory/matching-service.js';
@@ -245,7 +245,7 @@ export function buildInMemoryDeps(
   const aiPause = new InMemoryAiPauseRepository();
   const allowanceStatus = new AllowanceStatusService({
     allowance: aiAllowance,
-    allowanceAed: 40,
+    allowanceAed: DEFAULT_MONTHLY_AI_ALLOWANCE_AED,
     billingWindowFor: (uid) => billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart })),
   });
   // [USAGE-ALLOWANCE · D12] credit a confirmed top-up to the rep's current window (mirrors index.ts).
@@ -254,7 +254,7 @@ export function buildInMemoryDeps(
     if (!opt) return;
     const e = await billing.entitlement(userId, Date.now());
     const w = allowanceWindow({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, Date.now());
-    await aiAllowance.creditTopUpOnce(eventId, userId, w.key, w.startMs, 40, opt.addedAed);
+    await aiAllowance.creditTopUpOnce(eventId, userId, w.key, w.startMs, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, opt.addedAed);
   });
   const modelCallEvents = new InMemoryModelCallEventStore();
   // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via
@@ -285,8 +285,8 @@ export function buildInMemoryDeps(
   const exhaustAllowance = async (userId: string): Promise<void> => {
     const e = await billing.entitlement(userId, Date.now());
     const w = allowanceWindow({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, Date.now());
-    await aiAllowance.ensureMonth(userId, w.key, w.startMs, 40);
-    await aiAllowance.reserve(userId, w.key, 40, Date.now() + 3_600_000);
+    await aiAllowance.ensureMonth(userId, w.key, w.startMs, DEFAULT_MONTHLY_AI_ALLOWANCE_AED);
+    await aiAllowance.reserve(userId, w.key, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, Date.now() + 3_600_000);
   };
   const emailSender = new StubEmailSender();
   const accountEmail = new AccountEmailService(emailSender, new InMemoryEmailLogRepository());
@@ -307,7 +307,7 @@ export function buildInMemoryDeps(
     isExhausted: (u) => allowanceStatus.isExhausted(u),
     isPaused: () => aiPause.getPaused(),
     concurrency: bulkConcurrency(5),
-    allowanceAed: 40,
+    allowanceAed: DEFAULT_MONTHLY_AI_ALLOWANCE_AED,
     modelId: 'stub',
     repNames,
   });

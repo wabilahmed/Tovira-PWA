@@ -19,27 +19,42 @@ export type PushProvider = 'stub' | 'webpush';
 export type EmailProvider = 'stub' | 'ses' | 'resend';
 
 /**
- * [USAGE-ALLOWANCE · D6] One-time top-up products. `addedAed` is the AI-cost allowance added (a share of
- * the AED 40 monthly allowance); `priceAed` is what the rep PAYS. These are PRODUCT PRICES set by the
- * owner — NOT derived from cost — so they are hard-coded here, not env-tunable. Top-ups never expire and
- * are spent only after the monthly allowance (D7); buying one drops the meter (D8).
+ * [USAGE-ALLOWANCE · D1] The product default monthly AI-cost allowance (100%), AED. SINGLE SOURCE of the
+ * number: the config default below and the top-up amounts are both derived from it, so a change here moves
+ * both together and they can never drift apart.
+ */
+export const DEFAULT_MONTHLY_AI_ALLOWANCE_AED = 60;
+
+/**
+ * [USAGE-ALLOWANCE · D6] One-time top-up products. `addedAed` is the AI-cost allowance added — a fixed
+ * SHARE of the monthly allowance, DERIVED from DEFAULT_MONTHLY_AI_ALLOWANCE_AED (never hard-coded, so it
+ * cannot drift from the allowance). `priceAed` is what the rep PAYS — a product price set by the owner,
+ * not derived from cost. Top-ups never expire and are spent only after the monthly allowance (D7); buying
+ * one drops the meter (D8).
  */
 export interface TopUpOption {
   id: string;
-  /** Allowance (AI cost, AED) this top-up adds. */
+  /** Allowance (AI cost, AED) this top-up adds — a share of the monthly allowance. */
   addedAed: number;
   /** What the rep pays, AED. */
   priceAed: number;
   /** Share of the monthly allowance, for the label (e.g. '+25%'). */
   label: string;
 }
-export const TOP_UP_OPTIONS: readonly TopUpOption[] = [
-  { id: 'topup_15', addedAed: 6, priceAed: 50, label: '+15%' },
-  { id: 'topup_25', addedAed: 10, priceAed: 65, label: '+25%' },
-  { id: 'topup_50', addedAed: 20, priceAed: 85, label: '+50%' },
-  { id: 'topup_75', addedAed: 30, priceAed: 100, label: '+75%' },
-  { id: 'topup_100', addedAed: 40, priceAed: 120, label: '+100%' },
+/** Each top-up's share of the monthly allowance (the label %) and its fixed product price (AED). */
+const TOP_UP_TIERS: ReadonlyArray<{ pct: number; priceAed: number }> = [
+  { pct: 15, priceAed: 50 },
+  { pct: 25, priceAed: 65 },
+  { pct: 50, priceAed: 85 },
+  { pct: 75, priceAed: 100 },
+  { pct: 100, priceAed: 120 },
 ];
+export const TOP_UP_OPTIONS: readonly TopUpOption[] = TOP_UP_TIERS.map(({ pct, priceAed }) => ({
+  id: `topup_${pct}`,
+  addedAed: Math.round((DEFAULT_MONTHLY_AI_ALLOWANCE_AED * pct) / 100), // 60 → 9 / 15 / 30 / 45 / 60
+  priceAed,
+  label: `+${pct}%`,
+}));
 export function topUpOptionById(id: string): TopUpOption | undefined {
   return TOP_UP_OPTIONS.find((o) => o.id === id);
 }
@@ -181,10 +196,10 @@ export interface AppConfig {
    *  Enforced pre-spend, degrade-not-break. NOT settled. */
   trialSpendCapAed: number;
   spendWarnFraction: number;
-  /** [USAGE-ALLOWANCE · D1] Each rep's monthly AI-cost allowance (100%). Derivation: AED 40 is ~13% of
-   *  the AED 299 subscription — the most AI cost one seat may consume before the subscription stops
-   *  covering it with margin. Replaces the earlier AED 45 soft cap. Overridable via
-   *  MONTHLY_AI_ALLOWANCE_AED; the default IS the product value. */
+  /** [USAGE-ALLOWANCE · D1] Each rep's monthly AI-cost allowance (100%). Derivation: AED 60 ≈ 20% of the
+   *  AED 299 subscription: the most AI cost one seat may consume per month. Raised from 40 on 2026-10-05
+   *  after the two-call pointer split raised per-import cost. Overridable via MONTHLY_AI_ALLOWANCE_AED;
+   *  the default (DEFAULT_MONTHLY_AI_ALLOWANCE_AED) IS the product value. */
   monthlyAiAllowanceAed: number;
   /** [USAGE-ALLOWANCE · D13] Global monthly AI-spend ALERT threshold. When total spend this calendar
    *  month crosses it, the owner is emailed ONCE. It NEVER blocks or pauses anything (the global ceiling
@@ -303,7 +318,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     sweepConcurrency: parsePositive(env.SWEEP_CONCURRENCY, 5, 'SWEEP_CONCURRENCY'),
     trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, 20, 'TRIAL_SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
-    monthlyAiAllowanceAed: parsePositive(env.MONTHLY_AI_ALLOWANCE_AED, 40, 'MONTHLY_AI_ALLOWANCE_AED'),
+    monthlyAiAllowanceAed: parsePositive(env.MONTHLY_AI_ALLOWANCE_AED, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, 'MONTHLY_AI_ALLOWANCE_AED'),
     aiSpendAlertAed: parsePositive(env.AI_SPEND_ALERT_AED, 300, 'AI_SPEND_ALERT_AED'),
     aiPaused: env.AI_PAUSED?.trim() === 'true', // default false (undefined → not paused)
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),

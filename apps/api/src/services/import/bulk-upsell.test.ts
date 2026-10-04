@@ -1,22 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { pickTopUp, buildUpsell, BulkUpsellService } from './bulk-upsell.js';
-import type { TopUpOption } from '../../config.js';
+import { TOP_UP_OPTIONS } from '../../config.js';
 
-// A stand-in for config.TOP_UP_OPTIONS (addedAed = allowance added; priceAed = what the rep pays).
-const OPTIONS: readonly TopUpOption[] = [
-  { id: 'topup_15', addedAed: 6, priceAed: 50, label: '+15%' },
-  { id: 'topup_25', addedAed: 10, priceAed: 65, label: '+25%' },
-  { id: 'topup_50', addedAed: 20, priceAed: 85, label: '+50%' },
-  { id: 'topup_75', addedAed: 30, priceAed: 100, label: '+75%' },
-  { id: 'topup_100', addedAed: 40, priceAed: 120, label: '+100%' },
-];
+// Use the REAL options (addedAed 9/15/30/45/60 — a share of the AED 60 allowance, derived) so this test
+// can never drift from production, and the picker is exercised against the shipped tiers.
+const OPTIONS = TOP_UP_OPTIONS;
 
 describe('[BULK-IMPORT] top-up upsell', () => {
   it('pickTopUp returns the SMALLEST option whose added allowance covers the shortfall', () => {
-    expect(pickTopUp(5, OPTIONS)!.id).toBe('topup_15'); // 6 covers 5
-    expect(pickTopUp(6, OPTIONS)!.id).toBe('topup_15'); // exactly 6
-    expect(pickTopUp(7, OPTIONS)!.id).toBe('topup_25'); // 6 too small → 10
-    expect(pickTopUp(25, OPTIONS)!.id).toBe('topup_75'); // 20 too small → 30
+    expect(pickTopUp(5, OPTIONS)!.id).toBe('topup_15'); // 9 covers 5
+    expect(pickTopUp(9, OPTIONS)!.id).toBe('topup_15'); // exactly 9
+    expect(pickTopUp(12, OPTIONS)!.id).toBe('topup_25'); // 9 too small → 15
+    expect(pickTopUp(40, OPTIONS)!.id).toBe('topup_75'); // 30 too small → 45
     expect(pickTopUp(1000, OPTIONS)!.id).toBe('topup_100'); // none covers → the largest
     expect(pickTopUp(5, [])).toBeNull();
   });

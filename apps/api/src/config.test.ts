@@ -1,5 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { loadConfig, ConfigError, DEFAULT_TRIAL_DAYS } from './config.js';
+import { loadConfig, ConfigError, DEFAULT_TRIAL_DAYS, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, TOP_UP_OPTIONS } from './config.js';
+
+// [USAGE-ALLOWANCE] The monthly allowance default and the top-up amounts are ONE number — top-up addedAed
+// is DERIVED from the allowance, so they can never drift apart. These lock both.
+describe('[USAGE-ALLOWANCE] allowance default + derived top-ups', () => {
+  it('the default monthly allowance is AED 60', () => {
+    expect(DEFAULT_MONTHLY_AI_ALLOWANCE_AED).toBe(60);
+    expect(loadConfig({ DATABASE_URL: 'postgres://x', PORT: '3001', NODE_ENV: 'development' }).monthlyAiAllowanceAed).toBe(60);
+  });
+
+  it('an explicit MONTHLY_AI_ALLOWANCE_AED overrides the default', () => {
+    expect(loadConfig({ DATABASE_URL: 'postgres://x', PORT: '3001', NODE_ENV: 'development', MONTHLY_AI_ALLOWANCE_AED: '80' }).monthlyAiAllowanceAed).toBe(80);
+  });
+
+  it('each top-up addedAed is its label % of the allowance (9/15/30/45/60), never hard-coded', () => {
+    const pct = (id: string): number => Number(id.replace('topup_', ''));
+    for (const o of TOP_UP_OPTIONS) {
+      expect(o.addedAed).toBe(Math.round((DEFAULT_MONTHLY_AI_ALLOWANCE_AED * pct(o.id)) / 100));
+    }
+    expect(TOP_UP_OPTIONS.map((o) => o.addedAed)).toEqual([9, 15, 30, 45, 60]);
+    expect(TOP_UP_OPTIONS.map((o) => o.priceAed)).toEqual([50, 65, 85, 100, 120]); // prices are fixed, unchanged
+    expect(TOP_UP_OPTIONS.map((o) => o.label)).toEqual(['+15%', '+25%', '+50%', '+75%', '+100%']);
+  });
+});
 
 // [P0-1] "Start with a required env var missing → stack fails fast with a named,
 // actionable error, not a silent crash or a half-up state."

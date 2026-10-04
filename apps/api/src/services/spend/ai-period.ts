@@ -1,6 +1,6 @@
 /**
- * [USAGE-ALLOWANCE] The MONTHLY allowance window (D1, D11). The AI allowance is AED 40 PER MONTH and
- * resets monthly — even for an annual subscriber, who resets on their billing ANCHOR DAY each month
+ * [USAGE-ALLOWANCE] The MONTHLY allowance window (D1, D11). The AI allowance (AED 60/month by default —
+ * DEFAULT_MONTHLY_AI_ALLOWANCE_AED in config) resets monthly — even for an annual subscriber, who resets on their billing ANCHOR DAY each month
  * (D11), NOT once a year. This is distinct from the spend-cap billing-period key (period.ts), which is
  * the whole Stripe period (a year for annual).
  *
