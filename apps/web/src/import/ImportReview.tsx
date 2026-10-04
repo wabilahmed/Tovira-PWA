@@ -26,6 +26,7 @@ export type ReviewRowState =
   | 'group'
   | 'duplicate'
   | 'unparseable'
+  | 'too_large'
   | 'needs_rep_id';
 
 export interface ReviewRow {
@@ -111,6 +112,7 @@ function decide(row: ReviewRow, choice: Choice | undefined, repName: string | nu
       return typed ? { fileName: row.fileName, action: 'new', name: typed } : null;
     case 'duplicate':
     case 'unparseable':
+    case 'too_large':
       return null; // shown, never imported
   }
 }
@@ -362,6 +364,13 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
       return (
         <div style={{ color: 'var(--text-secondary)' }}>
           <strong>{row.fileName}</strong> — Could not read this file. Excluded.
+        </div>
+      );
+
+    case 'too_large':
+      return (
+        <div style={{ color: 'var(--text-secondary)' }}>
+          <strong>{row.fileName}</strong> — This file is too large. Excluded.
         </div>
       );
   }

@@ -40,6 +40,29 @@ describe('<GetStarted>', () => {
     expect(screen.getByText(/import acme's chat/i)).toBeInTheDocument();
   });
 
+  it('opens the multi-select bulk page when a bulkImportApi is wired', async () => {
+    const user = userEvent.setup();
+    const bulkImportApi = {
+      uploadFile: vi.fn().mockResolvedValue({ ok: true }),
+      parse: vi.fn(),
+      startImport: vi.fn(),
+      status: vi.fn(),
+    };
+    render(
+      <GetStarted
+        seeding={seeding}
+        clients={[{ id: 'c1', name: 'Acme', phone: null, createdAt: 1 }]}
+        onCreateClient={vi.fn()}
+        importApi={okImport}
+        bulkImportApi={bulkImportApi}
+        onSeeded={vi.fn()}
+        onFallback={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /import chats/i }));
+    expect(await screen.findByLabelText(/choose chat exports/i)).toBeInTheDocument();
+  });
+
   // When the rep has no client yet, the flow first asks who the chat is with,
   // creating the client — never a dead end, never bulk paste entry.
   it('asks for a client name first when none exists, then imports', async () => {

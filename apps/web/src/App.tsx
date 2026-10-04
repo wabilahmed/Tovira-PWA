@@ -11,6 +11,7 @@ import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSu
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
 import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
+import { BulkImportClient } from './import/bulkImportClient.js';
 import { BookScan } from './bookscan/BookScan.js';
 import { ScreeningClient } from './screening/screeningClient.js';
 import { HeldReview } from './screening/HeldReview.js';
@@ -80,6 +81,7 @@ const auth = new AuthClient(API_BASE);
 const accessRequestApi = new HttpAccessRequestClient(API_BASE);
 const clientsApi = new ClientsClient(API_BASE);
 const onboardingApi = new OnboardingClient(API_BASE);
+const bulkImportApi = new BulkImportClient(API_BASE);
 const bookScanApi = new BookScanClient(API_BASE);
 const screeningApi = new ScreeningClient(API_BASE);
 const inventoryApi = new InventoryClient(API_BASE);
@@ -377,6 +379,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             return created;
           }}
           importApi={clientsApi}
+          bulkImportApi={bulkImportApi}
           sharedContent={sharedContent}
           sharedContentB64={sharedContentB64}
           onAddInventory={() => setView('inventory')}

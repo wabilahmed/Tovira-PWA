@@ -22,6 +22,7 @@ import { redactSensitive } from '../redaction/redact.js';
 import { screenSensitive } from '../screening/sensitive-screen.js';
 import { estimateBulkAed, percentOfAllowance } from './bulk-estimate.js';
 import { BulkExtractionOrchestrator, type ChatJob } from './bulk-extraction.js';
+export type { ChatJob } from './bulk-extraction.js';
 
 export type BulkDecision =
   | { fileName: string; action: 'new'; name: string }
@@ -139,7 +140,7 @@ export class BulkImportService {
     return null;
   }
 
-  async importConfirmed(userId: string, files: BulkInputFile[], decisions: BulkDecision[], today: string): Promise<BulkImportOutcome> {
+  async importConfirmed(userId: string, files: BulkInputFile[], decisions: BulkDecision[], today: string, onProgress?: (jobs: ChatJob[]) => void): Promise<BulkImportOutcome> {
     const byName = new Map(files.map((f) => [f.name, f]));
     const clientNameCache = new Map<string, string>();
     const plan: PlanItem[] = [];
@@ -170,6 +171,7 @@ export class BulkImportService {
       isExhausted: () => this.deps.isExhausted(userId),
       isPaused: this.deps.isPaused,
       concurrency: this.deps.concurrency,
+      onProgress,
       // Persist + extract — called ONLY once the start-gate passes, so an unstarted chat is never stored.
       start: async (it) => {
         let clientId: string;

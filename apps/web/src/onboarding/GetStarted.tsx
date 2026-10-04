@@ -3,6 +3,8 @@ import type { SeedingStatus } from './onboardingClient.js';
 import type { ClientSummary } from '../clients/clientsClient.js';
 import { SeedingBanner } from './SeedingBanner.js';
 import { ImportChat, type ImportApi } from '../import/ImportChat.js';
+import { BulkImport } from '../import/BulkImport.js';
+import type { BulkImportApi } from '../import/bulkImportClient.js';
 
 /**
  * First-session flow (P5-3): guide → (create a client if needed) → import a chat →
@@ -13,6 +15,7 @@ export function GetStarted({
   clients,
   onCreateClient,
   importApi,
+  bulkImportApi,
   onSeeded,
   onFallback,
   onAddInventory,
@@ -23,6 +26,9 @@ export function GetStarted({
   clients: ClientSummary[];
   onCreateClient: (name: string) => Promise<ClientSummary>;
   importApi: ImportApi;
+  /** [BULK-IMPORT] When provided, "Import chats" opens the multi-select bulk page (the review-screen
+   *  assigns each chat). A shared single chat still uses the per-client importApi flow below. */
+  bulkImportApi?: BulkImportApi;
   onSeeded: () => void;
   onFallback: (kind: string) => void;
   /** Jump to the Inventory tab — a second, export-free way to seed (spec §11.6). */
@@ -55,6 +61,16 @@ export function GetStarted({
           </p>
         )}
       </>
+    );
+  }
+
+  // [BULK-IMPORT] The non-shared "Import chats" path is the multi-select bulk page (up to 20 at once).
+  // A shared single chat keeps the per-client flow below (it arrives with one chat and a client to pick).
+  if (!shared && bulkImportApi) {
+    return (
+      <section aria-label="Import for client">
+        <BulkImport api={bulkImportApi} />
+      </section>
     );
   }
 

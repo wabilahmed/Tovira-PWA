@@ -353,6 +353,7 @@ export function createApiServer(deps: ApiDeps): Server {
           auth: deps.auth,
           bulkImport: deps.bulkImport,
           importAck: deps.importAck,
+          storage: deps.storage,
           bulkUpsell: deps.bulkUpsell,
         })
       )
