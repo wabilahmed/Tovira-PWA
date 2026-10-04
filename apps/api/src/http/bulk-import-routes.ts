@@ -1,7 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { Storage } from '../ports/storage.js';
+import type { NoteRepository } from '../ports/note-repository.js';
+import { extractionState } from '../services/notes/extraction-state.js';
 import type { BulkImportService, BulkDecision, ChatJob } from '../services/import/bulk-import-service.js';
+import type { ChatJobState } from '../services/import/bulk-extraction.js';
 import type { BulkUpsellService } from '../services/import/bulk-upsell.js';
 import type { ImportAckRepository } from '../ports/import-ack-repository.js';
 import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
@@ -23,8 +26,29 @@ export interface BulkImportRouteDeps {
   bulkImport?: BulkImportService;
   importAck: ImportAckRepository;
   storage: Storage;
+  /** [FIX 3] used to re-derive started chats' state when healing an interrupted batch. */
+  notes: NoteRepository;
   /** [RULING 2] the top-up / subscribe upsell. Optional — without it, no upsell is attached. */
   bulkUpsell?: BulkUpsellService;
+}
+
+/**
+ * [FIX 3] If the background import worker dies mid-batch, the status blob freezes. onProgress stamps
+ * updatedAt on every per-chat transition, so a LIVE import refreshes it within one chat's extraction
+ * (≈1–2 min worst case). A gap longer than this means the worker is gone: the status endpoint then heals
+ * the batch — unstarted chats (no note) become failed_interrupted, started chats are re-derived from
+ * their notes (the sweep finishes those) — so the view can never show "importing" forever.
+ */
+const INTERRUPTED_TIMEOUT_MS = 5 * 60 * 1000;
+const TERMINAL: ReadonlySet<ChatJobState> = new Set<ChatJobState>(['done', 'failed', 'failed_usage_limit', 'failed_interrupted']);
+
+function stateFromNote(note: { status: string; sweepAttempts?: number } | null): ChatJobState {
+  if (!note) return 'failed_interrupted'; // the note vanished — treat as interrupted
+  switch (extractionState(note)) {
+    case 'done': return 'done';
+    case 'failed': return 'failed';
+    default: return 'extracting'; // queued/processing — the sweep will finish it
+  }
 }
 
 const NON_IMPORTABLE: ReadonlySet<RowState> = new Set<RowState>(['group', 'duplicate', 'unparseable']);
@@ -36,6 +60,8 @@ interface BatchStatus {
   jobs: ChatJob[];
   done: boolean;
   upsell?: unknown;
+  /** Last write time (ms); staleness past INTERRUPTED_TIMEOUT_MS triggers the heal. */
+  updatedAt?: number;
 }
 
 export async function handleBulkImportRoute(req: IncomingMessage, res: ServerResponse, deps: BulkImportRouteDeps): Promise<boolean> {
@@ -59,11 +85,27 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
     return true;
   }
 
-  // GET status — read-only, no body.
+  // GET status — read-only (except the one-shot heal of an interrupted batch).
   if (statusMatch) {
     const batchId = decodeURIComponent(statusMatch[1]!);
     const status = await readBatchStatus<BatchStatus>(deps.storage, userId, batchId);
-    sendJson(res, 200, status ?? { jobs: [], done: false });
+    if (!status) { sendJson(res, 200, { jobs: [], done: false }); return true; }
+    // [FIX 3] A not-done batch whose status has gone stale = a crashed background worker. Heal it so the
+    // view finishes: unstarted chats fail "interrupted"; started chats reflect their note (sweep-driven).
+    if (!status.done && typeof status.updatedAt === 'number' && Date.now() - status.updatedAt > INTERRUPTED_TIMEOUT_MS) {
+      const jobs: ChatJob[] = [];
+      for (const job of status.jobs) {
+        if (TERMINAL.has(job.state)) { jobs.push(job); continue; }
+        if (job.noteId) { jobs.push({ ...job, state: stateFromNote(await deps.notes.findByIdForUser(userId, job.noteId)) }); continue; }
+        jobs.push({ ...job, state: 'failed_interrupted' }); // never started → no note → discarded
+      }
+      const done = jobs.every((j) => TERMINAL.has(j.state));
+      const healed: BatchStatus = { jobs, done, updatedAt: Date.now(), ...(status.upsell ? { upsell: status.upsell } : {}) };
+      await writeBatchStatus(deps.storage, userId, batchId, healed);
+      sendJson(res, 200, healed);
+      return true;
+    }
+    sendJson(res, 200, status);
     return true;
   }
 
@@ -169,8 +211,8 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
   // Extraction can take far longer than a gateway allows, so run it in the BACKGROUND and let the page
   // poll /status. Live per-chat state is streamed to the status blob via onProgress; the final write
   // carries done=true plus the result upsell (top-ups) for any chats that failed at the usage limit.
-  await writeBatchStatus(deps.storage, userId, batchId, { jobs: decisions.map((d) => ({ key: d.fileName, state: 'queued' as const })), done: false });
-  const onProgress = (jobs: ChatJob[]): void => { void writeBatchStatus(deps.storage, userId, batchId, { jobs, done: false }); };
+  await writeBatchStatus(deps.storage, userId, batchId, { jobs: decisions.map((d) => ({ key: d.fileName, state: 'queued' as const })), done: false, updatedAt: Date.now() });
+  const onProgress = (jobs: ChatJob[]): void => { void writeBatchStatus(deps.storage, userId, batchId, { jobs, done: false, updatedAt: Date.now() }); };
   void deps.bulkImport.importConfirmed(userId, files, decisions, today, onProgress)
     .then(async (result) => {
       // [FIX 2a] Delete the staged files BEFORE marking the batch done, so a client that polls done=true
@@ -178,11 +220,11 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
       await clearBatchInputs(deps.storage, userId, batchId);
       const limited = result.jobs.filter((j) => j.state === 'failed_usage_limit').length;
       const upsell = limited > 0 && deps.bulkUpsell ? await deps.bulkUpsell.forResult(userId, limited) : undefined;
-      await writeBatchStatus(deps.storage, userId, batchId, { jobs: result.jobs, done: true, ...(upsell ? { upsell } : {}) });
+      await writeBatchStatus(deps.storage, userId, batchId, { jobs: result.jobs, done: true, updatedAt: Date.now(), ...(upsell ? { upsell } : {}) });
     })
     .catch(async () => {
       await clearBatchInputs(deps.storage, userId, batchId);
-      await writeBatchStatus(deps.storage, userId, batchId, { jobs: decisions.map((d) => ({ key: d.fileName, state: 'failed' as const })), done: true });
+      await writeBatchStatus(deps.storage, userId, batchId, { jobs: decisions.map((d) => ({ key: d.fileName, state: 'failed' as const })), done: true, updatedAt: Date.now() });
     });
 
   sendJson(res, 202, { batchId });

@@ -354,6 +354,7 @@ export function createApiServer(deps: ApiDeps): Server {
           bulkImport: deps.bulkImport,
           importAck: deps.importAck,
           storage: deps.storage,
+          notes: deps.notes,
           bulkUpsell: deps.bulkUpsell,
         })
       )

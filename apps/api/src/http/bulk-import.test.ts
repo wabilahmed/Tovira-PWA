@@ -156,4 +156,20 @@ describe('[BULK-IMPORT] the bulk endpoints (individual upload → parse → asyn
     const res = await upload(token, 'm2', 0, 'huge.txt', new Uint8Array(MAX_IMPORT_UPLOAD_BYTES + 1));
     expect(res.status).toBe(413);
   });
+
+  it('[FIX 3] heals an interrupted batch: unstarted → failed_interrupted, started → finished, batch done', async () => {
+    const token = await signup('interrupted@example.com');
+    const userId = ((await (await fetch(`${base}/me`, { headers: { authorization: `Bearer ${token}` } })).json()) as { user: { id: string } }).user.id;
+    // A chat that was STARTED (its note exists and has since extracted).
+    const note = await deps.notes.create(userId, { clientId: 'c', source: 'whatsapp_export', rawText: 'x', audioKey: null, status: 'extracted' });
+    // A STALE status blob: the background worker died — one started (extracting), one never started (queued).
+    const stale = { jobs: [{ key: 'a.txt', noteId: note.id, state: 'extracting' }, { key: 'b.txt', state: 'queued' }], done: false, updatedAt: Date.now() - 6 * 60 * 1000 };
+    await deps.storage.put(`bulk-import/${userId}/bint/status.json`, new TextEncoder().encode(JSON.stringify(stale)));
+    const res = await fetch(`${base}/import/bulk/bint/status`, { headers: { authorization: `Bearer ${token}` } });
+    const body = (await res.json()) as { jobs: Array<{ key: string; state: string }>; done: boolean };
+    expect(body.done).toBe(true); // the view finishes — never "importing" forever
+    const by = Object.fromEntries(body.jobs.map((j) => [j.key, j.state]));
+    expect(by['a.txt']).toBe('done'); // started → re-derived from its (extracted) note
+    expect(by['b.txt']).toBe('failed_interrupted'); // never started → no note → interrupted
+  });
 });

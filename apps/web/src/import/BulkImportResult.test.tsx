@@ -34,6 +34,11 @@ describe('<BulkImportResult>', () => {
     expect(screen.getByRole('button', { name: /subscribe to keep importing/i })).toBeInTheDocument();
   });
 
+  it('an interrupted chat reads the re-upload copy (FIX 3)', () => {
+    render(<BulkImportResult jobs={[{ key: 'a.txt', state: 'failed_interrupted' }]} />);
+    expect(within(screen.getByTestId('result-row-a.txt')).getByText(/not imported\. something went wrong\. please re-upload this chat\./i)).toBeInTheDocument();
+  });
+
   it('no limit message when every chat imported', () => {
     render(<BulkImportResult jobs={[{ key: 'a.txt', state: 'done' }, { key: 'b.txt', state: 'done' }]} />);
     expect(screen.queryByText(/weren.t imported/i)).toBeNull();

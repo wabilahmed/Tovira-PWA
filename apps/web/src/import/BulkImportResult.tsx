@@ -6,7 +6,7 @@ import { UpsellBanner, type Upsell } from './ImportReview.js';
  * top-up (or Subscribe, for a trial) prompt and the invitation to re-upload. A usage-limited chat was
  * never stored (its content is discarded), so re-uploading is how the rep retries after topping up.
  */
-export type BulkJobState = 'queued' | 'extracting' | 'done' | 'failed' | 'failed_usage_limit';
+export type BulkJobState = 'queued' | 'extracting' | 'done' | 'failed' | 'failed_usage_limit' | 'failed_interrupted';
 export interface BulkJob {
   key: string;
   state: BulkJobState;
@@ -18,6 +18,7 @@ const ROW_COPY: Record<BulkJobState, string> = {
   done: 'Imported.',
   failed: "Couldn't be read — not imported.",
   failed_usage_limit: 'Not imported. You reached your monthly usage limit.',
+  failed_interrupted: 'Not imported. Something went wrong. Please re-upload this chat.',
 };
 
 export function BulkImportResult({ jobs, upsell, onTopUp, onSubscribe }: {

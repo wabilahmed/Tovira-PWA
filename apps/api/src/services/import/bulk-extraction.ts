@@ -20,7 +20,7 @@
  */
 import type { ExtractOutcome } from '../extraction/extraction-service.js';
 
-export type ChatJobState = 'queued' | 'extracting' | 'done' | 'failed' | 'failed_usage_limit';
+export type ChatJobState = 'queued' | 'extracting' | 'done' | 'failed' | 'failed_usage_limit' | 'failed_interrupted';
 
 export interface ChatJob {
   key: string;
