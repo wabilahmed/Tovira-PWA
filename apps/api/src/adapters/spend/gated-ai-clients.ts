@@ -23,7 +23,11 @@ const ANTHROPIC_FALLBACK = AI_PRICES.anthropic['claude-sonnet-5']!;
 
 /** Worst-case AED for an Anthropic call: ALL input chars counted as tokens (a true ceiling — a BPE token
  *  covers ≥1 char) priced at the cache-WRITE rate (the highest input-side rate, so a cold cache-writing
- *  call is still covered), plus max_tokens priced as output. Never below actual on cold, warm, or dense input. */
+ *  call is still covered), plus max_tokens priced as output. Never below actual on cold, warm, or dense input.
+ *  We deliberately use this cheap, provable upper bound rather than Anthropic's token-counting endpoint
+ *  (count_tokens — which IS available on the prod Anthropic-API path, MODEL_PROVIDER=anthropic): a
+ *  reservation only needs to never UNDER-count, and avoiding a second round-trip per call keeps the
+ *  capture path fast. If tighter reservations are ever wanted, count_tokens is the drop-in there. */
 export function anthropicEstimateAed(modelId: string, req: ModelCompletionRequest): number {
   const p = AI_PRICES.anthropic[modelId] ?? ANTHROPIC_FALLBACK;
   const inputChars = (req.system?.length ?? 0) + req.messages.reduce((n, m) => n + m.content.length, 0);

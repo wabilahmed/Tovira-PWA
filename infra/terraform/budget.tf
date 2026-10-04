@@ -1,10 +1,18 @@
 # budget.tf — [USAGE-ALLOWANCE · Task 7] Provider-side Bedrock spend backstop.
 #
-# Production runs on Bedrock, which has NO hard spend cap, and the application no longer has a global
-# ceiling (removed by the usage-allowance batch — the per-account monthly allowance is the real-time
-# wall). This AWS Budget is the last line of defence: it emails at 80% and 100% of a monthly Bedrock
-# COST budget and, at 100%, ATTACHES an IAM deny for Bedrock InvokeModel* to the ECS task role — which
-# stops every model call provider-side, platform-wide.
+# SCOPE CORRECTION (2026-10-04): this bounds **Bedrock EMBEDDINGS ONLY** (amazon.titan-embed-text-v2:0,
+# the EMBEDDER=bedrock path), NOT Claude. In production Claude is called on the ANTHROPIC API directly
+# (MODEL_PROVIDER=anthropic, https://api.anthropic.com/v1/messages with x-api-key — see ecs.tf / config.ts),
+# so Claude spend is billed by Anthropic and NEVER appears in AWS Cost Explorer. An AWS Budget + an IAM
+# deny of bedrock:InvokeModel* therefore cannot cap or stop Claude. The real-time Claude wall is the
+# application's per-account allowance gate; a provider-side Claude backstop would be an Anthropic-Console
+# spend limit on the org key, not this. This budget remains worthwhile only for the (small) Bedrock
+# embedding spend — hence the low default below.
+#
+# Bedrock has no hard spend cap and the app no longer has a global ceiling (removed by the usage-allowance
+# batch). This AWS Budget emails at 80% and 100% of a monthly Bedrock COST budget and, at 100%, ATTACHES
+# an IAM deny for Bedrock InvokeModel* to the ECS task role — which stops the embedding path provider-side
+# (and would also stop Claude ONLY in the hypothetical that MODEL_PROVIDER is ever switched to Bedrock).
 #
 # IMPORTANT: AWS Budgets cost data LAGS BY HOURS. This is a BACKSTOP, not a real-time cap. The
 # application's per-account allowance + kill switch (AI_PAUSED) are the real-time controls; this exists
@@ -18,9 +26,12 @@
 # (Get <ACCOUNT_ID> from `aws sts get-caller-identity`; the policy ARN is also a terraform output below.)
 
 variable "bedrock_monthly_budget_usd" {
-  description = "Monthly Amazon Bedrock COST budget (USD). At 100% a deny policy is attached to the ECS task role."
+  description = "Monthly Amazon Bedrock COST budget (USD) — EMBEDDINGS ONLY (Claude is billed by Anthropic, not AWS; see header). At 100% a deny policy is attached to the ECS task role."
   type        = number
-  default     = 100
+  # Default 10: Bedrock here is only Titan v2 embeddings (~AED-cents/month at pilot scale), so a USD 10
+  # month is already a loud anomaly. Raise deliberately if embedding volume grows. Claude spend is NOT
+  # here — it is bounded by the app allowance gate + (optionally) an Anthropic-Console limit.
+  default = 10
 }
 
 # [TASK-7 CHECK] Anthropic Claude invoked via Bedrock may bill under the "Amazon Bedrock" SERVICE, OR as
