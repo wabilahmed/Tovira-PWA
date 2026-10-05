@@ -26,6 +26,26 @@ describe('StripeGatewayImpl', () => {
     expect(sessionCreate.mock.calls[0]![0].mode).toBe('subscription');
   });
 
+  // [BILLING-ANCHOR · D1] The subscription must anchor at the PAYMENT MOMENT — Stripe's default when the
+  // session sets NO trial and NO explicit anchor. This guard fails if anyone adds a trial_period_days or a
+  // billing_cycle_anchor (which would move the renewal off the payment instant). Renewal dates are Stripe's;
+  // the app never computes them. MUTATION-PROVEN: add `subscription_data: { trial_period_days: 14 }` to the
+  // session params in stripe-gateway.ts → this goes RED.
+  it('D1: the session sets no trial and no billing anchor — Stripe anchors the cycle at payment time', async () => {
+    const { stripe, sessionCreate } = fakeStripe();
+    for (const plan of ['monthly', 'annual'] as const) {
+      await new StripeGatewayImpl({ ...opts, annualPriceId: 'price_annual', stripe }).createCheckoutSession('user-1', 'a@b.com', plan);
+    }
+    for (const call of sessionCreate.mock.calls) {
+      const p = call[0] as Record<string, unknown>;
+      expect(p.trial_period_days).toBeUndefined();
+      expect(p.billing_cycle_anchor).toBeUndefined();
+      const subData = (p.subscription_data ?? {}) as Record<string, unknown>;
+      expect(subData.trial_period_days).toBeUndefined();
+      expect(subData.billing_cycle_anchor).toBeUndefined();
+    }
+  });
+
   // INVOICE-DATA: the customer carries the name + the tovira user-id metadata; only that + email.
   it('creates a customer with the name and the user-id metadata, and nothing more', async () => {
     const { stripe, sessionCreate, customerCreate } = fakeStripe();

@@ -19,6 +19,53 @@ function make() {
 }
 const evt = (o: object) => JSON.stringify(o);
 
+// [BILLING-ANCHOR · D1/D2] The cycle anchors at the PAYMENT MOMENT. The app never computes renewal
+// dates — Stripe sends the anchored period on the webhook (same day+time next month / next year) and the
+// app stores and surfaces it verbatim. The usage-allowance window follows the SAME anchor (periodStart).
+describe('[BILLING-ANCHOR · D1/D2] cycle + allowance anchor at payment time', () => {
+  const PAID = Date.parse('2026-07-09T14:23:00Z'); // the exact payment instant
+  const MONTHLY_END = Date.parse('2026-08-09T14:23:00Z'); // Stripe: same day + time next month
+  const ANNUAL_END = Date.parse('2027-07-09T14:23:00Z'); // Stripe: same day + time next year
+
+  it('monthly: stores and surfaces Stripe\'s anchored period verbatim (renewsAt = next month, same time)', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', PAID);
+    await billing.handleWebhook(evt({ id: 'evt_m', type: 'checkout.session.completed', mode: 'subscription', userId: 'u', customerId: 'cus_u', subscriptionId: 'sub_u', currentPeriodStart: PAID, currentPeriodEnd: MONTHLY_END }), 'whsec_test');
+    const e = await billing.entitlement('u', PAID + DAY);
+    expect(e.status).toBe('active');
+    expect(e.periodStart).toBe(PAID); // anchored at the payment moment
+    expect(e.renewsAt).toBe(MONTHLY_END); // same day + time next month, straight from Stripe
+  });
+
+  it('annual: renewsAt is the same day + time next year, straight from Stripe', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', PAID);
+    await billing.handleWebhook(evt({ id: 'evt_a', type: 'checkout.session.completed', mode: 'subscription', userId: 'u', customerId: 'cus_u', currentPeriodStart: PAID, currentPeriodEnd: ANNUAL_END }), 'whsec_test');
+    const e = await billing.entitlement('u', PAID + DAY);
+    expect(e.periodStart).toBe(PAID);
+    expect(e.renewsAt).toBe(ANNUAL_END);
+  });
+
+  it('paying mid-trial ends the trial at that moment and starts the paid period then', async () => {
+    const { billing } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW); // trialing, 14-day window
+    const payMidTrial = NOW + 5 * DAY;
+    expect((await billing.entitlement('u', payMidTrial)).status).toBe('trialing');
+    await billing.handleWebhook(evt({ id: 'evt_t', type: 'checkout.session.completed', mode: 'subscription', userId: 'u', customerId: 'cus_u', currentPeriodStart: payMidTrial, currentPeriodEnd: payMidTrial + 30 * DAY }), 'whsec_test');
+    const e = await billing.entitlement('u', payMidTrial);
+    expect(e.status).toBe('active'); // trial ended the moment they paid
+    expect(e.periodStart).toBe(payMidTrial); // the paid period starts at the payment instant, not the trial start
+  });
+
+  it('D2: the allowance window resets on the billing ANCHOR DAY (from periodStart), not the calendar 1st', async () => {
+    const { allowanceWindow } = await import('../spend/ai-period.js');
+    const w = allowanceWindow({ status: 'active', trialEndsAt: 0, renewsAt: MONTHLY_END, periodStart: PAID }, PAID + DAY);
+    expect(w.anchorDay).toBe(new Date(PAID).getUTCDate()); // resets on the 9th (the payment day), not the 1st
+    expect(w.startMs).toBe(Date.UTC(2026, 6, 9)); // this window opened on the anchor day of the current month
+    expect(w.startMs).not.toBe(Date.UTC(2026, 6, 1)); // NOT the calendar month start
+  });
+});
+
 describe('[P5-1 · TRIAL-14] free trial (flat 14 days, no usage gate)', () => {
   it('a trial started today grants full access and expires on day 14', async () => {
     const { billing } = make();
