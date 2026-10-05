@@ -10,7 +10,12 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
   private byUser = new Map<string, SubscriptionRecord>();
 
   async create(userId: string, trialEndsAt: number): Promise<SubscriptionRecord> {
-    const record: SubscriptionRecord = { userId, status: 'trialing', trialEndsAt, stripeCustomerId: null, stripeSubscriptionId: null, currentPeriodEnd: null, currentPeriodStart: null, billingName: null, billingCompany: null };
+    const record: SubscriptionRecord = {
+      userId, status: 'trialing', trialEndsAt, stripeCustomerId: null, stripeSubscriptionId: null,
+      currentPeriodEnd: null, currentPeriodStart: null, billingName: null, billingCompany: null,
+      billingState: 'active', firstFailedAt: null, lastRetryAt: null, openInvoiceId: null, hostedInvoiceUrl: null,
+      hardDeclineCount: 0, authRequiredCount: 0, deletionWarned30d: false, deletionWarned7d: false, endedAt: null,
+    };
     this.byUser.set(userId, record);
     return record;
   }
@@ -28,6 +33,12 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
 
   async listTrialing(): Promise<Array<{ userId: string; trialEndsAt: number }>> {
     return [...this.byUser.values()].filter((s) => s.status === 'trialing').map((s) => ({ userId: s.userId, trialEndsAt: s.trialEndsAt }));
+  }
+  async listInDunning(): Promise<SubscriptionRecord[]> {
+    return [...this.byUser.values()].filter((s) => s.billingState === 'payment_failed' || s.billingState === 'suspended');
+  }
+  async listEnded(): Promise<SubscriptionRecord[]> {
+    return [...this.byUser.values()].filter((s) => s.billingState === 'ended');
   }
 }
 

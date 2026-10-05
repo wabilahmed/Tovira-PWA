@@ -147,14 +147,31 @@ describe('[P5-2] billing via webhooks (source of truth)', () => {
     expect((await subs.get('u'))!.status).toBe('active'); // no double-provision, still active
   });
 
-  it('downgrades on cancellation and past-dues on a failed payment', async () => {
+  it('enters payment_failed on a failed charge; a CLEAN cancel (no failed-payment clock) downgrades to canceled', async () => {
     const { billing } = make();
     await billing.onSignup('u', 'rep@x.com', NOW);
     await billing.handleWebhook(evt({ id: 'a', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1' }), 'whsec_test');
     await billing.handleWebhook(evt({ id: 'b', type: 'invoice.payment_failed', customerId: 'cus_1' }), 'whsec_test');
-    expect((await billing.entitlement('u', NOW)).status).toBe('past_due');
+    expect((await billing.entitlement('u', NOW)).status).toBe('payment_failed'); // D3: the failed-payment state
+    // Recover, then a deliberate cancel with no running clock → canceled (the ordinary end-of-subscription).
+    await billing.handleWebhook(evt({ id: 'r', type: 'invoice.payment_succeeded', customerId: 'cus_1' }), 'whsec_test');
     await billing.handleWebhook(evt({ id: 'c', type: 'customer.subscription.deleted', customerId: 'cus_1' }), 'whsec_test');
     expect((await billing.entitlement('u', NOW)).status).toBe('canceled');
+  });
+
+  // [BILLING-DUNNING · ruling 1] We end subscriptions at day 30 — never depend on Stripe cancelling. A
+  // delete that arrives WHILE the failed-payment clock is still running is NOT treated as ended/canceled;
+  // it is ops-alerted and the account stays payment_failed. MUTATION-PROVEN (guard, below the make()):
+  it('GUARD: a subscription.deleted before day 30 does NOT end the account — it alerts ops and stays payment_failed', async () => {
+    const subs = new InMemorySubscriptionRepository();
+    const ops = vi.fn();
+    const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 14, undefined, undefined, undefined, () => NOW, ops);
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.handleWebhook(evt({ id: 'a', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1' }), 'whsec_test');
+    await billing.handleWebhook(evt({ id: 'b', type: 'invoice.payment_failed', customerId: 'cus_1' }), 'whsec_test');
+    await billing.handleWebhook(evt({ id: 'c', type: 'customer.subscription.deleted', customerId: 'cus_1' }), 'whsec_test');
+    expect((await billing.entitlement('u', NOW)).status).toBe('payment_failed'); // NOT canceled/ended
+    expect(ops).toHaveBeenCalledWith('stripe_cancelled_before_day30', expect.objectContaining({ userId: 'u' }));
   });
 });
 
@@ -371,6 +388,9 @@ describe('[EMAIL-HOOKS 1b] webhook lifecycle emails', () => {
     expect(hook.subscriptionConfirmed).toHaveBeenCalledWith('u', 'e1', RENEW);
     await billing.handleWebhook(evt({ id: 'e2', type: 'invoice.payment_failed', customerId: 'cus_1' }), 'whsec_test');
     expect(hook.paymentFailed).toHaveBeenCalledWith('u', 'e2');
+    // A CLEAN cancellation (no running failed-payment clock) fires the canceled email. (A delete DURING
+    // the clock is ops-alerted instead — ruling 1, covered by its own guard above.) Recover first.
+    await billing.handleWebhook(evt({ id: 'er', type: 'invoice.payment_succeeded', customerId: 'cus_1' }), 'whsec_test');
     await billing.handleWebhook(evt({ id: 'e3', type: 'customer.subscription.deleted', customerId: 'cus_1' }), 'whsec_test');
     expect(hook.subscriptionCanceled).toHaveBeenCalledWith('u', 'e3');
   });
@@ -400,5 +420,57 @@ describe('[EMAIL-HOOKS 1b] webhook lifecycle emails', () => {
     await billing.onSignup('u', 'u@x.com', NOW);
     expect(await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1' }), 'whsec_test')).toBe(200);
     expect((await subs.get('u'))!.status).toBe('active'); // business action succeeded regardless
+  });
+});
+
+describe('[BILLING-DUNNING · guards 3/4] reactivation + the day-0 clock', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  async function paidThenFailed(firstFailAt: number) {
+    const subs = new InMemorySubscriptionRepository();
+    const now = { ms: firstFailAt };
+    const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 14, undefined, undefined, undefined, () => now.ms);
+    await billing.onSignup('u', 'rep@x.com', firstFailAt);
+    await billing.handleWebhook(evt({ id: 'ck', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1' }), 'whsec_test');
+    await billing.handleWebhook(evt({ id: 'f1', type: 'invoice.payment_failed', customerId: 'cus_1', invoiceId: 'in_1', hostedInvoiceUrl: 'https://pay.stripe.test/in_1' }), 'whsec_test');
+    return { subs, billing, now };
+  }
+
+  // GUARD 4 — a replayed/repeat failure never restarts the 7-day clock. MUTATION-PROVEN: change the
+  // webhook's `firstFailedAt: s.firstFailedAt ?? this.now()` to `this.now()` → the clock moves → RED.
+  it('GUARD 4: a repeat invoice.payment_failed does NOT move first_failed_at', async () => {
+    const { subs, billing, now } = await paidThenFailed(NOW);
+    expect((await subs.get('u'))!.firstFailedAt).toBe(NOW);
+    now.ms = NOW + 3 * DAY;
+    await billing.handleWebhook(evt({ id: 'f2', type: 'invoice.payment_failed', customerId: 'cus_1', invoiceId: 'in_1' }), 'whsec_test');
+    expect((await subs.get('u'))!.firstFailedAt).toBe(NOW); // unchanged — the clock did not restart
+    expect((await subs.get('u'))!.hardDeclineCount).toBe(2); // both failures counted
+  });
+
+  // GUARD 3 — a successful payment in a non-active state reactivates immediately and clears the clock, so
+  // the async sweep (canSpend → aiPausedForState) resumes and transcribes waiting notes. MUTATION-PROVEN:
+  // drop `billingState: 'active'` from the payment_succeeded branch → still payment_failed → RED.
+  it('GUARD 3: a payment success reactivates and clears the failed-payment clock', async () => {
+    const { subs, billing, now } = await paidThenFailed(NOW);
+    expect((await subs.get('u'))!.billingState).toBe('payment_failed');
+    now.ms = NOW + 4 * DAY;
+    await billing.handleWebhook(evt({ id: 'ok', type: 'invoice.payment_succeeded', customerId: 'cus_1' }), 'whsec_test');
+    const s = (await subs.get('u'))!;
+    expect(s.billingState).toBe('active'); // reactivated
+    expect(s.firstFailedAt).toBeNull(); // clock cleared
+    expect(s.openInvoiceId).toBeNull();
+    expect((await billing.entitlement('u', now.ms)).status).toBe('active');
+  });
+
+  // Ruling 2 — authentication_required (3DS) is counted apart from hard declines.
+  it('counts authentication_required (3DS) failures separately from hard declines', async () => {
+    const subs = new InMemorySubscriptionRepository();
+    const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 14, undefined, undefined, undefined, () => NOW);
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.handleWebhook(evt({ id: 'ck', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1' }), 'whsec_test');
+    await billing.handleWebhook(evt({ id: 'f1', type: 'invoice.payment_failed', customerId: 'cus_1', invoiceId: 'in_1', paymentFailureCode: 'authentication_required' }), 'whsec_test');
+    const s = (await subs.get('u'))!;
+    expect(s.authRequiredCount).toBe(1);
+    expect(s.hardDeclineCount).toBe(0);
+    expect(s.hostedInvoiceUrl).toBeNull(); // this event carried no hosted url; stays null
   });
 });

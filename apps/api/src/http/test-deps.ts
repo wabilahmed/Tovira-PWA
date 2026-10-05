@@ -274,7 +274,8 @@ export function buildInMemoryDeps(
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     isVerified: opts.enforceVerification ? (u: string) => auth.getPublicUser(u).then((x) => x?.emailVerified ?? false) : undefined,
     allow: (u: string) => extractionLimiter.allow(u), // [ASYNC-EXTRACT] ceiling skip (mirrors prod)
-    canSpend: (u: string) => allowanceStatus.isExhausted(u).then((x) => !x), // [USAGE-ALLOWANCE · D4] exhausted rep's queue waits
+    // [USAGE-ALLOWANCE · D4 / BILLING-DUNNING · D3] queue waits while AI is paused — exhausted allowance OR a failed-payment billing state.
+    canSpend: async (u: string) => !(await allowanceStatus.isExhausted(u)) && (await billing.entitlement(u, Date.now())).billingState === 'active',
   });
   const runSweep = async (passes = 2): Promise<void> => {
     const today = new Date().toISOString().slice(0, 10);

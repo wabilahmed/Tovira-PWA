@@ -35,6 +35,14 @@ export class StubStripeGateway implements StripeGateway {
     this.updates.push({ customerId, details });
   }
 
+  /** Recorded retries + a programmable outcome per invoice so a test can drive paid / 3DS / decline. */
+  readonly invoicePays: string[] = [];
+  payInvoiceOutcome: (invoiceId: string) => 'paid' | 'authentication_required' | 'failed' = () => 'failed';
+  async payInvoice(invoiceId: string): Promise<'paid' | 'authentication_required' | 'failed'> {
+    this.invoicePays.push(invoiceId);
+    return this.payInvoiceOutcome(invoiceId);
+  }
+
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null {
     if (signature !== this.webhookSecret) return null; // invalid signature → rejected
     try {

@@ -8,6 +8,7 @@ export interface StripeLike {
     create(params: Stripe.CustomerCreateParams): Promise<{ id: string }>;
     update(id: string, params: Stripe.CustomerUpdateParams): Promise<{ id: string }>;
   };
+  invoices: { pay(id: string, params?: Stripe.InvoicePayParams): Promise<{ status: string | null }> };
   webhooks: { constructEvent(payload: string, sig: string, secret: string): Stripe.Event };
 }
 
@@ -116,6 +117,21 @@ export class StripeGatewayImpl implements StripeGateway {
     });
   }
 
+  /** [BILLING-DUNNING · D6] Off-session daily retry. A decline/3DS is NOT exceptional here — map Stripe's
+   *  error code to a result; only unexpected (non-StripeError) failures propagate. */
+  async payInvoice(invoiceId: string): Promise<'paid' | 'authentication_required' | 'failed'> {
+    try {
+      const inv = await this.stripe.invoices.pay(invoiceId, { off_session: true });
+      return inv.status === 'paid' ? 'paid' : 'failed';
+    } catch (err) {
+      const code = (err as { code?: string; raw?: { code?: string } })?.code ?? (err as { raw?: { code?: string } })?.raw?.code;
+      if (code === 'authentication_required') return 'authentication_required';
+      // card_declined / insufficient_funds / etc. → a hard failure the retry schedule keeps trying.
+      if (err instanceof Error && 'type' in err) return 'failed';
+      throw err; // a genuinely unexpected error (network/bug) — let it surface
+    }
+  }
+
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null {
     let event: Stripe.Event;
     try {
@@ -141,6 +157,13 @@ export class StripeGatewayImpl implements StripeGateway {
     const meta = (obj.metadata as Record<string, unknown> | null | undefined) ?? undefined;
     const topUpOptionId = meta && typeof meta.topup_option_id === 'string' ? meta.topup_option_id : undefined;
     const mode = obj.mode === 'payment' || obj.mode === 'subscription' ? obj.mode : undefined;
+    // [BILLING-DUNNING · ruling 2] On invoice.payment_failed: the hosted page (pay + 3DS) and the failure
+    // code. Stripe puts the decline code on the invoice's last_finalization_error, or on the attached
+    // PaymentIntent's last_payment_error; 'authentication_required' means 3DS is needed.
+    const hostedInvoiceUrl = typeof obj.hosted_invoice_url === 'string' ? obj.hosted_invoice_url : undefined;
+    const finErr = obj.last_finalization_error as { code?: unknown } | null | undefined;
+    const payErr = (obj.last_payment_error ?? (obj.payment_intent as { last_payment_error?: unknown } | undefined)?.last_payment_error) as { code?: unknown } | null | undefined;
+    const paymentFailureCode = typeof payErr?.code === 'string' ? payErr.code : typeof finErr?.code === 'string' ? finErr.code : undefined;
     return {
       id: event.id,
       type: event.type,
@@ -156,6 +179,8 @@ export class StripeGatewayImpl implements StripeGateway {
       ...(isInvoice && createdSec !== undefined ? { invoiceIssuedAtMs: createdSec * 1000 } : {}),
       ...(mode ? { mode } : {}),
       ...(topUpOptionId ? { topUpOptionId } : {}),
+      ...(hostedInvoiceUrl ? { hostedInvoiceUrl } : {}),
+      ...(paymentFailureCode ? { paymentFailureCode } : {}),
     };
   }
 }

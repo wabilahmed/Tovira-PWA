@@ -90,6 +90,7 @@ import {
   createModelClient,
   createPrioritiesRepository,
   createBillingService,
+  createBillingDunningService,
   createAccountService,
   createActivationService,
   createJobRunStore,
@@ -184,13 +185,18 @@ async function main(): Promise<void> {
     subscriptionConfirmed: async (userId: string, eventId: string, renewsAt: number | null) => { const to = await emailFor(userId); if (to) await accountEmail.sendSubscriptionConfirmed(userId, to, eventId, renewsAt); },
     subscriptionCanceled: async (userId: string, eventId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendSubscriptionCanceled(userId, to, eventId); },
   };
-  const billing = createBillingService(config, appPool, billingEmailHook);
+  const opsAlerts = createOpsAlertRepository(config, migrationPool);
+  // [BILLING-DUNNING · ruling 1] Stripe cancelling a subscription BEFORE our day-30 end is an anomaly —
+  // alert ops, never silently treat it as ended.
+  const billingOpsAlert = (event: string, detail: Record<string, unknown>): Promise<void> =>
+    opsAlerts.createIfAbsent({ kind: event, userId: String(detail.userId ?? ''), dedupeKey: `${event}:${String(detail.userId ?? '')}`, detail }).then(() => undefined);
+  const billing = createBillingService(config, appPool, billingEmailHook, billingOpsAlert);
+  const billingDunning = createBillingDunningService(config, appPool, billingEmailHook);
   // [SPEND-CAP] Durable per-account spend, bucketed by the rep's billing period. The spend sink is
   // set process-wide so every metered model call records against it (no threading through every
   // createModelClient). Enforcement (the sweep/recall gates + the 80% ops alert + override) is wired
   // further down once its stores exist.
   const spendLedger = createSpendLedgerRepository(config, appPool, migrationPool);
-  const opsAlerts = createOpsAlertRepository(config, migrationPool);
   const spendOverrides = createSpendOverrideRepository(config, migrationPool);
   const spendPeriodFor = (uid: string, now: number) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key);
   // CAP-WARN: at 80% of the cap, alert OPS (not the rep — a rep on a generous cap is doing nothing
@@ -336,7 +342,10 @@ async function main(): Promise<void> {
     reclaim: (u) => notes.reclaimStaleExtracting(u, Date.now(), EXTRACTION_CLAIM_TIMEOUT_MS).then(() => undefined),
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
-    canSpend: (u) => aiExhausted(u).then((x) => !x), // [USAGE-ALLOWANCE · D4] an exhausted rep's queue waits, untouched (replaces the retired cap)
+    // [USAGE-ALLOWANCE · D4 / BILLING-DUNNING · D3] A queued note waits while AI is paused — an exhausted
+    // allowance OR a failed-payment state (payment_failed/suspended/ended). On a successful payment the
+    // billing state returns to active and the sweep processes the waiting notes on its next pass (guard 3).
+    canSpend: async (u) => !(await aiExhausted(u)) && (await billing.entitlement(u, Date.now())).billingState === 'active',
     isVerified: (u) => verifiedGate.isVerified(u), // TRIAL-FARM: an unverified rep's queue waits too
     allow: (u) => extractionLimiter.allow(u), // ASYNC-EXTRACT: a rep at the extraction ceiling waits (no needs_review)
     onSettled: (u, id) => importCompletion.onNoteSettled(u, id), // IMPORT-DONE
@@ -415,6 +424,10 @@ async function main(): Promise<void> {
       // …008 training-archive, …009 outcomes-inference — so the next free key is …010.
       { name: 'daily-digest', lockKey: 4711010, intervalMs: 60 * 60 * 1000,
         run: async () => { await dailyDigest.runScheduled(await auth.allUserIds(), Date.now()); } },
+      // [BILLING-DUNNING · D4–D7] Daily: retry the open invoice (app-driven, Stripe built-in can't do
+      // daily-for-30), remind, suspend at day 7, end at day 30. Idempotent to once/UTC-day per account.
+      { name: 'billing-dunning', lockKey: 4711008, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => { const r = await billingDunning.run(); if (r.scanned > 0) console.log(`[billing-dunning] scanned=${r.scanned} retried=${r.retried} auth3ds=${r.authRequired} suspended=${r.suspended} ended=${r.ended}`); } },
       // [SCAN-WIRING] The daily proactive scan (overdue promises / going cold / date reminders /
       // chat-refresh) — the automated trigger the stub EventBridge Lambda never provided. Every few
       // hours; generators are idempotent (deduped) and the 2/day silence budget bounds pushes.

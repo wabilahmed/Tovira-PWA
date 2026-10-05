@@ -6,9 +6,29 @@
 
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled';
 
+/** [BILLING-DUNNING · D3–D7] The failed-payment lifecycle, distinct from `status`. */
+export type BillingState = 'active' | 'payment_failed' | 'suspended' | 'ended';
+
 export interface SubscriptionRecord {
   userId: string;
   status: SubscriptionStatus;
+  /** [BILLING-DUNNING] The failed-payment state machine. 'active' until a renewal charge fails. */
+  billingState: BillingState;
+  /** Day-0 anchor of a failed-payment episode (epoch ms); null when active. Stamped ONCE, cleared on
+   *  recovery — a replayed/repeat failure never restarts it (the 7/30-day clocks read this). */
+  firstFailedAt: number | null;
+  /** Last app-driven retry (invoices.pay), epoch ms — so the daily job fires at most once per day. */
+  lastRetryAt: number | null;
+  /** The unpaid invoice to retry, and its Stripe hosted page where the rep pays + completes 3DS. */
+  openInvoiceId: string | null;
+  hostedInvoiceUrl: string | null;
+  /** Failure counts, split so 3DS/authentication_required is reported apart from hard declines (ruling 2). */
+  hardDeclineCount: number;
+  authRequiredCount: number;
+  /** [D8] retention-warning flags + when the subscription ended (the 90-day deletion clock). */
+  deletionWarned30d: boolean;
+  deletionWarned7d: boolean;
+  endedAt: number | null;
   trialEndsAt: number;
   // [TRIAL-14] The usage-gated trial extension is removed (flat 14-day trial), so `trialExtended` is
   // gone from the app model. The DB column subscriptions.trial_extended is now ORPHANED — left in
@@ -30,6 +50,16 @@ export interface SubscriptionRecord {
 
 export interface SubscriptionPatch {
   status?: SubscriptionStatus;
+  billingState?: BillingState;
+  firstFailedAt?: number | null;
+  lastRetryAt?: number | null;
+  openInvoiceId?: string | null;
+  hostedInvoiceUrl?: string | null;
+  hardDeclineCount?: number;
+  authRequiredCount?: number;
+  deletionWarned30d?: boolean;
+  deletionWarned7d?: boolean;
+  endedAt?: number | null;
   trialEndsAt?: number;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
@@ -46,6 +76,11 @@ export interface SubscriptionRepository {
   findByCustomerId(customerId: string): Promise<SubscriptionRecord | null>;
   /** Every account still on a trial — drives the trial-ending/ended emails. */
   listTrialing(): Promise<Array<{ userId: string; trialEndsAt: number }>>;
+  /** [BILLING-DUNNING] Accounts with a running failed-payment clock (payment_failed or suspended) —
+   *  drives the daily retry/reminder/suspend/end job. */
+  listInDunning(): Promise<SubscriptionRecord[]>;
+  /** [D8] Ended subscriptions — drives the 90-day retention deletion + its two warning emails. */
+  listEnded(): Promise<SubscriptionRecord[]>;
 }
 
 export interface TrialGrantRepository {
@@ -96,6 +131,12 @@ export interface StripeWebhookEvent {
   mode?: 'subscription' | 'payment';
   /** [USAGE-ALLOWANCE · D12] The top-up product id (from checkout metadata), on a completed top-up. */
   topUpOptionId?: string;
+  /** [BILLING-DUNNING · ruling 2] On invoice.payment_failed: the failure code. 'authentication_required'
+   *  (3DS) is counted + reported apart from hard declines; the state-machine treatment is identical. */
+  paymentFailureCode?: string;
+  /** [BILLING-DUNNING · ruling 2] The Stripe hosted invoice page — where the rep pays the open invoice
+   *  and completes 3DS. Linked from every failed-payment email + banner. */
+  hostedInvoiceUrl?: string;
 }
 
 export type Plan = 'monthly' | 'annual';
@@ -123,4 +164,9 @@ export interface StripeGateway {
   ): Promise<StripeCheckout>;
   /** Verify + parse a webhook; returns null if the signature is invalid. */
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null;
+  /** [BILLING-DUNNING · D6] App-driven daily retry of an open invoice (Stripe's built-in retries can't do
+   *  daily-for-30, finding 4). Attempts an off-session charge. Returns 'paid' on success, 'authentication
+   *  _required' when the card needs 3DS (the rep must pay via the hosted page — ruling 2), or 'failed' on
+   *  a hard decline. Never throws for a decline — only truly unexpected errors propagate. */
+  payInvoice(invoiceId: string): Promise<'paid' | 'authentication_required' | 'failed'>;
 }

@@ -1,4 +1,5 @@
 import type {
+  BillingState,
   CustomerDetails,
   Plan,
   StripeGateway,
@@ -21,6 +22,12 @@ export interface BillingEmailHook {
   paymentFailed(userId: string, eventId: string): Promise<void>;
   subscriptionConfirmed(userId: string, eventId: string, renewsAt: number | null): Promise<void>;
   subscriptionCanceled(userId: string, eventId: string): Promise<void>;
+  /** [BILLING-DUNNING · D4–D8] Dunning-job emails (templates in Task 4). Optional so existing hook
+   *  implementations keep compiling; the daily runner calls them when present. */
+  dailyReminder?(userId: string): Promise<void>;
+  suspended?(userId: string): Promise<void>;
+  subscriptionEnded?(userId: string): Promise<void>;
+  deletionWarning?(userId: string, daysLeft: 30 | 7): Promise<void>;
 }
 
 export interface Entitlement {
@@ -33,6 +40,11 @@ export interface Entitlement {
   /** START of the current billing period (epoch ms) — the spend-cap bucket anchor.
    *  Null for trials / pre-change subs; the caller falls back explicitly (BILLING-PERIOD). */
   periodStart: number | null;
+  /** [BILLING-DUNNING] The failed-payment lifecycle state, so the gate + the in-app banner can react. */
+  billingState: BillingState;
+  /** [BILLING-DUNNING · ruling 2] The Stripe hosted invoice page to pay the open invoice + do 3DS —
+   *  the link every failed-payment banner/email uses. Null when there's nothing to pay. */
+  hostedInvoiceUrl: string | null;
 }
 
 /**
@@ -54,7 +66,12 @@ export class BillingService {
     /** [VAT-BOUNDARY] the frozen per-invoice tax-treatment store. */
     private readonly invoiceTax?: InvoiceTaxRepository,
     private readonly now: () => number = () => Date.now(),
+    /** [BILLING-DUNNING · ruling 1] Raise an ops alert to the owner — used when Stripe cancels a
+     *  subscription BEFORE our day-30 end (we must never depend on Stripe cancelling). */
+    private readonly opsAlert?: (event: string, detail: Record<string, unknown>) => Promise<void> | void,
   ) {}
+
+  private readonly DUNNING_DAY_MS = 24 * 60 * 60 * 1000;
 
   /** [USAGE-ALLOWANCE · D12/FIX5] Credit a confirmed top-up to the rep's allowance, EXACTLY ONCE and
    *  transactionally (records the event + credits in one DB tx — see creditTopUpOnce). Set at boot after
@@ -109,13 +126,21 @@ export class BillingService {
 
   async entitlement(userId: string, nowMs: number): Promise<Entitlement> {
     const s = await this.subs.get(userId);
-    if (!s) return { entitled: false, status: 'none', trialEndsAt: 0, renewsAt: null, periodStart: null };
+    if (!s) return { entitled: false, status: 'none', trialEndsAt: 0, renewsAt: null, periodStart: null, billingState: 'active', hostedInvoiceUrl: null };
     const renewsAt = s.currentPeriodEnd;
     const periodStart = s.currentPeriodStart;
-    if (s.status === 'active') return { entitled: true, status: 'active', trialEndsAt: s.trialEndsAt, renewsAt, periodStart };
-    if (s.status === 'trialing' && nowMs < s.trialEndsAt) return { entitled: true, status: 'trialing', trialEndsAt: s.trialEndsAt, renewsAt, periodStart };
+    const base = { trialEndsAt: s.trialEndsAt, renewsAt, periodStart, billingState: s.billingState, hostedInvoiceUrl: s.hostedInvoiceUrl };
+    if (s.status === 'active') {
+      // [BILLING-DUNNING] A paid account in the failed-payment lifecycle. payment_failed stays ENTITLED —
+      // only the AI (model) paths are paused, by the server chokepoint, not here (ruling 4). suspended/
+      // ended are not entitled; the chokepoint still lets export + the payment page + auth through (D5).
+      if (s.billingState === 'suspended' || s.billingState === 'ended') return { entitled: false, status: s.billingState, ...base };
+      if (s.billingState === 'payment_failed') return { entitled: true, status: 'payment_failed', ...base };
+      return { entitled: true, status: 'active', ...base };
+    }
+    if (s.status === 'trialing' && nowMs < s.trialEndsAt) return { entitled: true, status: 'trialing', ...base };
     const status = s.status === 'trialing' ? 'trial_expired' : s.status;
-    return { entitled: false, status, trialEndsAt: s.trialEndsAt, renewsAt, periodStart };
+    return { entitled: false, status, ...base };
   }
 
   async checkout(userId: string, email: string, plan: Plan = 'monthly', details: CustomerDetails = {}): Promise<{ url: string }> {
@@ -187,6 +212,7 @@ export class BillingService {
     if (event.type === 'checkout.session.completed' && event.userId) {
       await this.subs.update(event.userId, {
         status: 'active',
+        billingState: 'active', // a fresh subscription starts clean (no failed-payment clock)
         stripeCustomerId: event.customerId ?? null,
         stripeSubscriptionId: event.subscriptionId ?? null,
         // Only stamp the period dates when the webhook actually carries them —
@@ -197,28 +223,61 @@ export class BillingService {
         ...(event.currentPeriodStart !== undefined ? { currentPeriodStart: event.currentPeriodStart } : {}),
       });
       if (this.emailHook) await this.notify(() => this.emailHook!.subscriptionConfirmed(event.userId!, event.id, event.currentPeriodEnd ?? null));
-    } else if (event.type === 'invoice.payment_succeeded' && event.customerId) {
-      // A successful renewal: keep access active and advance the renewal date.
+    } else if ((event.type === 'invoice.payment_succeeded' || event.type === 'invoice.paid') && event.customerId) {
+      // [BILLING-DUNNING · D3/D6, guard 3] A successful charge/renewal REACTIVATES immediately: billing
+      // back to active, the failed-payment clock cleared, the open invoice dropped. The async sweep's
+      // canSpend un-pauses (aiPausedForState → false), so waiting voice notes transcribe on the next pass.
       const s = await this.subs.findByCustomerId(event.customerId);
       if (s) {
+        const wasReactivation = s.billingState !== 'active'; // coming BACK from payment_failed/suspended
         await this.subs.update(s.userId, {
           status: 'active',
+          billingState: 'active',
+          firstFailedAt: null,
+          openInvoiceId: null,
+          hostedInvoiceUrl: null,
+          endedAt: null,
           ...(event.currentPeriodEnd !== undefined ? { currentPeriodEnd: event.currentPeriodEnd } : {}),
           ...(event.currentPeriodStart !== undefined ? { currentPeriodStart: event.currentPeriodStart } : {}),
         });
         await this.recordInvoiceTax(event, s.userId);
+        // Email only on REACTIVATION (payment recovered) — never on an ordinary renewal (that would be noise).
+        if (wasReactivation && this.emailHook) await this.notify(() => this.emailHook!.subscriptionConfirmed(s.userId, event.id, event.currentPeriodEnd ?? null));
       }
     } else if (event.type === 'customer.subscription.deleted' && event.customerId) {
       const s = await this.subs.findByCustomerId(event.customerId);
       if (s) {
-        await this.subs.update(s.userId, { status: 'canceled' });
-        if (this.emailHook) await this.notify(() => this.emailHook!.subscriptionCanceled(s.userId, event.id));
+        // [BILLING-DUNNING · ruling 1] We end subscriptions ourselves at day 30 — never depend on Stripe
+        // cancelling. A delete that arrives while our clock is still running (before day 30) is an
+        // anomaly: log + ops-alert, and do NOT silently treat it as "ended".
+        const clockRunning = s.firstFailedAt !== null && this.now() - s.firstFailedAt < 30 * this.DUNNING_DAY_MS;
+        if (s.billingState !== 'ended' && clockRunning) {
+          console.warn(`[billing] customer.subscription.deleted for ${s.userId} arrived before day 30 (billing_state=${s.billingState}) — NOT ending; alerting ops`);
+          if (this.opsAlert) await this.notify(() => Promise.resolve(this.opsAlert!('stripe_cancelled_before_day30', { userId: s.userId, billingState: s.billingState, firstFailedAt: s.firstFailedAt })));
+        } else {
+          await this.subs.update(s.userId, { status: 'canceled' });
+          if (this.emailHook) await this.notify(() => this.emailHook!.subscriptionCanceled(s.userId, event.id));
+        }
       }
     } else if (event.type === 'invoice.payment_failed' && event.customerId) {
+      // [BILLING-DUNNING · D3, guards 1/4] First failure (or a repeat): enter payment_failed. The day-0
+      // anchor is stamped ONCE — a replayed/repeat failure never restarts the 7/30-day clock. 3DS
+      // (authentication_required) is counted apart from hard declines (ruling 2); the treatment is the same.
       const s = await this.subs.findByCustomerId(event.customerId);
       if (s) {
-        await this.subs.update(s.userId, { status: 'past_due' });
-        if (this.emailHook) await this.notify(() => this.emailHook!.paymentFailed(s.userId, event.id));
+        const firstFailure = s.firstFailedAt === null;
+        const isAuth = event.paymentFailureCode === 'authentication_required';
+        // `status` stays 'active' (they have a paid subscription); billing_state is the authoritative
+        // failed-payment lifecycle that entitlement() + the gate read.
+        await this.subs.update(s.userId, {
+          billingState: 'payment_failed',
+          firstFailedAt: s.firstFailedAt ?? this.now(), // stamped once; never overwritten (guard 4)
+          ...(event.invoiceId ? { openInvoiceId: event.invoiceId } : {}),
+          ...(event.hostedInvoiceUrl ? { hostedInvoiceUrl: event.hostedInvoiceUrl } : {}),
+          ...(isAuth ? { authRequiredCount: s.authRequiredCount + 1 } : { hardDeclineCount: s.hardDeclineCount + 1 }),
+        });
+        // Email only on the FIRST failure of an episode — the daily reminder (Task 4 job) handles the rest.
+        if (firstFailure && this.emailHook) await this.notify(() => this.emailHook!.paymentFailed(s.userId, event.id));
       }
     }
     return 200;

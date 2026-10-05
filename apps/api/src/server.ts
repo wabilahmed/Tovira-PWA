@@ -74,7 +74,8 @@ import { handleAllowanceRoute } from './http/allowance-routes.js';
 import type { AllowanceStatusService } from './services/spend/allowance-status.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
-import { sendJson } from './http/helpers.js';
+import { sendJson, extractToken } from './http/helpers.js';
+import { billingGateDecision } from './services/billing/billing-access.js';
 
 /**
  * [HEALTH-LEAK] The ONLY keys an unauthenticated caller (the load balancer) may see in the /health
@@ -326,6 +327,30 @@ export function createApiServer(deps: ApiDeps): Server {
         }))
       )
         return;
+      // [BILLING-DUNNING · D3/D5 · guards 1/2] The failed-payment chokepoint. Runs after the public
+      // routes (auth/ops/health/access-request) and before every feature route. For an authenticated rep:
+      //   payment_failed → the AI (model) paths are refused (402 ai_paused); everything else passes.
+      //   suspended/ended → everything is refused (403) EXCEPT the payment page, data export and auth.
+      // Export, sign-in/out and /billing/* stay open in every state (D5). Single source of truth:
+      // billingGateDecision. Unauthenticated requests fall through to the routes' own 401 handling.
+      {
+        const path = (request.url ?? '/').split('?')[0]!;
+        const method = request.method ?? 'GET';
+        const identity = await deps.auth.authenticate(extractToken(request));
+        if (identity) {
+          const ent = await deps.billing.entitlement(identity.userId, Date.now());
+          const decision = billingGateDecision(ent.billingState, method, path);
+          if (decision === 'ai_paused') {
+            sendJson(response, 402, { error: 'ai_paused', message: 'AI features are paused because your last payment failed. Update your payment details to resume.', hostedInvoiceUrl: ent.hostedInvoiceUrl });
+            return;
+          }
+          if (decision === 'blocked_suspended') {
+            sendJson(response, 403, { error: 'account_suspended', message: ent.billingState === 'ended' ? 'Your subscription has ended. Contact hello@tovira.io to restore your account.' : 'Your account is suspended after a failed payment. Update your payment details to restore access. You can still export your data.', hostedInvoiceUrl: ent.hostedInvoiceUrl });
+            return;
+          }
+        }
+      }
+
       // Notes routes are matched before the generic client routes so
       // /clients/:id/notes/* isn't misread as /clients/:id.
       if (

@@ -163,6 +163,7 @@ import { InMemoryImageRepository } from './adapters/images/in-memory-image-repos
 import { PgImageRepository } from './adapters/images/pg-image-repository.js';
 import { HeroService } from './services/hero/hero-service.js';
 import { BillingService, type BillingEmailHook } from './services/billing/billing-service.js';
+import { BillingDunningService } from './services/billing/billing-dunning-service.js';
 import type { SubscriptionRepository, TrialGrantRepository, WebhookEventRepository } from './ports/billing.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from './adapters/billing/in-memory.js';
 import { PgSubscriptionRepository, PgTrialGrantRepository, PgWebhookEventRepository } from './adapters/billing/pg.js';
@@ -743,7 +744,7 @@ export function createHeroService(config: AppConfig, clients: ClientRepository, 
   return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays, config.promiseStaleThresholdDays, matching);
 }
 
-export function createBillingService(config: AppConfig, pool?: Pool, emailHook?: BillingEmailHook): BillingService {
+export function createBillingService(config: AppConfig, pool?: Pool, emailHook?: BillingEmailHook, opsAlert?: (event: string, detail: Record<string, unknown>) => Promise<void> | void): BillingService {
   let subs: SubscriptionRepository;
   let trials: TrialGrantRepository;
   let events: WebhookEventRepository;
@@ -765,7 +766,20 @@ export function createBillingService(config: AppConfig, pool?: Pool, emailHook?:
   // everything as non-VAT until registration is enabled.
   const vat = new VatPolicy({ registered: config.vatRegistered, trn: config.vatTrn ?? null, rate: config.vatRate, registeredFromMs: config.vatRegisteredFromMs });
   const invoiceTax: InvoiceTaxRepository = config.authStore === 'postgres' && pool ? new PgInvoiceTaxRepository(pool) : new InMemoryInvoiceTaxRepository();
-  return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook, vat, invoiceTax);
+  return new BillingService(subs, trials, events, stripe, config.trialDays, emailHook, vat, invoiceTax, undefined, opsAlert);
+}
+
+/** [BILLING-DUNNING · D4–D7] The daily failed-payment job, over the same Stripe + subscriptions store as
+ *  the billing service. Postgres adapters are stateless over the pool, so a fresh repo here hits the same
+ *  rows the webhook path writes. */
+export function createBillingDunningService(config: AppConfig, pool: Pool | undefined, emailHook?: BillingEmailHook): BillingDunningService {
+  const subs: SubscriptionRepository = config.authStore === 'postgres'
+    ? new PgSubscriptionRepository(pool!)
+    : new InMemorySubscriptionRepository();
+  const stripe: StripeGateway = config.stripeSecretKey
+    ? new StripeGatewayImpl({ secretKey: config.stripeSecretKey, webhookSecret: config.stripeWebhookSecret, priceId: config.stripePriceId, annualPriceId: config.stripeAnnualPriceId, successUrl: config.stripeSuccessUrl, cancelUrl: config.stripeCancelUrl })
+    : new StubStripeGateway(config.stripeWebhookSecret);
+  return new BillingDunningService({ subs, stripe, emailHook });
 }
 
 export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository, repGlossary?: RepGlossaryRepository, blobStorage?: Storage, pointers?: ClientPointerRepository): AccountService {
