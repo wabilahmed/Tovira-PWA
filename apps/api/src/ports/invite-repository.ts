@@ -22,4 +22,10 @@ export interface InviteRepository {
   /** Is this token currently usable (known, unconsumed, unexpired)? A NON-consuming check so the invite
    *  page can show "this link is invalid/expired" on load without burning the token. */
   peek(tokenHash: string, nowMs: number): Promise<boolean>;
+  /** [BETA-8] Resolve a token to its invite record REGARDLESS of expiry/consumption — so an expired
+   *  link's resend can find the request + the original invited address. Returns null if unknown. */
+  findByToken(tokenHash: string): Promise<InviteRecord | null>;
+  /** [BETA-8] Re-issue an invite for a request: INVALIDATE every earlier link for that access request
+   *  (so old tokens fail `consume`), then write the new one — atomically. Keyed by access_request_id. */
+  reissue(input: { accessRequestId: string; userId: string; tokenHash: string; expiresAt: number; createdBy: string }): Promise<void>;
 }

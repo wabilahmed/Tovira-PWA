@@ -11,6 +11,7 @@ import {
   sessionCookie,
 } from './helpers.js';
 import type { RateLimiter } from '../services/security/rate-limiter.js';
+import { ResendRateLimitedError, type AccessApprovalService } from '../services/access/access-approval-service.js';
 
 interface Credentials {
   email: string;
@@ -43,6 +44,9 @@ export interface AuthRouteOptions {
   /** [BETA-7] Public self-registration flag. When false (the default in prod), /auth/signup is
    *  unreachable (404) — beta is request-and-invite only. The route + handler are unchanged. */
   signupEnabled?: boolean;
+  /** [BETA-8] Self-serve resend from an expired invite link. Takes ONLY the token; the new link always
+   *  goes to the original invited address. Served only when wired. */
+  accessApproval?: Pick<AccessApprovalService, 'resendInvite'>;
 }
 
 function verifyLink(appBaseUrl: string, token: string): string {
@@ -184,6 +188,25 @@ export async function handleAuthRoute(
       }
       await auth.acceptInvite(token, password, TERMS_VERSION, clientIp(req)); // throws AuthError → handled below
       sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    // [BETA-8] Self-serve recovery from an EXPIRED invite link. The expired page posts the (dead) token
+    // and nothing else; a new 7-day link is minted and emailed to the ORIGINAL invited address, never an
+    // address supplied here. The response is byte-identical whether or not the token resolves to an
+    // invite (anti-enumeration); the only non-200 is the per-invite rate limit (429).
+    if (method === 'POST' && url === '/auth/invite/resend' && opts.accessApproval) {
+      const body = (await readJsonBody(req).catch(() => ({}))) as Record<string, unknown>;
+      const token = typeof body.token === 'string' ? body.token : '';
+      try {
+        sendJson(res, 200, await opts.accessApproval.resendInvite(token));
+      } catch (err) {
+        if (err instanceof ResendRateLimitedError) {
+          sendJson(res, 429, { error: 'rate_limited', message: "We've already sent a few links today. Check your inbox and spam folder, or contact hello@tovira.io." });
+          return true;
+        }
+        throw err;
+      }
       return true;
     }
 

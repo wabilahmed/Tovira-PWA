@@ -64,6 +64,37 @@ describe('[BETA-5] /ops/access-requests', () => {
     expect((await rejected.json() as { request: { status: string; reviewedNote: string } }).request).toMatchObject({ status: 'rejected', reviewedNote: 'not now' });
   });
 
+  describe('[BETA-8] POST /ops/access-requests/:id/reinvite (operator re-issue)', () => {
+    const lastToken = (email: string): string => /\/invite\?token=([^\s)]+)/.exec(deps.emailSender.to(email).at(-1)!.text)![1]!;
+
+    it('fails closed without the ops token (403) and re-issues to the original address with the token (old link dies)', async () => {
+      const r = await deps.accessRequests.create(REQ());
+      await ops('POST', `/ops/access-requests/${r.id}/approve`, {});
+      const oldToken = lastToken('dana@x.ae');
+
+      // Fail closed: no/ wrong token → 403, nothing sent.
+      const before = deps.emailSender.to('dana@x.ae').length;
+      expect((await ops('POST', `/ops/access-requests/${r.id}/reinvite`, {}, null)).status).toBe(403);
+      expect((await ops('POST', `/ops/access-requests/${r.id}/reinvite`, {}, 'wrong')).status).toBe(403);
+      expect(deps.emailSender.to('dana@x.ae').length).toBe(before);
+
+      // With the token: 200, a new link to the ORIGINAL address, old link invalidated.
+      const res = await ops('POST', `/ops/access-requests/${r.id}/reinvite`, { reviewedBy: 'owner' });
+      expect(res.status).toBe(200);
+      expect(deps.emailSender.to('dana@x.ae').length).toBe(before + 1);
+      const newToken = lastToken('dana@x.ae');
+      expect(newToken).not.toBe(oldToken);
+      expect(await deps.invites.peek((await import('node:crypto')).createHash('sha256').update(newToken).digest('hex'), Date.now())).toBe(true);
+      expect(await deps.invites.consume((await import('node:crypto')).createHash('sha256').update(oldToken).digest('hex'), Date.now())).toBeNull();
+    });
+
+    it('409 for a request that is not in the invited state; 404 for an unknown id', async () => {
+      const pending = await deps.accessRequests.create(REQ({ workEmail: 'p@x.ae' }));
+      expect((await ops('POST', `/ops/access-requests/${pending.id}/reinvite`, {})).status).toBe(409);
+      expect((await ops('POST', '/ops/access-requests/nope/reinvite', {})).status).toBe(404);
+    });
+  });
+
   describe('the account created by approval is UNUSABLE until the invite is consumed', () => {
     const post = (path: string, body: unknown) =>
       fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

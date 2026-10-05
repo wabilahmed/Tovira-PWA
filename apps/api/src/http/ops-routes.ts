@@ -29,7 +29,7 @@ export interface OpsRouteDeps {
   /** [SPEND-INSTRUMENT] durable per-call event store — powers GET /ops/spend/by-class. Absent → 404. */
   modelCallEvents?: ModelCallEventStore;
   /** [BETA-5] Beta access-request review + invite provisioning. Absent → the routes 404. */
-  accessApproval?: Pick<AccessApprovalService, 'list' | 'get' | 'approve' | 'reject'>;
+  accessApproval?: Pick<AccessApprovalService, 'list' | 'get' | 'approve' | 'reject' | 'reissueByRequestId'>;
   /** [USAGE-ALLOWANCE · D14] the runtime kill switch — set/clear via /ops/ai-pause. Absent → 404. */
   aiPause?: { getPaused(): Promise<boolean>; setPaused(paused: boolean): Promise<void> };
 }
@@ -147,7 +147,7 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
       sendJson(res, 200, { requests: await svc.list(statusQ as AccessRequestStatus | undefined) });
       return true;
     }
-    const idMatch = /^\/ops\/access-requests\/([^/]+)(\/approve|\/reject)?$/.exec(url);
+    const idMatch = /^\/ops\/access-requests\/([^/]+)(\/approve|\/reject|\/reinvite)?$/.exec(url);
     if (idMatch) {
       const id = decodeURIComponent(idMatch[1]!);
       const action = idMatch[2];
@@ -163,6 +163,15 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
           try { body = (await readJsonBody(req)) as typeof body; } catch (err) { if (!(err instanceof BadJsonError)) throw err; }
           const createdBy = typeof body.reviewedBy === 'string' && body.reviewedBy.trim() ? body.reviewedBy.trim() : 'ops';
           sendJson(res, 200, { request: await svc.approve(id, { createdBy }) });
+          return true;
+        }
+        if (req.method === 'POST' && action === '/reinvite') {
+          // [BETA-8] Operator re-issue: mint a fresh link to the ORIGINAL invited address and invalidate
+          // every earlier link for this request. Only an approved+invited, not-yet-accepted request.
+          let body: { reviewedBy?: unknown } = {};
+          try { body = (await readJsonBody(req)) as typeof body; } catch (err) { if (!(err instanceof BadJsonError)) throw err; }
+          const createdBy = typeof body.reviewedBy === 'string' && body.reviewedBy.trim() ? body.reviewedBy.trim() : 'ops';
+          sendJson(res, 200, { request: await svc.reissueByRequestId(id, { createdBy }) });
           return true;
         }
         if (req.method === 'POST' && action === '/reject') {

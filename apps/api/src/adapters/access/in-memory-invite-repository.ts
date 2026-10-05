@@ -33,4 +33,15 @@ export class InMemoryInviteRepository implements InviteRepository {
     const inv = this.byHash.get(tokenHash);
     return !!inv && inv.consumedAt === null && inv.expiresAt > nowMs;
   }
+
+  async findByToken(tokenHash: string): Promise<InviteRecord | null> {
+    const inv = this.byHash.get(tokenHash);
+    return inv ? { tokenHash: inv.tokenHash, accessRequestId: inv.accessRequestId, userId: inv.userId, expiresAt: inv.expiresAt, createdBy: inv.createdBy } : null;
+  }
+
+  async reissue(input: { accessRequestId: string; userId: string; tokenHash: string; expiresAt: number; createdBy: string }): Promise<void> {
+    // Invalidate every earlier link for this access request, then insert the new one (atomic in JS).
+    for (const [hash, inv] of this.byHash) if (inv.accessRequestId === input.accessRequestId) this.byHash.delete(hash);
+    this.byHash.set(input.tokenHash, { ...input, consumedAt: null });
+  }
 }

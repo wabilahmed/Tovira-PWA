@@ -94,7 +94,8 @@ import { InMemoryInviteRepository } from '../adapters/access/in-memory-invite-re
 import { InMemoryAccessApprovalTx } from '../adapters/access/in-memory-access-approval-tx.js';
 import { InMemoryInviteActivationTx } from '../adapters/access/in-memory-invite-activation-tx.js';
 import { AccessRequestService } from '../services/access/access-request-service.js';
-import { AccessApprovalService } from '../services/access/access-approval-service.js';
+import { AccessApprovalService, INVITE_RESEND_MAX_PER_DAY } from '../services/access/access-approval-service.js';
+import { FixedWindowRateLimiter } from '../services/security/rate-limiter.js';
 import { ModelMetricsRegistry } from '../services/metrics/model-metrics.js';
 
 export interface TestDeps extends ApiDeps {
@@ -297,6 +298,8 @@ export function buildInMemoryDeps(
     requests: accessRequests,
     tx: new InMemoryAccessApprovalTx(authUsers, invites, accessRequests),
     hasher,
+    invites, // [BETA-8] the resend flow reads/re-issues invites
+    resendLimiter: new FixedWindowRateLimiter(INVITE_RESEND_MAX_PER_DAY, 24 * 60 * 60 * 1000),
     sendInvite: (to, url) => accountEmail.sendInvite(to, url),
     applyReferral: (code, userId, email) => referral.apply(code, userId, email),
     appBaseUrl: 'http://localhost:5173',

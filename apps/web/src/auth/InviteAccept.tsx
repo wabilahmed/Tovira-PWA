@@ -13,6 +13,10 @@ export function InviteAccept({ auth, token, onDone }: { auth: AuthClient; token:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // [BETA-8] expired-link recovery state
+  const [resending, setResending] = useState(false);
+  const [resendResult, setResendResult] = useState<'sent' | 'rate_limited' | 'error' | null>(null);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void auth.inviteStatus(token).then((s) => {
@@ -25,11 +29,33 @@ export function InviteAccept({ auth, token, onDone }: { auth: AuthClient; token:
 
   if (checking) return <main className="auth-card">Checking your invitation…</main>;
 
+  // [BETA-8] An expired/invalid/used link lands here. We can't (and must not) reveal which — so we offer
+  // to send a fresh link to the ORIGINAL invited address. The token carries the identity; no address is
+  // entered here, so the button can't redirect the invite. The server answers identically whether or not
+  // the invite is still open, so the confirmation below is deliberately neutral (anti-enumeration).
   if (!valid && !done) {
+    async function onResend(): Promise<void> {
+      setResending(true);
+      const res = await auth.resendInvite(token);
+      setResending(false);
+      if (res.ok) { setResendResult('sent'); setResendMessage(null); }
+      else if (res.rateLimited) { setResendResult('rate_limited'); setResendMessage(res.message ?? null); }
+      else { setResendResult('error'); setResendMessage(res.message ?? null); }
+    }
     return (
-      <main className="auth-card">
-        <h1>This invitation can’t be used</h1>
-        <p>The link is invalid, has expired, or has already been used. If you think this is a mistake, reply to your invitation email and we’ll help.</p>
+      <main className="auth-card" aria-live="polite">
+        <h1>This link has expired</h1>
+        {resendResult === 'sent' ? (
+          <p>If this invitation is still open, we’ve sent a new link to the email address this invite was sent to. Check your inbox and spam folder.</p>
+        ) : resendResult === 'rate_limited' ? (
+          <p className="auth-error" role="alert">{resendMessage ?? 'We’ve already sent a few links today. Check your inbox and spam folder, or contact hello@tovira.io.'}</p>
+        ) : (
+          <>
+            <p>We can send a new one to the email address this invite was sent to.</p>
+            {resendResult === 'error' && <p className="auth-error" role="alert">{resendMessage ?? 'Could not send a new link. Please try again.'}</p>}
+            <button type="button" onClick={() => void onResend()} disabled={resending}>{resending ? 'Sending…' : 'Send a new link'}</button>
+          </>
+        )}
       </main>
     );
   }

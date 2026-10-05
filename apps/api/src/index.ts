@@ -7,7 +7,7 @@ import { PgAccessRequestRepository } from './adapters/access/pg-access-request-r
 import { PgInviteRepository } from './adapters/access/pg-invite-repository.js';
 import { PgAccessApprovalTx } from './adapters/access/pg-access-approval-tx.js';
 import { PgInviteActivationTx } from './adapters/access/pg-invite-activation-tx.js';
-import { AccessApprovalService } from './services/access/access-approval-service.js';
+import { AccessApprovalService, INVITE_RESEND_MAX_PER_DAY } from './services/access/access-approval-service.js';
 import { AccessRequestRetentionService, ACCESS_REQUEST_RETENTION_DAYS } from './services/access/access-request-retention.js';
 import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/audio-retention-service.js';
 import { BulkImportService } from './services/import/bulk-import-service.js';
@@ -540,6 +540,10 @@ async function main(): Promise<void> {
     sendInvite: (to, inviteUrl) => accountEmail.sendInvite(to, inviteUrl),
     applyReferral: (code, userId, email) => referral.apply(code, userId, email),
     appBaseUrl: config.appBaseUrl,
+    invites, // [BETA-8] read/re-issue invites for the expired-link resend flow
+    // [BETA-8] 3 resends per invite per 24h. Derivation: enough for a lost email and a typo'd inbox; low
+    // enough that the button can't spam an address. In-memory + per-task like the other beta limiters.
+    resendLimiter: new FixedWindowRateLimiter(INVITE_RESEND_MAX_PER_DAY, 24 * 60 * 60 * 1000),
   });
   const accessRequestRetention = new AccessRequestRetentionService(accessRequests);
   const server = createApiServer({
@@ -610,6 +614,7 @@ async function main(): Promise<void> {
     // scripted flood. NOTE: this limiter is in-memory and PER-TASK, so across N running API tasks the
     // effective limit is N×5/hour — accepted for a beta access form (not a security control).
     accessRequest: new AccessRequestService(accessRequests),
+    accessApproval, // [BETA-8] public /auth/invite/resend
     accessRequestLimiter: new FixedWindowRateLimiter(5, 60 * 60 * 1000),
     accessRequestNotify: config.accessRequestNotifyEmail
       ? (rec) => accountEmail.sendAccessRequestNotification(config.accessRequestNotifyEmail!, rec, `${config.appBaseUrl}/ops/access-requests/${rec.id}/approve`)

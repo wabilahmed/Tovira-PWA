@@ -73,3 +73,66 @@ describe('[BETA-6] invite acceptance routes', () => {
     expect((await req('POST', '/auth/accept-invite', { token, password: 'short', acceptTerms: true })).status).toBe(400);
   });
 });
+
+describe('[BETA-8] POST /auth/invite/resend (expired-link recovery)', () => {
+  const lastTokenTo = (email: string): string => {
+    const m = deps.emailSender.to(email).at(-1)!;
+    return /\/invite\?token=([^\s)]+)/.exec(m.text)![1]!;
+  };
+
+  it('resends a NEW working link to the ORIGINAL address; the old link is invalidated; identical ok response', async () => {
+    const oldToken = await seedInvite();
+    const before = deps.emailSender.to('invitee@x.ae').length;
+
+    const res = await req('POST', '/auth/invite/resend', { token: oldToken });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+
+    // A new invite email went to the ORIGINAL invited address (not any page-supplied one).
+    expect(deps.emailSender.to('invitee@x.ae').length).toBe(before + 1);
+    const newToken = lastTokenTo('invitee@x.ae');
+    expect(newToken).not.toBe(oldToken);
+
+    // The new link validates; the old link is dead.
+    expect((await (await req('GET', `/auth/invite?token=${encodeURIComponent(newToken)}`)).json() as { valid: boolean }).valid).toBe(true);
+    expect((await (await req('GET', `/auth/invite?token=${encodeURIComponent(oldToken)}`)).json() as { valid: boolean }).valid).toBe(false);
+  });
+
+  it('an address supplied in the body is IGNORED — the link still goes only to the original address', async () => {
+    const oldToken = await seedInvite();
+    const before = deps.emailSender.to('invitee@x.ae').length;
+    const res = await req('POST', '/auth/invite/resend', { token: oldToken, email: 'attacker@evil.test' });
+    expect(res.status).toBe(200);
+    expect(deps.emailSender.to('attacker@evil.test').length).toBe(0); // nothing to the attacker
+    expect(deps.emailSender.to('invitee@x.ae').length).toBe(before + 1); // to the original only
+  });
+
+  it('an unknown token returns the SAME ok response and sends nothing (anti-enumeration)', async () => {
+    const res = await req('POST', '/auth/invite/resend', { token: 'not-a-real-token' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(deps.emailSender.to('invitee@x.ae').length).toBe(0);
+  });
+
+  it('an already-accepted invite does not resend (same ok response, nothing sent)', async () => {
+    const token = await seedInvite();
+    expect((await req('POST', '/auth/accept-invite', { token, password: 'password123', acceptTerms: true })).status).toBe(200);
+    const before = deps.emailSender.to('invitee@x.ae').length;
+    const res = await req('POST', '/auth/invite/resend', { token });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(deps.emailSender.to('invitee@x.ae').length).toBe(before); // nothing new
+  });
+
+  it('rate limit: a 4th resend within 24h is refused (429); nothing more is sent', async () => {
+    let token = await seedInvite();
+    for (let i = 0; i < 3; i++) {
+      expect((await req('POST', '/auth/invite/resend', { token })).status).toBe(200);
+      token = lastTokenTo('invitee@x.ae');
+    }
+    const sent = deps.emailSender.to('invitee@x.ae').length;
+    const res = await req('POST', '/auth/invite/resend', { token });
+    expect(res.status).toBe(429);
+    expect(deps.emailSender.to('invitee@x.ae').length).toBe(sent); // nothing more sent
+  });
+});

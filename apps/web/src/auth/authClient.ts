@@ -103,6 +103,29 @@ export class AuthClient {
     }
   }
 
+  /** [BETA-8] From an expired invite page: ask the server to send a FRESH link. The server sends it only
+   *  to the ORIGINAL invited address (the token carries the identity; no address is sent from here), and
+   *  answers identically whether or not the invite is still open — so this resolves {ok:true} in the
+   *  normal case and only reports `rateLimited` when the day's budget is spent. Never throws. */
+  async resendInvite(token: string): Promise<{ ok: boolean; rateLimited?: boolean; message?: string }> {
+    try {
+      const res = await fetch(this.url('/auth/invite/resend'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      if (res.ok) return { ok: true };
+      if (res.status === 429) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        return { ok: false, rateLimited: true, message: body.message ?? "We've already sent a few links today. Check your inbox and spam folder, or contact hello@tovira.io." };
+      }
+      return { ok: false, message: 'Could not send a new link. Please try again.' };
+    } catch {
+      return { ok: false, message: 'Network error — please try again.' };
+    }
+  }
+
   async resetPassword(token: string, password: string): Promise<{ ok: boolean; message?: string }> {
     try {
       const res = await fetch(this.url('/auth/reset-password'), {

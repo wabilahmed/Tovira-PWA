@@ -7,14 +7,37 @@ import type { AuthClient } from './authClient.js';
 const client = (over: Partial<AuthClient> = {}): AuthClient => ({
   inviteStatus: vi.fn().mockResolvedValue({ valid: true, termsVersion: '2026-09-22', privacyVersion: '2026-09-22' }),
   acceptInvite: vi.fn().mockResolvedValue({ ok: true }),
+  resendInvite: vi.fn().mockResolvedValue({ ok: true }),
   ...over,
 } as unknown as AuthClient);
 
 describe('<InviteAccept>', () => {
-  it('shows an error for an invalid/expired/used invite', async () => {
+  it('[BETA-8] an expired/invalid link offers to send a NEW one to the original address, and confirms neutrally', async () => {
     const auth = client({ inviteStatus: vi.fn().mockResolvedValue({ valid: false, termsVersion: '', privacyVersion: '' }) });
-    render(<InviteAccept auth={auth} token="bad" onDone={() => {}} />);
-    expect(await screen.findByText(/can’t be used/i)).toBeTruthy();
+    const user = userEvent.setup();
+    render(<InviteAccept auth={auth} token="expired-token" onDone={() => {}} />);
+    expect(await screen.findByText(/this link has expired/i)).toBeTruthy();
+    // The copy makes clear the new link goes to the email the invite was sent to — never one typed here.
+    expect(screen.getByText(/email address this invite was sent to/i)).toBeTruthy();
+    // There is NO address field to supply a different recipient.
+    expect(screen.queryByRole('textbox')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /send a new link/i }));
+    await waitFor(() => expect(auth.resendInvite).toHaveBeenCalledWith('expired-token'));
+    expect(await screen.findByText(/check your inbox and spam folder/i)).toBeTruthy();
+  });
+
+  it('[BETA-8] when the resend budget is spent, it shows the rate-limit message', async () => {
+    const auth = client({
+      inviteStatus: vi.fn().mockResolvedValue({ valid: false, termsVersion: '', privacyVersion: '' }),
+      resendInvite: vi.fn().mockResolvedValue({ ok: false, rateLimited: true, message: "We've already sent a few links today. Check your inbox and spam folder, or contact hello@tovira.io." }),
+    });
+    const user = userEvent.setup();
+    render(<InviteAccept auth={auth} token="expired-token" onDone={() => {}} />);
+    await screen.findByText(/this link has expired/i);
+    await user.click(screen.getByRole('button', { name: /send a new link/i }));
+    expect(await screen.findByText(/already sent a few links today/i)).toBeTruthy();
+    expect(screen.getByText(/hello@tovira\.io/i)).toBeTruthy();
   });
 
   it('shows the form with the accepted version, keeps submit disabled until terms are ticked, and completes', async () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { AccessApprovalService, AccessRequestNotFoundError, INVITE_TTL_DAYS } from './access-approval-service.js';
+import { AccessApprovalService, AccessRequestNotFoundError, ResendRateLimitedError, INVITE_TTL_DAYS, INVITE_RESEND_MAX_PER_DAY } from './access-approval-service.js';
+import { FixedWindowRateLimiter } from '../security/rate-limiter.js';
 import { NotPendingError } from '../../ports/access-approval-tx.js';
 import { InMemoryAccessRequestRepository } from '../../adapters/access/in-memory-access-request-repository.js';
 import { InMemoryInviteRepository } from '../../adapters/access/in-memory-invite-repository.js';
@@ -37,7 +38,73 @@ describe('[BETA-5] AccessApprovalService', () => {
       sendInvite,
       applyReferral,
       appBaseUrl: 'https://app.test',
+      invites,
+      resendLimiter: new FixedWindowRateLimiter(INVITE_RESEND_MAX_PER_DAY, 24 * 60 * 60 * 1000),
       now: () => now,
+    });
+  });
+
+  // [BETA-8] Expired-invite recovery. The raw token is in the invite URL; the approve() email carries it.
+  const tokenFromLastEmail = (): string => new URL(sendInvite.mock.calls.at(-1)![1] as string).searchParams.get('token')!;
+
+  describe('resendInvite (self-serve from an expired link)', () => {
+    it('expired → resend issues a NEW working link to the ORIGINAL address; the OLD link no longer works', async () => {
+      const req = await requests.create(REQ());
+      await svc.approve(req.id, { createdBy: 'ops' });
+      const oldToken = tokenFromLastEmail();
+      const oldHash = (await import('node:crypto')).createHash('sha256').update(oldToken).digest('hex');
+      sendInvite.mockClear();
+
+      await svc.resendInvite(oldToken); // the user clicks "send a new link" on the expired page
+      expect(sendInvite).toHaveBeenCalledTimes(1);
+      expect(sendInvite.mock.calls[0]![0]).toBe('dana@x.ae'); // the ORIGINAL invited address
+      const newToken = tokenFromLastEmail();
+      expect(newToken).not.toBe(oldToken);
+      // The new link works; the old one is invalidated.
+      expect(await invites.peek((await import('node:crypto')).createHash('sha256').update(newToken).digest('hex'), now)).toBe(true);
+      expect(await invites.consume(oldHash, now)).toBeNull(); // old link dead
+    });
+
+    it('an ACCEPTED invite does not resend (nothing sent)', async () => {
+      const req = await requests.create(REQ());
+      await svc.approve(req.id, { createdBy: 'ops' });
+      const token = tokenFromLastEmail();
+      await requests.review(req.id, { status: 'activated', reviewedAt: now }); // accepted
+      sendInvite.mockClear();
+      await svc.resendInvite(token);
+      expect(sendInvite).not.toHaveBeenCalled();
+    });
+
+    it('an UNKNOWN token returns the same ok response and sends nothing (anti-enumeration)', async () => {
+      sendInvite.mockClear();
+      await expect(svc.resendInvite('not-a-real-token')).resolves.toEqual({ ok: true });
+      expect(sendInvite).not.toHaveBeenCalled();
+    });
+
+    it(`rate limit: at most ${INVITE_RESEND_MAX_PER_DAY} resends per invite per 24h`, async () => {
+      const req = await requests.create(REQ());
+      await svc.approve(req.id, { createdBy: 'ops' });
+      let token = tokenFromLastEmail();
+      sendInvite.mockClear();
+      for (let i = 0; i < INVITE_RESEND_MAX_PER_DAY; i++) { await svc.resendInvite(token); token = tokenFromLastEmail(); }
+      expect(sendInvite).toHaveBeenCalledTimes(INVITE_RESEND_MAX_PER_DAY);
+      await expect(svc.resendInvite(token)).rejects.toBeInstanceOf(ResendRateLimitedError); // 4th blocked
+      expect(sendInvite).toHaveBeenCalledTimes(INVITE_RESEND_MAX_PER_DAY); // nothing more sent
+    });
+  });
+
+  describe('reissueByRequestId (admin)', () => {
+    it('re-issues to the original address and invalidates the old link; rejects a non-invited request', async () => {
+      const req = await requests.create(REQ());
+      await svc.approve(req.id, { createdBy: 'ops' });
+      const oldToken = tokenFromLastEmail();
+      sendInvite.mockClear();
+      await svc.reissueByRequestId(req.id, { createdBy: 'ops' });
+      expect(sendInvite.mock.calls[0]![0]).toBe('dana@x.ae');
+      expect(await invites.consume((await import('node:crypto')).createHash('sha256').update(oldToken).digest('hex'), now)).toBeNull();
+      // A pending (not-invited) request cannot be re-issued.
+      const pending = await requests.create(REQ({ workEmail: 'p@x.ae' }));
+      await expect(svc.reissueByRequestId(pending.id, { createdBy: 'ops' })).rejects.toBeTruthy();
     });
   });
 
