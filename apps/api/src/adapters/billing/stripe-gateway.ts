@@ -9,6 +9,7 @@ export interface StripeLike {
     update(id: string, params: Stripe.CustomerUpdateParams): Promise<{ id: string }>;
   };
   invoices: { pay(id: string, params?: Stripe.InvoicePayParams): Promise<{ status: string | null }> };
+  billingPortal: { sessions: { create(params: Stripe.BillingPortal.SessionCreateParams): Promise<{ url: string }> } };
   webhooks: { constructEvent(payload: string, sig: string, secret: string): Stripe.Event };
 }
 
@@ -130,6 +131,13 @@ export class StripeGatewayImpl implements StripeGateway {
       if (err instanceof Error && 'type' in err) return 'failed';
       throw err; // a genuinely unexpected error (network/bug) — let it surface
     }
+  }
+
+  /** [TASK 3] Stripe-hosted Customer Portal: cancel at period end, update the card, invoice history. The
+   *  behaviours shown are configured in the Stripe Dashboard (Billing → Customer portal), not here. */
+  async createPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }> {
+    const session = await this.stripe.billingPortal.sessions.create({ customer: customerId, return_url: returnUrl });
+    return { url: session.url };
   }
 
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null {

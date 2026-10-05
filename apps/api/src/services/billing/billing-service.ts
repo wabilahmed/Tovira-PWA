@@ -159,6 +159,18 @@ export class BillingService {
     return { url: session.url };
   }
 
+  /**
+   * [TASK 3] Open a Stripe Customer Portal session for the rep to manage their subscription (cancel at
+   * period end, update the card, see invoices). Returns null if the rep has no Stripe customer yet
+   * (they have never checked out) — the UI only offers this once subscribed. `returnUrl` is the app's
+   * Billing page, where Stripe sends them back.
+   */
+  async portalSession(userId: string, returnUrl: string): Promise<{ url: string } | null> {
+    const customerId = (await this.subs.get(userId))?.stripeCustomerId ?? undefined;
+    if (!customerId) return null;
+    return this.stripe.createPortalSession(customerId, returnUrl);
+  }
+
   /** [VAT-BOUNDARY] Freeze the tax treatment of a paid invoice: computed from ITS date + the VAT
    *  config in force now, written once. A later config change never rewrites it (recordOnce). No-op
    *  until VAT is wired + the event carries invoice fields. */

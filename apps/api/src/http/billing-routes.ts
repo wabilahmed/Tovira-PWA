@@ -7,6 +7,8 @@ import { TOP_UP_OPTIONS, topUpOptionById } from '../config.js';
 export interface BillingRouteDeps {
   auth: AuthService;
   billing: BillingService;
+  /** [TASK 3] Public app base URL — the Stripe Customer Portal returns the rep here (the Billing page). */
+  appBaseUrl?: string;
 }
 
 export async function handleBillingRoute(
@@ -29,7 +31,8 @@ export async function handleBillingRoute(
   const isStatus = method === 'GET' && path === '/billing/status';
   const isCustomer = method === 'PATCH' && path === '/billing/customer';
   const isTopUp = method === 'POST' && path === '/billing/top-up';
-  if (!isCheckout && !isStatus && !isCustomer && !isTopUp) return false;
+  const isPortal = method === 'POST' && path === '/billing/portal';
+  if (!isCheckout && !isStatus && !isCustomer && !isTopUp && !isPortal) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -40,6 +43,19 @@ export async function handleBillingRoute(
 
   if (isStatus) {
     sendJson(res, 200, await deps.billing.entitlement(userId, Date.now()));
+    return true;
+  }
+
+  // [TASK 3] Open the Stripe Customer Portal (manage subscription: cancel at period end, update card,
+  // invoice history). Only a subscriber has a Stripe customer — otherwise 409 with a clear message.
+  if (isPortal) {
+    const returnUrl = `${deps.appBaseUrl ?? ''}/billing`;
+    const session = await deps.billing.portalSession(userId, returnUrl);
+    if (!session) {
+      sendJson(res, 409, { error: 'no_subscription', message: 'Subscribe first to manage your subscription.' });
+      return true;
+    }
+    sendJson(res, 200, session);
     return true;
   }
 

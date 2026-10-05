@@ -7,8 +7,8 @@ import type { Entitlement } from './billingClient.js';
 const NOW = Date.parse('2026-07-15T00:00:00Z');
 const DAY = 24 * 60 * 60 * 1000;
 
-function makeApi(status: Entitlement | null, url: string | null = 'https://checkout.test/x'): BillingApi {
-  return { status: vi.fn().mockResolvedValue(status), checkout: vi.fn().mockResolvedValue(url) };
+function makeApi(status: Entitlement | null, url: string | null = 'https://checkout.test/x', portalUrl: string | null = 'https://portal.test/x'): BillingApi {
+  return { status: vi.fn().mockResolvedValue(status), checkout: vi.fn().mockResolvedValue(url), portal: vi.fn().mockResolvedValue(portalUrl) };
 }
 
 describe('<Billing>', () => {
@@ -75,6 +75,30 @@ describe('<Billing>', () => {
     await user.click(screen.getByRole('button', { name: /subscribe annually/i }));
     await waitFor(() => expect(api.checkout).toHaveBeenCalledWith('annual'));
     expect(onRedirect).toHaveBeenCalledWith('https://checkout.test/go');
+  });
+
+  // [TASK 3] The checkout disclosure renders beside the plans, with a working Terms link.
+  it('shows the checkout disclosure beside the plans (VAT, renewal, cancellation, period-end) + a Terms link', async () => {
+    render(<Billing api={makeApi({ entitled: false, status: 'none', trialEndsAt: 0 })} now={NOW} />);
+    const disclosure = await screen.findByTestId('checkout-disclosure');
+    expect(disclosure).toHaveTextContent(/includes? VAT/i); // prices include VAT
+    expect(disclosure).toHaveTextContent(/same date and time/i); // renews at the same date & time
+    expect(disclosure).toHaveTextContent(/cancel anytime from Billing/i); // cancel from Billing
+    expect(disclosure).toHaveTextContent(/until the end of the period you have paid for/i); // access to period end
+    const terms = screen.getByRole('link', { name: /terms/i });
+    expect(terms.getAttribute('href')).toBe('/terms');
+  });
+
+  // [TASK 3] When subscribed, a "Manage subscription" button opens the Stripe Customer Portal.
+  it('offers Manage subscription when active and opens the portal', async () => {
+    const user = userEvent.setup();
+    const onRedirect = vi.fn();
+    const api = makeApi({ entitled: true, status: 'active', trialEndsAt: 0 }, 'https://checkout.test/x', 'https://portal.test/go');
+    render(<Billing api={api} now={NOW} onRedirect={onRedirect} />);
+    const manage = await screen.findByRole('button', { name: /manage subscription/i });
+    await user.click(manage);
+    await waitFor(() => expect(api.portal).toHaveBeenCalled());
+    expect(onRedirect).toHaveBeenCalledWith('https://portal.test/go');
   });
 
   // NEGATIVE: a failed checkout shows an error and does not redirect.

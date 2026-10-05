@@ -162,6 +162,10 @@ export interface StripeGateway {
     amountAed: number,
     details?: { existingCustomerId?: string },
   ): Promise<StripeCheckout>;
+  /** [TASK 3] Open a Stripe Customer Portal session for an existing customer — the rep manages their
+   *  subscription there: cancel (at period end), update the payment method, and see invoice history.
+   *  `returnUrl` is where Stripe sends them back (the app's Billing page). Test mode only. */
+  createPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }>;
   /** Verify + parse a webhook; returns null if the signature is invalid. */
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null;
   /** [BILLING-DUNNING · D6] App-driven daily retry of an open invoice (Stripe's built-in retries can't do

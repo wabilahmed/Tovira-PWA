@@ -86,6 +86,21 @@ describe('[P5-1/P5-2] trial + billing over HTTP', () => {
     expect(monthly.url).toContain('plan=monthly');
   });
 
+  // [TASK 3] The Stripe Customer Portal (manage subscription) — only once there is a Stripe customer.
+  it('opens a Customer Portal session for a subscriber, and 409s before there is one', async () => {
+    const { token, userId } = await signup('portal-http@example.com');
+    const authH = { authorization: `Bearer ${token}` };
+    // No Stripe customer yet → 409 (subscribe first), never a dead link.
+    expect((await fetch(`${base}/billing/portal`, { method: 'POST', headers: authH })).status).toBe(409);
+    // Give them a customer (as a real checkout/webhook would) and retry.
+    await subs.update(userId, { stripeCustomerId: 'cus_portal_1' });
+    const res = await fetch(`${base}/billing/portal`, { method: 'POST', headers: authH });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { url: string }).url).toContain('billing.stripe.test/portal');
+    // Auth is required.
+    expect((await fetch(`${base}/billing/portal`, { method: 'POST' })).status).toBe(401);
+  });
+
   // [TRIAL-14] The extension-incentive endpoint (/billing/incentive) is removed with the usage-gated
   // extension — a flat 14-day trial has no "earn more days" state. Its HTTP tests are deleted here.
 

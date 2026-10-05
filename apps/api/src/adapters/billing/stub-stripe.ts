@@ -35,6 +35,13 @@ export class StubStripeGateway implements StripeGateway {
     this.updates.push({ customerId, details });
   }
 
+  /** Recorded so a test can assert a portal session was opened for the right customer + return URL. */
+  readonly portalSessions: Array<{ customerId: string; returnUrl: string }> = [];
+  async createPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }> {
+    this.portalSessions.push({ customerId, returnUrl });
+    return { url: `https://billing.stripe.test/portal?cus=${customerId}` };
+  }
+
   /** Recorded retries + a programmable outcome per invoice so a test can drive paid / 3DS / decline. */
   readonly invoicePays: string[] = [];
   payInvoiceOutcome: (invoiceId: string) => 'paid' | 'authentication_required' | 'failed' = () => 'failed';

@@ -45,6 +45,18 @@ export class BillingClient {
     }
   }
 
+  /** [TASK 3] Open a Stripe Customer Portal session to manage the subscription (cancel at period end,
+   *  update the card, invoice history). Returns the portal URL, or null if not available. */
+  async portal(): Promise<string | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/billing/portal`, { method: 'POST', credentials: 'include' });
+      if (res.status !== 200) return null;
+      return ((await res.json()) as { url: string }).url;
+    } catch {
+      return null;
+    }
+  }
+
   /** [INVOICE-DATA] Set the billing name (+ optional company) for the Stripe customer, so invoices
    *  carry a name. Best-effort; returns whether it saved. */
   async setCustomer(name: string, company?: string): Promise<boolean> {
