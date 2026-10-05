@@ -164,6 +164,7 @@ import { PgImageRepository } from './adapters/images/pg-image-repository.js';
 import { HeroService } from './services/hero/hero-service.js';
 import { BillingService, type BillingEmailHook } from './services/billing/billing-service.js';
 import { BillingDunningService } from './services/billing/billing-dunning-service.js';
+import { BillingRetentionService } from './services/billing/billing-retention-service.js';
 import type { SubscriptionRepository, TrialGrantRepository, WebhookEventRepository } from './ports/billing.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from './adapters/billing/in-memory.js';
 import { PgSubscriptionRepository, PgTrialGrantRepository, PgWebhookEventRepository } from './adapters/billing/pg.js';
@@ -780,6 +781,13 @@ export function createBillingDunningService(config: AppConfig, pool: Pool | unde
     ? new StripeGatewayImpl({ secretKey: config.stripeSecretKey, webhookSecret: config.stripeWebhookSecret, priceId: config.stripePriceId, annualPriceId: config.stripeAnnualPriceId, successUrl: config.stripeSuccessUrl, cancelUrl: config.stripeCancelUrl })
     : new StubStripeGateway(config.stripeWebhookSecret);
   return new BillingDunningService({ subs, stripe, emailHook });
+}
+
+/** [BILLING-DUNNING · D8] The daily retention job — deletes ended accounts 90 days after they end, via
+ *  the supplied account-deletion path, after the two warning emails. */
+export function createBillingRetentionService(config: AppConfig, pool: Pool | undefined, deleteAccount: (userId: string) => Promise<void>, emailHook?: BillingEmailHook): BillingRetentionService {
+  const subs: SubscriptionRepository = config.authStore === 'postgres' ? new PgSubscriptionRepository(pool!) : new InMemorySubscriptionRepository();
+  return new BillingRetentionService({ subs, deleteAccount, emailHook });
 }
 
 export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository, repGlossary?: RepGlossaryRepository, blobStorage?: Storage, pointers?: ClientPointerRepository): AccountService {

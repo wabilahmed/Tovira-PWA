@@ -91,6 +91,7 @@ import {
   createPrioritiesRepository,
   createBillingService,
   createBillingDunningService,
+  createBillingRetentionService,
   createAccountService,
   createActivationService,
   createJobRunStore,
@@ -439,9 +440,12 @@ async function main(): Promise<void> {
       // [BILLING-DUNNING · D4–D7] Daily: retry the open invoice (app-driven, Stripe built-in can't do
       // daily-for-30), remind, suspend at day 7, end at day 30. Idempotent to once/UTC-day per account.
       // RETIRED advisory lock keys — never reuse (a reused key would silently share a lock with the job
-      // that once held it): 4711008 (training-archive, removed). Next fresh key: 4711016.
+      // that once held it): 4711008 (training-archive, removed). Next fresh key: 4711017.
       { name: 'billing-dunning', lockKey: 4711015, intervalMs: 24 * 60 * 60 * 1000,
         run: async () => { const r = await billingDunning.run(); if (r.scanned > 0) console.log(`[billing-dunning] scanned=${r.scanned} retried=${r.retried} auth3ds=${r.authRequired} suspended=${r.suspended} ended=${r.ended}`); } },
+      // [BILLING-DUNNING · D8] Daily: warn 30d/7d before, then delete ended accounts 90 days after end.
+      { name: 'billing-retention', lockKey: 4711016, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => { const r = await billingRetention.run(); if (r.scanned > 0) console.log(`[billing-retention] scanned=${r.scanned} warned30d=${r.warned30d} warned7d=${r.warned7d} deleted=${r.deleted}`); } },
       // [SCAN-WIRING] The daily proactive scan (overdue promises / going cold / date reminders /
       // chat-refresh) — the automated trigger the stub EventBridge Lambda never provided. Every few
       // hours; generators are idempotent (deduped) and the 2/day silence budget bounds pushes.
@@ -485,6 +489,8 @@ async function main(): Promise<void> {
   // have long intervals, so a faster due-check is negligible overhead.
   const recallSessions = createRecallSessionRepository(config, appPool);
   const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, repGlossary, storage, clientPointers);
+  // [BILLING-DUNNING · D8] retention: delete ended accounts 90 days after they end, via the account path.
+  const billingRetention = createBillingRetentionService(config, appPool, (uid) => account.deleteAccount(uid), billingEmailHook);
   const activation = createActivationService(config, appPool);
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
