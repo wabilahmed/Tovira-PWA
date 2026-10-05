@@ -474,3 +474,35 @@ describe('[BILLING-DUNNING · guards 3/4] reactivation + the day-0 clock', () =>
     expect(s.hostedInvoiceUrl).toBeNull(); // this event carried no hosted url; stays null
   });
 });
+
+describe('[BILLING-DUNNING] invoice.paid + invoice.payment_succeeded for ONE invoice → processed once', () => {
+  it('deduped by invoice id: one reactivation, one email, the second event is a no-op', async () => {
+    const subs = new InMemorySubscriptionRepository();
+    const confirmed = vi.fn(async () => {});
+    const hook = { paymentFailed: vi.fn(async () => {}), subscriptionConfirmed: confirmed, subscriptionCanceled: vi.fn(async () => {}) };
+    const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 14, hook as never, undefined, undefined, () => NOW);
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    await billing.handleWebhook(evt({ id: 'ck', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1' }), 'whsec_test');
+    await billing.handleWebhook(evt({ id: 'f1', type: 'invoice.payment_failed', customerId: 'cus_1', invoiceId: 'in_1' }), 'whsec_test');
+    confirmed.mockClear();
+
+    // The SAME invoice reports success twice — invoice.payment_succeeded AND invoice.paid (distinct ids).
+    // Different currentPeriodEnd so we can SEE whether the second re-processed: only the FIRST should land.
+    const FIRST_END = NOW + 30 * 24 * 3600 * 1000;
+    const SECOND_END = NOW + 999 * 24 * 3600 * 1000; // sentinel: must NOT be stored (second is deduped)
+    const r1 = await billing.handleWebhook(evt({ id: 'ok_succeeded', type: 'invoice.payment_succeeded', customerId: 'cus_1', invoiceId: 'in_9', currentPeriodStart: NOW, currentPeriodEnd: FIRST_END }), 'whsec_test');
+    const r2 = await billing.handleWebhook(evt({ id: 'ok_paid', type: 'invoice.paid', customerId: 'cus_1', invoiceId: 'in_9', currentPeriodStart: NOW, currentPeriodEnd: SECOND_END }), 'whsec_test');
+
+    expect(r1).toBe(200);
+    expect(r2).toBe(200); // the second is accepted but a no-op
+    expect((await subs.get('u'))!.billingState).toBe('active'); // one reactivation
+    expect((await subs.get('u'))!.currentPeriodEnd).toBe(FIRST_END); // the SECOND event did not re-process
+    expect(confirmed).toHaveBeenCalledTimes(1); // one reactivation email
+
+    // And a THIRD, genuinely new invoice is processed normally (the dedupe is per invoice, not global).
+    await billing.handleWebhook(evt({ id: 'f2', type: 'invoice.payment_failed', customerId: 'cus_1', invoiceId: 'in_2' }), 'whsec_test');
+    confirmed.mockClear();
+    await billing.handleWebhook(evt({ id: 'ok2', type: 'invoice.paid', customerId: 'cus_1', invoiceId: 'in_10' }), 'whsec_test');
+    expect(confirmed).toHaveBeenCalledTimes(1); // a new invoice's success reactivates + emails again
+  });
+});

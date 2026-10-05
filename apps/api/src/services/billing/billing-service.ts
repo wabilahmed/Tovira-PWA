@@ -224,6 +224,14 @@ export class BillingService {
       });
       if (this.emailHook) await this.notify(() => this.emailHook!.subscriptionConfirmed(event.userId!, event.id, event.currentPeriodEnd ?? null));
     } else if ((event.type === 'invoice.payment_succeeded' || event.type === 'invoice.paid') && event.customerId) {
+      // Stripe fires BOTH invoice.paid AND invoice.payment_succeeded for the SAME invoice, as two separate
+      // events with different ids — so the event-id dedupe above lets both through. Dedupe by INVOICE id
+      // so one successful payment is processed EXACTLY ONCE: one reactivation, one allowance reset, one
+      // email. The first of the two to arrive records `paid:<invoiceId>`; the second returns a no-op.
+      if (event.invoiceId) {
+        if (await this.events.seen(`paid:${event.invoiceId}`)) return 200;
+        await this.events.record(`paid:${event.invoiceId}`);
+      }
       // [BILLING-DUNNING · D3/D6, guard 3] A successful charge/renewal REACTIVATES immediately: billing
       // back to active, the failed-payment clock cleared, the open invoice dropped. The async sweep's
       // canSpend un-pauses (aiPausedForState → false), so waiting voice notes transcribe on the next pass.
