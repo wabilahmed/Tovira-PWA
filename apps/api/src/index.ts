@@ -97,6 +97,7 @@ import {
   createAdvisoryLock,
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
+import { aiPausedForState } from './services/billing/billing-access.js';
 import { OutcomeInferenceService } from './services/outcomes/outcome-inference-service.js';
 import { TrainingLogStatsService } from './services/facts/training-log-stats.js';
 import { PgTrainingLogStatsRepository } from './adapters/logs/pg-training-log-stats-repository.js';
@@ -345,7 +346,7 @@ async function main(): Promise<void> {
     // [USAGE-ALLOWANCE · D4 / BILLING-DUNNING · D3] A queued note waits while AI is paused — an exhausted
     // allowance OR a failed-payment state (payment_failed/suspended/ended). On a successful payment the
     // billing state returns to active and the sweep processes the waiting notes on its next pass (guard 3).
-    canSpend: async (u) => !(await aiExhausted(u)) && (await billing.entitlement(u, Date.now())).billingState === 'active',
+    canSpend: async (u) => !(await aiExhausted(u)) && !aiPausedForState((await billing.entitlement(u, Date.now())).billingState),
     isVerified: (u) => verifiedGate.isVerified(u), // TRIAL-FARM: an unverified rep's queue waits too
     allow: (u) => extractionLimiter.allow(u), // ASYNC-EXTRACT: a rep at the extraction ceiling waits (no needs_review)
     onSettled: (u, id) => importCompletion.onNoteSettled(u, id), // IMPORT-DONE
@@ -426,7 +427,9 @@ async function main(): Promise<void> {
         run: async () => { await dailyDigest.runScheduled(await auth.allUserIds(), Date.now()); } },
       // [BILLING-DUNNING · D4–D7] Daily: retry the open invoice (app-driven, Stripe built-in can't do
       // daily-for-30), remind, suspend at day 7, end at day 30. Idempotent to once/UTC-day per account.
-      { name: 'billing-dunning', lockKey: 4711008, intervalMs: 24 * 60 * 60 * 1000,
+      // RETIRED advisory lock keys — never reuse (a reused key would silently share a lock with the job
+      // that once held it): 4711008 (training-archive, removed). Next fresh key: 4711016.
+      { name: 'billing-dunning', lockKey: 4711015, intervalMs: 24 * 60 * 60 * 1000,
         run: async () => { const r = await billingDunning.run(); if (r.scanned > 0) console.log(`[billing-dunning] scanned=${r.scanned} retried=${r.retried} auth3ds=${r.authRequired} suspended=${r.suspended} ended=${r.ended}`); } },
       // [SCAN-WIRING] The daily proactive scan (overdue promises / going cold / date reminders /
       // chat-refresh) — the automated trigger the stub EventBridge Lambda never provided. Every few

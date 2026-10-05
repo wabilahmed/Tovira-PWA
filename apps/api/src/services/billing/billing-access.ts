@@ -56,3 +56,22 @@ export function billingGateDecision(state: BillingState, method: string, path: s
 export function aiPausedForState(state: BillingState): boolean {
   return state !== 'active';
 }
+
+/** The HTTP body + status for a gate refusal — centralised here so no caller hand-codes a billing-state
+ *  branch. `hostedInvoiceUrl` is the Stripe hosted page where the rep pays + completes 3DS (ruling 2). */
+export function blockedBody(decision: 'ai_paused' | 'blocked_suspended', state: BillingState, hostedInvoiceUrl: string | null): { status: number; body: Record<string, unknown> } {
+  if (decision === 'ai_paused') {
+    return { status: 402, body: { error: 'ai_paused', message: 'AI features are paused because your last payment failed. Update your payment details to resume.', hostedInvoiceUrl } };
+  }
+  const ended = state === 'ended';
+  return {
+    status: 403,
+    body: {
+      error: ended ? 'subscription_ended' : 'account_suspended',
+      message: ended
+        ? 'Your subscription has ended. Contact hello@tovira.io to restore your account.'
+        : 'Your account is suspended after a failed payment. Update your payment details to restore access. You can still export your data.',
+      hostedInvoiceUrl,
+    },
+  };
+}

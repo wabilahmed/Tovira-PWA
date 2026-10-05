@@ -78,6 +78,7 @@ import { InMemoryLedgerRepository } from '../adapters/ledger/in-memory-ledger-re
 import { ReferralService } from '../services/referral/referral-service.js';
 import { InMemoryReferralRepository } from '../adapters/referral/in-memory-referral-repository.js';
 import { BillingService } from '../services/billing/billing-service.js';
+import { aiPausedForState } from '../services/billing/billing-access.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../adapters/billing/in-memory.js';
 import { StubStripeGateway } from '../adapters/billing/stub-stripe.js';
 import { AccountService } from '../services/account/account-service.js';
@@ -275,7 +276,7 @@ export function buildInMemoryDeps(
     isVerified: opts.enforceVerification ? (u: string) => auth.getPublicUser(u).then((x) => x?.emailVerified ?? false) : undefined,
     allow: (u: string) => extractionLimiter.allow(u), // [ASYNC-EXTRACT] ceiling skip (mirrors prod)
     // [USAGE-ALLOWANCE · D4 / BILLING-DUNNING · D3] queue waits while AI is paused — exhausted allowance OR a failed-payment billing state.
-    canSpend: async (u: string) => !(await allowanceStatus.isExhausted(u)) && (await billing.entitlement(u, Date.now())).billingState === 'active',
+    canSpend: async (u: string) => !(await allowanceStatus.isExhausted(u)) && !aiPausedForState((await billing.entitlement(u, Date.now())).billingState),
   });
   const runSweep = async (passes = 2): Promise<void> => {
     const today = new Date().toISOString().slice(0, 10);

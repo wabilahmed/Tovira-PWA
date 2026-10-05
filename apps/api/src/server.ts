@@ -75,7 +75,7 @@ import type { AllowanceStatusService } from './services/spend/allowance-status.j
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
 import { sendJson, extractToken } from './http/helpers.js';
-import { billingGateDecision } from './services/billing/billing-access.js';
+import { billingGateDecision, blockedBody } from './services/billing/billing-access.js';
 
 /**
  * [HEALTH-LEAK] The ONLY keys an unauthenticated caller (the load balancer) may see in the /health
@@ -340,12 +340,9 @@ export function createApiServer(deps: ApiDeps): Server {
         if (identity) {
           const ent = await deps.billing.entitlement(identity.userId, Date.now());
           const decision = billingGateDecision(ent.billingState, method, path);
-          if (decision === 'ai_paused') {
-            sendJson(response, 402, { error: 'ai_paused', message: 'AI features are paused because your last payment failed. Update your payment details to resume.', hostedInvoiceUrl: ent.hostedInvoiceUrl });
-            return;
-          }
-          if (decision === 'blocked_suspended') {
-            sendJson(response, 403, { error: 'account_suspended', message: ent.billingState === 'ended' ? 'Your subscription has ended. Contact hello@tovira.io to restore your account.' : 'Your account is suspended after a failed payment. Update your payment details to restore access. You can still export your data.', hostedInvoiceUrl: ent.hostedInvoiceUrl });
+          if (decision !== 'allow') {
+            const { status, body } = blockedBody(decision, ent.billingState, ent.hostedInvoiceUrl);
+            sendJson(response, status, body);
             return;
           }
         }
