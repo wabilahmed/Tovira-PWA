@@ -99,8 +99,10 @@ export const POINTER_FIXTURES: PointerFixture[] = [
   },
   {
     id: 'PF6-going-cold',
+    // A concrete stall reason (the service charge) so a SPECIFIC, grounded reopening pointer is possible —
+    // without it the chat is too thin and "specific or nothing" (D2) correctly yields zero pointers.
     clientName: 'Yusuf', dealState: 'going_cold',
-    note: `[${AT1}] Yusuf: let me think about it\n[${AT2}] Rep: sure, take your time`,
+    note: `[${AT1}] Yusuf: let me think about it — the service charge still feels steep\n[${AT2}] Rep: sure, take your time`,
     planted: { kind: 'reopen_not_retrospective' },
   },
   {
