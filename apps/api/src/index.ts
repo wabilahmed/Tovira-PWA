@@ -83,6 +83,7 @@ import {
   createPushDispatchService,
   createErasureAuditRepository,
   createErasureRequestRepository,
+  createRestrictionService,
   createErasureReceiptRepository,
   createAccountEmailService,
   createImageRepository,
@@ -304,12 +305,16 @@ async function main(): Promise<void> {
   void trainingLogStats.refresh();
   // [TRIAL-FARM] Extraction — the one paid, unbounded-cost operation — is gated on a verified email.
   const verifiedGate = { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) };
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate, clientPointers);
+  // [TASK 2] One erasure-request store + one restriction reader, shared by the erasure service and every
+  // surfacing/model path, so a restricted counterparty is withheld everywhere from a single source.
+  const erasureRequestRepo = createErasureRequestRepository(config, appPool);
+  const restriction = createRestrictionService(erasureRequestRepo);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate, clientPointers, restriction);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));
-  const followUp = createFollowUpService(config, notes);
-  const brief = createBriefService(config, clients, notes, facts, clientPointers);
+  const followUp = createFollowUpService(config, notes, restriction);
+  const brief = createBriefService(config, clients, notes, facts, clientPointers, restriction);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
   const scan = createScanService(clients, meetings, facts, notifications, notes, (userId) => auth.timezoneFor(userId));
@@ -323,9 +328,9 @@ async function main(): Promise<void> {
   const erasure = new ErasureService({ clients, notes, audit: createErasureAuditRepository(config, appPool), blobStorage: storage, repGlossary, summariser: createModelClient(config, 'extraction'), clientPointers });
   // [ERASURE-RECEIPT] the proof-of-erasure store uses the ROOT pool (migrationPool): it has no RLS and
   // no user_id/FK, so it is not tenant data and it survives the rep deleting their account.
-  const erasureRequests = new ErasureRequestService({ erasure, requests: createErasureRequestRepository(config, appPool), receipts: createErasureReceiptRepository(config, migrationPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
+  const erasureRequests = new ErasureRequestService({ erasure, requests: erasureRequestRepo, receipts: createErasureReceiptRepository(config, migrationPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
   const images = createImageRepository(config, appPool);
-  const hero = createHeroService(config, clients, facts, meetings, notes, matching);
+  const hero = createHeroService(config, clients, facts, meetings, notes, matching, restriction);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
   // (cost-guard #3, P4b-3). Uses the priorities-class model (see routing).
   const prioritiesRepo = createPrioritiesRepository(config, appPool);
@@ -381,6 +386,7 @@ async function main(): Promise<void> {
     notes,
     timezoneFor: (userId) => auth.timezoneFor(userId),
     coldThresholdDays: config.coldThresholdDays,
+    restriction, // [TASK 2] no nudge from a restricted counterparty's unanswered question
   });
   const meetingNudge = new MeetingNudgeService({
     allUserIds: () => auth.allUserIds(),
@@ -495,7 +501,7 @@ async function main(): Promise<void> {
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
   const askCapture = createAskCaptureService(config, notes, clients, facts, extraction, corrections, extractionLogs);
-  const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients, aiExhausted);
+  const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients, aiExhausted, restriction);
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId), matching);
   const ledger = createLedgerService(config, appPool);
@@ -558,6 +564,7 @@ async function main(): Promise<void> {
     extraction,
     followUp,
     facts,
+    restriction, // [TASK 2] erasure-window restriction for the book + pointer surfaces
     noteMove,
     aliases: contactAliases,
     repNames,

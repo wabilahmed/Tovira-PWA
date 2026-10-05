@@ -152,6 +152,7 @@ import { InMemoryErasureAuditRepository } from './adapters/erasure/in-memory-era
 import { PgErasureAuditRepository } from './adapters/erasure/pg-erasure-audit-repository.js';
 import { InMemoryErasureRequestRepository } from './adapters/erasure/in-memory-erasure-request-repository.js';
 import { PgErasureRequestRepository } from './adapters/erasure/pg-erasure-request-repository.js';
+import { RestrictionService } from './services/erasure/restriction.js';
 import { InMemoryErasureReceiptRepository } from './adapters/erasure/in-memory-erasure-receipt-repository.js';
 import { PgErasureReceiptRepository } from './adapters/erasure/pg-erasure-receipt-repository.js';
 import { StubPushSender } from './adapters/push/stub-sender.js';
@@ -238,6 +239,7 @@ export function createRecallService(
   capture?: AskCaptureService,
   clients?: ClientRepository,
   allowanceExhausted?: (userId: string) => Promise<boolean>,
+  restriction?: RestrictionService,
 ): RecallService {
   // Detection runs on the cheap recall model (Haiku); it only classifies (statement vs question),
   // never extracts. The capture pipeline routes a detected statement to the CERTIFIED engine.
@@ -245,7 +247,7 @@ export function createRecallService(
   const clientDirectory = capture && clients
     ? async (userId: string) => (await clients.listByUser(userId)).map((c) => ({ id: c.id, name: c.name }))
     : undefined;
-  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, allowanceExhausted);
+  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, allowanceExhausted, restriction);
 }
 
 /**
@@ -567,12 +569,13 @@ export function createExtractionService(
   health?: { recordStarvedOutput(): void },
   verifiedGate?: { isVerified(userId: string): Promise<boolean> },
   pointers?: ClientPointerRepository,
+  restriction?: RestrictionService,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
   // [BULK-IMPORT · Task 4 / D1] Every extraction request carries exactly one chat. extractNote reads a
   // single note, so this holds structurally; the IsolatingModelClient makes it enforced, not merely
   // true by convention — a request body with two chats throws before it can reach a provider.
-  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate, pointers);
+  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate, pointers, restriction);
 }
 
 /** [NO-TRAINING-RETENTION] The operational per-rep glossary (P4-9), RLS-backed on pg. */
@@ -696,6 +699,11 @@ export function createErasureAuditRepository(config: AppConfig, pool?: Pool): Er
   }
   return new InMemoryErasureAuditRepository();
 }
+/** [TASK 2] The processing-restriction reader, built over the same erasure-request store. */
+export function createRestrictionService(requests: ErasureRequestRepository): RestrictionService {
+  return new RestrictionService({ requests });
+}
+
 export function createErasureRequestRepository(config: AppConfig, pool?: Pool): ErasureRequestRepository {
   if (config.authStore === 'postgres') {
     if (!pool) throw new Error('authStore=postgres requires a database pool');
@@ -741,8 +749,8 @@ export function createImageRepository(config: AppConfig, pool?: Pool): ImageRepo
   return new InMemoryImageRepository();
 }
 
-export function createHeroService(config: AppConfig, clients: ClientRepository, facts: FactsRepository, meetings: MeetingRepository, notes: NoteRepository, matching?: MatchingService): HeroService {
-  return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays, config.promiseStaleThresholdDays, matching);
+export function createHeroService(config: AppConfig, clients: ClientRepository, facts: FactsRepository, meetings: MeetingRepository, notes: NoteRepository, matching?: MatchingService, restriction?: RestrictionService): HeroService {
+  return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays, config.promiseStaleThresholdDays, matching, restriction);
 }
 
 export function createBillingService(config: AppConfig, pool?: Pool, emailHook?: BillingEmailHook, opsAlert?: (event: string, detail: Record<string, unknown>) => Promise<void> | void): BillingService {
@@ -828,8 +836,8 @@ export function scanConfigFrom(config: AppConfig): ScanConfig {
 }
 
 /** Follow-up draft service (grounded on the note's real commitments). */
-export function createFollowUpService(config: AppConfig, notes: NoteRepository): FollowUpService {
-  return new FollowUpService(createModelClient(config, 'drafts'), notes);
+export function createFollowUpService(config: AppConfig, notes: NoteRepository, restriction?: RestrictionService): FollowUpService {
+  return new FollowUpService(createModelClient(config, 'drafts'), notes, restriction);
 }
 
 /** The pre-meeting brief service (spine + JSONB + semantic search). */
@@ -839,8 +847,9 @@ export function createBriefService(
   notes: NoteRepository,
   facts: FactsRepository,
   pointers?: ClientPointerRepository,
+  restriction?: RestrictionService,
 ): BriefService {
-  return new BriefService(clients, notes, facts, createEmbedder(config), pointers);
+  return new BriefService(clients, notes, facts, createEmbedder(config), pointers, restriction);
 }
 
 /** Transactional email: stub locally (records), AWS SES in prod. */

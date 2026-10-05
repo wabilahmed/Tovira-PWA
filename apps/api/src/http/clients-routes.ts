@@ -3,6 +3,7 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository, ClientOutcome } from '../ports/client-repository.js';
 import type { ClientPointerRepository } from '../ports/client-pointer-repository.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
+import { NO_RESTRICTION, type Restriction } from '../services/erasure/restriction.js';
 
 /** Handle a /clients or /clients/:id request. Returns true if it handled it. */
 export async function handleClientRoute(
@@ -11,6 +12,9 @@ export async function handleClientRoute(
   auth: AuthService,
   clients: ClientRepository,
   pointers?: ClientPointerRepository,
+  /** [TASK 2] Active erasure-window restriction — pointers citing a restricted counterparty (or all of a
+   *  restricted client's pointers) are withheld from the thread card. Absent → no restriction. */
+  restriction?: { forUser(userId: string): Promise<Restriction> },
 ): Promise<boolean> {
   const method = req.method ?? 'GET';
   const path = (req.url ?? '/').split('?')[0]!;
@@ -101,6 +105,16 @@ export async function handleClientRoute(
     if (pointersMatch) {
       const id = decodeURIComponent(pointersMatch[1]!);
       const set = pointers ? await pointers.getForClient(userId, id) : null;
+      // [TASK 2] Withhold pointers that cite a restricted counterparty; if the client itself is the
+      // restricted party, withhold the whole set (it is a surface, not the stored record).
+      const r = restriction ? await restriction.forUser(userId) : NO_RESTRICTION;
+      if (r.active && set) {
+        const client = await clients.findByIdForUser(userId, id);
+        const clientRestricted = client ? r.restrictsWho(client.name) : false;
+        const visible = clientRestricted ? [] : set.pointers.filter((p) => !r.restrictsText(p.text));
+        sendJson(res, 200, { pointers: visible, disclosure: clientRestricted ? null : set.retrospectiveDisclosure });
+        return true;
+      }
       sendJson(res, 200, { pointers: set?.pointers ?? [], disclosure: set?.retrospectiveDisclosure ?? null });
       return true;
     }

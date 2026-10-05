@@ -1,5 +1,7 @@
 import type { Embedder } from '../../ports/embedder.js';
 import { modelSafeText } from '../import/dedup.js';
+import { restrictNote } from '../erasure/restrict-note.js';
+import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 import type { NoteRepository, SimilarNote } from '../../ports/note-repository.js';
 import type { ModelClient, ModelUsage } from '../../ports/model.js';
 import { fenceUntrusted } from '../extraction/untrusted.js';
@@ -121,6 +123,9 @@ export class RecallService {
     /** [USAGE-ALLOWANCE · D4] true when the rep is at 100% of the monthly allowance → Ask refuses.
      *  Optional — recall is unlimited without it. */
     private readonly allowanceExhausted?: (userId: string) => Promise<boolean>,
+    /** [TASK 2] Active erasure-window restriction — a restricted counterparty's notes are withheld from
+     *  the answer and its receipts. Absent → no restriction. */
+    private readonly restriction?: { forUser(userId: string): Promise<Restriction> },
   ) {}
 
   /** [ASK-CAPTURE] Detect whether the rep's turn stated a fact about a client and, if so, route it
@@ -186,7 +191,12 @@ export class RecallService {
 
     const embedding = await this.embedder.embed(userId, question);
     const matches = await this.notes.searchSimilarByUser(userId, embedding, this.config.topK);
-    const relevant = matches.filter((m) => m.similarity >= this.config.minSimilarity && modelSafeText(m.note).trim());
+    // [TASK 2] Apply the erasure-window restriction to each retrieved note BEFORE relevance + receipts,
+    // so a restricted counterparty's content is neither answered on nor quoted back. A note that is
+    // wholly the restricted party's then has empty safe text and drops out below.
+    const restriction = this.restriction ? await this.restriction.forUser(userId) : NO_RESTRICTION;
+    const restricted = restriction.active ? matches.map((m) => ({ ...m, note: restrictNote(m.note, restriction) })) : matches;
+    const relevant = restricted.filter((m) => m.similarity >= this.config.minSimilarity && modelSafeText(m.note).trim());
 
     let answer: string;
     let receipts: Receipt[] = [];

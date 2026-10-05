@@ -66,6 +66,27 @@ describe('[ERASURE Task 5] operator intake', () => {
     expect(unauth.raw()).toBe(authedUnknown.raw()); // byte-identical — auth-fail is indistinguishable from unknown
   });
 
+  it('[TASK 2] reject/withdraw require the ops token and end the window without erasing', async () => {
+    for (const action of ['reject', 'withdraw'] as const) {
+      const { deps, requests } = await setup();
+      // Open a real request first.
+      await handleOpsRoute(req('POST', '/ops/erasure/open', { 'x-ops-token': TOKEN }, { userId: 'u', requesterNames: ['Khalid'] }), res().res, deps);
+      const req0 = (await requests.listByUser('u'))[0]!;
+
+      // No token → nothing changes (still pending), neutral ack.
+      const r1 = res();
+      await handleOpsRoute(req('POST', `/ops/erasure/${action}`, {}, { userId: 'u', requestId: req0.id }), r1.res, deps);
+      expect(r1.status()).toBe(200);
+      expect((await requests.get('u', req0.id))!.status).toBe('pending');
+
+      // Valid token → terminal state set.
+      const r2 = res();
+      await handleOpsRoute(req('POST', `/ops/erasure/${action}`, { 'x-ops-token': TOKEN }, { userId: 'u', requestId: req0.id }), r2.res, deps);
+      expect(r2.status()).toBe(200);
+      expect((await requests.get('u', req0.id))!.status).toBe(action === 'reject' ? 'rejected' : 'withdrawn');
+    }
+  });
+
   it('an unauthenticated probe for a REAL counterparty leaks nothing (looks like unknown)', async () => {
     const { deps } = await setup();
     // Authenticated operator preview for the real Khalid → sees the data.

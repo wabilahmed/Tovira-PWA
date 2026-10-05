@@ -3,6 +3,8 @@ import type { NoteRepository } from '../../ports/note-repository.js';
 import { extractedOf } from '../insights/insights.js';
 import { fenceUntrusted } from '../extraction/untrusted.js';
 import { modelSafeText } from '../import/dedup.js';
+import { restrictNote } from '../erasure/restrict-note.js';
+import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 
 // [PROMPT-DELIMIT] This output is CLIENT-FACING — the rep may send the draft to their client — and the
 // note is untrusted (a third party may have authored the imported chat). The system prompt states the
@@ -19,11 +21,20 @@ export class FollowUpService {
   constructor(
     private readonly model: ModelClient,
     private readonly notes: NoteRepository,
+    /** [TASK 2] Active erasure-window restriction — a note about a restricted counterparty is withheld
+     *  from drafting (no model send, no draft). Absent → no restriction. */
+    private readonly restriction?: { forUser(userId: string): Promise<Restriction> },
   ) {}
 
   async draft(userId: string, noteId: string): Promise<{ draft: string } | null> {
-    const note = await this.notes.findByIdForUser(userId, noteId);
-    if (!note || !note.rawText || !note.rawText.trim()) return null;
+    const stored = await this.notes.findByIdForUser(userId, noteId);
+    if (!stored || !stored.rawText || !stored.rawText.trim()) return null;
+
+    // [TASK 2] Draft from the restriction view: a restricted counterparty's messages/raw text are gone,
+    // so a note that is wholly about them has no safe text left — refuse rather than draft on nothing.
+    const restriction = this.restriction ? await this.restriction.forUser(userId) : NO_RESTRICTION;
+    const note = restrictNote(stored, restriction);
+    if (!modelSafeText(note).trim()) return null;
 
     const facts = extractedOf(note.extracted);
     const commitments = facts.promises.map((p) => `- ${p.owner === 'rep' ? 'I' : 'They'} will ${p.text}${p.due_raw ? ` (${p.due_raw})` : ''}`).join('\n');

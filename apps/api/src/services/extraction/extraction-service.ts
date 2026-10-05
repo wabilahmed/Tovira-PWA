@@ -22,6 +22,8 @@ import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
 import { modelSafeText } from '../import/dedup.js';
+import { restrictNote } from '../erasure/restrict-note.js';
+import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 import { detectMisfilePostExtraction, nameMatches } from '../import/misfile.js';
 import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { dropSensitivePersonalFacts } from './health-filter.js';
@@ -179,6 +181,10 @@ export class ExtractionService {
     private readonly verifiedGate?: { isVerified(userId: string): Promise<boolean> },
     /** [POINTERS · Task 3] the per-client pointer store (read current, save the post-checked set). */
     private readonly pointers?: ClientPointerRepository,
+    /** [TASK 2] Active erasure-window restriction for this rep. A restricted counterparty's messages
+     *  and facts are withheld from the model body (and embedding) during the review window. Absent →
+     *  no restriction (older wiring / unit tests). */
+    private readonly restriction?: { forUser(userId: string): Promise<Restriction> },
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -298,14 +304,25 @@ export class ExtractionService {
     }
 
     const client = await this.clients.findByIdForUser(userId, note.clientId);
+    // [TASK 2] Processing restriction: while an erasure review window is open, the restricted
+    // counterparty's messages and structured facts are withheld from the model — the same effect as a
+    // sensitive-held message, computed from the active requests (no per-note state). New messages that
+    // arrived during the window are restricted here on their first extraction.
+    const restriction = this.restriction ? await this.restriction.forUser(userId) : NO_RESTRICTION;
+    const rnote = restrictNote(note, restriction);
     // Per-rep glossary from THIS user's corrections (P4-9). Tenant-scoped, so it
     // can never influence another rep; injected into the variable message only.
-    const glossary = this.repGlossary ? buildGlossary(await this.repGlossary.listByUser(userId)) : [];
+    // [TASK 2] Drop glossary terms that name a restricted counterparty — a glossary entry is model input.
+    const glossaryRows = this.repGlossary ? await this.repGlossary.listByUser(userId) : [];
+    const glossary = buildGlossary(
+      restriction.active ? glossaryRows.filter((g) => !restriction.restrictsText(`${g.wrongTerm} ${g.rightTerm}`)) : glossaryRows,
+    );
     const referenceDate = referenceDateFor(note, today);
     // [SCREEN] Only NON-EXCLUDED messages ever reach a model. modelSafeText renders the thread with
     // flagged (held) messages removed; for a note with no message array (paste/voice/Ask — the rep's
     // own words) it is the stored rawText unchanged. This is the SAME text used for the embedding below.
-    const safeText = modelSafeText(note);
+    // [TASK 2] rnote has any restricted counterparty's messages/raw text already withheld.
+    const safeText = modelSafeText(rnote);
     if (!safeText.trim()) {
       // Every message is held for review → nothing to extract and NO model call. The messages stay
       // stored; mark the note extracted-empty so the sweep stops, and it re-extracts if a rep restores.
@@ -380,7 +397,9 @@ export class ExtractionService {
       // the rep never answered (P1-6). Deterministic; never fabricated.
       // [SCREEN] Held messages produce NO derived output either — filter them from the unanswered-question
       // derivation, so a flagged message yields neither an extracted nor a derived fact until restored.
-      extraction.unanswered_questions = note.messages ? detectUnansweredQuestions(note.messages.filter((m) => !m.excluded)) : [];
+      // [TASK 2] rnote.messages already drops a restricted counterparty's messages, so a derived
+      // unanswered question can never come from one either.
+      extraction.unanswered_questions = note.messages ? detectUnansweredQuestions((rnote.messages ?? []).filter((m) => !m.excluded)) : [];
       // [ALIAS-NORMALISE] The chat counterpart IS this client, often under a nickname/company alias
       // ("Bubu DXB" → Imtinan). Normalise attribution into the vault: the counterpart is not a
       // separate STAKEHOLDER (drop them from people[]), and a personal fact about the alias is a fact

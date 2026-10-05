@@ -4,6 +4,8 @@ import type { NoteRepository } from '../../ports/note-repository.js';
 import type { MeetingRecord } from '../../ports/meeting-repository.js';
 import type { UnansweredQuestion } from '../import/unanswered.js';
 import { formatMeetingWhen, type NudgeSignals } from './nudge-content.js';
+import { restrictNote } from '../erasure/restrict-note.js';
+import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 
 const DAY = 86_400_000;
 
@@ -13,6 +15,9 @@ export interface NudgeSignalsDeps {
   notes: Pick<NoteRepository, 'listByClient'>;
   timezoneFor: (userId: string) => Promise<string>;
   coldThresholdDays: number;
+  /** [TASK 2] Active erasure-window restriction — a restricted counterparty's unanswered question is
+   *  never raised as a pre-meeting nudge. Absent → no restriction. */
+  restriction?: { forUser(userId: string): Promise<Restriction> };
 }
 
 /**
@@ -43,7 +48,9 @@ export class NudgeSignalsProvider {
     // 2. An unanswered client question (structural, from the chat-export extraction).
     let topQuestion: string | undefined;
     if (!topPromise) {
-      const notes = await this.deps.notes.listByClient(userId, meeting.clientId); // newest-first
+      const restriction = this.deps.restriction ? await this.deps.restriction.forUser(userId) : NO_RESTRICTION;
+      const rawNotes = await this.deps.notes.listByClient(userId, meeting.clientId); // newest-first
+      const notes = restriction.active ? rawNotes.map((n) => restrictNote(n, restriction)) : rawNotes;
       for (const n of notes) {
         const qs = (n.extracted as { unanswered_questions?: UnansweredQuestion[] } | null)?.unanswered_questions ?? [];
         const q = qs.find((x) => x.question?.trim());

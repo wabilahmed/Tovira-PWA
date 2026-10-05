@@ -37,6 +37,7 @@ import type { AccountEmailService } from './services/email/account-email-service
 import { handleAccessRequestRoute } from './http/access-request-routes.js';
 import type { AccessRequestService } from './services/access/access-request-service.js';
 import type { AccessApprovalService } from './services/access/access-approval-service.js';
+import type { Restriction } from './services/erasure/restriction.js';
 import type { AccessRequestRecord } from './ports/access-request-repository.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
@@ -120,6 +121,9 @@ export interface ApiDeps {
   extraction: ExtractionService;
   followUp: FollowUpService;
   facts: FactsRepository;
+  /** [TASK 2] Erasure-window restriction reader — withholds a restricted counterparty in the rep's book
+   *  and pointer surfaces. Optional (older wiring → no restriction). */
+  restriction?: { forUser(userId: string): Promise<Restriction> };
   corrections: CorrectionRepository;
   extractionLog: ExtractionLogRepository;
   /** [NO-TRAINING-RETENTION] operational per-rep glossary (P4-9) — fed by edit verdicts. */
@@ -371,6 +375,7 @@ export function createApiServer(deps: ApiDeps): Server {
           repNames: deps.repNames,
           importAck: deps.importAck,
           allowanceExhausted: deps.allowanceExhausted,
+          restriction: deps.restriction,
         })
       )
         return;
@@ -442,7 +447,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleAllowanceRoute(request, response, { auth: deps.auth, allowanceStatus: deps.allowanceStatus, billing: deps.billing })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
-      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers)) return;
+      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction)) return;
       if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing, matching: deps.matching })) return;
 
       if (request.method === 'GET' && url === '/') {

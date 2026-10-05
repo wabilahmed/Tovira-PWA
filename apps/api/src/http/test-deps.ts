@@ -91,6 +91,8 @@ import { InMemoryImageRepository } from '../adapters/images/in-memory-image-repo
 import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-jobs.js';
 import { InMemoryAccessRequestRepository } from '../adapters/access/in-memory-access-request-repository.js';
 import { InMemoryInviteRepository } from '../adapters/access/in-memory-invite-repository.js';
+import { InMemoryErasureRequestRepository } from '../adapters/erasure/in-memory-erasure-request-repository.js';
+import { RestrictionService } from '../services/erasure/restriction.js';
 import { InMemoryAccessApprovalTx } from '../adapters/access/in-memory-access-approval-tx.js';
 import { InMemoryInviteActivationTx } from '../adapters/access/in-memory-invite-activation-tx.js';
 import { AccessRequestService } from '../services/access/access-request-service.js';
@@ -129,6 +131,8 @@ export interface TestDeps extends ApiDeps {
   invites: InMemoryInviteRepository;
   /** [BETA-5/6] the stub email sender, exposed so tests can read sent emails (e.g. the invite link). */
   emailSender: StubEmailSender;
+  /** [TASK 2] the erasure-request store, exposed so tests can open/withdraw a processing restriction. */
+  erasureRequests: InMemoryErasureRequestRepository;
 }
 
 /**
@@ -187,6 +191,11 @@ export function buildInMemoryDeps(
     { trial: 100, paid: 2000 },
   );
   const extractionLimiter = opts.extractionLimiter ?? defaultExtractionLimiter;
+  // [TASK 2] One erasure-request store + restriction reader, shared across every surfacing/model path,
+  // so a test can open a restriction (erasureRequests.create / ErasureRequestService.open) and see it
+  // withheld everywhere. Exposed on TestDeps as `erasureRequests`.
+  const erasureRequestRepo = new InMemoryErasureRequestRepository();
+  const restriction = new RestrictionService({ requests: erasureRequestRepo });
   const extraction = new ExtractionService(
     // [BULK-IMPORT · Task 4 / D1] enforce one-chat-per-request in the harness too.
     new IsolatingModelClient(opts.modelClient ?? new StubModelClient()),
@@ -217,9 +226,10 @@ export function buildInMemoryDeps(
       ? { isVerified: (uid: string) => auth.getPublicUser(uid).then((u) => u?.emailVerified ?? false) }
       : { isVerified: async () => true },
     clientPointers, // [POINTERS]
+    restriction, // [TASK 2]
   );
-  const brief = new BriefService(clients, notes, facts, embedder, clientPointers);
-  const followUp = new FollowUpService(new StubModelClient(), notes);
+  const brief = new BriefService(clients, notes, facts, embedder, clientPointers, restriction);
+  const followUp = new FollowUpService(new StubModelClient(), notes, restriction);
   const meetings = new InMemoryMeetingRepository();
   const noteMove = new NoteMoveService(notes, facts, meetings, new InMemoryNoteMoveTx(notes, facts, meetings, clients, new InMemoryNoteMoveAuditRepository(), requirements, inventoryMatches));
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
@@ -231,7 +241,7 @@ export function buildInMemoryDeps(
   const images = new InMemoryImageRepository();
   const recallSessions = new InMemoryRecallSessionRepository();
   const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog });
-  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching);
+  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching, restriction);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
   // [SPEND-INSTRUMENT] The durable spend cap (mirrors prod): status-aware caps (trial 20 / paid 45),
   // period-bucketed. Wired into the sweep's canSpend skip + the extraction spendGate so a capped rep's
@@ -391,7 +401,7 @@ export function buildInMemoryDeps(
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
-    recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions, undefined, undefined, undefined, (u) => allowanceStatus.isExhausted(u)),
+    recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions, undefined, undefined, undefined, (u) => allowanceStatus.isExhausted(u), restriction),
     askCapture,
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
@@ -406,6 +416,8 @@ export function buildInMemoryDeps(
     accessApproval,
     invites,
     emailSender,
+    restriction, // [TASK 2] erasure-window restriction, shared with the services above
+    erasureRequests: erasureRequestRepo, // [TASK 2] open/withdraw a restriction in tests
     signupEnabled: true, // [BETA-7] tests seed accounts via /auth/signup; prod default is false
     ...overrides,
   } as TestDeps;

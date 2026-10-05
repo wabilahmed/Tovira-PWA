@@ -4,6 +4,8 @@ import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { MatchingService } from '../inventory/matching-service.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import { extractedOf } from '../insights/insights.js';
+import { restrictNote } from '../erasure/restrict-note.js';
+import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 import { isActivePromise } from '../facts/promise-lifecycle.js';
 import { evaluateGate, type GateState, type VolumeGateConfig } from './volume-gate.js';
 
@@ -74,6 +76,9 @@ export class HeroService {
     private readonly promiseStaleThresholdDays: number,
     /** INV-MATCH (§11.4): STRONG matches enter Today's register, below every fact. Optional. */
     private readonly matching?: MatchingService,
+    /** [TASK 2] Active erasure-window restriction — a restricted counterparty's facts never drive the
+     *  daily list (e.g. its person entries are not counted as decision-makers). Absent → no restriction. */
+    private readonly restriction?: { forUser(userId: string): Promise<Restriction> },
   ) {}
 
   async status(userId: string): Promise<GateState> {
@@ -89,11 +94,14 @@ export class HeroService {
     const meetings = await this.deps.meetings.listByUser(userId);
     const todayIso = new Date(nowMs).toISOString().slice(0, 10);
     const nowIso = new Date(nowMs).toISOString();
+    // [TASK 2] A restricted counterparty's facts must not drive the daily list.
+    const restriction = this.restriction ? await this.restriction.forUser(userId) : NO_RESTRICTION;
 
     const out: ClientSignals[] = [];
     for (const c of clients) {
       const cp = promises.filter((p) => p.clientId === c.id);
-      const notes = await this.deps.notes.listByClient(userId, c.id);
+      const rawNotes = await this.deps.notes.listByClient(userId, c.id);
+      const notes = restriction.active ? rawNotes.map((n) => restrictNote(n, restriction)) : rawNotes;
       const people = notes.flatMap((n) => extractedOf(n.extracted).people);
       out.push({
         clientId: c.id,

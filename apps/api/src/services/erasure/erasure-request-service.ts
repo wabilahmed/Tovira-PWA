@@ -1,5 +1,5 @@
 import type { ErasureService, CommitOptions, SummaryCandidate } from './erasure-service.js';
-import type { ErasureRequestRepository, ErasureRequestRecord } from '../../ports/erasure-request-repository.js';
+import { isActiveErasure, type ErasureRequestRepository, type ErasureRequestRecord } from '../../ports/erasure-request-repository.js';
 import type { ErasureReceiptRepository } from '../../ports/erasure-receipt-repository.js';
 import type { NotificationRepository } from '../../ports/notification-repository.js';
 import type { PushableAlert } from '../push/push-dispatch-service.js';
@@ -65,6 +65,29 @@ export class ErasureRequestService {
   }
 
   /**
+   * [TASK 2] Reject the request (operator): not carried out — e.g. an asserted retention basis is upheld
+   * or the request is not valid. Terminal and NON-erasing: nothing is deleted and the processing
+   * restriction lifts. Allowed only while the request is still live (pending or retention_asserted); a
+   * completed or already-terminal request cannot be rejected. `note` is operator metadata only.
+   */
+  async reject(userId: string, requestId: string, note?: string): Promise<boolean> {
+    void note;
+    const req = await this.deps.requests.get(userId, requestId);
+    if (!req || !isActiveErasure(req.status)) return false;
+    return this.deps.requests.setStatus(userId, requestId, 'rejected');
+  }
+
+  /**
+   * [TASK 2] The requester withdrew the request. Terminal and NON-erasing: nothing is deleted and the
+   * processing restriction lifts. Allowed only while the request is still live.
+   */
+  async withdraw(userId: string, requestId: string): Promise<boolean> {
+    const req = await this.deps.requests.get(userId, requestId);
+    if (!req || !isActiveErasure(req.status)) return false;
+    return this.deps.requests.setStatus(userId, requestId, 'withdrawn');
+  }
+
+  /**
    * Complete the erasure. Refuses BEFORE the window closes and if the rep asserted retention (a legal
    * hold). On success, runs the erasure and tells the rep what was removed.
    */
@@ -77,6 +100,8 @@ export class ErasureRequestService {
     if (!req) return { ok: false, reason: 'not_found' };
     if (req.status === 'completed') return { ok: false, reason: 'already_completed' };
     if (req.status === 'retention_asserted') return { ok: false, reason: 'retention_asserted' };
+    // [TASK 2] A rejected/withdrawn request is terminal and non-erasing — it can never be completed.
+    if (req.status === 'rejected' || req.status === 'withdrawn') return { ok: false, reason: req.status };
     if (this.now() < req.windowEndsAt) return { ok: false, reason: 'window_open' };
 
     // [ERASURE-ARCHIVE Task 4] THE GATE: the erasure is only complete if commit fully succeeded —

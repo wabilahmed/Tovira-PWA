@@ -20,6 +20,11 @@ import type { ImportAckRepository } from '../ports/import-ack-repository.js';
 import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 import { noteWithReceipts } from '../services/receipts/receipt.js';
+import { restrictNote, noteIsAboutRestricted } from '../services/erasure/restrict-note.js';
+import { NO_RESTRICTION, type Restriction } from '../services/erasure/restriction.js';
+
+/** [TASK 2] The exact placeholder the rep's book shows for a note restricted during an erasure review. */
+const RESTRICTION_NOTICE = 'Restricted while a privacy request is reviewed.';
 import { extractionState, aggregateExtractionStates } from '../services/notes/extraction-state.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
@@ -85,6 +90,9 @@ export interface NoteRouteDeps {
   /** [USAGE-ALLOWANCE · D4] at 100% of the allowance, a chat-export upload is REFUSED (not queued).
    *  Optional — without it, imports are never allowance-gated (local/old wiring). */
   allowanceExhausted?: (userId: string) => Promise<boolean>;
+  /** [TASK 2] Active erasure-window restriction — in the rep's book, a note about a restricted
+   *  counterparty shows a placeholder instead of the content (still stored, still exported). Optional. */
+  restriction?: { forUser(userId: string): Promise<Restriction> };
 }
 
 /** Ledger (P4-11): capturing a note for a client that a scan flagged (going cold
@@ -511,8 +519,20 @@ export async function handleNoteRoute(
       // and the response includes the aggregate — so a rep watching an import sees per-note status AND
       // "N of M analysed", and a failure reads as failed rather than an endless spinner.
       const raw = await deps.notes.listByClient(userId, clientId);
+      // [TASK 2] During an erasure review window, a note about the restricted counterparty shows in the
+      // book as a placeholder — its content withheld (restrictNote), flagged `restricted` with the exact
+      // notice — rather than deleted. The stored note is untouched and still appears in the export.
+      const restriction = deps.restriction ? await deps.restriction.forUser(userId) : NO_RESTRICTION;
       sendJson(res, 200, {
-        notes: raw.map((n) => ({ ...noteWithReceipts(n), extractionState: extractionState(n) })),
+        notes: raw.map((n) => {
+          const restricted = restriction.active && noteIsAboutRestricted(n, restriction);
+          const view = restriction.active ? restrictNote(n, restriction) : n;
+          return {
+            ...noteWithReceipts(view),
+            extractionState: extractionState(n),
+            ...(restricted ? { restricted: true, restrictionNotice: RESTRICTION_NOTICE } : {}),
+          };
+        }),
         extraction: aggregateExtractionStates(raw),
       });
       return true;

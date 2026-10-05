@@ -25,7 +25,7 @@ export interface OpsRouteDeps {
   allUserIds: () => Promise<string[]>;
   /** [ERASURE] single-counterparty erasure, operator-run (Terms 4.9). Absent → the routes no-op neutrally. */
   erasure?: Pick<ErasureService, 'preview'>;
-  erasureRequests?: Pick<ErasureRequestService, 'open' | 'complete'>;
+  erasureRequests?: Pick<ErasureRequestService, 'open' | 'complete' | 'reject' | 'withdraw'>;
   /** [SPEND-INSTRUMENT] durable per-call event store — powers GET /ops/spend/by-class. Absent → 404. */
   modelCallEvents?: ModelCallEventStore;
   /** [BETA-5] Beta access-request review + invite provisioning. Absent → the routes 404. */
@@ -106,6 +106,22 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
         ? await deps.erasureRequests.complete(userId, requestId, { flaggedMentionIds, confirmFuzzy })
         : { ok: true };
       sendJson(res, 200, result);
+      return true;
+    }
+    if (req.method === 'POST' && (url === '/ops/erasure/reject' || url === '/ops/erasure/withdraw')) {
+      // [TASK 2] End the window WITHOUT erasing (restriction lifts). Neutral ack like open/complete: a
+      // requestId is an unguessable id from a real open and the caller holds the ops token, so this does
+      // not enumerate; unauth/unknown → the same { ok: true }.
+      const requestId = typeof body.requestId === 'string' ? body.requestId : '';
+      if (authed && deps.erasureRequests && userId && requestId) {
+        if (url === '/ops/erasure/reject') {
+          const note = typeof (body as { note?: unknown }).note === 'string' ? (body as { note?: string }).note : undefined;
+          await deps.erasureRequests.reject(userId, requestId, note);
+        } else {
+          await deps.erasureRequests.withdraw(userId, requestId);
+        }
+      }
+      sendJson(res, 200, { ok: true });
       return true;
     }
     sendJson(res, 200, { ok: true });

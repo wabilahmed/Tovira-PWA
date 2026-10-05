@@ -8,6 +8,7 @@ import { renderThread } from '../import/dedup.js';
 import { purgeUserBatches } from '../import/bulk-batch-store.js';
 import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_MAX_TOKENS, buildUserMessage } from '../extraction/prompt.js';
+import { matchName, mentionsName, normName, type MatchKind } from './name-match.js';
 
 
 /**
@@ -30,24 +31,10 @@ import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_MAX_TOKENS, buildUserMessage } fro
  * category counts, never the erased content.
  */
 
-const norm = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-const wordsOf = (s: string): string[] => norm(s).split(' ').filter((w) => w.length > 1);
-
-type MatchKind = 'exact' | 'fuzzy' | 'none';
-function matchName(who: string | null | undefined, requesterNorm: string[]): MatchKind {
-  const w = norm(who);
-  if (!w) return 'none';
-  if (requesterNorm.includes(w)) return 'exact';
-  const whoWords = new Set(wordsOf(w));
-  for (const rn of requesterNorm) for (const rw of rn.split(' ')) if (rw.length > 1 && whoWords.has(rw)) return 'fuzzy';
-  return 'none';
-}
-/** A free-text field MENTIONS the requester if it contains a requester name token as a whole word.
- *  Punctuation is treated as a boundary so "(Khalid" / "Khalid," / "Khalid's" all count. */
-function mentions(text: string | null | undefined, requesterNorm: string[]): boolean {
-  const t = ` ${(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
-  return requesterNorm.some((rn) => rn.split(' ').some((w) => w.length > 1 && t.includes(` ${w} `)));
-}
+// [TASK 2] Name-matching lives in one shared place now (name-match.ts), so the processing restriction
+// withholds exactly the family of facts the erasure reaches. `norm` keeps its short local name here.
+const norm = normName;
+const mentions = mentionsName;
 
 type WhoStore = 'people' | 'personal_facts' | 'unanswered_questions' | 'messages';
 
