@@ -9,10 +9,16 @@ drifts from its constant.
 
 ## Contents
 
-- `2026-10-02/` — the current **published** Terms and Privacy (owner-approved). This is the version new
+- `2026-10-05/` — the current **published** Terms and Privacy (owner-approved). This is the version new
   acceptances record (`TERMS_VERSION` / `PRIVACY_VERSION`). Snapshotted from `apps/web/{terms,privacy}/index.html`.
-  The revision corrected the voice-redaction claim, added the recording-retention / access-request / image
-  disclosures (Privacy), and rewrote the voice-note clause to Terms 4.10.
+  The revision added the failed-payment procedure (Terms 6.7–6.8: pause AI, daily retry/remind, suspend at
+  7 days, end at 30, 90-day retention then deletion), the same-date/time renewal wording (Terms 6.3), the
+  Privacy retention row for an ended-after-failed-payment account, and changed every contact address to
+  `hello@tovira.io`.
+- `2026-10-03/` — the prior published **Terms** (added clause 6.9, the usage-allowance + top-ups wording).
+- `2026-10-02/` — the prior published Terms and Privacy. The revision corrected the voice-redaction claim,
+  added the recording-retention / access-request / image disclosures (Privacy), and rewrote the voice-note
+  clause to Terms 4.10.
 - `2026-09-22/` — the prior published Terms and Privacy (the first published version). Frozen here because
   acceptance records still point at it.
 - `2026-08-01/` — **no published text exists for this version**; see `2026-08-01/UNRECOVERABLE.md`. The

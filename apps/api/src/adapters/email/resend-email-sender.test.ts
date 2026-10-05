@@ -15,6 +15,7 @@ describe('ResendEmailSender', () => {
     expect(init.headers.authorization).toBe('Bearer re_test');
     const body = JSON.parse(init.body);
     expect(body).toMatchObject({ from: 'Tovira <no-reply@tovira.io>', to: ['a@example.com'], subject: 'Hi', text: 'body', html: '<p>body</p>' });
+    expect(body.reply_to).toBe('hello@tovira.io'); // [D9] replies land at the public contact address
   });
 
   it('omits html when the message has none', async () => {

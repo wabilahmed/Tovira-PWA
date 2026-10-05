@@ -15,14 +15,14 @@
  *  added clause 6.9, the usage-allowance + top-ups wording, for the monthly AI allowance batch). The
  *  reconcile guard proves the page and this constant agree. Prior published versions are archived under
  *  legal-archive/2026-10-02/ (voice-note clause 4.10) and legal-archive/2026-09-22/ (first published). */
-export const TERMS_VERSION = '2026-10-03';
+export const TERMS_VERSION = '2026-10-05';
 
 /** Privacy Policy version. Derivation: matches "Last updated: 2 October 2026" on the published Privacy
  *  page (apps/web/privacy/index.html) — the 2026-10-02 revision corrected the voice redaction claim,
  *  added the recording-retention and access-request disclosures, and the image-storage statement.
  *  Tracked separately from TERMS so the two can diverge when only one document changes; today they are
  *  the same date. Prior published version: legal-archive/2026-09-22/. */
-export const PRIVACY_VERSION = '2026-10-02';
+export const PRIVACY_VERSION = '2026-10-05';
 
 /** Version of the access-request confirmation checkbox wording (BETA-3). Derivation: the date that
  *  exact confirmation sentence was fixed — authored in this batch, 2026-10-01. It is NOT terms
