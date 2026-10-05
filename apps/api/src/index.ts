@@ -181,10 +181,21 @@ async function main(): Promise<void> {
   const repGlossary = createRepGlossaryRepository(config, appPool);
   const clientPointers = createClientPointerRepository(config, appPool); // [POINTERS]
   // Billing is created early so the extraction router can read trial status (P5-7).
+  // [BILLING-DUNNING] The failed-payment pay link: the Stripe hosted invoice page (3DS) when we have it,
+  // else the billing settings page. Export link for the deletion warnings (D8).
+  const payUrlFor = async (userId: string): Promise<string> => {
+    const url = (await billing.entitlement(userId, Date.now())).hostedInvoiceUrl;
+    return url ?? `${config.appBaseUrl}/settings`;
+  };
+  const dayStamp = (): string => new Date().toISOString().slice(0, 10);
   const billingEmailHook = {
-    paymentFailed: async (userId: string, eventId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendPaymentFailed(userId, to, eventId); },
+    paymentFailed: async (userId: string, eventId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendPaymentFailed(userId, to, eventId, await payUrlFor(userId)); },
     subscriptionConfirmed: async (userId: string, eventId: string, renewsAt: number | null) => { const to = await emailFor(userId); if (to) await accountEmail.sendSubscriptionConfirmed(userId, to, eventId, renewsAt); },
     subscriptionCanceled: async (userId: string, eventId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendSubscriptionCanceled(userId, to, eventId); },
+    dailyReminder: async (userId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendPaymentReminder(userId, to, dayStamp(), await payUrlFor(userId)); },
+    suspended: async (userId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendSuspended(userId, to, await payUrlFor(userId)); },
+    subscriptionEnded: async (userId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendSubscriptionEnded(userId, to); },
+    deletionWarning: async (userId: string, daysLeft: 30 | 7) => { const to = await emailFor(userId); if (to) await accountEmail.sendDeletionWarning(userId, to, daysLeft, `${config.appBaseUrl}/account/export`); },
   };
   const opsAlerts = createOpsAlertRepository(config, migrationPool);
   // [BILLING-DUNNING · ruling 1] Stripe cancelling a subscription BEFORE our day-30 end is an anomaly —

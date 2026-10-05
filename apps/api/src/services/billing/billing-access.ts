@@ -41,6 +41,27 @@ export function isAiPath(method: string, path: string): boolean {
   return AI_PATHS.some((p) => p.method === method && p.re.test(path));
 }
 
+/**
+ * [D3] The human-facing list of AI features paused during payment_failed/suspended — the SINGLE source
+ * used verbatim in the failed-payment emails, the in-app banner and the Terms. Derived (ruling 3/4) from
+ * the model-calling AI_PATHS above, curated to plain product names (Book Scan is NOT here — it is
+ * model-free; "client pointers" is produced inside the extraction path). Keep consistent with AI_PATHS.
+ */
+export const PAUSED_FEATURES: readonly string[] = [
+  'importing chats',
+  'transcribing voice notes',
+  'answering questions about your clients',
+  'pre-meeting briefs',
+  'client pointers',
+  'the daily list and priorities',
+  'drafting follow-ups',
+  'smart search',
+];
+/** The paused features as one sentence fragment for an email/banner/Terms sentence. */
+export function pausedFeaturesSentence(): string {
+  return PAUSED_FEATURES.join(', ');
+}
+
 export type BillingDecision = 'allow' | 'ai_paused' | 'blocked_suspended';
 
 /** The gate decision for one request given the account's billing state. */

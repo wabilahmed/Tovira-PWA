@@ -3,6 +3,7 @@ import type { EmailLogRepository } from '../../ports/email-log-repository.js';
 import type { AccessRequestRecord } from '../../ports/access-request-repository.js';
 import { INVITE_TTL_DAYS } from '../access/access-approval-service.js';
 import { renderEmail, type EmailContent } from './templates.js';
+import { pausedFeaturesSentence } from '../billing/billing-access.js';
 
 /** Human-readable labels for the stored enum codes, for the owner-facing notification email. */
 const OWNERSHIP_LABEL: Record<string, string> = {
@@ -185,15 +186,67 @@ export class AccountEmailService {
       });
   }
 
-  async sendPaymentFailed(userId: string, to: string, eventKey: string): Promise<boolean> {
+  // [BILLING-DUNNING · D3/D4] The failed-payment emails. All list the paused AI features (D3 list, the
+  // single source) and link to the payment page (the Stripe hosted invoice page / billing settings — the
+  // rep completes 3DS there, ruling 2). Plain, factual tone; no threats, no countdowns.
+  private pausedLine(): string {
+    return `While this is unresolved, the AI features of Tovira are paused: ${pausedFeaturesSentence()}. Everything else keeps working — you can view your book, clients, facts and existing briefs, make edits, and export your data. Voice notes you record are kept and transcribed once payment succeeds.`;
+  }
+
+  async sendPaymentFailed(userId: string, to: string, eventKey: string, payUrl: string): Promise<boolean> {
     return this.once(userId, eventKey, to, 'Your Tovira payment did not go through',
-      `Your last Tovira payment failed, so your subscription is past due.\n\n` +
-      `Update your billing details from Settings to keep access. Your data is not affected.`, {
+      `Your last Tovira payment failed.\n\n${this.pausedLine()}\n\nUpdate your payment details to resume:\n${payUrl}`, {
         heading: 'Your payment did not go through',
+        intro: ['Your last Tovira payment failed.', this.pausedLine()],
+        button: { label: 'Update payment details', url: payUrl },
+      });
+  }
+
+  /** D4: a reminder each day while unpaid. Day-stamped key so it sends once per day. */
+  async sendPaymentReminder(userId: string, to: string, dayStamp: string, payUrl: string): Promise<boolean> {
+    return this.once(userId, `dunning_reminder:${dayStamp}`, to, 'A reminder: your Tovira payment is still due',
+      `Your Tovira payment has not gone through yet.\n\n${this.pausedLine()}\n\nUpdate your payment details to resume:\n${payUrl}`, {
+        heading: 'Your payment is still due',
+        intro: ['Your Tovira payment has not gone through yet.', this.pausedLine()],
+        button: { label: 'Update payment details', url: payUrl },
+      });
+  }
+
+  /** D5: suspended at day 7. Sign-in allows only the payment page and export. */
+  async sendSuspended(userId: string, to: string, payUrl: string): Promise<boolean> {
+    return this.once(userId, 'dunning_suspended', to, 'Your Tovira account is suspended',
+      `Payment has not succeeded within 7 days, so your account is suspended. You can still sign in to update your payment details and to export your data; nothing else is available until payment succeeds.\n\nUpdate your payment details:\n${payUrl}`, {
+        heading: 'Your account is suspended',
         intro: [
-          'Your last Tovira payment failed, so your subscription is past due.',
-          'Update your billing details from Settings to keep access. Your data is not affected.',
+          'Payment has not succeeded within 7 days, so your account is suspended.',
+          'You can still sign in to update your payment details and to export your data; nothing else is available until payment succeeds.',
         ],
+        button: { label: 'Update payment details', url: payUrl },
+      });
+  }
+
+  /** D7: ended at day 30. Restoring now needs the rep to contact us. */
+  async sendSubscriptionEnded(userId: string, to: string): Promise<boolean> {
+    return this.once(userId, 'dunning_ended', to, 'Your Tovira subscription has ended',
+      `Payment did not succeed within 30 days, so your subscription has ended. Your data is kept for 90 days so your account can be restored.\n\nContact us at hello@tovira.io to restore your account. You can still export your data any time.`, {
+        heading: 'Your subscription has ended',
+        intro: [
+          'Payment did not succeed within 30 days, so your subscription has ended.',
+          'Your data is kept for 90 days so your account can be restored. Contact us at hello@tovira.io to restore it. You can still export your data any time.',
+        ],
+      });
+  }
+
+  /** D8: warn 30 days and 7 days before the post-end deletion. */
+  async sendDeletionWarning(userId: string, to: string, daysLeft: 30 | 7, exportUrl: string): Promise<boolean> {
+    return this.once(userId, `deletion_warning:${daysLeft}`, to, `Your Tovira data will be deleted in ${daysLeft} days`,
+      `Your subscription ended and your account is scheduled for deletion in ${daysLeft} days. To keep it, contact hello@tovira.io to restore your subscription. You can export your data any time before then:\n${exportUrl}`, {
+        heading: `Your data will be deleted in ${daysLeft} days`,
+        intro: [
+          `Your subscription ended and your account is scheduled for deletion in ${daysLeft} days.`,
+          'To keep it, contact hello@tovira.io to restore your subscription. You can export your data any time before then.',
+        ],
+        button: { label: 'Export your data', url: exportUrl },
       });
   }
 

@@ -3,10 +3,14 @@
 
 export interface Entitlement {
   entitled: boolean;
-  status: string; // 'none' | 'trialing' | 'active' | 'past_due' | 'canceled'
+  status: string; // 'none'|'trialing'|'active'|'payment_failed'|'suspended'|'ended'|'canceled'
   trialEndsAt: number;
   /** Next renewal date (epoch ms) from the webhook, or null when unknown (P5-2). */
   renewsAt?: number | null;
+  /** [BILLING-DUNNING] the failed-payment lifecycle state, drives the in-app banner. */
+  billingState?: 'active' | 'payment_failed' | 'suspended' | 'ended';
+  /** [BILLING-DUNNING] Stripe hosted page to pay the open invoice + do 3DS; the banner links to it. */
+  hostedInvoiceUrl?: string | null;
 }
 
 // [TRIAL-14] The usage-gated trial-extension incentive is removed — the trial is a flat 14 days, so
