@@ -1,17 +1,13 @@
-/* Tovira self-hosted typefaces (§ brand): Fraunces (display, still used by the product app + email) +
- * IBM Plex Sans/Arabic/Mono, and Archivo (display) for the Starfield marketing landing. Self-hosted via
- * @fontsource — NO CDN (the landing's Google Fonts <link> was removed per the brand's no-CDN rule).
- * Only the slices actually used are imported. */
+/* Tovira self-hosted typefaces (§ brand): Fraunces (display) + IBM Plex Sans/Arabic/Mono. Self-hosted
+ * via @fontsource — NO CDN (the landing's Google Fonts <link> was removed per the brand's no-CDN rule).
+ * Only the slices actually used are imported.
+ *
+ * This shared loader is pulled in ONLY by the legal pages' stylesheet (apps/web/src/marketing/site.css);
+ * the product app (main.tsx) and the Starfield landing (marketing/fonts.css) load their own slices. The
+ * landing's display face (Archivo) and its light body weight (IBM Plex Sans 300) therefore live in the
+ * landing's own loader, not here — the legal pages render neither, so shipping them here only made
+ * /privacy and /terms declare ~96 KB of woff2 they never paint. */
 @import '@fontsource-variable/fraunces/standard.css';
-/* Archivo — the Starfield landing's display face (weights 400–800, matching its headings/nav/mark). No
- * @fontsource package exists for "Archivo Condensed", and the landing declares but never uses it, so it
- * is not imported (the --font-cond token falls back to Archivo). */
-@import '@fontsource/archivo/latin-400.css';
-@import '@fontsource/archivo/latin-500.css';
-@import '@fontsource/archivo/latin-600.css';
-@import '@fontsource/archivo/latin-700.css';
-@import '@fontsource/archivo/latin-800.css';
-@import '@fontsource/ibm-plex-sans/latin-300.css';
 @import '@fontsource/ibm-plex-sans/latin-400.css';
 @import '@fontsource/ibm-plex-sans/latin-500.css';
 @import '@fontsource/ibm-plex-sans/latin-600.css';
