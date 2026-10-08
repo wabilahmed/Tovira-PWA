@@ -14,6 +14,20 @@ export interface PendingRecording {
   createdAt: number;
   attempts: number;
   lastError?: string;
+  /** [AUDIT item 4] A permanent failure (413 too large / 415 wrong type) that retrying can never fix.
+   *  The recording is KEPT (the rep can still re-record or export it) but is not retried by flush(). */
+  permanent?: boolean;
+  /** [AUDIT item 4] A specific, rep-facing message for the failure (e.g. "Recording too large"). */
+  userMessage?: string;
+}
+
+/** [AUDIT item 4] An upload failure carrying its HTTP status, whether retrying can ever help, and a
+ *  rep-facing message. The uploader throws this; the outbox decides retry-vs-stop from `permanent`. */
+export class UploadError extends Error {
+  constructor(readonly status: number, readonly permanent: boolean, readonly userMessage: string) {
+    super(`upload failed: ${status}`);
+    this.name = 'UploadError';
+  }
 }
 
 export interface RecordingStore {
@@ -47,7 +61,11 @@ export class Outbox {
       await this.store.delete(id); // only remove once confirmed
       return { uploaded: true };
     } catch (err) {
-      await this.store.put({ ...rec, attempts: rec.attempts + 1, lastError: String(err) });
+      // [AUDIT item 4] A permanent failure (413/415) is recorded as such so flush() never retries it —
+      // but the recording is NEVER deleted on a failure; the rep can re-record or keep it.
+      const permanent = err instanceof UploadError && err.permanent;
+      const userMessage = err instanceof UploadError ? err.userMessage : undefined;
+      await this.store.put({ ...rec, attempts: rec.attempts + 1, lastError: String(err), ...(permanent ? { permanent: true } : {}), ...(userMessage ? { userMessage } : {}) });
       return { uploaded: false };
     }
   }
@@ -62,6 +80,7 @@ export class Outbox {
       return;
     }
     for (const rec of queued) {
+      if (rec.permanent) continue; // [AUDIT item 4] a 413/415 can never succeed — don't retry it
       await this.tryUpload(rec.id);
     }
   }
