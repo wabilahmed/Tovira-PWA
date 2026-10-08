@@ -50,12 +50,18 @@ export function NotesTimeline({
               )}
             </small>
             <div style={{ marginTop: 4 }}>
-              {n.rawText ?? <em>{n.status === 'transcription_failed' ? 'The recording couldn’t be found, so this note couldn’t be transcribed.' : '(transcription pending)'}</em>}
+              {n.restricted ? (
+                <em data-testid="note-restricted" style={{ color: 'var(--text-secondary)' }}>
+                  {n.restrictionNotice ?? 'Restricted while a privacy request is reviewed.'}
+                </em>
+              ) : (
+                n.rawText ?? <em>{n.status === 'transcription_failed' ? 'The recording couldn’t be found, so this note couldn’t be transcribed.' : '(transcription pending)'}</em>
+              )}
             </div>
             {ceiling && <CeilingNotice />}
             {!ceiling && n.rawText && renderFollowUp?.(n.id)}
             {/* [NOTE-MOVE] a settled note can be moved to the right client if it was misfiled. */}
-            {!ceiling && !inProgress && move && (
+            {!ceiling && !inProgress && !n.restricted && move && (
               <MoveNoteControl api={move.api} noteId={n.id} fromClientId={move.clientId} clients={move.clients} onMoved={move.onMoved} />
             )}
           </li>

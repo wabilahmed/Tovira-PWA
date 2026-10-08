@@ -392,6 +392,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       }
     >
       <ErrorBoundary key={view}>
+      <DevCrash />{/* dev-only: ?boom=1 throws here so the view ErrorBoundary fallback can be exercised */}
       <InstallBanner />
 
       {!session.user.emailVerified && !bannerDismissed && (
@@ -853,6 +854,19 @@ const briefBox: React.CSSProperties = {
   background: 'var(--surface-raised)',
 };
 const briefSection: React.CSSProperties = { borderTop: '1px solid var(--hairline)', paddingTop: '0.6rem', marginTop: '0.6rem' };
+
+/**
+ * Dev-only crash trigger. In a production build `import.meta.env.DEV` is false, so this is a no-op that
+ * tree-shakes away — it can never throw for a real rep. In dev, `?boom=1` makes it throw during render so
+ * the view ErrorBoundary's calm fallback can be captured for QA. Not a route, nothing shippable.
+ */
+function DevCrash(): JSX.Element | null {
+  if (!import.meta.env.DEV) return null;
+  let boom = false;
+  try { boom = new URLSearchParams(window.location.search).get('boom') === '1'; } catch { boom = false; }
+  if (boom) throw new Error('DevCrash: forced render error for ErrorBoundary QA');
+  return null;
+}
 
 function Centered({ children }: { children: React.ReactNode }): JSX.Element {
   return (

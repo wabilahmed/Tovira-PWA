@@ -52,4 +52,12 @@ describe('<NotesTimeline> (P5-1-CEILING-UI)', () => {
     render(<NotesTimeline notes={[]} ceilingNoteIds={new Set()} />);
     expect(screen.getByText(/no notes yet/i)).toBeInTheDocument();
   });
+
+  // [AUDIT item 6] A note withheld during an erasure review must say WHY, not read as a blank/pending
+  // note. The server withholds the content (rawText null) and flags it; the book must show the notice.
+  it('shows the privacy-restriction notice for a restricted note (not a blank/pending look)', () => {
+    render(<NotesTimeline notes={[note({ rawText: null, restricted: true, restrictionNotice: 'Restricted while a privacy request is reviewed.' })]} ceilingNoteIds={new Set()} />);
+    expect(screen.getByTestId('note-restricted')).toHaveTextContent(/restricted while a privacy request is reviewed/i);
+    expect(screen.queryByText(/transcription pending/i)).toBeNull(); // not mistaken for a pending note
+  });
 });

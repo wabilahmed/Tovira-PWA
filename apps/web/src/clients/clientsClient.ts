@@ -38,6 +38,10 @@ export interface NoteSummary {
   createdAt: number;
   /** [ASYNC-EXTRACT] the rep-facing state the server computes; absent on older responses. */
   extractionState?: ExtractionState;
+  /** [TASK 2 / erasure] set while a note about a restricted counterparty is held during a privacy
+   *  review — its content is withheld server-side; the book shows `restrictionNotice` instead. */
+  restricted?: boolean;
+  restrictionNotice?: string;
 }
 
 export interface Brief {
