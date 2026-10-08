@@ -16,6 +16,28 @@ describe('<ImportChat>', () => {
     expect(screen.getByRole('button', { name: /import chat/i })).toBeInTheDocument();
   });
 
+  // [AUDIT gap A] First-ever import: the 428 ack must show the right-to-upload notice (NOT "Import
+  // failed."), and confirming re-imports with firstImportAck=true.
+  it('surfaces the first-import acknowledgement and proceeds on confirm', async () => {
+    const user = userEvent.setup();
+    const importWhatsApp = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: 'ack_required', message: 'You can import a chat you have the right to store.' })
+      .mockResolvedValueOnce({ ok: true, imported: 5 });
+    const onImported = vi.fn();
+    render(<ImportChat clientId="c1" api={{ importWhatsApp }} onImported={onImported} />);
+    await user.type(screen.getByLabelText(/pasted chat export/i), 'a real chat export');
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /^import chat$/i }));
+
+    expect(await screen.findByText(/right to store/i)).toBeInTheDocument();
+    expect(screen.queryByText(/import failed/i)).toBeNull();
+    await user.click(screen.getByRole('button', { name: /i have the right to upload/i }));
+
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith(5));
+    // the second call carried the first-import acknowledgement
+    expect(importWhatsApp.mock.calls[1]![1]).toMatchObject({ firstImportAck: true });
+  });
+
   // NEGATIVE: without consent (or content) the button is disabled — can't import.
   it('keeps the button disabled until there is content AND consent', async () => {
     const user = userEvent.setup();

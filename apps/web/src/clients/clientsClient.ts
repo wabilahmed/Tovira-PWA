@@ -65,6 +65,7 @@ export interface Stakeholder {
 export type ImportResult =
   | { ok: true; imported: number; ceilingReached?: boolean; duplicate?: boolean; pending?: boolean; truncated?: boolean }
   | { ok: false; error: 'misfile'; message: string; counterparts: string[]; suggestion: { id: string; name: string } | null }
+  | { ok: false; error: 'ack_required'; message: string }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
 
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
@@ -213,6 +214,13 @@ export class ClientsClient {
       return { ok: false, error: 'not_whatsapp', message: body.reason ?? "That doesn't look like a WhatsApp export." };
     }
     if (res.status === 404) return { ok: false, error: 'not_found', message: 'Client not found.' };
+    if (res.status === 428) {
+      // [AUDIT gap A] First-ever import: the server asks the rep to acknowledge they have the right to
+      // upload the whole conversation. Its body carries `notice` (not `message`), so without this branch
+      // it fell through to the generic "Import failed." Re-import with firstImportAck to proceed.
+      const body = (await res.json().catch(() => ({}))) as { notice?: string };
+      return { ok: false, error: 'ack_required', message: body.notice ?? 'Before your first import, please confirm you have the right to upload this conversation.' };
+    }
     const body = (await res.json().catch(() => ({}))) as { message?: string };
     return { ok: false, error: 'other', message: body.message ?? 'Import failed.' };
   }

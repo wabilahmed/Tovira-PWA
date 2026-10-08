@@ -4,7 +4,7 @@ import type { ImportResult } from '../clients/clientsClient.js';
 import { CeilingNotice } from './CeilingNotice.js';
 
 export interface ImportApi {
-  importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean }, consent: boolean): Promise<ImportResult>;
+  importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; firstImportAck?: boolean }, consent: boolean): Promise<ImportResult>;
 }
 
 /** Base64-encode raw file bytes in chunks (spreading a whole Uint8Array into fromCharCode
@@ -68,13 +68,18 @@ export function ImportChat({
   }
 
   const [misfile, setMisfile] = useState<{ message: string; suggestion: { id: string; name: string } | null } | null>(null);
+  // [AUDIT gap A] First-ever import: the server asks the rep to acknowledge their right to upload.
+  const [firstAck, setFirstAck] = useState<string | null>(null);
 
-  async function doImport(ack: boolean): Promise<void> {
+  async function doImport(ack: boolean, firstImportAck = false): Promise<void> {
     setBusy(true);
     setError(null);
     setCeilingCount(null);
     setNotice(null);
-    const payload = fileB64 ? { contentBase64: fileB64, misfileAck: ack } : { content, misfileAck: ack };
+    // Only attach firstImportAck when set, so the common payload shape stays { content, misfileAck }.
+    const meta: { misfileAck: boolean; firstImportAck?: boolean } = { misfileAck: ack };
+    if (firstImportAck) meta.firstImportAck = true;
+    const payload = fileB64 ? { contentBase64: fileB64, ...meta } : { content, ...meta };
     const result = await api.importWhatsApp(clientId, payload, consent);
     setBusy(false);
     if (result.ok) {
@@ -84,6 +89,7 @@ export function ImportChat({
       setFileName('');
       setConsent(false);
       setMisfile(null);
+      setFirstAck(null);
       // A fully-overlapping re-import is a correct no-op, not a failure — say so
       // calmly so the rep keeps re-exporting (that's what keeps the bank fed).
       if (result.duplicate) setNotice("Already up to date — no new messages in that export.");
@@ -98,6 +104,10 @@ export function ImportChat({
       // MISFILE-DETECT: confirm, never block. Show the suggestion; the rep continues anyway or
       // files under the right client from the client screen. We never auto-reassign.
       setMisfile({ message: result.message, suggestion: result.suggestion });
+    } else if (result.error === 'ack_required') {
+      // [AUDIT gap A] First import — show the right-to-upload notice and let the rep proceed, instead
+      // of the old generic "Import failed." (the 428 body carries `notice`, not `message`).
+      setFirstAck(result.message);
     } else {
       setError(result.message);
     }
@@ -151,6 +161,20 @@ export function ImportChat({
       {error && <p role="alert" style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
       {notice && <p role="status" style={{ color: 'var(--text-secondary)', margin: 0 }}>{notice}</p>}
       {ceilingCount !== null && <CeilingNotice imported={ceilingCount} />}
+
+      {firstAck && (
+        // [AUDIT gap A] First-ever import acknowledgement. Declining changes nothing; confirming
+        // re-sends with firstImportAck so the import proceeds.
+        <div role="alert" style={{ border: '1px solid var(--hairline)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+          <span>{firstAck}</span>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button type="button" onClick={() => void doImport(false, true)} disabled={busy}>
+              {busy ? 'Importing…' : 'I have the right to upload this — continue'}
+            </button>
+            <button type="button" onClick={() => setFirstAck(null)} disabled={busy}>Not now</button>
+          </div>
+        </div>
+      )}
 
       {misfile && (
         // Confirm, never block. The rep continues here, or cancels and files it under the right
