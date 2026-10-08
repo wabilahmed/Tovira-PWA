@@ -64,7 +64,7 @@ export interface Stakeholder {
 
 export type ImportResult =
   | { ok: true; imported: number; ceilingReached?: boolean; duplicate?: boolean; pending?: boolean; truncated?: boolean }
-  | { ok: false; error: 'misfile'; message: string; counterparts: string[]; suggestion: { id: string; name: string } | null }
+  | { ok: false; error: 'misfile'; message: string; counterparts: string[]; suggestion: { id: string; name: string } | null; needsRepIdentification?: boolean; participants?: string[]; group?: boolean; counterpart?: string | null }
   | { ok: false; error: 'ack_required'; message: string }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
 
@@ -204,8 +204,19 @@ export class ClientsClient {
     if (res.status === 409) {
       // MISFILE-DETECT: the transcript's counterpart does not look like this client. Surface the
       // suggestion; the rep confirms (re-submit with misfileAck) or files elsewhere. Never blocked.
-      const body = (await res.json().catch(() => ({}))) as { message?: string; counterparts?: string[]; suggestion?: { id: string; name: string } | null };
-      return { ok: false, error: 'misfile', message: body.message ?? 'This chat may be filed under the wrong client.', counterparts: body.counterparts ?? [], suggestion: body.suggestion ?? null };
+      // [AUDIT gap B] Carry the rep-identification fields the server sends (a two-speaker first import
+      // needs the rep to say which speaker is the client) so the single importer can resolve it too.
+      const body = (await res.json().catch(() => ({}))) as { message?: string; counterparts?: string[]; suggestion?: { id: string; name: string } | null; needsRepIdentification?: boolean; participants?: string[]; group?: boolean; counterpart?: string | null };
+      return {
+        ok: false, error: 'misfile',
+        message: body.message ?? 'This chat may be filed under the wrong client.',
+        counterparts: body.counterparts ?? [],
+        suggestion: body.suggestion ?? null,
+        needsRepIdentification: body.needsRepIdentification ?? false,
+        participants: body.participants ?? [],
+        group: body.group ?? false,
+        counterpart: body.counterpart ?? null,
+      };
     }
     if (res.status === 400) return { ok: false, error: 'consent', message: 'Please confirm consent to import.' };
     if (res.status === 413) return { ok: false, error: 'too_large', message: 'That export is too large to import.' };

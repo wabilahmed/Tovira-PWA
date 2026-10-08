@@ -185,3 +185,25 @@ describe('<ImportChat>', () => {
     expect(api.importWhatsApp).toHaveBeenLastCalledWith('meridian', { content: 'Ahmed: hi there', misfileAck: true }, true);
   });
 });
+
+describe('[AUDIT gap B] single-import rep identification', () => {
+  it('a two-speaker first import reaches the rep-id step and completes with the confirmed counterpart', async () => {
+    const user = userEvent.setup();
+    const importWhatsApp = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: 'misfile', message: 'This chat has two people — Omar and Me. Which one is Acme?', counterparts: ['Omar', 'Me'], suggestion: null, needsRepIdentification: true, participants: ['Omar', 'Me'], group: false, counterpart: null })
+      .mockResolvedValueOnce({ ok: true, imported: 3 });
+    const onImported = vi.fn();
+    render(<ImportChat clientId="c1" api={{ importWhatsApp }} onImported={onImported} />);
+    await user.type(screen.getByLabelText(/pasted chat export/i), 'a two person chat');
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /^import chat$/i }));
+
+    // the SAME rep-identification control bulk import uses
+    expect(await screen.findByTestId('rep-id')).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: 'Omar' })); // Omar is the client
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
+
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith(3));
+    expect(importWhatsApp.mock.calls[1]![1]).toMatchObject({ confirmImport: true, counterpart: 'Omar' });
+  });
+});

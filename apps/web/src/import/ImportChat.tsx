@@ -2,9 +2,10 @@ import { hapticTick } from '../haptics.js';
 import { useState } from 'react';
 import type { ImportResult } from '../clients/clientsClient.js';
 import { CeilingNotice } from './CeilingNotice.js';
+import { RepIdentification } from './RepIdentification.js';
 
 export interface ImportApi {
-  importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; firstImportAck?: boolean }, consent: boolean): Promise<ImportResult>;
+  importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string }, consent: boolean): Promise<ImportResult>;
 }
 
 /** Base64-encode raw file bytes in chunks (spreading a whole Uint8Array into fromCharCode
@@ -67,18 +68,21 @@ export function ImportChat({
     reader.readAsArrayBuffer(file);
   }
 
-  const [misfile, setMisfile] = useState<{ message: string; suggestion: { id: string; name: string } | null } | null>(null);
+  const [misfile, setMisfile] = useState<{ message: string; suggestion: { id: string; name: string } | null; needsRepIdentification: boolean; participants: string[] } | null>(null);
+  // [AUDIT gap B] A two-speaker first import asks which speaker is the client; the rep picks it here.
+  const [repChoice, setRepChoice] = useState<string | null>(null);
   // [AUDIT gap A] First-ever import: the server asks the rep to acknowledge their right to upload.
   const [firstAck, setFirstAck] = useState<string | null>(null);
 
-  async function doImport(ack: boolean, firstImportAck = false): Promise<void> {
+  async function doImport(ack: boolean, firstImportAck = false, confirm?: { counterpart: string }): Promise<void> {
     setBusy(true);
     setError(null);
     setCeilingCount(null);
     setNotice(null);
-    // Only attach firstImportAck when set, so the common payload shape stays { content, misfileAck }.
-    const meta: { misfileAck: boolean; firstImportAck?: boolean } = { misfileAck: ack };
+    // Only attach optional acks when set, so the common payload shape stays { content, misfileAck }.
+    const meta: { misfileAck: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string } = { misfileAck: ack };
     if (firstImportAck) meta.firstImportAck = true;
+    if (confirm) { meta.confirmImport = true; meta.counterpart = confirm.counterpart; } // [AUDIT gap B] rep-id confirm
     const payload = fileB64 ? { contentBase64: fileB64, ...meta } : { content, ...meta };
     const result = await api.importWhatsApp(clientId, payload, consent);
     setBusy(false);
@@ -89,6 +93,7 @@ export function ImportChat({
       setFileName('');
       setConsent(false);
       setMisfile(null);
+      setRepChoice(null);
       setFirstAck(null);
       // A fully-overlapping re-import is a correct no-op, not a failure — say so
       // calmly so the rep keeps re-exporting (that's what keeps the bank fed).
@@ -103,7 +108,7 @@ export function ImportChat({
     } else if (result.error === 'misfile') {
       // MISFILE-DETECT: confirm, never block. Show the suggestion; the rep continues anyway or
       // files under the right client from the client screen. We never auto-reassign.
-      setMisfile({ message: result.message, suggestion: result.suggestion });
+      setMisfile({ message: result.message, suggestion: result.suggestion, needsRepIdentification: result.needsRepIdentification ?? false, participants: result.participants ?? [] });
     } else if (result.error === 'ack_required') {
       // [AUDIT gap A] First import — show the right-to-upload notice and let the rep proceed, instead
       // of the old generic "Import failed." (the 428 body carries `notice`, not `message`).
@@ -176,7 +181,23 @@ export function ImportChat({
         </div>
       )}
 
-      {misfile && (
+      {misfile?.needsRepIdentification ? (
+        // [AUDIT gap B] Two-speaker first import: the rep says which speaker is the client (the other is
+        // them). Reuses the bulk-import rep-identification control, then re-imports with the confirmed
+        // counterpart so the server learns the rep's name + the client alias and proceeds.
+        <div role="group" aria-label="Who is this chat with" style={{ border: '1px solid var(--hairline)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+          <span>{misfile.message}</span>
+          <RepIdentification legend="Which name is the client?" candidates={misfile.participants} value={repChoice} onChange={setRepChoice} />
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button type="button" onClick={() => repChoice && void doImport(false, false, { counterpart: repChoice })} disabled={busy || !repChoice}>
+              {busy ? 'Importing…' : 'Continue'}
+            </button>
+            <button type="button" onClick={() => { setMisfile(null); setRepChoice(null); setFileB64(''); setFileName(''); setContent(''); }} disabled={busy}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : misfile ? (
         // Confirm, never block. The rep continues here, or cancels and files it under the right
         // client from the clients screen. Tovira never moves it on its own.
         <div role="alert" style={{ border: '1px solid var(--claret)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
@@ -190,7 +211,7 @@ export function ImportChat({
             </button>
           </div>
         </div>
-      )}
+      ) : null}
 
       <button type="submit" disabled={!canSubmit}>
         {busy ? 'Importing…' : 'Import chat'}

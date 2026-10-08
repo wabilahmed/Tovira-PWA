@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { RepIdentification } from './RepIdentification.js';
 
 /**
  * [BULK-IMPORT · Task 3] The ONE review screen a rep sees after uploading up to 20 chat exports.
@@ -170,20 +171,7 @@ export function ImportReview({ result, onImport, upsell, onTopUp, onSubscribe }:
       </header>
 
       {result.needsRepId && repCandidates.length > 0 && (
-        <fieldset data-testid="rep-id" style={{ border: '1px solid var(--border, #ccc)', borderRadius: '0.5rem', padding: '0.75rem' }}>
-          <legend>Which of these is you?</legend>
-          {repCandidates.map((p) => (
-            <label key={p} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <input
-                type="radio"
-                name="rep-id"
-                checked={repChoice === p}
-                onChange={() => setRepChoice(p)}
-              />
-              <span>{p}</span>
-            </label>
-          ))}
-        </fieldset>
+        <RepIdentification legend="Which of these is you?" candidates={repCandidates} value={repChoice} onChange={setRepChoice} />
       )}
 
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.75rem' }}>
