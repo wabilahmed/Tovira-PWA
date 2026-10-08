@@ -8,6 +8,7 @@ export interface MeetingsApi {
   createForClient(clientId: string, meeting: { datetime: string | null; datetimeRaw: string; title: string | null }): Promise<Meeting | null>;
   remove(id: string): Promise<boolean>;
   confirm(id: string): Promise<Meeting | null>;
+  edit(id: string, patch: { datetime?: string | null; datetimeRaw?: string; title?: string | null }): Promise<Meeting | null>;
 }
 
 /** A proposal ready to save — either the parser's own proposal, or one the rep
@@ -132,6 +133,14 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
     if (done) { hapticTick(); setMeetings((prev) => prev.map((m) => (m.id === id ? { ...m, confirmed: true } : m))); }
   }
 
+  // [AUDIT item 2] Reschedule in place (keeps the receipt). The naive wall-clock value is resolved on
+  // the rep's timezone server-side; the returned meeting carries the resolved time.
+  async function editTime(id: string, value: string): Promise<void> {
+    if (!value) return;
+    const updated = await api.edit(id, { datetime: value, datetimeRaw: value.replace('T', ' ') });
+    if (updated) { hapticTick(); setMeetings((prev) => prev.map((m) => (m.id === id ? updated : m))); }
+  }
+
   return (
     <section aria-label="Meetings">
       <h2 style={{ marginTop: 0 }}>Meetings</h2>
@@ -225,7 +234,13 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
                   <span style={{ color: 'var(--amber)', marginLeft: '0.5rem' }}> · unconfirmed — is this right?</span>
                 )}
               </span>
-              <span style={{ display: 'flex', gap: '0.5rem' }}>
+              <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="datetime-local"
+                  aria-label={`Reschedule ${m.title ?? 'meeting'}`}
+                  value={(m.datetime ?? '').slice(0, 16)}
+                  onChange={(e) => void editTime(m.id, e.target.value)}
+                />
                 {m.confirmed === false && <button onClick={() => void confirmMeeting(m.id)}>Confirm</button>}
                 <button onClick={() => void remove(m.id)}>Remove</button>
               </span>

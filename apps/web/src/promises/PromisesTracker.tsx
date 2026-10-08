@@ -9,6 +9,7 @@ export interface PromisesApi {
   markDone(id: string): Promise<boolean>;
   confirm(id: string): Promise<boolean>;
   reject(id: string): Promise<boolean>;
+  editDueDate(id: string, dueDate: string | null): Promise<boolean>;
 }
 
 /** The open-promises tracker + confirmation queue (P4-1 / P1-7 / P2-3). */
@@ -48,6 +49,13 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
   async function reject(id: string): Promise<void> {
     if (await api.reject(id)) setPending((prev) => prev.filter((p) => p.id !== id));
   }
+  // [AUDIT item 2] Correct a wrong due date in place (keeps the receipt). Empty clears the date.
+  async function editDate(id: string, value: string): Promise<void> {
+    setError(null);
+    const dueDate = value || null;
+    if (await api.editDueDate(id, dueDate)) setOpen((prev) => prev.map((p) => (p.id === id ? { ...p, dueDate } : p)));
+    else setError('Could not update that date — please try again.');
+  }
 
   if (loading) return <p>Loading your promises…</p>;
 
@@ -82,7 +90,15 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
                   {p.text} <small className="tov-stamp" style={overdue(p, now) ? { color: 'var(--claret)' } : undefined}>{due(p)}</small>
                 </span>
               </span>
-              <button onClick={() => void done(p.id)}>Done</button>
+              <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="date"
+                  aria-label={`Due date for: ${p.text}`}
+                  value={p.dueDate ?? ''}
+                  onChange={(e) => void editDate(p.id, e.target.value)}
+                />
+                <button onClick={() => void done(p.id)}>Done</button>
+              </span>
             </li>
           ))}
         </ul>

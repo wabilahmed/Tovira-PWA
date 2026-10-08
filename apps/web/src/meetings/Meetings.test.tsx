@@ -14,6 +14,7 @@ function makeApi(over: Partial<MeetingsApi> = {}): MeetingsApi {
     createForClient: vi.fn().mockResolvedValue(meeting),
     remove: vi.fn().mockResolvedValue(true),
     confirm: vi.fn().mockResolvedValue({ ...meeting, confirmed: true }),
+    edit: vi.fn().mockResolvedValue({ ...meeting, datetime: "2026-09-09T09:00" }),
     ...over,
   };
 }
@@ -127,5 +128,16 @@ describe('<Meetings>', () => {
     await user.click(await screen.findByRole('button', { name: /remove/i }));
     await waitFor(() => expect(screen.queryByTestId('meeting')).toBeNull());
     expect(api.remove).toHaveBeenCalledWith('m1');
+  });
+});
+
+describe('[AUDIT item 2] inline meeting reschedule', () => {
+  it('editing the time input PATCHes the meeting (keeps the receipt)', async () => {
+    const edit = vi.fn().mockResolvedValue({ ...meeting, datetime: '2026-09-09T09:00' });
+    render(<Meetings api={makeApi({ list: vi.fn().mockResolvedValue([meeting]), edit })} clients={clients} />);
+    const input = await screen.findByLabelText(/Reschedule Review/i);
+    fireEvent.change(input, { target: { value: '2026-09-09T09:00' } });
+    await waitFor(() => expect(edit).toHaveBeenCalled());
+    expect((edit.mock.calls[0]![1] as { datetime?: string }).datetime).toMatch(/2026-09-09T09:00/);
   });
 });

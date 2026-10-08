@@ -14,6 +14,7 @@ function makeApi(open: OpenPromise[], pending: OpenPromise[] = []): PromisesApi 
     listConfirmations: vi.fn().mockResolvedValue(pending),
     markDone: vi.fn().mockResolvedValue(true),
     confirm: vi.fn().mockResolvedValue(true),
+    editDueDate: vi.fn().mockResolvedValue(true),
     reject: vi.fn().mockResolvedValue(true),
   };
 }
@@ -83,5 +84,16 @@ describe('<PromisesTracker>', () => {
     await user.click(await screen.findByRole('button', { name: /reject/i }));
     await waitFor(() => expect(screen.queryByText('maybe send deck')).toBeNull());
     expect(api.reject).toHaveBeenCalledWith('u1');
+  });
+});
+
+describe('[AUDIT item 2] inline due-date edit', () => {
+  it('editing the date input PATCHes the promise (keeps the receipt — no delete/recreate)', async () => {
+    const editDueDate = vi.fn().mockResolvedValue(true);
+    render(<PromisesTracker api={{ ...makeApi([p('p1', 'send quote')]), editDueDate }} />);
+    const input = await screen.findByLabelText('Due date for: send quote');
+    await userEvent.clear(input);
+    await userEvent.type(input, '2026-09-15');
+    await waitFor(() => expect(editDueDate).toHaveBeenCalledWith('p1', '2026-09-15'));
   });
 });

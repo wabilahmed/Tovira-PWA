@@ -63,4 +63,19 @@ export class PromisesClient {
       return false;
     }
   }
+
+  /** [AUDIT item 2] Correct a wrong due date in place — PATCH keeps the note link, so the receipt is
+   *  preserved (unlike delete+recreate, which loses it). `null` clears the date. */
+  async editDueDate(id: string, dueDate: string | null): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/promises/${id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ dueDate }),
+      });
+      return res.status === 200;
+    } catch {
+      return false;
+    }
+  }
 }

@@ -245,3 +245,17 @@ describe('[NUDGE-TZ] a wall-clock meeting time is resolved in the rep\'s timezon
     expect(me.user.timezone).toBe('Europe/London');
   });
 });
+
+describe('[AUDIT item 2] editing a meeting time preserves the receipt (note link)', () => {
+  it('PATCH /meetings/:id changes the time and keeps the source note', async () => {
+    const token = await signup('editmtg@example.com');
+    const me = await (await fetch(`${base}/me`, { headers: { authorization: `Bearer ${token}` } })).json() as { user: { id: string } };
+    const userId = me.user.id;
+    const m = await deps.meetings.create(userId, { clientId: 'c1', datetime: '2026-08-01T15:00', datetimeRaw: 'Tue 3pm', title: 'Review', confirmed: true, noteId: 'mnote-1' });
+    const res = await fetch(`${base}/meetings/${m.id}`, { method: 'PATCH', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ datetime: '2026-09-09T09:00', datetimeRaw: '2026-09-09 09:00' }) });
+    expect(res.status).toBe(200);
+    const after = await deps.meetings.findByIdForUser(userId, m.id);
+    expect(after!.datetime).toContain('2026-09-09'); // edited in place to the new date (was 2026-08-01)
+    expect(after!.noteId).toBe('mnote-1');           // receipt (note link) preserved — not delete/recreate
+  });
+});

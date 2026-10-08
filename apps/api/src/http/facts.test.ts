@@ -272,3 +272,15 @@ describe('[AUDIT item 3] /confirmations shape', () => {
   });
 });
 
+describe('[AUDIT item 2] editing a promise date preserves the receipt (note link)', () => {
+  it('PATCH /promises/:id changes the due date and keeps the source note', async () => {
+    const { token, userId } = await signup('editdue@example.com');
+    const id = await seedPromise(userId);
+    const before = await deps.facts.getPromise(userId, id);
+    const res = await fetch(`${base}/promises/${id}`, { method: 'PATCH', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ dueDate: '2026-09-15' }) });
+    expect(res.status).toBe(200);
+    const after = await deps.facts.getPromise(userId, id);
+    expect(after!.dueDate).toBe('2026-09-15');       // edited in place
+    expect(after!.noteId).toBe(before!.noteId);       // receipt (note link) preserved — not delete/recreate
+  });
+});

@@ -83,4 +83,20 @@ export class MeetingsClient {
       return null;
     }
   }
+
+  /** [AUDIT item 2] Reschedule a meeting in place — PATCH keeps the note link, so the receipt is
+   *  preserved (the server re-resolves the wall-clock time on the rep's timezone). */
+  async edit(id: string, patch: { datetime?: string | null; datetimeRaw?: string; title?: string | null }): Promise<Meeting | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/meetings/${id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (res.status !== 200) return null;
+      return (await res.json()) as Meeting;
+    } catch {
+      return null;
+    }
+  }
 }
