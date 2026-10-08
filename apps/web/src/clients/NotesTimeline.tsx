@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import type { NoteSummary } from './clientsClient.js';
 import { extractionStateOf } from './clientsClient.js';
 import { CeilingNotice } from '../import/CeilingNotice.js';
+import { MoveNoteControl, type MoveNoteApi } from '../notes/MoveNoteControl.js';
+import type { ClientOption } from '../meetings/Meetings.js';
 
 function processingLabel(status: string): string {
   return status === 'pending_transcription' ? 'transcribing…' : 'analysing…';
@@ -17,10 +19,13 @@ export function NotesTimeline({
   notes,
   ceilingNoteIds,
   renderFollowUp,
+  move,
 }: {
   notes: NoteSummary[];
   ceilingNoteIds: Set<string>;
   renderFollowUp?: (noteId: string) => ReactNode;
+  /** [NOTE-MOVE] when present, each settled note gets a "Move to another client" control. */
+  move?: { api: MoveNoteApi; clientId: string; clients: ClientOption[]; onMoved?: (noteId: string) => void };
 }): JSX.Element {
   if (notes.length === 0) return <p style={{ color: 'var(--text-secondary)' }}>No notes yet.</p>;
 
@@ -49,6 +54,10 @@ export function NotesTimeline({
             </div>
             {ceiling && <CeilingNotice />}
             {!ceiling && n.rawText && renderFollowUp?.(n.id)}
+            {/* [NOTE-MOVE] a settled note can be moved to the right client if it was misfiled. */}
+            {!ceiling && !inProgress && move && (
+              <MoveNoteControl api={move.api} noteId={n.id} fromClientId={move.clientId} clients={move.clients} onMoved={move.onMoved} />
+            )}
           </li>
         );
       })}

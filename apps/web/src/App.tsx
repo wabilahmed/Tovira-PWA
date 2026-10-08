@@ -45,6 +45,8 @@ import { ImagesClient } from './gallery/imagesClient.js';
 import { Gallery } from './gallery/Gallery.js';
 import { FollowUpDraft } from './followup/FollowUpDraft.js';
 import { NotesTimeline } from './clients/NotesTimeline.js';
+import { NoteMoveClient } from './notes/noteMoveClient.js';
+import { MoveSuggestions } from './notes/MoveSuggestions.js';
 import { ClientPhoneField } from './clients/ClientPhoneField.js';
 import { StakeholderMap } from './stakeholders/StakeholderMap.js';
 import { RecallClient } from './recall/recallClient.js';
@@ -95,6 +97,7 @@ const promisesApi = new PromisesClient(API_BASE);
 const heroApi = new HeroClient(API_BASE);
 const proactiveApi = new ProactiveClient(API_BASE);
 const meetingsApi = new MeetingsClient(API_BASE);
+const noteMoveApi = new NoteMoveClient(API_BASE);
 const billingApi = new BillingClient(API_BASE);
 const usageApi = new AllowanceClient(API_BASE);
 const accountApi = new AccountClient(API_BASE);
@@ -344,6 +347,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         {(dismiss) => (
           <ClientDetail
             client={open}
+            clients={clients.map((c) => ({ id: c.id, name: c.name }))}
             onBack={() => dismiss()}
             onSubscribe={() => dismiss(() => setView('settings'))}
           />
@@ -422,6 +426,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'today' && gated(
         <>
           <HeroInsights api={heroApi} />
+          <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
           <ConfirmChitQueue api={promisesApi} />
         </>,
       )}
@@ -452,6 +457,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'alerts' && (
         <>
           <Alerts api={proactiveApi} onSetOutcome={async (id, choice) => { await clientsApi.setOutcome(id, choice); }} />
+          <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
           <ConfirmChitQueue api={promisesApi} />
         </>
       )}
@@ -540,7 +546,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} onBack={() => setOpen(null)} onSubscribe={() => { setOpen(null); setView('settings'); }} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={() => { setOpen(null); setView('settings'); }} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -553,7 +559,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; onBack: () => void; onSubscribe: () => void }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, onSubscribe }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: () => void }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
@@ -727,6 +733,13 @@ function ClientDetail({ client, onBack, onSubscribe }: { client: ClientSummary; 
         notes={notes}
         ceilingNoteIds={ceilingNoteIds}
         renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} onSubscribe={onSubscribe} />}
+        move={{
+          api: noteMoveApi,
+          clientId: client.id,
+          clients: clients.filter((c) => c.id !== client.id),
+          // The row stays in place showing "Moved to X · Undo" (the control owns that state) so the
+          // reverse-move Undo stays reachable; on the next reload the note is correctly gone from here.
+        }}
       />
     </main>
   );

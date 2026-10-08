@@ -223,3 +223,34 @@ describe('[IMPORT-UNDO] B4 — undo an import', () => {
     expect((await clients.findByIdForUser(USER, meridian.id))!.lastTouchedAt).toBe(older.createdAt);
   });
 });
+
+// [AUDIT item 1] "Undo a move" is the UI calling move() in REVERSE — move the note back to where it
+// came from — NOT service.undo (which deletes the note). This proves the round-trip the item asks for:
+// move → facts + pointers follow → undo → everything restored to the original client, nothing lost.
+describe('[NOTE-MOVE] undo-a-move = reverse move (restores, never deletes)', () => {
+  it('after moving to Ahmed and back, the note + its facts + meeting are restored to Meridian, nothing lost', async () => {
+    const { service, notes, facts, meetings, requirements, meridian, ahmed, note } = await fixture();
+    const promisesBefore = (await facts.listPromisesByNote(USER, note.id)).map((p) => p.id).sort();
+    const reqBefore = (await requirements.listByClient(USER, meridian.id)).length;
+
+    // Move A→B: facts + pointers follow the note.
+    expect((await service.move(USER, note.id, ahmed.id)).ok).toBe(true);
+    expect((await notes.findByIdForUser(USER, note.id))!.clientId).toBe(ahmed.id);
+    for (const p of await facts.listPromisesByNote(USER, note.id)) expect(p.clientId).toBe(ahmed.id);
+
+    // Undo = reverse move B→A. The note still EXISTS (not deleted) and is back on Meridian.
+    const back = await service.move(USER, note.id, meridian.id);
+    expect(back.ok).toBe(true);
+    const restored = await notes.findByIdForUser(USER, note.id);
+    expect(restored).not.toBeNull(); // the capture survived the undo — never lost
+    expect(restored!.clientId).toBe(meridian.id);
+
+    // Every derived row followed back, with nothing dropped or duplicated.
+    for (const p of await facts.listPromisesByNote(USER, note.id)) expect(p.clientId).toBe(meridian.id);
+    expect((await facts.listPromisesByNote(USER, note.id)).map((p) => p.id).sort()).toEqual(promisesBefore);
+    for (const d of await facts.listKeyDatesByNote(USER, note.id)) expect(d.clientId).toBe(meridian.id);
+    expect((await meetings.findByNoteId(USER, note.id))!.clientId).toBe(meridian.id);
+    expect((await requirements.listByClient(USER, meridian.id)).length).toBe(reqBefore);
+    expect(await requirements.listByClient(USER, ahmed.id)).toHaveLength(0);
+  });
+});

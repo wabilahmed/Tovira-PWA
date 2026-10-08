@@ -1,5 +1,20 @@
 # BLOCKERS
 
+## Open
+
+- **[P10 item 1] "Undo a move" cannot use `/notes/:id/undo` — that endpoint DELETES the note.**
+  Item 1 asks: after moving a misfiled note, show an Undo toast "calling `/notes/:id/undo`", then
+  "undo, check restored". But `/notes/:id/undo` is *import-undo*: `NoteMoveTx.undo` deletes the note
+  and everything derived from it (`notes.delete`, destructive step last) — it does NOT restore a moved
+  note to its original client. Wiring it to an Undo-move toast would DELETE the rep's note on "undo",
+  which contradicts "check restored" and violates "Never lose a recording" / "a wrong fact is worse
+  than a missing one". **Decision taken (safe, internally consistent — flag for owner review):** the
+  Undo-move toast performs a **reverse move** (`POST /notes/:id/move {toClientId: <original client>}`),
+  which restores the note, its facts, pointers, meetings and both clients' last-contact atomically —
+  exactly what "restored" means. `/notes/:id/undo` stays reserved for undoing a whole *import*. If the
+  owner actually wants undo-move to delete, say so and I'll rewire; I will not delete on "restore"
+  without that word.
+
 ## Resolved
 
 - **[TASK 2] Erasure window had no reject/withdraw state** — the lifecycle was only
