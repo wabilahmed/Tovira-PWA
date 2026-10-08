@@ -65,9 +65,9 @@ export function UsageMeter({
         aria-valuemax={100}
         aria-label="AI usage this month"
         data-testid="usage-bar"
-        style={{ background: '#eee', borderRadius: 999, height: 10, overflow: 'hidden' }}
+        style={{ background: 'var(--surface-elevated)', borderRadius: 999, height: 10, overflow: 'hidden' }}
       >
-        <div style={{ width: `${s.percentUsed}%`, height: '100%', background: s.exhausted ? '#b00' : '#2a6' }} />
+        <div style={{ width: `${s.percentUsed}%`, height: '100%', background: s.exhausted ? 'var(--claret)' : 'var(--green)' }} />
       </div>
       <p data-testid="usage-percent">{s.percentUsed}% of this month&rsquo;s usage used</p>
 

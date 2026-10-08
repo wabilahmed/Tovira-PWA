@@ -28,6 +28,14 @@ describe('<UsageMeter>', () => {
     expect(body).not.toMatch(/AED/); // no top-up sheet while there's headroom
   });
 
+  it('[AUDIT] the bar track and fill use theme tokens, not raw hex (so they adapt to dark mode)', async () => {
+    render(<UsageMeter api={makeApi(status({ percentUsed: 100, exhausted: true }))} />);
+    const bar = await screen.findByTestId('usage-bar');
+    expect(bar.getAttribute('style') ?? '').toMatch(/var\(--/);        // track is a token, not #eee
+    const fill = bar.firstElementChild as HTMLElement;
+    expect(fill.getAttribute('style') ?? '').toMatch(/var\(--claret/); // exhausted fill is --claret, not #b00
+  });
+
   it('shows the 80% banner (D9)', async () => {
     render(<UsageMeter api={makeApi(status({ percentUsed: 82 }))} />);
     expect(await screen.findByTestId('usage-warn-80')).toBeInTheDocument();
