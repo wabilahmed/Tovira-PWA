@@ -227,19 +227,20 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {meetings.map((m) => (
-            <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem' }}>
-              <span>
+            <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
+              <span style={{ minWidth: 0, flex: '1 1 12rem' }}>
                 {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small className="tov-stamp">{m.datetime ?? m.datetimeRaw}</small>
                 {m.confirmed === false && (
                   <span style={{ color: 'var(--amber)', marginLeft: '0.5rem' }}> · unconfirmed — is this right?</span>
                 )}
               </span>
-              <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <span style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
                 <input
                   type="datetime-local"
                   aria-label={`Reschedule ${m.title ?? 'meeting'}`}
                   value={(m.datetime ?? '').slice(0, 16)}
                   onChange={(e) => void editTime(m.id, e.target.value)}
+                  style={{ maxWidth: '100%' }}
                 />
                 {m.confirmed === false && <button onClick={() => void confirmMeeting(m.id)}>Confirm</button>}
                 <button onClick={() => void remove(m.id)}>Remove</button>
