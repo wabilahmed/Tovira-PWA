@@ -64,6 +64,7 @@ import { TimezoneSetting } from './settings/TimezoneSetting.js';
 import { DisclosureLine } from './settings/DisclosureLine.js';
 import { formatMonthYear, formatBody } from './format/dates.js';
 import { AppShell } from './shell/AppShell.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { InstallBanner } from './pwa/InstallBanner.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
@@ -363,6 +364,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </span>
       }
     >
+      <ErrorBoundary key={view}>
       <InstallBanner />
 
       {!session.user.emailVerified && !bannerDismissed && (
@@ -527,6 +529,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           )}
         </div>
       )}
+      </ErrorBoundary>
     </AppShell>
   );
 }

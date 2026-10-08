@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { registerServiceWorker } from './pwa/registerServiceWorker.js';
 // Self-hosted brand typefaces (offline-capable, no CDN). Fraunces uses the
 // variable wght+opsz axes; SOFT/WONK stay at their 0 defaults per the guideline.
@@ -25,7 +26,9 @@ if (!root) throw new Error('#root element not found');
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary label="root">
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );
 
