@@ -16,8 +16,15 @@ apps/web/dev-dist/
 **/.terraform/
 *.tfstate
 *.tfstate.*
+# Plan output can embed secret values — never commit it.
+tfplan
+*.tfplan
 infra/terraform/.build/
 crash.log
+
+# Chat exports / archives are real client data (and never a committed test fixture —
+# the import tests build zips in-memory). Keep them out of the repo.
+*.zip
 
 # Secrets / credentials — never commit these
 *.csv
