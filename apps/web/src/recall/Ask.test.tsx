@@ -6,6 +6,18 @@ import type { RecallAnswer } from './recallClient.js';
 
 const api = (answer: RecallAnswer | null): RecallApi => ({ ask: vi.fn().mockResolvedValue(answer) });
 
+describe('[AUDIT gap C] <Ask> paused state', () => {
+  it('shows a "paused, check Billing" notice for a 402 (not the generic try-again error)', async () => {
+    const user = userEvent.setup();
+    render(<Ask api={api({ answer: '', receipts: [], paused: true })} />);
+    await user.type(screen.getByLabelText('Your question'), 'anything');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    const msg = await screen.findByRole('alert');
+    expect(msg).toHaveTextContent(/paused.*Billing/i);
+    expect(msg).not.toHaveTextContent(/something went wrong/i);
+  });
+});
+
 describe('[ASK-CAPTURE] <Ask> capture prompt', () => {
   it('shows a confirm prompt with the rep\'s verbatim words for a captured statement, and confirms it', async () => {
     const user = userEvent.setup();

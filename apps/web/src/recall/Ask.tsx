@@ -35,6 +35,11 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
       setError('Something went wrong — please try again.');
       return;
     }
+    if (r.paused) {
+      // [AUDIT gap C] AI is paused (trial lapsed / payment failed) — point at Billing, not "try again".
+      setError('AI features are paused. Open Billing to update your subscription, then ask again.');
+      return;
+    }
     setResult(r);
     if (r.capture && r.capture.status !== 'none') setCapture(r.capture);
   }
