@@ -65,6 +65,10 @@ import { DisclosureLine } from './settings/DisclosureLine.js';
 import { formatMonthYear, formatBody } from './format/dates.js';
 import { AppShell } from './shell/AppShell.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { NotFound } from './components/NotFound.js';
+
+/** [AUDIT item 2] Paths the SPA legitimately serves; anything else is a 404. */
+const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite', '/verify-email', '/request-access']);
 import { InstallBanner } from './pwa/InstallBanner.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
@@ -230,6 +234,10 @@ export function App(): JSX.Element {
       </Centered>
     );
   }
+  // [AUDIT item 2] An unknown SPA path is a 404, not a silent fall-through to the app shell.
+  if (typeof window !== 'undefined' && !KNOWN_SPA_PATHS.has(window.location.pathname)) {
+    return <Centered><NotFound /></Centered>;
+  }
   if (loading) return <Centered>Loading…</Centered>;
   if (!session) return <LoginScreen auth={auth} onAuthed={setSession} />;
 
@@ -243,7 +251,11 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ClientSummary | null>(null);
-  const [view, setView] = useState<View>('clients');
+  const [view, setView] = useState<View>(() => {
+    // [AUDIT item 2] "Back to Today" from the 404 lands on Today.
+    try { return new URLSearchParams(window.location.search).get('view') === 'today' ? 'today' : 'clients'; }
+    catch { return 'clients'; }
+  });
   const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
   const [entitled, setEntitled] = useState(true); // default open; the server 402s regardless
   const [billing, setBilling] = useState<Entitlement | null>(null); // [BILLING-DUNNING] drives the failed-payment banner

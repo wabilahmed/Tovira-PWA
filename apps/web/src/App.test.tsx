@@ -294,3 +294,14 @@ describe('[AUDIT item 6] email-confirm banner is not duplicated', () => {
     expect(screen.getAllByLabelText('Confirm your email')).toHaveLength(1);
   });
 });
+
+describe('[AUDIT item 2] unknown SPA path', () => {
+  it('renders a 404 for an unknown path instead of the app shell', async () => {
+    window.history.replaceState({}, '', '/definitely-not-a-page');
+    routeFetch([['/me', () => json(200, SESSION)], ['onboarding', () => json(200, NOT_SEEDED)], ['/clients', () => json(200, { clients: [] })]]);
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: /page not found/i })).toBeInTheDocument();
+    expect(screen.queryByText(/rep@example.com/)).toBeNull(); // not the app shell
+    window.history.replaceState({}, '', '/');
+  });
+});
