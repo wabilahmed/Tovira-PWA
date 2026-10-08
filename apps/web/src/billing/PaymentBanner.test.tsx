@@ -12,6 +12,14 @@ describe('<PaymentBanner> (BILLING-DUNNING · D3/D4/D5/D7)', () => {
     expect(screen.queryByTestId('payment-banner')).toBeNull();
   });
 
+  it('[AUDIT] styles the banner from tokens, no raw hex (contrast holds in dark mode)', () => {
+    render(<PaymentBanner ent={ent({ status: 'payment_failed', billingState: 'payment_failed', hostedInvoiceUrl: 'https://pay.stripe.test/in_1' })} />);
+    const style = screen.getByTestId('payment-banner').getAttribute('style') ?? '';
+    expect(style).not.toMatch(/#[0-9a-f]{3,6}/i);          // no raw hex (was #fff and a #8a5a00 fallback)
+    expect(style).toMatch(/background:\s*var\(--amber\)/); // theme token, no hardcoded fallback
+    expect(style).toMatch(/color:\s*var\(--brass-ink\)/);  // ink that contrasts with amber in both themes
+  });
+
   it('payment_failed: lists a paused feature and links to the hosted payment page', () => {
     render(<PaymentBanner ent={ent({ status: 'payment_failed', billingState: 'payment_failed', hostedInvoiceUrl: 'https://pay.stripe.test/in_1' })} />);
     const b = screen.getByTestId('payment-banner');

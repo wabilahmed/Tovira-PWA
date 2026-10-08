@@ -31,7 +31,7 @@ export function PaymentBanner({ ent }: { ent: Entitlement | null }): JSX.Element
       data-testid="payment-banner"
       data-state={state}
       role="status"
-      style={{ background: 'var(--amber, #8a5a00)', color: '#fff', padding: '0.75rem 1rem', fontSize: '0.9rem', lineHeight: 1.4 }}
+      style={{ background: 'var(--amber)', color: 'var(--brass-ink)', padding: '0.75rem 1rem', fontSize: '0.9rem', lineHeight: 1.4 }}
     >
       {body}
     </div>
