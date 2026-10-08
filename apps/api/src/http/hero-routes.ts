@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { HeroService } from '../services/hero/hero-service.js';
 import { PrioritiesService, RefreshLimitError } from '../services/hero/priorities-service.js';
-import { groupPriorities } from '../services/hero/group-priorities.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import { extractToken, sendJson, requireEntitled } from './helpers.js';
 
@@ -53,12 +52,12 @@ export async function handleHeroRoute(
   else if (path === '/hero/patterns') sendJson(res, 200, { patterns: await deps.hero.patterns(userId, now) });
   else if (path === '/hero/risk') sendJson(res, 200, { atRisk: await deps.hero.risk(userId, now) });
   // /today serves the PRECOMPUTED cache (cost-guard #3); zero model calls here. [NOTIF-REWORK Task 5]
-  // groups carry the analysis by WHY (grouped from the same cached actions + the volume-gated
-  // patterns/risk — hero.patterns()/risk() gate thin samples out); `actions` stays for the flat feed.
+  // [AUDIT item 3] The `groups` grouping was computed on every Today load via hero.patterns()+risk(),
+  // each a full per-client signals scan — a 400-client rep paid for it on every app open — and the web
+  // only ever reads `actions`. Dropped. `actions` (the flat feed) and `refreshesRemaining` are unchanged.
   else {
     const actions = await deps.priorities.getForToday(userId, now);
-    const groups = groupPriorities(actions, await deps.hero.patterns(userId, now), await deps.hero.risk(userId, now));
-    sendJson(res, 200, { groups, actions, refreshesRemaining: await deps.priorities.refreshesRemaining(userId, now) });
+    sendJson(res, 200, { actions, refreshesRemaining: await deps.priorities.refreshesRemaining(userId, now) });
   }
   return true;
 }

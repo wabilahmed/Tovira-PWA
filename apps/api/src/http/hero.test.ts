@@ -76,3 +76,13 @@ describe('[P4b] hero endpoints', () => {
     expect((await fetch(`${base}/today/refresh`, { method: 'POST' })).status).toBe(401);
   });
 });
+
+describe('[AUDIT item 3] /today no longer computes the discarded groups', () => {
+  it('returns actions + refreshesRemaining and NOT groups', async () => {
+    const { token } = await signup('nogroups@example.com');
+    const body = (await (await fetch(`${base}/today`, { headers: { authorization: `Bearer ${token}` } })).json()) as Record<string, unknown>;
+    expect(body).toHaveProperty('actions');            // the web-used field is unchanged
+    expect(body).toHaveProperty('refreshesRemaining');
+    expect(body).not.toHaveProperty('groups');         // the wasted computation is gone
+  });
+});
