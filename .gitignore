@@ -36,3 +36,6 @@ backend.tf
 
 # staging harness run artifacts (live results, not source)
 tests/staging/.results/
+
+# Local audit artifacts (screenshots, notes) — not committed
+.audit/

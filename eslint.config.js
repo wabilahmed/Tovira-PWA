@@ -9,6 +9,7 @@ export default tseslint.config(
       '**/build/**',
       '**/.vite/**',
       'apps/web/dev-dist/**',
+      '.audit/**',
     ],
   },
   js.configs.recommended,

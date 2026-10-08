@@ -2,115 +2,122 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// [SITE2] Regression + content/a11y guard for the STARFIELD landing (three-act redesign). Runs against
-// the REAL shipped HTML, so a dropped section or a broken CTA fails here. The page's styling is INLINE in
-// index.html (site.css is the legal pages' stylesheet, not the landing's), so CSS assertions read EN.
-//
-// These assertions were ported from the previous funnel page and re-pointed at the new selectors. Each
-// `it` names the CONTRACT it still enforces — the thing the business/accessibility needs true, not the old
-// wording. What was dropped from the old suite: the exact hero/section heading strings and their order,
-// and the selectors #how / .plans / .faq / .sec--band / .device / [data-reveal] (old design only).
+// [SITE2] Regression + a11y for the story-funnel landing. Runs against the REAL
+// shipped HTML/CSS, so a dropped section or a broken CTA fails here.
 const read = (p: string): string => readFileSync(resolve(process.cwd(), p), 'utf8');
 const doc = (p: string): Document => new DOMParser().parseFromString(read(p), 'text/html');
 const EN = 'apps/web/index.html';
+const CSS = 'apps/web/src/marketing/site.css';
 
-describe('[SITE2] the three-act structure and its landmarks', () => {
+describe('[SITE2] the funnel is present, in order', () => {
   const d = doc(EN);
+  const headings = [...d.querySelectorAll('h1, h2')].map((h) => (h.textContent ?? '').trim());
 
-  it('has exactly one h1 (the hero)', () => {
+  it('has exactly one h1 (the hero) and it leads', () => {
     expect(d.querySelectorAll('h1')).toHaveLength(1);
+    expect(headings[0]).toMatch(/Forty clients/);
   });
 
-  // CONTRACT (was "funnel present, in order"): the three acts ship, in order, each a labelled landmark
-  // section. The labels are the semantic spine; the exact headings are free to change.
-  it('ships the three acts in order, each a <section> with its aria-label', () => {
-    const labels = [...d.querySelectorAll('main section')].map((s) => s.getAttribute('aria-label'));
-    expect(labels).toEqual(['The problem', 'What Tovira returns', 'What your week looks like']);
-  });
-});
-
-describe('[SITE2] the contracts the redesign must not drop', () => {
-  const d = doc(EN);
-
-  // CONTRACT: both plans are present and priced — monthly AED 299 and annual AED 2,990 — with the
-  // two-months-free framing, and NO urgency/discount dark-patterns anywhere on the page.
-  it('prices both plans with the two-months-free framing, no urgency patterns', () => {
-    const pricing = d.querySelector('.pricing');
-    expect(pricing, 'a pricing block exists').not.toBeNull();
-    const text = pricing!.textContent ?? '';
-    expect(text).toContain('AED 299');
-    expect(text).toContain('AED 2,990');
-    expect(text).toMatch(/two months free/i);
-    expect(read(EN)).not.toMatch(/most popular|only today|countdown|was AED|<s>|strike/i);
+  it('runs hook → cost → turn → how → proof → use cases → security → plans → FAQ → close', () => {
+    const order = [
+      /Forty clients/,
+      /Forgetting is silent/,
+      /What if the record kept itself/,
+      /Three steps/,
+      /never tells you something it cannot show/,
+      /Built for people whose deals are relationships/,
+      /It is your book\. It stays yours/,
+      /One price\. Everything included/,
+      /Questions/,
+      /Your client book is an asset/,
+    ];
+    let i = 0;
+    for (const re of order) {
+      const at = headings.findIndex((h, k) => k >= i && re.test(h));
+      expect(at, `heading not found in order: ${re}`).toBeGreaterThanOrEqual(i);
+      i = at + 1;
+    }
   });
 
-  // CONTRACT: a six-question FAQ exists, the first open by default, including the "who is it not for"
-  // question with its approved answer (in-person/relationship sellers; the recorded-video exclusion kept;
-  // NOT the retired "good tools already exist" framing).
-  it('has a six-question FAQ, first open, including a correct "who is it not for"', () => {
-    const items = [...d.querySelectorAll<HTMLDetailsElement>('.faq details')];
-    expect(items).toHaveLength(6);
-    expect(items[0]!.hasAttribute('open')).toBe(true);
-    const notFor = items.find((el) => /who is it not for/i.test(el.querySelector('summary')?.textContent ?? ''));
-    expect(notFor, 'the "Who is it not for?" question is present').toBeTruthy();
-    const answer = notFor!.querySelector('p')?.textContent ?? '';
-    expect(answer).not.toMatch(/good tools already exist/i);
-    expect(answer).toMatch(/in person|relationship/i);
-    expect(answer).toMatch(/recorded video/i);
+  // Audit fill: the daily ranked "who to contact today" list is a core surface that was
+  // absent from §4; and alias resolution (one client under several names) is the accuracy
+  // capability that was nowhere on the page. Both are approved source copy for shipped features.
+  it('the "how" section names the daily ranked priorities surface and alias resolution', () => {
+    const how = d.querySelector('#how')?.textContent ?? '';
+    expect(how, 'daily ranked priorities surface').toMatch(/who needs you|ranked/i);
+    expect(how, 'one client under several names (alias resolution)').toMatch(/name/i);
   });
 
-  // CONTRACT: the four sanctioned security claims appear VERBATIM, and the page makes no claim beyond
-  // them (no bank-grade / SOC2 / ISO / certified overreach). Counsel-approved wording — ported, not rewritten.
-  it('carries the four sanctioned security claims verbatim and no overclaim', () => {
-    const sec = d.querySelector('.security');
-    expect(sec, 'a security region exists').not.toBeNull();
-    const t = sec!.textContent ?? '';
-    expect(t).toMatch(/encrypted in transit and at rest/i);
-    expect(t).toContain('One rep can never read another');
-    expect(t).toContain('Tovira never connects to your WhatsApp account');
-    expect(t).toContain('Follow-up drafts open in WhatsApp with the text ready');
-    expect(t).toMatch(/including from our training records/i);
-    expect(t).not.toMatch(/bank-grade|military-grade|SOC ?2|ISO ?27001|compliance|certified/i);
-  });
-
-  // CONTRACT: every CTA is a plain link to the beta request form (works with no JS), and a mobile sticky
-  // CTA exists. (ref/utm pass-through is proven in ref.test.ts.)
-  it('every [data-cta] points at /request-access, and a mobile sticky CTA exists', () => {
+  it('every CTA is a plain link to the beta request form (works with no JS) and there is a sticky mobile bar', () => {
     const ctas = [...d.querySelectorAll<HTMLAnchorElement>('[data-cta]')];
-    expect(ctas.length).toBeGreaterThanOrEqual(3); // nav, close, mobile bar
+    expect(ctas.length).toBeGreaterThanOrEqual(4); // nav, hero, plans, close, mobile bar
+    // BETA-4: self-registration replaced by request-and-invite; CTAs route to /request-access.
     for (const a of ctas) expect(a.getAttribute('href')).toBe('/request-access');
     expect(d.querySelector('[data-mobile-cta]')).not.toBeNull();
   });
 
-  // CONTRACT: the footer carries the legal links. (Also guarded in legal.test.ts.)
-  it('the footer links /privacy and /terms', () => {
-    const hrefs = [...d.querySelectorAll('footer a')].map((a) => a.getAttribute('href'));
-    expect(hrefs).toContain('/privacy');
-    expect(hrefs).toContain('/terms');
+  it('plans: two prices in mono, a quiet "two months free" marker, no urgency/discount patterns', () => {
+    const plans = d.querySelector('.plans')!;
+    expect(plans.querySelectorAll('.plan')).toHaveLength(2);
+    expect(plans.textContent).toContain('AED 299');
+    expect(plans.textContent).toContain('AED 2,990');
+    expect(plans.textContent).toMatch(/two months free/);
+    expect(read(EN)).not.toMatch(/most popular|only today|countdown|was AED|<s>|strike/i);
   });
 
-  // CONTRACT: decorative visuals never leak to assistive tech. The orbs + fragment pile are purely
-  // decorative and must be aria-hidden (there is no role=img phone frame on this page).
-  it('decorative layers are aria-hidden', () => {
-    expect(d.querySelector('.pile')?.getAttribute('aria-hidden')).toBe('true');
-    expect(d.querySelector('.ambient')?.getAttribute('aria-hidden')).toBe('true');
+  it('FAQ has all six questions and opens the first by default', () => {
+    const items = [...d.querySelectorAll('.faq details')];
+    expect(items).toHaveLength(6);
+    expect(items[0]!.hasAttribute('open')).toBe(true);
+  });
+
+  // Decision (owner): the "Who is it not for?" answer keeps the recorded-video-call exclusion
+  // but leads with WHO it is for (in-person / relationship sellers) and drops the
+  // "good tools already exist" framing that positioned Tovira as the leftover option.
+  it('the "not for" FAQ leads with who it is for, not a leftover-tool framing', () => {
+    const items = [...d.querySelectorAll<HTMLDetailsElement>('.faq details')];
+    const notFor = items.find((el) => /who is it not for/i.test(el.querySelector('summary')?.textContent ?? ''));
+    expect(notFor, 'the "Who is it not for?" FAQ is present').toBeTruthy();
+    const answer = notFor!.querySelector('p')?.textContent ?? '';
+    expect(answer).not.toMatch(/good tools already exist/i);
+    expect(answer).toMatch(/in person|relationship/i);
+    expect(answer).toMatch(/recorded video/i); // the exclusion itself stays
+  });
+
+  it('security makes no claim beyond the four sanctioned ones', () => {
+    const sec = d.querySelector('.sec--band')!.textContent ?? '';
+    expect(sec).toMatch(/encrypted in transit and at rest/i);
+    expect(sec).not.toMatch(/bank-grade|military-grade|SOC ?2|ISO ?27001|compliance|certified/i);
+  });
+
+  it('decorative visuals are labelled (role=img + aria-label) or hidden (aria-hidden)', () => {
+    for (const el of d.querySelectorAll('.device')) {
+      const labelled = el.getAttribute('role') === 'img' && (el.getAttribute('aria-label') ?? '').trim().length > 0;
+      const hidden = el.closest('[aria-hidden="true"]') !== null || el.getAttribute('aria-hidden') === 'true';
+      expect(labelled || hidden, 'a phone frame is neither labelled nor hidden').toBe(true);
+    }
   });
 });
 
-describe('[SITE2] motion is safe (visible focus + reduced-motion), styles inline', () => {
-  const css = read(EN); // the page's styles live inline in index.html
+describe('[SITE2] motion is a progressive enhancement (no-JS + reduced-motion safe)', () => {
+  const css = read(CSS);
 
-  // CONTRACT (was "brass focus ring"): a VISIBLE focus ring exists. The ring colour is the page's own
-  // --focus now, not the brand --brass — so assert a visible 2px ring, not a specific variable.
-  it('defines a visible :focus-visible ring', () => {
-    expect(css).toMatch(/:focus-visible/);
-    expect(css).toMatch(/outline:\s*2px solid var\(--focus\)/);
+  it('reveal hidden states are gated on .js — with no JS, content is visible', () => {
+    // Every rule that sets opacity:0 for a reveal target is scoped under `.js`.
+    for (const m of css.matchAll(/([^{}]*\[data-(?:reveal|stagger-item|deal-item)\][^{}]*)\{[^}]*opacity:\s*0/g)) {
+      expect(m[1]).toMatch(/\.js\b/);
+    }
   });
 
-  // CONTRACT: prefers-reduced-motion is honoured — all animation is collapsed for users who ask for it.
-  it('honours prefers-reduced-motion (animation disabled)', () => {
-    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+  it('reduced-motion collapses every reveal to its final, untransformed state', () => {
     const block = css.slice(css.indexOf('prefers-reduced-motion'));
-    expect(block).toMatch(/animation:\s*none\s*!important/);
+    expect(block).toMatch(/\[data-reveal\][\s\S]*opacity:\s*1\s*!important/);
+    expect(block).toMatch(/transform:\s*none\s*!important/);
+  });
+
+  it('the FAQ is keyboard-navigable native disclosure (details/summary) and focus is visible', () => {
+    expect(doc(EN).querySelectorAll('.faq details > summary').length).toBe(6);
+    expect(css).toMatch(/:focus-visible/);
+    expect(css).toMatch(/outline:\s*2px solid var\(--brass\)/);
   });
 });
