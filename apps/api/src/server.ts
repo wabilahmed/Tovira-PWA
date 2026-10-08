@@ -165,6 +165,8 @@ export interface ApiDeps {
    *  paused. Read-only status for the meter is `allowanceStatus`. Optional (local/old wiring). */
   allowanceExhausted?: (userId: string) => Promise<boolean>;
   allowanceStatus?: AllowanceStatusService;
+  /** [AUDIT item 4] ops AI-pause kill switch, surfaced via /allowance/status for the in-app banner. */
+  aiPaused?: () => Promise<boolean>;
   monday: MondayDigestService;
   ledger: LedgerService;
   referral: ReferralService;
@@ -444,7 +446,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger, clients: deps.clients })) return;
       if (await handleShareCardRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing, appBaseUrl: deps.appBaseUrl })) return;
-      if (await handleAllowanceRoute(request, response, { auth: deps.auth, allowanceStatus: deps.allowanceStatus, billing: deps.billing })) return;
+      if (await handleAllowanceRoute(request, response, { auth: deps.auth, allowanceStatus: deps.allowanceStatus, billing: deps.billing, aiPaused: deps.aiPaused })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction)) return;

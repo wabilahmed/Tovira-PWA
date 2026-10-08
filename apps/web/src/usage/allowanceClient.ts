@@ -13,6 +13,8 @@ export interface AllowanceStatus {
   resetAt: string | null; // ISO date the allowance resets (D9)
   canTopUp: boolean; // false in trial (D10)
   options: TopUpChoice[];
+  /** [AUDIT item 4] ops AI-pause kill switch is on — processing is delayed, not broken. */
+  aiPaused?: boolean;
 }
 
 export class AllowanceClient {

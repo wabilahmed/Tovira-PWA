@@ -9,6 +9,9 @@ export interface AllowanceRouteDeps {
   auth: AuthService;
   allowanceStatus?: AllowanceStatusService;
   billing?: BillingService;
+  /** [AUDIT item 4] The ops AI-pause kill switch (already cached ~30s). Exposed so the app can show a
+   *  slim "AI processing is delayed" banner instead of leaving notes silently pending. Optional. */
+  aiPaused?: () => Promise<boolean>;
 }
 
 /**
@@ -27,8 +30,9 @@ export async function handleAllowanceRoute(req: IncomingMessage, res: ServerResp
     sendJson(res, 401, { error: 'unauthorized' });
     return true;
   }
+  const aiPaused = deps.aiPaused ? await deps.aiPaused() : false; // [AUDIT item 4] ops kill switch (30s-cached)
   if (!deps.allowanceStatus) {
-    sendJson(res, 200, { percentUsed: 0, exhausted: false, resetAt: null, canTopUp: false, options: [] });
+    sendJson(res, 200, { percentUsed: 0, exhausted: false, resetAt: null, canTopUp: false, options: [], aiPaused });
     return true;
   }
   const s = await deps.allowanceStatus.status(identity.userId);
@@ -41,6 +45,7 @@ export async function handleAllowanceRoute(req: IncomingMessage, res: ServerResp
     resetAt: new Date(s.resetAtMs).toISOString(),
     canTopUp,
     options: canTopUp ? TOP_UP_OPTIONS.map((o) => ({ id: o.id, label: o.label, priceAed: o.priceAed })) : [],
+    aiPaused,
   });
   return true;
 }

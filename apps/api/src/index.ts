@@ -571,6 +571,7 @@ async function main(): Promise<void> {
     importAck,
     allowanceExhausted: aiExhausted,
     allowanceStatus,
+    aiPaused: () => pauseFlag.paused(), // [AUDIT item 4] ops kill switch → /allowance/status → in-app banner
     corrections,
     repGlossary,
     extractionLog: extractionLogs,

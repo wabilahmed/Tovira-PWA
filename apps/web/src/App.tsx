@@ -37,6 +37,7 @@ import { AllowanceClient } from './usage/allowanceClient.js';
 import { UsageMeter } from './usage/UsageMeter.js';
 import { Billing } from './billing/Billing.js';
 import { PaymentBanner } from './billing/PaymentBanner.js';
+import { AiPausedBanner } from './usage/AiPausedBanner.js';
 import type { Entitlement } from './billing/billingClient.js';
 import { AccountClient } from './account/accountClient.js';
 import { AccountControls } from './account/AccountControls.js';
@@ -259,6 +260,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
   const [entitled, setEntitled] = useState(true); // default open; the server 402s regardless
   const [billing, setBilling] = useState<Entitlement | null>(null); // [BILLING-DUNNING] drives the failed-payment banner
+  const [aiPaused, setAiPaused] = useState(false); // [AUDIT item 4] ops AI-pause → slim "processing delayed" banner
   const [sharedContent, setSharedContent] = useState('');
   const [sharedContentB64, setSharedContentB64] = useState('');
   // Quiet "confirm your email" nudge (EMAIL-VERIFY) — dismissible for the session,
@@ -276,6 +278,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // trial has lapsed. Default open on a fetch failure — the server 402s anyway.
   useEffect(() => {
     void billingApi.status().then((e) => { setEntitled(e?.entitled ?? true); setBilling(e); });
+  }, []);
+  // [AUDIT item 4] Surface the ops AI-pause flag (from /allowance/status) so a paused rep sees a reason.
+  useEffect(() => {
+    void usageApi.status().then((s) => setAiPaused(s?.aiPaused ?? false));
   }, []);
   const gated = (node: JSX.Element): JSX.Element => (entitled ? node : <Locked onSubscribe={() => setView('settings')} />);
 
@@ -383,6 +389,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <VerifyBanner api={auth} onDismiss={() => setBannerDismissed(true)} />
       )}
 
+      <AiPausedBanner paused={aiPaused} />{/* [AUDIT item 4] ops AI-pause — processing delayed, not broken */}
       <PaymentBanner ent={billing} />{/* [BILLING-DUNNING] shown on every visit while a payment has failed */}
 
       {view === 'getstarted' && seeding && (

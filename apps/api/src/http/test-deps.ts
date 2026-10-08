@@ -395,6 +395,7 @@ export function buildInMemoryDeps(
     spend,
     aiAllowance,
     aiPause,
+    aiPaused: () => aiPause.getPaused(), // [AUDIT item 4] surfaced via /allowance/status
     allowanceStatus,
     allowanceExhausted: (u: string) => allowanceStatus.isExhausted(u),
     modelCallEvents,

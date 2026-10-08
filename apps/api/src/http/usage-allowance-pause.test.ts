@@ -43,3 +43,17 @@ describe('[USAGE-ALLOWANCE · D14] POST /ops/ai-pause', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('[AUDIT item 4] /allowance/status surfaces the ops AI-pause flag', () => {
+  it('aiPaused reflects the ops kill switch (so the app can show a reason)', async () => {
+    const su = await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'paused@example.com', password: 'password123' }) });
+    const token = ((await su.json()) as { token: string }).token;
+    const h = { authorization: `Bearer ${token}` };
+    const before = (await (await fetch(`${base}/allowance/status`, { headers: h })).json()) as { aiPaused?: boolean };
+    expect(before.aiPaused).toBe(false);
+    await deps.aiPause.setPaused(true);
+    const after = (await (await fetch(`${base}/allowance/status`, { headers: h })).json()) as { aiPaused?: boolean };
+    expect(after.aiPaused).toBe(true);
+    await deps.aiPause.setPaused(false);
+  });
+});
