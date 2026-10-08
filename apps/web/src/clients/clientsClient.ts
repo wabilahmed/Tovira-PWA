@@ -66,6 +66,7 @@ export type ImportResult =
   | { ok: true; imported: number; ceilingReached?: boolean; duplicate?: boolean; pending?: boolean; truncated?: boolean }
   | { ok: false; error: 'misfile'; message: string; counterparts: string[]; suggestion: { id: string; name: string } | null; needsRepIdentification?: boolean; participants?: string[]; group?: boolean; counterpart?: string | null }
   | { ok: false; error: 'ack_required'; message: string }
+  | { ok: false; error: 'allowance' | 'payment'; message: string }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
 
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
@@ -225,6 +226,13 @@ export class ClientsClient {
       return { ok: false, error: 'not_whatsapp', message: body.reason ?? "That doesn't look like a WhatsApp export." };
     }
     if (res.status === 404) return { ok: false, error: 'not_found', message: 'Client not found.' };
+    if (res.status === 402) {
+      // [AUDIT item 5] Distinguish the two reasons AI is locked so the rep sees the right action: an
+      // exhausted monthly allowance (top up) vs a failed/suspended payment (update card). UI copy only.
+      const b = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      if (b.error === 'allowance_exhausted') return { ok: false, error: 'allowance', message: b.message ?? "You've used this month's AI allowance. Top up to import now, or wait for it to reset." };
+      return { ok: false, error: 'payment', message: b.message ?? 'Payment failed, so AI is paused. Update your card in Billing to resume.' };
+    }
     if (res.status === 428) {
       // [AUDIT gap A] First-ever import: the server asks the rep to acknowledge they have the right to
       // upload the whole conversation. Its body carries `notice` (not `message`), so without this branch

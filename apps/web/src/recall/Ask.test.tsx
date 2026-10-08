@@ -6,15 +6,25 @@ import type { RecallAnswer } from './recallClient.js';
 
 const api = (answer: RecallAnswer | null): RecallApi => ({ ask: vi.fn().mockResolvedValue(answer) });
 
-describe('[AUDIT gap C] <Ask> paused state', () => {
-  it('shows a "paused, check Billing" notice for a 402 (not the generic try-again error)', async () => {
+describe('[AUDIT gap C / item 5] <Ask> paused state shows the right action per reason', () => {
+  async function askPaused(pausedReason?: string): Promise<string> {
     const user = userEvent.setup();
-    render(<Ask api={api({ answer: '', receipts: [], paused: true })} />);
+    render(<Ask api={api({ answer: '', receipts: [], paused: true, pausedReason })} />);
     await user.type(screen.getByLabelText('Your question'), 'anything');
     await user.click(screen.getByRole('button', { name: 'Ask' }));
     const msg = await screen.findByRole('alert');
-    expect(msg).toHaveTextContent(/paused.*Billing/i);
-    expect(msg).not.toHaveTextContent(/something went wrong/i);
+    expect(msg).not.toHaveTextContent(/something went wrong/i); // never the generic error
+    return msg.textContent ?? '';
+  }
+
+  it('allowance exhausted → top up', async () => {
+    expect(await askPaused('allowance_exhausted')).toMatch(/allowance.*top up/i);
+  });
+  it('payment failed → update card', async () => {
+    expect(await askPaused('ai_paused')).toMatch(/payment failed.*update your card/i);
+  });
+  it('trial/plan ended → subscribe', async () => {
+    expect(await askPaused('payment_required')).toMatch(/subscribe in billing/i);
   });
 });
 

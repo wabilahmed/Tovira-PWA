@@ -13,6 +13,20 @@ export interface RecallApi {
  * carries its receipts (quote + date); nothing on record → an honest "I don't
  * have that". Optional voice: a `listen` prop (browser speech) fills the box.
  */
+/** [AUDIT item 5] Map the backend's distinct 402 reason to the action the rep should take. */
+function pausedMessage(reason?: string): string {
+  switch (reason) {
+    case 'allowance_exhausted':
+      return "You've used this month's AI allowance, so Ask is paused. Top up from the usage meter in Settings, or wait for it to reset.";
+    case 'ai_paused':
+    case 'account_suspended':
+    case 'subscription_ended':
+      return 'Payment failed, so AI is paused. Update your card in Billing, then ask again.';
+    default: // payment_required (trial lapsed / not subscribed)
+      return 'Your plan has ended. Subscribe in Billing to use Ask.';
+  }
+}
+
 export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<string> }): JSX.Element {
   const [question, setQuestion] = useState('');
   const [result, setResult] = useState<RecallAnswer | null>(null);
@@ -36,8 +50,9 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
       return;
     }
     if (r.paused) {
-      // [AUDIT gap C] AI is paused (trial lapsed / payment failed) — point at Billing, not "try again".
-      setError('AI features are paused. Open Billing to update your subscription, then ask again.');
+      // [AUDIT item 5] Point the rep at the RIGHT action for the reason the backend returned — a card
+      // problem and a used-up allowance are different fixes, and showing one generic lock loses the sale.
+      setError(pausedMessage(r.pausedReason));
       return;
     }
     setResult(r);

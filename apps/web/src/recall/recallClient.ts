@@ -22,6 +22,9 @@ export interface RecallAnswer {
   /** [AUDIT gap C] 402 from the entitlement/billing gate — AI is paused (trial lapsed or payment
    *  failed), not a transient error. The UI shows a "paused, check Billing" notice, not "try again". */
   paused?: boolean;
+  /** [AUDIT item 5] the distinct reason the backend returned, so the UI shows the right action
+   *  (update card vs subscribe) rather than one generic lock message. */
+  pausedReason?: string;
 }
 
 export class RecallClient {
@@ -35,7 +38,10 @@ export class RecallClient {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ question }),
       });
-      if (res.status === 402) return { answer: '', receipts: [], paused: true }; // AI paused — distinct from a failure
+      if (res.status === 402) {
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        return { answer: '', receipts: [], paused: true, pausedReason: b.error }; // [item 5] carry the reason
+      }
       if (res.status !== 200) return null;
       return (await res.json()) as RecallAnswer;
     } catch {
