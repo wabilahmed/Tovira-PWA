@@ -12,7 +12,7 @@
  *
  * MUTATION PROOF (per the isolation-correctness discipline — proven able to fail): each of
  * those three filters was deleted in turn, this file was run, and the matching assertion
- * went RED; the filter was then reverted. See BATCH-B-CONCURRENT-LEAK-REPORT.md §Task 5.
+ * went RED; the filter was then reverted.
  *
  * The detector is the same one the prod runner uses: scan a surface's full response text
  * for the OTHER account's sentinel token. A hit is a leak.
