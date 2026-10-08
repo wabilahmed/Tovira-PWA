@@ -66,9 +66,10 @@ export async function handleFactsRoute(
 
   if (isConfirmations) {
     const promises = await deps.facts.listPromisesByUser(userId);
-    // [AUDIT item 3] The unconfirmed proposed-meetings query (listUnconfirmedByUser) ran on every
-    // /confirmations load but no client ever read its result — dropped. `promises` + `moveSuggestions`
-    // (now consumed by the move-a-misfiled-note prompt) are unchanged.
+    // [AUDIT item 3] `meetings` is KEPT — a test contract (NUDGE-UNCONFIRMED) reads the unconfirmed
+    // proposed-meetings queue here, so it counts as "something reads it". Only /today's groups scan was
+    // the clearly-dead work that was removed.
+    const meetings = deps.meetings ? await deps.meetings.listUnconfirmedByUser(userId) : [];
     // MISFILE-POST (B2): a note that looks like it belongs to another client rides here too — a
     // soft "Move it?" the rep resolves. Never auto-applied.
     const moveNotes = deps.notes ? await deps.notes.listMoveSuggestionsByUser(userId) : [];
@@ -80,7 +81,7 @@ export async function handleFactsRoute(
       mentioned: n.moveSuggestion?.mentioned ?? [],
       reason: n.moveSuggestion?.reason ?? '',
     }));
-    sendJson(res, 200, { promises: pendingConfirmations(promises).map(withReceipt), moveSuggestions });
+    sendJson(res, 200, { promises: pendingConfirmations(promises).map(withReceipt), meetings: meetings.map(withReceipt), moveSuggestions });
     return true;
   }
 

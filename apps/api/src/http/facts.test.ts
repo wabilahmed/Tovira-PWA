@@ -261,13 +261,14 @@ describe('[P7-2] capture corrections as operational verdicts', () => {
   });
 });
 
-describe('[AUDIT item 3] /confirmations drops the unread meetings query', () => {
-  it('returns promises + moveSuggestions and NOT meetings', async () => {
+describe('[AUDIT item 3] /confirmations shape', () => {
+  it('returns promises + moveSuggestions (the move prompt reads moveSuggestions)', async () => {
     const res = await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'noconfmeet@example.com', password: 'password123' }) });
     const token = ((await res.json()) as { token: string }).token;
     const body = (await (await fetch(`${base}/confirmations`, { headers: { authorization: `Bearer ${token}` } })).json()) as Record<string, unknown>;
     expect(body).toHaveProperty('promises');        // web-used field unchanged
-    expect(body).toHaveProperty('moveSuggestions');  // kept — the move prompt reads it
-    expect(body).not.toHaveProperty('meetings');     // the unread query is gone
+    expect(body).toHaveProperty('moveSuggestions');  // kept — the move prompt reads it (item 1)
+    // `meetings` stays — the NUDGE-UNCONFIRMED contract reads it. Only /today's groups scan was removed.
   });
 });
+
