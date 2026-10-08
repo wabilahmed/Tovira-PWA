@@ -295,6 +295,34 @@ describe('[AUDIT item 6] email-confirm banner is not duplicated', () => {
   });
 });
 
+describe('[AUDIT item 5] ?view= deep-link opens any section directly', () => {
+  it('?view=promises opens the Promises section (not Clients), navigable by URL', async () => {
+    window.history.replaceState({}, '', '/?view=promises');
+    routeFetch([
+      ['/me', () => json(200, SESSION)],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/promises', () => json(200, { promises: [] })],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: /^Promises$/i })).toBeInTheDocument();
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('an unknown ?view= value falls back to Clients', async () => {
+    window.history.replaceState({}, '', '/?view=not-a-real-view');
+    routeFetch([
+      ['/me', () => json(200, SESSION)],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    render(<App />);
+    expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /^Promises$/i })).toBeNull();
+    window.history.replaceState({}, '', '/');
+  });
+});
+
 describe('[AUDIT item 2] unknown SPA path', () => {
   it('renders a 404 for an unknown path instead of the app shell', async () => {
     window.history.replaceState({}, '', '/definitely-not-a-page');

@@ -75,6 +75,7 @@ const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite', '/ve
 import { InstallBanner } from './pwa/InstallBanner.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
+import { isView } from './shell/nav.js';
 import { useIsDesktop } from './shell/useIsDesktop.js';
 import { hapticTick } from './haptics.js';
 import { Receipt } from './components/Receipt.js';
@@ -256,9 +257,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ClientSummary | null>(null);
   const [view, setView] = useState<View>(() => {
-    // [AUDIT item 2] "Back to Today" from the 404 lands on Today.
-    try { return new URLSearchParams(window.location.search).get('view') === 'today' ? 'today' : 'clients'; }
-    catch { return 'clients'; }
+    // A `?view=<section>` deep-link opens that section directly (shared links, screenshots-by-URL).
+    // Any known view is honoured; an unknown or missing value falls back to Clients. [AUDIT item 2]
+    // "Back to Today" from the 404 lands on Today via ?view=today.
+    try {
+      const q = new URLSearchParams(window.location.search).get('view');
+      return isView(q) ? q : 'clients';
+    } catch { return 'clients'; }
   });
   const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
   const [entitled, setEntitled] = useState(true); // default open; the server 402s regardless

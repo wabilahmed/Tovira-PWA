@@ -39,6 +39,16 @@ export const OVERFLOW: NavItem[] = [
   { view: 'settings', label: 'Settings' },
 ];
 
+/** Every view the app knows, for validating a `?view=` deep-link (screenshots, shared links). */
+export const VIEWS: readonly View[] = [
+  'clients', 'today', 'week', 'ask', 'promises', 'meetings', 'alerts', 'bookscan', 'ledger', 'inventory', 'capture', 'getstarted', 'settings',
+];
+
+/** True when `s` is a known View — guards an untrusted `?view=` query value. */
+export function isView(s: string | null | undefined): s is View {
+  return s != null && (VIEWS as readonly string[]).includes(s);
+}
+
 /** The full ordered nav for the desktop sidebar. */
 export const SIDEBAR: NavItem[] = [
   { view: 'clients', label: 'Clients' },
