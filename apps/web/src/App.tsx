@@ -461,7 +461,6 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               <span className="tov-unverified">Not confirmed yet</span>
             )}
           </p>
-          {!session.user.emailVerified && <VerifyBanner api={auth} />}
           <Billing api={billingApi} />
           <UsageMeter api={usageApi} />
           <ThemeToggle />

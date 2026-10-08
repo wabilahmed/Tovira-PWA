@@ -276,3 +276,21 @@ describe('<App> integration', () => {
     expect(screen.getByText(/bulk pricing/i)).toBeInTheDocument();
   });
 });
+
+describe('[AUDIT item 6] email-confirm banner is not duplicated', () => {
+  it('shows exactly one "Confirm your email" banner on the Settings view', async () => {
+    routeFetch([
+      ['/billing/status', () => json(200, { entitled: true, status: 'trialing', trialEndsAt: Date.now() + 9e8, billingState: 'active' })],
+      ['/allowance/status', () => json(200, { percentUsed: 10, exhausted: false, resetAt: null, canTopUp: false, options: [] })],
+      ['onboarding', () => json(200, NOT_SEEDED)],
+      ['/me', () => json(200, SESSION_UNVERIFIED)],
+      ['/clients', () => json(200, { clients: [] })],
+    ]);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /^more$/i }));
+    await user.click(await screen.findByRole('button', { name: /settings/i }));
+    await screen.findByRole('button', { name: /delete my account/i }); // settings view is up
+    expect(screen.getAllByLabelText('Confirm your email')).toHaveLength(1);
+  });
+});
