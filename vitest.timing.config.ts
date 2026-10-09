@@ -10,6 +10,10 @@ import react from '@vitejs/plugin-react';
 //   - inventory-share.test.ts boots a fresh server with a real scrypt signup per test — under a
 //     saturated parallel run that CPU-heavy request can fail and return a non-JSON error body
 //     ("Unexpected token '<'"), a load flake, not a code fault.
+//   - auth-reset.test.ts (same class) boots fresh servers and does several real scrypt SIGNUPS per
+//     test; under a saturated parallel run a starved signup intermittently returns a wrong status
+//     (seen: 401 instead of 201) — signup's own code can only return 201/400/409, so the 401 is a
+//     load artifact, not a defect. Passes 5/5 solo and 6/6 full-parallel; flaked once at normal load.
 // Run inside the main parallel suite, a saturated machine inflates the wall-clock measurements and
 // starves the signup requests — false reds from load, and a timing test contending with the whole
 // suite is measuring noise, exactly what makes the no-oracle proof unable to prove anything. So these
@@ -27,6 +31,7 @@ export default defineConfig({
       'apps/api/src/services/auth/password.test.ts',
       'apps/api/src/http/share-referral.test.ts',
       'apps/api/src/http/inventory-share.test.ts',
+      'apps/api/src/http/auth-reset.test.ts',
     ],
     exclude: ['**/node_modules/**'],
     environment: 'node', // both are API tests; no jsdom needed

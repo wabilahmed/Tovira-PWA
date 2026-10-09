@@ -19,6 +19,7 @@ export default defineConfig({
       'apps/api/src/services/auth/password.test.ts',
       'apps/api/src/http/share-referral.test.ts',
       'apps/api/src/http/inventory-share.test.ts',
+      'apps/api/src/http/auth-reset.test.ts',
     ],
     // Node by default (API + web logic); web COMPONENT tests (.test.tsx) and the
     // marketing DOM tests (referral pass-through, RTL, a11y — now inside the PWA
