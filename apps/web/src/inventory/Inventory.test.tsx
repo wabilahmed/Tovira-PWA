@@ -84,7 +84,7 @@ describe('<Inventory>', () => {
 
   it('a lapsed trial (402 → LOCKED) shows the Locked card but keeps the add form usable', async () => {
     render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue(LOCKED) })} onSubscribe={vi.fn()} />);
-    await waitFor(() => expect(screen.getByRole('button', { name: /subscribe/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('subscribe-annual')).toBeInTheDocument()); // Locked card's plan buttons
     expect(screen.getByLabelText('Item title')).toBeInTheDocument();
   });
 });

@@ -65,7 +65,8 @@ describe('<UsageMeter>', () => {
     expect(paused).toHaveTextContent(/1 NOV 2026/);
     expect(screen.getByTestId('topup-sheet')).toBeInTheDocument();
     expect(screen.getByTestId('topup-topup_25')).toHaveTextContent('+25% — AED 65');
-    expect(screen.queryByTestId('subscribe-now')).toBeNull(); // a subscriber tops up, not re-subscribes
+    expect(screen.queryByTestId('subscribe-annual')).toBeNull(); // a subscriber tops up, not re-subscribes
+    expect(screen.queryByTestId('subscribe-monthly')).toBeNull();
   });
 
   // [P11-1] A trial rep at 100% must NOT be a dead end: no top-up (no card), but a clear Subscribe now.
@@ -74,10 +75,13 @@ describe('<UsageMeter>', () => {
     render(<UsageMeter api={makeApi(status({ percentUsed: 100, exhausted: true, canTopUp: false, options: [] }))} onSubscribe={onSubscribe} />);
     expect(await screen.findByTestId('usage-paused')).toBeInTheDocument();
     expect(screen.queryByTestId('topup-sheet')).toBeNull();
-    expect(screen.getByTestId('subscribe-now')).toBeInTheDocument();
+    expect(screen.getByTestId('subscribe-annual')).toBeInTheDocument();
+    expect(screen.getByTestId('subscribe-monthly')).toBeInTheDocument();
     expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent(/resets your AI allowance to the full AED 60/i);
-    await userEvent.click(screen.getByTestId('subscribe-now'));
-    expect(onSubscribe).toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId('subscribe-annual'));
+    expect(onSubscribe).toHaveBeenLastCalledWith('annual');
+    await userEvent.click(screen.getByTestId('subscribe-monthly'));
+    expect(onSubscribe).toHaveBeenLastCalledWith('monthly');
   });
 
   it('buying a top-up redirects to the checkout url', async () => {

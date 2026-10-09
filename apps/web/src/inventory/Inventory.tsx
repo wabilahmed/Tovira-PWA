@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LOCKED, type Locked } from '../billing/gated.js';
 import { Locked as LockedCard } from '../billing/Locked.js';
+import type { Plan } from '../billing/plans.js';
 import { whatsappLink } from '../whatsapp/waLink.js';
 import { shareDraft, type InventoryItem, type InventoryFilter, type ShareResult, type InventoryShare, type MatchSuggestion as Match } from './inventoryClient.js';
 import { ItemMatches } from './ItemMatches.js';
@@ -31,7 +32,7 @@ const STATUS_TAG: Record<NonNullable<InventoryItem['disabledReason']>, string> =
 export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => window.open(url, '_blank', 'noopener') }: {
   api: InventoryApi;
   clients?: InventoryClientRef[];
-  onSubscribe: () => void;
+  onSubscribe: (plan: Plan) => void;
   openLink?: (url: string) => void;
 }): JSX.Element {
   const [filter, setFilter] = useState<InventoryFilter>('active');

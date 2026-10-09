@@ -5,8 +5,9 @@
  * open elsewhere; this only replaces the gated features.
  */
 import { SubscribeNow } from './SubscribeUpsell.js';
+import type { Plan } from './plans.js';
 
-export function Locked({ onSubscribe }: { onSubscribe: () => void }): JSX.Element {
+export function Locked({ onSubscribe }: { onSubscribe: (plan: Plan) => void }): JSX.Element {
   return (
     <section
       aria-label="Trial ended"

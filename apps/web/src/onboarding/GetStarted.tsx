@@ -4,6 +4,7 @@ import type { ClientSummary } from '../clients/clientsClient.js';
 import { SeedingBanner } from './SeedingBanner.js';
 import { ImportChat, type ImportApi } from '../import/ImportChat.js';
 import { BulkImport } from '../import/BulkImport.js';
+import type { Plan } from '../billing/plans.js';
 import type { BulkImportApi } from '../import/bulkImportClient.js';
 
 /**
@@ -19,6 +20,7 @@ export function GetStarted({
   onSeeded,
   onFallback,
   onAddInventory,
+  onSubscribe,
   sharedContent = '',
   sharedContentB64 = '',
 }: {
@@ -33,6 +35,8 @@ export function GetStarted({
   onFallback: (kind: string) => void;
   /** Jump to the Inventory tab — a second, export-free way to seed (spec §11.6). */
   onAddInventory?: () => void;
+  /** [P11-ship] Start checkout for a plan — wired to the bulk-import upsell's Subscribe buttons. */
+  onSubscribe?: (plan: Plan) => void;
   /** A chat shared into the app (Android share-target) to prefill the import — text… */
   sharedContent?: string;
   /** …or a shared file's bytes, base64 (a .zip export). */
@@ -69,7 +73,7 @@ export function GetStarted({
   if (!shared && bulkImportApi) {
     return (
       <section aria-label="Import for client">
-        <BulkImport api={bulkImportApi} />
+        <BulkImport api={bulkImportApi} onSubscribe={onSubscribe} />
       </section>
     );
   }

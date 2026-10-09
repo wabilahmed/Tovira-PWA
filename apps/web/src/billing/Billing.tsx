@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Entitlement } from './billingClient.js';
 import { formatStamp } from '../format/dates.js';
+import { PLANS } from './plans.js';
 
 export interface BillingApi {
   status(): Promise<Entitlement | null>;
@@ -95,10 +96,10 @@ export function Billing({
         <>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="tov-primary" onClick={() => void subscribe('monthly')} disabled={busy}>
-              {busy ? 'Starting…' : <>Subscribe monthly — <span className="tov-mono">AED 299 / month</span></>}
+              {busy ? 'Starting…' : <>Subscribe monthly — <span className="tov-mono">{PLANS.monthly.price}</span></>}
             </button>
             <button className="tov-link" onClick={() => void subscribe('annual')} disabled={busy}>
-              {busy ? 'Starting…' : <>Subscribe annually — <span className="tov-mono">AED 2,990 / year</span> (2 months free)</>}
+              {busy ? 'Starting…' : <>Subscribe annually — <span className="tov-mono">{PLANS.annual.price}</span> (2 months free)</>}
             </button>
           </div>
           {/* [TASK 3] Checkout disclosure beside the plans. Grounded in the real behaviour: prices are

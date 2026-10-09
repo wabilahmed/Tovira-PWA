@@ -76,6 +76,7 @@ import { InstallBanner } from './pwa/InstallBanner.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
 import { isView } from './shell/nav.js';
+import type { Plan } from './billing/plans.js';
 import { useIsDesktop } from './shell/useIsDesktop.js';
 import { hapticTick } from './haptics.js';
 import { Receipt } from './components/Receipt.js';
@@ -101,6 +102,12 @@ const meetingsApi = new MeetingsClient(API_BASE);
 const noteMoveApi = new NoteMoveClient(API_BASE);
 const billingApi = new BillingClient(API_BASE);
 const usageApi = new AllowanceClient(API_BASE);
+/** [P11-ship] One place every Subscribe-now button goes: start Stripe Checkout for the chosen plan and
+ *  send the rep there. Shared by the usage meter, the import upsells and every locked surface. */
+const startCheckout = async (plan: Plan): Promise<void> => {
+  const url = await billingApi.checkout(plan);
+  if (url) window.location.href = url;
+};
 const accountApi = new AccountClient(API_BASE);
 const imagesApi = new ImagesClient(API_BASE);
 const recallApi = new RecallClient(API_BASE);
@@ -291,7 +298,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   useEffect(() => {
     void usageApi.status().then((s) => setAiPaused(s?.aiPaused ?? false));
   }, []);
-  const gated = (node: JSX.Element): JSX.Element => (entitled ? node : <Locked onSubscribe={() => setView('settings')} />);
+  const gated = (node: JSX.Element): JSX.Element => (entitled ? node : <Locked onSubscribe={startCheckout} />);
 
   // INV-MATCH badge: load the strong-unseen count, and clear it (marking seen) when Inventory opens.
   useEffect(() => {
@@ -354,7 +361,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             client={open}
             clients={clients.map((c) => ({ id: c.id, name: c.name }))}
             onBack={() => dismiss()}
-            onSubscribe={() => dismiss(() => setView('settings'))}
+            onSubscribe={startCheckout}
           />
         )}
       </PushView>
@@ -416,6 +423,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           sharedContent={sharedContent}
           sharedContentB64={sharedContentB64}
           onAddInventory={() => setView('inventory')}
+          onSubscribe={startCheckout}
           onSeeded={() => {
             loadSeeding();
             setSharedContent('');
@@ -477,7 +485,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'ledger' && <Ledger api={ledgerApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
 
-      {view === 'inventory' && <Inventory api={inventoryApi} clients={clients.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? null }))} onSubscribe={() => setView('settings')} />}
+      {view === 'inventory' && <Inventory api={inventoryApi} clients={clients.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? null }))} onSubscribe={startCheckout} />}
 
       {view === 'settings' && (
         <>
@@ -496,7 +504,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           </p>
           <Billing api={billingApi} />
           {/* [P11-1] a trial rep at 100% gets Subscribe now here → checkout, instead of a dead end. */}
-          <UsageMeter api={usageApi} onSubscribe={async () => { const url = await billingApi.checkout('monthly'); if (url) window.location.href = url; }} />
+          <UsageMeter api={usageApi} onSubscribe={startCheckout} />
           <ThemeToggle />
           <TimezoneSetting current={session.user.timezone} api={auth} />
           <DisclosureLine />
@@ -553,7 +561,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={() => { setOpen(null); setView('settings'); }} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -566,7 +574,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, onSubscribe }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: () => void }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, onSubscribe }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);

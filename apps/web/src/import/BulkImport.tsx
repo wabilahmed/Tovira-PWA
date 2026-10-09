@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { ImportReview, type ReviewResult, type ReviewRow, type ReviewDecision, type Upsell } from './ImportReview.js';
 import { BulkImportResult, type BulkJob } from './BulkImportResult.js';
 import type { BulkImportApi } from './bulkImportClient.js';
+import type { Plan } from '../billing/plans.js';
 
 /**
  * [BULK-IMPORT page] The end-to-end flow: pick up to 20 chat exports (.txt/.zip) → upload one per request
@@ -17,7 +18,7 @@ export const BULK_MAX_UPLOAD_BYTES = 10_000_000;
 
 type Step = 'pick' | 'uploading' | 'review' | 'ack' | 'progress';
 
-export function BulkImport({ api, pollMs = 400 }: { api: BulkImportApi; pollMs?: number }): JSX.Element {
+export function BulkImport({ api, pollMs = 400, onSubscribe }: { api: BulkImportApi; pollMs?: number; onSubscribe?: (plan: Plan) => void }): JSX.Element {
   const [step, setStep] = useState<Step>('pick');
   const [overCap, setOverCap] = useState<File[] | null>(null); // selection > 20, awaiting confirm
   const [error, setError] = useState<string | null>(null);
@@ -121,7 +122,7 @@ export function BulkImport({ api, pollMs = 400 }: { api: BulkImportApi; pollMs?:
   if (step === 'review' && result) {
     return (
       <section aria-label="Import chats" data-testid="bulk-import">
-        <ImportReview result={result} upsell={upsell} onImport={(d) => void doImport(d)} onTopUp={() => {}} onSubscribe={() => {}} />
+        <ImportReview result={result} upsell={upsell} onImport={(d) => void doImport(d)} onTopUp={() => {}} onSubscribe={onSubscribe} />
       </section>
     );
   }
@@ -139,7 +140,7 @@ export function BulkImport({ api, pollMs = 400 }: { api: BulkImportApi; pollMs?:
   return (
     <section aria-label="Import chats" data-testid="bulk-import">
       {!done && <p role="status" data-testid="import-progress">Importing your chats…</p>}
-      <BulkImportResult jobs={jobs} upsell={done ? resultUpsell : undefined} onTopUp={() => {}} onSubscribe={() => {}} />
+      <BulkImportResult jobs={jobs} upsell={done ? resultUpsell : undefined} onTopUp={() => {}} onSubscribe={onSubscribe} />
     </section>
   );
 }

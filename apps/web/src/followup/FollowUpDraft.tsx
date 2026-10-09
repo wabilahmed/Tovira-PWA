@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { whatsappLink } from '../whatsapp/waLink.js';
 import { Locked } from '../billing/Locked.js';
+import type { Plan } from '../billing/plans.js';
 import { LOCKED, type Locked as LockedResult } from '../billing/gated.js';
 
 export interface FollowUpApi {
@@ -22,7 +23,7 @@ export function FollowUpDraft({
   phone?: string;
   /** Navigate to Billing — used by the embedded <Locked> state when the trial
    *  has lapsed (LOCKED-EMBEDDED). */
-  onSubscribe?: () => void;
+  onSubscribe?: (plan: Plan) => void;
   openLink?: (url: string) => void;
 }): JSX.Element {
   const [draft, setDraft] = useState<string | null>(null);
@@ -60,7 +61,7 @@ export function FollowUpDraft({
   if (locked) {
     return (
       <div style={{ marginTop: '0.5rem' }}>
-        <Locked onSubscribe={() => onSubscribe?.()} />
+        <Locked onSubscribe={(plan) => onSubscribe?.(plan)} />
       </div>
     );
   }

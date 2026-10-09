@@ -1,4 +1,5 @@
 import { UpsellBanner, type Upsell } from './ImportReview.js';
+import type { Plan } from '../billing/plans.js';
 
 /**
  * [BULK-IMPORT · RULING 2] The batch progress / result view. One row per chat with its state, and —
@@ -25,7 +26,7 @@ export function BulkImportResult({ jobs, upsell, onTopUp, onSubscribe }: {
   jobs: BulkJob[];
   upsell?: Upsell;
   onTopUp?: (optionId: string) => void;
-  onSubscribe?: () => void;
+  onSubscribe?: (plan: Plan) => void;
 }): JSX.Element {
   const limited = jobs.filter((j) => j.state === 'failed_usage_limit').length;
 

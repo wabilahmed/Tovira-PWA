@@ -32,8 +32,10 @@ describe('<BulkImportResult>', () => {
     const onSubscribe = vi.fn();
     render(<BulkImportResult jobs={jobs} upsell={{ shortfall: true, n: 2, canTopUp: false, recommendedOptionId: null, options: [] }} onSubscribe={onSubscribe} />);
     expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent(/resets your AI allowance to the full AED 60/i);
-    await userEvent.click(screen.getByRole('button', { name: /subscribe now/i }));
-    expect(onSubscribe).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByTestId('subscribe-annual'));
+    expect(onSubscribe).toHaveBeenLastCalledWith('annual');
+    await userEvent.click(screen.getByTestId('subscribe-monthly'));
+    expect(onSubscribe).toHaveBeenLastCalledWith('monthly');
   });
 
   it('an interrupted chat reads the re-upload copy (FIX 3)', () => {

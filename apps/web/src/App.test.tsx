@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from './App.js';
 
@@ -129,13 +129,14 @@ describe('<App> integration', () => {
   });
 
   // [LOCKED-EMBEDDED] the embedded brief surface shows the shared Locked state on
-  // a 402 (not empty/error), and Subscribe reaches Billing (Settings).
+  // a 402 (not empty/error), and its plan buttons start checkout.
   it('renders <Locked> on the brief surface when the trial has lapsed', async () => {
     routeFetch([
       ['/clients/c1/brief', () => json(402, { error: 'payment_required' })],
       ['/clients/c1/notes', () => json(200, { notes: [] })],
       ['/clients/c1/stakeholders', () => json(200, { people: [] })],
       ['/clients/c1/images', () => json(200, { images: [] })],
+      ['/billing/checkout', () => json(200, { url: 'https://checkout.stripe.test/x' })],
       ['book-scan', () => json(200, SCAN)],
       ['onboarding', () => json(200, NOT_SEEDED)],
       ['/me', () => json(200, SESSION)],
@@ -146,9 +147,10 @@ describe('<App> integration', () => {
     await user.click(await screen.findByRole('button', { name: /meridian/i })); // open the client
     await user.click(await screen.findByRole('button', { name: /pre-meeting brief/i }));
     expect(await screen.findByText(/your trial has ended/i)).toBeInTheDocument();
-    // Subscribe reaches Billing.
-    await user.click(screen.getByRole('button', { name: /subscribe/i }));
-    expect(await screen.findByRole('heading', { name: /settings/i })).toBeInTheDocument();
+    // The Locked card offers both plans; the annual button starts checkout.
+    expect(screen.getByTestId('subscribe-monthly')).toBeInTheDocument();
+    await user.click(screen.getByTestId('subscribe-annual'));
+    await waitFor(() => expect((globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.some((c) => String(c[0]).includes('/billing/checkout'))).toBe(true));
   });
 
   it('navigates to the Promises tracker and renders open promises (API integration)', async () => {

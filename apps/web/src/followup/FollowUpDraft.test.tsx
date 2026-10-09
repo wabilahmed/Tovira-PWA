@@ -10,16 +10,16 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('<FollowUpDraft>', () => {
   // [LOCKED-EMBEDDED] a 402 (trial lapsed) shows the shared Locked state, not an
-  // error, and Subscribe reaches Billing. Entitled reps are unaffected (above).
-  it('renders <Locked> on a 402 and Subscribe reaches Billing', async () => {
+  // error, and its plan buttons start checkout. Entitled reps are unaffected (above).
+  it('renders <Locked> on a 402 and its plan buttons start checkout', async () => {
     const user = userEvent.setup();
     const onSubscribe = vi.fn();
     render(<FollowUpDraft noteId="n1" api={{ draftFollowUp: vi.fn().mockResolvedValue(LOCKED) }} onSubscribe={onSubscribe} />);
     await user.click(screen.getByRole('button', { name: /draft follow-up/i }));
     expect(await screen.findByText(/your trial has ended/i)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument(); // not an error
-    await user.click(screen.getByRole('button', { name: /subscribe/i }));
-    expect(onSubscribe).toHaveBeenCalled();
+    await user.click(screen.getByTestId('subscribe-annual'));
+    expect(onSubscribe).toHaveBeenLastCalledWith('annual');
   });
 
   it('drafts a follow-up and shows it in an editable box', async () => {

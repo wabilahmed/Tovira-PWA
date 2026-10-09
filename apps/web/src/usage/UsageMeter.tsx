@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { AllowanceStatus } from './allowanceClient.js';
 import { formatStamp } from '../format/dates.js';
 import { SubscribeNow } from '../billing/SubscribeUpsell.js';
+import type { Plan } from '../billing/plans.js';
 
 export interface UsageMeterApi {
   status(): Promise<AllowanceStatus | null>;
@@ -32,8 +33,8 @@ export function UsageMeter({
 }: {
   api: UsageMeterApi;
   onRedirect?: (url: string) => void;
-  /** [P11-1] A trial rep (no card → no top-up) gets Subscribe now at exhaustion instead of a dead end. */
-  onSubscribe?: () => void;
+  /** [P11-1] A trial rep (no card → no top-up) gets the plan buttons at exhaustion instead of a dead end. */
+  onSubscribe?: (plan: Plan) => void;
 }): JSX.Element | null {
   const [s, setS] = useState<AllowanceStatus | null>(null);
   const [loading, setLoading] = useState(true);

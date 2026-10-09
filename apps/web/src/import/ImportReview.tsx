@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { RepIdentification } from './RepIdentification.js';
 import { SubscribeNow } from '../billing/SubscribeUpsell.js';
+import type { Plan } from '../billing/plans.js';
 
 /**
  * [BULK-IMPORT · Task 3] The ONE review screen a rep sees after uploading up to 20 chat exports.
@@ -127,7 +128,7 @@ export function ImportReview({ result, onImport, upsell, onTopUp, onSubscribe }:
   /** [RULING 2] when the batch would exceed the allowance, the top-up / subscribe prompt. */
   upsell?: Upsell;
   onTopUp?: (optionId: string) => void;
-  onSubscribe?: () => void;
+  onSubscribe?: (plan: Plan) => void;
 }): JSX.Element {
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const [repChoice, setRepChoice] = useState<string | null>(result.repName);
@@ -217,7 +218,7 @@ export function UpsellBanner({ upsell, lead, onTopUp, onSubscribe }: {
   upsell: Upsell;
   lead: string;
   onTopUp?: (optionId: string) => void;
-  onSubscribe?: () => void;
+  onSubscribe?: (plan: Plan) => void;
 }): JSX.Element {
   return (
     <div role="status" data-testid="bulk-upsell" style={{ border: '1px solid var(--border, #ddd)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
