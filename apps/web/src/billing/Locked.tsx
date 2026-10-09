@@ -4,15 +4,18 @@
  * error or a broken screen. Capture, Settings, Billing, export and delete stay
  * open elsewhere; this only replaces the gated features.
  */
+import { SubscribeNow } from './SubscribeUpsell.js';
+
 export function Locked({ onSubscribe }: { onSubscribe: () => void }): JSX.Element {
   return (
     <section
       aria-label="Trial ended"
       role="status"
-      style={{ border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', background: 'var(--surface-raised)', padding: '1.5rem', textAlign: 'center' }}
+      style={{ border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', background: 'var(--surface-raised)', padding: '1.5rem', display: 'grid', gap: '0.75rem', justifyItems: 'center' }}
     >
-      <p style={{ margin: '0 0 1rem', color: 'var(--text-secondary)' }}>Your trial has ended. Subscribe to reopen your book.</p>
-      <button className="tov-primary" onClick={onSubscribe}>Subscribe</button>
+      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Your trial has ended. Subscribe to reopen your book.</p>
+      {/* [P11-1] Subscribe now + the allowance-reset reassurance — the same treatment as every exhausted upsell. */}
+      <SubscribeNow onSubscribe={onSubscribe} />
     </section>
   );
 }

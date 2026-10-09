@@ -168,9 +168,10 @@ describe('<ImportReview>', () => {
       onSubscribe={onSubscribe}
       upsell={{ shortfall: true, n: 3, canTopUp: false, recommendedOptionId: null, options: [] }}
     />);
-    await userEvent.click(screen.getByRole('button', { name: /subscribe to keep importing/i }));
+    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent(/resets your AI allowance to the full AED 60/i);
+    await userEvent.click(screen.getByRole('button', { name: /subscribe now/i }));
     expect(onSubscribe).toHaveBeenCalledOnce();
-    expect(screen.queryByText(/AED/i)).toBeNull(); // no top-up prices for a trial
+    expect(screen.queryByText(/\+\d+%/)).toBeNull(); // no top-up option (percentage) buttons for a trial — the tell of a top-up price
   });
 
   it('no upsell banner when the batch fits the allowance', () => {

@@ -495,7 +495,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             )}
           </p>
           <Billing api={billingApi} />
-          <UsageMeter api={usageApi} />
+          {/* [P11-1] a trial rep at 100% gets Subscribe now here → checkout, instead of a dead end. */}
+          <UsageMeter api={usageApi} onSubscribe={async () => { const url = await billingApi.checkout('monthly'); if (url) window.location.href = url; }} />
           <ThemeToggle />
           <TimezoneSetting current={session.user.timezone} api={auth} />
           <DisclosureLine />

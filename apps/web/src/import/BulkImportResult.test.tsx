@@ -28,10 +28,12 @@ describe('<BulkImportResult>', () => {
     expect(onTopUp).toHaveBeenCalledWith('topup_25');
   });
 
-  it('a trial sees Subscribe on the result, not top-ups', () => {
+  it('a trial sees Subscribe now + the allowance-reset line on the result, not top-ups', async () => {
     const onSubscribe = vi.fn();
     render(<BulkImportResult jobs={jobs} upsell={{ shortfall: true, n: 2, canTopUp: false, recommendedOptionId: null, options: [] }} onSubscribe={onSubscribe} />);
-    expect(screen.getByRole('button', { name: /subscribe to keep importing/i })).toBeInTheDocument();
+    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent(/resets your AI allowance to the full AED 60/i);
+    await userEvent.click(screen.getByRole('button', { name: /subscribe now/i }));
+    expect(onSubscribe).toHaveBeenCalledOnce();
   });
 
   it('an interrupted chat reads the re-upload copy (FIX 3)', () => {

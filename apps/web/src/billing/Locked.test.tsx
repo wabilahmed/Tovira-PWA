@@ -8,7 +8,8 @@ describe('<Locked>', () => {
     const onSubscribe = vi.fn();
     render(<Locked onSubscribe={onSubscribe} />);
     expect(screen.getByRole('status')).toHaveTextContent(/your trial has ended\. subscribe to reopen your book\./i);
-    await userEvent.click(screen.getByRole('button', { name: /subscribe/i }));
+    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent(/resets your AI allowance to the full AED 60/i);
+    await userEvent.click(screen.getByRole('button', { name: /subscribe now/i }));
     expect(onSubscribe).toHaveBeenCalledTimes(1);
   });
 });

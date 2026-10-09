@@ -58,19 +58,26 @@ describe('<UsageMeter>', () => {
     expect(screen.queryByTestId('usage-warn-80')).toBeNull();
   });
 
-  it('at 100% shows the paused notice with the reset date + top-up options (subscribed)', async () => {
+  it('at 100% shows the paused notice with the reset date + top-up options (subscribed), NOT subscribe-now', async () => {
     render(<UsageMeter api={makeApi(status({ percentUsed: 100, exhausted: true }))} />);
     const paused = await screen.findByTestId('usage-paused');
     expect(paused).toHaveTextContent(/paused until/i);
     expect(paused).toHaveTextContent(/1 NOV 2026/);
     expect(screen.getByTestId('topup-sheet')).toBeInTheDocument();
     expect(screen.getByTestId('topup-topup_25')).toHaveTextContent('+25% — AED 65');
+    expect(screen.queryByTestId('subscribe-now')).toBeNull(); // a subscriber tops up, not re-subscribes
   });
 
-  it('a trial rep at 100% sees the paused notice but NO top-up option (D10)', async () => {
-    render(<UsageMeter api={makeApi(status({ percentUsed: 100, exhausted: true, canTopUp: false, options: [] }))} />);
+  // [P11-1] A trial rep at 100% must NOT be a dead end: no top-up (no card), but a clear Subscribe now.
+  it('a trial rep at 100% sees Subscribe now + the allowance-reset line, and NO top-up option (D10)', async () => {
+    const onSubscribe = vi.fn();
+    render(<UsageMeter api={makeApi(status({ percentUsed: 100, exhausted: true, canTopUp: false, options: [] }))} onSubscribe={onSubscribe} />);
     expect(await screen.findByTestId('usage-paused')).toBeInTheDocument();
     expect(screen.queryByTestId('topup-sheet')).toBeNull();
+    expect(screen.getByTestId('subscribe-now')).toBeInTheDocument();
+    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent(/resets your AI allowance to the full AED 60/i);
+    await userEvent.click(screen.getByTestId('subscribe-now'));
+    expect(onSubscribe).toHaveBeenCalled();
   });
 
   it('buying a top-up redirects to the checkout url', async () => {

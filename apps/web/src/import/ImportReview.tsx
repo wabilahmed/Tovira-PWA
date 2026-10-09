@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { RepIdentification } from './RepIdentification.js';
+import { SubscribeNow } from '../billing/SubscribeUpsell.js';
 
 /**
  * [BULK-IMPORT · Task 3] The ONE review screen a rep sees after uploading up to 20 chat exports.
@@ -241,7 +242,7 @@ export function UpsellBanner({ upsell, lead, onTopUp, onSubscribe }: {
           })}
         </div>
       ) : (
-        <button type="button" className="tov-primary" onClick={() => onSubscribe?.()}>Subscribe to keep importing</button>
+        <SubscribeNow onSubscribe={onSubscribe} />
       )}
     </div>
   );
