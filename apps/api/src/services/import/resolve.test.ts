@@ -24,6 +24,19 @@ function makeZip(entries: BuildEntry[]): Buffer {
 const CHAT = '[15/03/2026, 14:22] Ahmed: looking for a 3-bed in Mirdif\n[15/03/2026, 14:25] Me: on it';
 const LONGER = CHAT + '\n[15/03/2026, 14:30] Ahmed: and a maids room please, near a school if possible';
 
+describe('[IMPORT-ZIP · BOMB] the single-importer entry rejects an over-cap zip', () => {
+  // notes-routes.ts:308/330 feed uploads to resolveTranscript, which calls unzipTextEntries with the
+  // DEFAULT caps — so the single importer inherits the same zip-bomb guards as bulk. An over-cap entry
+  // (6 MB > the 5 MB maxEntryBytes) must come back as a CLEAR rejection the route turns into a 422,
+  // never a silent full-inflate. (The DEFLATE streaming guard itself is proven in zip.test.ts.)
+  it('a zip entry larger than the per-entry cap is rejected, not inflated', () => {
+    const r = resolveTranscript(makeZip([{ name: 'chat.txt', data: Buffer.alloc(6_000_000, 0x41) }]));
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toMatch(/too large|decompress|bomb|transcript/i);
+  });
+});
+
 describe('[IMPORT-ZIP] resolveTranscript', () => {
   it('passes a bare .txt buffer through as text (existing path unchanged)', () => {
     const r = resolveTranscript(Buffer.from(CHAT));

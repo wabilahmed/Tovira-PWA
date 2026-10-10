@@ -6,7 +6,9 @@ import { unzipTextEntries, isZip, DEFAULT_ZIP_CAPS } from './zip.js';
 const u16 = (n: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
 const u32 = (n: number) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
 
-interface BuildEntry { name: string; data: Buffer; deflate?: boolean }
+// `fakeUncomp` lets a test LIE about an entry's declared uncompressed size (both headers) so a
+// DEFLATE bomb can slip past the cheap declared-size pre-check and exercise the real streaming guard.
+interface BuildEntry { name: string; data: Buffer; deflate?: boolean; fakeUncomp?: number }
 
 function makeZip(entries: BuildEntry[]): Buffer {
   const locals: Buffer[] = [];
@@ -16,14 +18,15 @@ function makeZip(entries: BuildEntry[]): Buffer {
     const nameBuf = Buffer.from(e.name, 'utf8');
     const method = e.deflate ? 8 : 0;
     const stored = e.deflate ? deflateRawSync(e.data) : e.data;
+    const declaredUncomp = e.fakeUncomp ?? e.data.length; // the value written into the headers
     const lfh = Buffer.concat([
       u32(0x04034b50), u16(20), u16(0), u16(method), u16(0), u16(0),
-      u32(0), u32(stored.length), u32(e.data.length), u16(nameBuf.length), u16(0), nameBuf, stored,
+      u32(0), u32(stored.length), u32(declaredUncomp), u16(nameBuf.length), u16(0), nameBuf, stored,
     ]);
     locals.push(lfh);
     const cdh = Buffer.concat([
       u32(0x02014b50), u16(20), u16(20), u16(0), u16(method), u16(0), u16(0),
-      u32(0), u32(stored.length), u32(e.data.length), u16(nameBuf.length), u16(0), u16(0), u16(0), u16(0),
+      u32(0), u32(stored.length), u32(declaredUncomp), u16(nameBuf.length), u16(0), u16(0), u16(0), u16(0),
       u32(0), u32(offset), nameBuf,
     ]);
     centrals.push(cdh);
@@ -113,5 +116,46 @@ describe('[IMPORT-ZIP] unzipTextEntries', () => {
   it('rejects a non-zip buffer', () => {
     const r = unzipTextEntries(Buffer.from('just some text'));
     expect(r.ok).toBe(false);
+  });
+});
+
+// [IMPORT-ZIP · BOMB] Prove the zip-bomb guards fail CLOSED under the DEFAULT caps — not an inference
+// from the source, an executed test. The two vectors a public upload endpoint must survive are a
+// decompression bomb (tiny compressed → huge inflated) and an entry-count bomb (10,000 tiny files).
+describe('[IMPORT-ZIP · BOMB] fails closed on a decompression bomb and an entry-count bomb', () => {
+  it('a DEFLATE entry that LIES about its size and inflates past the cap is rejected — streamed, not fully inflated', () => {
+    // 64 MB of one byte → deflates to ~64 KB. Declare a 1 KB uncompressed size so the cheap
+    // declared-size pre-check PASSES; only the real streaming guard (inflateRawSync maxOutputLength)
+    // can stop it. If the reader fully inflated first, it would allocate 64 MB before any cap applied.
+    const INFLATED = 64 * 1024 * 1024;
+    const bomb = makeZip([{ name: 'chat.txt', data: Buffer.alloc(INFLATED, 0x41), deflate: true, fakeUncomp: 1000 }]);
+    expect(bomb.length).toBeLessThan(DEFAULT_ZIP_CAPS.maxEntryBytes); // compressed well under the cap (a real bomb shape)
+
+    const before = process.memoryUsage().rss;
+    const r = unzipTextEntries(bomb); // DEFAULT caps (maxEntryBytes = 5 MB)
+    const grewBy = process.memoryUsage().rss - before;
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toMatch(/decompress|bomb|too large/i); // a clear, closed rejection
+    // Bounded memory: zlib's maxOutputLength guarantees it never materialises the full 64 MB. The
+    // throw above is the hard proof; this sanity bound (well under the 64 MB inflated size) catches a
+    // regression to a full-inflate reader. Generous to stay non-flaky across GC timing.
+    expect(grewBy).toBeLessThan(32 * 1024 * 1024);
+  });
+
+  it('a STORED entry whose real bytes exceed the cap is rejected even with a lying declared size', () => {
+    // method 0 (STORED): the guard is the post-read length check, not maxOutputLength.
+    const big = makeZip([{ name: 'chat.txt', data: Buffer.alloc(6_000_000, 0x41), fakeUncomp: 100 }]);
+    const r = unzipTextEntries(big); // DEFAULT caps (maxEntryBytes = 5 MB)
+    expect(r.ok).toBe(false);
+  });
+
+  it('10,000 tiny entries are rejected by the DEFAULT entry cap (128), before any inflation', () => {
+    const many = Array.from({ length: 10_000 }, (_, i) => ({ name: `f${i}.txt`, data: Buffer.from('x') }));
+    const r = unzipTextEntries(makeZip(many)); // DEFAULT caps — no lowered test cap
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toMatch(/too many entries/i);
   });
 });
