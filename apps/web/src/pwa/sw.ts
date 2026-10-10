@@ -7,7 +7,7 @@
  * the .txt here; a static PWA has no server to catch it, so the worker does:
  * it stashes the chat and redirects into the app, which imports it on load.
  */
-import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches, matchPrecache } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { NetworkFirst } from 'workbox-strategies';
 import { readSharedChat, idbSharedChatStore } from './sharedChat.js';
@@ -30,16 +30,35 @@ registerRoute(isMarketingNav, new NetworkFirst({ cacheName: 'tovira-marketing' }
 // the marketing routes above, or `/api/*`: a browser navigation to an API URL must
 // reach the network (CloudFront → ALB), not be answered with the cached app shell
 // (which showed the login page for /api/* while curl, bypassing the worker, worked).
+//
+// NETWORK-FIRST (not cache-first precache): fetch the fresh app.html every online load — app.html is
+// served no-cache, so this revalidates and a returning user gets the current shell + its new asset
+// hashes without a cache clear. Offline (fetch throws) → fall back to the precached shell so the app
+// still opens. A cache-first precache handler here was why a new deploy could stay invisible.
+const appShellNav = async (): Promise<Response> => {
+  try {
+    const fresh = await fetch('/app.html', { cache: 'no-store' });
+    if (fresh.ok) return fresh;
+  } catch { /* offline — fall through to the precached shell */ }
+  return (await matchPrecache('app.html')) ?? Response.error();
+};
 registerRoute(
-  new NavigationRoute(createHandlerBoundToURL('app.html'), { denylist: [/^\/api\//, /^\/share-target/, MARKETING] }),
+  new NavigationRoute(appShellNav, { denylist: [/^\/api\//, /^\/share-target/, MARKETING] }),
 );
 
-// Auto-update: take over immediately so a returning user gets the fresh build
-// (registerServiceWorker reloads once on controllerchange).
-self.addEventListener('install', () => {
-  void self.skipWaiting();
+// Update model: PROMPT, not auto. The app holds unsaved state (an in-progress voice recording /
+// outbox), so a new worker must NOT silently skipWaiting + reload underneath the rep — that could
+// interrupt a capture. Instead a new worker INSTALLS and WAITS; registerServiceWorker surfaces a
+// "New version available — Reload" prompt, and only when the rep accepts does the page post
+// SKIP_WAITING. On the first install (no existing controller) there is nothing to interrupt, so the
+// worker activates normally and controls the page without a prompt.
+self.addEventListener('message', (event) => {
+  if ((event.data as { type?: string } | undefined)?.type === 'SKIP_WAITING') void self.skipWaiting();
 });
 self.addEventListener('activate', (event) => {
+  // Claim so that, once the rep accepts and we skipWaiting, the fresh worker controls immediately
+  // (registerServiceWorker reloads once on the resulting controllerchange). The rep's data is in
+  // IndexedDB (the outbox) + the server, which a worker swap and a reload never touch.
   event.waitUntil(self.clients.claim());
 });
 
