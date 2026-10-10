@@ -47,6 +47,27 @@ resource "aws_cloudwatch_metric_alarm" "billing" {
   alarm_actions       = [aws_sns_topic.alarms_use1[0].arn]
 }
 
+# API task memory: the Fargate task is 1 GB (var.api_memory) and a 4-way bulk import can spike memory
+# with no autoscaling safeguard (autoscaling.tf tracks CPU only). This alarm makes an approaching-OOM
+# VISIBLE on the same SNS topic — scaling can't prevent it, but you get warned before the task is killed.
+# Service-level AWS/ECS MemoryUtilization is published by default (no Container Insights needed).
+resource "aws_cloudwatch_metric_alarm" "api_memory" {
+  alarm_name          = "tovira-${var.env}-api-memory"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "MemoryUtilization"
+  namespace           = "AWS/ECS"
+  period              = 300 # 5 minutes
+  statistic           = "Average"
+  threshold           = 80 # percent of the task's 1 GB
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = aws_ecs_service.api.name
+  }
+  alarm_actions      = [aws_sns_topic.alarms.arn]
+  treat_missing_data = "notBreaching"
+}
+
 # API 5xx from the ALB.
 resource "aws_cloudwatch_metric_alarm" "api_5xx" {
   alarm_name          = "tovira-${var.env}-api-5xx"

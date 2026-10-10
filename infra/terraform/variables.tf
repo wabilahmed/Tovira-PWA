@@ -68,8 +68,15 @@ variable "api_cpu" {
 }
 
 variable "api_memory" {
+  # 1 GB: headroom for a 4-way bulk import of large exports (bulkConcurrency = SWEEP_CONCURRENCY-1 = 4),
+  # each holding several transient copies of up to a 5M-char transcript, on top of the API baseline.
+  # 512 MB was too tight and memory has no autoscaling safeguard (autoscaling.tf tracks CPU only, and a
+  # single import's 4 chats run inside ONE task so scale-out can't help). 256 CPU supports 512/1024/2048
+  # MB on Fargate, so cpu stays 256. ~+$9/mo. Source of truth for the deployed value — CI inherits it by
+  # describe→render (image-only swap)→deploy; the service's ignore_changes[task_definition] means a new
+  # revision rolls out on the NEXT deploy, not on terraform apply alone.
   type    = number
-  default = 512 # 0.5 GB
+  default = 1024
 }
 
 variable "domain_name" {
