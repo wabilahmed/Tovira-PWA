@@ -31,14 +31,6 @@ output "db_endpoint" {
   value = aws_db_instance.main.address
 }
 
-output "cognito_user_pool_id" {
-  value = aws_cognito_user_pool.main.id
-}
-
-output "cognito_web_client_id" {
-  value = aws_cognito_user_pool_client.web.id
-}
-
 output "runtime_config_secret_arn" {
   description = "Fill GROQ/STRIPE/VAPID here after apply."
   value       = aws_secretsmanager_secret.app.arn
