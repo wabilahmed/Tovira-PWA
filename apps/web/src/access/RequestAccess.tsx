@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type JSX } from 'react';
 import { AccessRequestError, type AccessRequestClient, type AccessRequestPayload } from './requestAccessClient.js';
+import { AuthShell } from '../auth/AuthShell.js';
 
 /** The confirmation sentence is a PRODUCT DECISION — do not reword, expand, or add a second clause.
  *  Its version lives in the API constants module (CONFIRMATION_TEXT_VERSION), stored with each request. */
@@ -48,13 +49,14 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
 
   if (submitted) {
     return (
-      <main className="auth-card" aria-live="polite">
-        <h1>Request received</h1>
-        <p>Thank you — your request has been recorded. We review requests within 2 business days.</p>
-        {submitted.employed && (
-          <p>Because you are employed by the company, we will email you to ask for the company’s NOC (no-objection certificate) before activating your access.</p>
-        )}
-      </main>
+      <AuthShell subtitle="Request received">
+        <div aria-live="polite" style={{ display: 'grid', gap: '0.7rem', marginTop: '0.4rem' }}>
+          <p className="auth__intro">Thank you — your request has been recorded. We review requests within 2 business days.</p>
+          {submitted.employed && (
+            <p className="auth__hint">Because you are employed by the company, we will email you to ask for the company’s NOC (no-objection certificate) before activating your access.</p>
+          )}
+        </div>
+      </AuthShell>
     );
   }
 
@@ -91,50 +93,49 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
   }
 
   return (
-    <main className="auth-card">
-      <h1>Request beta access</h1>
-      <p>Tovira is in private beta for field salespeople. Tell us a little about you and we’ll be in touch.</p>
-      <form onSubmit={(e) => void onSubmit(e)} noValidate>
+    <AuthShell subtitle="Request beta access">
+      <p className="auth__intro">Tovira is in private beta for field salespeople. Tell us a little about you and we’ll be in touch.</p>
+      <form className="auth__form" onSubmit={(e) => void onSubmit(e)} noValidate>
         {/* 1. Full name, work email, phone */}
-        <label>Full name<input value={fullName} onChange={(e) => setFullName(e.target.value)} required /></label>
-        <label>Work email<input type="email" value={workEmail} onChange={(e) => setWorkEmail(e.target.value)} required /></label>
-        <label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} required /></label>
+        <label className="auth__field"><span>Full name</span><input value={fullName} onChange={(e) => setFullName(e.target.value)} required /></label>
+        <label className="auth__field"><span>Work email</span><input type="email" value={workEmail} onChange={(e) => setWorkEmail(e.target.value)} required /></label>
+        <label className="auth__field"><span>Phone</span><input value={phone} onChange={(e) => setPhone(e.target.value)} required /></label>
         {/* 2. Company */}
-        <label>Company name<input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required /></label>
+        <label className="auth__field"><span>Company name</span><input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required /></label>
         {/* 3. Role */}
-        <label>Role / job title<input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} required /></label>
+        <label className="auth__field"><span>Role / job title</span><input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} required /></label>
 
         {/* 4. Ownership */}
-        <fieldset>
+        <fieldset className="auth__fieldset">
           <legend>Do you own or manage this company, or are you employed by it?</legend>
-          <label><input type="radio" name="ownership" checked={ownership === 'owns_or_manages'} onChange={() => setOwnership('owns_or_manages')} /> I own or manage it</label>
-          <label><input type="radio" name="ownership" checked={ownership === 'employed'} onChange={() => setOwnership('employed')} /> I am employed by it</label>
+          <label className="auth__option"><input type="radio" name="ownership" checked={ownership === 'owns_or_manages'} onChange={() => setOwnership('owns_or_manages')} /> I own or manage it</label>
+          <label className="auth__option"><input type="radio" name="ownership" checked={ownership === 'employed'} onChange={() => setOwnership('employed')} /> I am employed by it</label>
         </fieldset>
         {ownership === 'owns_or_manages' && (
-          <label>Trade licence number<input value={tradeLicenceNumber} onChange={(e) => setTradeLicenceNumber(e.target.value)} required /></label>
+          <label className="auth__field"><span>Trade licence number</span><input value={tradeLicenceNumber} onChange={(e) => setTradeLicenceNumber(e.target.value)} required /></label>
         )}
         {ownership === 'employed' && (
-          <p className="auth-hint" data-testid="noc-note">After you submit, we will email you to ask for the company’s NOC (no-objection certificate). There is nothing to upload here.</p>
+          <p className="auth__hint" data-testid="noc-note">After you submit, we will email you to ask for the company’s NOC (no-objection certificate). There is nothing to upload here.</p>
         )}
 
         {/* 5. Whose conversations */}
-        <fieldset>
+        <fieldset className="auth__fieldset">
           <legend>Whose client conversations do you intend to upload?</legend>
           {CONVERSATION_OPTIONS.map((o) => (
-            <label key={o.value}>
+            <label key={o.value} className="auth__option">
               <input type="radio" name="conversationOwnership" checked={conversationOwnership === o.value} onChange={() => setConversationOwnership(o.value)} /> {o.label}
             </label>
           ))}
         </fieldset>
         {conversationOwnership === 'other' && (
-          <label>Please describe<input value={conversationOwnershipOther} onChange={(e) => setConversationOwnershipOther(e.target.value)} required /></label>
+          <label className="auth__field"><span>Please describe</span><input value={conversationOwnershipOther} onChange={(e) => setConversationOwnershipOther(e.target.value)} required /></label>
         )}
 
         {/* 6. Volume */}
-        <fieldset>
+        <fieldset className="auth__fieldset">
           <legend>Roughly how many client conversations do you expect to upload?</legend>
           {VOLUME_OPTIONS.map((o) => (
-            <label key={o.value}>
+            <label key={o.value} className="auth__option">
               <input type="radio" name="expectedVolume" checked={expectedVolume === o.value} onChange={() => setExpectedVolume(o.value)} /> {o.label}
             </label>
           ))}
@@ -146,18 +147,18 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
         </div>
 
         {/* Mandatory confirmation — exact product wording, do not change */}
-        <label className="auth-confirm">
+        <label className="auth__consent">
           <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-          {CONFIRMATION_TEXT}
+          <span>{CONFIRMATION_TEXT}</span>
         </label>
 
-        <p className="auth-hint">
+        <p className="auth__hint">
           We use the details above only to review your request. See our <a href="/privacy">Privacy Policy</a> for how we handle your personal data.
         </p>
 
-        {error && <p className="auth-error" role="alert">{error}</p>}
-        <button type="submit" disabled={busy || !confirmed}>{busy ? 'Submitting…' : 'Request access'}</button>
+        {error && <p className="auth__error" role="alert">{error}</p>}
+        <button className="auth__submit" type="submit" disabled={busy || !confirmed}>{busy ? 'Submitting…' : 'Request access'}</button>
       </form>
-    </main>
+    </AuthShell>
   );
 }

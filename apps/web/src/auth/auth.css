@@ -96,6 +96,15 @@
 .auth__link--muted { color: var(--text-secondary); font-size: 0.85rem; }
 .auth__trust { font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-tertiary); text-align: center; margin: 0.85rem 0 0; }
 
+/* Longer pre-session forms (request access / invite): intro copy, radio-group fieldsets, hint text. */
+.auth__intro { font-size: 0.95rem; color: var(--text-secondary); margin: 0 0 0.2rem; line-height: 1.45; }
+.auth__intro a, .auth__hint a { color: var(--brass); }
+.auth__hint { font-size: 0.8rem; color: var(--text-tertiary); margin: 0; line-height: 1.4; }
+.auth__fieldset { margin: 0; padding: 0.7rem 0.85rem 0.8rem; border: 1px solid var(--hairline); border-radius: var(--radius-card); display: grid; gap: 0.5rem; }
+.auth__fieldset legend { padding: 0 0.3rem; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
+.auth__option { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.9rem; color: var(--text-primary); line-height: 1.35; }
+.auth__option input { margin-top: 0.2rem; flex: none; accent-color: var(--brass); }
+
 .auth :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
