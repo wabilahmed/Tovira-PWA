@@ -66,7 +66,9 @@
 .auth__field input:focus { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px var(--brass-surface); }
 
 .auth__consent { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.82rem; color: var(--text-secondary); }
-.auth__consent input { margin-top: 0.15rem; accent-color: var(--brass); }
+/* A radio/checkbox is NOT a touch-target text input — clear the global min-height:44px floor so the
+ * control is its own glyph size and sits on the first text line, not centred in a 44px box. */
+.auth__consent input { min-height: 0; margin-top: 0.15rem; accent-color: var(--brass); }
 .auth__consent a { color: var(--brass); }
 .auth__error { color: var(--claret); font-size: 0.88rem; margin: 0; }
 
@@ -102,8 +104,10 @@
 .auth__hint { font-size: 0.8rem; color: var(--text-tertiary); margin: 0; line-height: 1.4; }
 .auth__fieldset { margin: 0; padding: 0.7rem 0.85rem 0.8rem; border: 1px solid var(--hairline); border-radius: var(--radius-card); display: grid; gap: 0.5rem; }
 .auth__fieldset legend { padding: 0 0.3rem; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
-.auth__option { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.9rem; color: var(--text-primary); line-height: 1.35; }
-.auth__option input { margin-top: 0.2rem; flex: none; accent-color: var(--brass); }
+/* Radio on the FIRST line of a (possibly wrapping) label: a 2-column grid aligns the control to the
+ * top of the text column, and the small em-relative nudge centres it on that first line. */
+.auth__option { display: grid; grid-template-columns: auto 1fr; column-gap: 0.55rem; align-items: start; font-size: 0.9rem; color: var(--text-primary); line-height: 1.4; }
+.auth__option > input { width: 1em; height: 1em; min-height: 0; margin: 0.22em 0 0; accent-color: var(--brass); }
 
 .auth :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 

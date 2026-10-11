@@ -108,8 +108,8 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
         {/* 4. Ownership */}
         <fieldset className="auth__fieldset">
           <legend>Do you own or manage this company, or are you employed by it?</legend>
-          <label className="auth__option"><input type="radio" name="ownership" checked={ownership === 'owns_or_manages'} onChange={() => setOwnership('owns_or_manages')} /> I own or manage it</label>
-          <label className="auth__option"><input type="radio" name="ownership" checked={ownership === 'employed'} onChange={() => setOwnership('employed')} /> I am employed by it</label>
+          <label className="auth__option"><input type="radio" name="ownership" checked={ownership === 'owns_or_manages'} onChange={() => setOwnership('owns_or_manages')} /><span>I own or manage it</span></label>
+          <label className="auth__option"><input type="radio" name="ownership" checked={ownership === 'employed'} onChange={() => setOwnership('employed')} /><span>I am employed by it</span></label>
         </fieldset>
         {ownership === 'owns_or_manages' && (
           <label className="auth__field"><span>Trade licence number</span><input value={tradeLicenceNumber} onChange={(e) => setTradeLicenceNumber(e.target.value)} required /></label>
@@ -123,7 +123,7 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
           <legend>Whose client conversations do you intend to upload?</legend>
           {CONVERSATION_OPTIONS.map((o) => (
             <label key={o.value} className="auth__option">
-              <input type="radio" name="conversationOwnership" checked={conversationOwnership === o.value} onChange={() => setConversationOwnership(o.value)} /> {o.label}
+              <input type="radio" name="conversationOwnership" checked={conversationOwnership === o.value} onChange={() => setConversationOwnership(o.value)} /><span>{o.label}</span>
             </label>
           ))}
         </fieldset>
@@ -136,7 +136,7 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
           <legend>Roughly how many client conversations do you expect to upload?</legend>
           {VOLUME_OPTIONS.map((o) => (
             <label key={o.value} className="auth__option">
-              <input type="radio" name="expectedVolume" checked={expectedVolume === o.value} onChange={() => setExpectedVolume(o.value)} /> {o.label}
+              <input type="radio" name="expectedVolume" checked={expectedVolume === o.value} onChange={() => setExpectedVolume(o.value)} /><span>{o.label}</span>
             </label>
           ))}
         </fieldset>
