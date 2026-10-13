@@ -491,3 +491,15 @@
   border-radius: var(--radius-card); background: var(--surface-elevated); color: var(--text-primary); font-size: 0.9rem;
 }
 .lead-toast button { background: none; border: none; color: var(--brass); font: inherit; font-weight: 600; cursor: pointer; padding: 0.2rem 0.3rem; }
+
+/* [CLIENT-SEARCH] the search box + clear affordance, and the matched-text highlight. */
+.clients-search-wrap { position: relative; display: block; }
+.clients-search-wrap .clients-search { width: 100%; box-sizing: border-box; padding-inline-end: 2.2rem; }
+.clients-search__clear {
+  position: absolute; inset-inline-end: 0.3rem; top: 50%; transform: translateY(-50%);
+  width: 1.8rem; height: 1.8rem; border: none; background: none; cursor: pointer;
+  color: var(--text-tertiary); font-size: 1.2rem; line-height: 1; border-radius: 999px;
+}
+.clients-search__clear:hover { color: var(--text-primary); background: var(--surface-elevated); }
+/* The matched slice — a quiet brass wash, legible in both themes (never a flat yellow). */
+.lead-mark { background: var(--brass-surface); color: inherit; border-radius: 2px; padding: 0 0.05em; }

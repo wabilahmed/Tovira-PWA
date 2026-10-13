@@ -10,6 +10,7 @@ import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus } from './clients/clientsClient.js';
 import { PointersCard, type Pointer } from './clients/PointersCard.js';
 import { LeadStatusFilterBar, LeadStatusPill, LeadStatusSheet, leadStatusCounts, matchesLeadFilter, leadStatusLabel, type LeadFilter } from './clients/LeadStatus.js';
+import { searchClients, type Range as HlRange } from './clients/searchClients.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
 import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
@@ -257,6 +258,20 @@ export function App(): JSX.Element {
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
+/** [CLIENT-SEARCH] Render a field value with the matched range(s) wrapped in <mark>. */
+function Highlighted({ value, ranges }: { value: string; ranges: HlRange[] }): JSX.Element {
+  if (ranges.length === 0) return <>{value}</>;
+  const parts: JSX.Element[] = [];
+  let cursor = 0;
+  ranges.forEach((r, i) => {
+    if (r.start > cursor) parts.push(<span key={`p${i}`}>{value.slice(cursor, r.start)}</span>);
+    parts.push(<mark key={`m${i}`} className="lead-mark">{value.slice(r.start, r.end)}</mark>);
+    cursor = r.end;
+  });
+  if (cursor < value.length) parts.push(<span key="tail">{value.slice(cursor)}</span>);
+  return <>{parts}</>;
+}
+
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [name, setName] = useState('');
@@ -339,9 +354,18 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     void resumePendingNotes(clientsApi);
   }, []);
 
-  // Reload (with the current search) whenever the query changes — recents first.
+  // Load the full client list once, recents-first. [CLIENT-SEARCH] Search is done ON THIS LIST in the
+  // browser (below) — the query is NEVER sent to the server, so a client name or phone number can't
+  // leak into a CloudFront / ALB access log via the URL.
   useEffect(() => {
-    void clientsApi.list(query.trim() || undefined).then(setClients);
+    void clientsApi.list().then(setClients);
+  }, []);
+
+  // [CLIENT-SEARCH] Debounce the typed query (~200ms) so highlight re-renders stay smooth.
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(query), 200);
+    return () => clearTimeout(id);
   }, [query]);
 
   // [LEAD-STATUS] Remember the last chosen filter chip on this device (best-effort).
@@ -427,6 +451,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // [LEAD-STATUS] Counts come from the FULL loaded list; the rendered list is the active-filter slice.
   const leadCounts = leadStatusCounts(clients);
   const visibleClients = clients.filter((c) => matchesLeadFilter(c, leadFilter));
+  // [CLIENT-SEARCH] When a query is active, the list is the ranked search hits that ALSO match the
+  // active status chip (search + filter combine). Below the min length, search is inactive.
+  const search = searchClients(clients, debouncedQuery);
+  const visibleHits = search.active ? search.hits.filter((h) => matchesLeadFilter(h.client, leadFilter)) : [];
   function undoLeadStatus(t: { clientId: string; prev: LeadStatus | null }): void {
     const c = clients.find((x) => x.id === t.clientId);
     setLeadToast(null);
@@ -485,7 +513,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       )}
 
       {view === 'capture' && (
-        <Capture clients={clients} importApi={clientsApi} outbox={outbox} onCaptured={() => void clientsApi.list(query.trim() || undefined).then(setClients)} />
+        <Capture clients={clients} importApi={clientsApi} outbox={outbox} onCaptured={() => void clientsApi.list().then(setClients)} />
       )}
 
       {view === 'today' && gated(
@@ -583,14 +611,21 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           </form>
           {error && <p style={{ color: 'var(--claret)', margin: '0 0 0.9rem' }}>{error}</p>}
 
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search clients…"
-            aria-label="Search clients"
-            className="clients-search"
-          />
+          {/* [CLIENT-SEARCH] One box searches name + phone + email together. The value stays in React
+              state and is matched in the browser — it is never put in the request URL. */}
+          <div className="clients-search-wrap">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, phone or email…"
+              aria-label="Search clients by name, phone or email"
+              className="clients-search"
+            />
+            {query && (
+              <button type="button" className="clients-search__clear" aria-label="Clear search" data-testid="search-clear" onClick={() => setQuery('')}>×</button>
+            )}
+          </div>
 
           {/* [LEAD-STATUS] Filter chips with per-bucket counts; the active one is highlighted. */}
           <LeadStatusFilterBar filter={leadFilter} counts={leadCounts} onChange={setLeadFilter} />
@@ -611,30 +646,54 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             </div>
           )}
 
-          {visibleClients.length === 0 ? (
+          {(search.active ? visibleHits.length === 0 : visibleClients.length === 0) ? (
             <p style={{ color: 'var(--text-secondary)' }} data-testid="clients-empty">
               {clients.length === 0
                 ? 'No clients yet. Add your first one above.'
-                : query.trim()
+                : search.active
                   ? `No clients match “${query.trim()}”.`
                   : 'No clients match this filter.'}
-              {clients.length > 0 && leadFilter !== 'all' && (
+              {clients.length > 0 && search.active && (
+                <> <button type="button" className="tov-link" data-testid="search-clear-empty" onClick={() => setQuery('')}>Clear search</button></>
+              )}
+              {clients.length > 0 && !search.active && leadFilter !== 'all' && (
                 <> <button type="button" className="tov-link" onClick={() => setLeadFilter('all')}>Show all</button></>
               )}
             </p>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0 }}>
-              {visibleClients.map((c) => (
-                <li key={c.id} style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', flex: '1 1 auto', textAlign: 'left', padding: '0.6rem 0', color: 'inherit' }}>
-                    <div>{c.name}</div>
-                    <small className="tov-stamp">on file since {formatMonthYear(c.createdAt)}</small>
-                  </button>
-                  <span data-testid={`lead-pill-${c.id}`}>
-                    <LeadStatusPill status={c.leadStatus} onClick={() => setStatusSheetFor(c)} />
-                  </span>
-                </li>
-              ))}
+              {search.active
+                ? visibleHits.map((h) => {
+                    const c = h.client;
+                    return (
+                      <li key={c.id} style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', flex: '1 1 auto', textAlign: 'left', padding: '0.6rem 0', color: 'inherit' }}>
+                          <div>{h.field === 'name' ? <Highlighted value={c.name} ranges={h.ranges} /> : c.name}</div>
+                          {h.field === 'name' ? (
+                            <small className="tov-stamp">on file since {formatMonthYear(c.createdAt)}</small>
+                          ) : (
+                            <small className="tov-stamp" data-testid={`match-${h.field}`}>
+                              {h.field === 'phone' ? 'phone' : 'email'}: <Highlighted value={h.value} ranges={h.ranges} />
+                            </small>
+                          )}
+                        </button>
+                        <span data-testid={`lead-pill-${c.id}`}>
+                          <LeadStatusPill status={c.leadStatus} onClick={() => setStatusSheetFor(c)} />
+                        </span>
+                      </li>
+                    );
+                  })
+                : visibleClients.map((c) => (
+                    <li key={c.id} style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', flex: '1 1 auto', textAlign: 'left', padding: '0.6rem 0', color: 'inherit' }}>
+                        <div>{c.name}</div>
+                        <small className="tov-stamp">on file since {formatMonthYear(c.createdAt)}</small>
+                      </button>
+                      <span data-testid={`lead-pill-${c.id}`}>
+                        <LeadStatusPill status={c.leadStatus} onClick={() => setStatusSheetFor(c)} />
+                      </span>
+                    </li>
+                  ))}
             </ul>
           )}
           </div>

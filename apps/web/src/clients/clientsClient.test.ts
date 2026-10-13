@@ -114,6 +114,17 @@ describe('ClientsClient', () => {
     expect(String(fetchMock.mock.calls[0]![0])).toContain('q=meri');
   });
 
+  // [CLIENT-SEARCH · privacy] The PWA's client search is done in the browser over the loaded list,
+  // so the app loads with NO query string. A client name/phone/email therefore never reaches a
+  // CloudFront / ALB access log via the request URL. (The legacy list(q) above is unused by the app.)
+  it('loads the client list with no query string (search never leaks into the URL)', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { clients: [] }));
+    await new ClientsClient('http://api.test').list();
+    const url = String(fetchMock.mock.calls[0]![0]);
+    expect(url).toBe('http://api.test/clients');
+    expect(url).not.toContain('?');
+  });
+
   // NEGATIVE: a rejected create surfaces the server's validation message.
   it('throws with the server message when create is rejected (empty name)', async () => {
     fetchMock.mockResolvedValueOnce(json(400, { error: 'validation', message: 'A client name is required.' }));
