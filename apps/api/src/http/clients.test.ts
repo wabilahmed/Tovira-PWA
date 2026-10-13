@@ -283,3 +283,71 @@ describe('[OUTCOME-3] client outcome endpoint (rep-set, tenant-scoped)', () => {
     expect(stillOpen.outcome).toBe('open');
   });
 });
+
+// [LEAD-STATUS] The rep's MANUAL pipeline label over HTTP: warm / cold / done, or null = Unsorted.
+// Distinct from outcome (how a deal ended) — this is the rep's own pipeline sorting, never set by any
+// automatic process. A rep may move a client to any status, any time, including back to Unsorted.
+describe('[LEAD-STATUS] client lead-status endpoint (rep-set only, tenant-scoped)', () => {
+  async function makeClient(token: string, name: string): Promise<{ id: string; leadStatus: string | null; leadStatusChangedAt: number | null }> {
+    return (await (await fetch(`${base}/clients`, authed(token, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }),
+    }))).json()) as { id: string; leadStatus: string | null; leadStatusChangedAt: number | null };
+  }
+  function setStatus(token: string, id: string, body: unknown): Promise<Response> {
+    return fetch(`${base}/clients/${id}/lead-status`, authed(token, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    }));
+  }
+
+  it('defaults a new client to Unsorted (leadStatus null)', async () => {
+    const token = await signup('lead-default@example.com');
+    const c = await makeClient(token, 'Fresh Corp');
+    expect(c.leadStatus).toBeNull();
+    expect(c.leadStatusChangedAt).toBeNull();
+  });
+
+  it('lets the rep move a client through every status and back to Unsorted', async () => {
+    const token = await signup('lead-transitions@example.com');
+    const c = await makeClient(token, 'Pipeline Corp');
+    for (const status of ['warm', 'cold', 'done'] as const) {
+      const res = await setStatus(token, c.id, { status });
+      expect(res.status).toBe(200);
+      const after = (await res.json()) as { leadStatus: string; leadStatusChangedAt: number };
+      expect(after.leadStatus).toBe(status);
+      expect(after.leadStatusChangedAt).toBeGreaterThan(0);
+    }
+    // Back to Unsorted (explicit null) — an accepted action, not a missing value.
+    const cleared = (await (await setStatus(token, c.id, { status: null })).json()) as { leadStatus: string | null };
+    expect(cleared.leadStatus).toBeNull();
+  });
+
+  it('rejects any value that is not warm / cold / done / null (400)', async () => {
+    const token = await signup('lead-bad@example.com');
+    const c = await makeClient(token, 'Bad Corp');
+    for (const body of [{ status: 'unsorted' }, { status: 'maybe' }, { status: 1 }, {} /* missing key */]) {
+      expect((await setStatus(token, c.id, body)).status).toBe(400);
+    }
+    // None of the rejected calls changed the stored value.
+    const got = (await (await fetch(`${base}/clients/${c.id}`, authed(token))).json()) as { leadStatus: string | null };
+    expect(got.leadStatus).toBeNull();
+  });
+
+  it('requires auth', async () => {
+    const token = await signup('lead-auth@example.com');
+    const c = await makeClient(token, 'Auth Corp');
+    expect((await fetch(`${base}/clients/${c.id}/lead-status`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'warm' }),
+    })).status).toBe(401);
+  });
+
+  // ISOLATION: another rep cannot set (or even address) your client's lead_status.
+  it('never lets another rep set a client lead_status (IDOR → 404)', async () => {
+    const tokenA = await signup('lead-idorA@example.com');
+    const tokenB = await signup('lead-idorB@example.com');
+    const a = await makeClient(tokenA, 'A Corp');
+    expect((await setStatus(tokenB, a.id, { status: 'warm' })).status).toBe(404);
+    // A's client is untouched (still Unsorted).
+    const still = (await (await fetch(`${base}/clients/${a.id}`, authed(tokenA))).json()) as { leadStatus: string | null };
+    expect(still.leadStatus).toBeNull();
+  });
+});

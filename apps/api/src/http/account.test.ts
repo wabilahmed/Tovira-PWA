@@ -59,6 +59,19 @@ describe('[P5-4] data trust & control', () => {
     expect(Array.isArray(data.meetings)).toBe(true);
   });
 
+  // [LEAD-STATUS] A rep's manual pipeline label is their own data — it must travel in the DSAR export.
+  it('carries each client\'s lead_status in the export', async () => {
+    const token = await signup('export-lead@example.com');
+    const c = await client(token, 'Pipeline Corp');
+    await fetch(`${base}/clients/${c}/lead-status`, { method: 'POST', headers: auth(token), body: JSON.stringify({ status: 'warm' }) });
+    const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as {
+      clients: Array<{ id: string; leadStatus: string | null; leadStatusChangedAt: number | null }>;
+    };
+    const exported = data.clients.find((x) => x.id === c)!;
+    expect(exported.leadStatus).toBe('warm');
+    expect(exported.leadStatusChangedAt).toBeGreaterThan(0);
+  });
+
   // [NO-TRAINING-RETENTION] The export must still carry the rep's extraction metadata, verdicts, and
   // per-rep glossary — their own data in a DSAR context — but these now hold NO conversation content.
   it('exports the extraction log, rep verdicts, and per-rep glossary (metadata only)', async () => {

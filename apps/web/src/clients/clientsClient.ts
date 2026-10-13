@@ -1,6 +1,9 @@
 import { LOCKED, type Locked } from '../billing/gated.js';
 import type { Pointer } from './PointersCard.js';
 
+/** [LEAD-STATUS] The rep's manual pipeline label; null = Unsorted (the default). Only a rep changes it. */
+export type LeadStatus = 'warm' | 'cold' | 'done';
+
 export interface ClientSummary {
   id: string;
   name: string;
@@ -8,6 +11,9 @@ export interface ClientSummary {
   title?: string | null;
   email?: string | null;
   createdAt: number;
+  /** [LEAD-STATUS] null = Unsorted. Absent on older responses → treat as Unsorted. */
+  leadStatus?: LeadStatus | null;
+  leadStatusChangedAt?: number | null;
 }
 
 export type ExtractionState = 'queued' | 'processing' | 'done' | 'failed';
@@ -124,6 +130,23 @@ export class ClientsClient {
       return res.ok;
     } catch {
       return false;
+    }
+  }
+
+  /** [LEAD-STATUS] Set (or clear → null = Unsorted) a client's MANUAL pipeline label. Returns the
+   *  updated record, or null on failure (e.g. not the owner) so the caller can roll back optimistic UI. */
+  async setLeadStatus(id: string, status: LeadStatus | null): Promise<ClientSummary | null> {
+    try {
+      const res = await fetch(this.url(`/clients/${encodeURIComponent(id)}/lead-status`), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as ClientSummary;
+    } catch {
+      return null;
     }
   }
 

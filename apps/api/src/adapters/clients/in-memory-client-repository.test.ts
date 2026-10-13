@@ -99,4 +99,39 @@ describe('InMemoryClientRepository', () => {
     const hits = await repo.search('user-A', 'needle');
     expect(hits.map((c) => c.name)).toEqual(['Needle Corp']);
   });
+
+  // [LEAD-STATUS] The rep's MANUAL pipeline label. NULL = Unsorted (the default for every new and
+  // imported client). Only setLeadStatus writes it, and a rep may move a client to any status — or
+  // back to Unsorted — at any time.
+  it('defaults lead_status to null (Unsorted) on create', async () => {
+    const repo = new InMemoryClientRepository();
+    const c = await repo.create('user-A', 'Fresh Corp');
+    expect(c.leadStatus).toBeNull();
+    expect(c.leadStatusChangedAt).toBeNull();
+  });
+
+  it('records every transition (warm → cold → done → Unsorted) with a changed-at stamp', async () => {
+    const repo = new InMemoryClientRepository();
+    const c = await repo.create('user-A', 'Pipeline Corp');
+    for (const [status, at] of [['warm', 1000], ['cold', 2000], ['done', 3000]] as const) {
+      await repo.setLeadStatus('user-A', c.id, status, at);
+      const got = (await repo.findByIdForUser('user-A', c.id))!;
+      expect(got.leadStatus).toBe(status);
+      expect(got.leadStatusChangedAt).toBe(at);
+    }
+    // ...and back to Unsorted (null) at any time.
+    await repo.setLeadStatus('user-A', c.id, null, 4000);
+    const back = (await repo.findByIdForUser('user-A', c.id))!;
+    expect(back.leadStatus).toBeNull();
+    expect(back.leadStatusChangedAt).toBe(4000);
+  });
+
+  it('never lets another rep read or change a client lead_status (isolation)', async () => {
+    const repo = new InMemoryClientRepository();
+    const a = await repo.create('user-A', 'A Corp');
+    await repo.setLeadStatus('user-A', a.id, 'warm', 1000);
+    await repo.setLeadStatus('user-B', a.id, 'done', 2000); // wrong owner → no-op
+    expect((await repo.findByIdForUser('user-A', a.id))!.leadStatus).toBe('warm');
+    expect(await repo.findByIdForUser('user-B', a.id)).toBeNull();
+  });
 });

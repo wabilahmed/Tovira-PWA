@@ -7,8 +7,9 @@ import { RequestAccess } from './access/RequestAccess.js';
 import { HttpAccessRequestClient } from './access/requestAccessClient.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
-import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief } from './clients/clientsClient.js';
+import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus } from './clients/clientsClient.js';
 import { PointersCard, type Pointer } from './clients/PointersCard.js';
+import { LeadStatusFilterBar, LeadStatusPill, LeadStatusSheet, leadStatusCounts, matchesLeadFilter, leadStatusLabel, type LeadFilter } from './clients/LeadStatus.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
 import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
@@ -263,6 +264,17 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ClientSummary | null>(null);
+  // [LEAD-STATUS] The active filter chip, remembered per device (not per account — it's a view
+  // preference). Wrapped in try/catch: a private window or blocked storage falls back to "All".
+  const [leadFilter, setLeadFilter] = useState<LeadFilter>(() => {
+    try {
+      const saved = localStorage.getItem('tovira.clients.leadFilter');
+      return saved === 'warm' || saved === 'cold' || saved === 'done' || saved === 'unsorted' ? saved : 'all';
+    } catch { return 'all'; }
+  });
+  // The client whose status sheet is open, and a transient toast (rollback error, or drop-out Undo).
+  const [statusSheetFor, setStatusSheetFor] = useState<ClientSummary | null>(null);
+  const [leadToast, setLeadToast] = useState<{ kind: 'error'; message: string } | { kind: 'undo'; clientId: string; prev: LeadStatus | null; name: string; nowLabel: string } | null>(null);
   const [view, setView] = useState<View>(() => {
     // A `?view=<section>` deep-link opens that section directly (shared links, screenshots-by-URL).
     // Any known view is honoured; an unknown or missing value falls back to Clients. [AUDIT item 2]
@@ -332,6 +344,32 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     void clientsApi.list(query.trim() || undefined).then(setClients);
   }, [query]);
 
+  // [LEAD-STATUS] Remember the last chosen filter chip on this device (best-effort).
+  useEffect(() => {
+    try { localStorage.setItem('tovira.clients.leadFilter', leadFilter); } catch { /* storage optional */ }
+  }, [leadFilter]);
+
+  // [LEAD-STATUS] Apply a rep's status choice with OPTIMISTIC UI: the list updates instantly (no
+  // reload). On a save failure we roll the row back and show a toast. On success, if the row no longer
+  // matches the active filter it drops out — we surface an Undo toast so the move is never a trap.
+  async function changeLeadStatus(client: ClientSummary, next: LeadStatus | null): Promise<void> {
+    const prev = client.leadStatus ?? null;
+    setStatusSheetFor(null);
+    if (prev === next) return; // one tap, one choice — re-picking the current status is a no-op
+    setClients((list) => list.map((c) => (c.id === client.id ? { ...c, leadStatus: next, leadStatusChangedAt: Date.now() } : c)));
+    const saved = await clientsApi.setLeadStatus(client.id, next);
+    if (!saved) {
+      // Roll back the optimistic change and tell the rep — nothing was lost.
+      setClients((list) => list.map((c) => (c.id === client.id ? { ...c, leadStatus: prev } : c)));
+      setLeadToast({ kind: 'error', message: 'Could not update status. Please try again.' });
+      return;
+    }
+    // Keep the open book in sync if it's this client.
+    setOpen((o) => (o && o.id === client.id ? { ...o, leadStatus: next, leadStatusChangedAt: saved.leadStatusChangedAt } : o));
+    const droppedOut = leadFilter !== 'all' && !matchesLeadFilter({ leadStatus: next }, leadFilter);
+    if (droppedOut) setLeadToast({ kind: 'undo', clientId: client.id, prev, name: client.name, nowLabel: leadStatusLabel(next) });
+  }
+
   // Deep link (NUDGE-CONTENT): a pre-meeting nudge opens `/app?client=<id>`. Once the book has
   // loaded, open that client's brief directly (not home), then strip the param so a refresh is clean.
   const [deepClientId, setDeepClientId] = useState<string | null>(() =>
@@ -357,12 +395,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     return (
       <PushView onDismiss={() => setOpen(null)}>
         {(dismiss) => (
-          <ClientDetail
-            client={open}
-            clients={clients.map((c) => ({ id: c.id, name: c.name }))}
-            onBack={() => dismiss()}
-            onSubscribe={startCheckout}
-          />
+          <>
+            <ClientDetail
+              client={open}
+              clients={clients.map((c) => ({ id: c.id, name: c.name }))}
+              onBack={() => dismiss()}
+              onSubscribe={startCheckout}
+              onOpenLeadSheet={() => setStatusSheetFor(open)}
+            />
+            <LeadStatusSheet client={statusSheetFor} onClose={() => setStatusSheetFor(null)} onPick={(s) => void changeLeadStatus(statusSheetFor!, s)} />
+          </>
         )}
       </PushView>
     );
@@ -380,6 +422,15 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     } finally {
       setBusy(false);
     }
+  }
+
+  // [LEAD-STATUS] Counts come from the FULL loaded list; the rendered list is the active-filter slice.
+  const leadCounts = leadStatusCounts(clients);
+  const visibleClients = clients.filter((c) => matchesLeadFilter(c, leadFilter));
+  function undoLeadStatus(t: { clientId: string; prev: LeadStatus | null }): void {
+    const c = clients.find((x) => x.id === t.clientId);
+    setLeadToast(null);
+    if (c) void changeLeadStatus(c, t.prev);
   }
 
   const needsSeeding = seeding !== null && !seeding.seeded;
@@ -541,18 +592,47 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             className="clients-search"
           />
 
-          {clients.length === 0 ? (
-            <p style={{ color: 'var(--text-secondary)' }}>
-              {query.trim() ? `No clients match “${query.trim()}”.` : 'No clients yet. Add your first one above.'}
+          {/* [LEAD-STATUS] Filter chips with per-bucket counts; the active one is highlighted. */}
+          <LeadStatusFilterBar filter={leadFilter} counts={leadCounts} onChange={setLeadFilter} />
+
+          {leadToast && (
+            <div className="lead-toast" role="status" data-testid="lead-toast">
+              {leadToast.kind === 'error' ? (
+                <>
+                  <span>{leadToast.message}</span>
+                  <button type="button" onClick={() => setLeadToast(null)}>Dismiss</button>
+                </>
+              ) : (
+                <>
+                  <span><strong>{leadToast.name}</strong> moved to {leadToast.nowLabel}.</span>
+                  <button type="button" onClick={() => undoLeadStatus(leadToast)}>Undo</button>
+                </>
+              )}
+            </div>
+          )}
+
+          {visibleClients.length === 0 ? (
+            <p style={{ color: 'var(--text-secondary)' }} data-testid="clients-empty">
+              {clients.length === 0
+                ? 'No clients yet. Add your first one above.'
+                : query.trim()
+                  ? `No clients match “${query.trim()}”.`
+                  : 'No clients match this filter.'}
+              {clients.length > 0 && leadFilter !== 'all' && (
+                <> <button type="button" className="tov-link" onClick={() => setLeadFilter('all')}>Show all</button></>
+              )}
             </p>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0 }}>
-              {clients.map((c) => (
-                <li key={c.id} style={{ borderBottom: '1px solid var(--hairline)' }}>
-                  <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', width: '100%', textAlign: 'left', padding: '0.6rem 0', color: 'inherit' }}>
+              {visibleClients.map((c) => (
+                <li key={c.id} style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', flex: '1 1 auto', textAlign: 'left', padding: '0.6rem 0', color: 'inherit' }}>
                     <div>{c.name}</div>
                     <small className="tov-stamp">on file since {formatMonthYear(c.createdAt)}</small>
                   </button>
+                  <span data-testid={`lead-pill-${c.id}`}>
+                    <LeadStatusPill status={c.leadStatus} onClick={() => setStatusSheetFor(c)} />
+                  </span>
                 </li>
               ))}
             </ul>
@@ -561,12 +641,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
             </div>
           )}
+          <LeadStatusSheet client={statusSheetFor} onClose={() => setStatusSheetFor(null)} onPick={(s) => void changeLeadStatus(statusSheetFor!, s)} />
         </div>
       )}
       </ErrorBoundary>
@@ -574,7 +655,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, onSubscribe }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
@@ -664,7 +745,14 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe }: { client: C
   return (
     <main style={{ fontFamily: 'var(--font-sans)', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
       <button onClick={onBack} style={linkButton}>← Clients</button>
-      <h1 style={{ marginBottom: '0.15rem' }}>{client.name}</h1>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
+        <h1 style={{ margin: 0 }}>{client.name}</h1>
+        {onOpenLeadSheet && (
+          <span data-testid={`lead-pill-book-${client.id}`}>
+            <LeadStatusPill status={client.leadStatus} onClick={onOpenLeadSheet} />
+          </span>
+        )}
+      </div>
       {/* Possession language (§10): the client is a holding, on file since a date. */}
       <p className="tov-stamp" style={{ margin: '0 0 0.75rem' }}>
         on file since {formatMonthYear(client.createdAt)} · {notes.length} moment{notes.length === 1 ? '' : 's'}

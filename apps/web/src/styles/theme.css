@@ -425,3 +425,69 @@
 .tov-inv-shared__title { flex: 1 1 auto; }
 .tov-inv-shared__date { color: var(--text-secondary); }
 .tov-inv-shared__set { display: inline-flex; gap: 0.6rem; }
+
+/* ---- [LEAD-STATUS] the rep's manual pipeline label: filter chips, row pill, status sheet ---------
+ * Colours come only from brand tokens (no hardcoded hex): warm → brass, cold → amber, done → green,
+ * unsorted → neutral. Each token trio (text/line/surface) is AA-tuned in both Vault and Ledger, so
+ * the pill text sits on its own tinted surface with enough contrast in either theme. */
+.lead-tone-warm { --tone: var(--brass); --tone-line: var(--brass); --tone-surface: var(--brass-surface); }
+.lead-tone-cold { --tone: var(--amber); --tone-line: var(--amber-line); --tone-surface: var(--amber-surface); }
+.lead-tone-done { --tone: var(--green); --tone-line: var(--green-line); --tone-surface: var(--green-surface); }
+[data-tone='warm'] { --tone: var(--brass); --tone-line: var(--brass); --tone-surface: var(--brass-surface); }
+[data-tone='cold'] { --tone: var(--amber); --tone-line: var(--amber-line); --tone-surface: var(--amber-surface); }
+[data-tone='done'] { --tone: var(--green); --tone-line: var(--green-line); --tone-surface: var(--green-surface); }
+/* Unsorted / no tone: quiet neutral (reads as "not yet sorted", never an alarm). */
+.lead-pill, .lead-chip, .lead-sheet__option { --tone: var(--text-tertiary); --tone-line: var(--hairline); --tone-surface: transparent; }
+
+/* Filter chips — horizontally scrollable on a 390px phone, each with its count. */
+.lead-chips { display: flex; gap: 0.4rem; margin: 0 0 0.9rem; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+.lead-chip {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.3rem 0.65rem; border: 1px solid var(--tone-line); border-radius: 999px;
+  background: var(--surface-raised); color: var(--text-secondary);
+  font: inherit; font-size: 0.82rem; cursor: pointer; min-height: 32px;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.lead-chip:hover:not([aria-pressed='true']) { border-color: var(--tone); color: var(--text-primary); }
+/* Active chip: filled with its own tone surface + a tone border, label in primary text. */
+.lead-chip[aria-pressed='true'] { background: var(--tone-surface); border-color: var(--tone); color: var(--text-primary); font-weight: 600; }
+.lead-chip__count {
+  font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-tertiary);
+  background: var(--surface-elevated); border-radius: 999px; padding: 0 0.4rem; min-width: 1.1rem; text-align: center;
+}
+.lead-chip[aria-pressed='true'] .lead-chip__count { color: var(--tone); background: var(--surface-raised); }
+
+/* Row / book pill. */
+.lead-pill {
+  display: inline-flex; align-items: center; padding: 0.12rem 0.5rem; border-radius: 999px;
+  border: 1px solid var(--tone-line); background: var(--tone-surface); color: var(--tone);
+  font: inherit; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em; cursor: pointer;
+  line-height: 1.4; min-height: 0;
+}
+.lead-pill--unsorted { color: var(--text-tertiary); }
+.lead-pill:hover { border-color: var(--tone); }
+.lead-pill:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* The status sheet — four options, one tap + one choice. */
+.lead-sheet { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.2rem 0 0.4rem; }
+.lead-sheet__title { margin: 0 0 0.5rem; color: var(--text-secondary); font-size: 0.92rem; }
+.lead-sheet__option {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 0.65rem;
+  width: 100%; text-align: left; padding: 0.7rem 0.4rem; border: none; border-radius: var(--radius-card);
+  background: none; color: var(--text-primary); font: inherit; cursor: pointer; min-height: 44px;
+}
+.lead-sheet__option:hover { background: var(--tone-surface); }
+.lead-sheet__option[aria-current='true'] { background: var(--tone-surface); }
+.lead-sheet__label { font-weight: 600; }
+.lead-sheet__hint { grid-column: 2; color: var(--text-tertiary); font-size: 0.78rem; }
+.lead-sheet__check { color: var(--tone); font-weight: 700; }
+.lead-dot { width: 0.7rem; height: 0.7rem; border-radius: 999px; background: var(--tone); border: 1px solid var(--tone-line); }
+.lead-dot--unsorted { background: transparent; border: 1px solid var(--text-tertiary); }
+
+/* The lead-status toast (rollback error / drop-out Undo) reuses the move-toast idiom. */
+.lead-toast {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  margin: 0 0 0.9rem; padding: 0.6rem 0.8rem; border: 1px solid var(--hairline);
+  border-radius: var(--radius-card); background: var(--surface-elevated); color: var(--text-primary); font-size: 0.9rem;
+}
+.lead-toast button { background: none; border: none; color: var(--brass); font: inherit; font-weight: 600; cursor: pointer; padding: 0.2rem 0.3rem; }

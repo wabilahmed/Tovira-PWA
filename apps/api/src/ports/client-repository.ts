@@ -14,6 +14,11 @@ export type ClientOutcome = 'open' | 'won' | 'lost_confirmed' | 'lost_inferred';
  *  default 'open'. */
 export type OutcomeSource = 'rep' | 'inferred';
 
+/** [LEAD-STATUS] The rep's MANUAL pipeline label for a client. NULL (not in this union) = "Unsorted",
+ *  the default for every new/imported client. Set ONLY by the rep — never by extraction, import, the
+ *  going-cold signals, pointers or the retrospective. Distinct from `outcome` (how a deal ended). */
+export type LeadStatus = 'warm' | 'cold' | 'done';
+
 /** [OUTCOME-FOLLOWUP-2] One append-only record of a single outcome transition. `source` is the ACTOR
  *  of THIS transition ('rep' or 'inferred'), not necessarily the client's resulting outcome_source —
  *  e.g. a rep tapping "still open" on an inferred loss logs {lost_inferred → open, source:'rep'} while
@@ -46,6 +51,10 @@ export interface ClientRecord {
   outcomeChangedAt: number | null;
   /** [OUTCOME] Who set the current outcome; null while untouched. */
   outcomeSource: OutcomeSource | null;
+  /** [LEAD-STATUS] The rep's manual pipeline label; null = Unsorted (the default). Only a rep changes it. */
+  leadStatus: LeadStatus | null;
+  /** [LEAD-STATUS] When the rep last changed lead_status; null while it is the untouched default. */
+  leadStatusChangedAt: number | null;
 }
 
 export interface ClientRepository {
@@ -77,4 +86,8 @@ export interface ClientRepository {
   /** [OUTCOME-FOLLOWUP-2] The append-only outcome-transition history for one client, oldest first.
    *  Scoped to the owner — another rep's history is never returned. */
   listOutcomeHistory(userId: string, id: string): Promise<OutcomeTransition[]>;
+  /** [LEAD-STATUS] Set (or clear → null = Unsorted) a client's MANUAL pipeline label, recording when.
+   *  Scoped to the owner; a no-op for a foreign/unknown client (RLS is the hard net in Postgres).
+   *  Only ever called from the rep-tap route — nothing automatic calls this. */
+  setLeadStatus(userId: string, id: string, status: LeadStatus | null, changedAtMs: number): Promise<void>;
 }

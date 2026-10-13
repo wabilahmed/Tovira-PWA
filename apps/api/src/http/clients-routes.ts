@@ -77,6 +77,34 @@ export async function handleClientRoute(
       return true;
     }
 
+    // [LEAD-STATUS] The rep's MANUAL pipeline label: warm / cold / done, or null = Unsorted.
+    //  - This is the ONLY writer of lead_status in the whole system. Nothing automatic calls it —
+    //    not extraction, import, the going-cold signals, pointers or the retrospective. A status only
+    //    ever changes because a rep tapped it here. (A test runs all of those and asserts it unchanged.)
+    //  - A rep may move a client to ANY status at any time, including back to Unsorted (null) — so null
+    //    is an accepted value, not a missing one. `status` absent from the body is a validation error;
+    //    `status: null` is the explicit "move to Unsorted" action.
+    //  - Non-AI, no allowance use: it lives on the /clients path, after the billing gate, so it works in
+    //    trial / active / payment_failed and is never metered against the AI spend cap.
+    if (method === 'POST' && path.startsWith('/clients/') && path.endsWith('/lead-status')) {
+      const id = decodeURIComponent(path.slice('/clients/'.length, -'/lead-status'.length));
+      const existing = await clients.findByIdForUser(userId, id);
+      if (!existing) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
+      const body = (await readJsonBody(req)) as { status?: unknown };
+      // Accept exactly the three labels or an explicit null; reject anything else (including a missing
+      // key, a string like 'unsorted', or a number) so a typo never silently clears a rep's label.
+      if (!('status' in body) || !(body.status === null || body.status === 'warm' || body.status === 'cold' || body.status === 'done')) {
+        sendJson(res, 400, { error: 'validation', message: "status must be 'warm', 'cold', 'done', or null." });
+        return true;
+      }
+      await clients.setLeadStatus(userId, id, body.status, Date.now());
+      sendJson(res, 200, await clients.findByIdForUser(userId, id));
+      return true;
+    }
+
     // [P4-7] Set (or clear) a client's phone. RLS/ownership scopes the row: a
     // rep can never edit another rep's client, so a miss is a 404.
     if (method === 'PATCH' && path.startsWith('/clients/') && !path.slice('/clients/'.length).includes('/')) {

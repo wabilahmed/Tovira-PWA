@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition } from '../../ports/client-repository.js';
+import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition, LeadStatus } from '../../ports/client-repository.js';
 import type { TenantQueryable } from '../../db/tenant.js';
 import { withTenant } from '../../db/tenant.js';
 
@@ -15,6 +15,8 @@ interface ClientRow {
   outcome: ClientOutcome;
   outcome_changed_at: Date | null;
   outcome_source: OutcomeSource | null;
+  lead_status: LeadStatus | null;
+  lead_status_changed_at: Date | null;
 }
 
 function toRecord(row: ClientRow): ClientRecord {
@@ -30,10 +32,12 @@ function toRecord(row: ClientRow): ClientRecord {
     outcome: row.outcome,
     outcomeChangedAt: row.outcome_changed_at ? row.outcome_changed_at.getTime() : null,
     outcomeSource: row.outcome_source,
+    leadStatus: row.lead_status,
+    leadStatusChangedAt: row.lead_status_changed_at ? row.lead_status_changed_at.getTime() : null,
   };
 }
 
-const COLUMNS = 'id, user_id, name, phone, title, email, created_at, last_touched_at, outcome, outcome_changed_at, outcome_source';
+const COLUMNS = 'id, user_id, name, phone, title, email, created_at, last_touched_at, outcome, outcome_changed_at, outcome_source, lead_status, lead_status_changed_at';
 
 /**
  * Postgres-backed client store. Every method runs inside a tenant transaction
@@ -57,6 +61,17 @@ export class PgClientRepository implements ClientRepository {
     // RLS scopes the row to the owner; a mismatched tenant simply updates nothing.
     await withTenant(this.pool, userId, async (c) => {
       await c.query('UPDATE clients SET phone = $2 WHERE id = $1', [id, phone]);
+    });
+  }
+
+  async setLeadStatus(userId: string, id: string, status: LeadStatus | null, changedAtMs: number): Promise<void> {
+    // [LEAD-STATUS] RLS scopes the row to the owner. null clears to Unsorted; changed_at travels with
+    // the value (both set together, both null never — it's always a deliberate rep action).
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query(
+        'UPDATE clients SET lead_status = $2, lead_status_changed_at = to_timestamp($3 / 1000.0) WHERE id = $1',
+        [id, status, changedAtMs],
+      );
     });
   }
 

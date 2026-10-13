@@ -261,6 +261,32 @@ describe('ClientsClient', () => {
     expect(await new ClientsClient('http://api.test').draftFollowUp('n1')).toBe(LOCKED);
   });
 
+  // --- [LEAD-STATUS] the rep's manual pipeline label ---
+  it('POSTs a lead-status change and returns the updated record', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { id: 'c1', name: 'Acme', leadStatus: 'warm', leadStatusChangedAt: 123 }));
+    const r = await new ClientsClient('http://api.test').setLeadStatus('c1', 'warm');
+    expect(r?.leadStatus).toBe('warm');
+    const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit];
+    expect(String(url)).toBe('http://api.test/clients/c1/lead-status');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ status: 'warm' });
+    // Privacy: the status/label never travels in the URL — only in the POST body.
+    expect(String(url)).not.toContain('warm');
+  });
+
+  it('sends an explicit null to move a client back to Unsorted', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { id: 'c1', name: 'Acme', leadStatus: null, leadStatusChangedAt: 9 }));
+    await new ClientsClient('http://api.test').setLeadStatus('c1', null);
+    expect(JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string)).toEqual({ status: null });
+  });
+
+  it('returns null when the lead-status save fails (so the UI can roll back)', async () => {
+    fetchMock.mockResolvedValueOnce(json(404, { error: 'not_found' }));
+    expect(await new ClientsClient('http://api.test').setLeadStatus('c1', 'cold')).toBeNull();
+    fetchMock.mockRejectedValueOnce(new Error('network'));
+    expect(await new ClientsClient('http://api.test').setLeadStatus('c1', 'cold')).toBeNull();
+  });
+
   // --- stakeholders (P4-2) ---
   it('returns the stakeholder map on 200 and [] otherwise', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { people: [{ name: 'Jordan', role: 'VP', reports_to: null, decision_role: 'decision_maker', notes: null }] }));

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition } from '../../ports/client-repository.js';
+import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition, LeadStatus } from '../../ports/client-repository.js';
 
 /** In-memory client store mirroring the RLS isolation contract, for tests. */
 export class InMemoryClientRepository implements ClientRepository {
@@ -17,7 +17,7 @@ export class InMemoryClientRepository implements ClientRepository {
 
   async create(userId: string, name: string, phone: string | null = null, title: string | null = null, email: string | null = null): Promise<ClientRecord> {
     const now = this.tick();
-    const record: ClientRecord = { id: randomUUID(), userId, name, phone, title, email, createdAt: now, lastTouchedAt: now, outcome: 'open', outcomeChangedAt: null, outcomeSource: null };
+    const record: ClientRecord = { id: randomUUID(), userId, name, phone, title, email, createdAt: now, lastTouchedAt: now, outcome: 'open', outcomeChangedAt: null, outcomeSource: null, leadStatus: null, leadStatusChangedAt: null };
     this.byId.set(record.id, record);
     return record;
   }
@@ -25,6 +25,11 @@ export class InMemoryClientRepository implements ClientRepository {
   async setPhone(userId: string, id: string, phone: string | null): Promise<void> {
     const client = this.byId.get(id);
     if (client && client.userId === userId) client.phone = phone;
+  }
+
+  async setLeadStatus(userId: string, id: string, status: LeadStatus | null, changedAtMs: number): Promise<void> {
+    const client = this.byId.get(id);
+    if (client && client.userId === userId) { client.leadStatus = status; client.leadStatusChangedAt = changedAtMs; }
   }
 
   private ownedByUser(userId: string): ClientRecord[] {
