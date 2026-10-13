@@ -87,10 +87,11 @@ export class ClientsClient {
     return `${this.baseUrl}${path}`;
   }
 
-  async list(query?: string): Promise<ClientSummary[]> {
-    const path = query ? `/clients?q=${encodeURIComponent(query)}` : '/clients';
+  /** The rep's full client list (name + phone + email), recents-first. Search is done client-side in
+   *  the PWA, so the query is NEVER sent to the server — it can't leak into a request URL. */
+  async list(): Promise<ClientSummary[]> {
     try {
-      const res = await fetch(this.url(path), { credentials: 'include' });
+      const res = await fetch(this.url('/clients'), { credentials: 'include' });
       if (res.status !== 200) return [];
       const data = (await res.json()) as { clients: ClientSummary[] };
       return data.clients;

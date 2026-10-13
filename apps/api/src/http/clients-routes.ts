@@ -122,9 +122,12 @@ export async function handleClientRoute(
     }
 
     if (method === 'GET' && path === '/clients') {
-      const query = new URL(req.url ?? '/', 'http://localhost').searchParams.get('q')?.trim();
-      const list = query ? await clients.search(userId, query) : await clients.listByUser(userId);
-      sendJson(res, 200, { clients: list });
+      // The rep's full client list, recents-first. Search is done CLIENT-SIDE in the PWA
+      // (name + phone + email), so this endpoint takes NO query — a client name/phone is personal data
+      // and must never ride in a URL (it would land in CloudFront / ALB access logs). The legacy ?q=
+      // name-search was removed in P12. (ClientRepository.search still exists for the meeting parser's
+      // server-side name match — that never puts a name in a URL.)
+      sendJson(res, 200, { clients: await clients.listByUser(userId) });
       return true;
     }
 

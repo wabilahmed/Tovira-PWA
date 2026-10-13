@@ -90,33 +90,46 @@ describe('clients HTTP endpoints (tenant-scoped)', () => {
     expect(got.phone).toBeNull();
   });
 
-  // [P1-2] search + recents-first ordering.
-  it('filters clients by a partial name query', async () => {
-    const token = await signup('search@example.com');
+  // [P12] The legacy GET /clients?q= name-search was removed (a client name must never ride in a URL).
+  // Search is now done client-side in the PWA; see apps/web/src/clients/searchClients.test.ts.
+  it('ignores any ?q= and always returns the full list (no name-in-URL search endpoint)', async () => {
+    const token = await signup('noqsearch@example.com');
     const create = async (name: string) =>
       fetch(`${base}/clients`, authed(token, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name }),
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }),
       }));
     await create('Meridian Corp');
     await create('Northwind Trading');
+    // A stray ?q= must NOT filter server-side — the endpoint returns everything, as if the query weren't there.
     const res = await fetch(`${base}/clients?q=north`, authed(token));
     const body = (await res.json()) as { clients: Array<{ name: string }> };
-    expect(body.clients.map((c) => c.name)).toEqual(['Northwind Trading']);
+    expect(body.clients.map((c) => c.name).sort()).toEqual(['Meridian Corp', 'Northwind Trading']);
   });
 
-  it('returns an empty list (clear no-results) when the query matches nothing', async () => {
-    const token = await signup('noresults@example.com');
+  // [P12 · pagination guard] The PWA searches CLIENT-SIDE, so the list endpoint must return EVERY
+  // client (with phone + email) — if it ever paged/capped, client-side search would silently miss
+  // clients. Prove it with 600: all come back, and the 600th (uniquely named, with phone + email) is
+  // present in the payload so the browser can find it.
+  it('returns the FULL list (no cap) with phone + email — 600 clients, incl. the 600th', async () => {
+    const token = await signup('bulk600@example.com');
+    for (let i = 1; i <= 599; i++) {
+      await fetch(`${base}/clients`, authed(token, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: `Client ${i}` }),
+      }));
+    }
     await fetch(`${base}/clients`, authed(token, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Meridian Corp' }),
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Zephyr Logistics 600', phone: '+971 50 999 6000', email: 'ops@zephyr600.ae' }),
     }));
-    const res = await fetch(`${base}/clients?q=zzzz`, authed(token));
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { clients: unknown[] };
-    expect(body.clients).toEqual([]);
+    const body = (await (await fetch(`${base}/clients`, authed(token))).json()) as {
+      clients: Array<{ name: string; phone: string | null; email: string | null }>;
+    };
+    expect(body.clients).toHaveLength(600);
+    const last = body.clients.find((c) => c.name === 'Zephyr Logistics 600');
+    expect(last).toBeTruthy();
+    // The fields the client-side search matches on are all present in the list payload.
+    expect(last!.phone).toBe('+971 50 999 6000');
+    expect(last!.email).toBe('ops@zephyr600.ae');
   });
 
   it('lists the most recently created client first (recents default)', async () => {

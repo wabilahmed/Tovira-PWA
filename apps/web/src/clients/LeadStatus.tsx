@@ -116,7 +116,7 @@ export function LeadStatusSheet({
     { value: null, label: 'Unsorted', hint: 'No label yet', key: 'unsorted' },
   ];
   return (
-    <BottomSheet open={client !== null} onClose={onClose} label="Set lead status">
+    <BottomSheet open={client !== null} onClose={onClose} label="Set lead status" portal>
       {client && (
         <div className="lead-sheet" data-testid="lead-sheet">
           <p className="lead-sheet__title">Status for <strong>{client.name}</strong></p>

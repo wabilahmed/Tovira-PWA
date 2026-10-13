@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { Spring, runSpring } from '../motion/spring.js';
 import { project, rubberband, nearestSnap } from '../motion/projection.js';
@@ -38,11 +39,16 @@ export function BottomSheet({
   onClose,
   label,
   children,
+  portal = false,
 }: {
   open: boolean;
   onClose: () => void;
   label: string;
   children: ReactNode;
+  /** Render into document.body so the sheet escapes any ancestor stacking context (e.g. the animated
+   *  screen wrapper's `will-change`), which would otherwise trap it beneath the tab bar / "Get started"
+   *  bar no matter how high its z-index. Off by default — only sheets rendered INSIDE a view need it. */
+  portal?: boolean;
 }): JSX.Element | null {
   const [mounted, setMounted] = useState(open);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -188,7 +194,7 @@ export function BottomSheet({
 
   if (!mounted) return null;
 
-  return (
+  const content = (
     <>
       <div ref={scrimRef} className="tov-scrim" aria-hidden="true" onClick={() => onCloseRef.current()} />
       <div
@@ -208,4 +214,6 @@ export function BottomSheet({
       </div>
     </>
   );
+
+  return portal && typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 }

@@ -87,6 +87,25 @@ describe('[CLIENT-SEARCH] matching by field', () => {
   });
 });
 
+describe('[CLIENT-SEARCH] scales to a full book (client-side over the loaded list)', () => {
+  // The whole list is loaded and searched in the browser; prove the 600th client is found by name,
+  // phone and email — nothing is capped or paged away.
+  const big = Array.from({ length: 600 }, (_, i) =>
+    C(`Client ${i + 1}`, i === 599 ? '+971 50 999 6000' : null, i === 599 ? 'ops@zephyr600.ae' : null),
+  );
+  big[599]!.name = 'Zephyr Logistics 600';
+
+  it('finds client #600 by name', () => {
+    expect(names(big, 'zephyr')).toEqual(['Zephyr Logistics 600']);
+  });
+  it('finds client #600 by its phone digits', () => {
+    expect(names(big, '9996000')).toEqual(['Zephyr Logistics 600']);
+  });
+  it('finds client #600 by email', () => {
+    expect(names(big, 'zephyr600.ae')).toEqual(['Zephyr Logistics 600']);
+  });
+});
+
 describe('[CLIENT-SEARCH] ranking exact → prefix → substring', () => {
   const clients = [C('Ahmed'), C('Mohammed Ahmed'), C('Ahmedabad Textiles')];
   it('orders exact, then prefix, then mid-substring', () => {

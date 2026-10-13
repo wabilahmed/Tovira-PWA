@@ -107,16 +107,10 @@ describe('ClientsClient', () => {
     await expect(client.createPasteNote('c1', '')).rejects.toThrow(/required/i);
   });
 
-  it('passes a search query to the server', async () => {
-    fetchMock.mockResolvedValueOnce(json(200, { clients: [] }));
-    const client = new ClientsClient('http://api.test');
-    await client.list('meri');
-    expect(String(fetchMock.mock.calls[0]![0])).toContain('q=meri');
-  });
-
-  // [CLIENT-SEARCH · privacy] The PWA's client search is done in the browser over the loaded list,
-  // so the app loads with NO query string. A client name/phone/email therefore never reaches a
-  // CloudFront / ALB access log via the request URL. (The legacy list(q) above is unused by the app.)
+  // [CLIENT-SEARCH · privacy] The PWA's client search is done in the browser over the loaded list, so
+  // the app loads with NO query string. A client name/phone/email therefore never reaches a CloudFront /
+  // ALB access log via the request URL. The legacy list(q)/GET ?q= endpoint was removed in P12 — list()
+  // takes no argument and can only ever request the bare /clients path.
   it('loads the client list with no query string (search never leaks into the URL)', async () => {
     fetchMock.mockResolvedValueOnce(json(200, { clients: [] }));
     await new ClientsClient('http://api.test').list();
