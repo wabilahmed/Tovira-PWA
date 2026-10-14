@@ -32,3 +32,20 @@
   which `npm test` runs immediately after the main suite (so they still gate — locally and in CI, which
   invokes `npm test`). No assertion or timeout was changed; the timing tests' teeth were re-proven by
   mutation. See the `TIMING-POOL` commit.
+
+## [P14-3] Ambiguous numeric dates: day-first vs month-first is a product decision (not resolved)
+The deterministic date resolver (`resolve-date.ts`) resolves relative phrases against the message date
+and resolves explicit numeric dates ONLY when the day/month order is forced (one component > 12, e.g.
+`22/08/2026`). A fully-ambiguous numeric date where both components are ≤ 12 — `12/04/2026` is 12 Apr OR
+4 Dec — stays **null**, exactly as the certified extraction prompt does (it refuses to guess a locale
+because a WhatsApp export carries no reliable locale and the note origin is unknown).
+
+The 14-Oct retest expected `12/04/2026 at 3pm` on a day-first (Android, UAE) device to resolve to 12 Apr.
+Doing that requires a **day-first policy** for ambiguous numerics, which **contradicts the locked prompt
+rule**. Per CLAUDE.md ("never invent a product decision; a wrong fact is worse than a missing one"), this
+is left to the owner:
+  - Option A (keep): ambiguous numeric → null + keep the raw phrase (current; safest, zero wrong dates).
+  - Option B: adopt a documented day-first policy for the deterministic resolver (NOT the model), keyed
+    off the rep's region/timezone (we store IANA tz per rep). Resolve `12/04/2026` → 12 Apr for a
+    day-first rep, mark `resolution:'explicit'`. Risk: a month-first (US) rep's export mis-resolves.
+Recommendation: Option B gated on a stored, explicit rep locale (not inferred), else Option A.
