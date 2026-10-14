@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { registerServiceWorker } from './pwa/registerServiceWorker.js';
+import { hasUnsavedWork } from './pwa/unsavedWork.js';
 import { UpdatePrompt } from './pwa/UpdatePrompt.js';
 // Self-hosted brand typefaces (offline-capable, no CDN). Fraunces uses the
 // variable wght+opsz axes; SOFT/WONK stay at their 0 defaults per the guideline.
@@ -36,5 +37,6 @@ createRoot(root).render(
   </StrictMode>,
 );
 
-// Fire-and-forget: never blocks or breaks rendering if it fails.
-void registerServiceWorker();
+// Fire-and-forget: never blocks or breaks rendering if it fails. [P14-4b] A new build applies SILENTLY
+// when nothing is unsaved (empty outbox, no live recording); otherwise the rep gets the "Reload" prompt.
+void registerServiceWorker('/sw.js', { hasUnsavedWork });

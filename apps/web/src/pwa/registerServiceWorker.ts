@@ -45,6 +45,13 @@ export interface RegisterDeps {
    * (App.tsx) listens for. Injectable so tests can assert the prompt without a real worker.
    */
   onUpdate?: (apply: () => void) => void;
+  /**
+   * [P14-4b] Whether the rep has work a reload would lose — a pending upload in the outbox or an
+   * in-progress recording. When this resolves FALSE, an update is applied SILENTLY (no banner, no
+   * interruption): the fresh build just loads. When it resolves TRUE — or is not provided (we cannot
+   * tell, so we never risk it) — we show the prompt and let the rep choose when to reload.
+   */
+  hasUnsavedWork?: () => boolean | Promise<boolean>;
 }
 
 /** The default prompt surface: a window event the app's update banner subscribes to. */
@@ -81,21 +88,28 @@ export async function registerServiceWorker(
       (deps.location ?? (typeof location !== 'undefined' ? location : undefined))?.reload();
     });
 
-    // Surface a waiting worker as an update prompt. Only when a controller already exists — otherwise
-    // this is the FIRST install (nothing to interrupt), which activates and controls without a prompt.
-    const promptFor = (worker: SwWorkerLike | null | undefined): void => {
+    // Surface a waiting worker. Only when a controller already exists — otherwise this is the FIRST
+    // install (nothing to interrupt), which activates and controls without a prompt. [P14-4b] When the
+    // rep has nothing unsaved, apply SILENTLY (post SKIP_WAITING → activate → the single controllerchange
+    // reload above serves the fresh build). Prompt only when a reload would lose work, or when we can't
+    // tell (no hasUnsavedWork provided).
+    const promptFor = async (worker: SwWorkerLike | null | undefined): Promise<void> => {
       if (!worker || !sw.controller) return;
-      onUpdate(() => worker.postMessage?.({ type: 'SKIP_WAITING' }));
+      const apply = (): void => worker.postMessage?.({ type: 'SKIP_WAITING' });
+      let unsaved = true;
+      try { unsaved = deps.hasUnsavedWork ? await deps.hasUnsavedWork() : true; } catch { unsaved = true; }
+      if (unsaved) onUpdate(apply);
+      else apply();
     };
 
     // Already waiting at register time (the update installed on a previous visit).
-    promptFor(registration.waiting);
+    void promptFor(registration.waiting);
 
-    // A new worker found during this session: prompt once it finishes installing.
+    // A new worker found during this session: decide once it finishes installing.
     registration.addEventListener?.('updatefound', () => {
       const installing = registration.installing;
       installing?.addEventListener?.('statechange', () => {
-        if (installing.state === 'installed') promptFor(registration.waiting ?? installing);
+        if (installing.state === 'installed') void promptFor(registration.waiting ?? installing);
       });
     });
 

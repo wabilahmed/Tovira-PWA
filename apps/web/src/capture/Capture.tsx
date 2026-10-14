@@ -5,6 +5,7 @@ import { startRecording, type ActiveRecording } from './recorder.js';
 import type { Outbox } from './outbox.js';
 import { ImportChat, type ImportApi } from '../import/ImportChat.js';
 import { hapticTick } from '../haptics.js';
+import { registerUnsavedSource } from '../pwa/unsavedWork.js';
 
 function mmss(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -47,6 +48,12 @@ export function Capture({
 
   const refreshPending = (): void => void outbox.pending().then((p) => setPending(p.length));
   useEffect(refreshPending, []);
+
+  // [P14-4b] A live recording is unsaved work — its audio is only in memory until stop() enqueues it.
+  // Expose that to the service-worker update flow so a new build never silently reloads mid-capture.
+  const recordingRef = useRef(false);
+  recordingRef.current = active !== null;
+  useEffect(() => registerUnsavedSource(() => recordingRef.current), []);
 
   async function start(): Promise<void> {
     setStatus(null);

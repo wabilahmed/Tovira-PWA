@@ -82,6 +82,33 @@ describe('registerServiceWorker', () => {
     expect(waiting.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
   });
 
+  // [P14-4b] When the rep has NOTHING unsaved, an update applies SILENTLY — no prompt, just SKIP_WAITING
+  // (→ activate → the one controllerchange reload serves the fresh build). This is the fix: a silent
+  // update was never happening because the code always prompted.
+  it('silently applies the update when nothing is unsaved (no prompt)', async () => {
+    const waiting = { postMessage: vi.fn() };
+    const register = vi.fn(async () => ({ waiting, addEventListener: () => {} }));
+    const onUpdate = vi.fn();
+    const nav = { serviceWorker: { controller: {}, register, addEventListener: () => {} } };
+    await registerServiceWorker('/sw.js', { navigator: nav as never, onUpdate, hasUnsavedWork: () => false });
+    await new Promise((r) => setTimeout(r, 0)); // let the async unsaved-check settle
+    expect(onUpdate).not.toHaveBeenCalled();                       // no banner
+    expect(waiting.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' }); // applied silently
+  });
+
+  // [P14-4b] When there IS unsaved work (a pending upload or an in-progress recording), it still prompts
+  // — a reload must never silently interrupt a capture.
+  it('prompts (does not silently apply) when there is unsaved work', async () => {
+    const waiting = { postMessage: vi.fn() };
+    const register = vi.fn(async () => ({ waiting, addEventListener: () => {} }));
+    const onUpdate = vi.fn();
+    const nav = { serviceWorker: { controller: {}, register, addEventListener: () => {} } };
+    await registerServiceWorker('/sw.js', { navigator: nav as never, onUpdate, hasUnsavedWork: async () => true });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(waiting.postMessage).not.toHaveBeenCalled(); // not applied until the rep chooses
+  });
+
   // First install (no existing controller) must NOT prompt — there is no old build to replace and
   // nothing to interrupt; the worker just activates.
   it('does not prompt on first install (no existing controller)', async () => {
