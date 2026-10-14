@@ -4,6 +4,7 @@ import { extractionStateOf } from './clientsClient.js';
 import { CeilingNotice } from '../import/CeilingNotice.js';
 import { MoveNoteControl, type MoveNoteApi } from '../notes/MoveNoteControl.js';
 import type { ClientOption } from '../meetings/Meetings.js';
+import { formatDateTime } from '../format/dates.js';
 
 function processingLabel(status: string): string {
   return status === 'pending_transcription' ? 'transcribing…' : 'analysing…';
@@ -20,12 +21,15 @@ export function NotesTimeline({
   ceilingNoteIds,
   renderFollowUp,
   move,
+  timeZone,
 }: {
   notes: NoteSummary[];
   ceilingNoteIds: Set<string>;
   renderFollowUp?: (noteId: string) => ReactNode;
   /** [NOTE-MOVE] when present, each settled note gets a "Move to another client" control. */
   move?: { api: MoveNoteApi; clientId: string; clients: ClientOption[]; onMoved?: (noteId: string) => void };
+  /** [Item 12] the rep's IANA timezone, so note times read in their local day-month order. */
+  timeZone?: string;
 }): JSX.Element {
   if (notes.length === 0) return <p style={{ color: 'var(--text-secondary)' }}>No notes yet.</p>;
 
@@ -38,7 +42,7 @@ export function NotesTimeline({
         return (
           <li key={n.id} style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--hairline)' }}>
             <small className="tov-stamp">
-              {new Date(n.createdAt).toLocaleString()} · {n.source}
+              {formatDateTime(n.createdAt, timeZone)} · {n.source}
               {!ceiling && inProgress && <em style={{ color: 'var(--amber)', fontStyle: 'normal' }}> · {state === 'queued' ? 'queued…' : processingLabel(n.status)}</em>}
               {/* [ASYNC-EXTRACT] a failure reads as failed — never an endless spinner. [TRANSCRIBE-MISSING]
                   a missing recording is a DISTINCT, honest reason — not "tap to retry" (retry can't find it). */}

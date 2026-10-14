@@ -1,5 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { formatStamp, formatBody, formatRange, daysSince } from './dates.js';
+import { formatStamp, formatBody, formatRange, daysSince, formatDateTime } from './dates.js';
+
+// [Item 12] Notes show date+time in DAY-month order, 24h, in the rep's timezone — never US "10/14/2026".
+describe('[Item 12] formatDateTime (day-month, 24h, rep timezone)', () => {
+  it('renders day-month order with the time in Asia/Dubai', () => {
+    // 2026-10-14T14:23:00Z is 18:23 in Dubai (UTC+4).
+    expect(formatDateTime(Date.parse('2026-10-14T14:23:00Z'), 'Asia/Dubai')).toBe('14 Oct 2026, 18:23');
+  });
+  it('is day-first, never US month-day', () => {
+    const out = formatDateTime(Date.parse('2026-10-14T06:00:00Z'), 'Asia/Dubai');
+    expect(out).toMatch(/^14 Oct 2026/);
+    expect(out).not.toMatch(/10\/14|^Oct/);
+  });
+  it('returns empty on an unparseable input', () => {
+    expect(formatDateTime('not a date')).toBe('');
+  });
+});
 
 // [TOKENS §10 finish rules] One date format app-wide: `14 MAR 2026` in mono
 // stamps, `14 Mar 2026` in body copy. No "3/14/26" anywhere, ever.

@@ -426,6 +426,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               onBack={() => dismiss()}
               onSubscribe={startCheckout}
               onOpenLeadSheet={() => setStatusSheetFor(open)}
+              timeZone={session.user.timezone}
             />
             <LeadStatusSheet client={statusSheetFor} onClose={() => setStatusSheetFor(null)} onPick={(s) => void changeLeadStatus(statusSheetFor!, s)} />
           </>
@@ -700,7 +701,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -714,7 +715,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
@@ -894,6 +895,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
       <NotesTimeline
         notes={notes}
         ceilingNoteIds={ceilingNoteIds}
+        timeZone={timeZone}
         renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} onSubscribe={onSubscribe} />}
         move={{
           api: noteMoveApi,

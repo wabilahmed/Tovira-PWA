@@ -41,6 +41,21 @@ export function formatBody(input: DateInput): string {
   return p ? `${p.d} ${MONTHS[p.m]} ${p.y}` : '';
 }
 
+/** [Item 12] Date + time in DAY-month order, 24-hour, in the rep's IANA timezone: `14 Oct 2026, 18:23`.
+ *  Never US month-day order. Empty string if unparseable; an unknown timezone falls back to local. */
+export function formatDateTime(input: DateInput, timeZone?: string): string {
+  const ms = input instanceof Date ? input.getTime() : typeof input === 'number' ? input : Date.parse(input);
+  if (Number.isNaN(ms)) return '';
+  const base: Intl.DateTimeFormatOptions = {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  };
+  try {
+    return new Intl.DateTimeFormat('en-GB', { ...base, ...(timeZone ? { timeZone } : {}) }).format(ms);
+  } catch {
+    return new Intl.DateTimeFormat('en-GB', base).format(ms); // unknown tz → local
+  }
+}
+
 /** A date range in body form with a real en-dash: `16 Mar – 22 Mar 2026`. */
 export function formatRange(start: DateInput, end: DateInput): string {
   const a = parts(start);
