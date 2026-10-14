@@ -20,6 +20,10 @@ export default defineConfig({
       'apps/api/src/http/share-referral.test.ts',
       'apps/api/src/http/inventory-share.test.ts',
       'apps/api/src/http/auth-reset.test.ts',
+      // [TIMING-POOL] brief.test.ts boots fresh servers and does several real scrypt SIGNUPS per test;
+      // same scrypt-starvation class as auth-reset — under the saturated parallel run a starved signup
+      // intermittently times out (seen: 20s+). Same assertions, run serialized in the timing pool.
+      'apps/api/src/http/brief.test.ts',
     ],
     // Node by default (API + web logic); web COMPONENT tests (.test.tsx) and the
     // marketing DOM tests (referral pass-through, RTL, a11y — now inside the PWA

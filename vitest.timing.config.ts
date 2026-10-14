@@ -32,6 +32,7 @@ export default defineConfig({
       'apps/api/src/http/share-referral.test.ts',
       'apps/api/src/http/inventory-share.test.ts',
       'apps/api/src/http/auth-reset.test.ts',
+      'apps/api/src/http/brief.test.ts',
     ],
     exclude: ['**/node_modules/**'],
     environment: 'node', // both are API tests; no jsdom needed
