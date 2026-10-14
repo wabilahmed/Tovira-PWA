@@ -25,6 +25,12 @@ describe('[LANDING-REVERT] carried-forward facts', () => {
     expect(html).toMatch(/14[- ]day/i);
   });
 
+  // [LAND-06] Health data is excluded and the Terms forbid uploading it, so the landing must never imply
+  // Tovira remembers it. Fails on "the surgery"; guards the whole health-term family going forward.
+  it('makes no health claim (no surgery/hospital/medical/illness/diagnosis)', () => {
+    expect(html).not.toMatch(/surgery|hospital|medical|illness|diagnos/i);
+  });
+
   it('states no retired claim: no "training records", and voice is in-app only', () => {
     expect(html).not.toMatch(/training records/i);
     // any mention of training is the negative promise, never a retention claim
