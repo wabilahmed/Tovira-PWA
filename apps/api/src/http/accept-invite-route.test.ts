@@ -72,6 +72,24 @@ describe('[BETA-6] invite acceptance routes', () => {
     const token = await seedInvite();
     expect((await req('POST', '/auth/accept-invite', { token, password: 'short', acceptTerms: true })).status).toBe(400);
   });
+
+  // [P14-0] Accepting an invite is the ONLY prod account path (signup is disabled). It must start the
+  // trial + allowance — the same shared hook signup uses — or every beta rep lands unentitled
+  // (no subscription row → the no-row default {status:'none', entitled:false, trialEndsAt:0}).
+  // This test proves the trial is fresh and starts AT accept-time; billing.test.ts owns the exact
+  // window length (prod DEFAULT_TRIAL_DAYS=14, the in-memory harness uses 7 — see test-deps.ts).
+  it('starts the trial on invite-accept (entitled:true, trialing, a fresh trial from first login)', async () => {
+    const token = await seedInvite();
+    const before = Date.now();
+    expect((await req('POST', '/auth/accept-invite', { token, password: 'password123', acceptTerms: true })).status).toBe(200);
+    const login = (await (await req('POST', '/auth/login', { email: 'invitee@x.ae', password: 'password123' })).json()) as { token: string };
+    const status = (await (await fetch(`${base}/billing/status`, { headers: { authorization: `Bearer ${login.token}` } })).json()) as { entitled: boolean; status: string; trialEndsAt: number };
+    expect(status.entitled).toBe(true);
+    expect(status.status).toBe('trialing');
+    // Several days out from accept-time: fails if the trial never started (trialEndsAt:0 no-row) or
+    // if a stale/past grant were reused instead of a fresh one. 6d is below the 7d harness window.
+    expect(status.trialEndsAt).toBeGreaterThan(before + 6 * 24 * 60 * 60 * 1000);
+  });
 });
 
 describe('[BETA-8] POST /auth/invite/resend (expired-link recovery)', () => {

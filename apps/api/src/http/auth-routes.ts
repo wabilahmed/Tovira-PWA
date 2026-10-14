@@ -186,7 +186,12 @@ export async function handleAuthRoute(
         sendJson(res, 400, { error: 'terms_required', message: 'Please accept the Terms and Privacy Policy to continue.' });
         return true;
       }
-      await auth.acceptInvite(token, password, TERMS_VERSION, clientIp(req)); // throws AuthError → handled below
+      const { userId } = await auth.acceptInvite(token, password, TERMS_VERSION, clientIp(req)); // throws AuthError → handled below
+      // [P14-0] Start the 14-day trial + allowance the moment the account becomes usable — the SAME
+      // shared hook signup fires (billing.onSignup). Invite-accept is the ONLY prod account path (signup
+      // is disabled), so without this every beta rep lands with no trial (entitled:false from minute one).
+      const activated = await auth.getPublicUser(userId);
+      if (activated) await opts.onSignup?.(userId, activated.email);
       sendJson(res, 200, { ok: true });
       return true;
     }
