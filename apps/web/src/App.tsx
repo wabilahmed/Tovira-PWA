@@ -204,6 +204,13 @@ export function App(): JSX.Element {
       .finally(() => setLoading(false));
   }, []);
 
+  // [INV-12] Whether self-serve signup is open (public /version flag). Default false = invite-only, so
+  // the login page shows "Request beta access" by default and only reveals "Sign up" when it's really on.
+  const [signupEnabled, setSignupEnabled] = useState(false);
+  useEffect(() => {
+    void auth.signupEnabled().then(setSignupEnabled);
+  }, []);
+
   // Public, pre-auth: the beta access-request form (reached from the landing page). Like /reset-password
   // and /verify-email, it is served by the SPA before the session gate (no infra route needed).
   if (typeof window !== 'undefined' && window.location.pathname === '/request-access') {
@@ -254,7 +261,7 @@ export function App(): JSX.Element {
     return <Centered><NotFound /></Centered>;
   }
   if (loading) return <Centered>Loading…</Centered>;
-  if (!session) return <LoginScreen auth={auth} onAuthed={setSession} />;
+  if (!session) return <LoginScreen auth={auth} onAuthed={setSession} signupEnabled={signupEnabled} />;
 
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }

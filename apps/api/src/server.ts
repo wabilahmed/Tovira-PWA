@@ -254,6 +254,9 @@ export function createApiServer(deps: ApiDeps): Server {
           promptVersion: PROMPT_VERSION,
           build: process.env.BUILD_SHA ?? process.env.GIT_SHA ?? 'unknown',
           env: process.env.DEPLOY_ENV ?? process.env.NODE_ENV ?? 'unknown',
+          // [INV-12] Public, no secret: lets the login page hide the sign-up link when self-serve
+          // signup is off (invite-only beta). Drives the UI from the same flag the API enforces.
+          signupEnabled: deps.signupEnabled ?? false,
         });
         return;
       }

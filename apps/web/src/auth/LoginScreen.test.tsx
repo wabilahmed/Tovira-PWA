@@ -92,4 +92,21 @@ describe('<LoginScreen> referral entry', () => {
     await waitFor(() => expect(onAuthed).toHaveBeenCalled());
     expect(screen.queryByRole('button', { name: /continue/i })).toBeNull();
   });
+
+  // [INV-12] The sign-up link/form appears only when self-serve signup is on; otherwise point to beta access.
+  it('shows the "Sign up" toggle when signup is enabled', () => {
+    render(<LoginScreen auth={fakeAuth()} onAuthed={() => {}} signupEnabled />);
+    expect(screen.getByRole('button', { name: /need an account\? sign up/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('request-access-link')).toBeNull();
+  });
+
+  it('hides sign-up and offers "Request beta access" when signup is disabled', () => {
+    render(<LoginScreen auth={fakeAuth()} onAuthed={() => {}} signupEnabled={false} />);
+    expect(screen.queryByRole('button', { name: /sign up/i })).toBeNull();
+    const link = screen.getByTestId('request-access-link');
+    expect(link).toHaveTextContent(/request beta access/i);
+    expect(link).toHaveAttribute('href', '/request-access');
+    // No signup form either: the terms-consent checkbox only exists in signup mode.
+    expect(screen.queryByLabelText(/accept terms/i)).toBeNull();
+  });
 });

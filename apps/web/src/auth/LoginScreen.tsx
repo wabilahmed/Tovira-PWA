@@ -18,7 +18,9 @@ function refFromUrl(): string {
  * know either way. The account is always created regardless of the code (crediting is isolated
  * server-side); this screen only reports the outcome.
  */
-export function LoginScreen({ auth, onAuthed }: { auth: AuthClient; onAuthed: (s: Session) => void }): JSX.Element {
+export function LoginScreen({ auth, onAuthed, signupEnabled = true }: { auth: AuthClient; onAuthed: (s: Session) => void; signupEnabled?: boolean }): JSX.Element {
+  // [INV-12] When self-serve signup is off (invite-only beta), never offer the "Sign up" toggle or the
+  // signup form — the API 404s signup, so a visible path to it is a dead end. Point to beta access instead.
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -121,9 +123,14 @@ export function LoginScreen({ auth, onAuthed }: { auth: AuthClient; onAuthed: (s
         </button>
       </form>
       <div className="auth__alt">
-        <button type="button" className="auth__link" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
-          {mode === 'login' ? 'Need an account? Sign up' : 'Have an account? Log in'}
-        </button>
+        {signupEnabled ? (
+          <button type="button" className="auth__link" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+            {mode === 'login' ? 'Need an account? Sign up' : 'Have an account? Log in'}
+          </button>
+        ) : (
+          // [INV-12] Invite-only beta: send them to request access, not to a dead-end signup form.
+          <a className="auth__link" href="/request-access" data-testid="request-access-link">Need access? Request beta access</a>
+        )}
         {mode === 'login' && (
           <button type="button" className="auth__link auth__link--muted" onClick={() => setMode('forgot')}>
             Forgot password?

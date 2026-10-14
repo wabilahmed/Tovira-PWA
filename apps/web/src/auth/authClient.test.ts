@@ -17,6 +17,17 @@ describe('AuthClient', () => {
     });
   }
 
+  // [INV-12] signupEnabled reads the public /version flag, failing closed (invite-only) on error.
+  it('reads signupEnabled from /version (true/false), and defaults to false on failure', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { signupEnabled: true }));
+    expect(await new AuthClient('http://api.test').signupEnabled()).toBe(true);
+    expect(String(fetchMock.mock.calls[0]![0])).toBe('http://api.test/version');
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { signupEnabled: false }));
+    expect(await new AuthClient('http://api.test').signupEnabled()).toBe(false);
+    fetchMock.mockRejectedValueOnce(new Error('network'));
+    expect(await new AuthClient('http://api.test').signupEnabled()).toBe(false);
+  });
+
   it('logs in and returns the session, sending cookies', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, { user: { id: 'u1', email: 'a@example.com' }, token: 't' }),

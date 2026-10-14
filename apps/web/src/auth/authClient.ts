@@ -47,6 +47,18 @@ export class AuthClient {
     await fetch(this.url('/auth/logout'), { method: 'POST', credentials: 'include' });
   }
 
+  /** [INV-12] Whether self-serve signup is open, from the public /version payload (no secret). Defaults
+   *  to false (invite-only) on any error, so the login page never shows a dead-end sign-up link. */
+  async signupEnabled(): Promise<boolean> {
+    try {
+      const res = await fetch(this.url('/version'), { credentials: 'include' });
+      if (!res.ok) return false;
+      return ((await res.json()) as { signupEnabled?: boolean }).signupEnabled === true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Update the rep's IANA timezone (Settings). Returns the value the server stored
    *  (validated to a real zone, or the default). */
   async updateTimezone(timezone: string): Promise<string> {
