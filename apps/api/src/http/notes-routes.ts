@@ -44,6 +44,15 @@ function redactForStore(text: string, noteHint: string): string {
 
 const MAX_PASTE_CHARS = 100_000;
 const MAX_IMPORT_CHARS = 5_000_000; // a full multi-year chat export
+// [IMP-10] Any upload that claims to be a chat export but can't be opened (corrupt/truncated/empty zip)
+// → a calm 422 with the way out. NEVER a 500.
+const ZIP_UNREADABLE_MESSAGE = "This .zip couldn't be opened. Export the chat again from WhatsApp.";
+/** [IMP-10] A zip that OPENED but held no WhatsApp transcript keeps its specific guidance; a zip that
+ *  couldn't be opened at all (corrupt / truncated / malformed / nested / oversize) gets the calm,
+ *  actionable "couldn't be opened" message. Either way it's a 422, never a 500. */
+function zipFailureReason(reason: string): string {
+  return /transcript/i.test(reason) ? reason : ZIP_UNREADABLE_MESSAGE;
+}
 // [VOICE-GATE] Server-side length cap on a stored voice note. True duration enforcement would require
 // decoding the WebM/MP4 container (no media decoder in the Node stack; duration is not a cheap header
 // read), which is disproportionate — so this is a byte cap sized to ~10 minutes of the app's own
@@ -305,9 +314,20 @@ export async function handleNoteRoute(
           sendJson(res, 415, { error: 'unsupported_media', message: AUDIO_ELSEWHERE_MESSAGE });
           return true;
         }
-        const resolved = resolveTranscript(rawFileBytes);
+        // [IMP-10] A zero-byte upload, or bytes the zip reader can't open, → 422 (never 500).
+        // resolveTranscript returns !ok only for a zip it can't read; wrap it so a future throw can't 500.
+        if (rawFileBytes.length === 0) {
+          sendJson(res, 422, { error: 'import_failed', reason: ZIP_UNREADABLE_MESSAGE });
+          return true;
+        }
+        let resolved: ReturnType<typeof resolveTranscript>;
+        try {
+          resolved = resolveTranscript(rawFileBytes);
+        } catch {
+          resolved = { ok: false, reason: ZIP_UNREADABLE_MESSAGE };
+        }
         if (!resolved.ok) {
-          sendJson(res, 422, { error: 'import_failed', reason: resolved.reason });
+          sendJson(res, 422, { error: 'import_failed', reason: zipFailureReason(resolved.reason) });
           return true;
         }
         content = resolved.text;
@@ -327,9 +347,15 @@ export async function handleNoteRoute(
           sendJson(res, 415, { error: 'unsupported_media', message: AUDIO_ELSEWHERE_MESSAGE });
           return true;
         }
-        const resolved = resolveTranscript(buf);
+        // [IMP-10] wrap so a zip the reader can't open is a 422, never a 500.
+        let resolved: ReturnType<typeof resolveTranscript>;
+        try {
+          resolved = resolveTranscript(buf);
+        } catch {
+          resolved = { ok: false, reason: ZIP_UNREADABLE_MESSAGE };
+        }
         if (!resolved.ok) {
-          sendJson(res, 422, { error: 'import_failed', reason: resolved.reason });
+          sendJson(res, 422, { error: 'import_failed', reason: zipFailureReason(resolved.reason) });
           return true;
         }
         content = resolved.text;
@@ -355,9 +381,9 @@ export async function handleNoteRoute(
         parsed = { ok: false as const, reason: 'The export could not be parsed.' };
       }
       if (!parsed.ok) {
-        // Preserve the file, flagged — but STILL redact Tier-1 values; a parse failure
-        // must not become a raw-secrets store (the highest-risk leak path).
-        await deps.notes.create(userId, { clientId, source: 'whatsapp_export', rawText: redactForStore(content, `import_failed (client ${clientId})`), audioKey: null, status: 'import_failed' });
+        // [IMP-09/IMP-13] A rejected import creates NO note, no client change, no staged file — nothing
+        // is written, so a double-submit of the same bad file still yields zero notes (idempotent by
+        // construction). The reason names the way out (both formats, or "no messages to import").
         sendJson(res, 422, { error: 'import_failed', reason: parsed.reason });
         return true;
       }

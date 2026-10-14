@@ -136,22 +136,19 @@ describe('[P1-4b] import a WhatsApp chat export', () => {
     expect(notes.notes).toEqual([]); // nothing stored at all
   });
 
-  // NEGATIVE: non-WhatsApp text is rejected; no messages written.
-  it('rejects a non-WhatsApp .txt with a clear message and no partial history', async () => {
+  // NEGATIVE: non-WhatsApp text is rejected; [IMP-09] NO note is created at all (the old behavior saved
+  // a flagged "import_failed" note, which then showed up in the export — that was the bug this reverses).
+  it('rejects a non-WhatsApp .txt with a clear message and NO note', async () => {
     const { token } = await signup('notwa@example.com');
     const cid = await createClient(token, 'Acme');
     const res = await importChat(token, cid, { content: 'just my notes\nno timestamps\nrandom text', consent: true });
     expect(res.status).toBe(422);
     expect(((await res.json()) as { reason: string }).reason).toMatch(/whatsapp/i);
 
-    // The raw file may be persisted+flagged, but NO messages were written.
     const notes = (await (await fetch(`${base}/clients/${cid}/notes`, {
       headers: { authorization: `Bearer ${token}` },
-    })).json()) as { notes: Array<{ status: string; messages: unknown[] | null }> };
-    for (const n of notes.notes) {
-      expect(n.messages == null || (n.messages as unknown[]).length === 0).toBe(true);
-    }
-    expect(notes.notes.some((n) => n.status === 'import_failed')).toBe(true);
+    })).json()) as { notes: unknown[] };
+    expect(notes.notes).toEqual([]); // nothing stored — not even a flagged record
   });
 
   // P1-6: an unanswered client question in the imported thread is flagged. Extraction
@@ -539,5 +536,53 @@ describe('[FIX 1] single import — raw-binary upload', () => {
     const notes = await listNotes(token, cid);
     expect(notes[0]!.messages!.some((m) => m.body.includes('NEW_LAST'))).toBe(true); // most recent kept
     expect(notes[0]!.messages!.some((m) => m.body.includes('OLD_FIRST'))).toBe(false); // oldest dropped
+  });
+
+  // [IMP-09/IMP-13] A REJECTED import must create NO note (not even a flagged "couldn't analyse" one).
+  it('a non-WhatsApp .txt is rejected (422) and saves no note; the copy names both formats', async () => {
+    const { token } = await signup('reject-notwa@example.com');
+    const cid = await createClient(token, 'Layla');
+    const res = await importRaw(token, cid, new TextEncoder().encode('Milk\nEggs\nBread\nPick up the dry cleaning'));
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { reason: string }).reason).toMatch(/\.zip or \.txt/i);
+    expect(await listNotes(token, cid)).toHaveLength(0);
+  });
+
+  it('an export with only the encryption notice is rejected with "no messages" and saves no note', async () => {
+    const { token } = await signup('reject-empty@example.com');
+    const cid = await createClient(token, 'Layla');
+    const onlyNotice = '13/07/2019, 1:00 am - Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.';
+    const res = await importRaw(token, cid, new TextEncoder().encode(onlyNotice));
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { reason: string }).reason).toMatch(/no messages to import/i);
+    expect(await listNotes(token, cid)).toHaveLength(0);
+  });
+
+  it('a double-submit of the same bad file still makes exactly zero notes (idempotent reject)', async () => {
+    const { token } = await signup('reject-double@example.com');
+    const cid = await createClient(token, 'Layla');
+    const bytes = new TextEncoder().encode('just a shopping list\nmilk');
+    await importRaw(token, cid, bytes);
+    await importRaw(token, cid, bytes); // the "tap to retry" second attempt
+    expect(await listNotes(token, cid)).toHaveLength(0);
+  });
+
+  // [IMP-10] Any zip we can't open → 422 with a clear message, NEVER a 500, and no note.
+  it('a corrupt / truncated / zero-byte zip returns 422 (never 500) with no note', async () => {
+    const { token } = await signup('reject-zip@example.com');
+    const cid = await createClient(token, 'Layla');
+    const goodZip = makeZip('_chat.txt', Buffer.from('13/07/2019, 1:00 am - Layla: hi'));
+    const cases: Uint8Array[] = [
+      Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('garbage bytes not a real zip body')]), // PK magic + junk
+      goodZip.subarray(0, Math.floor(goodZip.length / 2)), // truncated real zip
+      new Uint8Array(0), // zero-byte
+    ];
+    for (const bytes of cases) {
+      const res = await importRaw(token, cid, bytes);
+      expect(res.status).toBe(422);
+      expect(res.status).not.toBe(500);
+      expect(((await res.json()) as { reason: string }).reason).toMatch(/couldn.t be opened/i);
+    }
+    expect(await listNotes(token, cid)).toHaveLength(0);
   });
 });

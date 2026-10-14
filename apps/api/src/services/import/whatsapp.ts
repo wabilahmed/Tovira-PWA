@@ -92,6 +92,10 @@ export function parseWhatsAppExport(text: string): WhatsAppParseResult {
 
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   const messages: ParsedMessage[] = [];
+  // [IMP-13] Track whether we saw any dated system notice (e.g. the E2E-encryption line). A real
+  // WhatsApp export that holds only system notices is a VALID export with no messages — a distinct,
+  // gentler case than a file that isn't a WhatsApp export at all.
+  let sawSystemLine = false;
 
   for (const rawLine of lines) {
     const line = rawLine.replace(CONTROL_CHARS, '');
@@ -109,6 +113,7 @@ export function parseWhatsAppExport(text: string): WhatsAppParseResult {
     } else if (SYSTEM_PREFIX_RE.test(line)) {
       // A dated line with no "Sender:" is a system notice (E2E-encryption line, "you changed…").
       // Skip it entirely — it is neither a participant message nor a continuation of one.
+      sawSystemLine = true;
       continue;
     } else if (messages.length > 0) {
       // Continuation of the previous message (multi-line body).
@@ -121,10 +126,11 @@ export function parseWhatsAppExport(text: string): WhatsAppParseResult {
   }
 
   if (messages.length === 0) {
-    return {
-      ok: false,
-      reason: "This doesn't look like a WhatsApp export. Use WhatsApp's Export Chat (.txt).",
-    };
+    // [IMP-13] A valid export with only system notices ("has no messages") vs something that isn't a
+    // WhatsApp export at all ("use Export Chat"). The copy names both accepted formats (.zip or .txt).
+    return sawSystemLine
+      ? { ok: false, reason: 'This chat has no messages to import.' }
+      : { ok: false, reason: "This doesn't look like a WhatsApp export. Use WhatsApp's Export Chat (.zip or .txt)." };
   }
   return { ok: true, messages };
 }
