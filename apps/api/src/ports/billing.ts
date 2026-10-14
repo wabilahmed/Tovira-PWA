@@ -141,6 +141,31 @@ export interface StripeWebhookEvent {
 
 export type Plan = 'monthly' | 'annual';
 
+/** [PAY-04] The recurring interval a plan's Stripe price MUST have. */
+export type PlanInterval = 'month' | 'year';
+
+/** [PAY-04] One plan's price-interval health: does the configured Stripe price bill at the right cadence? */
+export interface PlanPriceCheck {
+  plan: Plan;
+  priceId: string;
+  /** What the price interval must be for this plan ('month' for monthly, 'year' for annual). */
+  expected: PlanInterval;
+  /** The price's actual recurring interval, or null (not recurring / lookup failed). */
+  interval: string | null;
+  ok: boolean;
+  /** Set when the price could not be looked up. */
+  error?: string;
+}
+
+/** [PAY-04] Thrown when a checkout is attempted on a price whose recurring interval doesn't match the
+ *  plan (e.g. a "yearly" SKU that Stripe actually bills monthly). We refuse rather than charge. */
+export class PriceIntervalMismatchError extends Error {
+  constructor(readonly priceId: string, readonly expected: PlanInterval, readonly actual: string | null) {
+    super(`Stripe price ${priceId} has interval ${actual ?? 'none'}, expected ${expected}`);
+    this.name = 'PriceIntervalMismatchError';
+  }
+}
+
 export interface StripeGateway {
   /** Creates (or reuses `existingCustomerId`) a Stripe customer carrying the Tovira user id as
    *  metadata + any name/company, then opens a subscription checkout for it (INVOICE-DATA). */
@@ -173,4 +198,7 @@ export interface StripeGateway {
    *  _required' when the card needs 3DS (the rep must pay via the hosted page — ruling 2), or 'failed' on
    *  a hard decline. Never throws for a decline — only truly unexpected errors propagate. */
   payInvoice(invoiceId: string): Promise<'paid' | 'authentication_required' | 'failed'>;
+  /** [PAY-04] Verify each plan's configured price bills at the right cadence (monthly→'month',
+   *  annual→'year'). Powers the /health ops view so a misconfigured interval shows up without a checkout. */
+  verifyPlanPrices(): Promise<PlanPriceCheck[]>;
 }

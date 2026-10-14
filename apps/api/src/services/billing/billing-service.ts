@@ -143,6 +143,11 @@ export class BillingService {
     return { entitled: false, status, ...base };
   }
 
+  /** [PAY-04] Each plan's price-interval health, for the /health ops view. Delegates to the gateway. */
+  verifyPlanPrices() {
+    return this.stripe.verifyPlanPrices();
+  }
+
   async checkout(userId: string, email: string, plan: Plan = 'monthly', details: CustomerDetails = {}): Promise<{ url: string }> {
     // Reuse an existing customer (a returning subscriber) so we don't orphan its metadata/history.
     const existingCustomerId = (await this.subs.get(userId))?.stripeCustomerId ?? undefined;

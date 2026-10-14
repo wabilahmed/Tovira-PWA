@@ -8,13 +8,17 @@ describe('StripeGatewayImpl', () => {
     const sessionCreate = vi.fn(async (_p: Record<string, unknown>) => ({ url: 'https://checkout.stripe.com/abc', id: 'cs_1' }));
     const customerCreate = vi.fn(async (_p: Record<string, unknown>) => ({ id: 'cus_new' }));
     const customerUpdate = vi.fn(async (_id: string, _p: Record<string, unknown>) => ({ id: 'cus_new' }));
+    // [PAY-04] The interval guard looks the price up before checkout. By default a price id mentioning
+    // "annual" is a yearly price, anything else monthly — so the existing monthly/annual flows verify clean.
+    const priceRetrieve = vi.fn(async (id: string) => ({ recurring: { interval: id.includes('annual') ? 'year' : 'month' } }));
     const stripe = {
       checkout: { sessions: { create: sessionCreate } },
       customers: { create: customerCreate, update: customerUpdate },
+      prices: { retrieve: priceRetrieve },
       webhooks: { constructEvent: () => ({}) },
       ...over,
     } as unknown as StripeLike;
-    return { stripe, sessionCreate, customerCreate, customerUpdate };
+    return { stripe, sessionCreate, customerCreate, customerUpdate, priceRetrieve };
   }
 
   it('creates a subscription checkout session tagged with the user id', async () => {
@@ -141,5 +145,49 @@ describe('StripeGatewayImpl', () => {
       webhooks: { constructEvent: () => { throw new Error('bad signature'); } },
     } as unknown as StripeLike;
     expect(new StripeGatewayImpl({ ...opts, stripe }).constructEvent('{}', 'forged')).toBeNull();
+  });
+
+  // [PAY-04] The interval guard: NEVER create a checkout on a price whose recurring interval doesn't match
+  // the plan (a yearly SKU Stripe has as a monthly interval would bill AED 2,990 every month). On a
+  // mismatch we refuse BEFORE creating a customer or a session — nothing is charged.
+  describe('PAY-04 price-interval guard', () => {
+    it('refuses a YEARLY checkout when the annual price is not a yearly interval (and creates no session)', async () => {
+      const { stripe, sessionCreate, customerCreate } = fakeStripe({
+        prices: { retrieve: vi.fn(async () => ({ recurring: { interval: 'month' } })) },
+      } as unknown as Partial<StripeLike>);
+      const g = new StripeGatewayImpl({ ...opts, annualPriceId: 'price_annual', stripe });
+      await expect(g.createCheckoutSession('u', 'a@b.com', 'annual')).rejects.toMatchObject({ name: 'PriceIntervalMismatchError' });
+      expect(sessionCreate).not.toHaveBeenCalled();
+      expect(customerCreate).not.toHaveBeenCalled();
+    });
+
+    it('refuses a MONTHLY checkout when the monthly price is not a monthly interval', async () => {
+      const { stripe, sessionCreate } = fakeStripe({
+        prices: { retrieve: vi.fn(async () => ({ recurring: { interval: 'year' } })) },
+      } as unknown as Partial<StripeLike>);
+      const g = new StripeGatewayImpl({ ...opts, stripe });
+      await expect(g.createCheckoutSession('u', 'a@b.com', 'monthly')).rejects.toMatchObject({ name: 'PriceIntervalMismatchError' });
+      expect(sessionCreate).not.toHaveBeenCalled();
+    });
+
+    it('allows a correctly-configured yearly + monthly checkout (matching intervals)', async () => {
+      const { stripe, sessionCreate } = fakeStripe();
+      const g = new StripeGatewayImpl({ ...opts, annualPriceId: 'price_annual', stripe });
+      await g.createCheckoutSession('u', 'a@b.com', 'annual');
+      await g.createCheckoutSession('u', 'a@b.com', 'monthly');
+      expect(sessionCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('verifyPlanPrices reports ok per plan and flags a mismatch (for the /health ops view)', async () => {
+      const { stripe } = fakeStripe({
+        prices: { retrieve: vi.fn(async (id: string) => ({ recurring: { interval: id.includes('annual') ? 'month' : 'month' } })) },
+      } as unknown as Partial<StripeLike>);
+      const checks = await new StripeGatewayImpl({ ...opts, annualPriceId: 'price_annual', stripe }).verifyPlanPrices();
+      const monthly = checks.find((c) => c.plan === 'monthly')!;
+      const annual = checks.find((c) => c.plan === 'annual')!;
+      expect(monthly.ok).toBe(true); // month price is a month interval
+      expect(annual.ok).toBe(false); // annual price wrongly a month interval
+      expect(annual.interval).toBe('month');
+    });
   });
 });

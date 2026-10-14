@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
-import type { CustomerDetails, Plan, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
+import type { CustomerDetails, Plan, PlanInterval, PlanPriceCheck, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
+import { PriceIntervalMismatchError } from '../../ports/billing.js';
 
 /** Minimal Stripe surface we use — lets tests inject a fake (no live calls/keys). */
 export interface StripeLike {
@@ -8,6 +9,8 @@ export interface StripeLike {
     create(params: Stripe.CustomerCreateParams): Promise<{ id: string }>;
     update(id: string, params: Stripe.CustomerUpdateParams): Promise<{ id: string }>;
   };
+  // [PAY-04] Read a price to verify its recurring interval before charging on it.
+  prices: { retrieve(id: string): Promise<{ recurring: { interval: string } | null }> };
   invoices: { pay(id: string, params?: Stripe.InvoicePayParams): Promise<{ status: string | null }> };
   billingPortal: { sessions: { create(params: Stripe.BillingPortal.SessionCreateParams): Promise<{ url: string }> } };
   webhooks: { constructEvent(payload: string, sig: string, secret: string): Stripe.Event };
@@ -36,6 +39,59 @@ export class StripeGatewayImpl implements StripeGateway {
     this.stripe = opts.stripe ?? (new Stripe(opts.secretKey) as unknown as StripeLike);
   }
 
+  // [PAY-04] Price intervals don't change under us, so cache each verified lookup — a steady-state
+  // checkout costs no extra Stripe call.
+  private readonly intervalCache = new Map<string, string | null>();
+
+  private planInterval(plan: Plan): PlanInterval {
+    return plan === 'annual' ? 'year' : 'month';
+  }
+
+  /** The recurring interval of a price (null if not recurring), cached after the first lookup. */
+  private async priceInterval(priceId: string): Promise<string | null> {
+    const cached = this.intervalCache.get(priceId);
+    if (cached !== undefined) return cached;
+    const price = await this.stripe.prices.retrieve(priceId);
+    const interval = price.recurring?.interval ?? null;
+    this.intervalCache.set(priceId, interval);
+    return interval;
+  }
+
+  /** [PAY-04] Refuse the checkout unless the price's interval matches the plan. A lookup failure fails
+   *  CLOSED (refuse) — never charge on a price we couldn't verify. */
+  private async assertPlanPrice(priceId: string, plan: Plan): Promise<void> {
+    const expected = this.planInterval(plan);
+    let interval: string | null;
+    try {
+      interval = await this.priceInterval(priceId);
+    } catch (err) {
+      console.error(`[billing][PAY-04] could not verify Stripe price ${priceId}; refusing ${plan} checkout`, err);
+      throw new PriceIntervalMismatchError(priceId, expected, null);
+    }
+    if (interval !== expected) {
+      console.error(`[billing][PAY-04] price ${priceId} interval is ${interval ?? 'none'}, expected ${expected} for the ${plan} plan — refusing checkout`);
+      throw new PriceIntervalMismatchError(priceId, expected, interval);
+    }
+  }
+
+  async verifyPlanPrices(): Promise<PlanPriceCheck[]> {
+    const plans: Array<{ plan: Plan; priceId: string }> = [
+      { plan: 'monthly', priceId: this.opts.priceId },
+      { plan: 'annual', priceId: this.opts.annualPriceId ?? this.opts.priceId },
+    ];
+    const out: PlanPriceCheck[] = [];
+    for (const { plan, priceId } of plans) {
+      const expected = this.planInterval(plan);
+      try {
+        const interval = await this.priceInterval(priceId);
+        out.push({ plan, priceId, expected, interval, ok: interval === expected });
+      } catch {
+        out.push({ plan, priceId, expected, interval: null, ok: false, error: 'lookup_failed' });
+      }
+    }
+    return out;
+  }
+
   /** metadata: only the Tovira user id (always, so an invoice traces back without matching on email)
    *  and an optional company. NO other PII is sent — email + name are the invoice essentials. */
   private metadataFor(userId: string, company?: string): Record<string, string> {
@@ -49,6 +105,9 @@ export class StripeGatewayImpl implements StripeGateway {
     details: CustomerDetails & { existingCustomerId?: string; collectTaxId?: boolean } = {},
   ): Promise<StripeCheckout> {
     const price = plan === 'annual' ? this.opts.annualPriceId ?? this.opts.priceId : this.opts.priceId;
+    // [PAY-04] Verify the price bills at the right cadence BEFORE creating a customer or a session, so a
+    // misconfigured yearly SKU (a monthly interval) can never charge a rep AED 2,990 every month.
+    await this.assertPlanPrice(price, plan);
     // Create (or reuse) a customer that carries the name + the user-id metadata, so the generated
     // invoice has a name on it and traces back to the account — a bare customer_email has neither.
     const customerId = details.existingCustomerId

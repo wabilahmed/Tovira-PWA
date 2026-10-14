@@ -290,6 +290,9 @@ export function createApiServer(deps: ApiDeps): Server {
             ...(deps.extractionHealth ? { extraction: deps.extractionHealth.snapshot() } : {}),
             ...(deps.trainingLog ? { trainingLog: deps.trainingLog.snapshot() } : {}),
             ...(deps.spend ? { spend: { ...deps.spend.snapshot(), ...(spendAlerts ? { alerts: spendAlerts } : {}) } } : {}),
+            // [PAY-04] Each plan's Stripe price interval — a wrong one (yearly SKU billing monthly) shows
+            // up here without needing to open a checkout. Best-effort; a lookup failure just omits it.
+            pricing: await deps.billing.verifyPlanPrices().catch(() => undefined),
           });
         } catch {
           sendJson(response, 503, { status: 'degraded', reason: 'database unavailable' }); // liveness only

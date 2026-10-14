@@ -1,4 +1,4 @@
-import type { CustomerDetails, Plan, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
+import type { CustomerDetails, Plan, PlanPriceCheck, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
 
 /**
  * Local stand-in for Stripe (test mode). Checkout returns a fake URL; webhook
@@ -20,6 +20,15 @@ export class StubStripeGateway implements StripeGateway {
     if (!details.existingCustomerId) this.customers.push({ userId, details: { name: details.name, company: details.company } });
     this.taxIdCollected.push(details.collectTaxId === true);
     return { url: `https://checkout.stripe.test/session?ref=${userId}&plan=${plan}`, sessionId: `cs_test_${userId}`, customerId };
+  }
+
+  // [PAY-04] The stub carries no real Stripe prices — report both plans healthy so dev/test never
+  // trips the interval guard. The real gateway does the live check.
+  async verifyPlanPrices(): Promise<PlanPriceCheck[]> {
+    return [
+      { plan: 'monthly', priceId: 'stub_monthly', expected: 'month', interval: 'month', ok: true },
+      { plan: 'annual', priceId: 'stub_annual', expected: 'year', interval: 'year', ok: true },
+    ];
   }
 
   /** Recorded so a test can assert the top-up amount + option sent to Stripe. */

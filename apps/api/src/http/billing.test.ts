@@ -110,3 +110,30 @@ describe('[P5-1/P5-2] trial + billing over HTTP', () => {
     expect(res.status).toBe(400);
   });
 });
+
+// [PAY-04] When the plan's Stripe price has the wrong interval, checkout must refuse with a calm,
+// retryable message — never a charge on a mismatched price.
+describe('[PAY-04] checkout refuses a mismatched price interval (no charge)', () => {
+  it('returns 503 "Billing is being set up" instead of opening a mismatched-price checkout', async () => {
+    const { PriceIntervalMismatchError } = await import('../ports/billing.js');
+    class ThrowingGateway extends StubStripeGateway {
+      override async createCheckoutSession(): Promise<never> {
+        throw new PriceIntervalMismatchError('price_annual', 'year', 'month');
+      }
+    }
+    const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new ThrowingGateway('whsec_test'), 14);
+    const s = createApiServer(buildInMemoryDeps({ billing }));
+    await new Promise<void>((r) => s.listen(0, r));
+    const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
+    try {
+      const token = ((await (await fetch(`${b}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'pay04@example.com', password: 'password123' }) })).json()) as { token: string }).token;
+      const res = await fetch(`${b}/billing/checkout`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ plan: 'annual' }) });
+      expect(res.status).toBe(503);
+      const body = (await res.json()) as { error: string; message: string };
+      expect(body.error).toBe('billing_setup');
+      expect(body.message).toMatch(/being set up/i);
+    } finally {
+      await new Promise<void>((r) => s.close(() => r()));
+    }
+  });
+});

@@ -3,6 +3,7 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import { extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 import { TOP_UP_OPTIONS, topUpOptionById } from '../config.js';
+import { PriceIntervalMismatchError } from '../ports/billing.js';
 
 export interface BillingRouteDeps {
   auth: AuthService;
@@ -96,6 +97,16 @@ export async function handleBillingRoute(
   const details: { name?: string; company?: string } = {};
   if (typeof body.name === 'string' && body.name.trim()) details.name = body.name.trim();
   if (typeof body.company === 'string' && body.company.trim()) details.company = body.company.trim();
-  sendJson(res, 200, await deps.billing.checkout(userId, user?.email ?? '', plan, details));
+  try {
+    sendJson(res, 200, await deps.billing.checkout(userId, user?.email ?? '', plan, details));
+  } catch (err) {
+    // [PAY-04] A price whose interval doesn't match the plan must never charge the rep. Refuse with a
+    // calm, retryable message (the owner fixes the price id); the mismatch is already logged server-side.
+    if (err instanceof PriceIntervalMismatchError) {
+      sendJson(res, 503, { error: 'billing_setup', message: 'Billing is being set up. Please try again shortly.' });
+      return true;
+    }
+    throw err;
+  }
   return true;
 }
