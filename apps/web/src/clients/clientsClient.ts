@@ -248,7 +248,11 @@ export class ClientsClient {
       };
     }
     if (res.status === 400) return { ok: false, error: 'consent', message: 'Please confirm consent to import.' };
-    if (res.status === 413) return { ok: false, error: 'too_large', message: 'That export is too large to import.' };
+    if (res.status === 413) {
+      // [IMP-12] Surface the server's message, which states the real limit ("…10 MB…") and the way out.
+      const b = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: 'too_large', message: b.message ?? 'That export is too large to import.' };
+    }
     if (res.status === 422) {
       const body = (await res.json().catch(() => ({}))) as { reason?: string };
       return { ok: false, error: 'not_whatsapp', message: body.reason ?? "That doesn't look like a WhatsApp export." };

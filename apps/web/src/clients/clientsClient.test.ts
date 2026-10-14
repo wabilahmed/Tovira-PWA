@@ -41,6 +41,12 @@ describe('ClientsClient', () => {
     expect(r).toMatchObject({ ok: false, message: "Tovira records voice notes inside the app; audio files from other apps can't be added." });
   });
 
+  it('[IMP-12] surfaces the server 413 message (which states the 10 MB limit) instead of a generic one', async () => {
+    fetchMock.mockResolvedValueOnce(json(413, { error: 'too_large', message: 'That export is too large. The limit is 10 MB. Export without media, or split the chat.' }));
+    const r = await new ClientsClient('http://api.test').importWhatsApp('c1', { contentBase64: 'b64' }, true);
+    expect(r).toMatchObject({ ok: false, error: 'too_large', message: 'That export is too large. The limit is 10 MB. Export without media, or split the chat.' });
+  });
+
   it('creates a client and returns it', async () => {
     fetchMock.mockResolvedValueOnce(json(201, { id: '2', name: 'Acme', createdAt: 2 }));
     const client = new ClientsClient('http://api.test');

@@ -22,6 +22,13 @@ export const BULK_MAX_FILE_CHARS = 5_000_000;
  */
 export const MAX_IMPORT_UPLOAD_BYTES = BULK_MAX_FILE_CHARS * 2; // 10 MB (~9.5 MiB)
 
+/** [IMP-12] The upload limit in whole MB, DERIVED from the enforced byte cap so the rep-facing number
+ *  can never drift from what the server actually rejects. */
+export const MAX_IMPORT_UPLOAD_MB = Math.floor(MAX_IMPORT_UPLOAD_BYTES / 1_000_000); // 10
+
+/** [IMP-12] The too-large message the rep sees — states the real limit and the two ways out. */
+export const IMPORT_TOO_LARGE_MESSAGE = `That export is too large. The limit is ${MAX_IMPORT_UPLOAD_MB} MB. Export without media, or split the chat.`;
+
 /**
  * [FOLLOW-UP 2] Cap a transcript at maxChars, keeping the MOST RECENT part. A WhatsApp export is
  * chronological (oldest first, newest last), so the recent messages are at the END — we keep the tail

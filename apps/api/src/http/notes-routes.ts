@@ -13,7 +13,7 @@ import type { BillingService } from '../services/billing/billing-service.js';
 import type { NoteMoveService } from '../services/import/note-move-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { resolveTranscript } from '../services/import/resolve.js';
-import { MAX_IMPORT_UPLOAD_BYTES, truncateToRecent } from '../services/import/bulk-decode.js';
+import { MAX_IMPORT_UPLOAD_BYTES, IMPORT_TOO_LARGE_MESSAGE, truncateToRecent } from '../services/import/bulk-decode.js';
 import { detectMisfileAtImport } from '../services/import/misfile.js';
 import type { ContactAliasRepository, RepNameRepository } from '../ports/contact-alias-repository.js';
 import type { ImportAckRepository } from '../ports/import-ack-repository.js';
@@ -258,7 +258,7 @@ export async function handleNoteRoute(
         try {
           rawFileBytes = await readRawBody(req, MAX_IMPORT_UPLOAD_BYTES);
         } catch {
-          sendJson(res, 413, { error: 'too_large', message: 'This file is too large.' });
+          sendJson(res, 413, { error: 'too_large', message: IMPORT_TOO_LARGE_MESSAGE });
           return true;
         }
         const h = req.headers;
@@ -315,7 +315,7 @@ export async function handleNoteRoute(
         // Cap the raw upload before decoding (a compressed chat export is small; this bounds the
         // base64 blow-up and the buffer we hold). Decompression caps live in the zip reader.
         if (body.contentBase64.length > MAX_IMPORT_CHARS * 2) {
-          sendJson(res, 413, { error: 'too_large', message: 'The upload is too large.' });
+          sendJson(res, 413, { error: 'too_large', message: IMPORT_TOO_LARGE_MESSAGE });
           return true;
         }
         const buf = Buffer.from(body.contentBase64, 'base64');

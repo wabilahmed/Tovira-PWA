@@ -1,7 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { deflateRawSync } from 'node:zlib';
-import { decodeBulkFiles, decodeBulkFileBytes, truncateToRecent, BULK_MAX_FILE_CHARS } from './bulk-decode.js';
+import { decodeBulkFiles, decodeBulkFileBytes, truncateToRecent, BULK_MAX_FILE_CHARS, MAX_IMPORT_UPLOAD_BYTES, MAX_IMPORT_UPLOAD_MB, IMPORT_TOO_LARGE_MESSAGE } from './bulk-decode.js';
 import { parseBatch } from './bulk-parse.js';
+
+// [IMP-12] The rep-facing limit must be DERIVED from the enforced byte cap, so copy can't drift from
+// what the server actually rejects.
+describe('[IMP-12] too-large message states the real enforced limit', () => {
+  it('MAX_IMPORT_UPLOAD_MB is derived from MAX_IMPORT_UPLOAD_BYTES', () => {
+    expect(MAX_IMPORT_UPLOAD_MB).toBe(Math.floor(MAX_IMPORT_UPLOAD_BYTES / 1_000_000));
+    expect(MAX_IMPORT_UPLOAD_MB).toBe(10);
+  });
+  it('the message names that same limit and the two ways out', () => {
+    expect(IMPORT_TOO_LARGE_MESSAGE).toContain(`${MAX_IMPORT_UPLOAD_MB} MB`);
+    expect(IMPORT_TOO_LARGE_MESSAGE).toMatch(/without media|split/i);
+  });
+});
 
 // Synthetic ZIP builder (same shape as resolve.test.ts) — no real export committed.
 const u16 = (n: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
