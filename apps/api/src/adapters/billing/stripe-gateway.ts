@@ -1,10 +1,22 @@
 import Stripe from 'stripe';
-import type { CustomerDetails, Plan, PlanInterval, PlanPriceCheck, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
+import type { CheckoutSessionInfo, CustomerDetails, Plan, PlanInterval, PlanPriceCheck, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
 import { PriceIntervalMismatchError } from '../../ports/billing.js';
 
 /** Minimal Stripe surface we use — lets tests inject a fake (no live calls/keys). */
 export interface StripeLike {
-  checkout: { sessions: { create(params: Stripe.Checkout.SessionCreateParams): Promise<{ url: string | null; id: string }> } };
+  checkout: { sessions: {
+    create(params: Stripe.Checkout.SessionCreateParams): Promise<{ url: string | null; id: string }>;
+    // [P14-2] Retrieve a session for the server-side success confirmation (payment status + who it was for).
+    retrieve(id: string): Promise<{
+      client_reference_id: string | null;
+      payment_status: string | null;
+      status: string | null;
+      mode: string | null;
+      customer: string | { id: string } | null;
+      subscription: string | { id: string } | null;
+      metadata?: Record<string, string> | null;
+    }>;
+  } };
   customers: {
     create(params: Stripe.CustomerCreateParams): Promise<{ id: string }>;
     update(id: string, params: Stripe.CustomerUpdateParams): Promise<{ id: string }>;
@@ -133,7 +145,9 @@ export class StripeGatewayImpl implements StripeGateway {
       // usually unknown, which defaults to UAE/taxed and would wrongly tax export customers.
       ...(details.collectTaxId ? { tax_id_collection: { enabled: true }, billing_address_collection: 'required' as const } : {}),
       // [BILL-13] Carry the plan onto the success page so it can name it ("subscribed to the Yearly plan").
-      success_url: `${this.opts.successUrl}${this.opts.successUrl.includes('?') ? '&' : '?'}plan=${plan}`,
+      // [P14-2] Also carry session_id so the page can confirm THIS payment server-side (safety net for a
+      // delayed/lost webhook). Stripe substitutes {CHECKOUT_SESSION_ID} on redirect.
+      success_url: `${this.opts.successUrl}${this.opts.successUrl.includes('?') ? '&' : '?'}plan=${plan}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: this.opts.cancelUrl,
     });
     return { url: session.url ?? '', sessionId: session.id, customerId };
@@ -166,7 +180,7 @@ export class StripeGatewayImpl implements StripeGateway {
       payment_intent_data: { metadata: { tovira_user_id: userId, topup_option_id: topUpOptionId } },
       // [BILL-13] Same return page, tagged so it reads "top-up added" (not "subscribed") and skips the
       // subscription-active poll — a top-up doesn't change subscription status.
-      success_url: `${this.opts.successUrl}${this.opts.successUrl.includes('?') ? '&' : '?'}topup=1`,
+      success_url: `${this.opts.successUrl}${this.opts.successUrl.includes('?') ? '&' : '?'}topup=1&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: this.opts.cancelUrl,
     });
     return { url: session.url ?? '', sessionId: session.id, customerId };
@@ -252,5 +266,29 @@ export class StripeGatewayImpl implements StripeGateway {
       ...(hostedInvoiceUrl ? { hostedInvoiceUrl } : {}),
       ...(paymentFailureCode ? { paymentFailureCode } : {}),
     };
+  }
+
+  // [P14-2] Server-side success confirmation. A session is 'paid' when Stripe reports payment_status
+  // 'paid' (or 'no_payment_required') / status 'complete'. The id ties back to our user via
+  // client_reference_id (set at checkout). Returns null when Stripe can't find/parse the session.
+  async retrieveCheckoutSession(sessionId: string): Promise<CheckoutSessionInfo | null> {
+    if (!sessionId) return null;
+    try {
+      const s = await this.stripe.checkout.sessions.retrieve(sessionId);
+      const customerId = typeof s.customer === 'string' ? s.customer : s.customer?.id ?? null;
+      const subscriptionId = typeof s.subscription === 'string' ? s.subscription : s.subscription?.id ?? null;
+      const paid = s.payment_status === 'paid' || s.payment_status === 'no_payment_required' || s.status === 'complete';
+      const topUpOptionId = s.metadata && typeof s.metadata.topup_option_id === 'string' ? s.metadata.topup_option_id : undefined;
+      return {
+        userId: s.client_reference_id ?? null,
+        paid,
+        mode: s.mode === 'payment' ? 'payment' : 'subscription',
+        customerId,
+        subscriptionId,
+        ...(topUpOptionId ? { topUpOptionId } : {}),
+      };
+    } catch {
+      return null; // unknown / invalid session id
+    }
   }
 }

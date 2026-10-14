@@ -137,3 +137,33 @@ describe('[PAY-04] checkout refuses a mismatched price interval (no charge)', ()
     }
   });
 });
+
+// [P14-2] GET /billing/success is the safety net for a delayed/lost webhook: it confirms the payment
+// server-side from the Stripe session. It must only activate (and only claim "paid") for a PAID session
+// that belongs to the signed-in rep — the return URL alone is never trusted.
+describe('[P14-2] GET /billing/success confirms a paid session server-side', () => {
+  it('a paid session for THIS user activates the account and reports paid:true', async () => {
+    const { token, userId } = await signup('success-ok@example.com');
+    const res = await fetch(`${base}/billing/success?session_id=cs_test_${userId}`, { headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { paid: boolean; entitlement: { status: string } };
+    expect(body.paid).toBe(true);
+    expect(body.entitlement.status).toBe('active');
+  });
+
+  it('a session belonging to ANOTHER user never activates this account (paid:false)', async () => {
+    const victim = await signup('success-victim@example.com');
+    const attacker = await signup('success-attacker@example.com');
+    const res = await fetch(`${base}/billing/success?session_id=cs_test_${attacker.userId}`, { headers: { authorization: `Bearer ${victim.token}` } });
+    const body = (await res.json()) as { paid: boolean; entitlement: { status: string } };
+    expect(body.paid).toBe(false);
+    expect(body.entitlement.status).toBe('trialing'); // victim is untouched (still trialing, NOT active)
+  });
+
+  it('a missing session_id reports paid:false (the success page must not claim payment)', async () => {
+    const { token } = await signup('success-none@example.com');
+    const res = await fetch(`${base}/billing/success`, { headers: { authorization: `Bearer ${token}` } });
+    const body = (await res.json()) as { paid: boolean };
+    expect(body.paid).toBe(false);
+  });
+});

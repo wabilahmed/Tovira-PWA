@@ -165,6 +165,36 @@ export class BillingService {
   }
 
   /**
+   * [P14-2] Server-side confirmation of a Checkout success redirect — the safety net for a delayed or
+   * lost webhook (the webhook stays the source of truth; this just stops a paying rep from being stranded
+   * on "confirming…" or, worse, told "payment received" when nothing was paid). The return URL is NEVER
+   * trusted: we retrieve the session from Stripe and activate ONLY when it is PAID and its
+   * client_reference_id matches the signed-in rep. Idempotent — activating an already-active account is a
+   * no-op, and it composes safely with the webhook (both only ever set active). A top-up session (mode
+   * 'payment') is reported paid but changes no subscription state (the webhook credits the allowance).
+   */
+  async confirmCheckoutSession(userId: string, sessionId: string): Promise<{ paid: boolean; entitlement: Entitlement }> {
+    const now = this.now();
+    const info = sessionId ? await this.stripe.retrieveCheckoutSession(sessionId) : null;
+    if (!info || !info.paid || info.userId !== userId) {
+      return { paid: false, entitlement: await this.entitlement(userId, now) };
+    }
+    if (info.mode === 'subscription') {
+      const s = await this.subs.get(userId);
+      if (!s || s.status !== 'active' || s.billingState !== 'active') {
+        if (!s) await this.subs.create(userId, now);
+        await this.subs.update(userId, {
+          status: 'active',
+          billingState: 'active',
+          ...(info.customerId ? { stripeCustomerId: info.customerId } : {}),
+          ...(info.subscriptionId ? { stripeSubscriptionId: info.subscriptionId } : {}),
+        });
+      }
+    }
+    return { paid: true, entitlement: await this.entitlement(userId, now) };
+  }
+
+  /**
    * [TASK 3] Open a Stripe Customer Portal session for the rep to manage their subscription (cancel at
    * period end, update the card, see invoices). Returns null if the rep has no Stripe customer yet
    * (they have never checked out) — the UI only offers this once subscribed. `returnUrl` is the app's
@@ -227,6 +257,10 @@ export class BillingService {
     await this.events.record(event.id);
 
     if (event.type === 'checkout.session.completed' && event.userId) {
+      // [P14-2] subs.update is a no-op without a row, so an account that reached checkout with NO
+      // subscription row (a pre-P14-0 invited rep, or any gap) would pay and never activate. Create the
+      // row first if it is missing (never overwrite an existing one — that would wipe its trial/period).
+      if (!(await this.subs.get(event.userId))) await this.subs.create(event.userId, this.now());
       await this.subs.update(event.userId, {
         status: 'active',
         billingState: 'active', // a fresh subscription starts clean (no failed-payment clock)

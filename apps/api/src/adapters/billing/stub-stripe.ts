@@ -1,4 +1,4 @@
-import type { CustomerDetails, Plan, PlanPriceCheck, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
+import type { CheckoutSessionInfo, CustomerDetails, Plan, PlanPriceCheck, StripeCheckout, StripeGateway, StripeWebhookEvent } from '../../ports/billing.js';
 
 /**
  * Local stand-in for Stripe (test mode). Checkout returns a fake URL; webhook
@@ -67,5 +67,18 @@ export class StubStripeGateway implements StripeGateway {
     } catch {
       return null;
     }
+  }
+
+  // [P14-2] Mirrors the session ids this stub mints: cs_test_<userId> is a PAID subscription;
+  // cs_topup_<userId>_<optionId> a PAID top-up; cs_unpaid_<userId> an incomplete session; anything else
+  // is unknown (null). User ids are UUIDs (no underscores), so the greedy captures are unambiguous.
+  async retrieveCheckoutSession(sessionId: string): Promise<CheckoutSessionInfo | null> {
+    let m = /^cs_test_(.+)$/.exec(sessionId);
+    if (m) return { userId: m[1]!, paid: true, mode: 'subscription', customerId: `cus_test_${m[1]}`, subscriptionId: `sub_test_${m[1]}` };
+    m = /^cs_topup_([^_]+)_(.+)$/.exec(sessionId);
+    if (m) return { userId: m[1]!, paid: true, mode: 'payment', customerId: `cus_test_${m[1]}`, subscriptionId: null, topUpOptionId: m[2]! };
+    m = /^cs_unpaid_(.+)$/.exec(sessionId);
+    if (m) return { userId: m[1]!, paid: false, mode: 'subscription', customerId: `cus_test_${m[1]}`, subscriptionId: null };
+    return null;
   }
 }

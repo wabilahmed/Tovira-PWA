@@ -139,6 +139,21 @@ export interface StripeWebhookEvent {
   hostedInvoiceUrl?: string;
 }
 
+/** [P14-2] What a retrieved Stripe Checkout Session tells us, for the server-side success confirmation
+ *  (the safety net when the webhook is delayed/lost). Only a PAID session whose `userId` matches the
+ *  signed-in rep may activate the account — the return URL is never trusted on its own. */
+export interface CheckoutSessionInfo {
+  /** The Tovira user id the session was opened for (client_reference_id). Null if Stripe has none. */
+  userId: string | null;
+  /** True once the session's payment has completed (payment_status 'paid' / status 'complete'). */
+  paid: boolean;
+  mode: 'subscription' | 'payment';
+  customerId: string | null;
+  subscriptionId: string | null;
+  /** The top-up product id, on a completed one-time top-up session (mode 'payment'). */
+  topUpOptionId?: string;
+}
+
 export type Plan = 'monthly' | 'annual';
 
 /** [PAY-04] The recurring interval a plan's Stripe price MUST have. */
@@ -193,6 +208,9 @@ export interface StripeGateway {
   createPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }>;
   /** Verify + parse a webhook; returns null if the signature is invalid. */
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null;
+  /** [P14-2] Retrieve a Checkout Session by id for the server-side success confirmation — returns null
+   *  for an unknown/invalid session. Used so a delayed/lost webhook never leaves a paying rep unactivated. */
+  retrieveCheckoutSession(sessionId: string): Promise<CheckoutSessionInfo | null>;
   /** [BILLING-DUNNING · D6] App-driven daily retry of an open invoice (Stripe's built-in retries can't do
    *  daily-for-30, finding 4). Attempts an off-session charge. Returns 'paid' on success, 'authentication
    *  _required' when the card needs 3DS (the rep must pay via the hosted page — ruling 2), or 'failed' on

@@ -175,6 +175,73 @@ describe('[P5-2] billing via webhooks (source of truth)', () => {
   });
 });
 
+// [P14-2] A paid checkout must register even when the account has NO subscription row — subs.update is a
+// no-op without a row, so a rep who reached checkout with no row (e.g. a pre-P14-0 invited rep) would pay
+// and never activate. The webhook now creates the row if missing.
+describe('[P14-2] payment registers even with no pre-existing subscription row', () => {
+  it('a checkout.session.completed for a user with NO subscription row still activates (webhook upsert)', async () => {
+    const { billing } = make();
+    expect((await billing.entitlement('u', NOW)).status).toBe('none'); // no onSignup → no row at all
+    expect(await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1' }), 'whsec_test')).toBe(200);
+    const after = await billing.entitlement('u', NOW);
+    expect(after.status).toBe('active');
+    expect(after.entitled).toBe(true);
+  });
+});
+
+// [P14-2] The /billing/success safety net. If the webhook is delayed or lost, the rep lands back on the
+// app and we confirm the payment server-side by retrieving the session from Stripe — but ONLY a PAID
+// session that belongs to THIS user may activate (never trust the return URL). Idempotent with the webhook.
+describe('[P14-2] confirmCheckoutSession — server-side success confirmation', () => {
+  it('activates from a PAID session belonging to the user, even if the webhook never arrived', async () => {
+    const { billing, stripe } = make();
+    await billing.onSignup('u', 'rep@x.com', NOW);
+    const { sessionId } = await stripe.createCheckoutSession('u', 'rep@x.com', 'monthly');
+    const r = await billing.confirmCheckoutSession('u', sessionId);
+    expect(r.paid).toBe(true);
+    expect(r.entitlement.status).toBe('active');
+  });
+
+  it('works even with no subscription row (creates it) — the exact missed-webhook + pre-P14-0 case', async () => {
+    const { billing, stripe } = make();
+    const { sessionId } = await stripe.createCheckoutSession('u', 'rep@x.com', 'monthly');
+    const r = await billing.confirmCheckoutSession('u', sessionId);
+    expect(r.paid).toBe(true);
+    expect(r.entitlement.status).toBe('active');
+  });
+
+  it('NEVER activates or claims payment for a session belonging to ANOTHER user', async () => {
+    const { billing, stripe } = make();
+    const other = await stripe.createCheckoutSession('attacker', 'a@x.com', 'monthly');
+    const r = await billing.confirmCheckoutSession('victim', other.sessionId);
+    expect(r.paid).toBe(false);
+    expect(r.entitlement.status).toBe('none'); // victim is untouched
+  });
+
+  it('does not activate for an unpaid/incomplete session', async () => {
+    const { billing } = make();
+    const r = await billing.confirmCheckoutSession('u', 'cs_unpaid_u');
+    expect(r.paid).toBe(false);
+    expect(r.entitlement.status).toBe('none');
+  });
+
+  it('an unknown session id is not paid and activates nothing', async () => {
+    const { billing } = make();
+    const r = await billing.confirmCheckoutSession('u', 'cs_not_a_real_session');
+    expect(r.paid).toBe(false);
+    expect(r.entitlement.status).toBe('none');
+  });
+
+  it('is idempotent — repeated confirms keep the account active', async () => {
+    const { billing, stripe } = make();
+    const { sessionId } = await stripe.createCheckoutSession('u', 'rep@x.com', 'monthly');
+    await billing.confirmCheckoutSession('u', sessionId);
+    const r = await billing.confirmCheckoutSession('u', sessionId);
+    expect(r.paid).toBe(true);
+    expect(r.entitlement.status).toBe('active');
+  });
+});
+
 describe('[P5-2] renewal date (from the webhook, source of truth)', () => {
   const RENEW = Date.parse('2026-09-14T00:00:00Z');
   it('stores current_period_end from the activation webhook and exposes it as renewsAt', async () => {
