@@ -78,6 +78,16 @@ export function aiPausedForState(state: BillingState): boolean {
   return state !== 'active';
 }
 
+/** [IMP-17] Why a pending note can't be extracted right now from the account's entitlement STATUS, or
+ *  null when billing isn't the blocker — a failed/suspended payment needs a card update; a lapsed trial
+ *  or ended/cancelled subscription needs a new subscription. Kept in the billing module (the single home
+ *  for lifecycle-state literals) so no route hand-codes them (billing-state-guard). */
+export function extractionBillingBlock(status: string): 'subscribe' | 'payment' | null {
+  if (status === 'payment_failed' || status === 'suspended') return 'payment';
+  if (status === 'ended' || status === 'trial_expired' || status === 'none' || status === 'canceled' || status === 'past_due') return 'subscribe';
+  return null;
+}
+
 /** The HTTP body + status for a gate refusal — centralised here so no caller hand-codes a billing-state
  *  branch. `hostedInvoiceUrl` is the Stripe hosted page where the rep pays + completes 3DS (ruling 2). */
 export function blockedBody(decision: 'ai_paused' | 'blocked_suspended', state: BillingState, hostedInvoiceUrl: string | null): { status: number; body: Record<string, unknown> } {

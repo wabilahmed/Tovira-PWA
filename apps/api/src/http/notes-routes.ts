@@ -10,6 +10,7 @@ import type { FollowUpService } from '../services/followup/follow-up-service.js'
 import type { NotificationRepository } from '../ports/notification-repository.js';
 import type { LedgerService } from '../services/ledger/ledger-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
+import { extractionBillingBlock } from '../services/billing/billing-access.js';
 import type { NoteMoveService } from '../services/import/note-move-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { resolveTranscript } from '../services/import/resolve.js';
@@ -61,9 +62,10 @@ function zipFailureReason(reason: string): string {
 export async function extractionBlockReason(deps: NoteRouteDeps, userId: string): Promise<'subscribe' | 'payment' | 'allowance' | null> {
   if (deps.billing) {
     const ent = await deps.billing.entitlement(userId, Date.now()).catch(() => null);
-    const s = ent?.status;
-    if (s === 'payment_failed' || s === 'suspended') return 'payment';
-    if (s === 'ended' || s === 'trial_expired' || s === 'none' || s === 'canceled' || s === 'past_due') return 'subscribe';
+    // The billing module owns the lifecycle-state → action mapping (billing-state-guard); we never
+    // hand-code the state literals here.
+    const billingBlock = ent ? extractionBillingBlock(ent.status) : null;
+    if (billingBlock) return billingBlock;
   }
   if (deps.allowanceExhausted && (await deps.allowanceExhausted(userId))) return 'allowance';
   return null;
