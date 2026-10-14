@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { billingGateDecision, isAiPath, aiPausedForState } from './billing-access.js';
+import { billingGateDecision, isAiPath, aiPausedForState, canRunAi } from './billing-access.js';
 import { dunningAction, retentionAction, SUSPEND_AFTER_DAYS, END_AFTER_DAYS, RETENTION_AFTER_END_DAYS } from './billing-dunning.js';
 import { BillingDunningService } from './billing-dunning-service.js';
 import { InMemorySubscriptionRepository } from '../../adapters/billing/in-memory.js';
@@ -130,5 +130,26 @@ describe('[BILLING-DUNNING] aiPausedForState', () => {
   it('pauses the async sweep in every non-active state, resumes on active', () => {
     expect(aiPausedForState('active')).toBe(false);
     for (const s of ['payment_failed', 'suspended', 'ended'] as const) expect(aiPausedForState(s)).toBe(true);
+  });
+});
+
+// [P14-1] canRunAi is the single "may this account spend on a model call now?" predicate, shared by the
+// async sweep's canSpend and the UI lock. Entitlement is the gate — the leak was a billingState-only gate:
+// a never-subscribed account has NO subscription row, so entitlement defaults billingState to 'active',
+// and the old gate (!aiPausedForState(billingState)) let AI run for an account that never paid.
+describe('[P14-1] canRunAi — entitlement gates AI, billing-state pauses it', () => {
+  it('allows an entitled, non-paused account (active, trialing)', () => {
+    expect(canRunAi({ entitled: true, billingState: 'active' })).toBe(true);
+  });
+  it('REFUSES an unentitled account whose billingState still reads active (no row, trial_expired, canceled)', () => {
+    // This is the exact shape the leak exploited: entitlement()'s no-row/expired default is billingState 'active'.
+    expect(canRunAi({ entitled: false, billingState: 'active' })).toBe(false);
+  });
+  it('REFUSES payment_failed even though it is still entitled (AI is paused by state)', () => {
+    expect(canRunAi({ entitled: true, billingState: 'payment_failed' })).toBe(false);
+  });
+  it('REFUSES suspended and ended (not entitled AND paused)', () => {
+    expect(canRunAi({ entitled: false, billingState: 'suspended' })).toBe(false);
+    expect(canRunAi({ entitled: false, billingState: 'ended' })).toBe(false);
   });
 });

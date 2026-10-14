@@ -39,6 +39,11 @@ const GATED: Array<[string, (t: string) => Promise<Response>]> = [
   ['POST /recall', (t) => POST('/recall', t, { question: 'what did they say?' })],
   ['POST /notes/:id/follow-up', (t) => POST('/notes/any-note-id/follow-up', t, {})],
   ['GET /inventory', (t) => GET('/inventory', t)],
+  // [P14-1] The two synchronous model-call routes that extract/transcribe INLINE (not via the sweep),
+  // so they must gate on entitlement at the route — a lapsed rep must not be able to transcribe a voice
+  // note or run a bulk import. (The gate runs before the note/body checks, so a lapsed rep sees 402.)
+  ['POST /notes/:id/transcribe', (t) => POST('/notes/any-note-id/transcribe', t, {})],
+  ['POST /import/bulk', (t) => POST('/import/bulk', t, { files: [], decisions: [] })],
 ];
 
 describe('[P5-1/P5-2 ENTITLEMENT] premium surfaces gate on a lapsed trial', () => {

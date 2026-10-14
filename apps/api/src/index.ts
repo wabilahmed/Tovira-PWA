@@ -99,7 +99,7 @@ import {
   createAdvisoryLock,
 } from './container.js';
 import { ScheduledBrain } from './services/scheduler/scheduled-brain.js';
-import { aiPausedForState } from './services/billing/billing-access.js';
+import { canRunAi } from './services/billing/billing-access.js';
 import { OutcomeInferenceService } from './services/outcomes/outcome-inference-service.js';
 import { TrainingLogStatsService } from './services/facts/training-log-stats.js';
 import { PgTrainingLogStatsRepository } from './adapters/logs/pg-training-log-stats-repository.js';
@@ -360,10 +360,13 @@ async function main(): Promise<void> {
     reclaim: (u) => notes.reclaimStaleExtracting(u, Date.now(), EXTRACTION_CLAIM_TIMEOUT_MS).then(() => undefined),
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
-    // [USAGE-ALLOWANCE · D4 / BILLING-DUNNING · D3] A queued note waits while AI is paused — an exhausted
-    // allowance OR a failed-payment state (payment_failed/suspended/ended). On a successful payment the
-    // billing state returns to active and the sweep processes the waiting notes on its next pass (guard 3).
-    canSpend: async (u) => !(await aiExhausted(u)) && !aiPausedForState((await billing.entitlement(u, Date.now())).billingState),
+    // [USAGE-ALLOWANCE · D4 / BILLING-DUNNING · D3 / P14-1] A queued note waits unless the rep may spend
+    // on a model call right now: NOT exhausted (allowance) AND canRunAi (ENTITLED and not AI-paused). The
+    // entitlement gate is the P14-1 fix — a never-subscribed / lapsed-trial account has no subscription
+    // row, so its billingState defaults to 'active'; a billingState-only gate let the sweep extract for
+    // free forever. The queue is left untouched (no attempt bump, no needs_review) and resumes intact the
+    // moment the rep subscribes or pays (same mechanism as the exhausted allowance / failed payment).
+    canSpend: async (u) => !(await aiExhausted(u)) && canRunAi(await billing.entitlement(u, Date.now())),
     isVerified: (u) => verifiedGate.isVerified(u), // TRIAL-FARM: an unverified rep's queue waits too
     allow: (u) => extractionLimiter.allow(u), // ASYNC-EXTRACT: a rep at the extraction ceiling waits (no needs_review)
     onSettled: (u, id) => importCompletion.onNoteSettled(u, id), // IMPORT-DONE

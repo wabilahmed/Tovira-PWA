@@ -78,6 +78,22 @@ export function aiPausedForState(state: BillingState): boolean {
   return state !== 'active';
 }
 
+/**
+ * [P14-1] The single "may this account spend on a model call right now?" predicate. ENTITLEMENT is the
+ * gate; billing STATE is the pause. Both must be satisfied:
+ *   - entitled — a never-subscribed (no subscription row → status 'none'), lapsed-trial, suspended or
+ *     ended account is NOT entitled and must not run AI.
+ *   - not AI-paused — payment_failed is still entitled but its AI is paused (card update needed).
+ *
+ * This closes P14-1's leak: entitlement()'s no-row/expired default sets billingState to 'active', so a
+ * billingState-only gate (`!aiPausedForState(billingState)`) returned true for an account that had never
+ * paid and had no trial — free AI forever. The async sweep's canSpend and the UI lock both use this, so
+ * the server-side gate and what the app shows can never drift.
+ */
+export function canRunAi(ent: { entitled: boolean; billingState: BillingState }): boolean {
+  return ent.entitled && !aiPausedForState(ent.billingState);
+}
+
 /** [IMP-17] Why a pending note can't be extracted right now from the account's entitlement STATUS, or
  *  null when billing isn't the blocker — a failed/suspended payment needs a card update; a lapsed trial
  *  or ended/cancelled subscription needs a new subscription. Kept in the billing module (the single home

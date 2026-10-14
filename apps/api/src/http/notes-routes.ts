@@ -596,6 +596,10 @@ export async function handleNoteRoute(
     }
 
     if (transcribeMatch) {
+      // [P14-1] Transcription runs a model (STT) call INLINE in this request (not via the sweep), so it
+      // must gate on entitlement here — a lapsed / never-subscribed rep (billingState defaults to 'active')
+      // must not transcribe for free. Capture itself stays open; only the paid transcription is gated.
+      if (deps.billing && !(await requireEntitled(deps.billing, userId, res))) return true;
       const noteId = decodeURIComponent(transcribeMatch[1]!);
       const note = await deps.notes.findByIdForUser(userId, noteId);
       if (!note) {

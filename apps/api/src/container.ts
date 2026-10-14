@@ -611,10 +611,18 @@ export function createExtractionModelRouter(
   // ledger nor the spend cap (the cap has never counted extraction; the bug dates to P5-7, 2026-08-01,
   // predating the ledger itself). Task class 'extraction' keeps the cache-metrics + timeout consistent
   // with createModelClient; the per-call spendClass (extraction/import) still comes from the request.
+  // [P14-1] ALSO wrap in GatedModelClient (reserve → call → settle) — identical to createModelClient.
+  // Metering records cost to the ledger; the GATE reserves it against the rep's AED allowance. The router
+  // was metered-only, so extraction recorded spend but NEVER reserved — the allowance never ran down and
+  // never refused, so the spend cap did not bound extraction (the dominant cost). The started-chat
+  // allowance bypass still works: claimAndExtract passes forceReserve, which GatedModelClient honours.
   const make = (model: string) =>
-    new MeteredModelClient(
-      new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model, timeoutMs: config.modelTimeoutMs }),
-      'extraction',
+    new GatedModelClient(
+      new MeteredModelClient(
+        new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model, timeoutMs: config.modelTimeoutMs }),
+        'extraction',
+        model,
+      ),
       model,
     );
   return new BillingModelRouter(

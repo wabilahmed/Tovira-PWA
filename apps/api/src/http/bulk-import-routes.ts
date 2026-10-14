@@ -11,7 +11,7 @@ import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
 import { BULK_MAX_FILES, type RowState } from '../services/import/bulk-parse.js';
 import { decodeBulkFiles, decodeBulkFileBytes, MAX_IMPORT_UPLOAD_BYTES } from '../services/import/bulk-decode.js';
 import { putBatchFile, listBatchFiles, writeBatchStatus, readBatchStatus, clearBatch } from '../services/import/bulk-batch-store.js';
-import { extractToken, readJsonBody, readRawBody, sendJson, BadJsonError } from './helpers.js';
+import { extractToken, readJsonBody, readRawBody, sendJson, BadJsonError, requireEntitled, type EntitlementGate } from './helpers.js';
 
 /**
  * [BULK-IMPORT page] The bulk endpoints. The API caps a JSON body at 1 MB and 20 exports far exceed that,
@@ -24,6 +24,8 @@ import { extractToken, readJsonBody, readRawBody, sendJson, BadJsonError } from 
 export interface BulkImportRouteDeps {
   auth: AuthService;
   bulkImport?: BulkImportService;
+  /** [P14-1] entitlement gate for the confirmed import (the synchronous model-calling step). */
+  billing?: EntitlementGate;
   importAck: ImportAckRepository;
   storage: Storage;
   /** [FIX 3] used to re-derive started chats' state when healing an interrupted batch. */
@@ -84,6 +86,11 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
     sendJson(res, 501, { error: 'not_available', message: 'Bulk import is not configured.' });
     return true;
   }
+  // [P14-1] The confirmed import extracts INLINE (every chat is a model call) — the heaviest paid path.
+  // Gate it on entitlement up front so a lapsed / never-subscribed rep (billingState defaults to 'active',
+  // so the dunning chokepoint lets it through) cannot run free extraction. Upload/parse/status stay open
+  // so a rep mid-review is never stranded — only the extract step is paywalled.
+  if (isImport && deps.billing && !(await requireEntitled(deps.billing, userId, res))) return true;
 
   // GET status — read-only (except the one-shot heal of an interrupted batch).
   if (statusMatch) {

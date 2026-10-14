@@ -391,6 +391,7 @@ export function createApiServer(deps: ApiDeps): Server {
         await handleBulkImportRoute(request, response, {
           auth: deps.auth,
           bulkImport: deps.bulkImport,
+          billing: deps.billing, // [P14-1] gate the confirmed import on entitlement
           importAck: deps.importAck,
           storage: deps.storage,
           notes: deps.notes,

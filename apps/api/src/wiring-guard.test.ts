@@ -99,6 +99,20 @@ describe('[WIRING-GUARD] every model call routes through the metered sink', () =
     }
     expect(offenders, `raw model clients bypass the metered sink:\n${offenders.join('\n')}`).toEqual([]);
   });
+
+  // [P14-1 / WIRING-GUARD] Metering (the ledger) is NOT the allowance reservation. The spend cap only
+  // bounds an account when every model client is also wrapped in GatedModelClient (estimate → reserve →
+  // settle). The extraction model ROUTER was metered but NOT gated, so extraction recorded spend yet
+  // never reserved against the AED allowance — the allowance never ran down and never refused. Every
+  // AnthropicModelClient the container builds must be wrapped in BOTH MeteredModelClient and
+  // GatedModelClient; a metered-only client is an unbounded-cost hole.
+  it('every model client in the container is also allowance-gated (GatedModelClient), not just metered', () => {
+    const f = nonTestFiles().find((x) => x.rel.endsWith('container.ts'));
+    expect(f, 'container.ts not found').toBeTruthy();
+    const anthropic = (f!.content.match(/new AnthropicModelClient\(/g) ?? []).length;
+    const gated = (f!.content.match(/new GatedModelClient\(/g) ?? []).length;
+    expect(gated, `container builds ${anthropic} AnthropicModelClient but only ${gated} GatedModelClient — an unmetered-against-allowance (ungated) client lets extraction bypass the spend cap`).toBeGreaterThanOrEqual(anthropic);
+  });
 });
 
 describe('[WIRING-GUARD] every registered emitter is reachable in production', () => {
@@ -117,6 +131,16 @@ describe('[WIRING-GUARD] every registered emitter is reachable in production', (
       if ('dormant' in w) { expect(w.dormant.length, `${type} dormant reason`).toBeGreaterThan(10); continue; }
       expect(src.includes(w.triggeredBy), `${type}: production writer "${w.triggeredBy}" not found — ledger emitter is UNWIRED`).toBe(true);
     }
+  });
+
+  // [P14-1] The async sweep is the PRIMARY extraction path, so its canSpend is the real pre-model-call
+  // gate for a no-subscription / lapsed-trial account. It must gate on ENTITLEMENT (canRunAi), not only
+  // on billingState — a never-subscribed account's billingState defaults to 'active', so a
+  // billingState-only gate (the old !aiPausedForState(...) alone) let the sweep extract for free forever.
+  it('the sweep canSpend gates on entitlement (canRunAi), not billingState alone', () => {
+    const sweepBlock = indexSrc.slice(indexSrc.indexOf('new NoteSweepService('));
+    const canSpend = sweepBlock.slice(sweepBlock.indexOf('canSpend:'), sweepBlock.indexOf('isVerified:'));
+    expect(canSpend.includes('canRunAi'), `sweep canSpend must gate on entitlement via canRunAi — found instead:\n${canSpend}`).toBe(true);
   });
 
   it('every expected scheduled job is registered on the brain', () => {
