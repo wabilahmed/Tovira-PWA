@@ -95,6 +95,11 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
   return (
     <AuthShell subtitle="Request beta access">
       <p className="auth__intro">Tovira is in private beta for field salespeople. Tell us a little about you and we’ll be in touch.</p>
+      {/* [INV-05] A referral code from the landing URL (?ref=) rides along with the request. Show it
+          read-only so the rep can see it was captured; an invalid code is ignored server-side, never a block. */}
+      {referralCode && (
+        <p className="auth__hint" data-testid="referral-note">Referral code: <strong>{referralCode}</strong></p>
+      )}
       <form className="auth__form" onSubmit={(e) => void onSubmit(e)} noValidate>
         {/* 1. Full name, work email, phone */}
         <label className="auth__field"><span>Full name</span><input value={fullName} onChange={(e) => setFullName(e.target.value)} required /></label>
