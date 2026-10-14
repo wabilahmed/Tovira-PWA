@@ -482,6 +482,11 @@
 .lead-sheet__hint { grid-column: 2; color: var(--text-tertiary); font-size: 0.78rem; }
 .lead-sheet__check { color: var(--tone); font-weight: 700; }
 .lead-dot { width: 0.7rem; height: 0.7rem; border-radius: 999px; background: var(--tone); border: 1px solid var(--tone-line); }
+/* [UI-04] Distinct per-status dot colours from the brand tokens (AA in both themes). Set explicitly so
+   they don't depend on the --tone custom-property cascade (which the option's own default greys out). */
+.lead-dot--warm { background: var(--brass); border-color: var(--brass); }
+.lead-dot--cold { background: var(--amber); border-color: var(--amber); }
+.lead-dot--done { background: var(--green); border-color: var(--green); }
 .lead-dot--unsorted { background: transparent; border: 1px solid var(--text-tertiary); }
 
 /* The lead-status toast (rollback error / drop-out Undo) reuses the move-toast idiom. */

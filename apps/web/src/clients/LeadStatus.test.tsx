@@ -107,4 +107,25 @@ describe('<LeadStatusSheet>', () => {
     const { container } = render(<LeadStatusSheet client={null} onPick={() => {}} onClose={() => {}} />);
     expect(container.querySelector('[data-testid="lead-sheet"]')).toBeNull();
   });
+
+  // [UI-04] Each option's dot carries its own status class, so Warm/Cold/Done aren't all the same grey.
+  it('gives each option a distinct status-coloured dot class', () => {
+    render(<LeadStatusSheet client={mk('1', null)} onPick={() => {}} onClose={() => {}} />); // portals to document.body
+    for (const key of ['warm', 'cold', 'done', 'unsorted']) {
+      expect(document.querySelector(`.lead-dot--${key}`)).not.toBeNull();
+    }
+  });
+});
+
+// [UI-04] The CSS must give Warm/Cold/Done dots distinct, non-grey backgrounds from the brand tokens.
+describe('[UI-04] status dot colours are distinct in the stylesheet', () => {
+  it('defines a different brand token background for warm, cold and done', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const css = readFileSync(resolve(process.cwd(), 'apps/web/src/styles/theme.css'), 'utf8');
+    const bg = (sel: string): string => new RegExp(`\\.lead-dot--${sel}\\s*\\{[^}]*background:\\s*var\\((--[a-z-]+)\\)`).exec(css)?.[1] ?? '';
+    const warm = bg('warm'), cold = bg('cold'), done = bg('done');
+    expect(new Set([warm, cold, done]).size).toBe(3); // three distinct tokens
+    for (const t of [warm, cold, done]) expect(t).not.toBe('--text-tertiary'); // not the grey default
+  });
 });

@@ -10,7 +10,8 @@ import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus } from './clients/clientsClient.js';
 import { PointersCard, type Pointer } from './clients/PointersCard.js';
 import { LeadStatusFilterBar, LeadStatusPill, LeadStatusSheet, leadStatusCounts, matchesLeadFilter, leadStatusLabel, type LeadFilter } from './clients/LeadStatus.js';
-import { searchClients, type Range as HlRange } from './clients/searchClients.js';
+import { searchClients } from './clients/searchClients.js';
+import { ClientRow } from './clients/ClientRow.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
 import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
@@ -256,20 +257,6 @@ export function App(): JSX.Element {
   if (!session) return <LoginScreen auth={auth} onAuthed={setSession} />;
 
   return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
-}
-
-/** [CLIENT-SEARCH] Render a field value with the matched range(s) wrapped in <mark>. */
-function Highlighted({ value, ranges }: { value: string; ranges: HlRange[] }): JSX.Element {
-  if (ranges.length === 0) return <>{value}</>;
-  const parts: JSX.Element[] = [];
-  let cursor = 0;
-  ranges.forEach((r, i) => {
-    if (r.start > cursor) parts.push(<span key={`p${i}`}>{value.slice(cursor, r.start)}</span>);
-    parts.push(<mark key={`m${i}`} className="lead-mark">{value.slice(r.start, r.end)}</mark>);
-    cursor = r.end;
-  });
-  if (cursor < value.length) parts.push(<span key="tail">{value.slice(cursor)}</span>);
-  return <>{parts}</>;
 }
 
 function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
@@ -664,36 +651,17 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           ) : (
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {search.active
-                ? visibleHits.map((h) => {
-                    const c = h.client;
-                    return (
-                      <li key={c.id} style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', flex: '1 1 auto', textAlign: 'left', padding: '0.6rem 0', color: 'inherit' }}>
-                          <div>{h.field === 'name' ? <Highlighted value={c.name} ranges={h.ranges} /> : c.name}</div>
-                          {h.field === 'name' ? (
-                            <small className="tov-stamp">on file since {formatMonthYear(c.createdAt)}</small>
-                          ) : (
-                            <small className="tov-stamp" data-testid={`match-${h.field}`}>
-                              {h.field === 'phone' ? 'phone' : 'email'}: <Highlighted value={h.value} ranges={h.ranges} />
-                            </small>
-                          )}
-                        </button>
-                        <span data-testid={`lead-pill-${c.id}`}>
-                          <LeadStatusPill status={c.leadStatus} onClick={() => setStatusSheetFor(c)} />
-                        </span>
-                      </li>
-                    );
-                  })
+                ? visibleHits.map((h) => (
+                    <ClientRow
+                      key={h.client.id}
+                      client={h.client}
+                      onOpen={() => setOpen(h.client)}
+                      onOpenStatus={() => setStatusSheetFor(h.client)}
+                      match={{ field: h.field, value: h.value, ranges: h.ranges }}
+                    />
+                  ))
                 : visibleClients.map((c) => (
-                    <li key={c.id} style={{ borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <button onClick={() => setOpen(c)} style={{ ...linkButton, display: 'block', flex: '1 1 auto', textAlign: 'left', padding: '0.6rem 0', color: 'inherit' }}>
-                        <div>{c.name}</div>
-                        <small className="tov-stamp">on file since {formatMonthYear(c.createdAt)}</small>
-                      </button>
-                      <span data-testid={`lead-pill-${c.id}`}>
-                        <LeadStatusPill status={c.leadStatus} onClick={() => setStatusSheetFor(c)} />
-                      </span>
-                    </li>
+                    <ClientRow key={c.id} client={c} onOpen={() => setOpen(c)} onOpenStatus={() => setStatusSheetFor(c)} />
                   ))}
             </ul>
           )}
