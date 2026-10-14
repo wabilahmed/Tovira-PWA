@@ -1,5 +1,6 @@
 /** The v0.1 extraction schema (see docs/tovira-extraction-prompt.md). */
 import type { UnansweredQuestion } from '../import/unanswered.js';
+import type { DateResolution } from './resolve-date.js';
 
 export type PromiseOwner = 'rep' | 'client';
 export type Confidence = 'high' | 'low';
@@ -15,6 +16,11 @@ export interface ExtractedPromise {
    *  no per-message timestamp — voice/paste). Optional: v0.9.4 output lacks them; v0.9.5 emits them. */
   source_span?: string | null;
   source_message_at?: string | null;
+  /** [P14-3] Deterministically resolved from due_raw anchored to source_message_at AFTER extraction —
+   *  separate from the model's due_date (which is left untouched), so the model's output is auditable and
+   *  the resolution is distinguishable. Null when the phrase can't be resolved without guessing. */
+  resolved_due_date?: string | null;
+  resolution?: DateResolution | null;
 }
 
 export interface ExtractedPerson {
@@ -48,6 +54,9 @@ export interface KeyDate {
    *  no per-message timestamp — voice/paste). Optional: v0.9.4 output lacks them; v0.9.5 emits them. */
   source_span?: string | null;
   source_message_at?: string | null;
+  /** [P14-3] Deterministically resolved from date_raw anchored to source_message_at (see ExtractedPromise). */
+  resolved_date?: string | null;
+  resolution?: DateResolution | null;
 }
 
 /** [REQ-FIELD, v0.9] What the client has STATED they are looking for — never an inferred

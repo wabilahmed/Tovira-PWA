@@ -15,6 +15,7 @@ import { checkPointers } from './pointer-postcheck.js';
 import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from './pointer-prompt.js';
 import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
+import { resolveExtractionDates, effectiveDueDate } from './resolve-date.js';
 import type { ModelRouter } from './model-router.js';
 import type { ExtractionLimiter } from './limiter.js';
 import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, EXTRACTION_MAX_TOKENS, buildUserMessage } from './prompt.js';
@@ -437,25 +438,26 @@ export class ExtractionService {
           console.warn(`[extract] embedding failed for note ${noteId}; saving facts without a vector`, err);
         }
       }
-      // DATE-INVARIANT: a promise can never be due BEFORE its note's reference date (a
-      // fresh note cannot commit to the past; a historical import legitimately can, since
-      // its reference is the message date). Enforced here at write time — a model rule can
-      // slip, a write-time check cannot. On violation: null the date, keep the raw phrase,
-      // drop to low, route to confirmation; log so the rate is observable.
-      for (const promise of extraction.promises) {
-        if (promise.due_date !== null && promise.due_date < referenceDate) {
-          console.warn(`[date-invariant] note ${noteId}: due_date ${promise.due_date} < reference ${referenceDate} — nulled, low, queued`);
-          promise.due_date = null;
-          promise.confidence = 'low';
-        }
-      }
+      // [P14-3] DATE-INVARIANT + deterministic resolution. The model resolves relative dates against a
+      // SINGLE "today" (an import's reference date), so a promise said long ago in an imported chat
+      // resolved against the wrong anchor and tripped the invariant (nulled). Resolve each promise's
+      // date deterministically against its OWN message (source_message_at) — leaving the model's due_date
+      // untouched in resolved_due_date — and anchor the invariant per-message. The resolved date is what
+      // surfacing uses (projected into the facts below); a voice/paste note with no per-message timestamp
+      // falls back to the note's reference date, exactly as before. A model rule can slip; this write-time
+      // check cannot.
+      resolveExtractionDates(extraction, referenceDate, noteId);
       await this.notes.update(userId, noteId, { extracted: extraction, status: hold ? 'pending_confirmation' : 'extracted', embedding });
       if (!hold) {
         await this.facts.saveExtraction(userId, {
           noteId,
           clientId: note.clientId,
-          promises: extraction.promises,
-          keyDates: extraction.key_dates,
+          // [P14-3] Surface the deterministically-resolved date (message-anchored) when we have one, else
+          // the model's own; the raw phrase is preserved. The stored extraction JSON (above) keeps the
+          // model's due_date + resolved_due_date + resolution for provenance; this projection is what the
+          // facts table (nudges, Monday, scan, lists) reads.
+          promises: extraction.promises.map((p) => ({ ...p, due_date: effectiveDueDate(p) })),
+          keyDates: extraction.key_dates.map((k) => ({ ...k, date: k.resolved_date ?? k.date })),
           captureAt: referenceDate, // the note's conversation date, not the fact-row/import time
         });
         // NUDGE-UNCONFIRMED: persist a proposed meeting so it can be confirmed and nudged.
