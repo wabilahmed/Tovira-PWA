@@ -38,6 +38,23 @@ describe('<ImportChat>', () => {
     expect(importWhatsApp.mock.calls[1]![1]).toMatchObject({ firstImportAck: true });
   });
 
+  // [IMP-09/13] Once an error is showing, the right-to-upload prompt is cleared (not left alongside it).
+  it('clears the right-to-upload prompt when the continue attempt errors', async () => {
+    const user = userEvent.setup();
+    const importWhatsApp = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: 'ack_required', message: 'You can import a chat you have the right to store.' })
+      .mockResolvedValueOnce({ ok: false, error: 'not_whatsapp', message: "This doesn't look like a WhatsApp export. Use WhatsApp's Export Chat (.zip or .txt)." });
+    render(<ImportChat clientId="c1" api={{ importWhatsApp }} onImported={vi.fn()} />);
+    await user.type(screen.getByLabelText(/pasted chat export/i), 'not a chat');
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /^import chat$/i }));
+    await user.click(await screen.findByRole('button', { name: /i have the right to upload/i }));
+
+    expect(await screen.findByText(/export chat \(\.zip or \.txt\)/i)).toBeInTheDocument();
+    expect(screen.queryByText(/right to store/i)).toBeNull(); // the ack prompt is gone
+    expect(screen.queryByRole('button', { name: /i have the right to upload/i })).toBeNull();
+  });
+
   // NEGATIVE: without consent (or content) the button is disabled — can't import.
   it('keeps the button disabled until there is content AND consent', async () => {
     const user = userEvent.setup();

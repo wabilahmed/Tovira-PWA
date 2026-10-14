@@ -79,6 +79,7 @@ export function ImportChat({
     setError(null);
     setCeilingCount(null);
     setNotice(null);
+    setFirstAck(null); // [IMP-09/13] once this attempt resolves (incl. to an error), the right-to-upload prompt clears
     // Only attach optional acks when set, so the common payload shape stays { content, misfileAck }.
     const meta: { misfileAck: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string } = { misfileAck: ack };
     if (firstImportAck) meta.firstImportAck = true;
