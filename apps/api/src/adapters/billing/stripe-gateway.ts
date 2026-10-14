@@ -132,7 +132,8 @@ export class StripeGatewayImpl implements StripeGateway {
       // invoice_tax record reads it from invoice.customer_address. Without this the country is
       // usually unknown, which defaults to UAE/taxed and would wrongly tax export customers.
       ...(details.collectTaxId ? { tax_id_collection: { enabled: true }, billing_address_collection: 'required' as const } : {}),
-      success_url: this.opts.successUrl,
+      // [BILL-13] Carry the plan onto the success page so it can name it ("subscribed to the Yearly plan").
+      success_url: `${this.opts.successUrl}${this.opts.successUrl.includes('?') ? '&' : '?'}plan=${plan}`,
       cancel_url: this.opts.cancelUrl,
     });
     return { url: session.url ?? '', sessionId: session.id, customerId };
@@ -163,7 +164,9 @@ export class StripeGatewayImpl implements StripeGateway {
       // payment_intent so it survives either event shape.
       metadata: { tovira_user_id: userId, topup_option_id: topUpOptionId },
       payment_intent_data: { metadata: { tovira_user_id: userId, topup_option_id: topUpOptionId } },
-      success_url: this.opts.successUrl,
+      // [BILL-13] Same return page, tagged so it reads "top-up added" (not "subscribed") and skips the
+      // subscription-active poll — a top-up doesn't change subscription status.
+      success_url: `${this.opts.successUrl}${this.opts.successUrl.includes('?') ? '&' : '?'}topup=1`,
       cancel_url: this.opts.cancelUrl,
     });
     return { url: session.url ?? '', sessionId: session.id, customerId };

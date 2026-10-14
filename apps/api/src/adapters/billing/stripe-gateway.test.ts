@@ -147,6 +147,16 @@ describe('StripeGatewayImpl', () => {
     expect(new StripeGatewayImpl({ ...opts, stripe }).constructEvent('{}', 'forged')).toBeNull();
   });
 
+  // [BILL-13] The success URL carries the plan (so the return page can name it) and the top-up tags itself.
+  it('appends the plan to the subscription success_url, and topup=1 to the top-up success_url', async () => {
+    const { stripe, sessionCreate } = fakeStripe();
+    const g = new StripeGatewayImpl({ ...opts, annualPriceId: 'price_annual', stripe });
+    await g.createCheckoutSession('u', 'a@b.com', 'annual');
+    expect(String(sessionCreate.mock.calls.at(-1)![0].success_url)).toMatch(/[?&]plan=annual/);
+    await g.createTopUpCheckout('u', 'a@b.com', 'tier-25', 65);
+    expect(String(sessionCreate.mock.calls.at(-1)![0].success_url)).toMatch(/[?&]topup=1/);
+  });
+
   // [PAY-04] The interval guard: NEVER create a checkout on a price whose recurring interval doesn't match
   // the plan (a yearly SKU Stripe has as a monthly interval would bill AED 2,990 every month). On a
   // mismatch we refuse BEFORE creating a customer or a session — nothing is charged.

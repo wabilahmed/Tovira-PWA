@@ -39,6 +39,7 @@ import { BillingClient } from './billing/billingClient.js';
 import { AllowanceClient } from './usage/allowanceClient.js';
 import { UsageMeter } from './usage/UsageMeter.js';
 import { Billing } from './billing/Billing.js';
+import { BillingReturn } from './billing/BillingReturn.js';
 import { PaymentBanner } from './billing/PaymentBanner.js';
 import { AiPausedBanner } from './usage/AiPausedBanner.js';
 import type { Entitlement } from './billing/billingClient.js';
@@ -74,7 +75,10 @@ import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { NotFound } from './components/NotFound.js';
 
 /** [AUDIT item 2] Paths the SPA legitimately serves; anything else is a 404. */
-const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite', '/verify-email', '/request-access']);
+// [BILL-13] The Stripe return paths are real app routes (not a 404): success/cancel land on the return
+// pages below; /billing is the Customer Portal return → the Billing (Settings) page.
+export const BILLING_RETURN_PATHS = ['/billing/success', '/billing/cancel', '/billing'] as const;
+export const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite', '/verify-email', '/request-access', ...BILLING_RETURN_PATHS]);
 import { InstallBanner } from './pwa/InstallBanner.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
@@ -215,6 +219,19 @@ export function App(): JSX.Element {
   // and /verify-email, it is served by the SPA before the session gate (no infra route needed).
   if (typeof window !== 'undefined' && window.location.pathname === '/request-access') {
     return <RequestAccess client={accessRequestApi} />;
+  }
+  // [BILL-13] Stripe return pages — a rep must never hit a 404 after paying. These render before the
+  // session gate (the rep is authed by cookie); the pages poll billing status and route onward.
+  if (typeof window !== 'undefined' && window.location.pathname === '/billing/success') {
+    return <BillingReturn mode="success" billing={billingApi} />;
+  }
+  if (typeof window !== 'undefined' && window.location.pathname === '/billing/cancel') {
+    return <BillingReturn mode="cancel" billing={billingApi} />;
+  }
+  // The Customer Portal returns to /billing → send the rep to the Billing page (lives under Settings).
+  if (typeof window !== 'undefined' && window.location.pathname === '/billing') {
+    window.location.replace('/app?view=settings');
+    return <Centered>Returning to Billing…</Centered>;
   }
   if (inviteToken) {
     return (
