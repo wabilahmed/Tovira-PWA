@@ -53,6 +53,21 @@ const ZIP_UNREADABLE_MESSAGE = "This .zip couldn't be opened. Export the chat ag
 function zipFailureReason(reason: string): string {
   return /transcript/i.test(reason) ? reason : ZIP_UNREADABLE_MESSAGE;
 }
+
+/** [IMP-17] Why extraction can't run for this account right now, or null if it can. The sweep silently
+ *  skips a blocked account, so a saved note would otherwise spin on "queued…" forever. Billing state maps
+ *  to the rep's action: a lapsed trial / ended subscription → subscribe; a failed/suspended payment →
+ *  update card; a spent monthly allowance → top up. It clears itself once billing is fixed. */
+export async function extractionBlockReason(deps: NoteRouteDeps, userId: string): Promise<'subscribe' | 'payment' | 'allowance' | null> {
+  if (deps.billing) {
+    const ent = await deps.billing.entitlement(userId, Date.now()).catch(() => null);
+    const s = ent?.status;
+    if (s === 'payment_failed' || s === 'suspended') return 'payment';
+    if (s === 'ended' || s === 'trial_expired' || s === 'none' || s === 'canceled' || s === 'past_due') return 'subscribe';
+  }
+  if (deps.allowanceExhausted && (await deps.allowanceExhausted(userId))) return 'allowance';
+  return null;
+}
 // [VOICE-GATE] Server-side length cap on a stored voice note. True duration enforcement would require
 // decoding the WebM/MP4 container (no media decoder in the Node stack; duration is not a cheap header
 // read), which is disproportionate — so this is a byte cap sized to ~10 minutes of the app's own
@@ -549,13 +564,20 @@ export async function handleNoteRoute(
       // book as a placeholder — its content withheld (restrictNote), flagged `restricted` with the exact
       // notice — rather than deleted. The stored note is untouched and still appears in the export.
       const restriction = deps.restriction ? await deps.restriction.forUser(userId) : NO_RESTRICTION;
+      // [IMP-17] Why a PENDING note can't be read right now (billing). The sweep silently skips a blocked
+      // account, so without this a saved note would spin on "queued…" forever with no explanation. Compute
+      // the reason ONCE and attach it to the pending notes; it clears itself once billing is fixed.
+      const blockedReason = await extractionBlockReason(deps, userId);
       sendJson(res, 200, {
         notes: raw.map((n) => {
           const restricted = restriction.active && noteIsAboutRestricted(n, restriction);
           const view = restriction.active ? restrictNote(n, restriction) : n;
+          const state = extractionState(n);
+          const pending = state === 'queued' || state === 'processing';
           return {
             ...noteWithReceipts(view),
-            extractionState: extractionState(n),
+            extractionState: state,
+            ...(blockedReason && pending ? { blockedReason } : {}),
             ...(restricted ? { restricted: true, restrictionNotice: RESTRICTION_NOTICE } : {}),
           };
         }),

@@ -44,6 +44,9 @@ export interface NoteSummary {
   createdAt: number;
   /** [ASYNC-EXTRACT] the rep-facing state the server computes; absent on older responses. */
   extractionState?: ExtractionState;
+  /** [IMP-17] set on a PENDING note when billing stops it from being read right now, so the book can say
+   *  so (not spin on "queued…" forever). Clears itself once billing is fixed. */
+  blockedReason?: 'subscribe' | 'payment' | 'allowance';
   /** [TASK 2 / erasure] set while a note about a restricted counterparty is held during a privacy
    *  review — its content is withheld server-side; the book shows `restrictionNotice` instead. */
   restricted?: boolean;

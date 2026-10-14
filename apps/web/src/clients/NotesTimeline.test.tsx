@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { NotesTimeline } from './NotesTimeline.js';
 import type { NoteSummary } from './clientsClient.js';
@@ -59,5 +59,21 @@ describe('<NotesTimeline> (P5-1-CEILING-UI)', () => {
     render(<NotesTimeline notes={[note({ rawText: null, restricted: true, restrictionNotice: 'Restricted while a privacy request is reviewed.' })]} ceilingNoteIds={new Set()} />);
     expect(screen.getByTestId('note-restricted')).toHaveTextContent(/restricted while a privacy request is reviewed/i);
     expect(screen.queryByText(/transcription pending/i)).toBeNull(); // not mistaken for a pending note
+  });
+
+  // [IMP-17] A pending note that billing is holding reads as SAVED with the reason — never "queued…".
+  it('shows "once you subscribe" + a Subscribe CTA for a trial-blocked pending note (not analysing…)', () => {
+    const onSubscribe = vi.fn();
+    render(<NotesTimeline notes={[note({ status: 'pending_extraction', blockedReason: 'subscribe' })]} ceilingNoteIds={new Set()} onSubscribe={onSubscribe} />);
+    expect(screen.getByTestId('note-blocked')).toHaveTextContent(/once you subscribe/i);
+    expect(screen.queryByText(/analysing/i)).toBeNull();
+    expect(screen.getByTestId('note-subscribe')).toBeInTheDocument();
+  });
+
+  it('shows the matching reason for payment and allowance holds', () => {
+    render(<NotesTimeline notes={[note({ id: 'p', status: 'pending_extraction', blockedReason: 'payment' })]} ceilingNoteIds={new Set()} />);
+    expect(screen.getByTestId('note-blocked')).toHaveTextContent(/once your payment is updated/i);
+    render(<NotesTimeline notes={[note({ id: 'a', status: 'pending_extraction', blockedReason: 'allowance' })]} ceilingNoteIds={new Set()} />);
+    expect(screen.getAllByTestId('note-blocked').at(-1)).toHaveTextContent(/once you top up/i);
   });
 });

@@ -871,6 +871,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
         notes={notes}
         ceilingNoteIds={ceilingNoteIds}
         timeZone={timeZone}
+        onSubscribe={onSubscribe}
         renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} onSubscribe={onSubscribe} />}
         move={{
           api: noteMoveApi,
