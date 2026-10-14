@@ -74,7 +74,9 @@ export function ImportChat({
   // [AUDIT gap A] First-ever import: the server asks the rep to acknowledge their right to upload.
   const [firstAck, setFirstAck] = useState<string | null>(null);
 
-  async function doImport(ack: boolean, firstImportAck = false, confirm?: { counterpart: string }): Promise<void> {
+  // [P14-4c] targetClientId lets the rep file the chat under the client it actually matches (the misfile
+  // suggestion), not only the one on screen. Defaults to the open client.
+  async function doImport(ack: boolean, firstImportAck = false, confirm?: { counterpart: string }, targetClientId: string = clientId): Promise<void> {
     setBusy(true);
     setError(null);
     setCeilingCount(null);
@@ -85,7 +87,7 @@ export function ImportChat({
     if (firstImportAck) meta.firstImportAck = true;
     if (confirm) { meta.confirmImport = true; meta.counterpart = confirm.counterpart; } // [AUDIT gap B] rep-id confirm
     const payload = fileB64 ? { contentBase64: fileB64, ...meta } : { content, ...meta };
-    const result = await api.importWhatsApp(clientId, payload, consent);
+    const result = await api.importWhatsApp(targetClientId, payload, consent);
     setBusy(false);
     if (result.ok) {
       hapticTick(); // the chat is saved — a genuine commit
@@ -203,7 +205,14 @@ export function ImportChat({
         // client from the clients screen. Tovira never moves it on its own.
         <div role="alert" style={{ border: '1px solid var(--claret)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
           <span>{misfile.message}</span>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {/* [P14-4c] When the chat matches ANOTHER existing client, offer to file it THERE — the right
+                place — not only "here anyway". This re-imports to the matched client's id. */}
+            {misfile.suggestion && (
+              <button type="button" onClick={() => misfile.suggestion && void doImport(true, false, undefined, misfile.suggestion.id)} disabled={busy}>
+                {busy ? 'Importing…' : `Import to ${misfile.suggestion.name}`}
+              </button>
+            )}
             <button type="button" onClick={() => void doImport(true)} disabled={busy}>
               {busy ? 'Importing…' : 'Import here anyway'}
             </button>

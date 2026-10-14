@@ -201,6 +201,36 @@ describe('<ImportChat>', () => {
     // the second call carried the acknowledgement
     expect(api.importWhatsApp).toHaveBeenLastCalledWith('meridian', { content: 'Ahmed: hi there', misfileAck: true }, true);
   });
+
+  // [P14-4c] When the chat matches ANOTHER existing client, offer to import it THERE (the right place) —
+  // not only "here anyway". Choosing it re-imports to the suggested client's id.
+  it('offers "Import to {matched client}" and re-imports to that client', async () => {
+    const user = userEvent.setup();
+    const onImported = vi.fn();
+    const api: ImportApi & { importWhatsApp: ReturnType<typeof vi.fn> } = {
+      importWhatsApp: vi.fn()
+        .mockResolvedValueOnce({ ok: false, error: 'misfile', message: "This looks like Ahmed, but you're filing under Meridian.", counterparts: ['Ahmed'], suggestion: { id: 'a', name: 'Ahmed' } })
+        .mockResolvedValueOnce({ ok: true, imported: 5 }),
+    };
+    render(<ImportChat clientId="meridian" api={api} onImported={onImported} />);
+
+    await user.type(screen.getByLabelText(/pasted chat export/i), 'Ahmed: hi there');
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /^import chat$/i }));
+    await screen.findByText(/filing under Meridian/i);
+
+    // All three choices are offered.
+    expect(screen.getByRole('button', { name: /import to Ahmed/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /import here anyway/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /import to Ahmed/i }));
+    await waitFor(() => expect(onImported).toHaveBeenCalledWith(5));
+    // re-imported to the SUGGESTED client's id, not the one on screen.
+    const lastCall = api.importWhatsApp.mock.calls.at(-1)!;
+    expect(lastCall[0]).toBe('a');
+    expect(lastCall[1]).toMatchObject({ content: 'Ahmed: hi there' });
+  });
 });
 
 describe('[AUDIT gap B] single-import rep identification', () => {
