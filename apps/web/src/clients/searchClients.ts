@@ -79,11 +79,15 @@ export function digitsOf(input: string): string {
   return input.replace(/\D/g, '');
 }
 
-/** Canonical national phone form: drop a leading country code (971) or trunk 0 so they're equivalent. */
+/** Canonical national phone form so the same number written different ways compares equal:
+ *  drop a leading `00` international prefix (the digit form of `+`), then a UAE `971` country code,
+ *  then a trunk `0`. A non-UAE number (e.g. `0044…` → `44…`) keeps its own country code and so never
+ *  collapses onto a UAE number. [CLI-11] */
 export function canonicalPhone(digits: string): string {
   let x = digits;
-  if (x.startsWith('971')) x = x.slice(3);
-  if (x.startsWith('0')) x = x.slice(1);
+  if (x.startsWith('00')) x = x.slice(2); // 00 == '+' (international dial prefix)
+  if (x.startsWith('971')) x = x.slice(3); // UAE country code
+  if (x.startsWith('0')) x = x.slice(1); // trunk 0
   return x;
 }
 

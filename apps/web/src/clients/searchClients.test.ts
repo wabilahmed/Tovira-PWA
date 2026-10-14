@@ -21,10 +21,17 @@ describe('[CLIENT-SEARCH] normalisation primitives', () => {
   it('lowercases Latin text for case-insensitive compare', () => {
     expect(normalizeArabic('AhMeD')).toBe('ahmed');
   });
-  it('canonicalPhone makes trunk-0 and 971 equivalent', () => {
+  it('canonicalPhone makes trunk-0, 971 and the 00 international prefix equivalent', () => {
     expect(canonicalPhone(digitsOf('+971 50 123 4567'))).toBe('501234567');
     expect(canonicalPhone(digitsOf('050 123 4567'))).toBe('501234567');
     expect(canonicalPhone(digitsOf('971501234567'))).toBe('501234567');
+    // [CLI-11] 00 is the international dial prefix, the same as '+'.
+    expect(canonicalPhone(digitsOf('00971501234567'))).toBe('501234567');
+    expect(canonicalPhone(digitsOf('00971-50-123-4567'))).toBe('501234567');
+    // A stray trunk zero after the country code still canonicalises.
+    expect(canonicalPhone(digitsOf('+971 0 50 123 4567'))).toBe('501234567');
+    // A non-UAE international number keeps its own country code — must NOT collapse to a UAE number.
+    expect(canonicalPhone(digitsOf('0044 20 7946 0958'))).toBe('442079460958');
   });
 });
 
@@ -63,6 +70,16 @@ describe('[CLIENT-SEARCH] matching by field', () => {
     // '0501234567' canonicalises to '501234567', matching the stored +971 50 123 4567.
     expect(names(clients, '0501234567')).toEqual(['Ahmed Khan']);
     expect(names(clients, '971501234567')).toEqual(['Ahmed Khan']);
+  });
+
+  it('[CLI-11] matches a 00-prefixed international number, and dashes/spaces anywhere', () => {
+    expect(names(clients, '00971501234567')).toEqual(['Ahmed Khan']);
+    expect(names(clients, '00971-50-123-4567')).toEqual(['Ahmed Khan']);
+    expect(names(clients, '00 971 50 123 4567')).toEqual(['Ahmed Khan']);
+  });
+
+  it('[CLI-11] a different country code (0044…) does NOT falsely match a UAE number', () => {
+    expect(names(clients, '0044501234567')).toEqual([]);
   });
 
   it('email substring match (@emaar → the emaar address)', () => {
