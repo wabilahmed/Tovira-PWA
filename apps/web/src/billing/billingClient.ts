@@ -29,6 +29,20 @@ export class BillingClient {
     }
   }
 
+  /** [P14-2/P14-4a] Confirm a Checkout success redirect server-side. The server retrieves the session
+   *  from Stripe and activates ONLY when it is PAID and belongs to this rep (the return URL is never
+   *  trusted). `paid` tells the success page whether it may say "payment received". Returns null on error. */
+  async confirmSuccess(sessionId: string): Promise<{ paid: boolean; entitlement: Entitlement } | null> {
+    try {
+      const q = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+      const res = await fetch(`${this.baseUrl}/billing/success${q}`, { credentials: 'include' });
+      if (res.status !== 200) return null;
+      return (await res.json()) as { paid: boolean; entitlement: Entitlement };
+    } catch {
+      return null;
+    }
+  }
+
   /** Start Stripe Checkout for the chosen plan; returns the URL to send the rep to. */
   async checkout(plan: 'monthly' | 'annual' = 'monthly'): Promise<string | null> {
     try {

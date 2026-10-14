@@ -5,9 +5,14 @@ import { BillingReturn } from './BillingReturn.js';
 import type { Entitlement } from './billingClient.js';
 import { KNOWN_SPA_PATHS, BILLING_RETURN_PATHS } from '../App.js';
 
-const billingWith = (statuses: string[]): { status: () => Promise<Entitlement | null> } => {
+type Confirm = { paid: boolean; entitlement: Entitlement } | null;
+const billingWith = (statuses: string[], confirm: Confirm = null) => {
   let i = 0;
-  return { status: async () => ({ entitled: true, status: statuses[Math.min(i++, statuses.length - 1)]! } as Entitlement) };
+  return {
+    status: async (): Promise<Entitlement | null> => ({ entitled: true, status: statuses[Math.min(i++, statuses.length - 1)]! } as Entitlement),
+    // [P14-4a] null = the server could not confirm this session → the component falls back to polling status.
+    confirmSuccess: async (): Promise<Confirm> => confirm,
+  };
 };
 
 afterEach(() => window.history.replaceState({}, '', '/'));
@@ -30,18 +35,36 @@ describe('[BILL-13] BillingReturn', () => {
     expect(onNavigate).toHaveBeenCalledWith('/app?view=today');
   });
 
-  it('success: shows "Confirming…" then falls back to "Payment received" if it does not flip in time', async () => {
-    render(<BillingReturn mode="success" billing={billingWith(['trialing'])} pollMs={1} maxTries={2} />);
-    expect(screen.getByRole('status')).toHaveTextContent(/confirming your payment/i);
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/payment received — your account will update in a moment/i));
+  // [P14-4a] A PAID session for this rep is confirmed server-side immediately — no polling needed.
+  it('success: a server-confirmed paid session says "You\'re subscribed" without waiting on status', async () => {
+    window.history.replaceState({}, '', '/billing/success?plan=monthly&session_id=cs_test_abc');
+    const paid: Confirm = { paid: true, entitlement: { entitled: true, status: 'active' } as Entitlement };
+    // status() would keep returning 'trialing' — only the server confirm should drive this.
+    render(<BillingReturn mode="success" billing={billingWith(['trialing'], paid)} pollMs={1} />);
+    expect(await screen.findByText(/you're subscribed to the monthly plan/i)).toBeInTheDocument();
   });
 
-  it('top-up: shows "Top-up added" and never polls for a subscription', async () => {
+  // [P14-4a] The BUG fixed: landing on /billing/success with NO confirmable payment must NEVER claim
+  // "payment received". It shows a neutral message and routes to Settings.
+  it('success: when nothing confirms (no/other session, status never flips), it does NOT claim payment', async () => {
+    const onNavigate = vi.fn();
+    render(<BillingReturn mode="success" billing={billingWith(['trialing'])} onNavigate={onNavigate} pollMs={1} maxTries={2} />);
+    expect(screen.getByRole('status')).toHaveTextContent(/confirming your payment/i);
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/couldn't confirm a payment/i));
+    // never the false claim
+    expect(screen.queryByText(/payment received/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /go to settings/i }));
+    expect(onNavigate).toHaveBeenCalledWith('/app?view=settings');
+  });
+
+  it('top-up: shows "Top-up added" and never confirms/polls for a subscription', async () => {
     window.history.replaceState({}, '', '/billing/success?topup=1');
     const status = vi.fn();
-    render(<BillingReturn mode="success" billing={{ status }} />);
+    const confirmSuccess = vi.fn();
+    render(<BillingReturn mode="success" billing={{ status, confirmSuccess }} />);
     expect(screen.getByText(/top-up has been added/i)).toBeInTheDocument();
     expect(status).not.toHaveBeenCalled();
+    expect(confirmSuccess).not.toHaveBeenCalled();
   });
 
   it('every configured return path is a known SPA route (never a 404)', () => {
