@@ -21,6 +21,9 @@ export function Highlighted({ value, ranges }: { value: string; ranges: HlRange[
 const openButton: CSSProperties = {
   background: 'none', border: 'none', color: 'inherit', cursor: 'pointer',
   display: 'block', flex: '1 1 auto', textAlign: 'left', padding: '0.6rem 0', fontFamily: 'inherit',
+  // [UI-01] min-width:0 lets this flex child shrink; wrap a long unbroken name instead of overflowing
+  // the row (and shoving the status pill off-screen) at 390px.
+  minWidth: 0, overflowWrap: 'anywhere',
 };
 
 /** One client row: a full-width button that opens the book, plus the lead-status pill. When `match` is

@@ -508,3 +508,16 @@
 .clients-search__clear:hover { color: var(--text-primary); background: var(--surface-elevated); }
 /* The matched slice — a quiet brass wash, legible in both themes (never a flat yellow). */
 .lead-mark { background: var(--brass-surface); color: inherit; border-radius: 2px; padding: 0 0.05em; }
+
+/* [UI-01] Client-picker <select>s must never grow to the longest client name and push siblings
+   off-screen at 390px. max-width caps them at the container; min-width:0 lets them shrink inside a
+   grid/flex track; text-overflow trims the closed value. Applies to every client picker (Meetings,
+   the Move-note dialog, …). */
+.tov-client-select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
+}

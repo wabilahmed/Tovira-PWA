@@ -77,7 +77,7 @@ export function MoveNoteControl({ api, noteId, fromClientId, clients, onMoved }:
     <div style={{ marginTop: 6 }}>
       <label>
         Move this note to{' '}
-        <select value={target} onChange={(e) => void choose(e.target.value)} aria-label="Move this note to">
+        <select className="tov-client-select" value={target} onChange={(e) => void choose(e.target.value)} aria-label="Move this note to">
           <option value="">Choose a client…</option>
           {targets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>

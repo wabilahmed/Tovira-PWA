@@ -26,6 +26,8 @@ describe('<MoveNoteControl>', () => {
     expect(select).not.toHaveTextContent(/acme/i);
     expect(select).toHaveTextContent(/meridian/i);
     expect(select).toHaveTextContent(/zeta/i);
+    // [UI-01] the move picker is width-constrained so a long client name can't overflow the dialog.
+    expect(select).toHaveClass('tov-client-select');
   });
 
   it('previews what the move carries before confirming', async () => {

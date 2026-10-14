@@ -161,7 +161,7 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
           visit agreed by phone. Confirmed by definition (the rep entered it), so no parse step. */}
       <form onSubmit={directSave} aria-label="Add a meeting directly" style={{ ...box, display: 'grid', gap: '0.5rem' }}>
         <span className="tov-stamp">Or add one directly</span>
-        <select value={dClient} onChange={(e) => setDClient(e.target.value)} aria-label="Client">
+        <select className="tov-client-select" value={dClient} onChange={(e) => setDClient(e.target.value)} aria-label="Client">
           <option value="">Choose a client…</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
@@ -183,7 +183,7 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
           </p>
           <label>
             With{' '}
-            <select value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Meeting client">
+            <select className="tov-client-select" value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Meeting client">
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

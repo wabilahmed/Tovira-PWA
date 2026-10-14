@@ -140,4 +140,23 @@ describe('[AUDIT item 2] inline meeting reschedule', () => {
     await waitFor(() => expect(edit).toHaveBeenCalled());
     expect((edit.mock.calls[0]![1] as { datetime?: string }).datetime).toMatch(/2026-09-09T09:00/);
   });
+
+  // [UI-01] The client picker must be width-constrained so a long client name can't push "Add meeting"
+  // off-screen at 390px. jsdom can't measure layout, so assert the constraining class is applied.
+  it('constrains the client select so a 90-char name does not overflow', () => {
+    const longName = 'A'.repeat(90);
+    render(<Meetings api={makeApi()} clients={[{ id: 'c1', name: longName }]} />);
+    const select = screen.getByLabelText('Client');
+    expect(select).toHaveClass('tov-client-select');
+  });
+
+  // [UI-01] The stylesheet actually caps the width (max-width:100% + min-width:0 so it shrinks in a track).
+  it('.tov-client-select caps width in the stylesheet', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const css = readFileSync(resolve(process.cwd(), 'apps/web/src/styles/theme.css'), 'utf8');
+    const block = /\.tov-client-select\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(block).toMatch(/max-width:\s*100%/);
+    expect(block).toMatch(/min-width:\s*0/);
+  });
 });
