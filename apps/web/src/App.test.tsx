@@ -62,6 +62,7 @@ describe('<App> integration', () => {
   it('toggles to Sign up, creates an account, and enters the app (API integration)', async () => {
     let signupCalled = false;
     routeFetch([
+      ['/version', () => json(200, { signupEnabled: true })], // [INV-12] signup link shows only when enabled
       ['/auth/signup', () => { signupCalled = true; return json(201, SESSION); }],
       ['/me', () => json(401, {})],
       ['onboarding', () => json(200, NOT_SEEDED)],
@@ -84,6 +85,7 @@ describe('<App> integration', () => {
   // NEGATIVE: a rejected signup shows the server's message and stays on the form.
   it('shows an error when signup is rejected (duplicate email)', async () => {
     routeFetch([
+      ['/version', () => json(200, { signupEnabled: true })], // [INV-12] signup link shows only when enabled
       ['/auth/signup', () => json(409, { error: 'email_in_use', message: 'That email is already registered.' })],
       ['/me', () => json(401, {})],
     ]);

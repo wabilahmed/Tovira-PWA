@@ -2,13 +2,15 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
-import { buildInMemoryDeps } from './test-deps.js';
+import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 
 let server: Server;
 let base: string;
+let deps: TestDeps;
 
 beforeAll(async () => {
-  server = createApiServer(buildInMemoryDeps());
+  deps = buildInMemoryDeps();
+  server = createApiServer(deps);
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -111,17 +113,14 @@ describe('clients HTTP endpoints (tenant-scoped)', () => {
   // clients. Prove it with 600: all come back, and the 600th (uniquely named, with phone + email) is
   // present in the payload so the browser can find it.
   it('returns the FULL list (no cap) with phone + email — 600 clients, incl. the 600th', async () => {
-    const token = await signup('bulk600@example.com');
-    for (let i = 1; i <= 599; i++) {
-      await fetch(`${base}/clients`, authed(token, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: `Client ${i}` }),
-      }));
-    }
-    await fetch(`${base}/clients`, authed(token, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Zephyr Logistics 600', phone: '+971 50 999 6000', email: 'ops@zephyr600.ae' }),
-    }));
-    const body = (await (await fetch(`${base}/clients`, authed(token))).json()) as {
+    const su = (await (await fetch(`${base}/auth/signup`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'bulk600@example.com', password: 'password123' }),
+    })).json()) as { token: string; user: { id: string } };
+    // Seed directly through the in-memory repo (600 HTTP round-trips would just slow the suite; the
+    // endpoint path is exercised by the GET below). The 600th is uniquely named with a phone + email.
+    for (let i = 1; i <= 599; i++) await deps.clients.create(su.user.id, `Client ${i}`);
+    await deps.clients.create(su.user.id, 'Zephyr Logistics 600', '+971 50 999 6000', null, 'ops@zephyr600.ae');
+    const body = (await (await fetch(`${base}/clients`, authed(su.token))).json()) as {
       clients: Array<{ name: string; phone: string | null; email: string | null }>;
     };
     expect(body.clients).toHaveLength(600);
