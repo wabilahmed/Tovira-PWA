@@ -50,6 +50,7 @@ import { Gallery } from './gallery/Gallery.js';
 import { FollowUpDraft } from './followup/FollowUpDraft.js';
 import { NotesTimeline } from './clients/NotesTimeline.js';
 import { NoteMoveClient } from './notes/noteMoveClient.js';
+import { notesToExtract } from './notes/extractQueue.js';
 import { MoveSuggestions } from './notes/MoveSuggestions.js';
 import { ClientPhoneField } from './clients/ClientPhoneField.js';
 import { StakeholderMap } from './stakeholders/StakeholderMap.js';
@@ -340,7 +341,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   useEffect(() => {
     void usageApi.status().then((s) => setAiPaused(s?.aiPaused ?? false));
   }, []);
-  const gated = (node: JSX.Element): JSX.Element => (entitled ? node : <Locked onSubscribe={startCheckout} />);
+  const gated = (node: JSX.Element): JSX.Element => (entitled ? node : <Locked onSubscribe={startCheckout} status={billing?.status} />);
 
   // INV-MATCH badge: load the strong-unseen count, and clear it (marking seen) when Inventory opens.
   useEffect(() => {
@@ -734,7 +735,10 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
       // Advance any notes through the pipeline: transcribe, then extract. Skip
       // notes already blocked by the ceiling — retrying just hits it again.
       const toTranscribe = list.filter((n) => n.status === 'pending_transcription');
-      const toExtract = list.filter((n) => n.status === 'pending_extraction' && !ceilingNoteIds.has(n.id));
+      // [P16-3c] Skip a note already at the ceiling OR blocked by billing (lapsed trial / failed payment /
+      // spent allowance) — the server would only 402 it and the sweep skips it anyway; it resumes when the
+      // block clears. (Pure helper so the skip is unit-tested.)
+      const toExtract = notesToExtract(list, ceilingNoteIds);
       if (toTranscribe.length > 0 || toExtract.length > 0) {
         const extractResults: Array<{ id: string; status?: string }> = [];
         await Promise.all([

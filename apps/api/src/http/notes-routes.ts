@@ -624,6 +624,15 @@ export async function handleNoteRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
+      // [P16-3c] If extraction is blocked for this account (lapsed trial / failed payment / spent
+      // allowance), don't pretend it was queued — the sweep would silently skip it forever. Answer 402
+      // with the reason so the client surfaces the right action instead of spinning on "queued…". (The
+      // client also stops sending this request once a note carries blockedReason.)
+      const blocked = await extractionBlockReason(deps, userId);
+      if (blocked) {
+        sendJson(res, 402, { error: 'extraction_blocked', reason: blocked });
+        return true;
+      }
       // [ASYNC-EXTRACT] Accept + queue — NO model call in the request path. A synchronous extraction
       // held a request/connection + container slot for the model's whole duration and 504'd under
       // concurrency (BATCH B: 2/24 at two accounts; day-one is ten reps importing at once). The note is

@@ -47,11 +47,16 @@ export function BillingReturn({
     if (mode !== 'success' || isTopUp) return; // a top-up doesn't flip subscription status — nothing to confirm
     alive.current = true;
     let timer: ReturnType<typeof setTimeout>;
+    // [P16-3b] With NO session_id there is nothing to confirm and nothing to wait for — show the neutral
+    // state immediately instead of polling billing status for ~20s. Only a real session_id is worth
+    // confirming + the webhook-in-flight poll below.
+    const sessionId = queryParam('session_id');
+    if (!sessionId) { setUnconfirmed(true); return () => { alive.current = false; }; }
     void (async () => {
       // [P14-4a] AUTHORITATIVE: confirm THIS session server-side. The server retrieves it from Stripe and
       // activates only when it is PAID and belongs to this rep — so we say "subscribed" on real proof, and
       // NEVER say "payment received" just because the browser landed on this URL.
-      const confirm = await billing.confirmSuccess(queryParam('session_id')).catch(() => null);
+      const confirm = await billing.confirmSuccess(sessionId).catch(() => null);
       if (!alive.current) return;
       if (confirm?.paid || confirm?.entitlement?.status === 'active') { setConfirmed(true); return; }
       // Fallback: the webhook may still be in flight (or this is an old link with no session_id). Poll

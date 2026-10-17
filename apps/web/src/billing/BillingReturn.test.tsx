@@ -27,7 +27,9 @@ describe('[BILL-13] BillingReturn', () => {
   });
 
   it('success: once billing is active, says "You\'re subscribed" with the plan and goes to Today', async () => {
-    window.history.replaceState({}, '', '/billing/success?plan=annual');
+    // Real success URLs carry a session_id (P14-2); here the server confirm returns null so the status
+    // poll (→ active) drives it — the webhook-already-landed path.
+    window.history.replaceState({}, '', '/billing/success?plan=annual&session_id=cs_x');
     const onNavigate = vi.fn();
     render(<BillingReturn mode="success" billing={billingWith(['active'])} onNavigate={onNavigate} pollMs={1} />);
     expect(await screen.findByText(/you're subscribed to the yearly plan/i)).toBeInTheDocument();
@@ -44,17 +46,30 @@ describe('[BILL-13] BillingReturn', () => {
     expect(await screen.findByText(/you're subscribed to the monthly plan/i)).toBeInTheDocument();
   });
 
-  // [P14-4a] The BUG fixed: landing on /billing/success with NO confirmable payment must NEVER claim
-  // "payment received". It shows a neutral message and routes to Settings.
-  it('success: when nothing confirms (no/other session, status never flips), it does NOT claim payment', async () => {
+  // [P16-3b] With NO session_id there is nothing to confirm — show the neutral state IMMEDIATELY and do
+  // not poll (previously it polled ~20s first). Never "Confirming…", never "payment received".
+  it('success: no session_id → straight to "couldn\'t confirm", no polling, no confirm call', async () => {
     const onNavigate = vi.fn();
-    render(<BillingReturn mode="success" billing={billingWith(['trialing'])} onNavigate={onNavigate} pollMs={1} maxTries={2} />);
-    expect(screen.getByRole('status')).toHaveTextContent(/confirming your payment/i);
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/couldn't confirm a payment/i));
-    // never the false claim
+    const confirmSuccess = vi.fn();
+    const status = vi.fn();
+    render(<BillingReturn mode="success" billing={{ status, confirmSuccess }} onNavigate={onNavigate} pollMs={1} maxTries={2} />);
+    expect(await screen.findByText(/couldn't confirm a payment/i)).toBeInTheDocument();
+    expect(screen.queryByText(/confirming your payment/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/payment received/i)).not.toBeInTheDocument();
+    expect(confirmSuccess).not.toHaveBeenCalled(); // nothing to confirm
+    expect(status).not.toHaveBeenCalled();         // nothing to poll
     await userEvent.click(screen.getByRole('button', { name: /go to settings/i }));
     expect(onNavigate).toHaveBeenCalledWith('/app?view=settings');
+  });
+
+  // [P14-4a] A session_id that doesn't confirm (webhook in flight, status never flips) still ends neutral,
+  // never claiming payment — after the short poll, not before.
+  it('success: an unconfirmable session polls, then does NOT claim payment', async () => {
+    window.history.replaceState({}, '', '/billing/success?session_id=cs_unknown');
+    render(<BillingReturn mode="success" billing={billingWith(['trialing'])} pollMs={1} maxTries={2} />);
+    expect(screen.getByRole('status')).toHaveTextContent(/confirming your payment/i);
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/couldn't confirm a payment/i));
+    expect(screen.queryByText(/payment received/i)).not.toBeInTheDocument();
   });
 
   it('top-up: shows "Top-up added" and never confirms/polls for a subscription', async () => {

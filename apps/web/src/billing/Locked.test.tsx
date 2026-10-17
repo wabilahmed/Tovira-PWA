@@ -12,4 +12,16 @@ describe('<Locked>', () => {
     await userEvent.click(screen.getByTestId('subscribe-annual'));
     expect(onSubscribe).toHaveBeenLastCalledWith('annual');
   });
+
+  // [P16-3a] An account that never had a trial (status 'none') must NOT be told its trial "ended".
+  it('invites a never-trialed account (status none) to start — never "trial has ended"', () => {
+    render(<Locked onSubscribe={vi.fn()} status="none" />);
+    expect(screen.getByRole('status')).toHaveTextContent(/subscribe to start reading your chats/i);
+    expect(screen.queryByText(/trial has ended/i)).toBeNull();
+  });
+
+  it('keeps "trial has ended" for an actually-expired trial', () => {
+    render(<Locked onSubscribe={vi.fn()} status="trial_expired" />);
+    expect(screen.getByRole('status')).toHaveTextContent(/your trial has ended/i);
+  });
 });
