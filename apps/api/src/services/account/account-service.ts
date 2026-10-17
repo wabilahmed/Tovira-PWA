@@ -58,6 +58,9 @@ export class AccountService {
     /** [POINTERS · D10] the rep's per-client pointer sets — carried in the DSAR export. Deletion is
      *  handled by the purgeables list (pg cascades too). */
     private readonly pointers?: { listByUser(userId: string): Promise<unknown[]> },
+    /** [P18-10j] the rep's inventory items — their own data, carried in the export (deletion cascades on
+     *  the users FK on pg). Absent → an empty inventory array. */
+    private readonly inventory?: { listByUser(userId: string): Promise<unknown[]> },
   ) {}
 
   async exportData(userId: string): Promise<unknown> {
@@ -87,6 +90,8 @@ export class AccountService {
       repGlossary: this.repGlossary ? await this.repGlossary.listByUser(userId) : [],
       // [POINTERS · D10] the rep's per-client relationship/closing pointers.
       clientPointers: this.pointers ? await this.pointers.listByUser(userId) : [],
+      // [P18-10j] the rep's inventory — their own data, previously missing from the export.
+      inventory: this.inventory ? await this.inventory.listByUser(userId) : [],
     };
   }
 

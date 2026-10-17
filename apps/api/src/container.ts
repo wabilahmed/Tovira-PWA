@@ -813,14 +813,14 @@ export function createBillingRetentionService(config: AppConfig, pool: Pool | un
   return new BillingRetentionService({ subs, deleteAccount, emailHook });
 }
 
-export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository, repGlossary?: RepGlossaryRepository, blobStorage?: Storage, pointers?: ClientPointerRepository): AccountService {
+export function createAccountService(auth: AuthService, clients: ClientRepository, notes: NoteRepository, facts: FactsRepository, meetings: MeetingRepository, images: ImageRepository, recallSessions: RecallSessionRepository, onDeleted?: (userId: string, email: string) => Promise<void>, aliases?: ContactAliasRepository, repNames?: RepNameRepository, extractionLog?: ExtractionLogRepository, corrections?: CorrectionRepository, repGlossary?: RepGlossaryRepository, blobStorage?: Storage, pointers?: ClientPointerRepository, inventory?: InventoryRepository): AccountService {
   // On Postgres, deleting the user cascades all data (FKs, incl. extraction_logs + corrections +
   // rep_glossary + client_pointers) — no explicit purge list. Recall sessions, aliases, rep name,
   // glossary + pointers are purged explicitly (also cascade-backed) so delete works in-memory too.
   const purgeables = [aliases, repNames, repGlossary, pointers].filter((p): p is NonNullable<typeof p> => !!p);
   // Pass the extraction-log + correction + glossary repos so the account EXPORT carries them (all
   // operational, no conversation content — [NO-TRAINING-RETENTION]); pointers for the export too (D10).
-  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases, extractionLog, corrections, repGlossary, blobStorage, pointers);
+  return new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, purgeables, onDeleted, aliases, extractionLog, corrections, repGlossary, blobStorage, pointers, inventory);
 }
 
 export function createActivationService(config: AppConfig, pool?: Pool): ActivationService {

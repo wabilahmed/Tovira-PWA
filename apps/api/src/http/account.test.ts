@@ -59,6 +59,19 @@ describe('[P5-4] data trust & control', () => {
     expect(Array.isArray(data.meetings)).toBe(true);
   });
 
+  // [P18-10j] The rep's inventory is their own data — it must travel in the DSAR export (was missing).
+  it('[P18-10j] carries the rep\'s inventory in the export', async () => {
+    const res = await fetch(`${base}/auth/signup`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'export-inventory@example.com', password: 'password123' }),
+    });
+    const { token, user } = (await res.json()) as { token: string; user: { id: string } };
+    await deps.inventoryRepo.create(user.id, { title: 'Marina 2-bed', description: 'sea view', quantity: 1, embedding: null });
+    const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as { inventory: Array<{ title: string }> };
+    expect(Array.isArray(data.inventory)).toBe(true);
+    expect(data.inventory.some((i) => i.title === 'Marina 2-bed')).toBe(true);
+  });
+
   // [LEAD-STATUS] A rep's manual pipeline label is their own data — it must travel in the DSAR export.
   it('carries each client\'s lead_status in the export', async () => {
     const token = await signup('export-lead@example.com');

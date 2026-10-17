@@ -101,7 +101,8 @@ export function BulkImport({ api, pollMs = 400, onSubscribe }: { api: BulkImport
         <h2 style={{ margin: 0 }}>Import chats</h2>
         <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Export your chats from WhatsApp (Without media) and select up to {BULK_MAX_FILES} at once.</p>
         <label>
-          <span style={{ display: 'block', marginBottom: '0.25rem' }}>Choose chat exports (.txt or .zip)</span>
+          {/* [P18-10i] ".zip or .txt" — same order as the single-import screen + the not_whatsapp error. */}
+          <span style={{ display: 'block', marginBottom: '0.25rem' }}>Choose chat exports (.zip or .txt)</span>
           <input type="file" multiple accept=".txt,.zip,text/plain,application/zip" aria-label="Choose chat exports" onChange={(e) => onPick(e.target.files)} />
         </label>
         {overCap && (

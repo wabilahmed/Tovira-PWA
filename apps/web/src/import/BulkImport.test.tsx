@@ -22,6 +22,12 @@ function fakeApi(over: Partial<BulkImportApi> = {}): BulkImportApi {
 const txt = (name: string, content = 'hi') => new File([content], name, { type: 'text/plain' });
 
 describe('<BulkImport>', () => {
+  // [P18-10i] The file-format wording must match the single-import screen (".zip or .txt"), not disagree.
+  it('[P18-10i] labels the picker with the same ".zip or .txt" order as the single-import screen', () => {
+    render(<BulkImport api={fakeApi()} pollMs={1} />);
+    expect(screen.getByText(/choose chat exports \(\.zip or \.txt\)/i)).toBeInTheDocument();
+  });
+
   it('walks pick → review → progress → result', async () => {
     const api = fakeApi();
     render(<BulkImport api={api} pollMs={1} />);
