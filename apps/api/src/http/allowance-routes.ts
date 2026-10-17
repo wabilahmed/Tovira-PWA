@@ -32,7 +32,7 @@ export async function handleAllowanceRoute(req: IncomingMessage, res: ServerResp
   }
   const aiPaused = deps.aiPaused ? await deps.aiPaused() : false; // [AUDIT item 4] ops kill switch (30s-cached)
   if (!deps.allowanceStatus) {
-    sendJson(res, 200, { percentUsed: 0, exhausted: false, resetAt: null, canTopUp: false, options: [], aiPaused });
+    sendJson(res, 200, { percentUsed: 0, rawPercentUsed: 0, exhausted: false, resetAt: null, canTopUp: false, options: [], aiPaused });
     return true;
   }
   const s = await deps.allowanceStatus.status(identity.userId);
@@ -41,6 +41,7 @@ export async function handleAllowanceRoute(req: IncomingMessage, res: ServerResp
   const canTopUp = ent?.status === 'active';
   sendJson(res, 200, {
     percentUsed: s.percentUsed,
+    rawPercentUsed: s.rawPercentUsed,
     exhausted: s.exhausted,
     resetAt: new Date(s.resetAtMs).toISOString(),
     canTopUp,

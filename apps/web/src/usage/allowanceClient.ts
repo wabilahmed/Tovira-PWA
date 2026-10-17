@@ -9,6 +9,8 @@ export interface TopUpChoice {
 
 export interface AllowanceStatus {
   percentUsed: number; // rounded down, never 100 until actually paused (D3)
+  /** [P20-1c] unfloored percentage, for the "<1%" / one-decimal display. Optional for older payloads. */
+  rawPercentUsed?: number;
   exhausted: boolean;
   resetAt: string | null; // ISO date the allowance resets (D9)
   canTopUp: boolean; // false in trial (D10)

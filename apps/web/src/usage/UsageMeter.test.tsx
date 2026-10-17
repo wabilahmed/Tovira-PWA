@@ -30,6 +30,29 @@ describe('<UsageMeter>', () => {
     expect(body).not.toMatch(/AED/); // no top-up sheet while there's headroom
   });
 
+  // [P20-1c] A real but tiny fraction of usage must read "<1%", never a distrust-inducing flat "0%".
+  it('[P20-1c] shows "<1%" when some usage is below one percent (not "0%")', async () => {
+    render(<UsageMeter api={makeApi(status({ percentUsed: 0, rawPercentUsed: 0.5 }))} />);
+    const line = await screen.findByTestId('usage-percent');
+    expect(line).toHaveTextContent('<1% of this month’s usage used');
+    expect(line).not.toHaveTextContent('0%');
+  });
+
+  it('[P20-1c] shows one decimal place under 10%', async () => {
+    render(<UsageMeter api={makeApi(status({ percentUsed: 3, rawPercentUsed: 3.47 }))} />);
+    expect(await screen.findByTestId('usage-percent')).toHaveTextContent('3.4% of this month’s usage used');
+  });
+
+  it('[P20-1c] shows a whole number at 10% and above', async () => {
+    render(<UsageMeter api={makeApi(status({ percentUsed: 42, rawPercentUsed: 42.9 }))} />);
+    expect(await screen.findByTestId('usage-percent')).toHaveTextContent('42% of this month’s usage used');
+  });
+
+  it('[P20-1c] shows a true 0% when there is genuinely no usage', async () => {
+    render(<UsageMeter api={makeApi(status({ percentUsed: 0, rawPercentUsed: 0 }))} />);
+    expect(await screen.findByTestId('usage-percent')).toHaveTextContent('0% of this month’s usage used');
+  });
+
   it('[AUDIT] the bar track and fill use theme tokens, not raw hex (so they adapt to dark mode)', async () => {
     render(<UsageMeter api={makeApi(status({ percentUsed: 100, exhausted: true }))} />);
     const bar = await screen.findByTestId('usage-bar');

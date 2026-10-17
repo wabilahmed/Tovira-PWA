@@ -15,6 +15,9 @@ export interface AllowanceStatus {
   availableAed: number;
   /** Whole-percent used, rounded DOWN; capped at 99 until `exhausted` (D3). */
   percentUsed: number;
+  /** [P20-1c] The same figure UNFLOORED (capped just under 100 until exhausted, 100 when exhausted), so
+   *  the UI can render "<1%" and one decimal under 10% instead of a distrust-inducing flat "0%". */
+  rawPercentUsed: number;
   /** True when spent + reserved leaves no headroom — AI features stop (D4). */
   exhausted: boolean;
   /** When this window's allowance resets (ms) — the "paused until …" banner date (D9). */
@@ -43,9 +46,10 @@ export class AllowanceStatusService {
     const availableAed = m.allowanceAed + m.topupAed;
     // [sticky] a prior refusal pins exhaustion even if settled spend is below the allowance.
     const exhausted = m.displayExhausted || m.spentAed + m.reservedAed >= availableAed - EPS;
-    const rawPct = availableAed <= 0 ? 100 : Math.floor((m.spentAed / availableAed) * 100);
-    // Never show 100% until the stop has actually happened (D3).
-    const percentUsed = exhausted ? 100 : Math.min(99, Math.max(0, rawPct));
+    const fraction = availableAed <= 0 ? 100 : (m.spentAed / availableAed) * 100;
+    // Never show 100% until the stop has actually happened (D3) — floored for the bar, unfloored for text.
+    const percentUsed = exhausted ? 100 : Math.min(99, Math.max(0, Math.floor(fraction)));
+    const rawPercentUsed = exhausted ? 100 : Math.min(99.9, Math.max(0, fraction));
     return {
       allowanceAed: m.allowanceAed,
       topupAed: m.topupAed,
@@ -53,6 +57,7 @@ export class AllowanceStatusService {
       reservedAed: m.reservedAed,
       availableAed,
       percentUsed,
+      rawPercentUsed,
       exhausted,
       resetAtMs: w.endMs,
     };

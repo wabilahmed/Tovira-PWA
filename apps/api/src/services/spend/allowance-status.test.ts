@@ -24,6 +24,20 @@ describe('[USAGE-ALLOWANCE] allowance status', () => {
     expect(s.percentUsed).toBe(62);
   });
 
+  // [P20-1c] A precise (unfloored) percentage so the UI can show "<1%" / one decimal under 10% —
+  // a rep who spent a real fraction must not see a flat "0%" and distrust the meter.
+  it('[P20-1c] exposes rawPercentUsed (unfloored) alongside the floored percentUsed', async () => {
+    const s = await make(await seed(0.2)).status('u'); // 0.2 / 40 = 0.5%
+    expect(s.percentUsed).toBe(0);                      // floored, D3 unchanged
+    expect(s.rawPercentUsed).toBeCloseTo(0.5, 6);
+  });
+
+  it('[P20-1c] rawPercentUsed never reaches 100 until exhausted', async () => {
+    const s = await make(await seed(39.9)).status('u'); // 99.75%, not exhausted
+    expect(s.rawPercentUsed).toBeLessThan(100);
+    expect(s.exhausted).toBe(false);
+  });
+
   it('never shows 100% until exhausted — a near-full account caps at 99%', async () => {
     const s = await make(await seed(39.9)).status('u'); // 99.75% but not exhausted
     expect(s.percentUsed).toBe(99);

@@ -13,6 +13,20 @@ export interface UsageMeterApi {
 const WARN_AT = 80;
 const WARN_HARD_AT = 95;
 
+/**
+ * [P20-1c] The usage percentage, rounded DOWN (D3), but precise enough to trust: a real but tiny
+ * fraction reads "<1%" not a flat "0%", and under 10% it shows one decimal place. At 10%+ it's a whole
+ * number, as before. Uses the unfloored rawPercentUsed when present, else the floored percentUsed.
+ */
+export function usageLabel(s: Pick<AllowanceStatus, 'percentUsed' | 'rawPercentUsed' | 'exhausted'>): string {
+  if (s.exhausted) return '100%';
+  const raw = s.rawPercentUsed ?? s.percentUsed;
+  if (raw <= 0) return '0%';
+  if (raw < 1) return '<1%';
+  if (raw < 10) return `${Math.floor(raw * 10) / 10}%`; // one decimal, floored (never rounds up past real)
+  return `${Math.floor(raw)}%`;
+}
+
 /** Per-viewer "seen this banner this month" memory. Best-effort — a convenience, never required. */
 function seen(key: string): boolean {
   try { return localStorage.getItem(key) === '1'; } catch { return false; }
@@ -75,7 +89,7 @@ export function UsageMeter({
         <div style={{ width: `${s.percentUsed}%`, height: '100%', background: s.exhausted ? 'var(--claret)' : 'var(--green)' }} />
       </div>
       {/* [P18-1] The reset date sits next to the percentage, so the number has a timeframe. */}
-      <p data-testid="usage-percent">{s.percentUsed}% of this month&rsquo;s usage used · resets {resetWord}</p>
+      <p data-testid="usage-percent">{usageLabel(s)} of this month&rsquo;s usage used · resets {resetWord}</p>
 
       {s.exhausted && (
         <div role="alert" data-testid="usage-paused">
