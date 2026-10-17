@@ -9,7 +9,7 @@ export interface SesLike {
 
 export interface SesEmailSenderOptions {
   client: SesLike;
-  /** Verified sender identity, e.g. "Tovira <no-reply@tovira.com>". */
+  /** Verified sender identity, e.g. "Tovira <hello@tovira.io>". */
   from: string;
 }
 

@@ -343,7 +343,9 @@ export function loadConfig(env: Env = process.env): AppConfig {
     vapidPrivateKey: env.VAPID_PRIVATE_KEY?.trim() || '',
     vapidSubject: env.VAPID_SUBJECT?.trim() || 'mailto:ops@tovira.local',
     emailProvider: parseEnum(env.EMAIL_SENDER, EMAIL_PROVIDERS, 'stub', 'EMAIL_SENDER'),
-    emailFrom: env.EMAIL_FROM?.trim() || 'Tovira <no-reply@tovira.local>',
+    // [P22-2] No placeholder sender: EMAIL_FROM comes only from env (assertDeployReady requires it for a
+    // real provider). Empty for local/stub, where nothing is sent.
+    emailFrom: env.EMAIL_FROM?.trim() || '',
     resendApiKey: isBlank(env.RESEND_API_KEY) ? undefined : env.RESEND_API_KEY!.trim(),
     sesRegion: env.SES_REGION?.trim() || env.BEDROCK_REGION?.trim() || 'us-east-1',
     appBaseUrl,
@@ -443,6 +445,14 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
     need(isBlank(config.s3MediaBucket), 'S3_MEDIA_BUCKET (STORAGE_BACKEND=s3 — the bucket holding audio/ and images/)');
     need(isBlank(config.s3Region), 'S3_REGION or AWS_REGION (STORAGE_BACKEND=s3)');
   }
+
+  // --- [P22-2] Domains: the app URL and the sender come ONLY from env, and only on a domain we own. A
+  //     deployment never silently links to localhost, and nothing may name the .com of our name (someone
+  //     else's live site). Fail at startup rather than send a stranger's link in every email.
+  need(looksDeployed && isBlank(env.APP_BASE_URL), 'APP_BASE_URL (required in a deployment — it becomes the link inside every email; there is no fallback)');
+  const FOREIGN_DOMAIN = new RegExp(['tovira', 'com'].join('\\.') + '\\b', 'i');
+  need(FOREIGN_DOMAIN.test(config.appBaseUrl), 'APP_BASE_URL (points at a domain we do not own — use our own app URL)');
+  need(FOREIGN_DOMAIN.test(config.emailFrom), 'EMAIL_FROM (a sender on a domain we do not own — use hello@tovira.io)');
 
   if (missing.length > 0) {
     throw new ConfigError(

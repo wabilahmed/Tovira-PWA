@@ -99,7 +99,7 @@ variable "alarm_email" {
 
 # ── Marketing site (apps/site) ───────────────────────────────────────────────
 variable "marketing_domain" {
-  description = "Apex domain for the marketing site (e.g. tovira.com). Empty = default CloudFront domain, no aliases."
+  description = "Apex domain for the marketing site (e.g. tovira.io). Empty = default CloudFront domain, no aliases."
   type        = string
   default     = ""
   # [FOOTGUN-FIX] Empty in prod DROPS the CloudFront custom domain (staging.tovira.io) + its ACM cert and

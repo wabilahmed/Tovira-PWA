@@ -5,7 +5,7 @@ import { join, relative, resolve } from 'node:path';
 /**
  * [P22-1] Every legal link the app renders (Terms, Privacy, any legal page) must be RELATIVE — same
  * origin as the app — never an absolute URL. An absolute legal URL is how the consent checkbox ended up
- * pointing at tovira.com, a live site we don't own. Scans every component source in apps/web/src.
+ * pointing at a live site we don't own. Scans every component source in apps/web/src.
  */
 const ROOT = resolve(process.cwd(), 'apps/web/src');
 const LEGAL = /href=\{?["'`]([^"'`]*(?:terms|privacy|legal|cookie)[^"'`]*)["'`]/gi;

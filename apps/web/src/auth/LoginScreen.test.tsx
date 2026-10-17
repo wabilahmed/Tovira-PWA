@@ -33,7 +33,7 @@ describe('<LoginScreen> referral entry', () => {
   });
 
   // [P22-1] The consent links must point at OUR /terms and /privacy (relative, same origin) — never an
-  // absolute URL on a domain we don't own (they pointed at tovira.com, someone else's live site).
+  // absolute URL on a domain we don't own (they pointed at a live site someone else owns).
   it('[P22-1] the signup consent links to our own /terms and /privacy, relative', async () => {
     const user = userEvent.setup();
     render(<LoginScreen auth={fakeAuth()} onAuthed={vi.fn()} />);

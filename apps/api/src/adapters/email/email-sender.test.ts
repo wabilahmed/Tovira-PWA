@@ -18,11 +18,11 @@ describe('StubEmailSender', () => {
 describe('SesEmailSender', () => {
   it('sends a plain-text email through the injected SES client', async () => {
     const send = vi.fn().mockResolvedValue({});
-    const ses = new SesEmailSender({ client: { send }, from: 'Tovira <no-reply@tovira.com>' });
+    const ses = new SesEmailSender({ client: { send }, from: 'Tovira <hello@tovira.io>' });
     await ses.send({ to: 'rep@example.com', subject: 'Trial ending', text: 'Two days left.' });
     expect(send).toHaveBeenCalledTimes(1);
     const command = send.mock.calls[0]![0] as { input: Record<string, unknown> };
-    expect(command.input.FromEmailAddress).toBe('Tovira <no-reply@tovira.com>');
+    expect(command.input.FromEmailAddress).toBe('Tovira <hello@tovira.io>');
     expect((command.input.Destination as { ToAddresses: string[] }).ToAddresses).toEqual(['rep@example.com']);
     const content = command.input.Content as { Simple: { Subject: { Data: string }; Body: { Text: { Data: string }; Html?: unknown } } };
     expect(content.Simple.Subject.Data).toBe('Trial ending');

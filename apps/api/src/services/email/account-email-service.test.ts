@@ -13,10 +13,10 @@ const RENEW = Date.parse('2026-09-14T00:00:00Z');
 describe('AccountEmailService', () => {
   it('sends a password reset with the link and no urgency language', async () => {
     const { email, svc } = make();
-    await svc.sendPasswordReset('rep@example.com', 'https://app.tovira.com/reset?token=abc');
+    await svc.sendPasswordReset('rep@example.com', 'https://app.example.test/reset?token=abc');
     const [m] = email.to('rep@example.com');
     expect(m!.subject).toMatch(/reset your tovira password/i);
-    expect(m!.text).toContain('https://app.tovira.com/reset?token=abc');
+    expect(m!.text).toContain('https://app.example.test/reset?token=abc');
     expect(m!.text).not.toMatch(/!|urgent|now|act fast/i);
   });
 

@@ -14,6 +14,28 @@ describe('assertDeployReady', () => {
     expect(ready(base)).not.toThrow();
   });
 
+  // [P22-2] The app URL and the sender come ONLY from env — a deployment never falls back silently.
+  const FOREIGN = ['https://app.tovira', 'com'].join('.'); // a domain we don't own (kept out of the repo guard)
+  it('[P22-2] a deployed config with no APP_BASE_URL fails at startup, naming it (no localhost fallback)', () => {
+    const check = ready({ ...base, ...S3, MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-x', EMBEDDER: 'bedrock' });
+    expect(check).toThrow(ConfigError);
+    expect(check).toThrow(/APP_BASE_URL/);
+  });
+
+  it('[P22-2] a real email provider with no EMAIL_FROM fails at startup (no placeholder sender)', () => {
+    const check = ready({ ...base, ...S3, APP_BASE_URL: 'https://staging.tovira.io', EMAIL_SENDER: 'resend', RESEND_API_KEY: 're_x' });
+    expect(check).toThrow(/EMAIL_FROM/);
+  });
+
+  it('[P22-2] an APP_BASE_URL or EMAIL_FROM on a domain we do not own fails at startup', () => {
+    expect(ready({ ...base, ...S3, APP_BASE_URL: FOREIGN })).toThrow(/APP_BASE_URL/);
+    expect(ready({ ...base, ...S3, APP_BASE_URL: 'https://staging.tovira.io', EMAIL_SENDER: 'resend', RESEND_API_KEY: 're_x', EMAIL_FROM: `Tovira <hello@${FOREIGN.replace('https://app.', '')}>` })).toThrow(/EMAIL_FROM/);
+  });
+
+  it('[P22-2] passes with APP_BASE_URL + an owned sender set explicitly', () => {
+    expect(ready({ ...base, ...S3, APP_BASE_URL: 'https://staging.tovira.io', EMAIL_SENDER: 'resend', RESEND_API_KEY: 're_x', EMAIL_FROM: 'Tovira <hello@tovira.io>' })).not.toThrow();
+  });
+
   it('[STORAGE] a real-looking deployment on the filesystem backend fails loud, naming STORAGE_BACKEND', () => {
     const check = ready({ ...base, APP_BASE_URL: 'https://app.tovira.app' }); // public URL ⇒ looks deployed; backend defaults to fs
     expect(check).toThrow(ConfigError);
@@ -103,7 +125,7 @@ describe('assertDeployReady', () => {
   });
 
   it('MODEL_PROVIDER=anthropic with a real (bedrock) embedder passes', () => {
-    expect(ready({ ...base, MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-real', EMBEDDER: 'bedrock', ...S3 })).not.toThrow();
+    expect(ready({ ...base, MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-real', EMBEDDER: 'bedrock', ...S3, APP_BASE_URL: 'https://staging.tovira.io' })).not.toThrow();
   });
 
   // [VAT-READY] a half-configured VAT state is worse than none.

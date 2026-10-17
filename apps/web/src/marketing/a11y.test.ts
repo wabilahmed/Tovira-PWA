@@ -43,7 +43,7 @@ describe('[SITE-5] meta & SEO', () => {
     const d = parse(EN);
     expect(d.querySelector('title')?.textContent).toMatch(/Tovira/);
     expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/WhatsApp/);
-    expect(d.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://tovira.com/');
+    expect(d.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('/');
     const alternates = [...d.querySelectorAll('link[rel="alternate"][hreflang]')].map((l) => l.getAttribute('hreflang'));
     expect(alternates).toContain('en');
     expect(alternates).toContain('x-default');

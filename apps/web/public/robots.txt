@@ -5,4 +5,3 @@ Disallow: /app
 Disallow: /reset-password
 Disallow: /verify-email
 
-Sitemap: https://tovira.com/sitemap.xml

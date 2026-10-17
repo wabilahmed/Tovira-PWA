@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { withParams, withAppUrl, enhanceLinks } from './ref.js';
 
 const APP = '/app';
-const ORIGIN = 'https://tovira.com';
+const ORIGIN = 'https://site.example.test';
 
 // The real shipped page — the test runs against the actual CTAs, not a fixture,
 // so a CTA that loses its data-cta or its app href fails here. (Resolved from
