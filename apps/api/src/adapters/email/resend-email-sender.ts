@@ -29,7 +29,7 @@ export class ResendEmailSender implements EmailSender {
       },
       body: JSON.stringify({
         from: this.opts.from,
-        reply_to: CONTACT_EMAIL, // [D9] replies land at hello@tovira.io (the From stays a no-reply sender)
+        reply_to: CONTACT_EMAIL, // [D9] replies land at hello@tovira.io (From comes from EMAIL_FROM)
         to: [message.to],
         subject: message.subject,
         text: message.text,

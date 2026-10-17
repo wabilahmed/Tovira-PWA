@@ -25,7 +25,7 @@ export class SesEmailSender implements EmailSender {
     await this.opts.client.send(
       new SendEmailCommand({
         FromEmailAddress: this.opts.from,
-        ReplyToAddresses: [CONTACT_EMAIL], // [D9] replies land at hello@tovira.io (From stays no-reply)
+        ReplyToAddresses: [CONTACT_EMAIL], // [D9] replies land at hello@tovira.io (From comes from EMAIL_FROM)
         Destination: { ToAddresses: [message.to] },
         Content: {
           Simple: {

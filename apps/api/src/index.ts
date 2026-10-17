@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { loadConfig, assertDeployReady, describeAdapters, opsSurfaceWarning, topUpOptionById, TOP_UP_OPTIONS } from './config.js';
+import { loadConfig, assertDeployReady, describeAdapters, emailConfigSummary, opsSurfaceWarning, topUpOptionById, TOP_UP_OPTIONS } from './config.js';
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { AccessRequestService } from './services/access/access-request-service.js';
 import { PgAccessRequestRepository } from './adapters/access/pg-access-request-repository.js';
@@ -136,6 +136,7 @@ async function main(): Promise<void> {
   // Startup signal: which adapters are live vs stub, so "staging is representative"
   // is verifiable at a glance (and again on GET /health).
   console.log(`[adapters] ${Object.entries(describeAdapters(config)).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+  { const e = emailConfigSummary(config); console.log(`[email] provider=${e.provider} from=${e.from} replyTo=${e.replyTo} appOrigin=${e.appOrigin}`); } // [P22-3]
 
   // Migrations run as the superuser/owner (creates the app role + RLS policies).
   const migrationPool = createPool(config.databaseUrl);
@@ -636,6 +637,7 @@ async function main(): Promise<void> {
     accountEmail,
     appBaseUrl: config.appBaseUrl,
     adapterModes: describeAdapters(config),
+    emailConfig: emailConfigSummary(config), // [P22-3]
     jobRuns: jobRunStore,
     modelMetrics,
     recallMetrics,

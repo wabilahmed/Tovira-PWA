@@ -174,6 +174,8 @@ export interface ApiDeps {
   appBaseUrl: string;
   /** Which pluggable adapters are live vs stub (health/observability). */
   adapterModes?: Record<string, 'live' | 'stub'>;
+  /** [P22-3] non-secret email setup (provider/From/Reply-To/link origin) for the ops-gated /health. */
+  emailConfig?: { provider: string; from: string; replyTo: string; appOrigin: string };
   /** Last-run records for the scheduled brain, surfaced in /health (SWEEP-NEVER-RUNS). */
   jobRuns?: JobRunStore;
   /** Per-task-class prompt-cache metrics, surfaced in /health (CACHE-1). */
@@ -286,6 +288,7 @@ export function createApiServer(deps: ApiDeps): Server {
             status: 'ok',
             opsConfigured,
             ...(deps.adapterModes ? { adapters: deps.adapterModes } : {}),
+            ...(deps.emailConfig ? { email: deps.emailConfig } : {}),
             ...(jobs ? { jobs: summarizeJobs(jobs, Date.now()) } : {}),
             ...(deps.modelMetrics ? { cache: deps.modelMetrics.snapshot() } : {}),
             ...(deps.recallMetrics ? { recall: deps.recallMetrics.snapshot() } : {}),

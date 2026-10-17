@@ -6,6 +6,7 @@
  */
 
 import type { CacheTtl } from './ports/model.js';
+import { CONTACT_EMAIL } from './services/email/contact.js';
 
 export class ConfigError extends Error {
   override name = 'ConfigError';
@@ -466,6 +467,16 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
  * "staging is representative" is verifiable rather than assumed (STAGING-EMBEDDER).
  * Logged at startup and surfaced on the health endpoint.
  */
+/** [P22-3] What every email will actually use: provider, From, Reply-To and the origin every link is
+ *  built from. Non-secret by nature — all four appear in every email sent. Logged at boot and shown on the
+ *  ops-gated /health, so "what does live send" is answerable without reading a secret. */
+export interface EmailConfigSummary { provider: EmailProvider; from: string; replyTo: string; appOrigin: string }
+export function emailConfigSummary(config: Pick<AppConfig, 'emailProvider' | 'emailFrom' | 'appBaseUrl'>): EmailConfigSummary {
+  let appOrigin: string;
+  try { appOrigin = new URL(config.appBaseUrl).origin; } catch { appOrigin = config.appBaseUrl; }
+  return { provider: config.emailProvider, from: config.emailFrom || '(unset)', replyTo: CONTACT_EMAIL, appOrigin };
+}
+
 export function describeAdapters(config: AppConfig): Record<'model' | 'embedder' | 'transcriber' | 'push' | 'email', 'live' | 'stub'> {
   const mode = (isReal: boolean): 'live' | 'stub' => (isReal ? 'live' : 'stub');
   return {

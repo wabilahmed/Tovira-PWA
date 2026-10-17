@@ -25,7 +25,7 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
     // extraction cacheable (3/4 hit → 75%); recall never cacheable → n/a
     for (const hit of [false, true, true, true]) modelMetrics.record('extraction', 'claude-sonnet-5', { cacheable: true, hit });
     modelMetrics.record('recall', 'claude-haiku-4-5', { cacheable: false, hit: false });
-    const deps = buildInMemoryDeps({ jobRuns, modelMetrics, adapterModes: { model: 'live', embedder: 'live' } });
+    const deps = buildInMemoryDeps({ jobRuns, modelMetrics, adapterModes: { model: 'live', embedder: 'live' }, emailConfig: { provider: 'resend', from: 'Tovira <hello@tovira.io>', replyTo: 'hello@tovira.io', appOrigin: 'https://staging.tovira.io' } });
     server = createApiServer(deps);
     await new Promise<void>((r) => server.listen(0, r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -77,12 +77,19 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
   });
 
   // [HEALTH-LEAK] The public (unauthenticated) body is liveness ONLY — nothing identifying or internal.
+  // [P22-3] The non-secret email setup (provider, sender, reply-to, link origin) is on the ops-gated body,
+  // so "what do live emails actually use" is one curl — never a secret read.
+  it('[P22-3] the ops body reports the email provider, sender, reply-to and link origin', async () => {
+    const body = (await (await fetch(`${base}/health`, ops)).json()) as { email?: unknown };
+    expect(body.email).toEqual({ provider: 'resend', from: 'Tovira <hello@tovira.io>', replyTo: 'hello@tovira.io', appOrigin: 'https://staging.tovira.io' });
+  });
+
   it('an UNAUTHENTICATED /health returns liveness only — no jobs, adapters, cache, or spend', async () => {
     const res = await fetch(`${base}/health`); // no ops token
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toEqual({ status: 'ok', opsConfigured: true }); // liveness + the public ops-visibility boolean (OPS-VISIBILITY); nothing else
-    for (const leaky of ['jobs', 'adapters', 'cache', 'recall', 'imports', 'extraction', 'trainingLog', 'spend']) {
+    for (const leaky of ['jobs', 'adapters', 'email', 'cache', 'recall', 'imports', 'extraction', 'trainingLog', 'spend']) {
       expect(body[leaky], `${leaky} must not be public`).toBeUndefined();
     }
     // and never a raw job error string (the 'boom' from priorities-nightly) anywhere in the body.
