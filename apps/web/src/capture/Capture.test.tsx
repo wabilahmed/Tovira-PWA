@@ -24,6 +24,17 @@ describe('<Capture>', () => {
     expect(await screen.findByLabelText(/consent to import/i)).toBeInTheDocument();
   });
 
+  // [P20-4 / 10d] Under the single-chat file picker, a link into the multi-chat bulk importer.
+  it('[P20-4] offers a bulk-import entry point in the import tab', async () => {
+    const user = userEvent.setup();
+    const onBulkImport = vi.fn();
+    render(<Capture clients={[client('c1', 'Falcon Group')]} importApi={importApi} outbox={outbox} onBulkImport={onBulkImport} />);
+    await user.click(screen.getByRole('tab', { name: /import chat/i }));
+    const link = await screen.findByRole('button', { name: /import up to 20 at once/i });
+    await user.click(link);
+    expect(onBulkImport).toHaveBeenCalled();
+  });
+
   it('tells the rep to add a client first when there are none', () => {
     render(<Capture clients={[]} importApi={importApi} outbox={outbox} />);
     expect(screen.getByText(/add a client first/i)).toBeInTheDocument();

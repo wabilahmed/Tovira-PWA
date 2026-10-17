@@ -28,11 +28,14 @@ export function Capture({
   importApi,
   outbox,
   onCaptured,
+  onBulkImport,
 }: {
   clients: ClientSummary[];
   importApi: ImportApi;
   outbox: Outbox;
   onCaptured?: () => void;
+  /** [P20-4 / 10d] Open the multi-chat bulk-import view (up to 20 at once). Absent → the link is hidden. */
+  onBulkImport?: () => void;
 }): JSX.Element {
   const [clientId, setClientId] = useState(clients[0]?.id ?? '');
   const [mode, setMode] = useState<'voice' | 'import'>('voice');
@@ -116,7 +119,15 @@ export function Capture({
               <p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>Kept on your device until it uploads. Never lost.</p>
             </div>
           ) : (
-            <ImportChat clientId={clientId} api={importApi} onImported={() => { refreshPending(); onCaptured?.(); }} />
+            <>
+              <ImportChat clientId={clientId} api={importApi} onImported={() => { refreshPending(); onCaptured?.(); }} />
+              {/* [P20-4 / 10d] Under the file picker: a way into the multi-chat bulk importer. */}
+              {onBulkImport && (
+                <button type="button" className="tov-link" style={{ marginTop: '0.75rem' }} onClick={onBulkImport}>
+                  Importing several chats? Import up to 20 at once →
+                </button>
+              )}
+            </>
           )}
         </>
       )}

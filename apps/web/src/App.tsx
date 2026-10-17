@@ -533,7 +533,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       )}
 
       {view === 'capture' && (
-        <Capture clients={clients} importApi={clientsApi} outbox={outbox} onCaptured={() => void clientsApi.list().then(setClients)} />
+        <Capture clients={clients} importApi={clientsApi} outbox={outbox} onCaptured={() => void clientsApi.list().then(setClients)} onBulkImport={() => setView('getstarted')} />
       )}
 
       {view === 'today' && gated(
