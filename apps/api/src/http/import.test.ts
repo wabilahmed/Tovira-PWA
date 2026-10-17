@@ -586,3 +586,85 @@ describe('[FIX 1] single import — raw-binary upload', () => {
     expect(await listNotes(token, cid)).toHaveLength(0);
   });
 });
+
+// [P16-2] The export file name names the other party. A title ≠ the current client is a misfile — caught
+// BEFORE anything is saved, with a suggestion when another client matches. Group chats and paste aren't.
+describe('[P16-2] import name-mismatch from the file-name title', () => {
+  const twoParty = [
+    '[2026-01-15, 09:12:03] QA Enter Key Client: hi',
+    '[2026-01-15, 09:40:11] Wabil: sending today',
+  ].join('\n');
+  const mismatchBody = (fileName: string) => ({ content: twoParty, consent: true, fileName });
+
+  it('[.txt, "with X"] fires a 409 misfile and saves NOTHING', async () => {
+    const { token } = await signup('mm-txt@example.com');
+    const cid = await createClient(token, 'QA P14 Gate Client');
+    const res = await importChat(token, cid, mismatchBody('WhatsApp Chat with QA Enter Key Client.txt'));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { counterpart: string }).counterpart).toBe('QA Enter Key Client');
+    expect(await listNotes(token, cid)).toHaveLength(0); // nothing saved until the rep chooses
+  });
+
+  it('[.zip, "- X"] fires a 409 too (same detection, different localised form)', async () => {
+    const { token } = await signup('mm-zip@example.com');
+    const cid = await createClient(token, 'QA P14 Gate Client');
+    const res = await importChat(token, cid, mismatchBody('WhatsApp Chat - QA Enter Key Client.zip'));
+    expect(res.status).toBe(409);
+    expect(await listNotes(token, cid)).toHaveLength(0);
+  });
+
+  it('[Arabic] folds letter forms: "مع أحمد" into client "احمد" imports cleanly (200)', async () => {
+    const { token } = await signup('mm-ar@example.com');
+    const cid = await createClient(token, 'احمد');
+    const res = await importChat(token, cid, { content: twoParty, consent: true, fileName: 'محادثة واتساب مع أحمد.txt' });
+    expect(res.status).not.toBe(409); // أحمد ≈ احمد → not a mismatch
+    expect((await listNotes(token, cid)).length).toBeGreaterThan(0);
+  });
+
+  it('suggests the client the title matches', async () => {
+    const { token } = await signup('mm-suggest@example.com');
+    const gate = await createClient(token, 'QA P14 Gate Client');
+    const enter = await createClient(token, 'QA Enter Key Client');
+    const res = await importChat(token, gate, mismatchBody('WhatsApp Chat with QA Enter Key Client.txt'));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { suggestion: { id: string; name: string } | null }).suggestion).toEqual({ id: enter, name: 'QA Enter Key Client' });
+  });
+
+  it('no suggestion when the title matches no other client', async () => {
+    const { token } = await signup('mm-nosuggest@example.com');
+    const cid = await createClient(token, 'QA P14 Gate Client');
+    const res = await importChat(token, cid, mismatchBody('WhatsApp Chat with QA Enter Key Client.txt'));
+    expect(((await res.json()) as { suggestion: unknown }).suggestion).toBeNull();
+  });
+
+  it('"Import here anyway" (override) saves EXACTLY one note', async () => {
+    const { token } = await signup('mm-override@example.com');
+    const cid = await createClient(token, 'QA P14 Gate Client');
+    expect((await importChat(token, cid, mismatchBody('WhatsApp Chat with QA Enter Key Client.txt'))).status).toBe(409);
+    const ok = await importChat(token, cid, { ...mismatchBody('WhatsApp Chat with QA Enter Key Client.txt'), confirmImport: true });
+    expect([200, 201, 202]).toContain(ok.status);
+    expect((await listNotes(token, cid)).filter((n) => n.source === 'whatsapp_export')).toHaveLength(1);
+  });
+
+  it('"Import to X" (import into the matched client) files the note under X', async () => {
+    const { token } = await signup('mm-importto@example.com');
+    await createClient(token, 'QA P14 Gate Client');
+    const enter = await createClient(token, 'QA Enter Key Client');
+    const res = await importChat(token, enter, mismatchBody('WhatsApp Chat with QA Enter Key Client.txt'));
+    expect([200, 201, 202]).toContain(res.status); // title == this client → no mismatch
+    expect((await listNotes(token, enter)).filter((n) => n.source === 'whatsapp_export')).toHaveLength(1);
+  });
+
+  it('a GROUP chat (3+ senders) is never blocked, even with a title', async () => {
+    const { token } = await signup('mm-group@example.com');
+    const cid = await createClient(token, 'QA P14 Gate Client');
+    const group = [
+      '[2026-01-15, 09:12:03] Ali: hi all',
+      '[2026-01-15, 09:13:00] Noura: hello',
+      '[2026-01-15, 09:14:00] Omar: hey',
+    ].join('\n');
+    const res = await importChat(token, cid, { content: group, consent: true, fileName: 'WhatsApp Chat with Project Team.txt' });
+    expect(res.status).not.toBe(409);
+    expect((await listNotes(token, cid)).length).toBeGreaterThan(0);
+  });
+});

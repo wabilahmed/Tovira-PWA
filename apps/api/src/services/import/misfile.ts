@@ -1,4 +1,5 @@
 import type { ImportedMessage } from '../../ports/note-repository.js';
+import { namesEqual } from '../text/normalize-name.js';
 
 /**
  * [MISFILE-DETECT] Deterministic misfile detection at import time — before any model call.
@@ -30,6 +31,11 @@ export interface MisfileInput {
   /** [ALIAS-COUNTERPART] the rep's own WhatsApp display name, to identify the counterpart by
    *  elimination (the speaker who is not the rep). Null/unknown → counterpart inferred when possible. */
   repName?: string | null;
+  /** [P16-2] The other party read from the export's FILE-NAME title ("WhatsApp Chat with X"). When
+   *  present (and not a group), this is AUTHORITATIVE — it literally names the counterpart — and is
+   *  compared to the selected client by whole-name equality, so a token-overlap ("…Client") can't mask a
+   *  real mismatch. Null when there is no title (then the sender-based logic below decides, as before). */
+  fileNameCounterpart?: string | null;
 }
 
 export type MisfileDetection =
@@ -123,11 +129,43 @@ function counterpartOf(participants: string[], repName: string | null | undefine
   return names.length === 1 ? names[0]! : null; // rep unknown → only a lone counterpart is certain
 }
 
+/**
+ * [P16-2] The counterpart named by a WhatsApp export's FILE NAME — the title, not the transcript. Handles
+ * the Android ("WhatsApp Chat with X"), iPhone ("WhatsApp Chat - X") and a couple of localised forms
+ * (Arabic "محادثة/دردشة واتساب مع X"). Returns null for a non-export name or none — then the transcript
+ * decides. A `_chat.txt` inner file is never the name passed here (the client sends the .txt/.zip name).
+ */
+export function counterpartFromFileName(fileName: string | null | undefined): string | null {
+  if (!fileName) return null;
+  const base = fileName.trim().replace(/\.(txt|zip)$/i, '').trim();
+  const m = /^(?:whatsapp chat|محادثة واتساب|دردشة واتساب)\s*(?:with\s+|مع\s+|[-—–]\s*)(.+)$/iu.exec(base);
+  const name = m?.[1]?.trim();
+  return name && name.length > 0 ? name : null;
+}
+
 export function detectMisfileAtImport(input: MisfileInput): MisfileDetection {
   const participants = participantsOf(input.messages);
   const counterparts = participants.filter((p) => !isPhone(p));
   const group = counterparts.length > 2;
   const counterpart = counterpartOf(participants, input.repName);
+
+  // [P16-2] A group chat is never a "misfiled under the wrong single contact" case — there is no single
+  // counterpart to confirm — so never block it (not from the title, not from the senders). Leave it to
+  // import normally.
+  if (group) return { status: 'ok', counterparts, counterpart, group, learnRepName: null };
+
+  // [P16-2] AUTHORITATIVE title check: when the export file name names the other party (and this isn't a
+  // group), compare it to the selected client by WHOLE-NAME equality — the title literally says who the
+  // chat is with, so a shared word like "Client" can't fake a match. A mismatch here fires regardless of
+  // the generous participant matching below; aliases still count as a match. Groups are never title-checked
+  // (their title is the group name, not a counterpart) — left to behave as before.
+  const titled = input.fileNameCounterpart?.trim();
+  if (titled && !group) {
+    const selMatch = namesEqual(titled, input.selected.name) || (input.selected.aliases ?? []).some((a) => namesEqual(titled, a));
+    if (selMatch) return { status: 'ok', counterparts, counterpart: titled, group, learnRepName: null };
+    const other = input.others.find((c) => namesEqual(titled, c.name) || (c.aliases ?? []).some((a) => namesEqual(titled, a)));
+    return { status: 'mismatch', counterparts, counterpart: titled, group, suggestion: other ? { id: other.id, name: other.name } : null, learnRepName: null };
+  }
 
   if (participants.length === 0) return { status: 'ok', counterparts, counterpart, group, learnRepName: null };
 

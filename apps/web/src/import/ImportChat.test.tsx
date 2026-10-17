@@ -173,7 +173,22 @@ describe('<ImportChat>', () => {
     expect(screen.getByText(/selected: shared chat/i)).toBeInTheDocument();
     await user.click(screen.getByLabelText(/consent to import/i));
     await user.click(screen.getByRole('button', { name: /import chat/i }));
+    // A shared chat has no real file name → no fileName sent (don't pass a placeholder as a title).
     await waitFor(() => expect(api.importWhatsApp).toHaveBeenCalledWith('c1', { contentBase64: btoa('PKzipbytes'), misfileAck: false }, true));
+  });
+
+  // [P16-2] A selected file forwards its real name so the server can read the "WhatsApp Chat with X" title.
+  it('sends the selected file name as fileName', async () => {
+    const user = userEvent.setup();
+    const api = makeApi({ ok: true, imported: 2 });
+    render(<ImportChat clientId="c1" api={api} onImported={vi.fn()} />);
+    const file = new File(['[2026-01-01, 09:00:00] Sara: hi'], 'WhatsApp Chat with Sara Khan.txt', { type: 'text/plain' });
+    await user.upload(screen.getByLabelText(/chat export file/i), file);
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /import chat/i }));
+    await waitFor(() => expect(api.importWhatsApp).toHaveBeenCalled());
+    const [, payload] = api.importWhatsApp.mock.calls.at(-1)!;
+    expect((payload as { fileName?: string }).fileName).toBe('WhatsApp Chat with Sara Khan.txt');
   });
 
   // MISFILE-DETECT: a suspected misfile shows a confirm prompt (never blocks); "Import here anyway"

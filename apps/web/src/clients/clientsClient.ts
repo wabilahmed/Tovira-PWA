@@ -194,7 +194,7 @@ export class ClientsClient {
   /** Import a WhatsApp chat export under a client (P1-4b / IMPORT-ZIP). Accepts either pasted text
    *  (a string, or `{ content }`) or a file's raw bytes (`{ contentBase64 }` — for the .zip iOS
    *  exports, or a .txt read as bytes). The server detects zip vs text by content, not filename. */
-  async importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; confirmImport?: boolean; counterpart?: string; firstImportAck?: boolean }, consent: boolean): Promise<ImportResult> {
+  async importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; confirmImport?: boolean; counterpart?: string; firstImportAck?: boolean; fileName?: string }, consent: boolean): Promise<ImportResult> {
     const payload = typeof input === 'string' ? { content: input } : input;
     // [FIX 1] Chat uploads go as RAW BINARY (no base64/JSON inflation, no 1 MB JSON cap) — the file bytes
     // are the body and the small metadata rides in the query string, so a long-history export fits.
@@ -208,6 +208,9 @@ export class ClientsClient {
     if (payload.confirmImport) headers['X-Tovira-Confirm-Import'] = '1';
     if (payload.firstImportAck) headers['X-Tovira-First-Import-Ack'] = '1';
     if (payload.counterpart) headers['X-Tovira-Counterpart'] = encodeURIComponent(payload.counterpart);
+    // [P16-2] The export file name carries the "WhatsApp Chat with X" title — the authoritative misfile
+    // signal. Percent-encoded (UTF-8 titles) so a header never carries raw non-ASCII.
+    if (payload.fileName) headers['X-Tovira-Filename'] = encodeURIComponent(payload.fileName);
     let res: Response;
     try {
       res = await fetch(this.url(`/clients/${clientId}/notes/import`), {

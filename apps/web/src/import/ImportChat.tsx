@@ -44,6 +44,9 @@ export function ImportChat({
   const [content, setContent] = useState(initialContent);
   const [fileB64, setFileB64] = useState(initialContentBase64);
   const [fileName, setFileName] = useState(initialContentBase64 ? 'shared chat' : '');
+  // [P16-2] The REAL upload file name (for the "WhatsApp Chat with X" title) — distinct from the display
+  // label above. Empty for a shared/pasted chat (no real name), so we never send a placeholder as a title.
+  const [uploadName, setUploadName] = useState('');
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +66,7 @@ export function ImportChat({
       if (buf instanceof ArrayBuffer) {
         setFileB64(bytesToBase64(new Uint8Array(buf)));
         setFileName(file.name || 'chat export');
+        setUploadName(file.name || ''); // the real name (for the title); '' if the browser gave none
       }
     };
     reader.readAsArrayBuffer(file);
@@ -83,9 +87,12 @@ export function ImportChat({
     setNotice(null);
     setFirstAck(null); // [IMP-09/13] once this attempt resolves (incl. to an error), the right-to-upload prompt clears
     // Only attach optional acks when set, so the common payload shape stays { content, misfileAck }.
-    const meta: { misfileAck: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string } = { misfileAck: ack };
+    const meta: { misfileAck: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string; fileName?: string } = { misfileAck: ack };
     if (firstImportAck) meta.firstImportAck = true;
     if (confirm) { meta.confirmImport = true; meta.counterpart = confirm.counterpart; } // [AUDIT gap B] rep-id confirm
+    // [P16-2] Send the real export file name so the server can read its "WhatsApp Chat with X" title (the
+    // authoritative misfile signal). Only a selected file has one — a pasted/shared chat sends nothing.
+    if (uploadName) meta.fileName = uploadName;
     const payload = fileB64 ? { contentBase64: fileB64, ...meta } : { content, ...meta };
     const result = await api.importWhatsApp(targetClientId, payload, consent);
     setBusy(false);
@@ -94,6 +101,7 @@ export function ImportChat({
       setContent('');
       setFileB64('');
       setFileName('');
+      setUploadName('');
       setConsent(false);
       setMisfile(null);
       setRepChoice(null);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectMisfileAtImport, detectMisfilePostExtraction, type MisfileInput } from './misfile.js';
+import { detectMisfileAtImport, detectMisfilePostExtraction, counterpartFromFileName, type MisfileInput } from './misfile.js';
 import type { ImportedMessage } from '../../ports/note-repository.js';
 
 const msg = (sender: string, body = 'hi'): ImportedMessage => ({ sentAt: '2026-03-15T10:00:00Z', sender, body, media: false, role: 'unknown' });
@@ -119,6 +119,66 @@ describe('[MISFILE-DETECT] detectMisfileAtImport', () => {
       messages: [msg('+971509999999'), msg('Me')],
     });
     expect(r.status).toBe('mismatch');
+  });
+});
+
+// [P16-2] The export FILE NAME names the other party — the authoritative, title-based counterpart check.
+describe('[P16-2] counterpartFromFileName', () => {
+  it('reads the Android "WhatsApp Chat with X" title', () => {
+    expect(counterpartFromFileName('WhatsApp Chat with QA Enter Key Client.txt')).toBe('QA Enter Key Client');
+  });
+  it('reads the iPhone "WhatsApp Chat - X" title (.zip)', () => {
+    expect(counterpartFromFileName('WhatsApp Chat - QA Enter Key Client.zip')).toBe('QA Enter Key Client');
+  });
+  it('reads a localised Arabic title', () => {
+    expect(counterpartFromFileName('محادثة واتساب مع أحمد.txt')).toBe('أحمد');
+  });
+  it('returns null for a non-export file name or none', () => {
+    expect(counterpartFromFileName('notes.txt')).toBeNull();
+    expect(counterpartFromFileName(null)).toBeNull();
+  });
+});
+
+describe('[P16-2] detectMisfileAtImport — authoritative file-name-title check', () => {
+  const senders2 = [msg('QA Enter Key Client'), msg('Wabil')];
+  it('fires a mismatch on a title ≠ client, even when the senders token-overlap ("...Client")', () => {
+    const r = detectMisfileAtImport({
+      ...base, fileNameCounterpart: 'QA Enter Key Client',
+      selected: { id: 'gate', name: 'QA P14 Gate Client', phone: null }, messages: senders2,
+    });
+    expect(r.status).toBe('mismatch');
+    if (r.status === 'mismatch') { expect(r.counterpart).toBe('QA Enter Key Client'); expect(r.suggestion).toBeNull(); }
+  });
+  it('is OK when the title equals the client (whole-name, so no false mismatch)', () => {
+    const r = detectMisfileAtImport({
+      ...base, fileNameCounterpart: 'QA Enter Key Client',
+      selected: { id: 'c', name: 'QA Enter Key Client', phone: null }, messages: senders2,
+    });
+    expect(r.status).toBe('ok');
+  });
+  it('suggests the client the title DOES match', () => {
+    const r = detectMisfileAtImport({
+      ...base, fileNameCounterpart: 'QA Enter Key Client',
+      selected: { id: 'gate', name: 'QA P14 Gate Client', phone: null },
+      others: [{ id: 'enter', name: 'QA Enter Key Client', phone: null, knownPeople: [] }],
+      messages: senders2,
+    });
+    expect(r.status).toBe('mismatch');
+    if (r.status === 'mismatch') expect(r.suggestion).toEqual({ id: 'enter', name: 'QA Enter Key Client' });
+  });
+  it('folds Arabic forms: title "أحمد" == client "احمد" → ok', () => {
+    const r = detectMisfileAtImport({
+      ...base, fileNameCounterpart: 'أحمد',
+      selected: { id: 'c', name: 'احمد', phone: null }, messages: [msg('أحمد'), msg('Wabil')],
+    });
+    expect(r.status).toBe('ok');
+  });
+  it('does NOT block a group chat (>2 senders), even with a title', () => {
+    const r = detectMisfileAtImport({
+      ...base, fileNameCounterpart: 'Project Team',
+      selected: { id: 'c', name: 'Meridian', phone: null }, messages: [msg('Ali'), msg('Noura'), msg('Omar'), msg('Me')],
+    });
+    expect(r.status).toBe('ok'); // group → the title check is skipped (leave groups as they are)
   });
 });
 

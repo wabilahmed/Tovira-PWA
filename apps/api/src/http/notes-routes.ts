@@ -15,7 +15,7 @@ import type { NoteMoveService } from '../services/import/note-move-service.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { resolveTranscript } from '../services/import/resolve.js';
 import { MAX_IMPORT_UPLOAD_BYTES, IMPORT_TOO_LARGE_MESSAGE, truncateToRecent } from '../services/import/bulk-decode.js';
-import { detectMisfileAtImport } from '../services/import/misfile.js';
+import { detectMisfileAtImport, counterpartFromFileName } from '../services/import/misfile.js';
 import type { ContactAliasRepository, RepNameRepository } from '../ports/contact-alias-repository.js';
 import type { ImportAckRepository } from '../ports/import-ack-repository.js';
 import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
@@ -278,7 +278,7 @@ export async function handleNoteRoute(
       // personal data and query strings land in access logs (FOLLOW-UP 1). Legacy JSON callers
       // (content-type: application/json) keep the old body shape.
       const isRawUpload = !String(req.headers['content-type'] ?? '').includes('json');
-      let body: { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown; confirmImport?: unknown; counterpart?: unknown; firstImportAck?: unknown };
+      let body: { content?: unknown; contentBase64?: unknown; consent?: unknown; misfileAck?: unknown; confirmImport?: unknown; counterpart?: unknown; firstImportAck?: unknown; fileName?: unknown };
       let rawFileBytes: Buffer | null = null;
       if (isRawUpload) {
         try {
@@ -289,12 +289,16 @@ export async function handleNoteRoute(
         }
         const h = req.headers;
         const cp = typeof h['x-tovira-counterpart'] === 'string' ? h['x-tovira-counterpart'] : '';
+        // [P16-2] The export file name (percent-encoded; UTF-8 titles) — its "WhatsApp Chat with X" title
+        // names the counterpart, the authoritative misfile signal before anything is saved.
+        const fn = typeof h['x-tovira-filename'] === 'string' ? h['x-tovira-filename'] : '';
         body = {
           consent: h['x-tovira-consent'] === '1',
           misfileAck: h['x-tovira-misfile-ack'] === '1',
           confirmImport: h['x-tovira-confirm-import'] === '1',
           firstImportAck: h['x-tovira-first-import-ack'] === '1',
           ...(cp ? { counterpart: decodeURIComponent(cp) } : {}), // percent-encoded on the client (UTF-8 names)
+          ...(fn ? { fileName: decodeURIComponent(fn) } : {}),
         };
       } else {
         body = (await readJsonBody(req)) as typeof body;
@@ -450,6 +454,7 @@ export async function handleNoteRoute(
         knownPeople: knownPeopleFrom(priorNotes),
         others,
         repName,
+        fileNameCounterpart: counterpartFromFileName(typeof body.fileName === 'string' ? body.fileName : null),
       });
       if (detection.status === 'mismatch' && !confirmAck) {
         // Soft, non-accusatory copy with what parsing already knows — so the rep decides on facts.
