@@ -551,8 +551,10 @@ export async function handleNoteRoute(
       }
       const result = await deps.noteMove.move(userId, decodeURIComponent(moveMatch[1]!), body.toClientId);
       if (!result.ok) {
-        const code = result.error === 'note_not_found' || result.error === 'target_not_found' ? 404 : 409;
-        sendJson(res, code, { error: result.error });
+        // [SEC-01] A missing / cross-tenant note or target looks like any other missing record: 404
+        // not_found (uniform body — never a distinct string A could probe). 409 conflicts keep theirs.
+        const notFound = result.error === 'note_not_found' || result.error === 'target_not_found';
+        sendJson(res, notFound ? 404 : 409, { error: notFound ? 'not_found' : result.error });
         return true;
       }
       sendJson(res, 200, { ok: true, counts: result.counts });

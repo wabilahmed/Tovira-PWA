@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { NoteRepository } from '../ports/note-repository.js';
+import type { ClientRepository } from '../ports/client-repository.js';
 import { aggregatePeople, aggregatePersonalFacts, extractedOf } from '../services/insights/insights.js';
 import { withExtractedReceipt } from '../services/receipts/receipt.js';
 import { extractToken, sendJson } from './helpers.js';
@@ -8,6 +9,8 @@ import { extractToken, sendJson } from './helpers.js';
 export interface InsightsRouteDeps {
   auth: AuthService;
   notes: NoteRepository;
+  /** [SEC-01] to 404 a stakeholder/personal-facts read on an unknown / not-the-rep's client. */
+  clients: ClientRepository;
 }
 
 const STAKEHOLDERS_RE = /^\/clients\/([^/]+)\/stakeholders$/;
@@ -32,6 +35,11 @@ export async function handleInsightsRoute(
   }
   const userId = identity.userId;
   const clientId = decodeURIComponent((stakeholders ?? personal)![1]!);
+  // [SEC-01] An unknown / not-the-rep's client is 404 — not a 200 with an empty people/facts list.
+  if (!(await deps.clients.findByIdForUser(userId, clientId))) {
+    sendJson(res, 404, { error: 'not_found' });
+    return true;
+  }
   const notes = await deps.notes.listByClient(userId, clientId); // RLS/user-scoped
   // Bind each person/personal_fact's receipt to its originating note's created_at (capture date)
   // before aggregating across notes — these facts carry no created_at of their own.

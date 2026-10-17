@@ -67,6 +67,11 @@ export async function handleImageRoute(
 
     if (list) {
       const clientId = decodeURIComponent(list[1]!);
+      // [SEC-01] An unknown / not-the-rep's client is 404 — never a reassuring 200 with an empty list.
+      if (!(await deps.clients.findByIdForUser(userId, clientId))) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
       sendJson(res, 200, { images: await deps.images.listByClient(userId, clientId) });
       return true;
     }
