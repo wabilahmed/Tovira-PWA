@@ -44,15 +44,15 @@ export const DEFAULT_EXCLUDE_EMAILS: readonly string[] = [];
 /** [P15] Read-only eligibility query (the universe to reason about: accepted-or-not, with/without a
  *  subscription). The in-script ops/test exclusion is applied AFTER, in planBackfill — so this stays a
  *  faithful, runnable SQL the operator can inspect first. */
-export const ELIGIBILITY_SQL = `
+const ELIGIBILITY_SQL_BASE = `
 SELECT u.id,
        u.email,
        u.created_at,
        u.terms_accepted_at AS accepted_at,
        (s.user_id IS NOT NULL) AS has_subscription
   FROM users u
-  LEFT JOIN subscriptions s ON s.user_id = u.id
- ORDER BY u.created_at`;
+  LEFT JOIN subscriptions s ON s.user_id = u.id`;
+export const ELIGIBILITY_SQL = `${ELIGIBILITY_SQL_BASE}\n ORDER BY u.created_at`;
 
 export interface AccountState {
   id: string;
@@ -131,7 +131,11 @@ async function main(): Promise<void> {
 
   const pool = new pg.Pool({ connectionString: url });
   try {
-    const { rows } = await pool.query<{ id: string; email: string; created_at: Date; accepted_at: Date | null; has_subscription: boolean }>(ELIGIBILITY_SQL);
+    // With --only, fetch JUST that account so the dry run shows only it (no "not named by --only" noise).
+    const { rows } = await pool.query<{ id: string; email: string; created_at: Date; accepted_at: Date | null; has_subscription: boolean }>(
+      onlyUserId ? `${ELIGIBILITY_SQL_BASE} WHERE u.id = $1` : ELIGIBILITY_SQL,
+      onlyUserId ? [onlyUserId] : [],
+    );
     const accounts: AccountState[] = rows.map((r) => ({
       id: r.id,
       email: r.email,
