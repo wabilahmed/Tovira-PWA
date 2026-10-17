@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { RecallService } from './recall-service.js';
+import { RecallService, cleanAnswer, type Receipt } from './recall-service.js';
 import type { Embedder } from '../../ports/embedder.js';
 import type { NoteRepository, NoteRecord, SimilarNote } from '../../ports/note-repository.js';
 import type { ModelClient } from '../../ports/model.js';
@@ -134,5 +134,54 @@ describe('RecallService (P4-8)', () => {
     const svc = new RecallService(embedder, notesRepo([{ note: note('n1', 'Ahmed said pricing is high.'), similarity: 0.9 }]),
       model('Ahmed felt pricing was high.'), undefined, undefined, undefined, undefined, undefined, undefined, undefined, notExhausted);
     expect((await svc.ask('u1', 'pricing?')).receipts).toHaveLength(1);
+  });
+});
+
+// [P18-5] Structured cross-client retrieval — Ask can answer an aggregate question whose answer lives in
+// the fact tables, not in any one note, by merging a bounded structured digest with the vector matches.
+describe('[P18-5] RecallService with structured cross-client retrieval', () => {
+  const structuredSource = (receipts: Receipt[]) => ({ forUser: async () => receipts });
+
+  it('answers a cross-client question from structured facts even when vector search finds nothing', async () => {
+    const digest: Receipt[] = [
+      { quote: 'Acme — you promised to send the revised quote', date: '2026-03-10', clientId: 'acme', noteId: 'n1' },
+      { quote: 'Nord — you promised to share the samples', date: '2026-03-05', clientId: 'nord', noteId: 'n2' },
+    ];
+    const svc = new RecallService(embedder, notesRepo([]), model('You owe Nord the samples and Acme the revised quote.'),
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, structuredSource(digest));
+    const { answer, receipts } = await svc.ask('u1', 'what have I promised and to whom?');
+    expect(answer).not.toMatch(/don't have that on record/i); // the vault had an answer — in the fact tables
+    expect(receipts).toHaveLength(2);
+    expect(receipts.map((r) => r.clientId)).toEqual(['acme', 'nord']); // both clients, not just one note
+  });
+
+  it('a failing structured source never breaks the answer (falls back to vector only)', async () => {
+    const broken = { forUser: async () => { throw new Error('db down'); } };
+    const svc = new RecallService(embedder, notesRepo([{ note: note('n1', 'Ahmed said pricing is high.'), similarity: 0.9 }]),
+      model('Ahmed felt pricing was high.'), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, broken);
+    const { answer, receipts } = await svc.ask('u1', 'pricing?');
+    expect(answer).toMatch(/pricing/i);
+    expect(receipts).toHaveLength(1); // the vector match still stands
+  });
+});
+
+describe('[P18-5] cleanAnswer', () => {
+  it('drops the "Based on the excerpts" grounding preamble', () => {
+    expect(cleanAnswer('Based on the excerpts, Ahmed wanted a discount.')).toBe('Ahmed wanted a discount.');
+  });
+  it('drops an "According to your notes" preamble and recapitalises', () => {
+    expect(cleanAnswer('According to your notes: the price is too high.')).toBe('The price is too high.');
+  });
+  it('strips markdown emphasis so it never renders literal asterisks', () => {
+    expect(cleanAnswer('**Acme** owes you a *reply* and a `quote`.')).toBe('Acme owes you a reply and a quote.');
+  });
+  it('turns markdown bullets into plain bullets', () => {
+    expect(cleanAnswer('- call Sam\n- email Lee')).toBe('• call Sam\n• email Lee');
+  });
+  it('leaves a clean prose answer untouched', () => {
+    expect(cleanAnswer('Ahmed felt the pricing was too high for the villas.')).toBe('Ahmed felt the pricing was too high for the villas.');
+  });
+  it('does not strip a legitimate sentence that merely starts with "From"', () => {
+    expect(cleanAnswer('From the first meeting, they wanted a discount.')).toBe('From the first meeting, they wanted a discount.');
   });
 });

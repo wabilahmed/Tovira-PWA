@@ -113,7 +113,9 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
         <div className="tov-deal" style={{ marginTop: '1rem' }}>
           {/* §7: the label states provenance ("on record"), not "answer". */}
           {result.receipts.length > 0 && <div className="tov-stamp" style={{ marginBottom: 4 }}>On record</div>}
-          <p data-testid="answer">{result.answer}</p>
+          {/* [P18-5] The answer is already plain text (markdown stripped server-side); pre-wrap keeps
+              any line breaks (e.g. a bulleted list) without rendering literal markup. */}
+          <p data-testid="answer" style={{ whiteSpace: 'pre-wrap' }}>{result.answer}</p>
           {result.receipts.length > 0 && (
             <div>
               <strong>Receipts</strong>

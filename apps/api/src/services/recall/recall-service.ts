@@ -102,6 +102,40 @@ function toReceipt(m: SimilarNote): Receipt {
   };
 }
 
+/**
+ * [P18-5] Normalise a MODEL answer for the calm plain-text UI: drop the model's leading grounding
+ * preamble ("Based on the excerpts, …", "According to your notes: …") — throat-clearing, never the
+ * answer — and strip markdown (emphasis, headings, bullets, links, code) so it reads as prose instead of
+ * rendering literal asterisks and hashes. Only the model's own text is passed through here; our NO_ANSWER
+ * and fallback strings are never cleaned.
+ */
+export function cleanAnswer(text: string): string {
+  let s = text.trim();
+  // Leading grounding preamble up to the first comma/colon/period.
+  const stripped = s.replace(
+    /^(based on|according to|from|looking at)\b[^,.:\n]*\b(excerpts?|notes?|records?|messages?|information|what you(?:'ve| have)?(?: shared| recorded| told me)?)[^,.:\n]*[,.:]\s*/i,
+    '',
+  );
+  const preambleRemoved = stripped !== s; // only our own edit may recapitalise — never the model's words
+  s = stripped
+    .replace(/```[a-z]*\n?/gi, '').replace(/```/g, '') // code fences → drop the fence, keep contents
+    .replace(/`([^`]+)`/g, '$1')                        // inline code
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')               // images
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')            // links → link text
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')                 // ATX headings
+    .replace(/\*\*([^*]+)\*\*/g, '$1')                  // **bold**
+    .replace(/__([^_]+)__/g, '$1')                      // __bold__
+    .replace(/\*([^*\n]+)\*/g, '$1')                    // *italic*
+    .replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, '$1$2')      // _italic_
+    .replace(/^\s{0,3}>\s?/gm, '')                       // blockquote markers
+    .replace(/^\s{0,3}[-*+]\s+/gm, '• ')                // bullets → •
+    .trim();
+  // A stripped preamble can leave a lowercase lead — recapitalise ONLY then, so the model's own wording
+  // (e.g. a deliberately lowercase "ok") is never altered.
+  if (preambleRemoved && s && /[a-z]/.test(s.charAt(0))) s = s.charAt(0).toUpperCase() + s.slice(1);
+  return s;
+}
+
 export class RecallService {
   constructor(
     private readonly embedder: Embedder,
@@ -126,6 +160,10 @@ export class RecallService {
     /** [TASK 2] Active erasure-window restriction — a restricted counterparty's notes are withheld from
      *  the answer and its receipts. Absent → no restriction. */
     private readonly restriction?: { forUser(userId: string): Promise<Restriction> },
+    /** [P18-5] Structured cross-client retrieval — a bounded digest of the rep's promises/meetings/key
+     *  dates across ALL clients, merged with the vector matches so aggregate questions are answerable.
+     *  Optional — recall is vector-only (single-client-ish) without it. */
+    private readonly structured?: { forUser(userId: string, nowMs: number): Promise<Receipt[]> },
   ) {}
 
   /** [ASK-CAPTURE] Detect whether the rep's turn stated a fact about a client and, if so, route it
@@ -198,16 +236,21 @@ export class RecallService {
     const restricted = restriction.active ? matches.map((m) => ({ ...m, note: restrictNote(m.note, restriction) })) : matches;
     const relevant = restricted.filter((m) => m.similarity >= this.config.minSimilarity && modelSafeText(m.note).trim());
 
+    // [P18-5] Structured cross-client facts (promises/meetings/key dates across the whole book) joined
+    // with the vector matches. Vector receipts come FIRST so they win the token budget for a specific
+    // question; the structured digest fills the remainder, which is what lets an aggregate cross-client
+    // question ("what have I promised, and to whom?") be answered at all. Never breaks the answer.
+    const structuredReceipts = this.structured ? await this.structured.forUser(userId, nowMs).catch(() => [] as Receipt[]) : [];
+    // [RECALL-TOPK] top-k caps the vector ITEM count (the DB LIMIT); this caps the total TOKEN budget so
+    // a few long notes (or a long structured digest) can't blow up the context. Always at least the top.
+    const receipts = capByTokenBudget([...relevant.map(toReceipt), ...structuredReceipts], this.config.maxRetrievalTokens);
+
     let answer: string;
-    let receipts: Receipt[] = [];
-    if (relevant.length === 0) {
+    if (receipts.length === 0) {
       // Nothing in the vault → honest "I don't have that", even if history mentioned it (history is
       // never treated as a source of truth). Still recorded so the conversation stays coherent.
       answer = NO_ANSWER;
     } else {
-      // [RECALL-TOPK] top-k caps the ITEM count (the DB LIMIT); this caps the total TOKEN budget so a
-      // few long notes can't blow up the context. Always at least the top match.
-      receipts = capByTokenBudget(relevant.map(toReceipt), this.config.maxRetrievalTokens);
       // [PROMPT-DELIMIT] Excerpts are verbatim note text — UNTRUSTED (a client may have authored it in
       // an imported chat). Fence them and frame them as data so an instruction inside a quote can't
       // steer the answer. Variable message only; the cached SYSTEM prefix is untouched.
@@ -230,7 +273,7 @@ export class RecallService {
           spendClass: 'recall', // SPEND-CAP
           ...(sessionId ? { conversationId: sessionId, turnIndex } : {}), // ASK-CONVO attribution
         });
-        answer = res.text.trim() || NO_ANSWER;
+        answer = cleanAnswer(res.text) || NO_ANSWER; // [P18-5] strip markdown + drop "Based on the excerpts…"
         this.recordTurn(userId, excerpts, turnIndex, historyTokens, res.usage);
       } catch {
         // Never fabricate on a model failure — fall back to the verbatim receipts.

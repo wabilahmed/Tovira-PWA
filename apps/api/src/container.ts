@@ -79,6 +79,7 @@ import { StubEmbedder } from './adapters/embedding/stub.js';
 import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
 import { RecallService } from './services/recall/recall-service.js';
+import { StructuredRecall } from './services/recall/structured-recall.js';
 import type { RecallMetrics } from './services/metrics/recall-metrics.js';
 import type { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import type { RecallSessionRepository } from './ports/recall-session-repository.js';
@@ -240,6 +241,10 @@ export function createRecallService(
   clients?: ClientRepository,
   allowanceExhausted?: (userId: string) => Promise<boolean>,
   restriction?: RestrictionService,
+  /** [P18-5] Fact repos for structured cross-client retrieval. When both are present (+ clients), Ask
+   *  can answer aggregate questions over the whole book, not just one semantic note match. */
+  facts?: FactsRepository,
+  meetings?: MeetingRepository,
 ): RecallService {
   // Detection runs on the cheap recall model (Haiku); it only classifies (statement vs question),
   // never extracts. The capture pipeline routes a detected statement to the CERTIFIED engine.
@@ -247,7 +252,9 @@ export function createRecallService(
   const clientDirectory = capture && clients
     ? async (userId: string) => (await clients.listByUser(userId)).map((c) => ({ id: c.id, name: c.name }))
     : undefined;
-  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, allowanceExhausted, restriction);
+  // [P18-5] Structured cross-client retrieval (promises/meetings/key dates across all clients).
+  const structured = facts && meetings && clients ? new StructuredRecall({ facts, meetings, clients }) : undefined;
+  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, allowanceExhausted, restriction, structured);
 }
 
 /**
