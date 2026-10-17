@@ -91,7 +91,7 @@ export function Capture({
         <>
           <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline', marginBottom: '1rem' }}>
             For
-            <select value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Capture client" disabled={!!active}>
+            <select className="tov-client-select" value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Capture client" disabled={!!active}>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>

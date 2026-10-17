@@ -29,4 +29,11 @@ describe('<Capture>', () => {
     expect(screen.getByText(/add a client first/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /record/i })).toBeNull();
   });
+
+  // [P18-9] At 390px a long client name must not push the record control off-screen — the client picker
+  // carries the width-capping class (jsdom can't measure layout, so assert the constraint is applied).
+  it('[P18-9] constrains the client picker so a long name cannot overflow at 390px', () => {
+    render(<Capture clients={[client('c1', 'A'.repeat(90))]} importApi={importApi} outbox={outbox} />);
+    expect(screen.getByLabelText(/capture client/i)).toHaveClass('tov-client-select');
+  });
 });

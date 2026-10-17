@@ -65,4 +65,11 @@ describe('<Ledger>', () => {
     render(<Ledger api={makeApi(null)} clients={clients} />);
     expect(await screen.findByRole('alert')).toBeInTheDocument();
   });
+
+  // [P18-9] At 390px a long client name must not overflow — the deal-value client picker carries the
+  // width-capping class (jsdom can't measure layout, so assert the constraint is applied).
+  it('[P18-9] constrains the client picker so a long name cannot overflow at 390px', async () => {
+    render(<Ledger api={makeApi(withValue)} clients={[{ id: 'c1', name: 'A'.repeat(90) }]} />);
+    expect(await screen.findByLabelText(/deal value client/i)).toHaveClass('tov-client-select');
+  });
 });
