@@ -53,10 +53,18 @@ export interface NoteSummary {
   restrictionNotice?: string;
 }
 
+/** [P18-10b] A fact's receipt as the server sends it (withReceipt): the verbatim quote + its date. */
+export interface FactReceipt {
+  quote: string | null;
+  source: 'message' | 'capture' | 'none';
+  at: string | null;
+  label: string;
+}
+
 export interface Brief {
   clientName: string;
   empty: boolean;
-  openPromises: Array<{ id: string; text: string; dueDate: string | null; dueRaw: string | null }>;
+  openPromises: Array<{ id: string; text: string; dueDate: string | null; dueRaw: string | null; receipt?: FactReceipt }>;
   needsConfirmation: Array<{ id: string; text: string }>;
   keyPeople: Array<{ name: string | null; role: string | null; decision_role: string }>;
   personalNotes: Array<{ subject: string; fact: string }>;

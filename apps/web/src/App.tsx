@@ -70,7 +70,8 @@ import { NotificationSetup, type NotificationApi } from './push/NotificationSetu
 import { ThemeToggle } from './settings/ThemeToggle.js';
 import { TimezoneSetting } from './settings/TimezoneSetting.js';
 import { DisclosureLine } from './settings/DisclosureLine.js';
-import { formatMonthYear, formatBody } from './format/dates.js';
+import { formatMonthYear } from './format/dates.js';
+import { BriefOpenPromises } from './brief/BriefOpenPromises.js';
 import { AppShell } from './shell/AppShell.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { NotFound } from './components/NotFound.js';
@@ -944,8 +945,8 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
       )}
       {brief.openPromises.length > 0 && (
         <div style={briefSection}>
-          <div className="tov-stamp">Open promises</div>
-          <ul>{brief.openPromises.map((p) => <li key={p.id}>{p.text}{p.dueDate ? ` (due ${formatBody(p.dueDate)})` : p.dueRaw ? ` (${p.dueRaw})` : ''}</li>)}</ul>
+          {/* [P18-10b] open promises now carry their receipt (verbatim quote + date). */}
+          <BriefOpenPromises promises={brief.openPromises} />
         </div>
       )}
       {brief.needsConfirmation.length > 0 && (
