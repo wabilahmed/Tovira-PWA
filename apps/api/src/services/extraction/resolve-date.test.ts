@@ -34,8 +34,10 @@ describe('[P14-3] resolveDueDate — relative phrases anchored to the message da
     expect(resolveDueDate('next Thursday', MON_2_MAR)).toEqual({ date: null, resolution: null });
   });
 
-  it('a weekday that IS the anchor day resolves to that same day (anchor Thu → "Thursday" = anchor)', () => {
-    expect(resolveDueDate('Thursday', '2026-03-05T10:00').date).toBe('2026-03-05');
+  // [P18-2] STRICTLY AFTER: a weekday named on that same weekday means NEXT week, never the same day.
+  it('a weekday named ON that weekday resolves to NEXT week ("on Monday" sent Mon 20 Apr → 27 Apr)', () => {
+    expect(resolveDueDate('on Monday', '2026-04-20T09:00').date).toBe('2026-04-27'); // 20 Apr 2026 is a Monday
+    expect(resolveDueDate('Thursday', '2026-03-05T10:00').date).toBe('2026-03-12'); // anchor Thu → next Thu
   });
 
   it('"tomorrow" said on 3 Mar → 4 Mar; "today" → the message day', () => {
@@ -54,6 +56,20 @@ describe('[P14-3] resolveDueDate — relative phrases anchored to the message da
 
   it('a relative phrase with NO anchor (voice/paste note, source_message_at null) stays null — nothing to anchor to', () => {
     expect(resolveDueDate('by Thursday', null)).toEqual({ date: null, resolution: null });
+  });
+});
+
+// [P18-2] Arabic forms of today/tomorrow/weekdays (with or without the leading "يوم").
+describe('[P18-2] resolveDueDate — Arabic relative dates', () => {
+  it('غداً (tomorrow) said 3 Mar → 4 Mar; اليوم (today) → the message day', () => {
+    expect(resolveDueDate('غداً', '2026-03-03T08:00').date).toBe('2026-03-04');
+    expect(resolveDueDate('اليوم', '2026-03-03T08:00').date).toBe('2026-03-03');
+  });
+  it('an Arabic weekday resolves strictly after ("الخميس" said Mon 2 Mar → Thu 5 Mar)', () => {
+    expect(resolveDueDate('الخميس', '2026-03-02T09:30').date).toBe('2026-03-05');
+  });
+  it('accepts the "يوم <weekday>" form', () => {
+    expect(resolveDueDate('يوم الجمعة', '2026-03-02T09:30').date).toBe('2026-03-06'); // Friday after Mon 2 Mar
   });
 });
 

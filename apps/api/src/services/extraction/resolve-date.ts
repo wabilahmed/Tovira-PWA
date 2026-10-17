@@ -17,6 +17,7 @@
  * The original phrase is always preserved by the caller (due_raw / date_raw), so nothing is lost.
  */
 import type { ExtractedPromise, KeyDate } from './types.js';
+import { normalizeName } from '../text/normalize-name.js';
 
 export type DateResolution = 'explicit' | 'relative';
 export interface ResolvedDate {
@@ -32,6 +33,13 @@ const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'frida
 const NUMBER_WORDS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
 };
+// [P18-2] Arabic forms, keyed on normalizeName() output (harakat/tatweel stripped, alef/ya/ta folded):
+// weekday → dow index; plus today/tomorrow. "يوم X" (literally "day X") is handled by stripping a leading "يوم".
+const ARABIC_WEEKDAYS: Record<string, number> = {
+  'الاحد': 0, 'الاثنين': 1, 'الثلاثاء': 2, 'الاربعاء': 3, 'الخميس': 4, 'الجمعه': 5, 'السبت': 6,
+};
+const ARABIC_TODAY = 'اليوم';
+const ARABIC_TOMORROW = 'غدا'; // غداً / غدا both normalise to this
 
 /** The anchor's UTC calendar day as a Date at 00:00:00Z — all arithmetic is in UTC to avoid TZ drift. */
 function anchorDay(sourceMessageAt: string | null): Date | null {
@@ -44,6 +52,14 @@ function anchorDay(sourceMessageAt: string | null): Date | null {
 
 function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/** [P18-2] The next occurrence of a weekday STRICTLY AFTER the anchor — "on Monday" said on a Monday
+ *  means NEXT Monday (+7), never the same day. (P14's spec rule; the same-day reading was the bug.) */
+function nextWeekdayAfter(anchor: Date, dow: number): string {
+  let delta = (dow - anchor.getUTCDay() + 7) % 7;
+  if (delta === 0) delta = 7;
+  return iso(new Date(anchor.getTime() + delta * DAY_MS));
 }
 
 /** A real calendar date in UTC (validates ranges, rejects e.g. month 13 or day 32). */
@@ -82,6 +98,13 @@ function tryExplicit(phrase: string): string | null {
  *  deterministic relative form, or when there is no anchor to resolve against. */
 function tryRelative(phrase: string, anchor: Date | null): string | null {
   if (!anchor) return null;
+
+  // [P18-2] Arabic today/tomorrow/weekday (with or without a leading "يوم"). Normalised match.
+  const ar = normalizeName(phrase).replace(/^يوم\s+/, '');
+  if (ar === ARABIC_TODAY) return iso(anchor);
+  if (ar === ARABIC_TOMORROW) return iso(new Date(anchor.getTime() + DAY_MS));
+  if (ar in ARABIC_WEEKDAYS) return nextWeekdayAfter(anchor, ARABIC_WEEKDAYS[ar]!);
+
   // "next <weekday>" is deliberately NOT resolved — which week it refers to is ambiguous in English.
   if (/^next\s+/.test(phrase)) return null;
 
@@ -103,13 +126,12 @@ function tryRelative(phrase: string, anchor: Date | null): string | null {
     return iso(last);
   }
 
-  // A bare weekday, optionally "this <weekday>" → the next occurrence ON OR AFTER the anchor.
+  // A bare weekday, optionally "this <weekday>" → the next occurrence STRICTLY AFTER the anchor.
   m = /^(this\s+)?([a-z]+)$/.exec(phrase);
   if (m) {
     const dow = WEEKDAYS.indexOf(m[2]!);
     if (dow === -1) return null;
-    const delta = (dow - anchor.getUTCDay() + 7) % 7; // 0 when the anchor IS that weekday
-    return iso(new Date(anchor.getTime() + delta * DAY_MS));
+    return nextWeekdayAfter(anchor, dow);
   }
   return null;
 }
