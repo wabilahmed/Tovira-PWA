@@ -74,7 +74,8 @@ export function UsageMeter({
       >
         <div style={{ width: `${s.percentUsed}%`, height: '100%', background: s.exhausted ? 'var(--claret)' : 'var(--green)' }} />
       </div>
-      <p data-testid="usage-percent">{s.percentUsed}% of this month&rsquo;s usage used</p>
+      {/* [P18-1] The reset date sits next to the percentage, so the number has a timeframe. */}
+      <p data-testid="usage-percent">{s.percentUsed}% of this month&rsquo;s usage used · resets {resetWord}</p>
 
       {s.exhausted && (
         <div role="alert" data-testid="usage-paused">

@@ -21,6 +21,8 @@ describe('<UsageMeter>', () => {
   it('shows one bar and one percentage — nothing about dirhams or tokens of usage', async () => {
     render(<UsageMeter api={makeApi(status({ percentUsed: 62 }))} />);
     expect(await screen.findByTestId('usage-percent')).toHaveTextContent('62% of this month’s usage used');
+    // [P18-1] the reset date sits next to the percentage (so the number has a timeframe).
+    expect(screen.getByTestId('usage-percent')).toHaveTextContent(/resets .*2026/i);
     expect(screen.getByTestId('usage-bar')).toHaveAttribute('aria-valuenow', '62');
     // D3: the meter body never leaks a dirham figure or a token count as USAGE.
     const body = screen.getByTestId('usage-meter').textContent ?? '';
