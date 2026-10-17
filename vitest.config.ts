@@ -24,6 +24,11 @@ export default defineConfig({
       // same scrypt-starvation class as auth-reset — under the saturated parallel run a starved signup
       // intermittently times out (seen: 20s+). Same assertions, run serialized in the timing pool.
       'apps/api/src/http/brief.test.ts',
+      // [TIMING-POOL] concurrent-leak-detection.test.ts boots a fresh server and runs TWO accounts'
+      // scrypt signups + CONCURRENT extractions against it — the same load-starvation class. Passes in
+      // ~0.1–0.2s solo and in a normal full run, but under a heavily-contended parallel pass it was
+      // starved to the 20s timeout. Same assertions + timeout, run serialized in the timing pool.
+      'apps/api/src/http/concurrent-leak-detection.test.ts',
     ],
     // Node by default (API + web logic); web COMPONENT tests (.test.tsx) and the
     // marketing DOM tests (referral pass-through, RTL, a11y — now inside the PWA

@@ -14,6 +14,9 @@ import react from '@vitejs/plugin-react';
 //     test; under a saturated parallel run a starved signup intermittently returns a wrong status
 //     (seen: 401 instead of 201) — signup's own code can only return 201/400/409, so the 401 is a
 //     load artifact, not a defect. Passes 5/5 solo and 6/6 full-parallel; flaked once at normal load.
+//   - concurrent-leak-detection.test.ts boots a fresh server and runs TWO accounts' scrypt signups +
+//     CONCURRENT extractions against it; ~0.1s solo and in a normal full run, but a heavily-contended
+//     parallel pass starved it to the 20s timeout — same load class, not a code fault.
 // Run inside the main parallel suite, a saturated machine inflates the wall-clock measurements and
 // starves the signup requests — false reds from load, and a timing test contending with the whole
 // suite is measuring noise, exactly what makes the no-oracle proof unable to prove anything. So these
@@ -33,6 +36,11 @@ export default defineConfig({
       'apps/api/src/http/inventory-share.test.ts',
       'apps/api/src/http/auth-reset.test.ts',
       'apps/api/src/http/brief.test.ts',
+      // concurrent-leak-detection.test.ts boots a fresh server and runs two accounts' scrypt signups +
+      // concurrent extractions — same starvation class; ~0.1s solo, but the saturated parallel pass
+      // starved it to the 20s timeout. Serialized here; the three isolation assertions are unchanged
+      // (and remain mutation-proven: deleting any of the three tenant filters still turns it red).
+      'apps/api/src/http/concurrent-leak-detection.test.ts',
     ],
     exclude: ['**/node_modules/**'],
     environment: 'node', // both are API tests; no jsdom needed
