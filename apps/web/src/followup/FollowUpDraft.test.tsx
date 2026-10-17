@@ -22,6 +22,16 @@ describe('<FollowUpDraft>', () => {
     expect(onSubscribe).toHaveBeenLastCalledWith('annual');
   });
 
+  // [P18-10g] A never-trialed account (status 'none') must NOT read "Your trial has ended" in the
+  // embedded lock — it gets the start-reading invitation.
+  it('[P18-10g] shows the never-trialed copy when status is none, not "trial ended"', async () => {
+    const user = userEvent.setup();
+    render(<FollowUpDraft noteId="n1" api={{ draftFollowUp: vi.fn().mockResolvedValue(LOCKED) }} onSubscribe={vi.fn()} status="none" />);
+    await user.click(screen.getByRole('button', { name: /draft follow-up/i }));
+    expect(await screen.findByText(/subscribe to start reading your chats/i)).toBeInTheDocument();
+    expect(screen.queryByText(/your trial has ended/i)).not.toBeInTheDocument();
+  });
+
   it('drafts a follow-up and shows it in an editable box', async () => {
     const user = userEvent.setup();
     render(<FollowUpDraft noteId="n1" api={makeApi('Hi Sara, I\'ll send the quote Friday.')} />);

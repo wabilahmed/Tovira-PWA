@@ -36,6 +36,33 @@ describe('BookScanService (P5-3b)', () => {
     expect(promise.framing).toBe('worth_checking'); // never "you never did this"
   });
 
+  // [P18-10h] The promise text is embedded mid-sentence ("did you …?") so its leading capital must be
+  // lowercased — "did you Check the numbers?" reads wrong.
+  it('[P18-10h] lowercases the promise lead inside the "did you …?" headline', async () => {
+    const c = await clients.create(USER, 'Acme');
+    await facts.saveExtraction(USER, {
+      noteId: 'n1',
+      clientId: c.id,
+      promises: [{ text: 'Check the final numbers', owner: 'rep', due_date: '2026-08-01', due_raw: null, confidence: 'high' }],
+    });
+    const report = await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'));
+    const promise = report.items.find((i) => i.kind === 'open_promise')!;
+    expect(promise.headline).toBe('Worth checking: did you check the final numbers?');
+  });
+
+  // [P18-10h] An all-caps lead (an acronym) is left alone — "did you DHL the parcel?" stays correct.
+  it('[P18-10h] leaves an acronym lead untouched in the headline', async () => {
+    const c = await clients.create(USER, 'Acme');
+    await facts.saveExtraction(USER, {
+      noteId: 'n1',
+      clientId: c.id,
+      promises: [{ text: 'DHL the parcel', owner: 'rep', due_date: '2026-08-01', due_raw: null, confidence: 'high' }],
+    });
+    const report = await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'));
+    const promise = report.items.find((i) => i.kind === 'open_promise')!;
+    expect(promise.headline).toBe('Worth checking: did you DHL the parcel?');
+  });
+
   it('[PROMISE-STALE] lists recoverable promises but only COUNTS stale ones — the import flood stays a curated reveal', async () => {
     const now = Date.parse('2026-07-15T00:00:00Z');
     const iso = (d: number) => new Date(now - d * DAY).toISOString().slice(0, 10);

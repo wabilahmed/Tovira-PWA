@@ -443,6 +443,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               onSubscribe={startCheckout}
               onOpenLeadSheet={() => setStatusSheetFor(open)}
               timeZone={session.user.timezone}
+              billingStatus={billing?.status}
             />
             <LeadStatusSheet client={statusSheetFor} onClose={() => setStatusSheetFor(null)} onPick={(s) => void changeLeadStatus(statusSheetFor!, s)} />
           </>
@@ -699,7 +700,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -713,7 +714,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone, billingStatus }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
@@ -835,7 +836,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
 
       <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)}>Pre-meeting brief</button>
       {brief === LOCKED ? (
-        <Locked onSubscribe={onSubscribe} />
+        <Locked onSubscribe={onSubscribe} status={billingStatus} />
       ) : (
         brief && <BriefPanel brief={brief} clientId={client.id} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />
       )}
@@ -898,7 +899,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
         ceilingNoteIds={ceilingNoteIds}
         timeZone={timeZone}
         onSubscribe={onSubscribe}
-        renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} onSubscribe={onSubscribe} />}
+        renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} onSubscribe={onSubscribe} status={billingStatus} />}
         move={{
           api: noteMoveApi,
           clientId: client.id,

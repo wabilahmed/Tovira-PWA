@@ -563,6 +563,11 @@ export async function handleNoteRoute(
 
     if (listMatch) {
       const clientId = decodeURIComponent(listMatch[1]!);
+      // [P18-10k] An unknown (or not-the-rep's) client is 404 — not a reassuring 200 with an empty list.
+      if (!(await deps.clients.findByIdForUser(userId, clientId))) {
+        sendJson(res, 404, { error: 'not_found' });
+        return true;
+      }
       // [ASYNC-EXTRACT] Each note carries its rep-facing extractionState (queued/processing/done/failed)
       // and the response includes the aggregate — so a rep watching an import sees per-note status AND
       // "N of M analysed", and a failure reads as failed rather than an endless spinner.

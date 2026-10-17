@@ -67,6 +67,16 @@ describe('voice note upload', () => {
     expect(list.notes.map((n) => n.id)).toContain(note.id);
   });
 
+  // [P18-10k] Listing notes for a client that does not exist (or isn't the rep's) is 404, not a
+  // reassuring 200 with an empty list — the UI should treat an unknown client as not found.
+  it('[P18-10k] GET notes for an unknown client is 404, not 200-empty', async () => {
+    const token = await signup('unknown-client@example.com');
+    const res = await fetch(`${base}/clients/00000000-0000-4000-8000-000000000000/notes`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(404);
+  });
+
   it('serves the stored audio back for playback', async () => {
     const token = await signup('play@example.com');
     const clientId = await createClient(token, 'Acme');
@@ -203,11 +213,12 @@ describe('voice note upload', () => {
       headers: { authorization: `Bearer ${tokenA}`, 'content-type': 'application/json' },
       body: JSON.stringify({ text: 'A private note' }),
     });
-    // B asks for A's client timeline → sees nothing (isolation).
-    const list = (await (await fetch(`${base}/clients/${clientA}/notes`, {
+    // B asks for A's client timeline → 404 (isolation). [P18-10k] A client that isn't B's is not found —
+    // not a 200 with an empty list, which would confirm the id exists for someone else.
+    const res = await fetch(`${base}/clients/${clientA}/notes`, {
       headers: { authorization: `Bearer ${tokenB}` },
-    })).json()) as { notes: unknown[] };
-    expect(list.notes).toEqual([]);
+    });
+    expect(res.status).toBe(404);
   });
 
   // [P1-6] extract structured facts from a note (stub model → valid empty facts)

@@ -16,6 +16,7 @@ export function FollowUpDraft({
   api,
   phone,
   onSubscribe,
+  status,
   openLink = (url) => window.open(url, '_blank', 'noopener'),
 }: {
   noteId: string;
@@ -24,6 +25,9 @@ export function FollowUpDraft({
   /** Navigate to Billing — used by the embedded <Locked> state when the trial
    *  has lapsed (LOCKED-EMBEDDED). */
   onSubscribe?: (plan: Plan) => void;
+  /** [P18-10g] Billing status, so the embedded lock shows the RIGHT copy — a never-trialed account
+   *  (status 'none') must not read "Your trial has ended". */
+  status?: string;
   openLink?: (url: string) => void;
 }): JSX.Element {
   const [draft, setDraft] = useState<string | null>(null);
@@ -61,7 +65,7 @@ export function FollowUpDraft({
   if (locked) {
     return (
       <div style={{ marginTop: '0.5rem' }}>
-        <Locked onSubscribe={(plan) => onSubscribe?.(plan)} />
+        <Locked onSubscribe={(plan) => onSubscribe?.(plan)} status={status} />
       </div>
     );
   }

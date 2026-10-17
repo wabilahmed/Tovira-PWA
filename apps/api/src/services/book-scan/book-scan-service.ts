@@ -88,6 +88,15 @@ function isoDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+/** [P18-10h] Lowercase a phrase's leading capital so a stored promise ("Check the numbers") reads right
+ *  embedded mid-sentence ("did you check the numbers?"). An all-caps first word (an acronym like "DHL")
+ *  is left alone. The stored text is never mutated — this is presentation only. */
+function lowerLead(s: string): string {
+  const first = s.split(/\s/)[0] ?? '';
+  if (first.length > 1 && first === first.toUpperCase()) return s; // acronym — leave it
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
 /** [P18-4] The leading YYYY-MM-DD of a message timestamp, read positionally (a timezone can't drift the
  *  day). Null when there's no date-like value to read, so the caller falls back to the note's date. */
 function dayOf(iso: string | null): string | null {
@@ -142,7 +151,7 @@ export class BookScanService {
         id: p.id, // the promise row id — unique per promise, independent of quote/date
         clientId: p.clientId,
         clientName: nameOf.get(p.clientId) ?? 'Unknown',
-        headline: `Worth checking: did you ${p.text}?`,
+        headline: `Worth checking: did you ${lowerLead(p.text)}?`,
         receipt: { quote: p.text, date: p.dueDate ?? isoDate(p.createdAt) },
         framing: 'worth_checking',
       });
