@@ -3,6 +3,7 @@ import type {
   NotificationEntry,
   NotificationRecord,
   NotificationRepository,
+  NotificationType,
 } from '../../ports/notification-repository.js';
 
 /** In-memory notification store for tests. */
@@ -24,5 +25,13 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     if (!r) return false;
     r.read = true;
     return true;
+  }
+
+  async supersedeByType(userId: string, type: NotificationType, keepDedupeKey: string): Promise<number> {
+    let n = 0;
+    for (const r of this.rows) {
+      if (r.userId === userId && r.type === type && r.dedupeKey !== keepDedupeKey && !r.read) { r.read = true; n += 1; }
+    }
+    return n;
   }
 }

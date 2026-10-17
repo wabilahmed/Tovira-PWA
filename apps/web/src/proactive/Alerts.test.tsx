@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Alerts, type ProactiveApi } from './Alerts.js';
+import { Alerts, collapseDigests, type ProactiveApi } from './Alerts.js';
 import type { ColdClient, Notification } from './proactiveClient.js';
 
 const notif = (id: string, title: string): Notification => ({ id, type: 'going_cold', clientId: 'c1', title, body: 'No contact in 30 days.', read: false, createdAt: 1 });
+const digest = (id: string, createdAt: number): Notification => ({ id, type: 'daily_digest', clientId: null, title: 'Your day', body: '1 thing needs you', read: false, createdAt });
 const coldC = (id: string, name: string): ColdClient => ({ id, name, createdAt: 1, lastTouchedAt: Date.parse('2026-06-01') });
 
 function makeApi(notifs: Notification[], cold: ColdClient[]): ProactiveApi {
@@ -21,6 +22,21 @@ describe('<Alerts>', () => {
     expect(await screen.findByText(/meridian has gone quiet/i)).toBeInTheDocument();
     expect(screen.getByTestId('alert')).toHaveTextContent(/no contact in 30 days/i);
     expect(screen.getByTestId('cold-client')).toHaveTextContent(/meridian/i);
+  });
+
+  // [P20-5] Three days of "Your day" digests (API returns newest-first) collapse to ONE visible row;
+  // other alerts are untouched.
+  it('[P20-5] shows only the latest daily digest, not one per day', async () => {
+    const notifs = [digest('d3', 3), digest('d2', 2), digest('d1', 1), notif('n1', 'Meridian has gone quiet')];
+    render(<Alerts api={makeApi(notifs, [])} />);
+    await waitFor(() => expect(screen.getAllByTestId('alert').length).toBe(2)); // 1 digest + 1 cold alert
+    expect(screen.getAllByText(/your day/i)).toHaveLength(1);
+  });
+
+  it('[P20-5] collapseDigests keeps the newest digest and all non-digest notifications', () => {
+    const out = collapseDigests([digest('d3', 3), notif('n1', 'x'), digest('d2', 2), digest('d1', 1)]);
+    expect(out.filter((n) => n.type === 'daily_digest').map((n) => n.id)).toEqual(['d3']);
+    expect(out.filter((n) => n.type !== 'daily_digest')).toHaveLength(1);
   });
 
   // [SCREENS §10] cooling entries carry the silent-days counter — a fact, in

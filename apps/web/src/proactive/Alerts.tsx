@@ -9,6 +9,19 @@ export interface ProactiveApi {
   runScan(): Promise<boolean>;
 }
 
+/** [P20-5] Show only the LATEST daily digest — the server keeps one "Your day" per day, so a few days
+ *  of them would otherwise stack up as "1 thing needs you" rows (the rep saw three). Every other
+ *  notification type is kept as-is, in the order the API returned them (newest first). */
+export function collapseDigests(ns: Notification[]): Notification[] {
+  let keptDigest = false;
+  return ns.filter((n) => {
+    if (n.type !== 'daily_digest') return true;
+    if (keptDigest) return false; // a newer digest already kept (API is newest-first)
+    keptDigest = true;
+    return true;
+  });
+}
+
 /** In-app alerts + going-cold list — value even when push fails/is off (P3-5).
  *  [OUTCOME-3] when `onSetOutcome` is wired, each going-quiet row carries the won/lost/still-open
  *  control — the deal-risk surface is exactly where a rep knows the answer. */
@@ -20,7 +33,7 @@ export function Alerts({ api, now = Date.now(), onSetOutcome }: { api: Proactive
 
   const load = (): Promise<void> =>
     Promise.all([api.listNotifications(), api.listCold()]).then(([n, c]) => {
-      setNotifications(n);
+      setNotifications(collapseDigests(n)); // [P20-5] one "Your day", not a stack of them
       setCold(c);
       setLoading(false);
     });

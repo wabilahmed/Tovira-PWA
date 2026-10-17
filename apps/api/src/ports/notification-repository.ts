@@ -35,4 +35,7 @@ export interface NotificationRepository {
   createIfAbsent(userId: string, entry: NotificationEntry): Promise<boolean>;
   listByUser(userId: string): Promise<NotificationRecord[]>;
   markRead(userId: string, id: string): Promise<boolean>;
+  /** [P20-5] Mark every notification of `type` read EXCEPT the one with `keepDedupeKey` — used so a new
+   *  daily digest supersedes the prior days' unread digests. Returns how many were marked. */
+  supersedeByType(userId: string, type: NotificationType, keepDedupeKey: string): Promise<number>;
 }

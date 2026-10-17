@@ -42,6 +42,18 @@ describe('[NOTIF-REWORK Task 3] daily digest', () => {
     expect(alert.url).toBe('/today');
   });
 
+  // [P20-5] A new day's digest supersedes the prior day's unread digest, so "Your day" never stacks up.
+  it('[P20-5] a new day\'s digest marks the prior day\'s digest read, leaving one unread', async () => {
+    const { svc, notifications } = make([act('promise', 1)]);
+    await svc.runScheduled(['u'], NOW);         // day 1
+    await svc.runScheduled(['u'], NOW + DAY);    // day 2
+    const digests = (await notifications.listByUser('u')).filter((r) => r.type === 'daily_digest');
+    expect(digests).toHaveLength(2);             // both rows kept
+    const unread = digests.filter((d) => !d.read);
+    expect(unread).toHaveLength(1);              // only the latest is unread
+    expect(unread[0]!.dedupeKey).toBe('digest:2026-08-15');
+  });
+
   it('one finding uses the singular', async () => {
     const { svc, dispatch } = make([act('cold', 1)]);
     await svc.runScheduled(['u'], NOW);

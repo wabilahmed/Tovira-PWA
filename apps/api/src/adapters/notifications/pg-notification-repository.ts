@@ -67,4 +67,14 @@ export class PgNotificationRepository implements NotificationRepository {
       return rows.length > 0;
     });
   }
+
+  async supersedeByType(userId: string, type: NotificationType, keepDedupeKey: string): Promise<number> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        'UPDATE notifications SET read = true WHERE user_id = $1 AND type = $2 AND dedupe_key <> $3 AND read = false RETURNING id',
+        [userId, type, keepDedupeKey],
+      );
+      return rows.length;
+    });
+  }
 }

@@ -9,7 +9,7 @@ export interface ColdClient {
 
 export interface Notification {
   id: string;
-  type: 'pre_meeting_nudge' | 'going_cold' | 'date_reminder';
+  type: 'pre_meeting_nudge' | 'going_cold' | 'date_reminder' | 'daily_digest' | 'import_complete';
   clientId: string | null;
   title: string;
   body: string;

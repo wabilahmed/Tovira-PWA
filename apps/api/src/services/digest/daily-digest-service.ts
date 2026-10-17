@@ -79,6 +79,9 @@ export class DailyDigestService {
         type: alert.type, dedupeKey: alert.dedupeKey, clientId: alert.clientId, title: alert.title, body: alert.body,
       });
       if (!isNew) continue;
+      // [P20-5] A new day's digest supersedes the prior days' unread digests, so a backlog of
+      // "Your day · N things need you" rows never piles up (the rep saw three before).
+      await this.deps.notifications.supersedeByType(userId, 'daily_digest', alert.dedupeKey);
       await this.deps.dispatch(userId, [alert]);
       sent += 1;
     }
