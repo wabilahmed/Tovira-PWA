@@ -18,7 +18,7 @@ export const BULK_MAX_UPLOAD_BYTES = 10_000_000;
 
 type Step = 'pick' | 'uploading' | 'review' | 'ack' | 'progress';
 
-export function BulkImport({ api, pollMs = 400, onSubscribe }: { api: BulkImportApi; pollMs?: number; onSubscribe?: (plan: Plan) => void }): JSX.Element {
+export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan }: { api: BulkImportApi; pollMs?: number; onSubscribe?: (plan: Plan) => void; onOpenBookScan?: () => void }): JSX.Element {
   const [step, setStep] = useState<Step>('pick');
   const [overCap, setOverCap] = useState<File[] | null>(null); // selection > 20, awaiting confirm
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +29,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe }: { api: BulkImport
   const [jobs, setJobs] = useState<BulkJob[]>([]);
   const [resultUpsell, setResultUpsell] = useState<Upsell | undefined>(undefined);
   const [done, setDone] = useState(false);
+  const [summary, setSummary] = useState<{ chatsImported: number; promises: number; requirements: number } | undefined>(undefined);
 
   // [FIX 2b] If the rep leaves the review (or ack) without importing, delete the staged upload — the
   // batch holds third-party chat content. Best-effort on unmount; the 24h sweep is the backstop.
@@ -90,7 +91,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe }: { api: BulkImport
     for (;;) {
       const s = await api.status(batchId);
       setJobs(s.jobs);
-      if (s.done) { setResultUpsell(s.upsell); setDone(true); return; }
+      if (s.done) { setResultUpsell(s.upsell); setSummary(s.summary); setDone(true); return; }
       await new Promise((r) => setTimeout(r, pollMs));
     }
   }
@@ -141,7 +142,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe }: { api: BulkImport
   return (
     <section aria-label="Import chats" data-testid="bulk-import">
       {!done && <p role="status" data-testid="import-progress">Importing your chats…</p>}
-      <BulkImportResult jobs={jobs} upsell={done ? resultUpsell : undefined} onTopUp={() => {}} onSubscribe={onSubscribe} />
+      <BulkImportResult jobs={jobs} upsell={done ? resultUpsell : undefined} onTopUp={() => {}} onSubscribe={onSubscribe} summary={done ? summary : undefined} onOpenBookScan={onOpenBookScan} />
     </section>
   );
 }

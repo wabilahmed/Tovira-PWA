@@ -21,6 +21,7 @@ export function GetStarted({
   onFallback,
   onAddInventory,
   onSubscribe,
+  onViewBookScan,
   sharedContent = '',
   sharedContentB64 = '',
 }: {
@@ -37,6 +38,8 @@ export function GetStarted({
   onAddInventory?: () => void;
   /** [P11-ship] Start checkout for a plan — wired to the bulk-import upsell's Subscribe buttons. */
   onSubscribe?: (plan: Plan) => void;
+  /** [P20-3 / BULK-08] Open the Book Scan — the finished bulk screen's "Open Book Scan" button. */
+  onViewBookScan?: () => void;
   /** A chat shared into the app (Android share-target) to prefill the import — text… */
   sharedContent?: string;
   /** …or a shared file's bytes, base64 (a .zip export). */
@@ -73,7 +76,7 @@ export function GetStarted({
   if (!shared && bulkImportApi) {
     return (
       <section aria-label="Import for client">
-        <BulkImport api={bulkImportApi} onSubscribe={onSubscribe} />
+        <BulkImport api={bulkImportApi} onSubscribe={onSubscribe} onOpenBookScan={onViewBookScan} />
       </section>
     );
   }

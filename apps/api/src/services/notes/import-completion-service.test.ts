@@ -34,6 +34,26 @@ function make(note: NoteRecord | null) {
   return { svc, sender, notifications, subs };
 }
 
+describe('[P20-3 / BULK-08] bulk-batch suppression', () => {
+  it('does NOT fire a per-note notification for a note in an in-flight bulk batch', async () => {
+    const notes = { findByIdForUser: vi.fn().mockResolvedValue(importNote()) };
+    const dispatch = vi.fn().mockResolvedValue(undefined);
+    const svc = new ImportCompletionService({
+      notes: notes as never,
+      clients: { findByIdForUser: vi.fn().mockResolvedValue({ id: 'c1', name: 'Acme' }) } as never,
+      dispatch,
+      isBulkNote: (id) => id === 'n1', // n1 belongs to the batch
+      now: () => NOW,
+    });
+    await svc.onNoteSettled('u', 'n1');
+    expect(dispatch).not.toHaveBeenCalled();     // the batch's one aggregate covers it
+    expect(notes.findByIdForUser).not.toHaveBeenCalled(); // short-circuits before any lookup
+    // a non-batch note still notifies
+    await svc.onNoteSettled('u', 'other');
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('[IMPORT-DONE] completion notice', () => {
   it('SUCCESS notifies once with message count + findings, linking to the Book Scan', async () => {
     const { svc, sender, notifications, subs } = make(importNote());

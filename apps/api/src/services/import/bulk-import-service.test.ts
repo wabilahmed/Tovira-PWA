@@ -27,6 +27,7 @@ function fakeNotes(): NoteRepository & { all: NoteRecord[] } {
   return {
     all,
     listByClient: async (uid: string, cid: string) => all.filter((n) => n.userId === uid && n.clientId === cid),
+    findByIdForUser: async (uid: string, id: string) => all.find((n) => n.userId === uid && n.id === id) ?? null,
     create: async (uid: string, note: NewNote) => {
       const n = { id: `n${all.length + 1}`, userId: uid, createdAt: 0, ...note } as unknown as NoteRecord;
       all.push(n);
@@ -50,6 +51,8 @@ function makeService(over: Partial<ConstructorParameters<typeof BulkImportServic
     allowanceAed: over.allowanceAed ?? 45,
     modelId: over.modelId ?? 'claude-sonnet-5',
     repNames: over.repNames,
+    bulkNotes: over.bulkNotes,
+    onBatchComplete: over.onBatchComplete,
   });
   return { svc, clients: clients as ClientRepository & { all: ClientRecord[] }, notes: notes as NoteRepository & { all: NoteRecord[] }, extract };
 }
@@ -81,6 +84,32 @@ describe('[BULK-IMPORT] BulkImportService', () => {
     expect(res.created).toBe(1);
     // the pipeline ran: the counterpart's messages are tagged as the client
     expect(notes.all[0]!.messages!.some((m) => m.role === 'client')).toBe(true);
+  });
+
+  // [P20-3 / BULK-08] One batch → one aggregate summary + one onBatchComplete call; batch notes are
+  // registered (suppressing per-note notifications) and unregistered at the end.
+  it('[P20-3] emits ONE aggregate summary for the batch and registers/unregisters its notes', async () => {
+    const added: string[] = [];
+    const removed: string[] = [];
+    const onBatchComplete = vi.fn(async () => {});
+    // extract writes a tiny extracted blob so the summary can count facts.
+    const notes = fakeNotes();
+    const extract = vi.fn(async (_u: string, id: string): Promise<ExtractOutcome> => {
+      const n = notes.all.find((x) => x.id === id)!;
+      (n as { extracted?: unknown }).extracted = { promises: [{}, {}], requirements: [{}] };
+      return { status: 'extracted' };
+    });
+    const { svc } = makeService({ notes, extract, bulkNotes: { add: (id) => added.push(id), remove: (id) => removed.push(id) }, onBatchComplete });
+    const res = await svc.importConfirmed('u', [
+      { name: 'a.txt', content: androidChat('Wabil', 'Layla') },
+      { name: 'b.txt', content: androidChat('Wabil', 'Omar') },
+    ], [{ fileName: 'a.txt', action: 'new', name: 'Layla' }, { fileName: 'b.txt', action: 'new', name: 'Omar' }], '2026-10-04');
+
+    expect(res.summary).toEqual({ chatsImported: 2, promises: 4, requirements: 2 }); // 2 chats × (2 promises, 1 req)
+    expect(onBatchComplete).toHaveBeenCalledTimes(1);
+    expect(onBatchComplete).toHaveBeenCalledWith('u', { chatsImported: 2, promises: 4, requirements: 2 });
+    expect(added.sort()).toEqual(notes.all.map((n) => n.id).sort());   // every batch note registered
+    expect(removed.sort()).toEqual(notes.all.map((n) => n.id).sort()); // and unregistered at the end
   });
 
   it('RULING 2: when the allowance is exhausted, nothing is started — no client, no note, content discarded', async () => {

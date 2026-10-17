@@ -346,10 +346,15 @@ async function main(): Promise<void> {
   // deferred import (IMPORT-ASYNC) never stalls; bounded retries → terminal
   // needs_review, never lost.
   // [IMPORT-DONE] notify the waiting rep when a deferred import finishes (success or failure).
+  // [P20-3 / BULK-08] Notes currently owned by an in-flight bulk batch — their per-note import_complete
+  // is suppressed in favour of the batch's one aggregate notification. Shared across the in-process
+  // sweep + bulk orchestrator (both run in this process via the ScheduledBrain).
+  const bulkNotes = new Set<string>();
   const importCompletion = new ImportCompletionService({
     notes,
     clients,
     dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs),
+    isBulkNote: (noteId) => bulkNotes.has(noteId),
   });
   // [RULING 2 items 2/5/6] The single claim-then-extract path shared by the sweep and the bulk
   // orchestrator. It is the ONE call site that passes forceAllowance (inside createClaimAndExtract).
@@ -540,6 +545,21 @@ async function main(): Promise<void> {
     allowanceAed: config.monthlyAiAllowanceAed,
     modelId: config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub',
     repNames,
+    // [P20-3 / BULK-08] Suppress per-note notifications for batch notes; emit ONE aggregate at the end.
+    bulkNotes: { add: (id) => bulkNotes.add(id), remove: (id) => bulkNotes.delete(id) },
+    onBatchComplete: async (userId, summary) => {
+      if (summary.chatsImported === 0) return; // nothing landed → no notification
+      const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
+      const found = [plural(summary.promises, 'promise'), plural(summary.requirements, 'requirement')].join(', ');
+      await pushDispatch.dispatch(userId, [{
+        type: 'import_complete',
+        dedupeKey: `bulk:${Date.now()}`,
+        clientId: null,
+        title: 'Import ready',
+        body: `Imported ${plural(summary.chatsImported, 'chat')} — found ${found}. Open the Book Scan.`,
+        url: '/app?view=bookscan',
+      }], Date.now());
+    },
   });
   const bulkUpsell = new BulkUpsellService({
     topUpOptions: TOP_UP_OPTIONS,

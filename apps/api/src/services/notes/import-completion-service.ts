@@ -17,6 +17,9 @@ export interface ImportCompletionDeps {
   notes: Pick<NoteRepository, 'findByIdForUser'>;
   clients: Pick<ClientRepository, 'findByIdForUser'>;
   dispatch: (userId: string, alerts: PushableAlert[], nowMs: number) => Promise<unknown>;
+  /** [P20-3 / BULK-08] True while a note belongs to an in-flight bulk batch: its per-note notification is
+   *  suppressed, because the batch emits ONE aggregate "Imported N chats …" notification instead. */
+  isBulkNote?: (noteId: string) => boolean;
   now?: () => number;
 }
 
@@ -29,6 +32,10 @@ export class ImportCompletionService {
   }
 
   async onNoteSettled(userId: string, noteId: string): Promise<void> {
+    // [P20-3 / BULK-08] A note in an in-flight bulk batch gets NO per-note notification — the batch's one
+    // aggregate "Imported N chats …" covers it. (The sweep can still win the claim for a bulk note; this
+    // is where that per-note notification is suppressed.)
+    if (this.deps.isBulkNote?.(noteId)) return;
     const note = await this.deps.notes.findByIdForUser(userId, noteId);
     // Only WhatsApp imports notify; only once a terminal state is reached.
     if (!note || note.source !== 'whatsapp_export' || !TERMINAL.has(note.status)) return;

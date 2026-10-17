@@ -22,16 +22,34 @@ const ROW_COPY: Record<BulkJobState, string> = {
   failed_interrupted: 'Not imported. Something went wrong. Please re-upload this chat.',
 };
 
-export function BulkImportResult({ jobs, upsell, onTopUp, onSubscribe }: {
+/** [P20-3 / BULK-08] The one batch summary — shown here and in the single aggregate notification. */
+export interface BulkSummary { chatsImported: number; promises: number; requirements: number }
+
+/** [P20-3] "Imported N chats — found X promises, Y requirements." (same wording as the notification). */
+export function bulkSummaryLine(s: BulkSummary): string {
+  const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
+  return `Imported ${plural(s.chatsImported, 'chat')} — found ${plural(s.promises, 'promise')}, ${plural(s.requirements, 'requirement')}.`;
+}
+
+export function BulkImportResult({ jobs, upsell, onTopUp, onSubscribe, summary, onOpenBookScan }: {
   jobs: BulkJob[];
   upsell?: Upsell;
   onTopUp?: (optionId: string) => void;
   onSubscribe?: (plan: Plan) => void;
+  /** [P20-3 / BULK-08] present once the batch is done — drives the summary + Open Book Scan button. */
+  summary?: BulkSummary;
+  onOpenBookScan?: () => void;
 }): JSX.Element {
   const limited = jobs.filter((j) => j.state === 'failed_usage_limit').length;
 
   return (
     <section aria-label="Import results" data-testid="bulk-import-result" style={{ display: 'grid', gap: '0.75rem' }}>
+      {summary && summary.chatsImported > 0 && (
+        <div data-testid="bulk-summary" style={{ display: 'grid', gap: '0.5rem' }}>
+          <p style={{ margin: 0 }}>{bulkSummaryLine(summary)}</p>
+          {onOpenBookScan && <button type="button" className="tov-primary" onClick={onOpenBookScan}>Open Book Scan</button>}
+        </div>
+      )}
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.5rem' }}>
         {jobs.map((j) => (
           <li key={j.key} data-testid={`result-row-${j.key}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>

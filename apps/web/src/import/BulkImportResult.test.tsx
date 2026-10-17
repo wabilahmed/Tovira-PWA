@@ -10,6 +10,20 @@ const jobs = [
 ];
 
 describe('<BulkImportResult>', () => {
+  // [P20-3 / BULK-08] One summary + one "Open Book Scan" for the whole batch.
+  it('[P20-3] shows the batch summary and an Open Book Scan button', async () => {
+    const onOpenBookScan = vi.fn();
+    render(<BulkImportResult jobs={[{ key: 'a.txt', state: 'done' as const }, { key: 'b.txt', state: 'done' as const }]} summary={{ chatsImported: 2, promises: 5, requirements: 3 }} onOpenBookScan={onOpenBookScan} />);
+    expect(screen.getByTestId('bulk-summary')).toHaveTextContent('Imported 2 chats — found 5 promises, 3 requirements.');
+    await userEvent.click(screen.getByRole('button', { name: /open book scan/i }));
+    expect(onOpenBookScan).toHaveBeenCalled();
+  });
+
+  it('[P20-3] singularises a one-chat / one-fact summary', () => {
+    render(<BulkImportResult jobs={[{ key: 'a.txt', state: 'done' as const }]} summary={{ chatsImported: 1, promises: 1, requirements: 0 }} />);
+    expect(screen.getByTestId('bulk-summary')).toHaveTextContent('Imported 1 chat — found 1 promise, 0 requirements.');
+  });
+
   it('shows a row per chat; a usage-limited row reads the exact ruling copy', () => {
     render(<BulkImportResult jobs={jobs} />);
     expect(screen.getAllByTestId(/^result-row-/)).toHaveLength(3);

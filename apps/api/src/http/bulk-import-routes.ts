@@ -62,6 +62,8 @@ interface BatchStatus {
   jobs: ChatJob[];
   done: boolean;
   upsell?: unknown;
+  /** [P20-3 / BULK-08] The batch summary shown on the finished screen (one Book Scan, one notification). */
+  summary?: { chatsImported: number; promises: number; requirements: number };
   /** Last write time (ms); staleness past INTERRUPTED_TIMEOUT_MS triggers the heal. */
   updatedAt?: number;
 }
@@ -230,7 +232,8 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
       await clearBatchInputs(deps.storage, userId, batchId);
       const limited = result.jobs.filter((j) => j.state === 'failed_usage_limit').length;
       const upsell = limited > 0 && deps.bulkUpsell ? await deps.bulkUpsell.forResult(userId, limited) : undefined;
-      await writeBatchStatus(deps.storage, userId, batchId, { jobs: result.jobs, done: true, updatedAt: Date.now(), ...(upsell ? { upsell } : {}) });
+      // [P20-3 / BULK-08] carry the one summary so the finished screen shows it with "Open Book Scan".
+      await writeBatchStatus(deps.storage, userId, batchId, { jobs: result.jobs, done: true, summary: result.summary, updatedAt: Date.now(), ...(upsell ? { upsell } : {}) });
     })
     .catch(async () => {
       await clearBatchInputs(deps.storage, userId, batchId);

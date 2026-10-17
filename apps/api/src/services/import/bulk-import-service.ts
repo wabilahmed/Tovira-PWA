@@ -40,6 +40,18 @@ export interface BulkImportDeps {
   allowanceAed: number;
   modelId: string;
   repNames?: RepNameRepository;
+  /** [P20-3 / BULK-08] Register/unregister a note as belonging to the in-flight batch, so its per-note
+   *  import_complete notification is suppressed in favour of the one aggregate below. */
+  bulkNotes?: { add: (noteId: string) => void; remove: (noteId: string) => void };
+  /** [P20-3 / BULK-08] Emit the ONE aggregate "Imported N chats …" notification at batch end. */
+  onBatchComplete?: (userId: string, summary: BulkImportSummary) => Promise<void>;
+}
+
+/** [P20-3 / BULK-08] The one summary shown on the finished screen + in the aggregate notification. */
+export interface BulkImportSummary {
+  chatsImported: number;
+  promises: number;
+  requirements: number;
 }
 
 export interface BulkParseOutcome {
@@ -52,6 +64,8 @@ export interface BulkImportOutcome {
   jobs: ChatJob[];
   created: number;
   skipped: number;
+  /** [P20-3 / BULK-08] Aggregate for the finished screen + the one notification. */
+  summary: BulkImportSummary;
 }
 
 /** A real import, ready to persist — the cheap deterministic work is already done. */
@@ -195,13 +209,32 @@ export class BulkImportService {
         });
         await this.deps.clients.touch(userId, clientId);
         created += 1;
+        // [P20-3] Mark the note as part of this batch so the sweep's per-note import_complete is
+        // suppressed (the batch emits one aggregate instead), even if the sweep wins the claim race.
+        this.deps.bulkNotes?.add(note.id);
         const outcome = await this.deps.extract(userId, note.id, today);
         return { noteId: note.id, outcome };
       },
     });
 
     const jobs = await orchestrator.run();
-    return { jobs, created, skipped };
+
+    // [P20-3 / BULK-08] One aggregate: count chats imported + facts found across the batch's notes, emit
+    // ONE "Imported N chats …" notification, then unregister (the notes are terminal — no more per-note
+    // settles). The finished screen reads the same summary.
+    const noteIds = jobs.map((j) => j.noteId).filter((id): id is string => !!id);
+    let promises = 0;
+    let requirements = 0;
+    for (const id of noteIds) {
+      const note = await this.deps.notes.findByIdForUser(userId, id);
+      const ex = (note?.extracted ?? {}) as { promises?: unknown[]; requirements?: unknown[] };
+      promises += ex.promises?.length ?? 0;
+      requirements += ex.requirements?.length ?? 0;
+    }
+    const summary: BulkImportSummary = { chatsImported: jobs.filter((j) => j.state === 'done').length, promises, requirements };
+    try { await this.deps.onBatchComplete?.(userId, summary); } finally { for (const id of noteIds) this.deps.bulkNotes?.remove(id); }
+
+    return { jobs, created, skipped, summary };
   }
 
   private async clientName(userId: string, clientId: string, cache: Map<string, string>): Promise<string> {

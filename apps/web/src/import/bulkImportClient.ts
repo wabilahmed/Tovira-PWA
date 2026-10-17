@@ -14,6 +14,8 @@ export interface BulkStatusResponse {
   jobs: BulkJob[];
   done: boolean;
   upsell?: Upsell;
+  /** [P20-3 / BULK-08] the one batch summary, present once done. */
+  summary?: { chatsImported: number; promises: number; requirements: number };
 }
 
 export interface BulkImportApi {

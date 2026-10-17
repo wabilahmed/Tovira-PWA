@@ -523,6 +523,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           sharedContentB64={sharedContentB64}
           onAddInventory={() => setView('inventory')}
           onSubscribe={startCheckout}
+          onViewBookScan={() => setView('bookscan')}
           onSeeded={() => {
             loadSeeding();
             setSharedContent('');
