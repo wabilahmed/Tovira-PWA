@@ -69,6 +69,7 @@ export class InMemoryFactsRepository implements FactsRepository {
         sourceSpan: promise.source_span ?? null,
         sourceMessageAt: promise.source_message_at ?? null,
         captureAt: input.captureAt ?? null,
+        deletedAt: null,
         createdAt: Date.now(),
       });
       // Specific date wins: a duplicate that carries a resolved date fills the
@@ -109,6 +110,27 @@ export class InMemoryFactsRepository implements FactsRepository {
     return this.promises.length < before;
   }
 
+  // [P20-2 / BOOK-09] Soft delete (undoable) + restore + nightly hard-delete.
+  async softDeletePromise(userId: string, id: string, nowMs: number): Promise<boolean> {
+    const p = this.promises.find((x) => x.userId === userId && x.id === id);
+    if (!p || p.deletedAt !== null) return false;
+    p.deletedAt = nowMs;
+    return true;
+  }
+
+  async restorePromise(userId: string, id: string): Promise<boolean> {
+    const p = this.promises.find((x) => x.userId === userId && x.id === id);
+    if (!p || p.deletedAt === null) return false;
+    p.deletedAt = null;
+    return true;
+  }
+
+  async hardDeletePromisesDeletedBefore(cutoffMs: number): Promise<number> {
+    const before = this.promises.length;
+    this.promises = this.promises.filter((x) => !(x.deletedAt !== null && x.deletedAt < cutoffMs));
+    return before - this.promises.length;
+  }
+
   async markPromiseDone(userId: string, id: string): Promise<boolean> {
     const p = this.promises.find((x) => x.userId === userId && x.id === id);
     if (!p) return false;
@@ -126,14 +148,17 @@ export class InMemoryFactsRepository implements FactsRepository {
     return this.keyDates.filter((d) => d.userId === userId);
   }
 
-  async listPromisesByUser(userId: string): Promise<PromiseRecord[]> {
+  async listPromisesByUser(userId: string, opts?: { includeDeleted?: boolean }): Promise<PromiseRecord[]> {
     // Tracker + every counting surface: canonicals only, so a deduped commitment
-    // appears once everywhere (B2-9).
-    return this.promises.filter((p) => p.userId === userId && p.mergedInto === null);
+    // appears once everywhere (B2-9). [P20-2] Soft-deleted rows are excluded everywhere except the
+    // export (includeDeleted), so a deleted promise leaves every surface but still travels in the DSAR.
+    return this.promises.filter(
+      (p) => p.userId === userId && p.mergedInto === null && (opts?.includeDeleted || p.deletedAt === null),
+    );
   }
 
   async listPromisesByNote(userId: string, noteId: string): Promise<PromiseRecord[]> {
-    return this.promises.filter((p) => p.userId === userId && p.noteId === noteId);
+    return this.promises.filter((p) => p.userId === userId && p.noteId === noteId && p.deletedAt === null);
   }
 
   async listKeyDatesByNote(userId: string, noteId: string): Promise<KeyDateRecord[]> {

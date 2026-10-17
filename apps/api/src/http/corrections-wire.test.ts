@@ -75,8 +75,10 @@ describe('[CORRECTIONS-WIRE] promise verdicts', () => {
     expect(rejected!).not.toHaveProperty('after');
     expect(rejected!.promptVersion).toBe('tovira-extract-vX');
 
-    // The fact itself is gone, exactly as before.
-    expect(await deps.facts.getPromise(userId, id)).toBeNull();
+    // [P20-2] DELETE is now a SOFT delete (undoable): the promise leaves every surface (the tracker is
+    // empty) but the row is retained with its deleted_at — still recorded as a reject above.
+    expect(await deps.facts.listPromisesByUser(userId)).toEqual([]);
+    expect((await deps.facts.getPromise(userId, id))?.deletedAt).not.toBeNull();
   });
 
   it('CONFIRM records a confirm verdict (kind null — model was uncertain and right)', async () => {
@@ -142,7 +144,9 @@ describe('[CORRECTIONS-WIRE] isolation — a failing correction write never brea
       const id = pending.promises[0]!.id;
       const del = await fetch(`${b}/promises/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
       expect(del.status).toBe(200); // rejection succeeded despite the correction write throwing
-      expect(await d.facts.getPromise(user.id, id)).toBeNull();
+      // [P20-2] soft delete: off the tracker, row retained with deleted_at.
+      expect(await d.facts.listPromisesByUser(user.id)).toEqual([]);
+      expect((await d.facts.getPromise(user.id, id))?.deletedAt).not.toBeNull();
     } finally {
       await new Promise<void>((r) => srv.close(() => r()));
     }

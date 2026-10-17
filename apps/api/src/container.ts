@@ -435,10 +435,11 @@ export function createTranscriptionService(
 }
 
 /** The extracted spine store (promises), RLS-backed on pg. */
-export function createFactsRepository(config: AppConfig, pool?: Pool): FactsRepository {
+export function createFactsRepository(config: AppConfig, pool?: Pool, adminPool?: Pool): FactsRepository {
   if (config.authStore === 'postgres') {
     if (!pool) throw new Error('authStore=postgres requires a database pool');
-    return new PgFactsRepository(pool);
+    // [P20-2] adminPool (superuser) powers only the cross-tenant nightly promise hard-delete sweep.
+    return new PgFactsRepository(pool, adminPool);
   }
   return new InMemoryFactsRepository();
 }

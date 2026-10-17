@@ -254,6 +254,56 @@ const logEntry = (noteId: string, promptVersion: string) => ({
   factsProposed: 0, factsAccepted: 0, factsRejected: 0, rejectedByReason: {},
 });
 
+describe('[P20-2 / BOOK-09] promise soft delete + undo', () => {
+  it('DELETE soft-deletes — the promise leaves every surface but is still in the export, and Undo restores it', async () => {
+    const { token, userId } = await signup('softdel@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n1', clientId: 'c1', promises: [promiseWith('send plan', '2026-08-01')] });
+    const id = (await deps.facts.listPromisesByUser(userId))[0]!.id;
+
+    const del = await fetch(`${base}/promises/${id}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+    expect(del.status).toBe(200);
+    // Gone from the tracker (and therefore every surface that reads listPromisesByUser).
+    const tracker = (await (await fetch(`${base}/promises`, { headers: { authorization: `Bearer ${token}` } })).json()) as { promises: unknown[] };
+    expect(tracker.promises).toEqual([]);
+    // But still present with its deleted_at for the export.
+    const all = await deps.facts.listPromisesByUser(userId, { includeDeleted: true });
+    expect(all).toHaveLength(1);
+    expect(all[0]!.deletedAt).not.toBeNull();
+
+    const undo = await fetch(`${base}/promises/${id}/restore`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    expect(undo.status).toBe(200);
+    const after = (await (await fetch(`${base}/promises`, { headers: { authorization: `Bearer ${token}` } })).json()) as { promises: unknown[] };
+    expect(after.promises).toHaveLength(1); // back on the tracker
+  });
+
+  it('restoring an unknown / not-deleted promise is 404', async () => {
+    const { token } = await signup('softdel-404@example.com');
+    const res = await fetch(`${base}/promises/00000000-0000-4000-8000-000000000000/restore`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(404);
+  });
+
+  it('the nightly sweep hard-deletes a promise soft-deleted past the retention window', async () => {
+    const { userId } = await signup('softdel-sweep@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n1', clientId: 'c1', promises: [promiseWith('old', '2026-08-01')] });
+    const id = (await deps.facts.listPromisesByUser(userId))[0]!.id;
+    const longAgo = Date.now() - 31 * 24 * 60 * 60 * 1000;
+    await deps.facts.softDeletePromise(userId, id, longAgo);
+    const removed = await deps.facts.hardDeletePromisesDeletedBefore(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    expect(removed).toBe(1);
+    expect(await deps.facts.listPromisesByUser(userId, { includeDeleted: true })).toEqual([]); // truly gone
+  });
+
+  it('the sweep leaves a recently-deleted promise alone (still inside the Undo/retention window)', async () => {
+    const { userId } = await signup('softdel-recent@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n1', clientId: 'c1', promises: [promiseWith('recent', '2026-08-01')] });
+    const id = (await deps.facts.listPromisesByUser(userId))[0]!.id;
+    await deps.facts.softDeletePromise(userId, id, Date.now());
+    const removed = await deps.facts.hardDeletePromisesDeletedBefore(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    expect(removed).toBe(0);
+    expect(await deps.facts.listPromisesByUser(userId, { includeDeleted: true })).toHaveLength(1); // still recoverable
+  });
+});
+
 describe('[P7-2] capture corrections as operational verdicts', () => {
   // POSITIVE: fixing an extracted date yields a verdict record with its KIND (date_wrong),
   // the note id, AND the prompt version that produced it — but no before/after content.

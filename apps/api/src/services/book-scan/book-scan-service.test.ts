@@ -38,6 +38,16 @@ describe('BookScanService (P5-3b)', () => {
 
   // [P18-10h] The promise text is embedded mid-sentence ("did you …?") so its leading capital must be
   // lowercased — "did you Check the numbers?" reads wrong.
+  // [P20-2] A soft-deleted promise must not resurface anywhere, including the Book Scan.
+  it('[P20-2] excludes a soft-deleted promise from the scan', async () => {
+    const c = await clients.create(USER, 'Acme');
+    await facts.saveExtraction(USER, { noteId: 'n1', clientId: c.id, promises: [{ text: 'send the quote', owner: 'rep', due_date: '2026-08-01', due_raw: null, confidence: 'high' }] });
+    const id = (await facts.listPromisesByUser(USER))[0]!.id;
+    await facts.softDeletePromise(USER, id, Date.now());
+    const report = await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'));
+    expect(report.items.some((i) => i.kind === 'open_promise')).toBe(false);
+  });
+
   it('[P18-10h] lowercases the promise lead inside the "did you …?" headline', async () => {
     const c = await clients.create(USER, 'Acme');
     await facts.saveExtraction(USER, {

@@ -59,6 +59,23 @@ describe('[P5-4] data trust & control', () => {
     expect(Array.isArray(data.meetings)).toBe(true);
   });
 
+  // [P20-2 / BOOK-09] A soft-deleted promise leaves every surface but still travels in the DSAR export,
+  // with its deleted_at, so the rep's export is complete.
+  it('[P20-2] carries a soft-deleted promise in the export, with deletedAt', async () => {
+    const res = await fetch(`${base}/auth/signup`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'export-softdel@example.com', password: 'password123' }),
+    });
+    const { token, user } = (await res.json()) as { token: string; user: { id: string } };
+    await deps.facts.saveExtraction(user.id, { noteId: 'n1', clientId: 'c1', promises: [{ text: 'send plan', owner: 'rep', due_date: '2026-08-01', due_raw: null, confidence: 'high' }] });
+    const id = (await deps.facts.listPromisesByUser(user.id))[0]!.id;
+    await deps.facts.softDeletePromise(user.id, id, Date.now());
+    const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as { promises: Array<{ id: string; deletedAt: number | null }> };
+    const exported = data.promises.find((p) => p.id === id);
+    expect(exported).toBeTruthy();
+    expect(exported!.deletedAt).not.toBeNull();
+  });
+
   // [P18-10j] The rep's inventory is their own data — it must travel in the DSAR export (was missing).
   it('[P18-10j] carries the rep\'s inventory in the export', async () => {
     const res = await fetch(`${base}/auth/signup`, {

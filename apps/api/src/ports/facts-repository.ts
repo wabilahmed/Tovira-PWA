@@ -31,6 +31,9 @@ export interface PromiseRecord {
    *  chat, capture date for voice/paste) as YYYY-MM-DD — the capture-date fallback source, so a receipt
    *  never shows the import date. null for facts written before this column existed. */
   captureAt: string | null;
+  /** [P20-2 / BOOK-09] Soft-delete timestamp (ms). Non-null = the rep deleted it (undoable for 10s, then
+   *  hard-deleted after 30 days). Filtered from every surface; still carried in the export. */
+  deletedAt: number | null;
   createdAt: number;
 }
 
@@ -64,8 +67,18 @@ export interface SaveExtractionInput {
 export interface FactsRepository {
   /** Idempotent per note: replaces this note's spine rows with the given facts. */
   saveExtraction(userId: string, input: SaveExtractionInput): Promise<void>;
-  listPromisesByUser(userId: string): Promise<PromiseRecord[]>;
+  /** [P20-2] Canonicals for the user. Soft-deleted promises are excluded unless `includeDeleted` is set
+   *  (the DSAR export passes it, so a deleted promise still travels with its deleted_at). */
+  listPromisesByUser(userId: string, opts?: { includeDeleted?: boolean }): Promise<PromiseRecord[]>;
   listPromisesByNote(userId: string, noteId: string): Promise<PromiseRecord[]>;
+  /** [P20-2 / BOOK-09] Soft-delete (undoable). Sets deleted_at; the row stays for 30 days then a nightly
+   *  job hard-deletes it. Returns false if not the rep's or already deleted. */
+  softDeletePromise(userId: string, id: string, nowMs: number): Promise<boolean>;
+  /** [P20-2 / BOOK-09] Undo a soft-delete — clears deleted_at. False if not the rep's or not deleted. */
+  restorePromise(userId: string, id: string): Promise<boolean>;
+  /** [P20-2 / BOOK-09] Nightly hard-delete of promises soft-deleted before the cutoff (ms). Across all
+   *  users (an ops sweep). Returns how many rows were removed. */
+  hardDeletePromisesDeletedBefore(cutoffMs: number): Promise<number>;
   /** Mark a promise confirmed by the rep. Returns false if not found/owned. */
   confirmPromise(userId: string, id: string): Promise<boolean>;
   getPromise(userId: string, id: string): Promise<PromiseRecord | null>;

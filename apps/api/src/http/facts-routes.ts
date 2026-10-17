@@ -33,6 +33,7 @@ export interface FactsRouteDeps {
 
 const CONFIRM_RE = /^\/promises\/([^/]+)\/confirm$/;
 const DONE_RE = /^\/promises\/([^/]+)\/done$/;
+const RESTORE_RE = /^\/promises\/([^/]+)\/restore$/; // [P20-2] Undo a soft delete
 const PROMISE_RE = /^\/promises\/([^/]+)$/;
 
 function byDueDate(a: { dueDate: string | null }, b: { dueDate: string | null }): number {
@@ -55,8 +56,9 @@ export async function handleFactsRoute(
   const isTracker = method === 'GET' && path === '/promises';
   const confirmMatch = method === 'POST' ? CONFIRM_RE.exec(path) : null;
   const doneMatch = method === 'POST' ? DONE_RE.exec(path) : null;
+  const restoreMatch = method === 'POST' ? RESTORE_RE.exec(path) : null;
   const promiseMatch = method === 'PATCH' || method === 'DELETE' ? PROMISE_RE.exec(path) : null;
-  if (!isConfirmations && !isTracker && !confirmMatch && !doneMatch && !promiseMatch) return false;
+  if (!isConfirmations && !isTracker && !confirmMatch && !doneMatch && !restoreMatch && !promiseMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -134,15 +136,23 @@ export async function handleFactsRoute(
     return true;
   }
 
+  // [P20-2 / BOOK-09] POST /promises/:id/restore — Undo a soft delete within the window.
+  if (restoreMatch) {
+    const ok = await deps.facts.restorePromise(userId, decodeURIComponent(restoreMatch[1]!));
+    sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
+    return true;
+  }
+
   // PATCH or DELETE /promises/:id
   const id = decodeURIComponent(promiseMatch![1]!);
 
   if (method === 'DELETE') {
-    // Reject — the single most informative training row: the model produced this and a human said
-    // NO. Capture the ORIGINAL value BEFORE deleting (after = null), then delete exactly as before.
-    // [CORRECTIONS-WIRE]
+    // [P20-2 / BOOK-09] SOFT delete — undoable for 10s, hard-deleted after 30 days. The row leaves every
+    // surface at once (listPromisesByUser filters deleted) but stays recoverable. Reject is still the
+    // single most informative training row (the model produced this and a human said NO), captured
+    // BEFORE the soft-delete. [CORRECTIONS-WIRE]
     const rejected = await deps.facts.getPromise(userId, id);
-    const ok = await deps.facts.deletePromise(userId, id);
+    const ok = await deps.facts.softDeletePromise(userId, id, Date.now());
     if (ok && rejected) {
       await recordVerdict(deps, userId, {
         noteId: rejected.noteId,
@@ -152,7 +162,8 @@ export async function handleFactsRoute(
         field: '',
       });
     }
-    // No orphaned value claims: dropping the promise removes any ledger entry (P4-11).
+    // No orphaned value claims while it's off the surfaces: drop any ledger entry (P4-11). An Undo within
+    // the window restores the promise; a value-touch is re-earned on the next keep, not resurrected here.
     if (ok && deps.ledger) await deps.ledger.removeBySource(userId, id);
     sendJson(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not_found' });
     return true;

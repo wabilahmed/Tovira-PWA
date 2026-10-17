@@ -77,7 +77,8 @@ export class AccountService {
       exportedAt: new Date().toISOString(),
       clients,
       notes, // raw text / transcripts live here
-      promises: await this.facts.listPromisesByUser(userId),
+      // [P20-2] include soft-deleted promises (with their deleted_at) — the rep's own data in a DSAR.
+      promises: await this.facts.listPromisesByUser(userId, { includeDeleted: true }),
       keyDates: await this.facts.listKeyDatesByUser(userId),
       meetings: await this.meetings.listByUser(userId),
       images,

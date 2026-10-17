@@ -177,7 +177,7 @@ async function main(): Promise<void> {
   const notes = createNoteRepository(config, appPool);
   const storage = createStorage(config);
   const transcription = createTranscriptionService(config, notes, storage);
-  const facts = createFactsRepository(config, appPool);
+  const facts = createFactsRepository(config, appPool, migrationPool);
   const extractionLogs = createExtractionLogRepository(config, appPool);
   const corrections = createCorrectionRepository(config, appPool);
   const repGlossary = createRepGlossaryRepository(config, appPool);
@@ -422,6 +422,7 @@ async function main(): Promise<void> {
   // the main blob store + the per-rep expirable-audio query; runs on the brain below, not a 2nd scheduler.
   const audioRetention = new AudioRetentionService({ allUserIds: () => auth.allUserIds(), notes, storage });
   const bulkBatchRetention = new BulkBatchRetentionService(storage);
+  const PROMISE_SOFT_DELETE_RETENTION_DAYS = 30; // [P20-2 / BOOK-09] Undo window long past before a hard delete.
   const jobRunStore = createJobRunStore(config, appPool);
   const scheduledBrain = new ScheduledBrain({
     store: jobRunStore,
@@ -497,6 +498,10 @@ async function main(): Promise<void> {
       // leftovers). lockKey 4711014: UNIQUE, next free. Scans the blob store; idempotent.
       { name: 'bulk-batch-retention', lockKey: 4711014, intervalMs: 60 * 60 * 1000,
         run: async () => { const n = await bulkBatchRetention.sweep(Date.now()); if (n > 0) console.log(`[retention] bulk-import deleted ${n} staged batch(es) past ${BULK_BATCH_TTL_MS / 3_600_000}h`); } },
+      // [P20-2 / BOOK-09] Hard-delete promises soft-deleted more than 30 days ago (Undo window long past).
+      // lockKey 4711017: UNIQUE, next free (…015 and …016 taken). Cross-tenant sweep (superuser). Idempotent.
+      { name: 'promise-soft-delete-retention', lockKey: 4711017, intervalMs: 24 * 60 * 60 * 1000,
+        run: async () => { const n = await facts.hardDeletePromisesDeletedBefore(Date.now() - PROMISE_SOFT_DELETE_RETENTION_DAYS * 24 * 60 * 60 * 1000); if (n > 0) console.log(`[retention] hard-deleted ${n} promise(s) soft-deleted past ${PROMISE_SOFT_DELETE_RETENTION_DAYS}d`); } },
     ],
   }, 15_000); // [ASYNC-EXTRACT] tick every 15s (was 30s) so the notes-sweep (15s interval) fires on
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs

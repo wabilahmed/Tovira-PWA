@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { OpenPromise } from './promisesClient.js';
 import { formatBody } from '../format/dates.js';
 import { hapticTick } from '../haptics.js';
@@ -10,7 +10,13 @@ export interface PromisesApi {
   confirm(id: string): Promise<boolean>;
   reject(id: string): Promise<boolean>;
   editDueDate(id: string, dueDate: string | null): Promise<boolean>;
+  /** [P20-2 / BOOK-09] Soft-delete + undo. */
+  deletePromise(id: string): Promise<boolean>;
+  restore(id: string): Promise<boolean>;
 }
+
+/** [P20-2 / BOOK-09] How long the "Promise deleted. Undo" toast stays before the delete is final (ms). */
+const UNDO_WINDOW_MS = 10_000;
 
 /** The open-promises tracker + confirmation queue (P4-1 / P1-7 / P2-3). */
 export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; now?: number }): JSX.Element {
@@ -19,6 +25,10 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showStale, setShowStale] = useState(false); // [PROMISE-STALE] older promises sit behind a filter
+  // [P20-2 / BOOK-09] the pending "Promise deleted. Undo" toast + its 10s window timer.
+  const [undo, setUndo] = useState<{ p: OpenPromise; where: 'open' | 'pending' } | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
   useEffect(() => {
     let live = true;
@@ -58,6 +68,35 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
     else setError('Could not update that date — please try again.');
   }
 
+  // [P20-2 / BOOK-09] Delete a promise (soft, undoable). Remove it from the list immediately and show
+  // "Promise deleted. Undo" for 10s — the same pattern as the move-note toast. Undo restores it.
+  async function del(p: OpenPromise, where: 'open' | 'pending'): Promise<void> {
+    setError(null);
+    if (where === 'open') setOpen((prev) => prev.filter((x) => x.id !== p.id));
+    else setPending((prev) => prev.filter((x) => x.id !== p.id));
+    const ok = await api.deletePromise(p.id);
+    if (!ok) { // put it back; nothing was deleted
+      if (where === 'open') setOpen((prev) => [p, ...prev]);
+      else setPending((prev) => [p, ...prev]);
+      setError('Could not delete that — please try again.');
+      return;
+    }
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo({ p, where });
+    undoTimer.current = setTimeout(() => setUndo(null), UNDO_WINDOW_MS); // window closes → delete is final
+  }
+
+  async function undoDelete(): Promise<void> {
+    if (!undo) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    const { p, where } = undo;
+    setUndo(null);
+    if (await api.restore(p.id)) {
+      if (where === 'open') setOpen((prev) => [p, ...prev].sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999')));
+      else setPending((prev) => [p, ...prev]);
+    } else setError('Could not undo — please reload.');
+  }
+
   if (loading) return <p>Loading your promises…</p>;
 
   // [PROMISE-STALE] Active = not stale (the foreground: count, claret, overdue). Stale (overdue past
@@ -79,6 +118,12 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
         </div>
       </header>
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
+      {undo && (
+        <div role="status" data-testid="promise-undo" className="lead-toast">
+          <span>Promise deleted.</span>
+          <button onClick={() => void undoDelete()}>Undo</button>
+        </div>
+      )}
       {active.length === 0 && stale.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>No open promises — you're all caught up.</p>
       ) : (
@@ -99,6 +144,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
                   onChange={(e) => void editDate(p.id, e.target.value)}
                 />
                 <button onClick={() => void done(p.id)}>Done</button>
+                <button aria-label={`Delete promise: ${p.text}`} onClick={() => void del(p, 'open')}>Delete</button>
               </span>
             </li>
           ))}
@@ -115,7 +161,10 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
                 <li key={p.id} data-testid="stale-promise" style={{ ...row, color: 'var(--text-secondary)' }}>
                   {/* stale: no claret, muted — still stored/searchable, still actionable */}
                   <span>{p.text} <small className="tov-stamp">{due(p)}</small></span>
-                  <button onClick={() => void done(p.id)}>Done</button>
+                  <span style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={() => void done(p.id)}>Done</button>
+                    <button aria-label={`Delete promise: ${p.text}`} onClick={() => void del(p, 'open')}>Delete</button>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -136,6 +185,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
                 <span style={{ display: 'flex', gap: '0.5rem' }}>
                   <button onClick={() => void confirm(p.id)}>Confirm</button>
                   <button onClick={() => void reject(p.id)}>Reject</button>
+                  <button aria-label={`Delete promise: ${p.text}`} onClick={() => void del(p, 'pending')}>Delete</button>
                 </span>
               </li>
             ))}

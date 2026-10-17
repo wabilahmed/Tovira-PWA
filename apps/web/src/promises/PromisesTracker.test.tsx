@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PromisesTracker, type PromisesApi } from './PromisesTracker.js';
 import type { OpenPromise } from './promisesClient.js';
@@ -16,6 +16,8 @@ function makeApi(open: OpenPromise[], pending: OpenPromise[] = []): PromisesApi 
     confirm: vi.fn().mockResolvedValue(true),
     editDueDate: vi.fn().mockResolvedValue(true),
     reject: vi.fn().mockResolvedValue(true),
+    deletePromise: vi.fn().mockResolvedValue(true),
+    restore: vi.fn().mockResolvedValue(true),
   };
 }
 
@@ -35,6 +37,23 @@ describe('<PromisesTracker>', () => {
     const row = await screen.findByTestId('open-promise');
     expect(row).toHaveTextContent(/due 5 Mar 2026/);
     expect(row).toHaveTextContent(/from .?by Thursday.?/i); // "from '…'" with either quote glyph
+  });
+
+  // [P20-2 / BOOK-09] Delete removes the row and offers Undo; Undo restores it.
+  it('[P20-2] deletes a promise, shows "Promise deleted. Undo", and Undo restores it', async () => {
+    const deletePromise = vi.fn().mockResolvedValue(true);
+    const restore = vi.fn().mockResolvedValue(true);
+    render(<PromisesTracker api={{ ...makeApi([p('p1', 'send quote')]), deletePromise, restore }} />);
+    await userEvent.click(await screen.findByRole('button', { name: /delete promise: send quote/i }));
+    await waitFor(() => expect(deletePromise).toHaveBeenCalledWith('p1'));
+    // the row is gone and the undo toast is shown
+    expect(screen.queryByTestId('open-promise')).toBeNull();
+    const toast = await screen.findByTestId('promise-undo');
+    expect(toast).toHaveTextContent(/promise deleted/i);
+    // Undo restores the row
+    await userEvent.click(within(toast).getByRole('button', { name: /undo/i }));
+    await waitFor(() => expect(restore).toHaveBeenCalledWith('p1'));
+    expect(await screen.findByTestId('open-promise')).toHaveTextContent('send quote');
   });
 
   it('[PROMISE-STALE] keeps stale promises out of the active list + count, behind a filter', async () => {

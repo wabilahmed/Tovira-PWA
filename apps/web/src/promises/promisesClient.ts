@@ -64,6 +64,17 @@ export class PromisesClient {
     }
   }
 
+  /** [P20-2 / BOOK-09] Soft-delete a promise (undoable). Same endpoint as reject; the row leaves every
+   *  surface but is recoverable for 10s via restore(). */
+  deletePromise(id: string): Promise<boolean> {
+    return this.reject(id);
+  }
+
+  /** [P20-2 / BOOK-09] Undo a soft-delete. */
+  restore(id: string): Promise<boolean> {
+    return this.post(`/promises/${id}/restore`);
+  }
+
   /** [AUDIT item 2] Correct a wrong due date in place — PATCH keeps the note link, so the receipt is
    *  preserved (unlike delete+recreate, which loses it). `null` clears the date. */
   async editDueDate(id: string, dueDate: string | null): Promise<boolean> {

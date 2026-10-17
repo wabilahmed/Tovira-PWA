@@ -41,6 +41,7 @@ interface PromiseRow {
   source_span: string | null;
   source_message_at: Date | null;
   capture_at: string | null;
+  deleted_at: Date | null;
   created_at: Date;
 }
 
@@ -62,16 +63,19 @@ function toRecord(row: PromiseRow): PromiseRecord {
     sourceSpan: row.source_span,
     sourceMessageAt: row.source_message_at ? row.source_message_at.toISOString() : null,
     captureAt: row.capture_at ?? null,
+    deletedAt: row.deleted_at ? row.deleted_at.getTime() : null,
     createdAt: row.created_at.getTime(),
   };
 }
 
 const COLUMNS =
-  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, done_at, confirmed, merged_into, source_span, source_message_at, capture_at, created_at';
+  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, done_at, confirmed, merged_into, source_span, source_message_at, capture_at, deleted_at, created_at';
 
 /** Postgres-backed spine store; every method runs in a tenant tx (RLS enforced). */
 export class PgFactsRepository implements FactsRepository {
-  constructor(private readonly pool: Pool) {}
+  // [P20-2] adminPool (superuser, RLS-exempt) is used ONLY by the cross-tenant nightly hard-delete sweep;
+  // every other method runs tenant-scoped on `pool`. Absent → the nightly sweep falls back to `pool`.
+  constructor(private readonly pool: Pool, private readonly adminPool?: Pool) {}
 
   async saveExtraction(userId: string, input: SaveExtractionInput): Promise<void> {
     await withTenant(this.pool, userId, async (c) => {
@@ -152,10 +156,13 @@ export class PgFactsRepository implements FactsRepository {
     });
   }
 
-  async listPromisesByUser(userId: string): Promise<PromiseRecord[]> {
+  async listPromisesByUser(userId: string, opts?: { includeDeleted?: boolean }): Promise<PromiseRecord[]> {
+    // [P20-2] Exclude soft-deleted rows from every surface; the export passes includeDeleted so a deleted
+    // promise still travels with its deleted_at.
+    const deletedClause = opts?.includeDeleted ? '' : ' AND deleted_at IS NULL';
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `SELECT ${COLUMNS} FROM promises WHERE user_id = $1 AND merged_into IS NULL ORDER BY created_at DESC`,
+        `SELECT ${COLUMNS} FROM promises WHERE user_id = $1 AND merged_into IS NULL${deletedClause} ORDER BY created_at DESC`,
         [userId],
       );
       return (rows as unknown as PromiseRow[]).map(toRecord);
@@ -164,9 +171,39 @@ export class PgFactsRepository implements FactsRepository {
 
   async listPromisesByNote(userId: string, noteId: string): Promise<PromiseRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
-      const { rows } = await c.query(`SELECT ${COLUMNS} FROM promises WHERE note_id = $1`, [noteId]);
+      const { rows } = await c.query(`SELECT ${COLUMNS} FROM promises WHERE note_id = $1 AND deleted_at IS NULL`, [noteId]);
       return (rows as unknown as PromiseRow[]).map(toRecord);
     });
+  }
+
+  // [P20-2 / BOOK-09] Soft delete (undoable) + restore + nightly hard-delete.
+  async softDeletePromise(userId: string, id: string, nowMs: number): Promise<boolean> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        'UPDATE promises SET deleted_at = to_timestamp($2 / 1000.0) WHERE id = $1 AND deleted_at IS NULL RETURNING id',
+        [id, nowMs],
+      );
+      return rows.length > 0;
+    });
+  }
+
+  async restorePromise(userId: string, id: string): Promise<boolean> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('UPDATE promises SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL RETURNING id', [id]);
+      return rows.length > 0;
+    });
+  }
+
+  async hardDeletePromisesDeletedBefore(cutoffMs: number): Promise<number> {
+    // Ops sweep across all tenants — runs outside a tenant tx (no user scope); RLS is bypassed by the
+    // ops role the scheduled brain uses, exactly like other cross-tenant maintenance.
+    const client = await (this.adminPool ?? this.pool).connect();
+    try {
+      const { rowCount } = await client.query('DELETE FROM promises WHERE deleted_at IS NOT NULL AND deleted_at < to_timestamp($1 / 1000.0)', [cutoffMs]);
+      return rowCount ?? 0;
+    } finally {
+      client.release();
+    }
   }
 
   async listKeyDatesByNote(userId: string, noteId: string): Promise<KeyDateRecord[]> {
