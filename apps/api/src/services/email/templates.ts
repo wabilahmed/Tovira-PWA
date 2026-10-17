@@ -17,6 +17,8 @@ export interface EmailContent {
   intro: string[];
   /** Optional call-to-action button (e.g. a reset/confirm link). */
   button?: EmailButton;
+  /** [P22-4] Optional second, quieter button (e.g. "Manage billing" next to "Open Tovira"). */
+  secondary?: EmailButton;
   /** Body paragraphs shown after the button. */
   outro?: string[];
 }
@@ -33,6 +35,7 @@ const paras = (arr: string[] | undefined): string =>
 export function renderText(c: EmailContent): string {
   const parts = [...c.intro];
   if (c.button) parts.push(`${c.button.label}:\n${c.button.url}`);
+  if (c.secondary) parts.push(`${c.secondary.label}:\n${c.secondary.url}`);
   if (c.outro && c.outro.length) parts.push(...c.outro);
   return parts.join('\n\n');
 }
@@ -42,6 +45,12 @@ export function renderEmail(c: EmailContent): string {
   const button = c.button
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 22px;"><tr><td style="border-radius:8px;background:#d14821;">
              <a href="${escapeAttr(c.button.url)}" style="display:inline-block;padding:12px 26px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">${escapeHtml(c.button.label)}</a>
+           </td></tr></table>`
+    : '';
+  // [P22-4] the secondary action — an outlined button, so the primary stays the obvious one.
+  const secondary = c.secondary
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:-10px 0 22px;"><tr><td style="border-radius:8px;border:1px solid #d14821;">
+             <a href="${escapeAttr(c.secondary.url)}" style="display:inline-block;padding:11px 25px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#d14821;text-decoration:none;border-radius:8px;">${escapeHtml(c.secondary.label)}</a>
            </td></tr></table>`
     : '';
 
@@ -58,6 +67,7 @@ export function renderEmail(c: EmailContent): string {
           <h1 style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:21px;font-weight:600;line-height:1.28;color:#1c1917;">${escapeHtml(c.heading)}</h1>
           ${paras(c.intro)}
           ${button}
+          ${secondary}
           ${paras(c.outro)}
           <p style="margin:22px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:15px;color:#6b645d;">— Tovira</p>
         </td></tr>

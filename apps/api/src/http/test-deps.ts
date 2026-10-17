@@ -303,7 +303,7 @@ export function buildInMemoryDeps(
     await aiAllowance.reserve(userId, w.key, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, Date.now() + 3_600_000);
   };
   const emailSender = new StubEmailSender();
-  const accountEmail = new AccountEmailService(emailSender, new InMemoryEmailLogRepository());
+  const accountEmail = new AccountEmailService(emailSender, new InMemoryEmailLogRepository(), 'http://localhost:5173');
   const referral = new ReferralService(new InMemoryReferralRepository(), billing, (code) => auth.findUserIdByReferralCode(code));
   const accessApproval = new AccessApprovalService({
     requests: accessRequests,

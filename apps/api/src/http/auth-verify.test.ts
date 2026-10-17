@@ -14,7 +14,7 @@ let base: string;
 const email = new StubEmailSender();
 
 beforeAll(async () => {
-  const deps = buildInMemoryDeps({ accountEmail: new AccountEmailService(email, new InMemoryEmailLogRepository()) });
+  const deps = buildInMemoryDeps({ accountEmail: new AccountEmailService(email, new InMemoryEmailLogRepository(), 'http://localhost:5173') });
   server = createApiServer(deps);
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -117,7 +117,7 @@ describe('[EMAIL-SEND-500] resend-verification survives a delivery failure', () 
     },
   };
   beforeAll(async () => {
-    const deps = buildInMemoryDeps({ accountEmail: new AccountEmailService(throwingSender, new InMemoryEmailLogRepository()) });
+    const deps = buildInMemoryDeps({ accountEmail: new AccountEmailService(throwingSender, new InMemoryEmailLogRepository(), 'http://localhost:5173') });
     s = createApiServer(deps);
     await new Promise<void>((r) => s.listen(0, r));
     b = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;

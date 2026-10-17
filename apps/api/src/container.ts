@@ -890,7 +890,7 @@ export function createEmailLogRepository(config: AppConfig, pool?: Pool): EmailL
 
 /** The account/lifecycle email service (reset, welcome, trial, billing, delete). */
 export function createAccountEmailService(config: AppConfig, pool?: Pool): AccountEmailService {
-  return new AccountEmailService(createEmailSender(config), createEmailLogRepository(config, pool));
+  return new AccountEmailService(createEmailSender(config), createEmailLogRepository(config, pool), config.appBaseUrl);
 }
 
 /** Last-run store for the scheduled brain (SWEEP-NEVER-RUNS): Postgres in prod. */

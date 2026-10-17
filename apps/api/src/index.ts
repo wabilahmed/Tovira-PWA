@@ -119,6 +119,7 @@ import { AllowanceStatusService } from './services/spend/allowance-status.js';
 import { allowanceWindow } from './services/spend/ai-period.js';
 import { ModelCallEventService } from './services/spend/model-call-event-service.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
+import { appLinks } from './services/email/email-links.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -188,7 +189,7 @@ async function main(): Promise<void> {
   // else the billing settings page. Export link for the deletion warnings (D8).
   const payUrlFor = async (userId: string): Promise<string> => {
     const url = (await billing.entitlement(userId, Date.now())).hostedInvoiceUrl;
-    return url ?? `${config.appBaseUrl}/settings`;
+    return url ?? appLinks(config.appBaseUrl).billing; // [P22-4] Settings → Billing (/settings was a 404)
   };
   const dayStamp = (): string => new Date().toISOString().slice(0, 10);
   const billingEmailHook = {
@@ -198,7 +199,7 @@ async function main(): Promise<void> {
     dailyReminder: async (userId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendPaymentReminder(userId, to, dayStamp(), await payUrlFor(userId)); },
     suspended: async (userId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendSuspended(userId, to, await payUrlFor(userId)); },
     subscriptionEnded: async (userId: string) => { const to = await emailFor(userId); if (to) await accountEmail.sendSubscriptionEnded(userId, to); },
-    deletionWarning: async (userId: string, daysLeft: 30 | 7) => { const to = await emailFor(userId); if (to) await accountEmail.sendDeletionWarning(userId, to, daysLeft, `${config.appBaseUrl}/account/export`); },
+    deletionWarning: async (userId: string, daysLeft: 30 | 7) => { const to = await emailFor(userId); if (to) await accountEmail.sendDeletionWarning(userId, to, daysLeft, appLinks(config.appBaseUrl).export /* [P22-4] the Settings export button (/account/export is an API route, not a page) */); },
   };
   const opsAlerts = createOpsAlertRepository(config, migrationPool);
   // [BILLING-DUNNING · ruling 1] Stripe cancelling a subscription BEFORE our day-30 end is an anomaly —
@@ -660,7 +661,7 @@ async function main(): Promise<void> {
     accessApproval, // [BETA-8] public /auth/invite/resend
     accessRequestLimiter: new FixedWindowRateLimiter(5, 60 * 60 * 1000),
     accessRequestNotify: config.accessRequestNotifyEmail
-      ? (rec) => accountEmail.sendAccessRequestNotification(config.accessRequestNotifyEmail!, rec, `${config.appBaseUrl}/ops/access-requests/${rec.id}/approve`)
+      ? (rec) => accountEmail.sendAccessRequestNotification(config.accessRequestNotifyEmail!, rec, appLinks(config.appBaseUrl).opsApprove(rec.id) /* [P22-4] via /api behind CloudFront */)
       : undefined,
   });
   server.listen(config.port, () => {

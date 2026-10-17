@@ -9,7 +9,7 @@ const NOW = Date.parse('2026-08-01T09:00:00Z');
 
 function make(trialing: Array<{ userId: string; trialEndsAt: number }>) {
   const email = new StubEmailSender();
-  const account = new AccountEmailService(email, new InMemoryEmailLogRepository());
+  const account = new AccountEmailService(email, new InMemoryEmailLogRepository(), 'http://localhost:5173');
   const subs = { listTrialing: vi.fn(async () => trialing) };
   const emails: Record<string, string> = { u1: 'u1@x.com', u2: 'u2@x.com' };
   const svc = new TrialEmailService(subs, async (id) => emails[id] ?? null, account);

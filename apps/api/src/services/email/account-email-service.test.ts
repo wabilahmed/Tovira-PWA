@@ -5,7 +5,7 @@ import { InMemoryEmailLogRepository } from '../../adapters/email/in-memory-email
 
 function make() {
   const email = new StubEmailSender();
-  const svc = new AccountEmailService(email, new InMemoryEmailLogRepository());
+  const svc = new AccountEmailService(email, new InMemoryEmailLogRepository(), 'http://localhost:5173');
   return { email, svc };
 }
 const RENEW = Date.parse('2026-09-14T00:00:00Z');

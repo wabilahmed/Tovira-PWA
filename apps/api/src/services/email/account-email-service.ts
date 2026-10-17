@@ -3,6 +3,7 @@ import type { EmailLogRepository } from '../../ports/email-log-repository.js';
 import type { AccessRequestRecord } from '../../ports/access-request-repository.js';
 import { INVITE_TTL_DAYS } from '../access/access-approval-service.js';
 import { renderEmail, type EmailContent } from './templates.js';
+import { appLinks, type AppLinks } from './email-links.js';
 import { pausedFeaturesSentence } from '../billing/billing-access.js';
 
 /** Human-readable labels for the stored enum codes, for the owner-facing notification email. */
@@ -38,10 +39,25 @@ const SIGNOFF = '\n\n— Tovira';
  * it. Lifecycle sends are idempotent: one per (user, event).
  */
 export class AccountEmailService {
+  /** [P22-4] every link is built from the configured app URL — required, no fallback. */
+  private readonly links: AppLinks;
   constructor(
     private readonly email: EmailSender,
     private readonly log: EmailLogRepository,
-  ) {}
+    appBaseUrl: string,
+  ) {
+    this.links = appLinks(appBaseUrl);
+  }
+
+  /** [P22-4] The two actions every billing email carries: open the app, and Settings → Billing. */
+  private appButtons(primary: 'open' | 'billing'): Pick<EmailContent, 'button' | 'secondary'> {
+    const open = { label: 'Open Tovira', url: this.links.open };
+    const billing = { label: 'Manage billing', url: this.links.billing };
+    return primary === 'open' ? { button: open, secondary: billing } : { button: billing, secondary: open };
+  }
+  private appLinesText(): string {
+    return `\n\nOpen Tovira: ${this.links.open}\nManage billing: ${this.links.billing}`;
+  }
 
   /** Password reset — NOT idempotency-logged; each request sends a fresh link. */
   async sendPasswordReset(to: string, resetUrl: string): Promise<void> {
@@ -132,10 +148,12 @@ export class AccountEmailService {
     return this.once(userId, 'welcome', to, 'Welcome to Tovira',
       `Your Tovira trial has started. It runs until ${stampDate(trialEndsAt)}.\n\n` +
       `Export one WhatsApp chat to see what your book has been hiding — that is the whole setup.` +
-      confirm, {
+      (confirm || `\n\nOpen Tovira: ${this.links.open}`), {
         heading: 'Welcome to Tovira',
         intro: [`Your Tovira trial has started. It runs until ${stampDate(trialEndsAt)}.`, 'Export one WhatsApp chat to see what your book has been hiding — that is the whole setup.'],
-        ...(verifyUrl ? { button: { label: 'Confirm your email', url: verifyUrl }, outro: ['Confirming your email lets us reach you about your trial.'] } : {}),
+        ...(verifyUrl
+          ? { button: { label: 'Confirm your email', url: verifyUrl }, outro: ['Confirming your email lets us reach you about your trial.'] }
+          : { button: { label: 'Open Tovira', url: this.links.open } }), // [P22-4] never a link-less welcome
       });
   }
 
@@ -164,8 +182,9 @@ export class AccountEmailService {
     return this.once(userId, 'trial_ending', to, 'Your Tovira trial ends in two days',
       `Your Tovira trial ends on ${stampDate(trialEndsAt)}.\n\n` +
       `When it ends, your captured notes and everything Tovira has filed are preserved — nothing is lost. ` +
-      `To keep using briefs, recall and the Monday statement, subscribe from Settings before then.`, {
+      `To keep using briefs, recall and the Monday statement, subscribe from Settings before then.` + this.appLinesText(), {
         heading: 'Your trial ends in two days',
+        ...this.appButtons('billing'),
         intro: [
           `Your Tovira trial ends on ${stampDate(trialEndsAt)}.`,
           'When it ends, your captured notes and everything Tovira has filed are preserved — nothing is lost.',
@@ -177,8 +196,9 @@ export class AccountEmailService {
   async sendTrialEnded(userId: string, to: string): Promise<boolean> {
     return this.once(userId, 'trial_ended', to, 'Your Tovira trial has ended',
       `Your Tovira trial has ended. Your book is preserved and you can still export it any time.\n\n` +
-      `Subscribe from Settings to reopen briefs, recall and the Monday statement.`, {
+      `Subscribe from Settings to reopen briefs, recall and the Monday statement.` + this.appLinesText(), {
         heading: 'Your trial has ended',
+        ...this.appButtons('billing'),
         intro: [
           'Your Tovira trial has ended. Your book is preserved and you can still export it any time.',
           'Subscribe from Settings to reopen briefs, recall and the Monday statement.',
@@ -199,6 +219,7 @@ export class AccountEmailService {
         heading: 'Your payment did not go through',
         intro: ['Your last Tovira payment failed.', this.pausedLine()],
         button: { label: 'Update payment details', url: payUrl },
+        secondary: { label: 'Open Tovira', url: this.links.open }, // [P22-4]
       });
   }
 
@@ -209,6 +230,7 @@ export class AccountEmailService {
         heading: 'Your payment is still due',
         intro: ['Your Tovira payment has not gone through yet.', this.pausedLine()],
         button: { label: 'Update payment details', url: payUrl },
+        secondary: { label: 'Open Tovira', url: this.links.open }, // [P22-4]
       });
   }
 
@@ -222,14 +244,16 @@ export class AccountEmailService {
           'You can still sign in to update your payment details and to export your data; nothing else is available until payment succeeds.',
         ],
         button: { label: 'Update payment details', url: payUrl },
+        secondary: { label: 'Open Tovira', url: this.links.open }, // [P22-4]
       });
   }
 
   /** D7: ended at day 30. Restoring now needs the rep to contact us. */
   async sendSubscriptionEnded(userId: string, to: string): Promise<boolean> {
     return this.once(userId, 'dunning_ended', to, 'Your Tovira subscription has ended',
-      `Payment did not succeed within 30 days, so your subscription has ended. Your data is kept for 90 days so your account can be restored.\n\nContact us at hello@tovira.io to restore your account. You can still export your data any time.`, {
+      `Payment did not succeed within 30 days, so your subscription has ended. Your data is kept for 90 days so your account can be restored.\n\nContact us at hello@tovira.io to restore your account. You can still export your data any time.` + this.appLinesText(), {
         heading: 'Your subscription has ended',
+        ...this.appButtons('open'),
         intro: [
           'Payment did not succeed within 30 days, so your subscription has ended.',
           'Your data is kept for 90 days so your account can be restored. Contact us at hello@tovira.io to restore it. You can still export your data any time.',
@@ -253,8 +277,9 @@ export class AccountEmailService {
   async sendSubscriptionConfirmed(userId: string, to: string, eventKey: string, renewsAt: number | null): Promise<boolean> {
     const renews = renewsAt != null ? ` It renews on ${stampDate(renewsAt)}.` : '';
     return this.once(userId, eventKey, to, 'Your Tovira subscription is active',
-      `Your Tovira subscription is active — thank you for keeping your book with us.${renews}`, {
+      `Your Tovira subscription is active — thank you for keeping your book with us.${renews}` + this.appLinesText(), {
         heading: 'Your subscription is active',
+        ...this.appButtons('open'),
         intro: [`Your Tovira subscription is active — thank you for keeping your book with us.${renews}`],
       });
   }
@@ -262,8 +287,9 @@ export class AccountEmailService {
   async sendSubscriptionCanceled(userId: string, to: string, eventKey: string): Promise<boolean> {
     return this.once(userId, eventKey, to, 'Your Tovira subscription is canceled',
       `Your Tovira subscription has been canceled. Your book is preserved and you can export it any time.\n\n` +
-      `You can resubscribe from Settings whenever you are ready.`, {
+      `You can resubscribe from Settings whenever you are ready.` + this.appLinesText(), {
         heading: 'Your subscription is canceled',
+        ...this.appButtons('billing'),
         intro: [
           'Your Tovira subscription has been canceled. Your book is preserved and you can export it any time.',
           'You can resubscribe from Settings whenever you are ready.',
