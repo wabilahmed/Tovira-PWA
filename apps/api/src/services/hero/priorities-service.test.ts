@@ -162,3 +162,31 @@ describe('PrioritiesService (P4b-3, cost-guard #3)', () => {
     expect(calls()).toBe(2);
   });
 });
+
+// [P16-JOBS] The nightly precompute runs for EVERY rep, so the paid ranking model must be gated on
+// entitlement per rep — a lapsed / never-subscribed rep (who can't even open /today) must not trigger it.
+describe('[P16-JOBS] precompute gates the ranking model on entitlement (canUseAi) per rep', () => {
+  it('an UNENTITLED rep: zero model calls, deterministic candidate order kept + cached', async () => {
+    const { model, calls } = countingModel('[1,0]');
+    const repo = new InMemoryPrioritiesRepository();
+    const svc = new PrioritiesService(heroWith({ u: [action(0), action(1)] }), model, repo, { canUseAi: async () => false });
+    expect(await svc.precompute('u', NOW)).toBe(true); // still computes + caches (deterministically)
+    expect(calls()).toBe(0);                            // but NEVER the paid ranking call
+    const cached = await repo.get('u', '2026-08-05');
+    expect(cached!.actions.map((a) => a.priority)).toEqual([0, 1]); // source order, not reranked to [1,0]
+  });
+
+  it('an ENTITLED rep: the model ranks (exactly one call)', async () => {
+    const { model, calls } = countingModel('[1,0]');
+    const svc = new PrioritiesService(heroWith({ u: [action(0), action(1)] }), model, new InMemoryPrioritiesRepository(), { canUseAi: async () => true });
+    await svc.precompute('u', NOW);
+    expect(calls()).toBe(1);
+  });
+
+  it('precomputeAll gates each rep independently — only the entitled rep triggers a call', async () => {
+    const { model, calls } = countingModel('[0]');
+    const svc = new PrioritiesService(heroWith({ ent: [action(0)], lapsed: [action(0)] }), model, new InMemoryPrioritiesRepository(), { canUseAi: async (u) => u === 'ent' });
+    await svc.precomputeAll(['ent', 'lapsed'], NOW);
+    expect(calls()).toBe(1);
+  });
+});

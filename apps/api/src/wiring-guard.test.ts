@@ -148,6 +148,35 @@ describe('[WIRING-GUARD] every model call routes through the metered sink', () =
     expect(idx.includes('canRunAi'), 'the async sweep gate (canRunAi) must exist for the queued routes').toBe(true);
     expect(offenders, `model-reaching routes missing an entitlement gate:\n${offenders.join('\n')}`).toEqual([]);
   });
+
+  // [P16-JOBS / WIRING-GUARD] Scheduled jobs reach a model too, and the nightly precompute runs for EVERY
+  // rep — so a model-calling job must gate PER REP on entitlement (canRunAi/canUseAi) right before the
+  // call, or be an ownerless SYSTEM probe (no userId → billed to no account). Every other scheduled job
+  // is model-free. A new per-rep model job added without a gate fails here. Mutation-proven: drop
+  // canUseAi from priorities-service.ts and this fails.
+  const MODEL_REACHING_JOBS: Array<{ job: string; file: string; gate: 'canRunAi' | 'canUseAi' | 'ownerless' }> = [
+    { job: 'notes-sweep', file: 'index.ts', gate: 'canRunAi' },                                  // sweep canSpend (per rep, pre-claim)
+    { job: 'priorities-nightly', file: 'services/hero/priorities-service.ts', gate: 'canUseAi' }, // per rep, before the ranking call
+    { job: 'extraction-canary', file: 'services/extraction/extraction-canary.ts', gate: 'ownerless' }, // system probe, no userId
+  ];
+
+  it('every model-reaching scheduled job gates per rep on entitlement (or is an ownerless system probe)', () => {
+    const files = new Map(nonTestFiles().map((f) => [f.rel, f.content] as const));
+    const offenders: string[] = [];
+    for (const j of MODEL_REACHING_JOBS) {
+      // Exact match for a root file like index.ts (endsWith would also hit eval/index.ts); suffix otherwise.
+      const content = files.get(j.file) ?? [...files].find(([rel]) => rel.endsWith(`/${j.file}`))?.[1];
+      if (!content) { offenders.push(`${j.job}: ${j.file} not found`); continue; }
+      if (j.gate === 'ownerless') {
+        // A system probe must NOT attribute the call to a rep — assert no `userId:` is passed to the model
+        // (the word in a comment is fine; the object property is not).
+        if (/userId\s*:/.test(content)) offenders.push(`${j.job}: ${j.file} passes userId — an ownerless probe must not attribute to a rep`);
+      } else if (!content.includes(`${j.gate}(`)) {
+        offenders.push(`${j.job}: ${j.file} does not call ${j.gate}(...) before the model`);
+      }
+    }
+    expect(offenders, `model-reaching jobs missing a per-rep entitlement gate:\n${offenders.join('\n')}`).toEqual([]);
+  });
 });
 
 describe('[WIRING-GUARD] every registered emitter is reachable in production', () => {

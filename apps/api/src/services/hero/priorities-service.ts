@@ -37,16 +37,18 @@ export class PrioritiesService {
   private readonly refreshLimit: number;
   private readonly now: () => number;
   private readonly timezoneFor?: (userId: string) => Promise<string>;
+  private readonly canUseAi?: (userId: string) => Promise<boolean>;
 
   constructor(
     private readonly source: PrioritiesSource,
     private readonly model: ModelClient,
     private readonly repo: PrioritiesRepository,
-    opts: { modelId?: string; refreshLimit?: number; now?: () => number; timezoneFor?: (userId: string) => Promise<string> } = {},
+    opts: { modelId?: string; refreshLimit?: number; now?: () => number; timezoneFor?: (userId: string) => Promise<string>; canUseAi?: (userId: string) => Promise<boolean> } = {},
   ) {
     this.refreshLimit = opts.refreshLimit ?? 2;
     this.now = opts.now ?? (() => Date.now());
     this.timezoneFor = opts.timezoneFor;
+    this.canUseAi = opts.canUseAi;
   }
 
   /** [TZ-BOUNDARY] "today" is the rep's LOCAL calendar day — so the cache bucket flips when the rep
@@ -104,18 +106,26 @@ export class PrioritiesService {
     const actions = await this.source.today(userId, nowMs);
     if (actions.length === 0) return []; // nothing to rank — no model call
     let order: number[] = [];
-    try {
-      const res = await this.model.complete({
-        system: RANK_SYSTEM,
-        messages: [{ role: 'user', content: actions.map((a, i) => `${i}: ${a.text}`).join('\n') }],
-        maxTokens: 256,
-        userId,
-        spendClass: 'priorities', // SPEND-CAP
-      });
-      const parsed = extractJsonObject(res.text);
-      if (Array.isArray(parsed)) order = parsed.filter((n): n is number => Number.isInteger(n));
-    } catch {
-      order = []; // model failure → deterministic order
+    // [P16-JOBS] The nightly precompute runs for EVERY rep, so gate the paid ranking call on entitlement
+    // per rep, immediately before it (canUseAi = canRunAi): a lapsed / never-subscribed rep (who can't
+    // even open /today — it's requireEntitled) must not trigger a model call. Not entitled → keep the
+    // deterministic candidate order, exactly like a model failure. The call still flows through the gated
+    // client (reserve/settle) when it does run.
+    const mayRank = !this.canUseAi || (await this.canUseAi(userId));
+    if (mayRank) {
+      try {
+        const res = await this.model.complete({
+          system: RANK_SYSTEM,
+          messages: [{ role: 'user', content: actions.map((a, i) => `${i}: ${a.text}`).join('\n') }],
+          maxTokens: 256,
+          userId,
+          spendClass: 'priorities', // SPEND-CAP
+        });
+        const parsed = extractJsonObject(res.text);
+        if (Array.isArray(parsed)) order = parsed.filter((n): n is number => Number.isInteger(n));
+      } catch {
+        order = []; // model failure → deterministic order
+      }
     }
     // Grounding: map valid indices back to real actions; drop invalid; keep all.
     const seen = new Set<number>();

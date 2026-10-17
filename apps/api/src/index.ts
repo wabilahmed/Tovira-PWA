@@ -334,7 +334,12 @@ async function main(): Promise<void> {
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
   // (cost-guard #3, P4b-3). Uses the priorities-class model (see routing).
   const prioritiesRepo = createPrioritiesRepository(config, appPool);
-  const priorities = new PrioritiesService(hero, createModelClient(config, 'priorities'), prioritiesRepo, { timezoneFor: (userId) => auth.timezoneFor(userId) });
+  const priorities = new PrioritiesService(hero, createModelClient(config, 'priorities'), prioritiesRepo, {
+    timezoneFor: (userId) => auth.timezoneFor(userId),
+    // [P16-JOBS] The nightly precompute runs for every rep; gate the model call per rep on entitlement so
+    // it never ranks (and never spends) for a rep who isn't entitled — same canRunAi the sweep uses.
+    canUseAi: (userId) => billing.entitlement(userId, Date.now()).then(canRunAi),
+  });
   // NOTIF-REWORK: the daily digest reads the SAME precomputed priorities cache (never recomputes).
   const dailyDigest = new DailyDigestService({ priorities: prioritiesRepo, notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts), timezoneFor: (userId) => auth.timezoneFor(userId) });
   // Note sweep (FLOWS-7): advance any rep's stuck pending notes so a voice note or a
