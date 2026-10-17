@@ -112,8 +112,9 @@ export function LoginScreen({ auth, onAuthed, signupEnabled = true }: { auth: Au
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} aria-label="Accept terms" />
             <span>
               I agree to the{' '}
-              <a href="https://tovira.com/terms" target="_blank" rel="noreferrer">Terms</a> and{' '}
-              <a href="https://tovira.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.
+              {/* [P22-1] our own pages, same origin — never an absolute domain */}
+              <a href="/terms" target="_blank" rel="noopener">Terms</a> and{' '}
+              <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
             </span>
           </label>
         )}

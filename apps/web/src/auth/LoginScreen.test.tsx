@@ -32,6 +32,16 @@ describe('<LoginScreen> referral entry', () => {
     expect(screen.getByLabelText(/referral code/i)).toBeInTheDocument();
   });
 
+  // [P22-1] The consent links must point at OUR /terms and /privacy (relative, same origin) — never an
+  // absolute URL on a domain we don't own (they pointed at tovira.com, someone else's live site).
+  it('[P22-1] the signup consent links to our own /terms and /privacy, relative', async () => {
+    const user = userEvent.setup();
+    render(<LoginScreen auth={fakeAuth()} onAuthed={vi.fn()} />);
+    await gotoSignup(user);
+    expect(screen.getByRole('link', { name: /^terms$/i })).toHaveAttribute('href', '/terms');
+    expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute('href', '/privacy');
+  });
+
   it('prefills the field from ?ref= but keeps it editable', async () => {
     window.history.replaceState({}, '', '/?ref=ALICE123');
     const user = userEvent.setup();
