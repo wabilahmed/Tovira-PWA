@@ -167,6 +167,23 @@ describe('[MEETING-CREATE] rep-created meetings + reschedule on the rep\'s clock
     expect(((await patched.json()) as { datetime: string }).datetime).toBe('2026-07-09T13:00:00.000Z'); // 17:00 Dubai
   });
 
+  // [P18-6] An invalid reschedule time must never reach the store — 400, and the meeting keeps its time.
+  it('[P18-6] rescheduling with an invalid datetime returns 400 and keeps the stored time', async () => {
+    const token = await signupTz('badresched@example.com', 'Asia/Dubai');
+    const clientId = await createClient(token, 'Meridian');
+    const m = (await (await fetch(`${base}/clients/${clientId}/meetings`, {
+      method: 'POST', headers: auth(token), body: JSON.stringify({ datetime: '2026-07-09T15:00', datetimeRaw: '3pm' }),
+    })).json()) as { id: string; datetime: string };
+    const before = m.datetime;
+    const patched = await fetch(`${base}/meetings/${m.id}`, {
+      method: 'PATCH', headers: auth(token), body: JSON.stringify({ datetime: 'not-a-date', datetimeRaw: 'garbage' }),
+    });
+    expect(patched.status).toBe(400);
+    // The stored time is unchanged.
+    const list = (await (await fetch(`${base}/meetings`, { headers: auth(token) })).json()) as { meetings: Array<{ id: string; datetime: string }> };
+    expect(list.meetings.find((x) => x.id === m.id)!.datetime).toBe(before);
+  });
+
   it('rescheduling an unknown meeting is 404', async () => {
     const token = await signupTz('resched404@example.com', 'Asia/Dubai');
     expect((await fetch(`${base}/meetings/nope/`.replace(/\/$/, ''), { method: 'PATCH', headers: auth(token), body: JSON.stringify({ title: 'x' }) })).status).toBe(404);

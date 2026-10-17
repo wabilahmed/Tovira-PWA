@@ -177,6 +177,61 @@ describe('[P2-3] confirm & correct', () => {
     expect(pending.promises).toEqual([]);
   });
 
+  // [P18-6] An invalid date must never reach the store — the API rejects it (400) and the stored value
+  // is untouched. A wrong/empty date wiping a real due date is data loss; a wrong fact is worse than a
+  // missing one.
+  it('[P18-6] PATCH with a malformed due date returns 400 and keeps the stored date', async () => {
+    const { token, userId } = await signup('baddate@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n1', clientId: 'c1', promises: [promiseWith('send plan', '2026-08-01')] });
+    const id = (await deps.facts.listPromisesByUser(userId))[0]!.id;
+    const res = await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ dueDate: 'not-a-date' }),
+    });
+    expect(res.status).toBe(400);
+    expect((await deps.facts.listPromisesByUser(userId))[0]!.dueDate).toBe('2026-08-01'); // never wiped
+  });
+
+  it('[P18-6] PATCH with an impossible calendar date (2026-13-40) returns 400 and keeps the date', async () => {
+    const { token, userId } = await signup('baddate2@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n1', clientId: 'c1', promises: [promiseWith('send plan', '2026-08-01')] });
+    const id = (await deps.facts.listPromisesByUser(userId))[0]!.id;
+    const res = await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ dueDate: '2026-13-40' }),
+    });
+    expect(res.status).toBe(400);
+    expect((await deps.facts.listPromisesByUser(userId))[0]!.dueDate).toBe('2026-08-01');
+  });
+
+  it('[P18-6] PATCH with an empty-string due date returns 400 and keeps the date (no accidental wipe)', async () => {
+    const { token, userId } = await signup('emptydate@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n1', clientId: 'c1', promises: [promiseWith('send plan', '2026-08-01')] });
+    const id = (await deps.facts.listPromisesByUser(userId))[0]!.id;
+    const res = await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ dueDate: '' }),
+    });
+    expect(res.status).toBe(400);
+    expect((await deps.facts.listPromisesByUser(userId))[0]!.dueDate).toBe('2026-08-01');
+  });
+
+  it('[P18-6] PATCH with dueDate:null is a valid explicit clear (200)', async () => {
+    const { token, userId } = await signup('cleardate@example.com');
+    await deps.facts.saveExtraction(userId, { noteId: 'n1', clientId: 'c1', promises: [promiseWith('send plan', '2026-08-01')] });
+    const id = (await deps.facts.listPromisesByUser(userId))[0]!.id;
+    const res = await fetch(`${base}/promises/${id}`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ dueDate: null }),
+    });
+    expect(res.status).toBe(200);
+    expect((await deps.facts.listPromisesByUser(userId))[0]!.dueDate).toBeNull();
+  });
+
   it('does not let a rep edit or delete another rep\'s promise (404)', async () => {
     const a = await signup('a-edit@example.com');
     const b = await signup('b-edit@example.com');

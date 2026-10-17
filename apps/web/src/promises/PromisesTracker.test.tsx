@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PromisesTracker, type PromisesApi } from './PromisesTracker.js';
 import type { OpenPromise } from './promisesClient.js';
@@ -101,8 +101,19 @@ describe('[AUDIT item 2] inline due-date edit', () => {
     const editDueDate = vi.fn().mockResolvedValue(true);
     render(<PromisesTracker api={{ ...makeApi([p('p1', 'send quote')]), editDueDate }} />);
     const input = await screen.findByLabelText('Due date for: send quote');
-    await userEvent.clear(input);
-    await userEvent.type(input, '2026-09-15');
+    // A date input emits one change carrying the full value (how the picker works); drive it that way
+    // rather than clear+char-type, which desyncs against a controlled input (the field re-renders).
+    fireEvent.change(input, { target: { value: '2026-09-15' } });
     await waitFor(() => expect(editDueDate).toHaveBeenCalledWith('p1', '2026-09-15'));
+  });
+
+  // [P18-6] Clearing the field must NOT PATCH an empty value — that silently wiped the stored date.
+  it('[P18-6] clearing the date field does not send a wipe', async () => {
+    const editDueDate = vi.fn().mockResolvedValue(true);
+    render(<PromisesTracker api={{ ...makeApi([p('p1', 'send quote')]), editDueDate }} />);
+    const input = await screen.findByLabelText('Due date for: send quote');
+    await userEvent.clear(input);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(editDueDate).not.toHaveBeenCalled(); // empty is ignored, not written
   });
 });

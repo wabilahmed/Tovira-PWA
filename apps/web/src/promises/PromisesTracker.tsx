@@ -49,11 +49,12 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
   async function reject(id: string): Promise<void> {
     if (await api.reject(id)) setPending((prev) => prev.filter((p) => p.id !== id));
   }
-  // [AUDIT item 2] Correct a wrong due date in place (keeps the receipt). Empty clears the date.
+  // [AUDIT item 2] Correct a wrong due date in place (keeps the receipt).
+  // [P18-6] Ignore an empty value — a cleared/half-typed field must not silently wipe the stored date.
   async function editDate(id: string, value: string): Promise<void> {
+    if (!value) return;
     setError(null);
-    const dueDate = value || null;
-    if (await api.editDueDate(id, dueDate)) setOpen((prev) => prev.map((p) => (p.id === id ? { ...p, dueDate } : p)));
+    if (await api.editDueDate(id, value)) setOpen((prev) => prev.map((p) => (p.id === id ? { ...p, dueDate: value } : p)));
     else setError('Could not update that date — please try again.');
   }
 

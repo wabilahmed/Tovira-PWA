@@ -9,6 +9,7 @@ import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js
 import { canRunAi } from '../services/billing/billing-access.js';
 import type { BillingState } from '../ports/billing.js';
 import { zonedTodayIso, zonedWallClockToInstant } from '../services/time/zone.js';
+import { isValidMeetingDatetime } from './validate-date.js';
 import { recordVerdict } from '../services/facts/verdict.js';
 import type { Verdict } from '../ports/correction-repository.js';
 import { withReceipt } from '../services/receipts/receipt.js';
@@ -155,10 +156,17 @@ export async function handleMeetingRoute(
       const before = await deps.meetings.findByIdForUser(userId, meetingId);
       const body = (await readJsonBody(req)) as { datetime?: unknown; datetimeRaw?: unknown; title?: unknown };
       const patch: { datetime?: string | null; datetimeRaw?: string; title?: string | null } = {};
-      if (typeof body.datetime === 'string' || body.datetime === null) {
-        patch.datetime = typeof body.datetime === 'string'
-          ? tryResolve(body.datetime, await deps.auth.timezoneFor(userId))
-          : null;
+      if (typeof body.datetime === 'string') {
+        // [P18-6] Reject an invalid reschedule time BEFORE writing — never let garbage overwrite a real
+        // stored time (data loss) or reach the DB (500).
+        const tz = await deps.auth.timezoneFor(userId);
+        if (!isValidMeetingDatetime(body.datetime, tz)) {
+          sendJson(res, 400, { error: 'bad_request', message: 'Invalid meeting time.' });
+          return true;
+        }
+        patch.datetime = tryResolve(body.datetime, tz);
+      } else if (body.datetime === null) {
+        patch.datetime = null;
       }
       if (typeof body.datetimeRaw === 'string') patch.datetimeRaw = body.datetimeRaw;
       if (typeof body.title === 'string' || body.title === null) patch.title = body.title;

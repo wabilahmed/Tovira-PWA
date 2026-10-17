@@ -11,6 +11,7 @@ import { pendingConfirmations } from '../services/facts/confirmation.js';
 import { isStalePromise } from '../services/facts/promise-lifecycle.js';
 import { recordVerdict } from '../services/facts/verdict.js';
 import { withReceipt } from '../services/receipts/receipt.js';
+import { isValidDateOnly } from './validate-date.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
 export interface FactsRouteDeps {
@@ -165,6 +166,15 @@ export async function handleFactsRoute(
       return true;
     }
     const body = (await readJsonBody(req)) as Record<string, unknown>;
+    // [P18-6] Reject an invalid due date BEFORE any write — never let a malformed/empty value overwrite a
+    // real stored date (data loss) or reach the DB (500). null is a valid explicit clear.
+    if ('dueDate' in body) {
+      const v = body.dueDate;
+      if (v !== null && !(typeof v === 'string' && isValidDateOnly(v))) {
+        sendJson(res, 400, { error: 'bad_request', message: 'Invalid due date.' });
+        return true;
+      }
+    }
     const patch: PromisePatch = {};
     const fields: Array<[keyof PromisePatch, string, string | null]> = [
       ['text', 'text', before.text],
