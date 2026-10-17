@@ -256,7 +256,9 @@ export class ExtractionService {
   private async persistProposedMeeting(userId: string, noteId: string, clientId: string, meeting: Meeting, captureAt: string): Promise<void> {
     if (!this.meetings) return;
     if (await this.meetings.findByNoteId(userId, noteId)) return; // already persisted — idempotent
-    let datetime = meeting.datetime;
+    // [P18-3] Prefer the deterministically-resolved wall clock (message-anchored) over the model's own,
+    // then convert it to a UTC instant in the rep's timezone (stored UTC, shown in their zone).
+    let datetime = meeting.resolved_datetime ?? meeting.datetime;
     if (datetime) {
       const tz = this.meetingTimezone ? await this.meetingTimezone(userId) : 'Asia/Dubai';
       try { datetime = zonedWallClockToInstant(datetime, tz).toISOString(); } catch { /* keep raw */ }
@@ -446,7 +448,9 @@ export class ExtractionService {
       // surfacing uses (projected into the facts below); a voice/paste note with no per-message timestamp
       // falls back to the note's reference date, exactly as before. A model rule can slip; this write-time
       // check cannot.
-      resolveExtractionDates(extraction, referenceDate, noteId);
+      // [P18-3] A WhatsApp import is parsed day-first (its own timestamps prove the order), so an
+      // ambiguous numeric date in that chat resolves day-first; voice/paste get no day-order proof.
+      resolveExtractionDates(extraction, referenceDate, noteId, { dayFirst: note.source === 'whatsapp_export' });
       await this.notes.update(userId, noteId, { extracted: extraction, status: hold ? 'pending_confirmation' : 'extracted', embedding });
       if (!hold) {
         await this.facts.saveExtraction(userId, {

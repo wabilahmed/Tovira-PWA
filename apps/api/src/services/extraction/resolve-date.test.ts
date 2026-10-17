@@ -151,3 +151,44 @@ describe('[P14-3] resolveExtractionDates — the import bug', () => {
     expect(ex.key_dates[0]!.resolution).toBe('explicit');
   });
 });
+
+// [P18-3] The meeting resolver: date (anchored) + an explicit clock time → a wall-clock datetime; and a
+// day-first chat resolves an otherwise-ambiguous numeric date.
+import { resolveDateTime } from './resolve-date.js';
+const meeting = (over: Partial<import('./types.js').Meeting>): import('./types.js').Meeting =>
+  ({ datetime: null, datetime_raw: '', confirmed: false, ...over });
+
+describe('[P18-3] resolveDateTime — meetings', () => {
+  it('"tomorrow at 3pm" said 3 Mar → 2026-03-04T15:00', () => {
+    expect(resolveDateTime('tomorrow at 3pm', '2026-03-03T08:00').datetime).toBe('2026-03-04T15:00');
+  });
+  it('a weekday + 24h time ("Thursday 14:00") said Mon 2 Mar → 2026-03-05T14:00', () => {
+    expect(resolveDateTime('Thursday 14:00', '2026-03-02T09:30').datetime).toBe('2026-03-05T14:00');
+  });
+  it('an ambiguous numeric stays null WITHOUT a day-order proof, resolves WITH day-first', () => {
+    expect(resolveDateTime('12/04/2026 at 3pm', '2026-03-02T09:30').datetime).toBeNull();
+    expect(resolveDateTime('12/04/2026 at 3pm', '2026-03-02T09:30', { dayFirst: true }).datetime).toBe('2026-04-12T15:00');
+  });
+  it('null when there is a date but no resolvable time (rep picks the time)', () => {
+    expect(resolveDateTime('tomorrow', '2026-03-03T08:00').datetime).toBeNull();
+  });
+});
+
+describe('[P18-3] resolveExtractionDates — meeting + day-first promise', () => {
+  it('resolves the meeting into resolved_datetime (import chat, day-first)', () => {
+    const ex = emptyExtraction({ meeting: meeting({ datetime: null, datetime_raw: 'can we meet on 12/04/2026 at 3pm', source_message_at: '2026-03-02T09:30' }) });
+    resolveExtractionDates(ex, '2026-10-05', 'n1', { dayFirst: true });
+    expect(ex.meeting!.resolved_datetime).toBe('2026-04-12T15:00');
+    expect(ex.meeting!.datetime).toBeNull(); // the model's field is untouched
+  });
+  it('a day-first import resolves an ambiguous numeric promise date too', () => {
+    const ex = emptyExtraction({ promises: [promise({ due_raw: '12/04/2026', source_message_at: '2026-03-02T09:30', due_date: null })] });
+    resolveExtractionDates(ex, '2026-10-05', 'n1', { dayFirst: true });
+    expect(ex.promises[0]!.resolved_due_date).toBe('2026-04-12');
+  });
+  it('without day-first (voice/paste) an ambiguous numeric stays null', () => {
+    const ex = emptyExtraction({ promises: [promise({ due_raw: '12/04/2026', source_message_at: '2026-03-02T09:30', due_date: null })] });
+    resolveExtractionDates(ex, '2026-10-05', 'n1');
+    expect(ex.promises[0]!.resolved_due_date).toBeNull();
+  });
+});

@@ -77,6 +77,11 @@ export interface Meeting {
    *  no per-message timestamp — voice/paste). Optional: v0.9.4 output lacks them; v0.9.5 emits them. */
   source_span?: string | null;
   source_message_at?: string | null;
+  /** [P18-3] Deterministically resolved wall-clock "YYYY-MM-DDTHH:MM" from datetime_raw anchored to the
+   *  message (separate from the model's datetime, which is left untouched). The caller converts it to a
+   *  UTC instant in the rep's timezone. Null when the phrase can't be resolved without guessing. */
+  resolved_datetime?: string | null;
+  resolution?: DateResolution | null;
 }
 
 /** [POINTERS] Which section a pointer belongs to. The second section depends on the deal state (D6):

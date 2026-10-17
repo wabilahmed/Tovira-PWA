@@ -1,6 +1,6 @@
 import type { ModelClient } from '../../ports/model.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
-import { resolveDueDate } from '../extraction/resolve-date.js';
+import { resolveDueDate, extractClockTime, extractDatePhrase } from '../extraction/resolve-date.js';
 import { nameMentionedIn } from '../text/normalize-name.js';
 
 /**
@@ -25,34 +25,10 @@ interface Parsed {
   datetimeRaw: string;
 }
 
-/** [P16-1] Pull the date phrase out of free text so the P14-3 resolver (which expects a date phrase, not
- *  a whole sentence) can resolve it. Recognises today/tomorrow, a weekday (optionally this/next),
- *  "in N days|weeks", "end of month", and an explicit numeric/ISO date. Returns null when none is present;
- *  the resolver still decides what is actually resolvable (e.g. "next Thursday" → null). */
-function extractDatePhrase(text: string): string | null {
-  const re = /\b((?:this|next)\s+)?(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\bin\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:days?|weeks?)\b|\bend\s+of\s+(?:the\s+)?month\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/i;
-  const m = re.exec(text);
-  return m ? m[0] : null;
-}
+// [P18-3] extractDatePhrase + extractClockTime now live in resolve-date.ts (shared with the meeting
+// resolver) — imported above.
 
-/** [P16-1] Extract an EXPLICIT clock time ("3pm", "3:30pm", "15:00", "9 am") as "HH:MM". Returns null for
- *  anything ambiguous ("around four", "afternoon") — resolving those would be a guess, and a wrong time is
- *  worse than letting the rep pick it. Deterministic, no model. */
-function extractClockTime(text: string): string | null {
-  const ampm = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i.exec(text);
-  if (ampm) {
-    let h = Number(ampm[1]);
-    const m = ampm[2] ? Number(ampm[2]) : 0;
-    const pm = ampm[3]!.toLowerCase() === 'pm';
-    if (h < 1 || h > 12 || m > 59) return null;
-    if (h === 12) h = pm ? 12 : 0;
-    else if (pm) h += 12;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  }
-  const h24 = /\b([01]?\d|2[0-3]):([0-5]\d)\b/.exec(text);
-  if (h24) return `${h24[1]!.padStart(2, '0')}:${h24[2]}`;
-  return null;
-}
+// [P18-3] extractClockTime now lives in resolve-date.ts (shared with the meeting resolver) — imported above.
 
 export class MeetingParser {
   constructor(

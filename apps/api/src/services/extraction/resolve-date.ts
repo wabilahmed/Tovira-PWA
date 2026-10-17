@@ -16,7 +16,7 @@
  *   - "next <weekday>" (which week it means is ambiguous in English).
  * The original phrase is always preserved by the caller (due_raw / date_raw), so nothing is lost.
  */
-import type { ExtractedPromise, KeyDate } from './types.js';
+import type { ExtractedPromise, KeyDate, Meeting } from './types.js';
 import { normalizeName } from '../text/normalize-name.js';
 
 export type DateResolution = 'explicit' | 'relative';
@@ -71,27 +71,70 @@ function utcDate(y: number, mo1: number, d: number): Date | null {
   return dt;
 }
 
-/** Try to read a FULLY-SPECIFIED, UNAMBIGUOUS absolute date (needs no anchor). Null otherwise. */
-function tryExplicit(phrase: string): string | null {
+/** Try to read a FULLY-SPECIFIED absolute date (needs no anchor). Null otherwise. `dayFirst` (true for a
+ *  WhatsApp import, whose own timestamps are parsed day-first) lets an otherwise-ambiguous A/B/YYYY resolve
+ *  as DD/MM; without it, an ambiguous order stays null (no locale guess — the certified-prompt rule). */
+function tryExplicit(phrase: string, dayFirst = false): string | null {
   // ISO YYYY-MM-DD.
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(phrase);
   if (m) {
     const d = utcDate(Number(m[1]), Number(m[2]), Number(m[3]));
     return d ? iso(d) : null;
   }
-  // Numeric A/B/YYYY (slash, dot or dash). Resolve ONLY when the order is FORCED — exactly one of the two
-  // leading components is > 12. If both are <= 12 the day/month order is a locale guess → refuse (null).
+  // Numeric A/B/YYYY (slash, dot or dash).
   m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(phrase);
   if (m) {
     const a = Number(m[1]), b = Number(m[2]), y = Number(m[3]);
     const aIsDay = a > 12;  // a can only be a day
     const bIsDay = b > 12;  // b can only be a day
-    if (aIsDay === bIsDay) return null; // both forced the same way (both days, or both ambiguous) → refuse
-    const [day, month] = aIsDay ? [a, b] : [b, a];
+    let day: number, month: number;
+    if (aIsDay !== bIsDay) { [day, month] = aIsDay ? [a, b] : [b, a]; } // order forced by a >12 component
+    else if (!aIsDay && !bIsDay && dayFirst) { [day, month] = [a, b]; } // ambiguous, but the chat is day-first
+    else return null; // both >12 (impossible), or ambiguous with no day-order proof → refuse
     const d = utcDate(y, month, day);
     return d ? iso(d) : null;
   }
   return null;
+}
+
+/** [P16-1/P18-3] Extract an EXPLICIT clock time ("3pm", "3:30pm", "15:00", "9 am") as "HH:MM". Null for
+ *  anything ambiguous ("around four", "afternoon") — resolving those would guess, and a wrong time is
+ *  worse than letting the rep pick it. Deterministic, no model. */
+export function extractClockTime(text: string): string | null {
+  const ampm = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i.exec(text);
+  if (ampm) {
+    let h = Number(ampm[1]);
+    const mi = ampm[2] ? Number(ampm[2]) : 0;
+    const pm = ampm[3]!.toLowerCase() === 'pm';
+    if (h < 1 || h > 12 || mi > 59) return null;
+    if (h === 12) h = pm ? 12 : 0; else if (pm) h += 12;
+    return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+  }
+  const h24 = /\b([01]?\d|2[0-3]):([0-5]\d)\b/.exec(text);
+  if (h24) return `${h24[1]!.padStart(2, '0')}:${h24[2]}`;
+  return null;
+}
+
+/** [P16-1/P18-3] Pull the date phrase out of free text (a meeting raw is often a whole sentence, not a
+ *  clean token) so the resolver — which expects a date phrase — can resolve it. Recognises
+ *  today/tomorrow/weekday (optionally this/next), "in N days|weeks", "end of month", and numeric/ISO
+ *  dates. Null when none is present; the resolver still decides what is actually resolvable. */
+export function extractDatePhrase(text: string): string | null {
+  const re = /\b((?:this|next)\s+)?(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\bin\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:days?|weeks?)\b|\bend\s+of\s+(?:the\s+)?month\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/i;
+  const m = re.exec(text);
+  return m ? m[0] : null;
+}
+
+/** [P18-3] Resolve a MEETING phrase to a wall-clock "YYYY-MM-DDTHH:MM" (date phrase anchored to the
+ *  message + an explicit clock time), or null when either part can't be resolved without guessing. The
+ *  caller turns the wall clock into a UTC instant in the rep's timezone (zonedWallClockToInstant). */
+export function resolveDateTime(raw: string | null, sourceMessageAt: string | null, opts: { dayFirst?: boolean } = {}): { datetime: string | null; resolution: DateResolution | null } {
+  if (!raw || !raw.trim()) return { datetime: null, resolution: null };
+  const phrase = extractDatePhrase(raw);
+  const d = phrase ? resolveDueDate(phrase, sourceMessageAt, opts) : NONE;
+  const t = extractClockTime(raw);
+  if (d.date && t) return { datetime: `${d.date}T${t}`, resolution: d.resolution };
+  return { datetime: null, resolution: null };
 }
 
 /** Try to resolve a RELATIVE phrase against the anchor (the message day). Null when not a supported
@@ -141,7 +184,7 @@ function tryRelative(phrase: string, anchor: Date | null): string | null {
  * absolute dates resolve regardless of the anchor; relative phrases need the anchor. Returns
  * {date:null, resolution:null} whenever resolving would require a guess.
  */
-export function resolveDueDate(raw: string | null, sourceMessageAt: string | null): ResolvedDate {
+export function resolveDueDate(raw: string | null, sourceMessageAt: string | null, opts: { dayFirst?: boolean } = {}): ResolvedDate {
   if (!raw || !raw.trim()) return NONE;
   // Normalise: lowercase, drop a leading "by"/"on"/"due", a trailing time ("at 3pm", "3pm"), and
   // surrounding punctuation/whitespace. Ordinals ("3rd") are left intact so "March 3rd" still fails the
@@ -151,7 +194,7 @@ export function resolveDueDate(raw: string | null, sourceMessageAt: string | nul
   phrase = phrase.replace(/\s+\d{1,2}(:\d{2})?\s*(am|pm)$/i, '');       // strip a trailing bare "3pm"
   phrase = phrase.replace(/^(by|on|due(\s+on)?)\s+/i, '').replace(/[.,;!?]+$/g, '').trim();
 
-  const explicit = tryExplicit(phrase);
+  const explicit = tryExplicit(phrase, opts.dayFirst === true);
   if (explicit) return { date: explicit, resolution: 'explicit' };
 
   const relative = tryRelative(phrase, anchorDay(sourceMessageAt));
@@ -178,13 +221,15 @@ export function messageDay(sourceMessageAt: string | null): string | null {
  * them. The model's due_date is otherwise left untouched; surfacing prefers resolved_due_date.
  */
 export function resolveExtractionDates(
-  extraction: { promises: ExtractedPromise[]; key_dates: KeyDate[] },
+  extraction: { promises: ExtractedPromise[]; key_dates: KeyDate[]; meeting?: Meeting | null },
   fallbackAnchor: string,
   noteId: string,
-  log: (msg: string) => void = (m) => console.warn(m),
+  opts: { dayFirst?: boolean; log?: (msg: string) => void } = {},
 ): void {
+  const dayFirst = opts.dayFirst === true;
+  const log = opts.log ?? ((m: string) => console.warn(m));
   for (const p of extraction.promises) {
-    const r = resolveDueDate(p.due_raw ?? null, p.source_message_at ?? null);
+    const r = resolveDueDate(p.due_raw ?? null, p.source_message_at ?? null, { dayFirst });
     p.resolved_due_date = r.date;
     p.resolution = r.resolution;
     const anchor = messageDay(p.source_message_at ?? null) ?? fallbackAnchor;
@@ -197,9 +242,17 @@ export function resolveExtractionDates(
     }
   }
   for (const k of extraction.key_dates) {
-    const r = resolveDueDate(k.date_raw ?? null, k.source_message_at ?? null);
+    const r = resolveDueDate(k.date_raw ?? null, k.source_message_at ?? null, { dayFirst });
     k.resolved_date = r.date;
     k.resolution = r.resolution;
+  }
+  // [P18-3] The meeting gets the SAME deterministic resolver (date anchored to its message + a clock
+  // time), stored separately in resolved_datetime; the model's datetime/datetime_raw are left untouched.
+  const mtg = extraction.meeting;
+  if (mtg) {
+    const r = resolveDateTime(mtg.datetime_raw ?? null, mtg.source_message_at ?? null, { dayFirst });
+    mtg.resolved_datetime = r.datetime;
+    mtg.resolution = r.resolution;
   }
 }
 
