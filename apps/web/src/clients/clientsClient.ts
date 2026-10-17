@@ -85,7 +85,7 @@ export interface Stakeholder {
 
 export type ImportResult =
   | { ok: true; imported: number; ceilingReached?: boolean; duplicate?: boolean; pending?: boolean; truncated?: boolean }
-  | { ok: false; error: 'misfile'; message: string; counterparts: string[]; suggestion: { id: string; name: string } | null; needsRepIdentification?: boolean; participants?: string[]; group?: boolean; counterpart?: string | null }
+  | { ok: false; error: 'misfile'; message: string; counterparts: string[]; suggestion: { id: string; name: string } | null; needsRepIdentification?: boolean; participants?: string[]; group?: boolean; counterpart?: string | null; clientName?: string; messageCount?: number; dateFrom?: string | null; dateTo?: string | null }
   | { ok: false; error: 'ack_required'; message: string }
   | { ok: false; error: 'allowance' | 'payment'; message: string }
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
@@ -249,7 +249,7 @@ export class ClientsClient {
       // suggestion; the rep confirms (re-submit with misfileAck) or files elsewhere. Never blocked.
       // [AUDIT gap B] Carry the rep-identification fields the server sends (a two-speaker first import
       // needs the rep to say which speaker is the client) so the single importer can resolve it too.
-      const body = (await res.json().catch(() => ({}))) as { message?: string; counterparts?: string[]; suggestion?: { id: string; name: string } | null; needsRepIdentification?: boolean; participants?: string[]; group?: boolean; counterpart?: string | null };
+      const body = (await res.json().catch(() => ({}))) as { message?: string; counterparts?: string[]; suggestion?: { id: string; name: string } | null; needsRepIdentification?: boolean; participants?: string[]; group?: boolean; counterpart?: string | null; clientName?: string; messageCount?: number; dateFrom?: string | null; dateTo?: string | null };
       return {
         ok: false, error: 'misfile',
         message: body.message ?? 'This chat may be filed under the wrong client.',
@@ -259,6 +259,11 @@ export class ClientsClient {
         participants: body.participants ?? [],
         group: body.group ?? false,
         counterpart: body.counterpart ?? null,
+        // [P20-6] parts for the web-built mismatch copy (shared date formatter).
+        clientName: body.clientName,
+        messageCount: body.messageCount,
+        dateFrom: body.dateFrom ?? null,
+        dateTo: body.dateTo ?? null,
       };
     }
     if (res.status === 400) return { ok: false, error: 'consent', message: 'Please confirm consent to import.' };

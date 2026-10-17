@@ -3,9 +3,23 @@ import { useState } from 'react';
 import type { ImportResult } from '../clients/clientsClient.js';
 import { CeilingNotice } from './CeilingNotice.js';
 import { RepIdentification } from './RepIdentification.js';
+import { formatBody, formatRange } from '../format/dates.js';
 
 export interface ImportApi {
   importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string }, consent: boolean): Promise<ImportResult>;
+}
+
+/** [P20-6] The mismatch copy, built on the web so dates go through the SHARED formatter (never ISO):
+ *  with a suggested client → "This chat looks like it's with {who} ({N} messages · {date|range}), not
+ *  {client}."; with no suggestion → the short "This chat looks like it's with {who}, not {client}." */
+export function mismatchCopy(m: {
+  who: string; clientName: string; hasSuggestion: boolean; messageCount?: number; dateFrom?: string | null; dateTo?: string | null;
+}): string {
+  if (!m.hasSuggestion) return `This chat looks like it's with ${m.who}, not ${m.clientName}.`;
+  const dateBit = m.dateFrom ? (m.dateFrom === m.dateTo ? formatBody(m.dateFrom) : formatRange(m.dateFrom, m.dateTo ?? m.dateFrom)) : '';
+  const count = m.messageCount ?? 0;
+  const inner = [`${count} message${count === 1 ? '' : 's'}`, dateBit].filter(Boolean).join(' · ');
+  return `This chat looks like it's with ${m.who} (${inner}), not ${m.clientName}.`;
 }
 
 /** Base64-encode raw file bytes in chunks (spreading a whole Uint8Array into fromCharCode
@@ -30,12 +44,16 @@ export function ImportChat({
   clientId,
   api,
   onImported,
+  onOpenClient,
   initialContent = '',
   initialContentBase64 = '',
 }: {
   clientId: string;
   api: ImportApi;
   onImported: (count: number) => void;
+  /** [P20-6] Open a client by id — used by the "Imported to X · Open" toast after filing to the
+   *  suggested client. Absent → the toast shows without an Open action. */
+  onOpenClient?: (clientId: string) => void;
   /** Prefill text (e.g. a chat shared as text via the Android share-target). */
   initialContent?: string;
   /** Prefill file bytes (e.g. a .zip shared via the Android share-target). */
@@ -72,7 +90,9 @@ export function ImportChat({
     reader.readAsArrayBuffer(file);
   }
 
-  const [misfile, setMisfile] = useState<{ message: string; suggestion: { id: string; name: string } | null; needsRepIdentification: boolean; participants: string[] } | null>(null);
+  const [misfile, setMisfile] = useState<{ message: string; suggestion: { id: string; name: string } | null; needsRepIdentification: boolean; participants: string[]; counterpart: string | null; clientName?: string; messageCount?: number; dateFrom?: string | null; dateTo?: string | null } | null>(null);
+  // [P20-6] After "Import to X" (to the suggested client), a toast "Imported to X · Open".
+  const [importedTo, setImportedTo] = useState<{ id: string; name: string } | null>(null);
   // [AUDIT gap B] A two-speaker first import asks which speaker is the client; the rep picks it here.
   const [repChoice, setRepChoice] = useState<string | null>(null);
   // [AUDIT gap A] First-ever import: the server asks the rep to acknowledge their right to upload.
@@ -80,11 +100,12 @@ export function ImportChat({
 
   // [P14-4c] targetClientId lets the rep file the chat under the client it actually matches (the misfile
   // suggestion), not only the one on screen. Defaults to the open client.
-  async function doImport(ack: boolean, firstImportAck = false, confirm?: { counterpart: string }, targetClientId: string = clientId): Promise<void> {
+  async function doImport(ack: boolean, firstImportAck = false, confirm?: { counterpart: string }, targetClientId: string = clientId, targetClientName?: string): Promise<void> {
     setBusy(true);
     setError(null);
     setCeilingCount(null);
     setNotice(null);
+    setImportedTo(null);
     setFirstAck(null); // [IMP-09/13] once this attempt resolves (incl. to an error), the right-to-upload prompt clears
     // Only attach optional acks when set, so the common payload shape stays { content, misfileAck }.
     const meta: { misfileAck: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string; fileName?: string } = { misfileAck: ack };
@@ -115,11 +136,13 @@ export function ImportChat({
       // the scan, show the reassuring notice here too (the timeline shows it per
       // note). Either way the timeline refreshes via onImported.
       else if (result.ceilingReached) setCeilingCount(result.imported);
+      // [P20-6] Filed to the SUGGESTED client (a different one than on screen) → confirmation toast.
+      if (targetClientName && targetClientId !== clientId) setImportedTo({ id: targetClientId, name: targetClientName });
       onImported(result.imported);
     } else if (result.error === 'misfile') {
       // MISFILE-DETECT: confirm, never block. Show the suggestion; the rep continues anyway or
       // files under the right client from the client screen. We never auto-reassign.
-      setMisfile({ message: result.message, suggestion: result.suggestion, needsRepIdentification: result.needsRepIdentification ?? false, participants: result.participants ?? [] });
+      setMisfile({ message: result.message, suggestion: result.suggestion, needsRepIdentification: result.needsRepIdentification ?? false, participants: result.participants ?? [], counterpart: result.counterpart ?? null, clientName: result.clientName, messageCount: result.messageCount, dateFrom: result.dateFrom ?? null, dateTo: result.dateTo ?? null });
     } else if (result.error === 'ack_required') {
       // [AUDIT gap A] First import — show the right-to-upload notice and let the rep proceed, instead
       // of the old generic "Import failed." (the 428 body carries `notice`, not `message`).
@@ -176,6 +199,13 @@ export function ImportChat({
 
       {error && <p role="alert" style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
       {notice && <p role="status" style={{ color: 'var(--text-secondary)', margin: 0 }}>{notice}</p>}
+      {/* [P20-6] "Imported to X · Open" after filing to the suggested client (same toast as move Undo). */}
+      {importedTo && (
+        <div role="status" data-testid="import-toast" className="lead-toast">
+          <span>Imported to {importedTo.name}</span>
+          {onOpenClient && <button type="button" onClick={() => onOpenClient(importedTo.id)}>Open</button>}
+        </div>
+      )}
       {ceilingCount !== null && <CeilingNotice imported={ceilingCount} />}
 
       {firstAck && (
@@ -212,12 +242,16 @@ export function ImportChat({
         // Confirm, never block. The rep continues here, or cancels and files it under the right
         // client from the clients screen. Tovira never moves it on its own.
         <div role="alert" style={{ border: '1px solid var(--claret)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
-          <span>{misfile.message}</span>
+          {/* [P20-6] Build the copy from parts with the shared date formatter (never ISO); fall back to
+              the server message only if the parts are missing (old payload). */}
+          <span>{misfile.clientName
+            ? mismatchCopy({ who: misfile.counterpart ?? misfile.participants[0] ?? 'this contact', clientName: misfile.clientName, hasSuggestion: !!misfile.suggestion, messageCount: misfile.messageCount, dateFrom: misfile.dateFrom, dateTo: misfile.dateTo })
+            : misfile.message}</span>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {/* [P14-4c] When the chat matches ANOTHER existing client, offer to file it THERE — the right
                 place — not only "here anyway". This re-imports to the matched client's id. */}
             {misfile.suggestion && (
-              <button type="button" onClick={() => misfile.suggestion && void doImport(true, false, undefined, misfile.suggestion.id)} disabled={busy}>
+              <button type="button" onClick={() => misfile.suggestion && void doImport(true, false, undefined, misfile.suggestion.id, misfile.suggestion.name)} disabled={busy}>
                 {busy ? 'Importing…' : `Import to ${misfile.suggestion.name}`}
               </button>
             )}

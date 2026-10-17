@@ -445,6 +445,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               onOpenLeadSheet={() => setStatusSheetFor(open)}
               timeZone={session.user.timezone}
               billingStatus={billing?.status}
+              onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }}
             />
             <LeadStatusSheet client={statusSheetFor} onClose={() => setStatusSheetFor(null)} onPick={(s) => void changeLeadStatus(statusSheetFor!, s)} />
           </>
@@ -701,7 +702,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -715,7 +716,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone, billingStatus }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
@@ -878,6 +879,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
                 setShowImport(false);
                 refresh();
               }}
+              onOpenClient={onOpenClient}
             />
           </div>
         )}

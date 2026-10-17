@@ -460,8 +460,6 @@ export async function handleNoteRoute(
         // Soft, non-accusatory copy with what parsing already knows — so the rep decides on facts.
         const who = detection.counterpart ?? detection.counterparts[0] ?? 'this contact';
         const dates = messageDateRange(parsed.messages);
-        const span = dates ? `, ${fresh.length} messages from ${dates.from} to ${dates.to}` : `, ${fresh.length} messages`;
-        const suggest = detection.suggestion ? ` (looks like ${detection.suggestion.name})` : '';
         // [ALIAS-FIRST-IMPORT] On the very first import the rep's own WhatsApp name isn't known yet,
         // so a two-speaker chat can't be resolved by elimination (counterpart is null). Tell the UI to
         // ask which speaker is the rep — otherwise the alias can never be learned (the chicken-and-egg).
@@ -474,9 +472,16 @@ export async function handleNoteRoute(
           suggestion: detection.suggestion,
           group: detection.group,
           needsRepIdentification,
+          // [P20-6] Structured parts so the WEB builds the copy with the shared date formatter (never ISO):
+          // "This chat looks like it's with {who} ({N} messages · {date-or-range}), not {client}."
+          clientName: client.name,
+          messageCount: fresh.length,
+          dateFrom: dates?.from ?? null,
+          dateTo: dates?.to ?? null,
+          // Fallback copy (no ISO) for the rep-id ask + any non-web client.
           message: needsRepIdentification
             ? `This chat has two people — ${detection.counterparts.join(' and ')}. Which one is ${client.name}? (the other is you)`
-            : `This chat is with ${who}${span}${suggest} — is that ${client.name}?`,
+            : `This chat looks like it's with ${who}, not ${client.name}.`,
         });
         return true;
       }

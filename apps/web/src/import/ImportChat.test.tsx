@@ -1,11 +1,36 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ImportChat, type ImportApi } from './ImportChat.js';
+import { ImportChat, mismatchCopy, type ImportApi } from './ImportChat.js';
 
 function makeApi(result: Awaited<ReturnType<ImportApi['importWhatsApp']>>): ImportApi & { importWhatsApp: ReturnType<typeof vi.fn> } {
   return { importWhatsApp: vi.fn().mockResolvedValue(result) };
 }
+
+// [P20-6] A mismatch result carrying the structured parts the server now sends.
+const misfileResult = (over: Record<string, unknown> = {}): Awaited<ReturnType<ImportApi['importWhatsApp']>> => ({
+  ok: false, error: 'misfile', message: 'fallback', counterparts: ['QA Enter Key Client'], suggestion: { id: 'x', name: 'QA Enter Key Client' },
+  counterpart: 'QA Enter Key Client', clientName: 'QA P14 Gate Client', messageCount: 2, dateFrom: '2026-03-07', dateTo: '2026-03-07', ...over,
+});
+
+describe('[P20-6] mismatchCopy', () => {
+  it('names the counterpart, count and a single date when start == end, not ISO', () => {
+    expect(mismatchCopy({ who: 'QA Enter Key Client', clientName: 'QA P14 Gate Client', hasSuggestion: true, messageCount: 2, dateFrom: '2026-03-07', dateTo: '2026-03-07' }))
+      .toBe("This chat looks like it's with QA Enter Key Client (2 messages · 7 Mar 2026), not QA P14 Gate Client.");
+  });
+  it('shows a date RANGE when start != end', () => {
+    expect(mismatchCopy({ who: 'Nord', clientName: 'Acme', hasSuggestion: true, messageCount: 5, dateFrom: '2026-03-05', dateTo: '2026-03-07' }))
+      .toBe("This chat looks like it's with Nord (5 messages · 5 Mar – 7 Mar 2026), not Acme.");
+  });
+  it('uses the short form with NO suggestion', () => {
+    expect(mismatchCopy({ who: 'Nord', clientName: 'Acme', hasSuggestion: false }))
+      .toBe("This chat looks like it's with Nord, not Acme.");
+  });
+  it('singularises one message', () => {
+    expect(mismatchCopy({ who: 'Nord', clientName: 'Acme', hasSuggestion: true, messageCount: 1, dateFrom: '2026-03-07', dateTo: '2026-03-07' }))
+      .toContain('(1 message · 7 Mar 2026)');
+  });
+});
 
 describe('<ImportChat>', () => {
   it('renders the file input, paste box, consent checkbox and submit button', () => {
@@ -36,6 +61,32 @@ describe('<ImportChat>', () => {
     await waitFor(() => expect(onImported).toHaveBeenCalledWith(5));
     // the second call carried the first-import acknowledgement
     expect(importWhatsApp.mock.calls[1]![1]).toMatchObject({ firstImportAck: true });
+  });
+
+  // [P20-6] A mismatch shows the new copy (formatted date, never ISO); "Import to X" then toasts
+  // "Imported to X · Open", and Open opens that client.
+  it('[P20-6] shows the mismatch copy and, after "Import to X", a toast whose Open opens that client', async () => {
+    const user = userEvent.setup();
+    const importWhatsApp = vi.fn()
+      .mockResolvedValueOnce(misfileResult())
+      .mockResolvedValueOnce({ ok: true, imported: 3 });
+    const onOpenClient = vi.fn();
+    render(<ImportChat clientId="c1" api={{ importWhatsApp }} onImported={vi.fn()} onOpenClient={onOpenClient} />);
+    await user.type(screen.getByLabelText(/pasted chat export/i), 'a real chat export');
+    await user.click(screen.getByLabelText(/consent to import/i));
+    await user.click(screen.getByRole('button', { name: /^import chat$/i }));
+
+    // the new copy, with a formatted date and no ISO
+    expect(await screen.findByText(/looks like it's with QA Enter Key Client \(2 messages · 7 Mar 2026\), not QA P14 Gate Client\./i)).toBeInTheDocument();
+    expect(screen.queryByText(/2026-03-07/)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /import to QA Enter Key Client/i }));
+    const toast = await screen.findByTestId('import-toast');
+    expect(toast).toHaveTextContent(/imported to QA Enter Key Client/i);
+    // the re-import targeted the suggested client's id
+    expect(importWhatsApp.mock.calls[1]![0]).toBe('x');
+    await user.click(within(toast).getByRole('button', { name: /open/i }));
+    expect(onOpenClient).toHaveBeenCalledWith('x');
   });
 
   // [IMP-09/13] Once an error is showing, the right-to-upload prompt is cleared (not left alongside it).

@@ -299,13 +299,17 @@ describe('[MISFILE-DETECT] a chat filed under the wrong client', () => {
     const meridian = await createClient(token, 'Meridian');
     const res = await importChat(token, meridian, { content: AHMED_CHAT, consent: true });
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: string; counterpart: string | null; counterparts: string[]; suggestion: { name: string } | null; message: string };
+    const body = (await res.json()) as { error: string; counterpart: string | null; counterparts: string[]; suggestion: { name: string } | null; message: string; clientName: string; messageCount: number; dateFrom: string | null; dateTo: string | null };
     expect(body.error).toBe('confirm_counterpart');
     expect(body.counterpart).toBe('Ahmed');
     expect(body.suggestion?.name).toBe('Ahmed');
-    // Soft, non-accusatory copy that asks — not "this looks wrong".
-    expect(body.message).toMatch(/is that Meridian/i);
-    expect(body.message).not.toMatch(/wrong|looks like it's with/i);
+    // [P20-6] Soft copy that names the counterpart; the server fallback is ISO-free, and the structured
+    // parts let the web build the full "(N messages · date)" line with the shared formatter.
+    expect(body.message).toBe('This chat looks like it\'s with Ahmed, not Meridian.');
+    expect(body.message).not.toMatch(/wrong/i);
+    expect(body.clientName).toBe('Meridian');
+    expect(body.messageCount).toBeGreaterThan(0);
+    expect(body.dateFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/); // date-only; the web formats it, never shows ISO
     // NEVER stored, NEVER extracted: nothing under Meridian, so zero model spend on a maybe-misfile.
     const notes = await listNotes(token, meridian);
     expect(notes.filter((n) => n.source === 'whatsapp_export')).toHaveLength(0);
