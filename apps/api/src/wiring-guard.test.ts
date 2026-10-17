@@ -113,6 +113,41 @@ describe('[WIRING-GUARD] every model call routes through the metered sink', () =
     const gated = (f!.content.match(/new GatedModelClient\(/g) ?? []).length;
     expect(gated, `container builds ${anthropic} AnthropicModelClient but only ${gated} GatedModelClient — an unmetered-against-allowance (ungated) client lets extraction bypass the spend cap`).toBeGreaterThanOrEqual(anthropic);
   });
+
+  // [P16-1 / WIRING-GUARD] Wrapping a client in GatedModelClient is NOT the same as gating the ROUTE.
+  // The gate only enforces the ALLOWANCE + kill-switch; a trial-less account still has its AED 60
+  // allowance, so the reservation succeeds and the model runs unless the ROUTE first checks ENTITLEMENT.
+  // /meetings/parse called a (properly gated) model with no such check and so served unentitled reps —
+  // the metered/gated guards above could never catch it (the client WAS wrapped). This inventory does:
+  // every request route that can reach a model must enforce entitlement at the route (requireEntitled,
+  // or canRunAi for a capture-safe fallback), or queue to the sweep (gated by the sweep's canRunAi).
+  // A new model route added without a gate fails here. PROVEN by mutation: drop canRunAi from
+  // meetings-routes.ts (the pre-P16-1 state) and this fails.
+  const MODEL_REACHING_ROUTES: Array<{ route: string; file: string; gate: 'requireEntitled' | 'canRunAi' | 'sweep' }> = [
+    { route: 'POST /meetings/parse', file: 'http/meetings-routes.ts', gate: 'canRunAi' },          // capture: model if entitled, else deterministic
+    { route: 'POST /recall', file: 'http/recall-routes.ts', gate: 'requireEntitled' },
+    { route: 'POST /notes/:id/follow-up', file: 'http/notes-routes.ts', gate: 'requireEntitled' },
+    { route: 'POST /notes/:id/transcribe', file: 'http/notes-routes.ts', gate: 'requireEntitled' },
+    { route: 'POST /import/bulk', file: 'http/bulk-import-routes.ts', gate: 'requireEntitled' },
+    { route: 'POST /clients/:id/notes/import', file: 'http/notes-routes.ts', gate: 'sweep' },       // queues pending_extraction → sweep
+    { route: 'POST /notes/:id/extract', file: 'http/notes-routes.ts', gate: 'sweep' },              // queues → sweep
+  ];
+
+  it('every model-reaching request route enforces the entitlement gate (or queues to the gated sweep)', () => {
+    const files = new Map(nonTestFiles().map((f) => [f.rel, f.content] as const));
+    const offenders: string[] = [];
+    for (const r of MODEL_REACHING_ROUTES) {
+      const content = [...files].find(([rel]) => rel.endsWith(r.file))?.[1];
+      if (!content) { offenders.push(`${r.route}: ${r.file} not found`); continue; }
+      if (r.gate === 'sweep') continue; // the route only queues; the sweep's canRunAi is guarded separately
+      // Require the gate to be CALLED (`gate(`), not merely imported — an unused import must not pass.
+      if (!content.includes(`${r.gate}(`)) offenders.push(`${r.route}: ${r.file} does not call ${r.gate}(...)`);
+    }
+    // The two sweep-queued routes rely on the async sweep's canRunAi (see the P14-1 sweep guard).
+    const idx = files.get('index.ts') ?? '';
+    expect(idx.includes('canRunAi'), 'the async sweep gate (canRunAi) must exist for the queued routes').toBe(true);
+    expect(offenders, `model-reaching routes missing an entitlement gate:\n${offenders.join('\n')}`).toEqual([]);
+  });
 });
 
 describe('[WIRING-GUARD] every registered emitter is reachable in production', () => {

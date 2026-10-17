@@ -161,7 +161,7 @@ async function safeVal<T>(fn: () => Promise<T>): Promise<T | null> {
  * can never ship dark.
  */
 let gate: AiGate | null = null;
-export function setAiGate(g: AiGate): void {
+export function setAiGate(g: AiGate | null): void {
   gate = g;
 }
 export function currentAiGate(): AiGate | null {

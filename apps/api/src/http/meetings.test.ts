@@ -4,6 +4,9 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { MeetingParser } from '../services/meetings/meeting-parser.js';
+import { BillingService } from '../services/billing/billing-service.js';
+import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../adapters/billing/in-memory.js';
+import { StubStripeGateway } from '../adapters/billing/stub-stripe.js';
 import type { ModelClient } from '../ports/model.js';
 
 let server: Server;
@@ -243,6 +246,53 @@ describe('[NUDGE-TZ] a wall-clock meeting time is resolved in the rep\'s timezon
     expect(((await put.json()) as { timezone: string }).timezone).toBe('Europe/London');
     me = (await (await fetch(`${base}/me`, { headers: auth(token) })).json()) as { user: { timezone: string } };
     expect(me.user.timezone).toBe('Europe/London');
+  });
+});
+
+// [P16-1] /meetings/parse is capture — never 402. A rep who can't run AI gets the DETERMINISTIC parse
+// (zero model calls); an entitled rep gets the model. Own server so we can lapse the trial + spy the model.
+describe('[P16-1] /meetings/parse falls back deterministically when the rep is not entitled', () => {
+  let srv: Server; let b: string; let d: TestDeps;
+  const subs = new InMemorySubscriptionRepository();
+  const spy = { calls: 0 };
+  beforeAll(async () => {
+    const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
+    d = buildInMemoryDeps({ billing });
+    d.meetingParser = new MeetingParser({ complete: async () => { spy.calls++; return { text: '{"clientName":"Meridian","datetime":"2026-07-14T15:00","datetimeRaw":"next Tuesday 3pm"}' }; } }, d.clients);
+    srv = createApiServer(d);
+    await new Promise<void>((r) => srv.listen(0, r));
+    b = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+  });
+  afterAll(async () => { await new Promise<void>((r) => srv.close(() => r())); });
+
+  async function mkUser(email: string): Promise<{ token: string; userId: string }> {
+    const res = await fetch(`${b}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'password123' }) });
+    const j = (await res.json()) as { token: string; user: { id: string } };
+    return { token: j.token, userId: j.user.id };
+  }
+  const parse = (token: string, text: string) => fetch(`${b}/meetings/parse`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+
+  it('NOT entitled: zero model calls, and "tomorrow 3pm" still resolves', async () => {
+    const { token, userId } = await mkUser('mtg-lapsed@example.com');
+    await fetch(`${b}/clients`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Meridian' }) });
+    (await subs.get(userId))!.trialEndsAt = Date.now() - 1000; // lapse → status trial_expired, not entitled
+    spy.calls = 0;
+    const res = await parse(token, 'meeting with Meridian tomorrow 3pm');
+    expect(res.status).toBe(200); // capture never 402
+    const r = (await res.json()) as { kind: string; datetime?: string };
+    expect(spy.calls).toBe(0);                 // NO model call for an unentitled rep
+    expect(r.kind).toBe('proposal');
+    expect(r.datetime).toMatch(/T15:00$/);     // "tomorrow 3pm" resolved deterministically
+    expect(r.datetime).not.toBe('2026-07-14T15:00'); // and NOT the (never-called) model's fixed answer
+  });
+
+  it('entitled (in trial): the model runs', async () => {
+    const { token } = await mkUser('mtg-trial@example.com');
+    await fetch(`${b}/clients`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Meridian' }) });
+    spy.calls = 0;
+    const res = await parse(token, 'meeting with Meridian next Tuesday 3pm');
+    expect(res.status).toBe(200);
+    expect(spy.calls).toBe(1); // entitled → the model is consulted
   });
 });
 

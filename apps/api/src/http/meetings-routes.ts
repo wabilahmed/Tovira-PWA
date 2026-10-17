@@ -6,6 +6,8 @@ import type { MeetingParser } from '../services/meetings/meeting-parser.js';
 import type { CorrectionRepository } from '../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../ports/extraction-log-repository.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
+import { canRunAi } from '../services/billing/billing-access.js';
+import type { BillingState } from '../ports/billing.js';
 import { zonedTodayIso, zonedWallClockToInstant } from '../services/time/zone.js';
 import { recordVerdict } from '../services/facts/verdict.js';
 import type { Verdict } from '../ports/correction-repository.js';
@@ -21,6 +23,10 @@ export interface MeetingRouteDeps {
    *  judge, and without these deps meeting routes behave exactly as before. */
   corrections?: CorrectionRepository;
   extractionLog?: ExtractionLogRepository;
+  /** [P16-1] Entitlement source for the parse route. Logging a meeting is capture (never blocked); when
+   *  the rep can't run AI we parse deterministically instead of calling the model. Optional — without it
+   *  the route behaves as before (model path), for older harnesses. */
+  billing?: { entitlement(userId: string, nowMs: number): Promise<{ entitled: boolean; billingState: BillingState }> };
 }
 
 const CREATE_FOR_CLIENT_RE = /^\/clients\/([^/]+)\/meetings$/;
@@ -87,7 +93,17 @@ export async function handleMeetingRoute(
       }
       // NUDGE-TZ: resolve "tomorrow 3pm" against the REP's today, not the server's.
       const tz = await deps.auth.timezoneFor(userId);
-      sendJson(res, 200, await deps.parser.parse(userId, text, zonedTodayIso(tz)));
+      const today = zonedTodayIso(tz);
+      // [P16-1] Logging a meeting is CAPTURE — never blocked. When the rep can run AI, parse with the
+      // model (through the gated client → reserve/settle moves the meter). When they can't (no trial /
+      // lapsed / payment paused), DON'T 402 — fall back to the deterministic parser (no model call); the
+      // rep fills any gap with the normal date/time picker. canRunAi is the same predicate the sweep uses.
+      const ent = deps.billing ? await deps.billing.entitlement(userId, Date.now()) : null;
+      const useModel = ent ? canRunAi(ent) : true; // no billing wired → model path (unchanged behaviour)
+      const result = useModel
+        ? await deps.parser.parse(userId, text, today)
+        : await deps.parser.parseDeterministic(userId, text, today);
+      sendJson(res, 200, result);
       return true;
     }
 

@@ -428,6 +428,7 @@ export function createApiServer(deps: ApiDeps): Server {
           clients: deps.clients,
           meetings: deps.meetings,
           parser: deps.meetingParser,
+          billing: deps.billing, // [P16-1] capture-friendly gate: model when entitled, deterministic when not
           corrections: deps.corrections,
           extractionLog: deps.extractionLog,
         })
