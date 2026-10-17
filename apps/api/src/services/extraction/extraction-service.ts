@@ -12,6 +12,7 @@ import type { Meeting, Requirement, DealState, Pointer } from './types.js';
 import type { ClientRecord } from '../../ports/client-repository.js';
 import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
 import { checkPointers } from './pointer-postcheck.js';
+import { dropNonVerbatimSpans } from './receipt-postcheck.js';
 import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from './pointer-prompt.js';
 import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
@@ -416,6 +417,11 @@ export class ExtractionService {
         const aliases = await this.aliasesFor(userId, note.clientId).catch(() => [] as string[]);
         normaliseCounterpart(extraction, client?.name ?? '', aliases);
       }
+      // [P18-8] Deterministic write-time backstop: a receipt span must be a VERBATIM excerpt of the text
+      // the model saw. Drop any span that isn't (a paraphrased/fabricated receipt is as serious as a
+      // fabricated fact, Rule 9) — the fact is kept, only its unverifiable span is nulled.
+      const droppedSpans = dropNonVerbatimSpans(extraction, safeText);
+      if (droppedSpans > 0) console.info(`[receipt-verbatim] note ${noteId}: dropped ${droppedSpans} non-verbatim receipt span(s)`);
       // [HEALTH-EXCLUSION] Deterministic write-time backstop for Rule 7 (a model rule can slip, a
       // write-time check cannot — same doctrine as DATE-INVARIANT below): drop any personal_fact the
       // model tagged `health`, WHOLE, before it is stored — structured health is per-run zero regardless
