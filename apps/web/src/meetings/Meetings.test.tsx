@@ -69,6 +69,30 @@ describe('<Meetings>', () => {
     await waitFor(() => expect(api.createForClient).toHaveBeenCalledWith('c1', expect.objectContaining({ datetimeRaw: 'Tue 3pm' })));
   });
 
+  // [P18-4] A meeting time is a UTC instant over the wire (the server resolves the wall-clock on the
+  // rep's zone and returns .toISOString()). The list must render it in the rep's timezone through the
+  // one shared formatter — NEVER the raw ISO string.
+  it('[P18-4] shows the meeting time in the rep timezone, never a raw ISO instant', async () => {
+    const m: Meeting = { id: 'm9', clientId: 'c1', datetime: '2026-10-14T18:23:00.000Z', datetimeRaw: 'Wed evening', title: 'Review', confirmed: true, createdAt: 1 };
+    render(<Meetings api={makeApi({ list: vi.fn().mockResolvedValue([m]) })} clients={clients} timeZone="Asia/Dubai" />);
+    const row = await screen.findByTestId('meeting');
+    expect(row).toHaveTextContent('14 Oct 2026, 22:23'); // 18:23Z → 22:23 in Dubai (+4)
+    expect(row).not.toHaveTextContent('2026-10-14T18:23'); // the raw instant must never reach the rep
+  });
+
+  // [P18-4] The confirm preview also formats the resolved instant (keeps the raw phrase as provenance).
+  it('[P18-4] the proposal preview formats the resolved instant, keeping the raw phrase', async () => {
+    const user = userEvent.setup();
+    const api = makeApi({ parse: vi.fn().mockResolvedValue({ kind: 'proposal', clientId: 'c1', clientName: 'Acme', datetime: '2026-10-14T18:23:00.000Z', datetimeRaw: 'Wed evening' }) });
+    render(<Meetings api={api} clients={clients} timeZone="Asia/Dubai" />);
+    await user.type(screen.getByLabelText(/describe the meeting/i), 'meeting with Acme Wed evening');
+    await user.click(screen.getByRole('button', { name: /parse/i }));
+    const preview = await screen.findByTestId('meeting-preview');
+    expect(preview).toHaveTextContent(/wed evening/i);          // the raw phrase stays
+    expect(preview).toHaveTextContent('14 Oct 2026, 22:23');    // resolved instant, formatted in rep tz
+    expect(preview).not.toHaveTextContent('2026-10-14T18:23');  // never the raw instant
+  });
+
   // NEGATIVE: an unparseable description shows an error and no preview.
   it('shows an error when parsing fails', async () => {
     const user = userEvent.setup();

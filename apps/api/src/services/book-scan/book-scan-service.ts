@@ -88,6 +88,14 @@ function isoDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+/** [P18-4] The leading YYYY-MM-DD of a message timestamp, read positionally (a timezone can't drift the
+ *  day). Null when there's no date-like value to read, so the caller falls back to the note's date. */
+function dayOf(iso: string | null): string | null {
+  if (!iso) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(iso.trim());
+  return m ? m[1]! : null;
+}
+
 function snippet(text: string, max = 140): string {
   const t = text.trim();
   return t.length <= max ? t : `${t.slice(0, max).trimEnd()}…`;
@@ -181,18 +189,18 @@ export class BookScanService {
       // Going cold: quiet past the threshold AND we have a note to quote as a receipt.
       if (c.lastTouchedAt < coldCutoff && clientNotes.length > 0) {
         const last = clientNotes[0]!;
-        const lastText =
-          last.messages && last.messages.length > 0
-            ? last.messages[last.messages.length - 1]!.body
-            : last.rawText ?? '';
+        const lastMsg = last.messages && last.messages.length > 0 ? last.messages[last.messages.length - 1]! : null;
+        const lastText = lastMsg ? lastMsg.body : last.rawText ?? '';
         if (lastText.trim()) {
           items.push({
             kind: 'going_cold',
             id: c.id, // one going-quiet finding per client; the client id is its stable, unique key
-            clientId: c.id,
             clientName: c.name,
+            clientId: c.id,
             headline: `${c.name} has gone quiet — worth a nudge?`,
-            receipt: { quote: snippet(lastText), date: isoDate(last.createdAt) },
+            // [P18-4] Date the receipt by the quoted MESSAGE, not the note's createdAt — for an imported
+            // chat createdAt is the import date, not when the thread actually went quiet.
+            receipt: { quote: snippet(lastText), date: dayOf(lastMsg?.sentAt ?? null) ?? isoDate(last.createdAt) },
             framing: 'informational',
           });
         }

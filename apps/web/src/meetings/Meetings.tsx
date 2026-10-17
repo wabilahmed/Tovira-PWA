@@ -1,6 +1,7 @@
 import { hapticTick } from '../haptics.js';
 import { useEffect, useState } from 'react';
 import type { Meeting, ParseResult } from './meetingsClient.js';
+import { formatDateTime } from '../format/dates.js';
 
 export interface MeetingsApi {
   list(): Promise<Meeting[]>;
@@ -21,7 +22,7 @@ export interface ClientOption {
 }
 
 /** Meetings (P3-1): add via natural language, CONFIRMED before saving, plus list. */
-export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; clients: ClientOption[]; onCreateClient?: (name: string) => Promise<ClientOption> }): JSX.Element {
+export function Meetings({ api, clients, onCreateClient, timeZone }: { api: MeetingsApi; clients: ClientOption[]; onCreateClient?: (name: string) => Promise<ClientOption>; timeZone?: string }): JSX.Element {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [text, setText] = useState('');
   const [result, setResult] = useState<ParseResult | null>(null);
@@ -179,7 +180,7 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
         <div data-testid="meeting-preview" className="tov-deal" style={box}>
           <p style={{ margin: 0 }}>
             <strong>Meeting</strong> — {proposal.datetimeRaw}
-            {proposal.datetime ? ` (${proposal.datetime})` : ' (time unconfirmed)'}
+            {proposal.datetime ? ` (${formatDateTime(proposal.datetime, timeZone)})` : ' (time unconfirmed)'}
           </p>
           <label>
             With{' '}
@@ -229,7 +230,7 @@ export function Meetings({ api, clients, onCreateClient }: { api: MeetingsApi; c
           {meetings.map((m) => (
             <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
               <span style={{ minWidth: 0, flex: '1 1 12rem' }}>
-                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small className="tov-stamp">{m.datetime ?? m.datetimeRaw}</small>
+                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small className="tov-stamp">{m.datetime ? formatDateTime(m.datetime, timeZone) : m.datetimeRaw}</small>
                 {m.confirmed === false && (
                   <span style={{ color: 'var(--amber)', marginLeft: '0.5rem' }}> · unconfirmed — is this right?</span>
                 )}

@@ -13,6 +13,19 @@ describe('<PointersCard>', () => {
     expect(screen.getByText(/offer the marina unit/i)).toBeInTheDocument();
   });
 
+  // [P18-4] A receipt's date is the SOURCE MESSAGE date, and it must be formatted — never a raw ISO string.
+  it('[P18-4] shows the message date formatted on a receipt, never a raw ISO timestamp', () => {
+    const { container } = render(
+      <PointersCard
+        clientName="Layla"
+        pointers={[P({ text: 'follow up on pricing', receipts: [{ source_span: 'see you Tuesday', source_message_at: '2026-03-05T09:00:00.000Z' }] })]}
+        disclosure={null}
+      />,
+    );
+    expect(container.textContent).toContain('5 MAR 2026');            // the message date, formatted
+    expect(container.textContent).not.toContain('2026-03-05T09:00');  // not the raw ISO timestamp
+  });
+
   it('labels an inferred pointer', () => {
     render(<PointersCard clientName="Layla" pointers={[P({ text: 'seemed irritated when pushed', inferred: true })]} disclosure={null} />);
     expect(screen.getByText(/our read/i)).toBeInTheDocument();

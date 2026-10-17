@@ -556,6 +556,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <Meetings
           api={meetingsApi}
           clients={clients.map((c) => ({ id: c.id, name: c.name }))}
+          timeZone={session.user.timezone}
           onCreateClient={async (name) => {
             const created = await clientsApi.create(name);
             setClients((prev) => [created, ...prev]);

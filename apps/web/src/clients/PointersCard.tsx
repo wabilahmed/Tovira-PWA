@@ -1,3 +1,5 @@
+import { formatStamp } from '../format/dates.js';
+
 /**
  * [POINTERS · D8/D9] The pointers card — shown in the client thread after a chat import and in the
  * pre-meeting brief. Renders the exact template: a relationship section, then one deal-state-dependent
@@ -57,7 +59,7 @@ function PointerGroup({ heading, pointers }: { heading: string; pointers: Pointe
                 <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.85em' }}>why</summary>
                 <ul style={{ margin: '0.15rem 0 0', paddingLeft: '1rem' }}>
                   {p.receipts.map((r, j) => (
-                    <li key={j} style={{ color: 'var(--text-secondary)', fontSize: '0.85em' }}>&ldquo;{r.source_span}&rdquo;{r.source_message_at ? ` — ${r.source_message_at}` : ''}</li>
+                    <li key={j} style={{ color: 'var(--text-secondary)', fontSize: '0.85em' }}>&ldquo;{r.source_span}&rdquo;{r.source_message_at ? ` — ${formatStamp(r.source_message_at)}` : ''}</li>
                   ))}
                 </ul>
               </details>

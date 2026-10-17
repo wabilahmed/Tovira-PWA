@@ -28,6 +28,15 @@ describe('<PromisesTracker>', () => {
     expect(screen.getAllByTestId('open-promise')).toHaveLength(2);
   });
 
+  // [P18-4] When a promise has BOTH a resolved due date and the raw phrase it came from, show both —
+  // the resolved date for action, the phrase for provenance ("5 Mar 2026 · from 'by Thursday'").
+  it('[P18-4] shows the resolved due date AND the raw phrase it was resolved from', async () => {
+    render(<PromisesTracker api={makeApi([p('p1', 'ship the samples', { dueDate: '2026-03-05', dueRaw: 'by Thursday' })])} />);
+    const row = await screen.findByTestId('open-promise');
+    expect(row).toHaveTextContent(/due 5 Mar 2026/);
+    expect(row).toHaveTextContent(/from .?by Thursday.?/i); // "from '…'" with either quote glyph
+  });
+
   it('[PROMISE-STALE] keeps stale promises out of the active list + count, behind a filter', async () => {
     render(<PromisesTracker api={makeApi([p('p1', 'active quote'), p('p2', 'ancient thing', { stale: true, dueDate: '2025-01-01' })])} />);
     // active list shows only the non-stale one

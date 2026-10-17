@@ -88,6 +88,27 @@ describe('BookScanService (P5-3b)', () => {
     expect(report.items.some((i) => i.kind === 'going_cold' && i.clientId === cold.id)).toBe(true);
   });
 
+  // [P18-4] A receipt must carry the SOURCE MESSAGE date, not the import date. For an imported chat the
+  // note row is created at import time (≈ now), but the quoted message is from months earlier — the
+  // receipt must read as the message's own date.
+  it('[P18-4] dates a going-cold receipt by the last MESSAGE, not the import date', async () => {
+    const c = await clients.create(USER, 'Nord');
+    await notes.create(USER, {
+      clientId: c.id,
+      source: 'whatsapp_export',
+      rawText: 'thread',
+      audioKey: null,
+      status: 'extracted',
+      messages: [{ sentAt: '2026-01-02T08:30:00.000Z', sender: 'Nord', body: 'let me think about it', media: false, role: 'client' }],
+    });
+    // Scan far in the future so the client is past the cold line; the note's createdAt is ≈ now (import).
+    const report = await scan.scan(USER, Date.now() + 100 * DAY);
+    const cold = report.items.find((i) => i.kind === 'going_cold' && i.clientId === c.id)!;
+    expect(cold).toBeTruthy();
+    expect(cold.receipt.quote).toContain('let me think about it');
+    expect(cold.receipt.date).toBe('2026-01-02'); // the message's date — NOT isoDate(createdAt) ≈ today
+  });
+
   it('includes an upcoming date within the window and excludes past/far ones', async () => {
     const c = await clients.create(USER, 'Acme');
     await facts.saveExtraction(USER, {

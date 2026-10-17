@@ -146,7 +146,12 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
 }
 
 function due(p: OpenPromise): string {
-  if (p.dueDate) return `· due ${formatBody(p.dueDate)}`;
+  // [P18-4] Show the resolved date for action AND, when present, the raw phrase it came from for
+  // provenance ("· due 5 Mar 2026 · from 'by Thursday'") — the rep can see what Tovira read it from.
+  if (p.dueDate) {
+    const base = `· due ${formatBody(p.dueDate)}`;
+    return p.dueRaw ? `${base} · from “${p.dueRaw}”` : base;
+  }
   if (p.dueRaw) return `· ${p.dueRaw}`;
   return '· no date';
 }
