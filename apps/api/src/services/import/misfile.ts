@@ -222,15 +222,21 @@ export function detectMisfilePostExtraction(input: PostMisfileInput): PostMisfil
   const people = input.notePeople.map((p) => p.trim()).filter(Boolean);
   if (people.length === 0) return { status: 'ok' }; // nothing to reason from
 
-  // Any overlap with the filed client → correctly filed (the conservative gate).
-  if (anyNameMatch(people, input.filedClientOtherPeople)) return { status: 'ok' };
+  // [P18-7] Match a note's mentions against each client's NAME as well as the people on its record — the
+  // obvious misfile is a note whose counterpart is another client A, named by A's own (company) name,
+  // which may be in nobody's people list. The filed client's own name likewise counts as overlap.
+  const filedPool = [input.filedClient.name, ...input.filedClientOtherPeople].map((s) => s.trim()).filter(Boolean);
+  const poolOf = (c: { name: string; people: string[] }): string[] => [c.name, ...c.people].map((s) => s.trim()).filter(Boolean);
+
+  // Any overlap with the filed client (its people OR its own name) → correctly filed (conservative gate).
+  if (anyNameMatch(people, filedPool)) return { status: 'ok' };
 
   // Zero overlap with B. Only flag if the mentions positively land on another client A.
-  const matched = input.others.filter((c) => anyNameMatch(people, c.people));
+  const matched = input.others.filter((c) => anyNameMatch(people, poolOf(c)));
   if (matched.length === 0) return { status: 'ok' };
 
   const to = matched.length === 1 ? { id: matched[0]!.id, name: matched[0]!.name } : null;
-  const mentioned = people.filter((n) => matched.some((c) => c.people.some((p) => nameMatches(n, p))));
+  const mentioned = people.filter((n) => matched.some((c) => poolOf(c).some((p) => nameMatches(n, p))));
   const whose = to ? `${to.name}'s` : `another client's`;
   const list = mentioned.length ? mentioned.join(' and ') : 'people';
   return { status: 'suggest_move', to, mentioned, reason: `This note mentions ${list}, who are on ${whose} record. Move it?` };

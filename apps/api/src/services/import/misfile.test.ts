@@ -232,6 +232,33 @@ describe('[MISFILE-POST] detectMisfilePostExtraction (voice notes, content-only)
     expect(r.status).toBe('ok');
   });
 
+  // [P18-7] The obvious misfile: a note filed under B whose counterpart is another client A — named by
+  // A's own (company) name, which may not be in anyone's PEOPLE list. Match against client NAMES too.
+  it('[P18-7] suggests a move when the note names another client by its company name', () => {
+    const r = detectMisfilePostExtraction({
+      notePeople: ['Nord'], // the note's counterpart is the client "Nord"
+      filedClient: { id: 'acme', name: 'Acme' },
+      filedClientOtherPeople: ['Hassan'], // Acme's people — no "Nord"
+      others: [{ id: 'nord', name: 'Nord', people: [] }], // Nord has no people on record yet
+    });
+    expect(r.status).toBe('suggest_move');
+    if (r.status !== 'suggest_move') return;
+    expect(r.to).toEqual({ id: 'nord', name: 'Nord' });
+    expect(r.mentioned).toContain('Nord');
+  });
+
+  // [P18-7] The filed client's OWN name counts as overlap — a note that names the client it's filed
+  // under is correctly filed, even if it also mentions another client's person.
+  it('[P18-7] no suggestion when the note names the filed client itself', () => {
+    const r = detectMisfilePostExtraction({
+      notePeople: ['Acme', 'Sarah'],
+      filedClient: { id: 'acme', name: 'Acme' },
+      filedClientOtherPeople: [],
+      others: [{ id: 'nord', name: 'Nord', people: ['Sarah'] }],
+    });
+    expect(r.status).toBe('ok'); // names the filed client → correctly filed, no move suggestion
+  });
+
   it('names the mentioned people without a single suggestion when several other clients match', () => {
     const r = detectMisfilePostExtraction({
       notePeople: ['Sarah'],

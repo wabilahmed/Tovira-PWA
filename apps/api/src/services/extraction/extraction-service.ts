@@ -241,12 +241,16 @@ export class ExtractionService {
       return [...out];
     };
     const filedOther = namesOf(await this.notes.listByClient(userId, clientId), noteId);
-    const otherClients = (await this.clients.listByUser(userId)).filter((c) => c.id !== clientId);
+    const allClients = await this.clients.listByUser(userId);
+    const filedName = allClients.find((c) => c.id === clientId)?.name ?? '';
+    const otherClients = allClients.filter((c) => c.id !== clientId);
     const others: Array<{ id: string; name: string; people: string[] }> = [];
     for (const c of otherClients) {
       others.push({ id: c.id, name: c.name, people: namesOf(await this.notes.listByClient(userId, c.id)) });
     }
-    const result = detectMisfilePostExtraction({ notePeople, filedClient: { id: clientId, name: '' }, filedClientOtherPeople: filedOther, others });
+    // [P18-7] Pass the filed client's real name so a note naming the client it's filed under counts as
+    // overlap (correctly filed), and so a note naming another client by NAME is caught as a misfile.
+    const result = detectMisfilePostExtraction({ notePeople, filedClient: { id: clientId, name: filedName }, filedClientOtherPeople: filedOther, others });
     const suggestion = result.status === 'suggest_move'
       ? { toClientId: result.to?.id ?? null, toClientName: result.to?.name ?? null, mentioned: result.mentioned, reason: result.reason, createdAt: this.now() }
       : null;
