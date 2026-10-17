@@ -106,6 +106,18 @@ describe('[WIRING-GUARD] every model call routes through the metered sink', () =
   // never reserved against the AED allowance — the allowance never ran down and never refused. Every
   // AnthropicModelClient the container builds must be wrapped in BOTH MeteredModelClient and
   // GatedModelClient; a metered-only client is an unbounded-cost hole.
+  // [P17-SSL / WIRING-GUARD] A one-off script runs against prod RDS, which REQUIRES TLS. A raw
+  // `new pg.Pool({ connectionString })` omits the ssl config the API's createPool adds, so the script
+  // dies with "no pg_hba.conf entry … no encryption" (hit by backfill-trials in prod). Every script must
+  // get its connection from the shared createPool (src/db/pool.ts) so TLS/CA are identical to the API.
+  it('no script constructs a raw pg Pool/Client — they must use the shared createPool', () => {
+    const offenders = nonTestFiles()
+      .filter((f) => /(^|\/)scripts\//.test(f.rel))
+      .filter((f) => /new\s+(pg\.)?(Pool|Client)\s*\(/.test(f.content))
+      .map((f) => f.rel);
+    expect(offenders, `scripts must use createPool(src/db/pool.ts), not a raw pg Pool/Client:\n${offenders.join('\n')}`).toEqual([]);
+  });
+
   it('every model client in the container is also allowance-gated (GatedModelClient), not just metered', () => {
     const f = nonTestFiles().find((x) => x.rel.endsWith('container.ts'));
     expect(f, 'container.ts not found').toBeTruthy();

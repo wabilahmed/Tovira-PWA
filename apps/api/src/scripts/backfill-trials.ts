@@ -28,8 +28,8 @@
  *   Apply:     DATABASE_URL=… npx tsx apps/api/src/scripts/backfill-trials.ts --apply
  *   One acct:  DATABASE_URL=… npx tsx apps/api/src/scripts/backfill-trials.ts --only <userId> [--apply]
  */
-import pg from 'pg';
 import { pathToFileURL } from 'node:url';
+import { createPool } from '../db/pool.js';
 import { DEFAULT_TRIAL_DAYS } from '../config.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -129,7 +129,9 @@ async function main(): Promise<void> {
   const excludeUserIds = new Set<string>([...DEFAULT_EXCLUDE_USER_IDS, ...envList('BACKFILL_EXCLUDE_IDS')]);
   const excludeEmails = new Set<string>([...DEFAULT_EXCLUDE_EMAILS, ...envList('BACKFILL_EXCLUDE_EMAILS')].map((e) => e.toLowerCase()));
 
-  const pool = new pg.Pool({ connectionString: url });
+  // [P17-SSL] Use the SAME pool factory the API uses — it enables TLS for RDS (local stays plain), so a
+  // script never fails with "no pg_hba.conf entry … no encryption" the way a raw new pg.Pool did.
+  const pool = createPool(url);
   try {
     // With --only, fetch JUST that account so the dry run shows only it (no "not named by --only" noise).
     const { rows } = await pool.query<{ id: string; email: string; created_at: Date; accepted_at: Date | null; has_subscription: boolean }>(
