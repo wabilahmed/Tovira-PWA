@@ -11,7 +11,7 @@ describe('[P23-A2] cache-write tier breakdown', () => {
       content: [{ type: 'text', text: 'ok' }],
       usage: { input_tokens: 5, output_tokens: 2, cache_creation_input_tokens: 900, cache_creation: { ephemeral_5m_input_tokens: 300, ephemeral_1h_input_tokens: 600 } },
     }), { status: 200 })));
-    const res = await new AnthropicModelClient({ apiKey: 'k', baseUrl: 'http://api.test', model: 'claude-sonnet-5-5' }).complete({ messages: [{ role: 'user', content: 'x' }] });
+    const res = await new AnthropicModelClient({ apiKey: 'k', baseUrl: 'http://api.test', model: 'claude-sonnet-5-5', effort: 'low' }).complete({ messages: [{ role: 'user', content: 'x' }] });
     expect(res.usage?.cacheCreationInputTokens).toBe(900);
     expect(res.usage?.cacheCreation5mInputTokens).toBe(300);
   });

@@ -5,6 +5,7 @@
  * actionable error — never a silent crash or a half-up service.
  */
 
+import { EFFORTS, type Effort, type ThinkingMode } from './adapters/model/capabilities.js';
 import type { CacheTtl } from './ports/model.js';
 import { CONTACT_EMAIL } from './services/email/contact.js';
 
@@ -114,6 +115,13 @@ export interface AppConfig {
    * all other classes=Haiku by default; each overridable via MODEL_<CLASS>.
    */
   models: Record<AiTaskClass, string>;
+  /** [P23-A2] Explicit effort for 5.5 models: extraction (EFFORT_EXTRACT) and every other class
+   *  (EFFORT_AUX). Ignored by models without explicit effort (Sonnet 5, Haiku 4.5 — unchanged). */
+  effortExtract: Effort;
+  effortAux: Effort;
+  /** [P23-A2] Aux thinking on models that can turn it off (Haiku 5.5): 'disabled' (default — the aux
+   *  tasks are short answers/classifications, and thinking would eat their small max_tokens) or 'adaptive'. */
+  auxThinking: ThinkingMode;
   /** Prompt-cache lifetime for the extraction system prefix. '1h' by default
    *  (survives longer gaps between captures); set EXTRACTION_CACHE_TTL=5m to
    *  switch to the cheaper-write 5-minute tier. */
@@ -287,10 +295,13 @@ export function loadConfig(env: Env = process.env): AppConfig {
     // full recall but GUESSED a date that should have been null — it fails the
     // "never guess a date" trust rule. Sonnet 5 passed clean (0 fabricated,
     // 0 guessed). Extraction defaults to Sonnet; override with ANTHROPIC_MODEL.
-    anthropicModel: env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5',
+    anthropicModel: env.MODEL_EXTRACT?.trim() || env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5',
     // [EXTRACT-TIMEOUT] 30s aborted reasoning extractions (measured 63s / 98s) — raised to 300s.
     modelTimeoutMs: parsePositive(env.MODEL_TIMEOUT_MS, 300_000, 'MODEL_TIMEOUT_MS'),
     models: resolveModels(env),
+    effortExtract: parseEnum(env.EFFORT_EXTRACT, EFFORTS, 'low', 'EFFORT_EXTRACT'),
+    effortAux: parseEnum(env.EFFORT_AUX, EFFORTS, 'low', 'EFFORT_AUX'),
+    auxThinking: parseEnum(env.AUX_THINKING, ['adaptive', 'disabled'] as const, 'disabled', 'AUX_THINKING'),
     extractionCacheTtl: parseEnum(env.EXTRACTION_CACHE_TTL, CACHE_TTLS, '1h', 'EXTRACTION_CACHE_TTL'),
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
     storageBackend: env.STORAGE_BACKEND?.trim() === 's3' ? 's3' : 'fs',
@@ -495,8 +506,9 @@ export function describeAdapters(config: AppConfig): Record<'model' | 'embedder'
  * overrides a single class with no code change and beats the family default.
  */
 function resolveModels(env: Env): Record<AiTaskClass, string> {
-  const extractionModel = env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5';
-  const haikuModel = env.HAIKU_MODEL?.trim() || 'claude-haiku-4-5-20251001';
+  // [P23-A2] MODEL_EXTRACT / MODEL_AUX are the family switches; the older names still work beneath them.
+  const extractionModel = env.MODEL_EXTRACT?.trim() || env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-5';
+  const haikuModel = env.MODEL_AUX?.trim() || env.HAIKU_MODEL?.trim() || 'claude-haiku-4-5-20251001';
   const out = {} as Record<AiTaskClass, string>;
   for (const cls of AI_TASK_CLASSES) {
     const family = cls === 'extraction' ? extractionModel : haikuModel;

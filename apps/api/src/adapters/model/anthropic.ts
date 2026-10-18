@@ -5,6 +5,7 @@ import {
   type ModelCompletionRequest,
   type ModelCompletionResponse,
 } from '../../ports/model.js';
+import { modelCapabilities, type Effort, type ThinkingMode } from './capabilities.js';
 
 /** Anthropic beta flag required to use the 1-hour prompt-cache TTL. */
 const EXTENDED_CACHE_TTL_BETA = 'extended-cache-ttl-2025-04-11';
@@ -14,6 +15,10 @@ export interface AnthropicModelClientOptions {
   baseUrl: string;
   model: string;
   timeoutMs?: number;
+  /** [P23-A2] Sent as output_config.effort to models that take it explicitly (required for 5.5). */
+  effort?: Effort;
+  /** [P23-A2] 'disabled' is sent only where the model accepts it (Haiku 5.5 at ≤ high effort). */
+  thinking?: ThinkingMode;
 }
 
 interface AnthropicResponseBody {
@@ -51,7 +56,23 @@ function buildSystem(system: string | undefined, cache: boolean | undefined, ttl
  * with a controlled message — callers never see raw undici/errno internals.
  */
 export class AnthropicModelClient implements ModelClient {
-  constructor(private readonly opts: AnthropicModelClientOptions) {}
+  constructor(private readonly opts: AnthropicModelClientOptions) {
+    // [P23-A2] A 5.5 model at the API's default effort would think (and bill) far more than measured.
+    if (modelCapabilities(opts.model).explicitEffort && !opts.effort) {
+      throw new Error(`model ${opts.model} needs an explicit effort (EFFORT_EXTRACT / EFFORT_AUX)`);
+    }
+  }
+
+  /** [P23-A2] The model-specific request fields: effort, thinking and (only where accepted) temperature. */
+  private modelFields(request: ModelCompletionRequest): Record<string, unknown> {
+    const caps = modelCapabilities(this.opts.model);
+    const out: Record<string, unknown> = {};
+    if (caps.explicitEffort && this.opts.effort) out.output_config = { effort: this.opts.effort };
+    const effortAllowsDisable = this.opts.effort !== 'xhigh' && this.opts.effort !== 'max';
+    if (this.opts.thinking === 'disabled' && caps.canDisableThinking && effortAllowsDisable) out.thinking = { type: 'disabled' };
+    if (caps.sampling && request.temperature !== undefined) out.temperature = request.temperature;
+    return out;
+  }
 
   /** The model id this client sends to the API — exposed for routing assertions. */
   get modelId(): string {
@@ -80,7 +101,7 @@ export class AnthropicModelClient implements ModelClient {
           max_tokens: request.maxTokens ?? 1024,
           system: buildSystem(request.system, request.cacheSystemPrompt, request.cacheTtl),
           messages: request.messages,
-          ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+          ...this.modelFields(request),
         }),
         signal: controller.signal,
       });

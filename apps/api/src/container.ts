@@ -265,11 +265,26 @@ export function createRecallService(
  * extraction cacheable prefix stays byte-identical and Haiku/Sonnet keep
  * separate caches. Defaults to `extraction` (Sonnet) for backward compatibility.
  */
+/** [P23-A2] The adapter options for one task class: extraction runs at EFFORT_EXTRACT with adaptive
+ *  thinking; every other class at EFFORT_AUX with AUX_THINKING. Models without explicit effort (Sonnet 5,
+ *  Haiku 4.5) ignore both, so today's requests are unchanged. */
+export function anthropicOptionsFor(config: AppConfig, taskClass: AiTaskClass, model: string) {
+  const extraction = taskClass === 'extraction';
+  return {
+    apiKey: config.anthropicApiKey ?? '',
+    baseUrl: config.anthropicBaseUrl,
+    model,
+    timeoutMs: config.modelTimeoutMs,
+    effort: extraction ? config.effortExtract : config.effortAux,
+    ...(extraction ? {} : { thinking: config.auxThinking }),
+  };
+}
+
 export function createModelClient(config: AppConfig, taskClass: AiTaskClass = 'extraction'): ModelClient {
   const model = config.models[taskClass];
   const inner: ModelClient =
     config.modelProvider === 'anthropic'
-      ? new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model, timeoutMs: config.modelTimeoutMs })
+      ? new AnthropicModelClient(anthropicOptionsFor(config, taskClass, model))
       : new StubModelClient();
   // CACHE-1: meter every call's cache outcome per task class (→ /health, observability).
   // [USAGE-ALLOWANCE] then GATE it (outermost): every complete() reserves against the allowance before
@@ -626,10 +641,11 @@ export function createExtractionModelRouter(
   // was metered-only, so extraction recorded spend but NEVER reserved — the allowance never ran down and
   // never refused, so the spend cap did not bound extraction (the dominant cost). The started-chat
   // allowance bypass still works: claimAndExtract passes forceReserve, which GatedModelClient honours.
+  const trialModel = config.anthropicModel.startsWith('claude-sonnet-') ? config.anthropicModel : 'claude-sonnet-5';
   const make = (model: string) =>
     new GatedModelClient(
       new MeteredModelClient(
-        new AnthropicModelClient({ apiKey: config.anthropicApiKey ?? '', baseUrl: config.anthropicBaseUrl, model, timeoutMs: config.modelTimeoutMs }),
+        new AnthropicModelClient(anthropicOptionsFor(config, 'extraction', model)),
         'extraction',
         model,
       ),
@@ -638,7 +654,9 @@ export function createExtractionModelRouter(
   return new BillingModelRouter(
     statusOf,
     { model: make(config.anthropicModel), modelId: config.anthropicModel },
-    { model: make('claude-sonnet-5'), modelId: 'claude-sonnet-5' },
+    // P5-7: trial accounts always get Sonnet-grade extraction. [P23-A2] That is the configured extraction
+    // model when it is a Sonnet (so a switch to Sonnet 5.5 covers trials too), else Sonnet 5 as before.
+    { model: make(trialModel), modelId: trialModel },
   );
 }
 
