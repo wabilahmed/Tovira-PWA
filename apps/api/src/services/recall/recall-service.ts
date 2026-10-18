@@ -9,6 +9,7 @@ import type { RecallMetrics } from '../metrics/recall-metrics.js';
 import type { RecallMessage, RecallSessionRepository } from '../../ports/recall-session-repository.js';
 import type { StatementDetector } from './statement-detector.js';
 import type { AskCaptureService } from './ask-capture-service.js';
+import type { StructuredQuery } from './structured-recall.js';
 import { callCostUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { estimateTokens } from '../extraction/prompt.js';
 
@@ -79,13 +80,15 @@ function isoDate(ms: number): string {
 }
 
 /** Keep receipts whose cumulative excerpt tokens stay within `budget`; always keep at least the
- *  first (the closest match) so a huge single note still yields a grounded, bounded answer. */
+ *  first (the closest match) so a huge single note still yields a grounded, bounded answer. [P21-A1] A
+ *  receipt that doesn't fit is skipped, not a full stop — the short structured rows after a long note
+ *  still get their place. */
 function capByTokenBudget(receipts: Receipt[], budget: number): Receipt[] {
   const kept: Receipt[] = [];
   let used = 0;
   for (const r of receipts) {
     const cost = estimateTokens(`(${r.date}) ${r.quote}`);
-    if (kept.length > 0 && used + cost > budget) break;
+    if (kept.length > 0 && used + cost > budget) continue;
     kept.push(r);
     used += cost;
   }
@@ -163,7 +166,7 @@ export class RecallService {
     /** [P18-5] Structured cross-client retrieval — a bounded digest of the rep's promises/meetings/key
      *  dates across ALL clients, merged with the vector matches so aggregate questions are answerable.
      *  Optional — recall is vector-only (single-client-ish) without it. */
-    private readonly structured?: { forUser(userId: string, nowMs: number): Promise<Receipt[]> },
+    private readonly structured?: { forUser(userId: string, nowMs: number, query?: StructuredQuery): Promise<Array<Receipt & { matched?: boolean }>> },
   ) {}
 
   /** [ASK-CAPTURE] Detect whether the rep's turn stated a fact about a client and, if so, route it
@@ -240,10 +243,17 @@ export class RecallService {
     // with the vector matches. Vector receipts come FIRST so they win the token budget for a specific
     // question; the structured digest fills the remainder, which is what lets an aggregate cross-client
     // question ("what have I promised, and to whom?") be answered at all. Never breaks the answer.
-    const structuredReceipts = this.structured ? await this.structured.forUser(userId, nowMs).catch(() => [] as Receipt[]) : [];
+    // [P21-A1] Rows that share content words with the question (a requirement, an unanswered question,
+    // a person…) are short, precise receipts — they go FIRST so a long vector note can't crowd them out.
+    const structuredRows = this.structured
+      ? await this.structured.forUser(userId, nowMs, { question, restriction }).catch(() => [] as Array<Receipt & { matched?: boolean }>)
+      : [];
+    const strip = ({ matched: _m, ...r }: Receipt & { matched?: boolean }): Receipt => r;
+    const matchedRows = structuredRows.filter((r) => r.matched).map(strip);
+    const digestRows = structuredRows.filter((r) => !r.matched).map(strip);
     // [RECALL-TOPK] top-k caps the vector ITEM count (the DB LIMIT); this caps the total TOKEN budget so
     // a few long notes (or a long structured digest) can't blow up the context. Always at least the top.
-    const receipts = capByTokenBudget([...relevant.map(toReceipt), ...structuredReceipts], this.config.maxRetrievalTokens);
+    const receipts = capByTokenBudget([...matchedRows, ...relevant.map(toReceipt), ...digestRows], this.config.maxRetrievalTokens);
 
     let answer: string;
     if (receipts.length === 0) {

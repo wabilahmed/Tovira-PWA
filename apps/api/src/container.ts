@@ -245,6 +245,8 @@ export function createRecallService(
    *  can answer aggregate questions over the whole book, not just one semantic note match. */
   facts?: FactsRepository,
   meetings?: MeetingRepository,
+  /** [P21-A1] open requirements across clients (people/facts/unanswered come from `notes`). */
+  requirements?: RequirementRepository,
 ): RecallService {
   // Detection runs on the cheap recall model (Haiku); it only classifies (statement vs question),
   // never extracts. The capture pipeline routes a detected statement to the CERTIFIED engine.
@@ -253,7 +255,7 @@ export function createRecallService(
     ? async (userId: string) => (await clients.listByUser(userId)).map((c) => ({ id: c.id, name: c.name }))
     : undefined;
   // [P18-5] Structured cross-client retrieval (promises/meetings/key dates across all clients).
-  const structured = facts && meetings && clients ? new StructuredRecall({ facts, meetings, clients }) : undefined;
+  const structured = facts && meetings && clients ? new StructuredRecall({ facts, meetings, clients, requirements, notes }) : undefined;
   return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, allowanceExhausted, restriction, structured);
 }
 
