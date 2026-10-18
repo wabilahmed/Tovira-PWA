@@ -216,7 +216,8 @@ export class RecallService {
       const today = new Date(nowMs).toISOString().slice(0, 10);
       const pending = await this.capture.capture(userId, matches[0]!.id, det.text, today);
       return { status: 'captured', statement: det.text, clientName: matches[0]!.name, noteId: pending?.noteId, summary: captureSummary(det.text, matches[0]!.name) };
-    } catch {
+    } catch (err) {
+      console.warn(`[ask-capture] capture failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`);
       return undefined; // capture must never break the answer
     }
   }
@@ -247,8 +248,11 @@ export class RecallService {
         answer: `Saved for confirmation: ${summary}`,
         capture: { status: 'captured', statement: turn, clientName: named[0]!.name, noteId: pending.noteId, summary },
       };
-    } catch {
-      return undefined; // capture must never break Ask
+    } catch (err) {
+      // capture must never break Ask — but it must never fail SILENTLY either (a DB constraint rejected
+      // every capture in prod for weeks behind this catch).
+      console.warn(`[ask-capture] explicit capture failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`);
+      return undefined;
     }
   }
 

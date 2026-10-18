@@ -257,4 +257,22 @@ suite('[DEPLOY-READY] migrations apply against real Postgres', () => {
     expect(await requests.get(oldActivated)).not.toBeNull();
     expect(await requests.get(oldInvited)).not.toBeNull();
   });
+
+  // [P21-R1 / FEAT-06] Ask capture inserts source 'ask_conversation'; notes_source_check (0020) only allowed
+  // voice/paste/whatsapp_export, so every capture failed on Postgres while the in-memory store accepted it.
+  it('notes accepts EVERY NoteSource value the app writes, incl. ask_conversation (FEAT-06)', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const uid = (await client.query(`INSERT INTO users (email, password_hash, referral_code) VALUES ('src@x.com', 'h', 'rc-src') RETURNING id`)).rows[0].id as string;
+      const cid = (await client.query(`INSERT INTO clients (user_id, name) VALUES ($1, 'QA Sara Khan') RETURNING id`, [uid])).rows[0].id as string;
+      for (const source of ['voice', 'paste', 'whatsapp_export', 'ask_conversation']) {
+        await client.query(`INSERT INTO notes (user_id, client_id, source, raw_text, status) VALUES ($1, $2, $3, 'x', 'pending_confirmation')`, [uid, cid, source]);
+      }
+      await expect(client.query(`INSERT INTO notes (user_id, client_id, source, raw_text, status) VALUES ($1, $2, 'bogus', 'x', 'extracted')`, [uid, cid])).rejects.toThrow(/notes_source_check/);
+    } finally {
+      await client.query('ROLLBACK').catch(() => undefined);
+      client.release();
+    }
+  });
 });
