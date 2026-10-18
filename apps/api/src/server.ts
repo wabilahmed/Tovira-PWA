@@ -52,6 +52,8 @@ import type { NoteMoveService } from './services/import/note-move-service.js';
 import type { ContactAliasRepository, RepNameRepository } from './ports/contact-alias-repository.js';
 import type { ImportAckRepository } from './ports/import-ack-repository.js';
 import { handleFactsRoute } from './http/facts-routes.js';
+import { handleKeptSuggestionRoute } from './http/kept-suggestion-routes.js';
+import type { KeptSuggestionService } from './services/promises/kept-suggestion-service.js';
 import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
 import { handleInsightsRoute } from './http/insights-routes.js';
@@ -144,6 +146,8 @@ export interface ApiDeps {
   account: AccountService;
   activation: ActivationService;
   bookScan: BookScanService;
+  /** [P24-2] "Looks like you sent it — Mark done?" suggestions (To Confirm). */
+  keptSuggestions: KeptSuggestionService;
   /** [POINTERS] per-client relationship/closing pointer store — read for the thread card (D8). */
   clientPointers?: ClientPointerRepository;
   /** [BULK-IMPORT] multi-file chat import: local parse + review + parallel per-chat extraction. */
@@ -410,6 +414,7 @@ export function createApiServer(deps: ApiDeps): Server {
         })
       )
         return;
+      if (await handleKeptSuggestionRoute(request, response, { auth: deps.auth, keptSuggestions: deps.keptSuggestions })) return;
       if (
         await handleFactsRoute(request, response, {
           auth: deps.auth,

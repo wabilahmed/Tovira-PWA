@@ -6,8 +6,9 @@ import type { LongChatExpected, ExpectedPromise } from './fixtures.js';
  * duplicates, promise status, and the B5 pass bar (budget + final decision date + main requirement found,
  * no duplicates, promise status correct).
  *
- * A promise counts as KEPT when the extraction marks it (`kept_at`, set by the windowed merge) — the
- * single-pass engine has no such field, so a fulfilled promise it returns stays OPEN, which is wrong.
+ * [P24-2] A kept promise is never auto-completed: its status is right when it is still OPEN and carries a
+ * "looks sent — confirm" suggestion (`suggested` = the promise texts with an open suggestion, lower-cased).
+ * An expected OPEN/broken promise must have no suggestion.
  */
 export interface TypeRecall { found: number; expected: number }
 export interface LongChatScore {
@@ -77,7 +78,7 @@ function promiseMatches(e: ExpectedPromise, x: Extraction['promises'][number]): 
   return keywordsMatch(e.match, `${x.text} ${x.due_raw ?? ''}`) && x.owner === e.owner;
 }
 
-export function scoreLongChat(expected: LongChatExpected, actual: Extraction): LongChatScore {
+export function scoreLongChat(expected: LongChatExpected, actual: Extraction, suggested: ReadonlySet<string> = new Set()): LongChatScore {
   const misses: string[] = [];
   let duplicates = 0;
 
@@ -91,8 +92,8 @@ export function scoreLongChat(expected: LongChatExpected, actual: Extraction): L
     pFound += 1;
     const due = p.resolved_due_date ?? p.due_date;
     if (due === e.due) pDate += 1; else misses.push(`promise "${e.match}" due ${due ?? 'null'} ≠ ${e.due ?? 'null'}`);
-    const kept = Boolean((p as { kept_at?: string | null }).kept_at);
-    if ((e.status === 'kept') === kept) pStatus += 1; else misses.push(`promise "${e.match}" should be ${e.status}, is ${kept ? 'kept' : 'open'}`);
+    const kept = suggested.has(lc(p.text));
+    if ((e.status === 'kept') === kept) pStatus += 1; else misses.push(`promise "${e.match}" should be ${e.status === 'kept' ? 'suggested as sent' : e.status}, is ${kept ? 'suggested as sent' : 'open, no suggestion'}`);
   }
 
   // Requirements (the main need) — and duplicate requirements (same normalised text).

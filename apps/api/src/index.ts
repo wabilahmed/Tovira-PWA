@@ -12,6 +12,7 @@ import { AccessRequestRetentionService, ACCESS_REQUEST_RETENTION_DAYS } from './
 import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/audio-retention-service.js';
 import { BulkImportService } from './services/import/bulk-import-service.js';
 import { BulkBatchNotifier } from './services/import/bulk-batch-notifier.js';
+import { KeptSuggestionService } from './services/promises/kept-suggestion-service.js';
 import { BulkBatchRetentionService, BULK_BATCH_TTL_MS } from './services/import/bulk-batch-retention.js';
 import { BulkUpsellService } from './services/import/bulk-upsell.js';
 import { bulkConcurrency } from './services/import/bulk-extraction.js';
@@ -45,6 +46,7 @@ import {
   createTranscriptionService,
   createFactsRepository,
   createExtractionService,
+  createKeptSuggestionRepository,
   createExtractionModelRouter,
   createRecallService,
   createRecallSessionRepository,
@@ -312,7 +314,9 @@ async function main(): Promise<void> {
   // surfacing/model path, so a restricted counterparty is withheld everywhere from a single source.
   const erasureRequestRepo = createErasureRequestRepository(config, appPool);
   const restriction = createRestrictionService(erasureRequestRepo);
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate, clientPointers, restriction);
+  // [P24-2] delivered promises become To Confirm suggestions — never auto-completed.
+  const keptSuggestions = new KeptSuggestionService({ suggestions: createKeptSuggestionRepository(config, appPool), facts, clients });
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate, clientPointers, restriction, keptSuggestions);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));
@@ -535,6 +539,7 @@ async function main(): Promise<void> {
   const bookScan = new BookScanService(
     { clients, notes, facts },
     { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30, promiseStaleThresholdDays: config.promiseStaleThresholdDays },
+    keptSuggestions, // [P24-2] "(looks sent — confirm)" on a delivered, still-open promise
   );
   // [BULK-IMPORT · Task 4] Multi-file import: local parse + review + parallel per-chat extraction. Runs
   // one lane below the background sweep so a big import never starves the live capture path.
@@ -615,6 +620,7 @@ async function main(): Promise<void> {
     account,
     activation,
     bookScan,
+    keptSuggestions,
     clientPointers,
     bulkImport,
     bulkUpsell,

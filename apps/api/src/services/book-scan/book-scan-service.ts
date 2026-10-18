@@ -2,6 +2,7 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { UnansweredQuestion } from '../import/unanswered.js';
+import { promiseDedupeKey } from '../facts/promise-identity.js';
 import { isStalePromise } from '../facts/promise-lifecycle.js';
 import { extractionState } from '../notes/extraction-state.js';
 
@@ -114,6 +115,8 @@ export class BookScanService {
   constructor(
     private readonly repos: { clients: ClientRepository; notes: NoteRepository; facts: FactsRepository },
     private readonly config: BookScanConfig,
+    /** [P24-2] promises with an open "looks sent — confirm" suggestion get that hint (they stay open). */
+    private readonly keptSuggestions?: { openKeys(userId: string): Promise<Set<string>> },
   ) {}
 
   /**
@@ -142,6 +145,7 @@ export class BookScanService {
     // not listed, so importing seven years of history is a curated reveal rather than 40 red rows.
     const staleThreshold = this.config.promiseStaleThresholdDays ?? 90;
     const promises = await this.repos.facts.listPromisesByUser(userId);
+    const looksSent = this.keptSuggestions ? await this.keptSuggestions.openKeys(userId).catch(() => new Set<string>()) : new Set<string>();
     let stalePromises = 0;
     for (const p of promises) {
       if (p.done) continue;
@@ -151,7 +155,7 @@ export class BookScanService {
         id: p.id, // the promise row id — unique per promise, independent of quote/date
         clientId: p.clientId,
         clientName: nameOf.get(p.clientId) ?? 'Unknown',
-        headline: `Worth checking: did you ${lowerLead(p.text)}?`,
+        headline: `Worth checking: did you ${lowerLead(p.text)}?${looksSent.has(`${p.clientId}|${promiseDedupeKey(p.owner, p.text)}`) ? ' (looks sent — confirm)' : ''}`,
         // [P21-B] Dated by the message it was said in (then the conversation date) — never the due day or
         // the import day. The due date is only a last resort for a pre-receipt fact with neither.
         receipt: { quote: p.text, date: dayOf(p.sourceMessageAt) ?? p.captureAt ?? p.dueDate ?? isoDate(p.createdAt) },

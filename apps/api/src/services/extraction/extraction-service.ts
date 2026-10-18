@@ -3,6 +3,7 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository, NoteRecord } from '../../ports/note-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
+import type { ImportedMessage } from '../../ports/note-repository.js';
 import type { ExtractionLogRepository, RejectionReason } from '../../ports/extraction-log-repository.js';
 import type { RepGlossaryRepository } from '../../ports/rep-glossary-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
@@ -32,7 +33,7 @@ import { detectMisfilePostExtraction, nameMatches } from '../import/misfile.js';
 import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { dropSensitivePersonalFacts } from './health-filter.js';
 import type { ImportCostRecord } from '../metrics/import-cost-metrics.js';
-import type { Extraction } from './types.js';
+import type { Extraction, ExtractedPromise } from './types.js';
 
 /** [POINTERS · D6] Days of silence after which an untouched OPEN deal is treated as going cold.
  *  Derivation: matches the scan's default cold threshold (ScanConfig.coldThresholdDays = 30) so the
@@ -195,6 +196,8 @@ export class ExtractionService {
      *  extracted in overlapping windows through the same certified prompt + model, then merged. Absent or
      *  disabled → every note is a single pass, exactly as before. */
     private readonly windowing?: WindowConfig & { enabled: boolean },
+    /** [P24-2] After a chat is saved, a delivered promise becomes a To Confirm suggestion (never done). */
+    private readonly keptSuggestions?: { detect(userId: string, clientId: string, noteId: string, promises: ExtractedPromise[], messages: ImportedMessage[]): Promise<number> },
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -534,6 +537,15 @@ export class ExtractionService {
           keyDates: extraction.key_dates.map((k) => ({ ...k, date: k.resolved_date ?? k.date })),
           captureAt: referenceDate, // the note's conversation date, not the fact-row/import time
         });
+        // [P24-2] A promise its owner later says was delivered → a To Confirm suggestion; the promise stays
+        // open until the rep says so. Same for single-pass and windowed chats; no model call; best-effort.
+        if (this.keptSuggestions && note.source === 'whatsapp_export' && visible.length > 0) {
+          try {
+            await this.keptSuggestions.detect(userId, note.clientId, noteId, extraction.promises, visible);
+          } catch (err) {
+            console.warn(`[kept-suggest] detection failed for note ${noteId}`, err);
+          }
+        }
         // NUDGE-UNCONFIRMED: persist a proposed meeting so it can be confirmed and nudged.
         // Best-effort — a failure here must never lose the extracted facts (never lose a recording).
         if (this.meetings && extraction.meeting) {

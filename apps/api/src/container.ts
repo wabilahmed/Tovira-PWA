@@ -63,6 +63,10 @@ import type { NoteMoveTx } from './ports/note-move-tx.js';
 import { InMemoryRequirementRepository } from './adapters/requirements/in-memory-requirement-repository.js';
 import { PgRequirementRepository } from './adapters/requirements/pg-requirement-repository.js';
 import type { RequirementRepository } from './ports/requirement-repository.js';
+import type { KeptSuggestionRepository } from './ports/kept-suggestion-repository.js';
+import { InMemoryKeptSuggestionRepository } from './adapters/promises/in-memory-kept-suggestion-repository.js';
+import { PgKeptSuggestionRepository } from './adapters/promises/pg-kept-suggestion-repository.js';
+import type { KeptSuggestionService } from './services/promises/kept-suggestion-service.js';
 import { InMemoryInventoryMatchRepository } from './adapters/inventory/in-memory-inventory-match-repository.js';
 import { PgInventoryMatchRepository } from './adapters/inventory/pg-inventory-match-repository.js';
 import type { InventoryMatchRepository } from './ports/inventory-match-repository.js';
@@ -595,12 +599,13 @@ export function createExtractionService(
   verifiedGate?: { isVerified(userId: string): Promise<boolean> },
   pointers?: ClientPointerRepository,
   restriction?: RestrictionService,
+  keptSuggestions?: KeptSuggestionService,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
   // [BULK-IMPORT · Task 4 / D1] Every extraction request carries exactly one chat. extractNote reads a
   // single note, so this holds structurally; the IsolatingModelClient makes it enforced, not merely
   // true by convention — a request body with two chats throws before it can reach a provider.
-  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate, pointers, restriction, config.windowing);
+  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate, pointers, restriction, config.windowing, keptSuggestions);
 }
 
 /** [NO-TRAINING-RETENTION] The operational per-rep glossary (P4-9), RLS-backed on pg. */
@@ -626,6 +631,15 @@ export function createRequirementRepository(config: AppConfig, pool?: Pool): Req
  * P1-9-selected production model. Only meaningful for the real (anthropic)
  * provider; the local stub path routes nowhere (returns undefined).
  */
+/** [P24-2] "Looks like you sent it — Mark done?" suggestion store (RLS-bound on pg, migration 0090). */
+export function createKeptSuggestionRepository(config: AppConfig, pool?: Pool): KeptSuggestionRepository {
+  if (config.authStore === 'postgres') {
+    if (!pool) throw new Error('authStore=postgres requires a database pool');
+    return new PgKeptSuggestionRepository(pool);
+  }
+  return new InMemoryKeptSuggestionRepository();
+}
+
 export function createExtractionModelRouter(
   config: AppConfig,
   statusOf: (userId: string, nowMs: number) => Promise<string>,

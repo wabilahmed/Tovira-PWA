@@ -27,6 +27,9 @@ import { assignSpeakerRoles } from '../../../services/import/unanswered.js';
 import type { ModelClient } from '../../../ports/model.js';
 import type { Extraction } from '../../../services/extraction/types.js';
 import { SpendCap } from '../../spend-cap.js';
+import { KeptSuggestionService } from '../../../services/promises/kept-suggestion-service.js';
+import { promiseDedupeKey } from '../../../adapters/facts/dedupe.js';
+import { InMemoryKeptSuggestionRepository } from '../../../adapters/promises/in-memory-kept-suggestion-repository.js';
 import { LONG_CHATS } from './fixtures.js';
 import { scoreLongChat } from './score.js';
 import { resolveExtractionDates } from '../../../services/extraction/resolve-date.js';
@@ -43,7 +46,7 @@ function rescore(out: string): void {
     if (!r.extraction) continue;
     if (r.extraction.meeting) { r.extraction.meeting.resolved_datetime = undefined; r.extraction.meeting.resolution = undefined; }
     resolveExtractionDates(r.extraction, f.today, f.id, { dayFirst: true, log: () => undefined });
-    r.score = scoreLongChat(f.expected, r.extraction);
+    r.score = scoreLongChat(f.expected, r.extraction, new Set((r as { suggested?: string[] }).suggested ?? []));
     r.rescored = true;
     writeFileSync(file, JSON.stringify(r, null, 1));
     console.log(`[long-chat] rescored ${f.id}`);
@@ -100,17 +103,22 @@ async function main(): Promise<void> {
     fixtureCalls = 0; fixtureAed = 0; fixtureIn = 0; fixtureOut = 0;
     const clients = new InMemoryClientRepository();
     const notes = new InMemoryNoteRepository();
-    const svc = new ExtractionService(model, clients, notes, new InMemoryFactsRepository(), new StubEmbedder(8), new InMemoryExtractionLogRepository(), modelId,
+    const facts = new InMemoryFactsRepository();
+    const kept = new KeptSuggestionService({ suggestions: new InMemoryKeptSuggestionRepository(), facts, clients });
+    const svc = new ExtractionService(model, clients, notes, facts, new StubEmbedder(8), new InMemoryExtractionLogRepository(), modelId,
       undefined, undefined, undefined, '1h', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-      config.windowing); // EXTRACT_WINDOWED=1 → the shipped windowed path
+      config.windowing, kept); // EXTRACT_WINDOWED=1 → the shipped windowed path; [P24-2] delivered → suggestion
     const client = await clients.create('eval', f.clientName);
     const parsed = parseWhatsAppExport(f.transcript);
     if (!parsed.ok) throw new Error(`${f.id}: transcript did not parse`);
     const note = await notes.create('eval', { clientId: client.id, source: 'whatsapp_export', rawText: f.transcript, audioKey: null, status: 'pending_extraction', messages: assignSpeakerRoles(parsed.messages, f.clientName) });
     const outcome = await svc.extractNote('eval', note.id, f.today);
     const stored = (await notes.findByIdForUser('eval', note.id))?.extracted as Extraction | null;
-    const score = stored ? scoreLongChat(f.expected, stored) : null;
-    const result = { id: f.id, messages: f.messageCount, model: modelId, status: (outcome as { status?: string }).status, calls: fixtureCalls, promptTokens: fixtureIn, outputTokens: fixtureOut, aed: Number(fixtureAed.toFixed(4)), score, extraction: stored };
+    // [P24-2] the promises carrying an open "looks sent — confirm" suggestion (by client + promise key)
+    const openKeys = await kept.openKeys('eval');
+    const suggestedTexts = new Set((await facts.listPromisesByUser('eval')).filter((p) => openKeys.has(`${p.clientId}|${promiseDedupeKey(p.owner, p.text)}`)).map((p) => p.text.toLowerCase()));
+    const score = stored ? scoreLongChat(f.expected, stored, suggestedTexts) : null;
+    const result = { suggested: [...suggestedTexts], id: f.id, messages: f.messageCount, model: modelId, status: (outcome as { status?: string }).status, calls: fixtureCalls, promptTokens: fixtureIn, outputTokens: fixtureOut, aed: Number(fixtureAed.toFixed(4)), score, extraction: stored };
     writeFileSync(file, JSON.stringify(result, null, 1));
     const s = score;
     console.log(`[long-chat] ${f.id} (${f.messageCount} msgs): ${s ? `promises ${s.promises.found}/${s.promises.expected} (dates ${s.promiseDates.found}, status ${s.promiseStatus.found}) · reqs ${s.requirements.found}/${s.requirements.expected} · budget ${s.budget.found}/1${s.budget.inSummaryOnly ? ' (summary only)' : ''} (stale ${s.budget.staleAlsoCurrent}) · meetings ${s.meetings.found}/${s.meetings.expected} · keyDates ${s.keyDates.found}/${s.keyDates.expected} · decision ${s.decisionDate ? 'yes' : 'no'} · dups ${s.duplicates} · ${s.pass ? 'PASS' : 'FAIL'}` : `no extraction (${result.status})`} · ${fixtureCalls} call(s) · AED ${fixtureAed.toFixed(3)}`);

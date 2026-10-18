@@ -134,6 +134,13 @@ export class PgFactsRepository implements FactsRepository {
     });
   }
 
+  async reopenPromise(userId: string, id: string): Promise<boolean> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('UPDATE promises SET done = false, done_at = NULL WHERE id = $1 AND done = true RETURNING id', [id]);
+      return rows.length > 0;
+    });
+  }
+
   async listKeyDatesByUser(userId: string): Promise<KeyDateRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(

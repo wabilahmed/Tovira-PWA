@@ -66,8 +66,8 @@ describe('[P23-B3] scorer', () => {
     const openKept: Extraction = { ...empty(), promises: [{ text: 'send three villa options', owner: 'rep', due_date: '2026-02-05', due_raw: 'by Thursday', confidence: 'high' }] };
     const s = scoreLongChat(buyer.expected, openKept);
     expect(s.promiseStatus.found).toBe(0); // kept in the chat, but returned as an open promise
-    const markedKept = { ...openKept, promises: [{ ...openKept.promises[0]!, kept_at: '2026-02-05T16:40' } as never] };
-    expect(scoreLongChat(buyer.expected, markedKept).promiseStatus.found).toBe(1);
+    // [P24-2] right when the promise is open AND carries a "looks sent — confirm" suggestion
+    expect(scoreLongChat(buyer.expected, openKept, new Set(['send three villa options'])).promiseStatus.found).toBe(1);
   });
 
   it('reports a budget that is only in the free-text summary (not a structured fact) separately', () => {

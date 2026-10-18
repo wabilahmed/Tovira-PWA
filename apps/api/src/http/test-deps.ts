@@ -69,6 +69,8 @@ import { PrioritiesService } from '../services/hero/priorities-service.js';
 import { InMemoryPrioritiesRepository } from '../adapters/priorities/in-memory-priorities-repository.js';
 import { BookScanService } from '../services/book-scan/book-scan-service.js';
 import { RecallService } from '../services/recall/recall-service.js';
+import { KeptSuggestionService } from '../services/promises/kept-suggestion-service.js';
+import { InMemoryKeptSuggestionRepository } from '../adapters/promises/in-memory-kept-suggestion-repository.js';
 import { BulkBatchNotifier } from '../services/import/bulk-batch-notifier.js';
 import { ImportCompletionService } from '../services/notes/import-completion-service.js';
 import { StructuredRecall } from '../services/recall/structured-recall.js';
@@ -199,6 +201,9 @@ export function buildInMemoryDeps(
   // withheld everywhere. Exposed on TestDeps as `erasureRequests`.
   const erasureRequestRepo = new InMemoryErasureRequestRepository();
   const restriction = new RestrictionService({ requests: erasureRequestRepo });
+  // [P24-2] delivered promises → To Confirm suggestions (never auto-done), same as index.ts.
+  const keptSuggestionRepo = new InMemoryKeptSuggestionRepository();
+  const keptSuggestions = new KeptSuggestionService({ suggestions: keptSuggestionRepo, facts, clients });
   const extraction = new ExtractionService(
     // [BULK-IMPORT · Task 4 / D1] enforce one-chat-per-request in the harness too.
     new IsolatingModelClient(opts.modelClient ?? new StubModelClient()),
@@ -230,6 +235,8 @@ export function buildInMemoryDeps(
       : { isVerified: async () => true },
     clientPointers, // [POINTERS]
     restriction, // [TASK 2]
+    undefined, // windowing (EXTRACT_WINDOWED off, as in prod)
+    keptSuggestions, // [P24-2]
   );
   const brief = new BriefService(clients, notes, facts, embedder, clientPointers, restriction);
   const followUp = new FollowUpService(new StubModelClient(), notes, restriction);
@@ -403,7 +410,7 @@ export function buildInMemoryDeps(
     // [PRIVACY-3] purgeables covers every in-memory store the users FK cascade purges in Postgres, so
     // account deletion leaves zero rows in the in-memory model too (recall + S3 archive are purged by
     // AccountService directly). A new store added here without a purge fails the deletion test.
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary, clientPointers], undefined, undefined, extractionLog, corrections, repGlossary, storage, clientPointers, inventoryRepo),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary, clientPointers, keptSuggestionRepo], undefined, undefined, extractionLog, corrections, repGlossary, storage, clientPointers, inventoryRepo),
     recallSessions,
     extractionCounter,
     runSweep,
@@ -417,7 +424,8 @@ export function buildInMemoryDeps(
     modelCallEvents,
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
-    bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
+    bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }, keptSuggestions),
+    keptSuggestions,
     // [P21-A1/A3] Same wiring as prod: Ask-capture (explicit statements; no model detector in tests) and
     // the structured cross-client source.
     recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions, undefined, askCapture,

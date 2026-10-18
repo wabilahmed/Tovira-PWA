@@ -86,6 +86,8 @@ export interface FactsRepository {
   deletePromise(userId: string, id: string): Promise<boolean>;
   /** Mark a promise done (timestamped). Returns false if not found/owned. */
   markPromiseDone(userId: string, id: string): Promise<boolean>;
+  /** [P24-2] Undo a Mark done — the promise is open again (done=false, done_at cleared). */
+  reopenPromise(userId: string, id: string): Promise<boolean>;
   listKeyDatesByUser(userId: string): Promise<KeyDateRecord[]>;
   listKeyDatesByNote(userId: string, noteId: string): Promise<KeyDateRecord[]>;
   /** NOTE-MOVE (B3): re-file this note's spine rows (promises + key dates) under another client.
