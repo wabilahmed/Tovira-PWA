@@ -26,6 +26,7 @@ import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
 import { modelSafeText, renderThread } from '../import/dedup.js';
 import { planWindows, mergeWindowExtractions, type WindowConfig } from './windowed.js';
+import { correctPromiseOwners, logOwnerCorrections } from './owner-check.js';
 import { AiGateRefused } from '../spend/ai-gate.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
@@ -485,6 +486,10 @@ export class ExtractionService {
       // fabricated fact, Rule 9) — the fact is kept, only its unverifiable span is nulled.
       const droppedSpans = dropNonVerbatimSpans(extraction, safeText);
       if (droppedSpans > 0) console.info(`[receipt-verbatim] note ${noteId}: dropped ${droppedSpans} non-verbatim receipt span(s)`);
+      // [P25-1] Write-time OWNER check: a promise whose (verbatim) receipt traces uniquely to a first-person
+      // commitment takes the owner of whoever sent it (the rep's own voice/paste → rep). Corrects owner only;
+      // never creates, deletes or rewrites a promise. Same for single-pass and windowed extraction.
+      logOwnerCorrections(noteId, correctPromiseOwners(extraction, { source: note.source, messages: visible, text: safeText }));
       // [HEALTH-EXCLUSION] Deterministic write-time backstop for Rule 7 (a model rule can slip, a
       // write-time check cannot — same doctrine as DATE-INVARIANT below): drop any personal_fact the
       // model tagged `health`, WHOLE, before it is stored — structured health is per-run zero regardless
