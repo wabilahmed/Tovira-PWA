@@ -29,13 +29,22 @@ export function usdToAed(usd: number): number {
   return usd * USD_TO_AED;
 }
 
-export interface AnthropicPriceRow {
+/** The per-token rates of one Anthropic pricing tier. */
+export interface AnthropicRates {
   inputPerMTok: number;
   outputPerMTok: number;
-  /** 1-hour cache-write tier = 2x input (every caching path in this codebase passes ttl '1h'). */
+  /** 1-hour cache-write tier = 2x input (the extraction / canary / erasure paths cache at ttl '1h'). */
   cacheWritePerMTok: number;
-  /** cache read = 0.1x input. */
+  /** [P23-A2] 5-minute cache-write tier = 1.25x input. */
+  cacheWrite5mPerMTok: number;
+  /** cache read (0.1x input; 0.05x on Sonnet 5.5). */
   cacheReadPerMTok: number;
+}
+
+export interface AnthropicPriceRow extends AnthropicRates {
+  /** [P23-A2] Haiku 5.5: a request whose PROMPT (input + cache reads + cache writes) is over the
+   *  threshold pays these rates for the WHOLE request. Absent = one tier at any length. */
+  longContext?: AnthropicRates & { overPromptTokens: number };
   source: string;
   checkedOn: string;
 }
@@ -54,6 +63,7 @@ export interface EmbeddingPriceRow {
 }
 
 const ANTHROPIC_SOURCE = { source: 'https://www.anthropic.com/pricing', checkedOn: '2026-10-03' };
+const ANTHROPIC_55_SOURCE = { source: 'https://platform.claude.com/docs/en/about-claude/pricing', checkedOn: '2026-10-18' };
 const GROQ_SOURCE = { source: 'https://groq.com/pricing', checkedOn: '2026-10-03' };
 
 /**
@@ -63,9 +73,17 @@ const GROQ_SOURCE = { source: 'https://groq.com/pricing', checkedOn: '2026-10-03
 export const AI_PRICES = {
   anthropic: {
     // Claude Sonnet 5: $2 in / $10 out; cache read $0.20 (0.1x), 1h cache write $4.00 (2x).
-    'claude-sonnet-5': { inputPerMTok: 2, outputPerMTok: 10, cacheWritePerMTok: 4, cacheReadPerMTok: 0.2, ...ANTHROPIC_SOURCE },
+    'claude-sonnet-5': { inputPerMTok: 2, outputPerMTok: 10, cacheWritePerMTok: 4, cacheWrite5mPerMTok: 2.5, cacheReadPerMTok: 0.2, ...ANTHROPIC_SOURCE },
     // Claude Haiku 4.5: $1 in / $5 out; cache read $0.10 (0.1x), 1h cache write $2.00 (2x).
-    'claude-haiku-4-5-20251001': { inputPerMTok: 1, outputPerMTok: 5, cacheWritePerMTok: 2, cacheReadPerMTok: 0.1, ...ANTHROPIC_SOURCE },
+    'claude-haiku-4-5-20251001': { inputPerMTok: 1, outputPerMTok: 5, cacheWritePerMTok: 2, cacheWrite5mPerMTok: 1.25, cacheReadPerMTok: 0.1, ...ANTHROPIC_SOURCE },
+    // [P23-A2] Claude Sonnet 5.5: Sonnet 5 prices except the cache read, $0.10 (0.05x).
+    'claude-sonnet-5-5': { inputPerMTok: 2, outputPerMTok: 10, cacheWritePerMTok: 4, cacheWrite5mPerMTok: 2.5, cacheReadPerMTok: 0.1, ...ANTHROPIC_55_SOURCE },
+    // [P23-A2] Claude Haiku 5.5: priced by prompt length — over 100,000 prompt tokens, the whole request 5x.
+    'claude-haiku-5-5': {
+      inputPerMTok: 0.1, outputPerMTok: 0.5, cacheWritePerMTok: 0.2, cacheWrite5mPerMTok: 0.125, cacheReadPerMTok: 0.01,
+      longContext: { overPromptTokens: 100_000, inputPerMTok: 0.5, outputPerMTok: 2.5, cacheWritePerMTok: 1, cacheWrite5mPerMTok: 0.625, cacheReadPerMTok: 0.05 },
+      ...ANTHROPIC_55_SOURCE,
+    },
   } as Record<string, AnthropicPriceRow>,
   transcription: {
     // Groq Whisper Large V3: $0.111/hour. Turbo (distilled) is $0.04/hour. 10-second minimum per request.
@@ -92,18 +110,31 @@ export interface AnthropicUsage {
   inputTokens: number;
   outputTokens: number;
   cacheCreationInputTokens?: number;
+  /** [P23-A2] The part of cacheCreationInputTokens written at the 5-minute tier (the rest is 1-hour).
+   *  Absent → the whole write is priced at the 1-hour rate, which never under-bills. */
+  cacheCreation5mInputTokens?: number;
   cacheReadInputTokens?: number;
+}
+
+/** The tier a request is billed at: the long-context rates once its prompt crosses the threshold. */
+function ratesFor(p: AnthropicPriceRow, promptTokens: number): AnthropicRates {
+  return p.longContext && promptTokens > p.longContext.overPromptTokens ? p.longContext : p;
 }
 
 /** Exact USD cost of one Anthropic call from its returned token usage. Unknown model → the Sonnet rate
  *  (the most expensive of our models), so an unpriced model is never free. */
 export function anthropicCostUsd(model: string, u: AnthropicUsage): number {
-  const p = AI_PRICES.anthropic[model] ?? ANTHROPIC_FALLBACK;
+  const row = AI_PRICES.anthropic[model] ?? ANTHROPIC_FALLBACK;
+  const write = u.cacheCreationInputTokens ?? 0;
+  const write5m = Math.min(write, u.cacheCreation5mInputTokens ?? 0);
+  const read = u.cacheReadInputTokens ?? 0;
+  const p = ratesFor(row, u.inputTokens + write + read);
   return (
     (u.inputTokens * p.inputPerMTok +
       u.outputTokens * p.outputPerMTok +
-      (u.cacheCreationInputTokens ?? 0) * p.cacheWritePerMTok +
-      (u.cacheReadInputTokens ?? 0) * p.cacheReadPerMTok) /
+      (write - write5m) * p.cacheWritePerMTok +
+      write5m * p.cacheWrite5mPerMTok +
+      read * p.cacheReadPerMTok) /
     1_000_000
   );
 }
@@ -115,8 +146,11 @@ export function anthropicCostUsd(model: string, u: AnthropicUsage): number {
  *  what the bulk-import up-front estimate sums over the batch. (Tighter reservations could use Anthropic's
  *  count_tokens, available on the prod Anthropic-API path, at the cost of a second round-trip per call.) */
 export function anthropicEstimateAed(modelId: string, req: ModelCompletionRequest): number {
-  const p = AI_PRICES.anthropic[modelId] ?? ANTHROPIC_FALLBACK;
+  const row = AI_PRICES.anthropic[modelId] ?? ANTHROPIC_FALLBACK;
   const inputChars = (req.system?.length ?? 0) + req.messages.reduce((n, m) => n + m.content.length, 0);
+  // [P23-A2] chars ≥ tokens, so a prompt whose CHARS cross a long-context threshold is reserved at the long
+  // tier — a ceiling either way.
+  const p = ratesFor(row, inputChars);
   const maxOut = req.maxTokens ?? 0;
   const usd = (inputChars * p.cacheWritePerMTok + maxOut * p.outputPerMTok) / 1_000_000;
   return usdToAed(usd);

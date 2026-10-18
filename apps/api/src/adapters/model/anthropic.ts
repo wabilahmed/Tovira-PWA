@@ -24,6 +24,7 @@ interface AnthropicResponseBody {
     output_tokens?: number;
     cache_creation_input_tokens?: number;
     cache_read_input_tokens?: number;
+    cache_creation?: { ephemeral_5m_input_tokens?: number; ephemeral_1h_input_tokens?: number };
     output_tokens_details?: { thinking_tokens?: number };
   };
 }
@@ -112,6 +113,7 @@ export class AnthropicModelClient implements ModelClient {
         // Present only when the provider caches — surfaced so callers/observability
         // can PROVE a cache read happened (cacheReadInputTokens > 0).
         ...(u?.cache_creation_input_tokens !== undefined ? { cacheCreationInputTokens: u.cache_creation_input_tokens } : {}),
+        ...(u?.cache_creation?.ephemeral_5m_input_tokens !== undefined ? { cacheCreation5mInputTokens: u.cache_creation.ephemeral_5m_input_tokens } : {}),
         ...(u?.cache_read_input_tokens !== undefined ? { cacheReadInputTokens: u.cache_read_input_tokens } : {}),
         ...(u?.output_tokens_details?.thinking_tokens !== undefined ? { thinkingTokens: u.output_tokens_details.thinking_tokens } : {}),
       },

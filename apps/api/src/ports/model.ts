@@ -53,6 +53,9 @@ export interface ModelUsage {
   /** Tokens written to the prompt cache on this call (first call after a change).
    *  Present only when the provider reports it (Anthropic/Bedrock). */
   cacheCreationInputTokens?: number;
+  /** [P23-A2] The part of cacheCreationInputTokens written at the 5-minute tier (rest = 1-hour), for exact
+   *  per-tier pricing. Present only when the provider reports the breakdown. */
+  cacheCreation5mInputTokens?: number;
   /** Tokens READ from the prompt cache — the win. >0 proves caching is working. */
   cacheReadInputTokens?: number;
   /** Reasoning tokens (a reasoning model spends these inside `outputTokens`). Billed as output.

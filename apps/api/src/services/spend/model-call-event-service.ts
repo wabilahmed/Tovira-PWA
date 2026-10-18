@@ -21,6 +21,7 @@ export class ModelCallEventService {
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
       cacheCreationInputTokens: usage.cacheCreationInputTokens,
+      cacheCreation5mInputTokens: usage.cacheCreation5mInputTokens,
       cacheReadInputTokens: usage.cacheReadInputTokens,
     };
     const costAed = callCostUsd(model, callUsage) * USD_TO_AED;
