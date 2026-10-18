@@ -6,6 +6,7 @@ import type { ExtractedPromise } from '../extraction/types.js';
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
 import { recordVerdict } from '../facts/verdict.js';
+import { captureSummary } from './explicit-statement.js';
 
 const PENDING = 'pending_confirmation';
 const DEFAULT_TTL_MS = 14 * 24 * 60 * 60 * 1000; // ASK-CAPTURE constraint 3: 14-day expiry
@@ -22,6 +23,8 @@ export interface PendingCapture {
   /** The rep's own verbatim words + when — the RECEIPT the confirmation must show (constraint 4). */
   statement: string;
   capturedAt: number;
+  /** [P21-A3] the one-line "what was held" shown in To Confirm ("Sara's budget → 2.2M"). */
+  summary?: string;
 }
 
 export interface AskCaptureDeps {
@@ -77,7 +80,9 @@ export class AskCaptureService {
     const out: PendingCapture[] = [];
     for (const n of notes) {
       const client = await this.deps.clients.findByIdForUser(userId, n.clientId);
-      out.push({ noteId: n.id, clientId: n.clientId, clientName: client?.name ?? 'a client', statement: n.rawText ?? '', capturedAt: n.createdAt });
+      const clientName = client?.name ?? 'a client';
+      const statement = n.rawText ?? '';
+      out.push({ noteId: n.id, clientId: n.clientId, clientName, statement, capturedAt: n.createdAt, summary: captureSummary(statement, clientName) });
     }
     return out;
   }

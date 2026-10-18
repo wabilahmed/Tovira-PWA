@@ -10,7 +10,8 @@ import type { RecallMessage, RecallSessionRepository } from '../../ports/recall-
 import type { StatementDetector } from './statement-detector.js';
 import type { AskCaptureService } from './ask-capture-service.js';
 import type { StructuredQuery } from './structured-recall.js';
-import { normalizeName } from '../text/normalize-name.js';
+import { normalizeName, namesEqual } from '../text/normalize-name.js';
+import { explicitStatement, captureSummary } from './explicit-statement.js';
 import { callCostUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { estimateTokens } from '../extraction/prompt.js';
 
@@ -22,6 +23,10 @@ export interface CaptureOutcome {
   statement?: string;
   clientName?: string;
   noteId?: string;
+  /** [P21-A3] What was held, in the rep's words ("Sara's budget → 2.2M"). */
+  summary?: string;
+  /** [P21-A3] needs_client: the clients the statement could be about (empty when none was named). */
+  candidates?: string[];
 }
 
 export interface ClientRef { id: string; name: string }
@@ -197,13 +202,45 @@ export class RecallService {
       const dir = await this.clientDirectory(userId);
       const det = await this.detector.detect(turn, dir.map((c) => c.name), userId);
       if (!det.isStatement) return { status: 'none' };
-      const matches = det.clientRef ? dir.filter((c) => c.name.toLowerCase() === det.clientRef!.toLowerCase()) : [];
+      const exact = det.clientRef ? dir.filter((c) => namesEqual(c.name, det.clientRef!)) : [];
+      const matches = exact.length > 0 || !det.clientRef ? exact : clientsNamedIn(det.clientRef, dir);
       if (matches.length !== 1) return { status: 'needs_client', statement: det.text }; // ask which; store nothing
       const today = new Date(nowMs).toISOString().slice(0, 10);
       const pending = await this.capture.capture(userId, matches[0]!.id, det.text, today);
-      return { status: 'captured', statement: det.text, clientName: matches[0]!.name, noteId: pending?.noteId };
+      return { status: 'captured', statement: det.text, clientName: matches[0]!.name, noteId: pending?.noteId, summary: captureSummary(det.text, matches[0]!.name) };
     } catch {
       return undefined; // capture must never break the answer
+    }
+  }
+
+  /** [P21-A3] An EXPLICIT statement ("Remember that …", "Update: …", "X is now …") is captured without
+   *  a model classification: resolve the client from the words, hold a pending note via the certified
+   *  path, and reply with what was held. Ambiguous / unnamed client → ask which, store nothing.
+   *  undefined = not handled here (no capture pipeline, or it failed) → the turn is answered normally. */
+  private async captureExplicit(userId: string, turn: string, nowMs: number): Promise<{ answer: string; capture: CaptureOutcome } | undefined> {
+    if (!this.capture || !this.clientDirectory || explicitStatement(turn) === null) return undefined;
+    try {
+      const dir = await this.clientDirectory(userId);
+      const named = clientsNamedIn(turn, dir);
+      if (named.length !== 1) {
+        const turnTokens = new Set(normalizeName(turn).split(' '));
+        const candidates = (named.length > 1 ? named : dir.filter((c) => normalizeName(c.name).split(' ').some((t) => t.length >= 3 && turnTokens.has(t))))
+          .map((c) => c.name);
+        const answer = candidates.length > 1
+          ? `Which client is this about — ${candidates.join(' or ')}? Nothing was saved.`
+          : "Which client is this about? Name them and I'll hold it for confirmation. Nothing was saved.";
+        return { answer, capture: { status: 'needs_client', statement: turn, candidates } };
+      }
+      const today = new Date(nowMs).toISOString().slice(0, 10);
+      const pending = await this.capture.capture(userId, named[0]!.id, turn, today);
+      if (!pending) return undefined;
+      const summary = captureSummary(turn, named[0]!.name);
+      return {
+        answer: `Saved for confirmation: ${summary}`,
+        capture: { status: 'captured', statement: turn, clientName: named[0]!.name, noteId: pending.noteId, summary },
+      };
+    } catch {
+      return undefined; // capture must never break Ask
     }
   }
 
@@ -247,6 +284,17 @@ export class RecallService {
     if (this.sessions) {
       sessionId = await this.sessions.activeSession(userId, nowMs, this.config.sessionIdleMs ?? DEFAULT_SESSION_IDLE_MS);
       history = await this.sessions.recentMessages(userId, sessionId, this.config.historyWindow ?? DEFAULT_HISTORY_WINDOW);
+    }
+
+    // [P21-A3] The rep TOLD us something ("Remember that …") — hold it for confirmation and say so,
+    // instead of searching for it and answering "I don't have that on record".
+    const explicit = await this.captureExplicit(userId, question, nowMs);
+    if (explicit) {
+      if (this.sessions && sessionId) {
+        await this.sessions.appendMessage(userId, sessionId, 'user', question, nowMs);
+        await this.sessions.appendMessage(userId, sessionId, 'assistant', explicit.answer, nowMs);
+      }
+      return { answer: explicit.answer, receipts: [], capture: explicit.capture };
     }
 
     // [P21-A2] A follow-up ("which of them…") is limited to the clients the previous answer named. No

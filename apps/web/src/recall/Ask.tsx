@@ -92,7 +92,18 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
 
       {/* [ASK-CAPTURE] a statement the rep made → confirm it into the vault, showing their own
           verbatim words (the receipt), not a paraphrase. Nothing is stored until they confirm. */}
-      {capture?.status === 'captured' && (
+      {/* [P21-A3] An explicit statement ("Remember that …") — one line, one tap: what was held, then Confirm. */}
+      {capture?.status === 'captured' && capture.summary && (
+        <div className="tov-deal" role="group" aria-label="Saved for confirmation" style={{ marginTop: '1rem' }}>
+          <p style={{ margin: '0 0 0.5rem' }}>Saved for confirmation: {capture.summary}</p>
+          {capture.statement && <p className="tov-stamp" style={{ margin: '0 0 0.5rem' }}>“{capture.statement}”</p>}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="tov-primary" onClick={() => void resolveCapture('confirm')}>Confirm</button>
+            <button className="tov-link" onClick={() => void resolveCapture('reject')}>Not now</button>
+          </div>
+        </div>
+      )}
+      {capture?.status === 'captured' && !capture.summary && (
         <div className="tov-deal" role="group" aria-label="Add to record" style={{ marginTop: '1rem' }}>
           <div className="tov-stamp" style={{ marginBottom: 4 }}>Add to {capture.clientName ?? 'their'} record?</div>
           <p style={{ margin: '0 0 0.5rem' }}>“{capture.statement}”</p>
@@ -102,14 +113,15 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
           </div>
         </div>
       )}
-      {capture?.status === 'needs_client' && (
+      {capture?.status === 'needs_client' && !capture.candidates && (
         <p role="status" style={{ color: 'var(--text-secondary)', marginTop: '0.75rem' }}>
           That sounds worth saving — name the client and I&rsquo;ll add it to their record.
         </p>
       )}
       {captureMsg && <p role="status" style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>{captureMsg}</p>}
 
-      {result && (
+      {/* [P21-A3] the held-statement card already says what was saved — don't repeat it as an answer. */}
+      {result && !(result.capture?.status === 'captured' && result.capture.summary && result.receipts.length === 0) && (
         <div className="tov-deal" style={{ marginTop: '1rem' }}>
           {/* §7: the label states provenance ("on record"), not "answer". */}
           {result.receipts.length > 0 && <div className="tov-stamp" style={{ marginBottom: 4 }}>On record</div>}

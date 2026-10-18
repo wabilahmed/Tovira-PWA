@@ -541,7 +541,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <>
           <HeroInsights api={heroApi} />
           <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
-          <ConfirmChitQueue api={promisesApi} />
+          <ConfirmChitQueue api={promisesApi} captures={recallApi} />
         </>,
       )}
 
@@ -573,7 +573,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <>
           <Alerts api={proactiveApi} onSetOutcome={async (id, choice) => { await clientsApi.setOutcome(id, choice); }} />
           <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
-          <ConfirmChitQueue api={promisesApi} />
+          <ConfirmChitQueue api={promisesApi} captures={recallApi} />
         </>
       )}
 

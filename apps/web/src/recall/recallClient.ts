@@ -13,6 +13,20 @@ export interface CaptureOutcome {
   statement?: string;
   clientName?: string;
   noteId?: string;
+  /** [P21-A3] what was held, in the rep's words ("Sara's budget → 2.2M"). */
+  summary?: string;
+  /** [P21-A3] needs_client: the clients it could be about. */
+  candidates?: string[];
+}
+
+/** [P21-A3] A statement held from Ask, waiting in To Confirm. */
+export interface PendingCapture {
+  noteId: string;
+  clientId: string;
+  clientName: string;
+  statement: string;
+  capturedAt: number;
+  summary?: string;
 }
 
 export interface RecallAnswer {
@@ -46,6 +60,17 @@ export class RecallClient {
       return (await res.json()) as RecallAnswer;
     } catch {
       return null;
+    }
+  }
+
+  /** [P21-A3] The held Ask statements awaiting confirmation (the To Confirm queue). */
+  async listCaptures(): Promise<PendingCapture[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/captures`, { credentials: 'include' });
+      if (res.status !== 200) return [];
+      return ((await res.json()) as { captures?: PendingCapture[] }).captures ?? [];
+    } catch {
+      return [];
     }
   }
 

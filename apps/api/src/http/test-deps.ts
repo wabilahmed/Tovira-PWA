@@ -69,6 +69,7 @@ import { PrioritiesService } from '../services/hero/priorities-service.js';
 import { InMemoryPrioritiesRepository } from '../adapters/priorities/in-memory-priorities-repository.js';
 import { BookScanService } from '../services/book-scan/book-scan-service.js';
 import { RecallService } from '../services/recall/recall-service.js';
+import { StructuredRecall } from '../services/recall/structured-recall.js';
 import { InMemoryRecallSessionRepository } from '../adapters/recall/in-memory-recall-session-repository.js';
 import { AskCaptureService } from '../services/recall/ask-capture-service.js';
 import { CorpusStatsService } from '../services/corpus/corpus-service.js';
@@ -403,7 +404,11 @@ export function buildInMemoryDeps(
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }),
-    recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions, undefined, undefined, undefined, (u) => allowanceStatus.isExhausted(u), restriction),
+    // [P21-A1/A3] Same wiring as prod: Ask-capture (explicit statements; no model detector in tests) and
+    // the structured cross-client source.
+    recall: new RecallService(embedder, notes, new StubModelClient(), { topK: 5, minSimilarity: -1, maxRetrievalTokens: 100000 }, undefined, 'stub', recallSessions, undefined, askCapture,
+      async (u) => (await clients.listByUser(u)).map((c) => ({ id: c.id, name: c.name })), (u) => allowanceStatus.isExhausted(u), restriction,
+      new StructuredRecall({ facts, meetings, clients, requirements, notes })),
     askCapture,
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
