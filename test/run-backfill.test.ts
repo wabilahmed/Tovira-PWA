@@ -131,3 +131,37 @@ describe('[P17] run-backfill.sh — validation', () => {
     expect(r.stderr).toMatch(/--only needs a userId/i);
   });
 });
+
+describe('[P21-C] run-backfill.sh — choosing the backfill', () => {
+  it('--script promise-dates runs backfill-promise-dates.ts with --only-user', () => {
+    const r = run(['--script', 'promise-dates', '--only-user', 'U1']);
+    expect(r.status).toBe(0);
+    const line = runTaskLine(r.calls);
+    expect(line).toContain('backfill-promise-dates.ts');
+    expect(line).toContain('--only-user');
+    expect(line).toContain('U1');
+    expect(line).not.toContain('--script'); // consumed by the runner, never sent to the container
+    expect(line).not.toContain('--apply');
+  });
+
+  it('--script meeting-dates runs backfill-meeting-dates.ts', () => {
+    expect(runTaskLine(run(['--script', 'meeting-dates', '--only-user', 'U1']).calls)).toContain('backfill-meeting-dates.ts');
+  });
+
+  it('defaults to the trial backfill (unchanged)', () => {
+    expect(runTaskLine(run(['--only', 'U1']).calls)).toContain('backfill-trials.ts');
+  });
+
+  it('REFUSES an unknown script name with no AWS call', () => {
+    const r = run(['--script', 'drop-everything']);
+    expect(r.status).toBe(2);
+    expect(runTaskLine(r.calls)).toBe('');
+  });
+
+  it('a dry run of one backfill does NOT authorise --apply of another', () => {
+    expect(run(['--script', 'promise-dates', '--only-user', 'U5']).status).toBe(0);
+    const r = run(['--script', 'meeting-dates', '--only-user', 'U5', '--apply']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/no successful dry run/i);
+  });
+});

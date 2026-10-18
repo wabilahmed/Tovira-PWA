@@ -6,6 +6,12 @@
 # backfill instead of the server. It waits for the task, prints its CloudWatch logs, and exits with the
 # task's own exit code.
 #
+# [P21-C] --script picks the backfill (default: trials):
+#   trials         apps/api/src/scripts/backfill-trials.ts          (--only <userId>)
+#   promise-dates  apps/api/src/scripts/backfill-promise-dates.ts   (--only-user <userId>)
+#   meeting-dates  apps/api/src/scripts/backfill-meeting-dates.ts   (--only-user <userId>)
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script promise-dates --only-user <userId>   # dry run
+#
 # USAGE (with YOUR admin profile):
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --only <userId>            # dry run (default)
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --only <userId> --apply    # writes (guarded)
@@ -28,7 +34,7 @@ CONTAINER="${TOVIRA_BACKFILL_CONTAINER:-api}"
 LOG_GROUP="${TOVIRA_BACKFILL_LOG_GROUP:-/tovira/prod/api}"
 LOG_STREAM_PREFIX="${TOVIRA_BACKFILL_LOG_PREFIX:-api}"
 # The in-image path (docker/api.prod.Dockerfile copies the whole apps/api tree; the app runs via tsx).
-SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-trials.ts"
+SCRIPT_NAME="trials" # [P21-C] chosen with --script (see USAGE); mapped to an in-image path below
 # Dry-run proof store + TTL for the --apply guard (overridable for tests).
 STATE_DIR="${TOVIRA_BACKFILL_STATE_DIR:-${HOME}/.cache/tovira-backfill}"
 DRYRUN_TTL="${TOVIRA_BACKFILL_DRYRUN_TTL:-1800}" # 30 minutes, seconds
@@ -48,9 +54,24 @@ while [ "$#" -gt 0 ]; do
       [ "$#" -ge 2 ] || die "--only needs a userId"
       PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); shift 2 ;;
     --only=*) PASSTHROUGH+=("$1"); KEYARGS+=("$1"); shift ;;
-    *) die "unknown argument: $1 (expected --only <userId>, --apply, --i-checked-the-dry-run)" ;;
+    --only-user)
+      [ "$#" -ge 2 ] || die "--only-user needs a userId"
+      PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); shift 2 ;;
+    --script)
+      # consumed here (never sent to the container) but part of the guard key, so a dry run of one
+      # backfill never authorises --apply of another
+      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates)"
+      SCRIPT_NAME="$2"; KEYARGS+=("$1" "$2"); shift 2 ;;
+    *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --apply, --i-checked-the-dry-run)" ;;
   esac
 done
+
+case "$SCRIPT_NAME" in
+  trials)        SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-trials.ts" ;;
+  promise-dates) SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-promise-dates.ts" ;;
+  meeting-dates) SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-meeting-dates.ts" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates)" ;;
+esac
 
 # Stable key for "same args" = the non---apply args (so a dry run for --only X authorises --apply --only X).
 key_for() { printf '%s\n' "${KEYARGS[*]-}" | /usr/bin/shasum 2>/dev/null | cut -d' ' -f1 || printf '%s' "${KEYARGS[*]-}" | cksum | cut -d' ' -f1; }
@@ -67,7 +88,7 @@ if [ "$APPLY" -eq 1 ] && [ "$I_CHECKED" -eq 0 ]; then
   fi
 fi
 
-echo "run-backfill: cluster=$CLUSTER service=$SERVICE region=$REGION mode=$([ "$APPLY" -eq 1 ] && echo APPLY || echo 'DRY RUN')"
+echo "run-backfill: script=$SCRIPT_IN_IMAGE cluster=$CLUSTER service=$SERVICE region=$REGION mode=$([ "$APPLY" -eq 1 ] && echo APPLY || echo 'DRY RUN')"
 
 # --- Discover the service's CURRENT task definition + network config (so we always match the live API) ---
 svc_json="$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --region "$REGION" \
