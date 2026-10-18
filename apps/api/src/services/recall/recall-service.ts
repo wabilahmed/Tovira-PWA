@@ -165,10 +165,38 @@ export function cleanAnswer(text: string): string {
     .replace(/^\s{0,3}>\s?/gm, '')                       // blockquote markers
     .replace(/^\s{0,3}[-*+]\s+/gm, '• ')                // bullets → •
     .trim();
+  // [P21-R4] The model talking about its source ("The excerpts provided do not contain…") is never the
+  // answer: cut a meta lead-in, then drop any sentence still about the excerpts / provided notes. An answer
+  // that was only meta comes back empty, and the caller shows our honest NO_ANSWER.
+  const metaCut = stripMeta(s);
+  const metaEdited = metaCut !== s;
+  s = metaCut;
   // A stripped preamble can leave a lowercase lead — recapitalise ONLY then, so the model's own wording
   // (e.g. a deliberately lowercase "ok") is never altered.
-  if (preambleRemoved && s && /[a-z]/.test(s.charAt(0))) s = s.charAt(0).toUpperCase() + s.slice(1);
+  if ((preambleRemoved || metaEdited) && s && /[a-z]/.test(s.charAt(0))) s = s.charAt(0).toUpperCase() + s.slice(1);
   return s;
+}
+
+// What the model calls the material it was given. "information provided BY someone" is content, not meta.
+const SOURCE = String.raw`(?:excerpts?|(?:provided|given|supplied)\s+(?:notes?|context|information|records?|text|data|messages?)|(?:notes?|context|information|records?|text|data|messages?)\s+(?:provided|given|supplied)(?!\s+by\b))`;
+const META_LEAD = new RegExp(String.raw`^(?:(?:in|from|within|per)\s+(?:the\s+)?${SOURCE}(?:\s+(?:provided|given|shared))?\s*,\s*|the\s+${SOURCE}\s+(?:shows?|indicates?|mentions?|says?|states?|suggests?|confirms?)\s+(?:that\s+)?)`, 'i');
+// …or the model's own "there is no information about X" — our NO_ANSWER says that honestly.
+const META_SENTENCE = new RegExp(String.raw`\b${SOURCE}\b|^\s*there(?:\s+is|'s|\s+are)\s+no\s+(?:information|mention|record|details?|data)\b`, 'i');
+
+function stripMeta(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => (line.match(/[^.!?]+[.!?]*\s*/g) ?? [line])
+      .map((sentence) => {
+        const lead = sentence.replace(META_LEAD, '');
+        const cut = lead !== sentence ? lead.charAt(0).toUpperCase() + lead.slice(1) : sentence;
+        return META_SENTENCE.test(cut) ? '' : cut;
+      })
+      .join('')
+      .trim())
+    .filter((line, i, all) => line !== '' || (i > 0 && all[i - 1] !== ''))
+    .join('\n')
+    .trim();
 }
 
 export class RecallService {
