@@ -14,7 +14,7 @@ import { checkPointers } from '../services/extraction/pointer-postcheck.js';
 import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from '../services/extraction/pointer-prompt.js';
 import type { Pointer } from '../services/extraction/types.js';
 import type { PointerFixture } from './pointer-fixtures.js';
-import { correctPromiseOwners, type OwnerCheckContext } from '../services/extraction/owner-check.js';
+import { correctPromiseOwners, logOwnerCorrections, type OwnerCheckContext } from '../services/extraction/owner-check.js';
 import { assignSpeakerRoles } from '../services/import/unanswered.js';
 
 /**
@@ -199,7 +199,7 @@ export async function extractImportFixture(
   try { ex = asExtraction(obj); } catch { return null; }
   if (ex === null) return null;
   // [P25-1] the shipped write-time owner check, over the import's speaker roles
-  correctPromiseOwners(ex, { source: 'whatsapp_export', messages: assignSpeakerRoles(parsed.messages, fixture.clientName) });
+  logOwnerCorrections('import-fixture', correctPromiseOwners(ex, { source: 'whatsapp_export', messages: assignSpeakerRoles(parsed.messages, fixture.clientName) }));
   for (const promise of ex.promises) {
     if (promise.due_date !== null && promise.due_date < referenceDate) {
       promise.due_date = null;
@@ -260,7 +260,7 @@ export async function extractForEval(model: ModelClient, note: EvalNote, opts: {
   // [P25-1] Mirror production's write-time OWNER check (extractNote runs it before saving), so the gate
   // scores the shipped owner, not the raw model owner. A chat note is traced through its parsed messages
   // (speaker roles as the import assigns them); voice/paste through the text the model saw.
-  correctPromiseOwners(ex, ownerContextForEval(note.source, redactedNote, note.clientName));
+  logOwnerCorrections(note.id, correctPromiseOwners(ex, ownerContextForEval(note.source, redactedNote, note.clientName)));
   // Apply the production DATE-INVARIANT (extractNote enforces it at write time): a
   // promise cannot be due before the note's reference date. The gate must score the
   // full pipeline, not the raw prompt output — else an invariant-backed key can't pass.

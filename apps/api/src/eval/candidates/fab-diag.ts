@@ -20,7 +20,9 @@ async function main(): Promise<void> {
   const model: ModelClient = { complete: async (r) => { const res = await real.complete(r); cap.add(modelId, res.usage ?? { inputTokens: 0, outputTokens: 0 }); return res; } };
   const ids = process.env.FAB_DIAG_ONLY?.split(',');
   let fab = 0;
-  for (const note of EVAL_NOTES.filter((n) => !ids || ids.includes(n.id))) {
+  const repeat = Math.max(1, Number(process.env.FAB_DIAG_REPEAT ?? 1));
+  const cases = EVAL_NOTES.filter((n) => !ids || ids.includes(n.id));
+  for (const note of Array.from({ length: repeat }, () => cases).flat()) {
     const actual = await extractForEval(model, note, { aliases: note.aliases });
     const s = scoreNote(note.expected, actual, note.mustNotMerge, note.forbidden);
     if (s.fabricatedPromises === 0) continue;
@@ -30,6 +32,6 @@ async function main(): Promise<void> {
     for (const e of note.expected.promises) console.log(`[fab]   expected  (${e.owner}, due ${e.due_date ?? 'null'}): ${e.text}`);
     console.log(`[fab]   note: ${note.note.replace(/\n/g, ' ⏎ ').slice(0, 600)}`);
   }
-  console.log(`\n[fab] ${modelId}: ${fab} fabricated across ${ids?.length ?? EVAL_NOTES.length} case(s) · ${cap.calls} call(s) · AED ${cap.spentAed.toFixed(3)}`);
+  console.log(`\n[fab] ${modelId}: ${fab} fabricated across ${cases.length * repeat} extraction(s) · ${cap.calls} call(s) · AED ${cap.spentAed.toFixed(3)}`);
 }
 main().catch((e: unknown) => { console.error(`[fab] error: ${e instanceof Error ? e.message : String(e)}`); process.exit(1); });
