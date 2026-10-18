@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { promiseDedupeKey } from './dedupe.js';
+import { isMeetingNotPromise } from '../../services/facts/meeting-like.js';
 import type {
   FactsRepository,
   PromiseRecord,
@@ -152,8 +153,9 @@ export class InMemoryFactsRepository implements FactsRepository {
     // Tracker + every counting surface: canonicals only, so a deduped commitment
     // appears once everywhere (B2-9). [P20-2] Soft-deleted rows are excluded everywhere except the
     // export (includeDeleted), so a deleted promise leaves every surface but still travels in the DSAR.
+    // [P21-R3] A meeting stored as a promise stays out of every promise list (still in the export).
     return this.promises.filter(
-      (p) => p.userId === userId && p.mergedInto === null && (opts?.includeDeleted || p.deletedAt === null),
+      (p) => p.userId === userId && p.mergedInto === null && (opts?.includeDeleted || (p.deletedAt === null && !isMeetingNotPromise(p.text))),
     );
   }
 

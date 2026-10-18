@@ -8,6 +8,7 @@ import type {
   SaveExtractionInput,
 } from '../../ports/facts-repository.js';
 import { withTenant } from '../../db/tenant.js';
+import { isMeetingNotPromise } from '../../services/facts/meeting-like.js';
 
 interface KeyDateRow {
   id: string;
@@ -165,7 +166,8 @@ export class PgFactsRepository implements FactsRepository {
         `SELECT ${COLUMNS} FROM promises WHERE user_id = $1 AND merged_into IS NULL${deletedClause} ORDER BY created_at DESC`,
         [userId],
       );
-      return (rows as unknown as PromiseRow[]).map(toRecord);
+      // [P21-R3] A meeting stored as a promise stays out of every promise list (still in the export).
+      return (rows as unknown as PromiseRow[]).map(toRecord).filter((p) => opts?.includeDeleted || !isMeetingNotPromise(p.text));
     });
   }
 
