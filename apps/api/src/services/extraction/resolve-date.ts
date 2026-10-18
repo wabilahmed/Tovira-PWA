@@ -120,7 +120,12 @@ export function extractClockTime(text: string): string | null {
  *  today/tomorrow/weekday (optionally this/next), "in N days|weeks", "end of month", and numeric/ISO
  *  dates. Null when none is present; the resolver still decides what is actually resolvable. */
 export function extractDatePhrase(text: string): string | null {
-  const re = /\b((?:this|next)\s+)?(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\bin\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:days?|weeks?)\b|\bend\s+of\s+(?:the\s+)?month\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/i;
+  // [P23] An explicit (numeric / ISO) date in the phrase WINS over a weekday or relative word next to it:
+  // "Sunday 17/05/2026 at 4pm" is 17 May, never "the Sunday after the message". (An ambiguous numeric date
+  // is then left to the resolver, which returns null without a day-order proof — never a weekday guess.)
+  const explicit = /\b\d{1,2}[./-]\d{1,2}[./-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/.exec(text);
+  if (explicit) return explicit[0];
+  const re = /\b((?:this|next)\s+)?(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\bin\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:days?|weeks?)\b|\bend\s+of\s+(?:the\s+)?month\b/i;
   const m = re.exec(text);
   return m ? m[0] : null;
 }
