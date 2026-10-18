@@ -1,0 +1,1 @@
+{"type":"genesis","createdAt":"2026-10-18T00:00:00Z","note":"Append-only fabrication ledger for the CI extraction gate [P25-2]. One JSON record per gate run, appended by CI. Never edit or rewrite."}
