@@ -70,6 +70,13 @@ resource "aws_instance" "bastion" {
     encrypted   = true
   }
   tags = { Name = "tovira-${var.env}-bastion" }
+
+  lifecycle {
+    # [P26-1] The AMI comes from the "latest AL2023" SSM parameter, so every new AWS release made each
+    # plan REPLACE the bastion. Keep the running instance; patch it in place (dnf upgrade over SSM), or
+    # replace it deliberately with `terraform apply -replace=aws_instance.bastion`.
+    ignore_changes = [ami]
+  }
 }
 
 output "bastion_instance_id" {

@@ -25,10 +25,6 @@ permissions:
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-north-1' }}
   DEPLOY_ENV: ${{ vars.DEPLOY_ENV || 'prod' }}
-  # A harmless placeholder image for the very first apply (the ECS task can't
-  # reference an image that isn't in ECR yet). Run "Deploy" right after to push
-  # the real image and make the service healthy.
-  PLACEHOLDER_IMAGE: public.ecr.aws/nginx/nginx:stable
 
 jobs:
   terraform:
@@ -65,12 +61,25 @@ jobs:
           terraform fmt -check -recursive || true
           terraform validate
 
+      # [P26-1] Plan with the image the service is RUNNING — never a placeholder. variables.tf refuses
+      # anything that is not the tovira/api ECR image.
+      - name: Read the live API image
+        id: live
+        run: |
+          TD="$(aws ecs describe-services --cluster "tovira-${DEPLOY_ENV}" --services "tovira-${DEPLOY_ENV}-api" --query 'services[0].taskDefinition' --output text)"
+          IMG="$(aws ecs describe-task-definition --task-definition "$TD" --query 'taskDefinition.containerDefinitions[0].image' --output text)"
+          case "$IMG" in
+            *.dkr.ecr.*.amazonaws.com/tovira/api:*|*.dkr.ecr.*.amazonaws.com/tovira/api@sha256:*) ;;
+            *) echo "::error::live API image is '$IMG' — refusing to plan"; exit 1 ;;
+          esac
+          echo "image=$IMG" >> "$GITHUB_OUTPUT"
+
       - name: terraform plan
         run: |
           terraform plan -input=false \
             -var="region=${AWS_REGION}" \
             -var="env=${DEPLOY_ENV}" \
-            -var="api_image=${PLACEHOLDER_IMAGE}" \
+            -var="api_image=${{ steps.live.outputs.image }}" \
             -var="marketing_domain=${{ vars.MARKETING_DOMAIN }}" \
             -var="marketing_acm_certificate_arn=${{ vars.MARKETING_ACM_CERT_ARN }}" \
             -out=tfplan

@@ -54,11 +54,19 @@ variable "api_image" {
   description = "Full ECR image URI:tag for the API container (set by CI on deploy)."
   type        = string
   default     = ""
-  # [FOOTGUN-FIX] Empty in prod would register a task-def revision with a blank image. Provided by
-  # prod.auto.tfvars (the placeholder; the deploy pipeline overrides it) or -var — never left empty in prod.
+  # [FOOTGUN-FIX][P26-1] No default image, and no placeholder anywhere: in prod it must be the real
+  # tovira/api image in ECR, with a tag or digest — pass the image the service is running now:
+  #   -var="api_image=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services \
+  #      --cluster tovira-prod --services tovira-prod-api --query 'services[0].taskDefinition' --output text)" \
+  #      --query 'taskDefinition.containerDefinitions[0].image' --output text)"
+  # Empty, nginx, or any non-ECR image fails here, before a plan is made.
   validation {
-    condition     = var.env != "prod" || trimspace(var.api_image) != ""
-    error_message = "api_image must be set when env=prod (empty blanks the container image). Use prod.auto.tfvars or pass -var=\"api_image=...\"."
+    condition     = var.env != "prod" || can(regex("^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/tovira/api(:[A-Za-z0-9._-]+|@sha256:[0-9a-f]{64})$", var.api_image))
+    error_message = "api_image must be the tovira/api ECR image with a tag (the one the service is running), when env=prod. Pass -var=\"api_image=<live image>\" — see the comment above."
+  }
+  validation {
+    condition     = !strcontains(lower(var.api_image), "nginx")
+    error_message = "api_image is the nginx placeholder — never register a task definition with it. Pass the live tovira/api image."
   }
 }
 
