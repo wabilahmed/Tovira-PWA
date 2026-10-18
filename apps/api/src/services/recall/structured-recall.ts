@@ -43,7 +43,8 @@ export interface StructuredRecallDeps {
 }
 
 /** A structured receipt; `matched` = it shares content words with the question (rank it first). */
-export type StructuredReceipt = Receipt & { matched?: boolean };
+/** `clientName` (matched rows only) lets the recall service check the answer names every matching client. */
+export type StructuredReceipt = Receipt & { matched?: boolean; clientName?: string };
 
 export interface StructuredQuery {
   /** The rep's question — rows sharing its content words are returned (and flagged `matched`). */
@@ -200,7 +201,7 @@ export class StructuredRecall {
       .slice(0, MAX_MATCHED)
       .map((x) => x.row);
     const taken = new Set(matched);
-    const out: StructuredReceipt[] = matched.map((r) => ({ ...r.receipt, matched: true }));
+    const out: StructuredReceipt[] = matched.map((r) => ({ ...r.receipt, matched: true, clientName: who(r.receipt.clientId) }));
 
     // The aggregate digest (promises / meetings / key dates), each kind capped, minus what matched.
     const perKind = (kind: (r: Row) => boolean) => rows.filter((r) => r.digest && kind(r) && !taken.has(r)).slice(0, this.config.maxPerKind);
