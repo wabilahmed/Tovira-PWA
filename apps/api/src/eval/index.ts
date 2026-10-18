@@ -11,6 +11,7 @@ import { scoreNote, aggregate, scoreReceipts, aggregateReceipts, GATE_RECEIPTS, 
 import type { Extraction } from '../services/extraction/types.js';
 import type { ModelClient } from '../ports/model.js';
 import { ModelBudget } from '../services/metrics/model-budget.js';
+import { SpendCap } from './spend-cap.js';
 
 /**
  * The P1-9 quality gate under the redefined standard (temperature is deprecated
@@ -87,11 +88,14 @@ async function main(): Promise<void> {
   const budget = new ModelBudget(2.0, 0.5);
   let calls = 0;
   let hits = 0;
+  // [P23-A3] Optional hard AED stop (GATE_SPEND_CAP_AED) for runs on a capped eval key.
+  const spendCap = SpendCap.fromEnv(process.env);
   const model: ModelClient = {
     complete: async (req) => {
       const res = await realModel.complete(req);
       const u = res.usage ?? { inputTokens: 0, outputTokens: 0 };
       budget.record('extraction', modelId, u);
+      spendCap.add(modelId, u);
       calls += 1;
       if ((u.cacheReadInputTokens ?? 0) > 0) hits += 1;
       return res;
