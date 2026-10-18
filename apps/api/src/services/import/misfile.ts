@@ -80,6 +80,26 @@ export function nameMatches(a: string, b: string): boolean {
   return false;
 }
 
+/** [P21-D / BOOK-08] Match a mention against a CLIENT NAME: exact (folded), or a shared word that is not
+ *  generic across the rep's book. "QA P14 Gate Client" and "QA Enter Key Client" share "qa"/"client" —
+ *  words several client names carry — which says nothing about which client a chat is with. */
+function clientNameMatches(mention: string, clientName: string, generic: Set<string>): boolean {
+  const a = norm(mention);
+  const b = norm(clientName);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const wb = words(clientName);
+  for (const w of words(mention)) if (wb.has(w) && !generic.has(w)) return true;
+  return false;
+}
+
+/** Words carried by two or more of the rep's client names — generic for this book. */
+function genericWords(names: string[]): Set<string> {
+  const seen = new Map<string, number>();
+  for (const name of names) for (const w of words(name)) seen.set(w, (seen.get(w) ?? 0) + 1);
+  return new Set([...seen].filter(([, n]) => n >= 2).map(([w]) => w));
+}
+
 // The device owner's own messages carry a self-label, never a counterpart's identity.
 const SELF_LABELS = new Set(['me', 'you']);
 
@@ -102,14 +122,15 @@ function participantsOf(messages: ImportedMessage[]): string[] {
 /** Does any participant match this client — by phone (strongest), name, a known person, or a
  *  learned ALIAS (the nickname/company/script the contact is saved under)? Match order per the
  *  ALIAS spec: exact/word name → alias → known people (phone short-circuits when present). */
-function clientMatched(participants: string[], client: ClientIdentity, knownPeople: string[]): boolean {
+function clientMatched(participants: string[], client: ClientIdentity, knownPeople: string[], generic: Set<string> = new Set()): boolean {
   const aliases = client.aliases ?? [];
   for (const p of participants) {
     if (isPhone(p)) {
       if (client.phone && phonesMatch(p, client.phone)) return true;
       continue; // a phone that doesn't match this client's phone is not a name signal
     }
-    if (nameMatches(p, client.name)) return true;
+    // [P21-D / BOOK-08] against the client's NAME, a word generic across the book ("QA", "Client") is no match.
+    if (clientNameMatches(p, client.name, generic)) return true;
     if (aliases.some((a) => nameMatches(p, a))) return true;
     if (knownPeople.some((kp) => nameMatches(p, kp))) return true;
   }
@@ -168,14 +189,15 @@ export function detectMisfileAtImport(input: MisfileInput): MisfileDetection {
   }
 
   if (participants.length === 0) return { status: 'ok', counterparts, counterpart, group, learnRepName: null };
+  const generic = genericWords([input.selected.name, ...input.others.map((o) => o.name)]);
 
   // Filed correctly if any participant matches the selected client (name → alias → known people).
-  if (clientMatched(participants, input.selected, input.knownPeople)) {
+  if (clientMatched(participants, input.selected, input.knownPeople, generic)) {
     // [ALIAS-COUNTERPART] Learn the rep's own name on a clean two-speaker match: the matching
     // speaker is the client, so the OTHER is the rep. Only when the rep name isn't known yet.
     let learnRepName: string | null = null;
     if (!input.repName && counterparts.length === 2) {
-      const matching = counterparts.find((p) => clientMatched([p], input.selected, input.knownPeople));
+      const matching = counterparts.find((p) => clientMatched([p], input.selected, input.knownPeople, generic));
       const other = counterparts.find((p) => p !== matching);
       if (matching && other) learnRepName = other;
     }
@@ -184,7 +206,7 @@ export function detectMisfileAtImport(input: MisfileInput): MisfileDetection {
 
   // Does the transcript positively match one of the rep's OTHER clients? The strongest misfile
   // signal — it names the right client.
-  const matchedOthers = input.others.filter((c) => clientMatched(participants, c, c.knownPeople));
+  const matchedOthers = input.others.filter((c) => clientMatched(participants, c, c.knownPeople, generic));
   const suggestion = matchedOthers.length === 1 ? { id: matchedOthers[0]!.id, name: matchedOthers[0]!.name } : null;
 
   // No match to the filed client. CONFIRM before extraction (the ordering rule): the counterpart is
@@ -216,27 +238,28 @@ export type PostMisfileResult =
   | { status: 'ok' }
   | { status: 'suggest_move'; to: { id: string; name: string } | null; mentioned: string[]; reason: string };
 
-const anyNameMatch = (names: string[], pool: string[]): boolean => names.some((n) => pool.some((p) => nameMatches(n, p)));
-
 export function detectMisfilePostExtraction(input: PostMisfileInput): PostMisfileResult {
   const people = input.notePeople.map((p) => p.trim()).filter(Boolean);
   if (people.length === 0) return { status: 'ok' }; // nothing to reason from
 
+  const generic = genericWords([input.filedClient.name, ...input.others.map((o) => o.name)]);
+
   // [P18-7] Match a note's mentions against each client's NAME as well as the people on its record — the
   // obvious misfile is a note whose counterpart is another client A, named by A's own (company) name,
   // which may be in nobody's people list. The filed client's own name likewise counts as overlap.
-  const filedPool = [input.filedClient.name, ...input.filedClientOtherPeople].map((s) => s.trim()).filter(Boolean);
-  const poolOf = (c: { name: string; people: string[] }): string[] => [c.name, ...c.people].map((s) => s.trim()).filter(Boolean);
+  const matchesClient = (n: string, c: { name: string; people: string[] }): boolean =>
+    clientNameMatches(n, c.name, generic) || c.people.map((s) => s.trim()).filter(Boolean).some((p) => nameMatches(n, p));
+  const filed = { name: input.filedClient.name, people: input.filedClientOtherPeople };
 
   // Any overlap with the filed client (its people OR its own name) → correctly filed (conservative gate).
-  if (anyNameMatch(people, filedPool)) return { status: 'ok' };
+  if (people.some((n) => matchesClient(n, filed))) return { status: 'ok' };
 
   // Zero overlap with B. Only flag if the mentions positively land on another client A.
-  const matched = input.others.filter((c) => anyNameMatch(people, poolOf(c)));
+  const matched = input.others.filter((c) => people.some((n) => matchesClient(n, c)));
   if (matched.length === 0) return { status: 'ok' };
 
   const to = matched.length === 1 ? { id: matched[0]!.id, name: matched[0]!.name } : null;
-  const mentioned = people.filter((n) => matched.some((c) => poolOf(c).some((p) => nameMatches(n, p))));
+  const mentioned = people.filter((n) => matched.some((c) => matchesClient(n, c)));
   const whose = to ? `${to.name}'s` : `another client's`;
   const list = mentioned.length ? mentioned.join(' and ') : 'people';
   return { status: 'suggest_move', to, mentioned, reason: `This note mentions ${list}, who are on ${whose} record. Move it?` };

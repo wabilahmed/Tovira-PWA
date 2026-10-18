@@ -231,6 +231,15 @@ export class ExtractionService {
     const notePeople = (extraction.people ?? [])
       .map((p) => p.name)
       .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
+    // [P21-D / BOOK-08] A chat's non-rep SENDERS are the strongest signal of who it is with — the
+    // counterpart is never in `people` (normaliseCounterpart drops the client themselves). The rep's own
+    // messages and self-labels never count.
+    const note = await this.notes.findByIdForUser(userId, noteId);
+    for (const m of note?.messages ?? []) {
+      const sender = m.sender?.trim();
+      if (!sender || m.role === 'rep' || m.excluded || /^(me|you)$/i.test(sender)) continue;
+      if (!notePeople.includes(sender)) notePeople.push(sender);
+    }
     if (notePeople.length === 0) return;
     const namesOf = (notes: Array<{ id: string; extracted: unknown }>, excludeNoteId?: string): string[] => {
       const out = new Set<string>();
