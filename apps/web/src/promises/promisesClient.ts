@@ -15,6 +15,17 @@ export interface OpenPromise {
   stale?: boolean;
 }
 
+/** [P24-2] A delivery seen in the chat for a still-open promise — the rep decides (Mark done / Not yet). */
+export interface KeptSuggestion {
+  id: string;
+  promiseId: string;
+  clientId: string;
+  clientName: string;
+  message: string;
+  promise: { quote: string; date: string | null };
+  delivery: { quote: string; date: string };
+}
+
 export class PromisesClient {
   constructor(private readonly baseUrl: string = '') {}
 
@@ -45,6 +56,26 @@ export class PromisesClient {
     } catch {
       return false;
     }
+  }
+
+  /** [P24-2] "Looks like you sent it — Mark done?" suggestions (To Confirm). */
+  async listKept(): Promise<KeptSuggestion[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/promises/kept-suggestions`, { credentials: 'include' });
+      if (res.status !== 200) return [];
+      return ((await res.json()) as { suggestions?: KeptSuggestion[] }).suggestions ?? [];
+    } catch {
+      return [];
+    }
+  }
+  markKeptDone(id: string): Promise<boolean> {
+    return this.post(`/promises/kept-suggestions/${encodeURIComponent(id)}/done`);
+  }
+  undoKept(id: string): Promise<boolean> {
+    return this.post(`/promises/kept-suggestions/${encodeURIComponent(id)}/undo`);
+  }
+  notYetKept(id: string): Promise<boolean> {
+    return this.post(`/promises/kept-suggestions/${encodeURIComponent(id)}/not-yet`);
   }
 
   markDone(id: string): Promise<boolean> {

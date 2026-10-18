@@ -541,14 +541,14 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <>
           <HeroInsights api={heroApi} />
           <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
-          <ConfirmChitQueue api={promisesApi} captures={recallApi} />
+          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} />
         </>,
       )}
 
       {view === 'week' && gated(
         <>
           <MondayDigest api={mondayApi} onSetOutcome={async (id, choice) => { await clientsApi.setOutcome(id, choice); }} />
-          <ConfirmChitQueue api={promisesApi} heading="Guesses to confirm" />
+          <ConfirmChitQueue api={promisesApi} heading="Guesses to confirm" kept={promisesApi} />
         </>,
       )}
 
@@ -573,7 +573,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <>
           <Alerts api={proactiveApi} onSetOutcome={async (id, choice) => { await clientsApi.setOutcome(id, choice); }} />
           <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
-          <ConfirmChitQueue api={promisesApi} captures={recallApi} />
+          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} />
         </>
       )}
 
