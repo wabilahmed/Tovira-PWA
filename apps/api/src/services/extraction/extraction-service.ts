@@ -23,7 +23,9 @@ import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, EXTRACTION_MAX_TOKENS, buildU
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
-import { modelSafeText } from '../import/dedup.js';
+import { modelSafeText, renderThread } from '../import/dedup.js';
+import { planWindows, mergeWindowExtractions, markKeptPromises, type WindowConfig } from './windowed.js';
+import { AiGateRefused } from '../spend/ai-gate.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 import { detectMisfilePostExtraction, nameMatches } from '../import/misfile.js';
@@ -82,6 +84,8 @@ interface Attempt {
   /** [EXTRACT-STOPREASON] The output budget was spent without a text answer — max_tokens hit with no
    *  text, or a thinking-only response. A DISTINCT failure (the model produced nothing), not
    *  malformed JSON. Never retried as invalid JSON; raised loud + counted. */
+  /** [P23-B4] The usage gate refused the call (allowance / kill switch) — nothing was sent. */
+  refused?: boolean;
   starved: boolean;
 }
 
@@ -187,6 +191,10 @@ export class ExtractionService {
      *  and facts are withheld from the model body (and embedding) during the review window. Absent →
      *  no restriction (older wiring / unit tests). */
     private readonly restriction?: { forUser(userId: string): Promise<Restriction> },
+    /** [P23-B4 / EXT-10] EXTRACT_WINDOWED: an imported chat over `threshold` model-visible messages is
+     *  extracted in overlapping windows through the same certified prompt + model, then merged. Absent or
+     *  disabled → every note is a single pass, exactly as before. */
+    private readonly windowing?: WindowConfig & { enabled: boolean },
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -372,24 +380,68 @@ export class ExtractionService {
     // tokens; the import-cost metric wants the whole import's spend.
     const spend = { calls: 0, input: 0, output: 0, thinking: 0, cacheWrite: 0, cacheRead: 0 };
     const spendClass = note.source === 'whatsapp_export' ? 'import' : 'extraction';
-    for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
-      last = await this.call(route.model, userMessage, userId, spendClass, honourForce);
-      spend.calls += 1;
-      spend.input += last.inputTokens;
-      spend.output += last.outputTokens;
-      spend.thinking += last.thinkingTokens;
-      spend.cacheWrite += last.cacheCreationTokens;
-      spend.cacheRead += last.cacheReadTokens;
-      extraction = last.parsed ? asExtraction(last.parsed) : null;
-      // [EXTRACT-STOPREASON] A starved response (budget spent on reasoning, no text) is a DISTINCT
-      // failure — the model produced nothing, not malformed JSON. Do NOT retry it as invalid JSON
-      // (a retry starves identically and burns the budget again); make it loud and observable so it
-      // can never silently reach a user as it did before. This should not happen now that
-      // EXTRACTION_MAX_TOKENS clears the reasoning budget — if it fires, the budget needs raising.
-      if (last.starved) {
-        console.error(`[extract] OUTPUT_STARVED note=${noteId} client=${note.clientId} model=${route.modelId} inputTokens=${last.inputTokens} outputTokens=${last.outputTokens} — max_tokens exhausted by reasoning, no text emitted; raise EXTRACTION_MAX_TOKENS`);
-        this.health?.recordStarvedOutput();
-        break;
+    // [P23-B4] A long imported chat, with the switch on → windowed. Everything else: the single pass below,
+    // byte-identical to before.
+    const visible = (rnote.messages ?? []).filter((m) => !m.excluded);
+    const windows = this.windowing?.enabled && note.source === 'whatsapp_export' ? planWindows(visible.length, this.windowing) : null;
+    if (windows) {
+      const parts: Extraction[] = [];
+      for (const [from, to] of windows) {
+        const windowMessage = buildUserMessage({ today: referenceDate, clientName: client?.name ?? 'Unknown', source: note.source, text: renderThread(visible.slice(from, to)), glossary });
+        let part: Extraction | null = null;
+        for (let attempt = 0; attempt < 2 && !part; attempt++) {
+          last = await this.call(route.model, windowMessage, userId, spendClass, honourForce);
+          if (last.refused) break;
+          spend.calls += 1;
+          spend.input += last.inputTokens;
+          spend.output += last.outputTokens;
+          spend.thinking += last.thinkingTokens;
+          spend.cacheWrite += last.cacheCreationTokens;
+          spend.cacheRead += last.cacheReadTokens;
+          part = last.parsed ? asExtraction(last.parsed) : null;
+          if (last.starved) {
+            console.error(`[extract] OUTPUT_STARVED note=${noteId} window=${from}-${to} model=${route.modelId} — max_tokens exhausted by reasoning`);
+            this.health?.recordStarvedOutput();
+            break;
+          }
+        }
+        if (last.refused) {
+          // Allowance ran out (or the kill switch is on) mid-chat: stop cleanly. Nothing from the windows
+          // already read is saved — the note goes back in the queue whole and re-extracts later.
+          if (spend.calls > 0) await this.limiter?.record?.(userId);
+          await this.notes.update(userId, noteId, { status: 'pending_extraction' });
+          console.info(`[extract] windowed note ${noteId}: usage gate refused window ${from}-${to} — re-queued, nothing saved`);
+          return { status: 'spend_capped', flagged: true };
+        }
+        if (!part) { parts.length = 0; break; } // a window that can't be read fails the whole note (needs_review), never a partial merge
+        parts.push(part);
+      }
+      if (parts.length === windows.length) {
+        extraction = mergeWindowExtractions(parts);
+        markKeptPromises(extraction, visible);
+      }
+      // The log row carries the whole extraction's tokens, not the last window's.
+      last = { ...last, inputTokens: spend.input, outputTokens: spend.output, cacheCreationTokens: spend.cacheWrite, cacheReadTokens: spend.cacheRead, thinkingTokens: spend.thinking };
+    } else {
+      for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
+        last = await this.call(route.model, userMessage, userId, spendClass, honourForce);
+        spend.calls += 1;
+        spend.input += last.inputTokens;
+        spend.output += last.outputTokens;
+        spend.thinking += last.thinkingTokens;
+        spend.cacheWrite += last.cacheCreationTokens;
+        spend.cacheRead += last.cacheReadTokens;
+        extraction = last.parsed ? asExtraction(last.parsed) : null;
+        // [EXTRACT-STOPREASON] A starved response (budget spent on reasoning, no text) is a DISTINCT
+        // failure — the model produced nothing, not malformed JSON. Do NOT retry it as invalid JSON
+        // (a retry starves identically and burns the budget again); make it loud and observable so it
+        // can never silently reach a user as it did before. This should not happen now that
+        // EXTRACTION_MAX_TOKENS clears the reasoning budget — if it fires, the budget needs raising.
+        if (last.starved) {
+          console.error(`[extract] OUTPUT_STARVED note=${noteId} client=${note.clientId} model=${route.modelId} inputTokens=${last.inputTokens} outputTokens=${last.outputTokens} — max_tokens exhausted by reasoning, no text emitted; raise EXTRACTION_MAX_TOKENS`);
+          this.health?.recordStarvedOutput();
+          break;
+        }
       }
     }
 
@@ -670,8 +722,8 @@ export class ExtractionService {
       const noText = !raw || !raw.trim();
       const starved = noText && (res.stopReason === 'max_tokens' || (res.usage?.thinkingTokens ?? 0) > 0);
       return { parsed: extractJsonObject(raw), raw, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, thinkingTokens: res.usage?.thinkingTokens ?? 0, starved };
-    } catch {
-      return { parsed: null, raw: null, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, thinkingTokens: 0, starved: false };
+    } catch (err) {
+      return { parsed: null, raw: null, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, thinkingTokens: 0, starved: false, refused: err instanceof AiGateRefused };
     }
   }
 }

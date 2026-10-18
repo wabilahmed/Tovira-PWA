@@ -126,6 +126,9 @@ export interface AppConfig {
    *  (survives longer gaps between captures); set EXTRACTION_CACHE_TTL=5m to
    *  switch to the cheaper-write 5-minute tier. */
   extractionCacheTtl: CacheTtl;
+  /** [P23-B4 / EXT-10] Windowed extraction for long imported chats. OFF by default (EXTRACT_WINDOWED);
+   *  over `threshold` messages a chat is read in windows of `size` overlapping by `overlap`. */
+  windowing: { enabled: boolean; threshold: number; size: number; overlap: number };
   storageDir: string;
   /** [STORAGE] Blob backend: 's3' (production — the provisioned media bucket) or 'fs' (local dev).
    *  EXPLICIT, not inferred, so production can never silently fall back to ephemeral container-local
@@ -303,6 +306,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     effortAux: parseEnum(env.EFFORT_AUX, EFFORTS, 'low', 'EFFORT_AUX'),
     auxThinking: parseEnum(env.AUX_THINKING, ['adaptive', 'disabled'] as const, 'disabled', 'AUX_THINKING'),
     extractionCacheTtl: parseEnum(env.EXTRACTION_CACHE_TTL, CACHE_TTLS, '1h', 'EXTRACTION_CACHE_TTL'),
+    windowing: parseWindowing(env),
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
     storageBackend: env.STORAGE_BACKEND?.trim() === 's3' ? 's3' : 'fs',
     s3MediaBucket: isBlank(env.S3_MEDIA_BUCKET) ? undefined : env.S3_MEDIA_BUCKET!.trim(),
@@ -523,6 +527,17 @@ function parseEnum<T extends string>(raw: string | undefined, allowed: readonly 
   const value = raw!.trim() as T;
   if (!allowed.includes(value)) throw new ConfigError(`Invalid ${name}: "${value}". Expected one of: ${allowed.join(', ')}.`);
   return value;
+}
+
+/** [P23-B4] EXTRACT_WINDOWED (0/1/true/false, default off) + N/W/O, validated: overlap < size. */
+function parseWindowing(env: Env): AppConfig['windowing'] {
+  const raw = env.EXTRACT_WINDOWED?.trim().toLowerCase();
+  if (raw && !['0', '1', 'true', 'false'].includes(raw)) throw new ConfigError(`Invalid EXTRACT_WINDOWED: "${env.EXTRACT_WINDOWED}". Expected 1/0/true/false.`);
+  const size = parsePositive(env.EXTRACT_WINDOW_SIZE, 120, 'EXTRACT_WINDOW_SIZE');
+  const overlapRaw = env.EXTRACT_WINDOW_OVERLAP?.trim();
+  const overlap = overlapRaw ? Number(overlapRaw) : 20;
+  if (!Number.isInteger(overlap) || overlap < 0 || overlap >= size) throw new ConfigError(`Invalid EXTRACT_WINDOW_OVERLAP: "${overlapRaw ?? overlap}". Expected a whole number ≥ 0 and smaller than EXTRACT_WINDOW_SIZE (${size}).`);
+  return { enabled: raw === '1' || raw === 'true', threshold: parsePositive(env.EXTRACT_WINDOW_THRESHOLD, 150, 'EXTRACT_WINDOW_THRESHOLD'), size, overlap };
 }
 
 function parsePositive(raw: string | undefined, fallback: number, name: string): number {

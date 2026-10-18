@@ -600,7 +600,7 @@ export function createExtractionService(
   // [BULK-IMPORT · Task 4 / D1] Every extraction request carries exactly one chat. extractNote reads a
   // single note, so this holds structurally; the IsolatingModelClient makes it enforced, not merely
   // true by convention — a request body with two chats throws before it can reach a provider.
-  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate, pointers, restriction);
+  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate, pointers, restriction, config.windowing);
 }
 
 /** [NO-TRAINING-RETENTION] The operational per-rep glossary (P4-9), RLS-backed on pg. */
