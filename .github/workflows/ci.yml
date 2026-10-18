@@ -64,6 +64,8 @@ jobs:
   # same-key records (prompt version + model + extraction fingerprint) to >= 960 extractions; pooled > 1.2%
   # fails, and a single run > 3% fails at once. A missing/unreadable ledger fails CLOSED. Gate jobs are
   # serialised so each one reads the ledger after the previous run's record has landed.
+  # [P26-3] The job first appends a "started" record; a start with no result (a job cancelled or killed
+  # before it scored) counts as a FAILURE while it is in the window.
   gate:
     needs: [verify, migrations-pg]
     if: github.ref == 'refs/heads/main'
@@ -80,6 +82,18 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Record that this gate run started (before any model call)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL_PROVIDER: anthropic
+          DATABASE_URL: postgres://gate:gate@localhost:5432/gate
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "No ANTHROPIC_API_KEY secret set — the gate is skipped, nothing to record."
+            exit 0
+          fi
+          npx tsx apps/api/src/eval/fab-started.ts > "$RUNNER_TEMP/fab-started.jsonl"
+          scripts/ops/append-fab-ledger.sh "$RUNNER_TEMP/fab-started.jsonl" "gate started: ${GITHUB_SHA::7} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
       - name: Run the extraction gate (only when a key is configured)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -104,24 +118,9 @@ jobs:
         if: always()
         env:
           RECORD: ${{ runner.temp }}/fab-record.jsonl
-          LEDGER_DIR: ${{ runner.temp }}/gate-ledger
         run: |
           if [ ! -s "$RECORD" ]; then
-            echo "No fabrication record (the gate was skipped or stopped before scoring)."
+            echo "No fabrication result (the gate was skipped or stopped before scoring) — its started record stands as a failure."
             exit 0
           fi
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for attempt in 1 2 3 4 5; do
-            rm -rf "$LEDGER_DIR"
-            git fetch --no-tags origin gate-ledger
-            git worktree add --detach "$LEDGER_DIR" FETCH_HEAD
-            cat "$RECORD" >> "$LEDGER_DIR/fab-ledger.jsonl"
-            git -C "$LEDGER_DIR" add fab-ledger.jsonl
-            git -C "$LEDGER_DIR" commit -m "gate: ${GITHUB_SHA::7} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
-            if git -C "$LEDGER_DIR" push origin HEAD:gate-ledger; then exit 0; fi
-            git worktree remove --force "$LEDGER_DIR"
-            sleep $((attempt * 5))
-          done
-          echo "Could not append to the fabrication ledger after 5 attempts."
-          exit 1
+          scripts/ops/append-fab-ledger.sh "$RECORD" "gate: ${GITHUB_SHA::7} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"

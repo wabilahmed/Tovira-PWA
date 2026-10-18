@@ -114,3 +114,67 @@ describe('[P25-2] owner ruling (18 Oct): when does a fresh window run the in-job
     expect(plan.mode).toBe('refill');
   });
 });
+
+import { type FabStartedRecord } from './fab-window.js';
+describe('[P26-3] a gate job that never reports still counts — "started" records', () => {
+  const started = (o: Partial<FabStartedRecord> = {}): FabStartedRecord => ({ type: 'started', sha: 'abc', at: '2026-10-19T09:00:00Z', runId: '1', attempt: 1, ...key, ...o });
+  const self = { runId: 'self', attempt: 1 };
+  const lines = (es: Array<FabLedgerRecord | FabStartedRecord>) => [JSON.stringify({ type: 'genesis', createdAt: '2026-10-18T00:00:00Z' }), ...es.map((e) => JSON.stringify(e))].join('\n') + '\n';
+
+  it('the ledger reads started records alongside results, and rejects a malformed one', () => {
+    const es = parseFabLedger(lines([started({ runId: '9' }), rec({ extractions: 147, fabricated: 0, runId: '9' })]));
+    expect(es.map((e) => e.type)).toEqual(['started', 'run']);
+    expect(() => parseFabLedger(lines([]) + JSON.stringify({ type: 'started', sha: 'x' }) + '\n')).toThrow(LedgerUnreadable);
+  });
+
+  it('a started run that reported its result changes nothing', () => {
+    const es = [...Array.from({ length: 7 }, (_, i) => [started({ runId: `r${i}` }), rec({ extractions: 147, fabricated: 0, runId: `r${i}` })]).flat()];
+    const w = poolFabWindow(es, key, { extractions: 147, fabricated: 0 }, 960, self);
+    expect(w.unreported).toEqual([]);
+    expect(fabWindowVerdict({ current: { extractions: 147, fabricated: 0 }, pooled: w }).status).toBe('pass');
+  });
+
+  it('a started record with no matching result, inside the window, FAILS it', () => {
+    const es = [
+      ...Array.from({ length: 6 }, (_, i) => [started({ runId: `r${i}` }), rec({ extractions: 147, fabricated: 0, runId: `r${i}` })]).flat(),
+      started({ runId: 'cancelled', attempt: 2, sha: 'deadbee' }), // cancelled before scoring — no result line
+    ];
+    const w = poolFabWindow(es, key, { extractions: 147, fabricated: 0 }, 960, self);
+    expect(w.unreported).toEqual([{ runId: 'cancelled', attempt: 2, sha: 'deadbee' }]);
+    const v = fabWindowVerdict({ current: { extractions: 147, fabricated: 0 }, pooled: w });
+    expect(v.status).toBe('fail');
+    expect(v.reasons.join(' ')).toMatch(/cancelled\/2 .*started .*never reported/);
+    expect(formatPooled(w)).toBe('pooled 0/1,029 (0.00%) over 7 runs — FAIL (1 run started and never reported)');
+  });
+
+  it('…and a window still filling that holds one is a FAIL too, not provisional', () => {
+    const w = poolFabWindow([started({ runId: 'gone' })], key, { extractions: 147, fabricated: 0 }, 960, self);
+    expect(fabWindowVerdict({ current: { extractions: 147, fabricated: 0 }, pooled: w }).status).toBe('fail');
+  });
+
+  it('a re-run attempt reports, but the cancelled attempt before it still counts (attempts are matched exactly)', () => {
+    const es = [started({ runId: '7', attempt: 1 }), started({ runId: '7', attempt: 2 }), rec({ extractions: 147, fabricated: 0, runId: '7', attempt: 2 })];
+    expect(poolFabWindow(es, key, { extractions: 147, fabricated: 0 }, 960, self).unreported).toEqual([{ runId: '7', attempt: 1, sha: 'abc' }]);
+  });
+
+  it('this job\'s own started record is not "unreported" — it is reporting now', () => {
+    const w = poolFabWindow([started({ runId: 'self', attempt: 1 })], key, { extractions: 147, fabricated: 0 }, 960, self);
+    expect(w.unreported).toEqual([]);
+  });
+
+  it('an unreported start older than the window (≥ 960 newer extractions) has aged out; another key\'s never counts', () => {
+    const newer = Array.from({ length: 7 }, (_, i) => rec({ extractions: 147, fabricated: 0, runId: `n${i}` }));
+    expect(poolFabWindow([started({ runId: 'old' }), ...newer], key, { extractions: 147, fabricated: 0 }, 960, self).unreported).toEqual([]);
+    expect(poolFabWindow([started({ runId: 'x', fingerprint: 'fp-OTHER' })], key, { extractions: 147, fabricated: 0 }, 960, self).unreported).toEqual([]);
+  });
+
+  it('started-only records never make a certification surface look "already gated" (a cancelled full cert is re-run)', () => {
+    expect(freshWindowPlan([started({ extractions: undefined } as Partial<FabStartedRecord>)], key, 960).mode).toBe('full-cert');
+  });
+
+  it('the started line round-trips', () => {
+    const s = started({ runId: '42', attempt: 3 });
+    expect(parseFabLedger(lines([]) + fabStartedLine(s))).toEqual([s]);
+  });
+});
+import { fabStartedLine } from './fab-window.js';

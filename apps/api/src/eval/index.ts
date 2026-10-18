@@ -13,10 +13,8 @@ import type { ModelClient } from '../ports/model.js';
 import { ModelBudget } from '../services/metrics/model-budget.js';
 import { SpendCap } from './spend-cap.js';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { PROMPT_VERSION } from '../services/extraction/prompt.js';
-import { FAB_TRIPWIRE_PCT, parseFabLedger, poolFabWindow, fabWindowVerdict, freshWindowPlan, formatThisRun, formatPooled, fabRecordLine, type FabLedgerRecord, type FabWindowKey } from './fab-window.js';
-import { fingerprintFiles, NARROW_SURFACE, CERT_SURFACE } from './extraction-fingerprint.js';
+import { FAB_TRIPWIRE_PCT, parseFabLedger, poolFabWindow, fabWindowVerdict, freshWindowPlan, formatThisRun, formatPooled, fabRecordLine, type FabLedgerEntry } from './fab-window.js';
+import { gateModelId, gateWindowKey, gateRunRef } from './fab-started.js';
 
 /**
  * The P1-9 quality gate under the redefined standard (temperature is deprecated
@@ -86,18 +84,13 @@ function spuriousRequirements(scored: Scored[]): void {
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
+  const modelId = gateModelId(config);
 
   // [P25-2] The rolling fabrication window. CI passes GATE_LEDGER_FILE (the append-only ledger) and
   // GATE_LEDGER_REQUIRED=1: an unreadable, empty or missing ledger FAILS CLOSED here — before any model call.
-  const srcRoot = fileURLToPath(new URL('..', import.meta.url));
-  const windowKey: FabWindowKey = {
-    promptVersion: PROMPT_VERSION,
-    model: modelId,
-    fingerprint: fingerprintFiles(srcRoot, NARROW_SURFACE),
-    certFingerprint: fingerprintFiles(srcRoot, CERT_SURFACE),
-  };
-  let ledger: FabLedgerRecord[] | null = null;
+  const windowKey = gateWindowKey(modelId);
+  const runRef = gateRunRef();
+  let ledger: FabLedgerEntry[] | null = null;
   if (process.env.GATE_LEDGER_FILE || process.env.GATE_LEDGER_REQUIRED === '1') {
     try {
       if (!process.env.GATE_LEDGER_FILE) throw new Error('GATE_LEDGER_REQUIRED=1 but no GATE_LEDGER_FILE was given');
@@ -209,15 +202,15 @@ async function main(): Promise<void> {
   const fabCurrent = { extractions: fab.extractions, fabricated: agg.fabricatedPromises };
   console.log(`[gate]   ${formatThisRun(fabCurrent.fabricated, fabCurrent.extractions)}`);
   // [P25-2] Pool with the ledger's same-key records (none when run locally without a ledger → this run alone).
-  const pooled = poolFabWindow(ledger ?? [], windowKey, fabCurrent);
+  // [P26-3] This job's own "started" record is the one now reporting; any other unmatched start fails.
+  const pooled = poolFabWindow(ledger ?? [], windowKey, fabCurrent, GATE_FAB.minExtractions, runRef);
   const fabVerdict = fabWindowVerdict({ current: fabCurrent, pooled });
   console.log(`[gate]   ${formatPooled(pooled)}`);
   for (const r of fabVerdict.reasons) console.log(`[gate]   FABRICATION FAIL: ${r}`);
   if (process.env.GATE_LEDGER_OUT) {
     // This run's record — written whatever the verdict (a failing run must never vanish from the window).
     writeFileSync(process.env.GATE_LEDGER_OUT, fabRecordLine({
-      type: 'run', sha: process.env.GITHUB_SHA ?? 'local', at: new Date().toISOString(),
-      runId: process.env.GITHUB_RUN_ID ?? 'local', attempt: Number(process.env.GITHUB_RUN_ATTEMPT ?? 1),
+      type: 'run', ...runRef, at: new Date().toISOString(),
       extractions: fabCurrent.extractions, fabricated: fabCurrent.fabricated, ...windowKey,
     }));
   }

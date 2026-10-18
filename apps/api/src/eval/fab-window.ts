@@ -10,6 +10,10 @@ import { GATE_FAB } from './gate.js';
  * then fails if the pooled rate is over the ceiling. A change to any of the three starts the window fresh.
  * A single gate over the 3% tripwire fails at once, whatever the window says. The ledger must be readable and
  * start with a genesis line: an empty, missing or corrupt ledger FAILS CLOSED (it never reads as "no data").
+ *
+ * [P26-3] A gate job also appends a "started" record when it begins. A start with no matching result
+ * (same run id + attempt) — a job cancelled or killed before it scored — counts as a FAILURE for as long
+ * as it sits inside the pooled window, so cancelling a bad run can never make it disappear.
  */
 export const FAB_TRIPWIRE_PCT = 3;
 
@@ -31,8 +35,18 @@ export interface FabLedgerRecord extends FabWindowKey {
   extractions: number;
   fabricated: number;
 }
+/** [P26-3] Appended when a gate job begins, before any model call. */
+export interface FabStartedRecord extends FabWindowKey {
+  type: 'started';
+  sha: string;
+  at: string;
+  runId: string;
+  attempt: number;
+}
+export type FabLedgerEntry = FabLedgerRecord | FabStartedRecord;
+export interface FabRunRef { runId: string; attempt: number }
 export interface FabCount { extractions: number; fabricated: number }
-export interface FabWindow extends FabCount { runs: number; filled: boolean }
+export interface FabWindow extends FabCount { runs: number; filled: boolean; unreported?: Array<FabRunRef & { sha: string }> }
 export type FabVerdict = { status: 'pass' | 'fail' | 'provisional'; reasons: string[] };
 
 export class LedgerUnreadable extends Error {}
@@ -41,7 +55,7 @@ const isStr = (v: unknown): v is string => typeof v === 'string' && v.length > 0
 const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
 
 /** Parse the JSONL ledger. Throws LedgerUnreadable on anything it cannot vouch for (fail closed). */
-export function parseFabLedger(text: string): FabLedgerRecord[] {
+export function parseFabLedger(text: string): FabLedgerEntry[] {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
   if (lines.length === 0) throw new LedgerUnreadable('the fabrication ledger is empty (no genesis line) — failing closed');
   const parse = (l: string, i: number): Record<string, unknown> => {
@@ -50,11 +64,22 @@ export function parseFabLedger(text: string): FabLedgerRecord[] {
   if (parse(lines[0]!, 0).type !== 'genesis') throw new LedgerUnreadable('the fabrication ledger has no genesis line — failing closed');
   return lines.slice(1).map((l, i) => {
     const o = parse(l, i + 1);
+    const keyOk = isStr(o.promptVersion) && isStr(o.model) && isStr(o.fingerprint) && isStr(o.certFingerprint);
+    if (o.type === 'started') {
+      if (!(isStr(o.sha) && isStr(o.at) && isStr(o.runId) && isCount(o.attempt) && keyOk)) throw new LedgerUnreadable(`ledger line ${i + 2} is not a valid started record — failing closed`);
+      return o as unknown as FabStartedRecord;
+    }
     const ok = o.type === 'run' && isStr(o.sha) && isStr(o.at) && isStr(o.runId) && isCount(o.attempt) && isCount(o.extractions) && isCount(o.fabricated)
       && isStr(o.promptVersion) && isStr(o.model) && isStr(o.fingerprint) && isStr(o.certFingerprint) && (o.fabricated as number) <= (o.extractions as number);
     if (!ok) throw new LedgerUnreadable(`ledger line ${i + 2} is not a valid run record — failing closed`);
     return o as unknown as FabLedgerRecord;
   });
+}
+
+/** [P26-3] The "started" line CI appends when a gate job begins. */
+export function fabStartedLine(r: FabStartedRecord): string {
+  const { type, sha, at, runId, attempt, promptVersion, model, fingerprint, certFingerprint } = r;
+  return JSON.stringify({ type, sha, at, runId, attempt, promptVersion, model, fingerprint, certFingerprint }) + '\n';
 }
 
 /** One ledger line for this run (what CI appends). */
@@ -77,19 +102,29 @@ export type FreshWindowMode = 'normal' | 'refill' | 'full-cert';
  *  - full-cert — the prompt version, model, gate code or scorer changed (or the ledger is new): this job runs
  *                the full ≥ min-extraction certification itself.
  */
-export function freshWindowPlan(records: FabLedgerRecord[], key: FabWindowKey, min: number = GATE_FAB.minExtractions): { mode: FreshWindowMode; sameKeyExtractions: number } {
+export function freshWindowPlan(entries: FabLedgerEntry[], key: FabWindowKey, min: number = GATE_FAB.minExtractions): { mode: FreshWindowMode; sameKeyExtractions: number } {
+  const records = entries.filter((e): e is FabLedgerRecord => e.type === 'run');
   const sameKeyExtractions = records.filter((r) => sameKey(r, key)).reduce((n, r) => n + r.extractions, 0);
   if (sameKeyExtractions >= min) return { mode: 'normal', sameKeyExtractions };
   return { mode: records.some((r) => sameCertSurface(r, key)) ? 'refill' : 'full-cert', sameKeyExtractions };
 }
 
 /** This run + the most recent same-key records (newest first) until ≥ min extractions. Every record counts —
- *  a re-run's failed attempts stay in the window; nothing is skipped or deduplicated. */
-export function poolFabWindow(records: FabLedgerRecord[], key: FabWindowKey, current: FabCount, min: number = GATE_FAB.minExtractions): FabWindow {
-  const w: FabWindow = { runs: 1, extractions: current.extractions, fabricated: current.fabricated, filled: current.extractions >= min };
-  for (let i = records.length - 1; i >= 0 && !w.filled; i--) {
-    const r = records[i]!;
+ *  a re-run's failed attempts stay in the window; nothing is skipped or deduplicated. [P26-3] A same-key
+ *  "started" record met on the way with no result for its run id + attempt (and not this job's own) is
+ *  collected as unreported — the verdict fails on it. */
+export function poolFabWindow(entries: FabLedgerEntry[], key: FabWindowKey, current: FabCount, min: number = GATE_FAB.minExtractions, self?: FabRunRef): FabWindow {
+  const w: FabWindow = { runs: 1, extractions: current.extractions, fabricated: current.fabricated, filled: current.extractions >= min, unreported: [] };
+  const ref = (r: FabRunRef) => `${r.runId}#${r.attempt}`;
+  const reported = new Set(entries.filter((e) => e.type === 'run').map(ref));
+  for (let i = entries.length - 1; i >= 0 && !w.filled; i--) {
+    const r = entries[i]!;
     if (!sameKey(r, key)) continue;
+    if (r.type === 'started') {
+      const isSelf = self !== undefined && ref(self) === ref(r);
+      if (!isSelf && !reported.has(ref(r))) w.unreported!.push({ runId: r.runId, attempt: r.attempt, sha: r.sha });
+      continue;
+    }
     w.runs += 1;
     w.extractions += r.extractions;
     w.fabricated += r.fabricated;
@@ -108,6 +143,7 @@ export function fabWindowVerdict(input: { current: FabCount; pooled: FabWindow; 
   const runRate = pct(input.current.fabricated, input.current.extractions);
   if (runRate > tripwire) reasons.push(`this run fabricated ${input.current.fabricated}/${input.current.extractions} (${runRate.toFixed(2)}%) — over the ${tripwire}% single-run tripwire`);
   const poolRate = pct(input.pooled.fabricated, input.pooled.extractions);
+  for (const u of input.pooled.unreported ?? []) reasons.push(`gate run ${u.runId}/${u.attempt} (${u.sha.slice(0, 7)}) started and never reported a result — counts as a failure while it is in the window`);
   if (input.pooled.filled && poolRate > ceiling) reasons.push(`pooled ${input.pooled.fabricated}/${input.pooled.extractions} (${poolRate.toFixed(2)}%) over ${input.pooled.runs} runs — over the ${ceiling}% ceiling`);
   if (reasons.length > 0) return { status: 'fail', reasons };
   return { status: input.pooled.filled ? 'pass' : 'provisional', reasons };
@@ -126,6 +162,8 @@ export function formatThisRun(fabricated: number, extractions: number, ceilingPc
 export function formatPooled(w: FabWindow, ceilingPct: number = GATE_FAB.maxRatePct, min: number = GATE_FAB.minExtractions): string {
   const r = pct(w.fabricated, w.extractions);
   const head = `pooled ${n(w.fabricated)}/${n(w.extractions)} (${r.toFixed(2)}%) over ${w.runs} run${w.runs === 1 ? '' : 's'}`;
+  const unreported = w.unreported?.length ?? 0;
+  if (unreported > 0) return `${head} — FAIL (${unreported} run${unreported === 1 ? '' : 's'} started and never reported)`;
   if (!w.filled) return `${head} — provisional (${n(w.extractions)}/${n(min)})`;
   return r > ceilingPct ? `${head} — FAIL (over the ${ceilingPct}% ceiling)` : `${head} — PASS`;
 }
