@@ -112,3 +112,20 @@ export function fabWindowVerdict(input: { current: FabCount; pooled: FabWindow; 
   if (reasons.length > 0) return { status: 'fail', reasons };
   return { status: input.pooled.filled ? 'pass' : 'provisional', reasons };
 }
+
+const n = (x: number): string => x.toLocaleString('en-US');
+
+/** "fabricated promises: 3/147 (2.04%) — over the 1.2% ceiling" — the real comparison, never "≤" when over. */
+export function formatThisRun(fabricated: number, extractions: number, ceilingPct: number = GATE_FAB.maxRatePct, tripwirePct: number = FAB_TRIPWIRE_PCT): string {
+  const r = pct(fabricated, extractions);
+  const side = r > tripwirePct ? `over the ${ceilingPct}% ceiling and the ${tripwirePct}% single-run tripwire` : r > ceilingPct ? `over the ${ceilingPct}% ceiling` : `under the ${ceilingPct}% ceiling`;
+  return `fabricated promises: ${n(fabricated)}/${n(extractions)} (${r.toFixed(2)}%) — ${side}`;
+}
+
+/** "pooled 9/1,029 (0.87%) over 7 runs — PASS" | "… — FAIL (over the 1.2% ceiling)" | "… — provisional (612/960)". */
+export function formatPooled(w: FabWindow, ceilingPct: number = GATE_FAB.maxRatePct, min: number = GATE_FAB.minExtractions): string {
+  const r = pct(w.fabricated, w.extractions);
+  const head = `pooled ${n(w.fabricated)}/${n(w.extractions)} (${r.toFixed(2)}%) over ${w.runs} run${w.runs === 1 ? '' : 's'}`;
+  if (!w.filled) return `${head} — provisional (${n(w.extractions)}/${n(min)})`;
+  return r > ceilingPct ? `${head} — FAIL (over the ${ceilingPct}% ceiling)` : `${head} — PASS`;
+}

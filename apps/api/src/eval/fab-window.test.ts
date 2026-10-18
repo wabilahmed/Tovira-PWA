@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { parseFabLedger, poolFabWindow, fabWindowVerdict, fabRecordLine, LedgerUnreadable, type FabLedgerRecord } from './fab-window.js';
+import { parseFabLedger, poolFabWindow, fabWindowVerdict, formatThisRun, formatPooled, fabRecordLine, LedgerUnreadable, type FabLedgerRecord } from './fab-window.js';
 
 /**
  * [P25-2/3] A fabrication gate that can actually fail in CI. The 1.2% ceiling and the 960-extraction minimum
  * stay (owner ruling, 2 Sep). Every CI gate run — re-runs included — appends a record to an append-only
  * ledger; the gate pools the most recent records with the SAME prompt version + model + extraction
  * fingerprint until ≥ 960 extractions and fails if the pooled rate is over 1.2%. A single gate over 3% fails
- * at once. An empty or unreadable ledger fails CLOSED.
+ * at once. An empty or unreadable ledger fails CLOSED. And the log line says what actually happened.
  */
 const key = { promptVersion: 'tovira-extract-v0.9.7', model: 'claude-sonnet-5', fingerprint: 'fp-A', certFingerprint: 'cert-A' };
 const rec = (o: Partial<FabLedgerRecord> & { extractions: number; fabricated: number }): FabLedgerRecord => ({
@@ -69,6 +69,24 @@ describe('[P25-2] verdict', () => {
   });
   it('a window still filling is provisional — never a pass', () => {
     expect(fabWindowVerdict({ current: { extractions: 147, fabricated: 0 }, pooled: { runs: 4, extractions: 612, fabricated: 0, filled: false } }).status).toBe('provisional');
+  });
+});
+
+describe('[P25-3] the log line tells the truth (exact wording)', () => {
+  it('this run, under / over the ceiling', () => {
+    expect(formatThisRun(1, 147)).toBe('fabricated promises: 1/147 (0.68%) — under the 1.2% ceiling');
+    expect(formatThisRun(3, 147)).toBe('fabricated promises: 3/147 (2.04%) — over the 1.2% ceiling');
+    expect(formatThisRun(0, 147)).toBe('fabricated promises: 0/147 (0.00%) — under the 1.2% ceiling');
+  });
+  it('this run over the 3% tripwire says so', () => {
+    expect(formatThisRun(5, 147)).toBe('fabricated promises: 5/147 (3.40%) — over the 1.2% ceiling and the 3% single-run tripwire');
+  });
+  it('pooled window: PASS / FAIL / provisional (no pass word while provisional)', () => {
+    expect(formatPooled({ runs: 7, extractions: 1029, fabricated: 9, filled: true })).toBe('pooled 9/1,029 (0.87%) over 7 runs — PASS');
+    expect(formatPooled({ runs: 7, extractions: 1029, fabricated: 13, filled: true })).toBe('pooled 13/1,029 (1.26%) over 7 runs — FAIL (over the 1.2% ceiling)');
+    const prov = formatPooled({ runs: 4, extractions: 612, fabricated: 0, filled: false });
+    expect(prov).toBe('pooled 0/612 (0.00%) over 4 runs — provisional (612/960)');
+    expect(prov).not.toMatch(/PASS|✓|✔/);
   });
 });
 

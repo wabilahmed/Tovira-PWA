@@ -15,7 +15,7 @@ import { SpendCap } from './spend-cap.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PROMPT_VERSION } from '../services/extraction/prompt.js';
-import { FAB_TRIPWIRE_PCT, parseFabLedger, poolFabWindow, fabWindowVerdict, freshWindowPlan, fabRecordLine, type FabLedgerRecord, type FabWindowKey } from './fab-window.js';
+import { FAB_TRIPWIRE_PCT, parseFabLedger, poolFabWindow, fabWindowVerdict, freshWindowPlan, formatThisRun, formatPooled, fabRecordLine, type FabLedgerRecord, type FabWindowKey } from './fab-window.js';
 import { fingerprintFiles, NARROW_SURFACE, CERT_SURFACE } from './extraction-fingerprint.js';
 
 /**
@@ -205,11 +205,13 @@ async function main(): Promise<void> {
 
   // Fabrication: aggregate rate bar (owner ruling). Only a non-provisional pass certifies.
   const fab = fabricationGate(agg, modelId);
+  // [P25-3] Say what actually happened — the real comparison, never "≤" when over.
   const fabCurrent = { extractions: fab.extractions, fabricated: agg.fabricatedPromises };
+  console.log(`[gate]   ${formatThisRun(fabCurrent.fabricated, fabCurrent.extractions)}`);
   // [P25-2] Pool with the ledger's same-key records (none when run locally without a ledger → this run alone).
   const pooled = poolFabWindow(ledger ?? [], windowKey, fabCurrent);
   const fabVerdict = fabWindowVerdict({ current: fabCurrent, pooled });
-  console.log(`[gate]   FABRICATION: ${fabCurrent.fabricated}/${fabCurrent.extractions} this run; pooled ${pooled.fabricated}/${pooled.extractions} over ${pooled.runs} runs — ${fabVerdict.status}`);
+  console.log(`[gate]   ${formatPooled(pooled)}`);
   for (const r of fabVerdict.reasons) console.log(`[gate]   FABRICATION FAIL: ${r}`);
   if (process.env.GATE_LEDGER_OUT) {
     // This run's record — written whatever the verdict (a failing run must never vanish from the window).
