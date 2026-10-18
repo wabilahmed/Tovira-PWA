@@ -93,17 +93,17 @@ describe('[P23-B4] windowed (switch ON, chat over N)', () => {
     expect(counts).toEqual([120, 120, 102]);
   });
 
-  it('merges: the promise once, the later budget current, and the promise kept in a later window stored as DONE', async () => {
+  it('merges: the promise once and the later budget current — and a delivered promise STAYS OPEN (never auto-completed)', async () => {
     const h = await setup(302, WIN);
     await h.svc.extractNote(U, h.note.id, '2026-04-01');
     const stored = (await h.notes.findByIdForUser(U, h.note.id))!;
     const ex = stored.extracted as { promises: Array<{ text: string; kept_at?: string | null }>; requirements: Array<{ requirement_raw: string }> };
     expect(stored.status).toBe('extracted');
     expect(ex.promises).toHaveLength(1);
-    expect(ex.promises[0]!.kept_at).toBe(chat(302)[250]!.sentAt);
+    expect(ex.promises[0]!.kept_at).toBeUndefined();
     expect(ex.requirements.map((r) => r.requirement_raw)).toEqual(['Final budget is 3.1M']);
     const [p] = await h.facts.listPromisesByUser(U);
-    expect(p!.done).toBe(true); // not left open just because the windows were read separately
+    expect(p!.done).toBe(false); // [P24-2] only the rep closes a promise
   });
 
   it('allowance runs out mid-chat: stops cleanly — note re-queued, nothing saved, nothing half-merged', async () => {
@@ -134,5 +134,15 @@ describe('[P23-B4] windowed (switch ON, chat over N)', () => {
     h.seen.length = 0;
     await h.svc.extractNote(U, long.id, '2026-04-01');
     expect(h.seen).toHaveLength(1);
+  });
+});
+
+describe('[P24-2] the facts store never closes a promise on its own', () => {
+  it('a promise carrying a stray kept_at is still saved OPEN', async () => {
+    const facts = new InMemoryFactsRepository();
+    await facts.saveExtraction(U, { noteId: 'n1', clientId: 'c1', promises: [{ text: 'Send the options', owner: 'rep', due_date: null, due_raw: null, confidence: 'high', kept_at: '2026-02-05T16:40' } as never] });
+    const [p] = await facts.listPromisesByUser(U);
+    expect(p!.done).toBe(false);
+    expect(p!.doneAt).toBeNull();
   });
 });

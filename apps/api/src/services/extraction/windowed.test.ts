@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planWindows, mergeWindowExtractions, markKeptPromises } from './windowed.js';
+import { planWindows, mergeWindowExtractions, deliveryFor } from './windowed.js';
 import type { Extraction, ExtractedPromise } from './types.js';
 import type { ImportedMessage } from '../../ports/note-repository.js';
 
@@ -97,7 +97,7 @@ describe('[P23-B4] merge', () => {
   });
 });
 
-describe('[P23-B4] kept promises across windows', () => {
+describe('[P24-2] delivery detection (suggests; never completes)', () => {
   const messages = [
     msg('Wabil', '2026-02-02T10:20', "Great, I'll send you three villa options by Thursday", 'rep'),
     msg('Khalid', '2026-02-03T09:00', 'Thanks', 'client'),
@@ -107,27 +107,24 @@ describe('[P23-B4] kept promises across windows', () => {
     msg('Wabil', '2026-06-15T09:40', "I'll get the landlord to fix the AC before the end of the month", 'rep'),
     msg('Rania', '2026-07-02T20:00', 'The AC is still not fixed, it has been two weeks', 'client'),
   ];
-  it('a promise fulfilled in a later window is kept (kept_at = the fulfilling message)', () => {
-    const x = empty({ promises: [promise('Send three villa options', '2026-02-02T10:20', { due_raw: 'by Thursday' })] });
-    markKeptPromises(x, messages);
-    expect(x.promises[0]!.kept_at).toBe('2026-02-05T16:40');
+  it('finds the later message in which the owner delivered it — and changes nothing on the promise', () => {
+    const p = promise('Send three villa options', '2026-02-02T10:20', { due_raw: 'by Thursday' });
+    const before = JSON.stringify(p);
+    expect(deliveryFor(p, messages)).toEqual({ at: '2026-02-05T16:40', body: 'Here are the three villa options I promised' });
+    expect(JSON.stringify(p)).toBe(before); // detection never mutates (no kept/done flag)
   });
-  it('a client promise is kept by the CLIENT delivering it', () => {
-    const x = empty({ promises: [promise('Send the mortgage pre-approval letter', '2026-03-25T19:20', { owner: 'client' })] });
-    markKeptPromises(x, messages);
-    expect(x.promises[0]!.kept_at).toBe('2026-04-02T10:05');
+  it('a client promise is delivered by the CLIENT', () => {
+    expect(deliveryFor(promise('Send the mortgage pre-approval letter', '2026-03-25T19:20', { owner: 'client' }), messages)?.at).toBe('2026-04-02T10:05');
   });
-  it('NEGATIVE: a complaint that it is still not done never marks it kept; nor does the other party\'s message', () => {
-    const x = empty({ promises: [promise('Get the landlord to fix the AC', '2026-06-15T09:40')] });
-    markKeptPromises(x, messages);
-    expect(x.promises[0]!.kept_at ?? null).toBeNull();
-    const y = empty({ promises: [promise('Send the mortgage pre-approval letter', '2026-03-25T19:20', { owner: 'rep' })] }); // rep-owned; only the CLIENT sent one
-    markKeptPromises(y, messages);
-    expect(y.promises[0]!.kept_at ?? null).toBeNull();
+  it('NEGATIVE: "still not fixed" never counts; nor the other party\'s message; nor a delivery before the promise', () => {
+    expect(deliveryFor(promise('Get the landlord to fix the AC', '2026-06-15T09:40'), messages)).toBeNull();
+    expect(deliveryFor(promise('Send the mortgage pre-approval letter', '2026-03-25T19:20', { owner: 'rep' }), messages)).toBeNull();
+    expect(deliveryFor(promise('Send three villa options', '2026-02-06T09:00'), messages)).toBeNull();
   });
-  it('NEGATIVE: a fulfilment BEFORE the promise was made does not count', () => {
-    const x = empty({ promises: [promise('Send three villa options', '2026-02-06T09:00')] });
-    markKeptPromises(x, messages);
-    expect(x.promises[0]!.kept_at ?? null).toBeNull();
+  it('skips a delivery message already ruled out ("Not yet"), and finds a LATER one', () => {
+    const more = [...messages, msg('Wabil', '2026-02-09T10:00', 'Sent you the villa options again, see attached', 'rep')];
+    const p = promise('Send three villa options', '2026-02-02T10:20');
+    expect(deliveryFor(p, more, new Set(['2026-02-05T16:40']))?.at).toBe('2026-02-09T10:00');
+    expect(deliveryFor(p, messages, new Set(['2026-02-05T16:40']))).toBeNull();
   });
 });

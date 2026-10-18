@@ -12,8 +12,9 @@
  *    "final budget 3.1M") is the same need updated; the later one is current. The Requirement schema has no
  *    history field, so the earlier value is not kept as a second current need (it stays in the chat).
  *  - one meeting (the schema holds one): the most recently arranged.
- * `markKeptPromises` then decides, over the WHOLE chat, whether a promise was later fulfilled — so a promise
- * made in window 1 and kept in window 3 does not stay open just because the windows were read apart.
+ * `deliveryFor` then looks, over the WHOLE chat, for a later message that delivered a promise — so a promise
+ * made in window 1 and delivered in window 3 is noticed even though the windows were read apart. [P24-2] It
+ * only SUGGESTS (To Confirm); it never marks a promise done.
  */
 import type { Extraction, ExtractedPromise, ExtractedPerson, KeyDate, Requirement, PersonalFact } from './types.js';
 import type { ImportedMessage } from '../../ports/note-repository.js';
@@ -153,20 +154,24 @@ const DELIVERED = /\b(here (?:is|are)|herewith|attached|as promised|please find|
 const NOT_DONE = /\b(not|still|haven'?t|hasn'?t|didn'?t|waiting|yet|when will|any update)\b/i;
 
 /**
- * Over the whole chat: a promise is KEPT when, after the message that made it, the party who owns it says
- * it was delivered and names what was promised (a content word in common). Sets `kept_at` to that message's
- * time. Deterministic and conservative — a complaint ("still not fixed"), the other party's message, or a
- * delivery before the promise never counts. Mutates in place.
+ * [P24-2] Over the whole chat: the LATER message in which the promise's owner says it was delivered and
+ * names what was promised (a content word in common), or null. Detection ONLY — it never changes the
+ * promise: only the rep closes a promise (a wrong match must never silently close a real open one), so a
+ * hit becomes a To Confirm suggestion. Conservative: a complaint ("still not fixed"), the other party's
+ * message, or a delivery before the promise never counts. `ruledOut` = delivery message times the rep
+ * already answered "Not yet" to — those are skipped, so only a NEW delivery message can suggest again.
  */
-export function markKeptPromises(extraction: Extraction, messages: ImportedMessage[]): void {
-  for (const p of extraction.promises) {
-    if (p.kept_at || !p.source_message_at) continue;
-    const terms = queryTerms(p.text);
-    if (terms.length === 0) continue;
-    const ownerRole = p.owner === 'rep' ? 'rep' : 'client';
-    const hit = messages.find((m) =>
-      m.sentAt !== null && m.sentAt > p.source_message_at! && !m.excluded && m.role === ownerRole &&
-      DELIVERED.test(m.body) && !NOT_DONE.test(m.body) && termHits(terms, m.body) > 0);
-    if (hit) p.kept_at = hit.sentAt;
-  }
+export function deliveryFor(
+  p: Pick<ExtractedPromise, 'text' | 'owner' | 'source_message_at'>,
+  messages: ImportedMessage[],
+  ruledOut: ReadonlySet<string> = new Set(),
+): { at: string; body: string } | null {
+  if (!p.source_message_at) return null;
+  const terms = queryTerms(p.text);
+  if (terms.length === 0) return null;
+  const ownerRole = p.owner === 'rep' ? 'rep' : 'client';
+  const hit = messages.find((m) =>
+    m.sentAt !== null && m.sentAt > p.source_message_at! && !ruledOut.has(m.sentAt) && !m.excluded && m.role === ownerRole &&
+    DELIVERED.test(m.body) && !NOT_DONE.test(m.body) && termHits(terms, m.body) > 0);
+  return hit ? { at: hit.sentAt!, body: hit.body } : null;
 }

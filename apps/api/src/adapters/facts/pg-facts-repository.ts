@@ -96,15 +96,13 @@ export class PgFactsRepository implements FactsRepository {
       }
       for (const p of input.promises) {
         const key = promiseDedupeKey(p.owner, p.text);
-        // [P23-B4] Fulfilled in the chat (kept_at) → stored done, never linked to / used as an open canonical.
-        const kept = Boolean(p.kept_at);
-        const canonical = kept ? undefined : canonicalByKey.get(key);
+        const canonical = canonicalByKey.get(key);
+        // [P24-2] A promise is always inserted OPEN — only the rep closes one.
         const { rows: ins } = await c.query(
-          `INSERT INTO promises (user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, merged_into, source_span, source_message_at, capture_at, done, done_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
-          [userId, input.noteId, input.clientId, p.text, p.owner, p.due_date, p.due_raw, p.confidence, canonical ? canonical.id : null, p.source_span ?? null, p.source_message_at ?? null, input.captureAt ?? null, kept, kept ? p.kept_at : null],
+          `INSERT INTO promises (user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, merged_into, source_span, source_message_at, capture_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+          [userId, input.noteId, input.clientId, p.text, p.owner, p.due_date, p.due_raw, p.confidence, canonical ? canonical.id : null, p.source_span ?? null, p.source_message_at ?? null, input.captureAt ?? null],
         );
-        if (kept) continue;
         if (canonical) {
           // Specific date wins: fill the canonical's null date from this duplicate.
           if (canonical.dueDate === null && p.due_date !== null) {

@@ -45,10 +45,7 @@ export class InMemoryFactsRepository implements FactsRepository {
       // same owner + normalized text is the same commitment. Link this note to it
       // instead of creating a second tracker row; a done promise is not a target.
       const key = promiseDedupeKey(promise.owner, promise.text);
-      // [P23-B4] A promise the chat shows as already fulfilled (kept_at) is stored done, and is never
-      // linked to an open duplicate (a kept promise must not keep an open one alive, or vice versa).
-      const kept = Boolean(promise.kept_at);
-      const canonical = kept ? undefined : this.promises.find(
+      const canonical = this.promises.find(
         (p) =>
           p.userId === userId &&
           p.clientId === input.clientId &&
@@ -66,8 +63,8 @@ export class InMemoryFactsRepository implements FactsRepository {
         dueDate: promise.due_date,
         dueRaw: promise.due_raw,
         confidence: promise.confidence,
-        done: kept,
-        doneAt: kept ? Date.parse(`${promise.kept_at}${/[zZ]|[+-]\d\d:?\d\d$/.test(promise.kept_at!) ? '' : 'Z'}`) : null,
+        done: false, // [P24-2] never closed here — only the rep closes a promise
+        doneAt: null,
         confirmed: false,
         mergedInto: canonical ? canonical.id : null,
         sourceSpan: promise.source_span ?? null,

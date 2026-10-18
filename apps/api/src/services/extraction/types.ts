@@ -21,8 +21,9 @@ export interface ExtractedPromise {
    *  the resolution is distinguishable. Null when the phrase can't be resolved without guessing. */
   resolved_due_date?: string | null;
   resolution?: DateResolution | null;
-  /** [P23-B4] Deterministic, windowed path only: the message time at which the promise was later
-   *  fulfilled in the chat ("here are the options…"). Set → stored as done. Never produced by the model. */
+  /** [P23-B4, RETIRED in P24-2] Was set by the windowed path to auto-complete a delivered promise. No code
+   *  sets it any more and the store ignores it — only the rep closes a promise (a delivery becomes a To
+   *  Confirm suggestion). Kept in the type so a stored extraction that carries it still parses. */
   kept_at?: string | null;
 }
 

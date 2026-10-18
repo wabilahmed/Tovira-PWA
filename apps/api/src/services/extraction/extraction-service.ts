@@ -24,7 +24,7 @@ import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
 import { modelSafeText, renderThread } from '../import/dedup.js';
-import { planWindows, mergeWindowExtractions, markKeptPromises, type WindowConfig } from './windowed.js';
+import { planWindows, mergeWindowExtractions, type WindowConfig } from './windowed.js';
 import { AiGateRefused } from '../spend/ai-gate.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
@@ -418,7 +418,6 @@ export class ExtractionService {
       }
       if (parts.length === windows.length) {
         extraction = mergeWindowExtractions(parts);
-        markKeptPromises(extraction, visible);
       }
       // The log row carries the whole extraction's tokens, not the last window's.
       last = { ...last, inputTokens: spend.input, outputTokens: spend.output, cacheCreationTokens: spend.cacheWrite, cacheReadTokens: spend.cacheRead, thinkingTokens: spend.thinking };
