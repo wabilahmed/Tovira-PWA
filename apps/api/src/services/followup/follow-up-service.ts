@@ -5,6 +5,7 @@ import { fenceUntrusted } from '../extraction/untrusted.js';
 import { modelSafeText } from '../import/dedup.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
+import { AUX_MAX_TOKENS } from '../ai/aux-budgets.js';
 
 // [PROMPT-DELIMIT] This output is CLIENT-FACING — the rep may send the draft to their client — and the
 // note is untrusted (a third party may have authored the imported chat). The system prompt states the
@@ -46,7 +47,7 @@ export class FollowUpService {
       nextSteps ? `NEXT STEPS:\n${nextSteps}` : '',
     ].filter(Boolean).join('\n\n');
 
-    const res = await this.model.complete({ system: SYSTEM, messages: [{ role: 'user', content: input }], maxTokens: 512, userId, spendClass: 'draft' });
+    const res = await this.model.complete({ system: SYSTEM, messages: [{ role: 'user', content: input }], maxTokens: AUX_MAX_TOKENS.draft, userId, spendClass: 'draft' });
     return { draft: res.text };
   }
 }

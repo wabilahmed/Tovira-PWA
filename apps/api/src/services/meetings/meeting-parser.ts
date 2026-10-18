@@ -2,6 +2,7 @@ import type { ModelClient } from '../../ports/model.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
 import { resolveDueDate, extractClockTime, extractDatePhrase } from '../extraction/resolve-date.js';
 import { nameMentionedIn } from '../text/normalize-name.js';
+import { AUX_MAX_TOKENS } from '../ai/aux-budgets.js';
 
 /**
  * Parse a natural-language scheduling request ("meeting with Sarah next Tuesday
@@ -98,7 +99,7 @@ export class MeetingParser {
         // [EXTRACT-MAXTOKENS] This parser runs on Sonnet (the default 'extraction' model class), a
         // reasoning model — 256 was below the reasoning budget (~415 thinking on a tiny input), so it
         // was latently truncating like extraction. 4096 clears thinking + the small datetime JSON.
-        maxTokens: 4096,
+        maxTokens: AUX_MAX_TOKENS.meeting,
         userId,
         spendClass: 'meeting', // SPEND-CAP
       });

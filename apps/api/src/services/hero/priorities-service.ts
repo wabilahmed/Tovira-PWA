@@ -3,6 +3,7 @@ import type { PrioritiesRepository } from '../../ports/priorities-repository.js'
 import type { TodayAction } from './hero-service.js';
 import { extractJsonObject } from '../extraction/parse.js';
 import { zonedTodayIso } from '../time/zone.js';
+import { AUX_MAX_TOKENS } from '../ai/aux-budgets.js';
 
 /**
  * Daily priorities, precomputed nightly and cached (cost-guard #3, P4b-3). The
@@ -117,7 +118,7 @@ export class PrioritiesService {
         const res = await this.model.complete({
           system: RANK_SYSTEM,
           messages: [{ role: 'user', content: actions.map((a, i) => `${i}: ${a.text}`).join('\n') }],
-          maxTokens: 256,
+          maxTokens: AUX_MAX_TOKENS.priorities,
           userId,
           spendClass: 'priorities', // SPEND-CAP
         });

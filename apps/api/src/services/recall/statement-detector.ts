@@ -1,5 +1,6 @@
 import type { ModelClient } from '../../ports/model.js';
 import { extractJsonObject } from '../extraction/parse.js';
+import { AUX_MAX_TOKENS } from '../ai/aux-budgets.js';
 
 /**
  * [ASK-CAPTURE stage 1: DETECT] Classify whether a rep's Ask turn is a FACTUAL STATEMENT about a
@@ -39,7 +40,7 @@ export class ModelStatementDetector implements StatementDetector {
       const res = await this.model.complete({
         system: DETECT_SYSTEM,
         messages: [{ role: 'user', content: `CLIENTS: ${clientNames.join(', ') || '(none)'}\nMESSAGE: ${turn}` }],
-        maxTokens: 120,
+        maxTokens: AUX_MAX_TOKENS.capture,
         userId,
         spendClass: 'capture', // SPEND-CAP (Ask-capture statement detection)
       });
