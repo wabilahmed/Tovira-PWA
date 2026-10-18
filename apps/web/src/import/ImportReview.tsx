@@ -249,6 +249,12 @@ export function UpsellBanner({ upsell, lead, onTopUp, onSubscribe }: {
   );
 }
 
+/** Same sender as the rep, ignoring case and spacing. Unknown rep → nobody is excluded. */
+function isRep(participant: string, repName: string | null): boolean {
+  const n = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  return repName !== null && n(repName) !== '' && n(participant) === n(repName);
+}
+
 function Row({ row, choice, onChoice, repResolved, repChoice }: {
   row: ReviewRow;
   choice: Choice | undefined;
@@ -340,7 +346,8 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
             <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)' }}>Import anyway for one participant?</span>
             <select className="tov-client-select" aria-label={`Client participant for ${row.fileName}`} value={choice?.name ?? ''} onChange={(e) => onChoice({ name: e.target.value })}>
               <option value="">Keep skipped</option>
-              {(row.participants ?? []).map((p) => (<option key={p} value={p}>{p}</option>))}
+              {/* [P21-D] the rep is never a client candidate */}
+              {(row.participants ?? []).filter((p) => !isRep(p, repChoice)).map((p) => (<option key={p} value={p}>{p}</option>))}
             </select>
           </label>
         </fieldset>
