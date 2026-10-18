@@ -15,7 +15,7 @@ export interface LongChatScore {
   promiseDates: TypeRecall;
   promiseStatus: TypeRecall;
   requirements: TypeRecall;
-  budget: TypeRecall & { staleAlsoCurrent: number };
+  budget: TypeRecall & { staleAlsoCurrent: number; /** the current value appears only in the free-text summary */ inSummaryOnly: boolean };
   meetings: TypeRecall;
   keyDates: TypeRecall;
   decisionDate: boolean;
@@ -25,6 +25,21 @@ export interface LongChatScore {
 }
 
 const lc = (s: string | null | undefined): string => (s ?? '').toLowerCase();
+
+// The scorer's OWN near-duplicate test (independent of the merge code it grades): content words ≥ 3 chars,
+// light stemming, ≥ 75% of the smaller set shared.
+const SCORE_STOP = new Set(['the', 'and', 'for', 'with', 'has', 'have', 'been', 'are', 'was', 'not', 'still', 'his', 'her', 'their', 'client', 'very', 'this', 'that', 'from', 'after']);
+const words = (s: string): string[] => [...new Set(lc(s).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3 && !SCORE_STOP.has(w)).map((w) => w.replace(/(ing|ed|es|s)$/, '')))];
+function nearDuplicates(texts: string[]): number {
+  let dups = 0;
+  const kept: string[][] = [];
+  for (const t of texts) {
+    const w = words(t);
+    if (kept.some((k) => w.length >= 2 && k.length >= 2 && w.filter((x) => k.includes(x)).length / Math.min(w.length, k.length) >= 0.75)) dups += 1;
+    else kept.push(w);
+  }
+  return dups;
+}
 
 /** Every money amount in a text, in whole units: "3.1M" / "3.1 million" → 3100000; "152,000" → 152000. */
 export function amountsIn(text: string): number[] {
@@ -48,8 +63,18 @@ function budgetSurfaces(x: Extraction): string[] {
   ];
 }
 
+/** Every keyword of `match` appears in `text` as a whole word (a keyword of ≥ 4 chars may carry a suffix:
+ *  "cheque" ⟶ "cheques"), in any order — robust to the model rewording a promise. */
+export function keywordsMatch(match: string, text: string): boolean {
+  const t = lc(text);
+  return match.toLowerCase().split(/\s+/).filter(Boolean).every((k) => {
+    const esc = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${esc}${k.length >= 4 ? '' : '(?![\\p{L}\\p{N}])'}`, 'u').test(t);
+  });
+}
+
 function promiseMatches(e: ExpectedPromise, x: Extraction['promises'][number]): boolean {
-  return lc(`${x.text} ${x.due_raw ?? ''}`).includes(e.match.toLowerCase()) && x.owner === e.owner;
+  return keywordsMatch(e.match, `${x.text} ${x.due_raw ?? ''}`) && x.owner === e.owner;
 }
 
 export function scoreLongChat(expected: LongChatExpected, actual: Extraction): LongChatScore {
@@ -97,6 +122,10 @@ export function scoreLongChat(expected: LongChatExpected, actual: Extraction): L
 
   // Key dates (+ the decision date of the pass bar). Decision may also sit in next_steps/requirements.
   let kFound = 0; let decision = false;
+  duplicates += nearDuplicates(actual.concerns) + nearDuplicates(actual.next_steps);
+  const bySubject = new Map<string, string[]>();
+  for (const f of actual.personal_facts) bySubject.set(lc(f.subject), [...(bySubject.get(lc(f.subject)) ?? []), f.fact]);
+  for (const facts of bySubject.values()) duplicates += nearDuplicates(facts);
   const kdKeys = actual.key_dates.map((k) => `${k.resolved_date ?? k.date}|${lc(k.description)}`);
   duplicates += kdKeys.length - new Set(kdKeys).size;
   for (const k of expected.keyDates) {
@@ -105,7 +134,11 @@ export function scoreLongChat(expected: LongChatExpected, actual: Extraction): L
       const text = lc(`${x.description} ${x.date_raw ?? ''}`);
       return k.day !== null ? d === k.day || (k.anyOf.some((a) => text.includes(a)) && (d === k.day || d === null)) : k.anyOf.some((a) => text.includes(a));
     });
-    const elsewhere = k.decision && [...actual.next_steps, ...(actual.requirements ?? []).map((r) => r.requirement_raw)].some((t) => k.anyOf.some((a) => lc(t).includes(a)));
+    // A decision date may also be surfaced as a next step, a requirement, or a promise due that day
+    // ("Decide on Villa 22", due 15 Jun) — the rep sees it either way.
+    const elsewhere = k.decision && (
+      [...actual.next_steps, ...(actual.requirements ?? []).map((r) => r.requirement_raw)].some((t) => k.anyOf.some((a) => lc(t).includes(a))) ||
+      actual.promises.some((p) => k.anyOf.some((a) => lc(`${p.text} ${p.due_raw ?? ''}`).includes(a)) && (k.day === null || (p.resolved_due_date ?? p.due_date) === k.day)));
     if (hit) kFound += 1; else misses.push(`key date ${k.day ?? k.anyOf.join('/')}`);
     if (k.decision && (hit || elsewhere)) decision = true;
   }
@@ -117,7 +150,7 @@ export function scoreLongChat(expected: LongChatExpected, actual: Extraction): L
     promiseDates: { found: pDate, expected: expected.promises.length },
     promiseStatus: { found: pStatus, expected: expected.promises.length },
     requirements: { found: rFound, expected: expected.requirements.length },
-    budget: { found: bFound, expected: 1, staleAlsoCurrent },
+    budget: { found: bFound, expected: 1, staleAlsoCurrent, inSummaryOnly: bFound === 0 && amountsIn(actual.summary).includes(current) },
     meetings: { found: mFound, expected: expected.meetings.length },
     keyDates: { found: kFound, expected: expected.keyDates.length },
     decisionDate: decision,

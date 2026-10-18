@@ -21,7 +21,8 @@
 export type PromiseStatus = 'open' | 'kept' | 'broken';
 
 export interface ExpectedPromise {
-  /** Case-insensitive substring that the extracted promise text (or due_raw) must contain. */
+  /** Keywords that must ALL appear (any order, whole words; a word ≥ 4 chars may carry a suffix) in the
+   *  extracted promise text or due_raw — robust to the model's rewording. */
   match: string;
   owner: 'rep' | 'client';
   /** Resolved due date, or null when the chat gives none that can be fixed without guessing. */
@@ -202,8 +203,8 @@ export const LONG_CHATS: LongChatFixture[] = [
     messageCount: buyer.count,
     expected: {
       promises: [
-        { match: 'three villa options', owner: 'rep', due: '2026-02-05', status: 'kept' },
-        { match: 'service charge breakdown', owner: 'rep', due: '2026-03-19', status: 'kept' },
+        { match: 'villa options', owner: 'rep', due: '2026-02-05', status: 'kept' },
+        { match: 'service charge', owner: 'rep', due: '2026-03-19', status: 'kept' },
         { match: 'pre-approval', owner: 'client', due: null, status: 'kept' },
         { match: 'payment plan', owner: 'rep', due: '2026-04-27', status: 'broken' },
       ],
@@ -228,10 +229,10 @@ export const LONG_CHATS: LongChatFixture[] = [
     messageCount: tenant.count,
     expected: {
       promises: [
-        { match: 'landlord', owner: 'rep', due: '2026-06-10', status: 'kept' }, // "confirm the landlord's number by Wednesday" — answered 10 Jun
-        { match: 'fix the ac', owner: 'rep', due: '2026-06-30', status: 'broken' },
+        { match: 'landlord number', owner: 'rep', due: '2026-06-10', status: 'kept' }, // "confirm the landlord's number by Wednesday" — answered 10 Jun
+        { match: 'fix ac', owner: 'rep', due: '2026-06-30', status: 'broken' },
         { match: 'ejari', owner: 'rep', due: '2026-06-28', status: 'kept' },
-        { match: 'cheques', owner: 'client', due: '2026-09-25', status: 'open' },
+        { match: 'cheque', owner: 'client', due: '2026-09-25', status: 'open' },
       ],
       requirements: [{ id: '12-month renewal with covered parking for 2 cars', anyOf: ['parking', 'renew'] }],
       budget: { current: '152,000', history: ['145,000', '160,000'] },

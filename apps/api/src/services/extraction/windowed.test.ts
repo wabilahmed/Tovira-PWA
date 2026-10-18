@@ -55,6 +55,27 @@ describe('[P23-B4] merge', () => {
     const m = mergeWindowExtractions([early, late]);
     expect(m.requirements!.map((r) => r.requirement_raw)).toEqual(['final budget is 3.1M']);
   });
+  it('budget words are one slot: "stretch the budget to 2.8M" then "final budget is 3.1M, that is the top" → only 3.1M', () => {
+    const m = mergeWindowExtractions([
+      empty({ requirements: [{ text: 'Willing to stretch budget to AED 2.8M', requirement_raw: 'we can stretch the budget to 2.8M', stated_on: '2026-03-18', confidence: 'high' }] }),
+      empty({ requirements: [{ text: 'Final budget is 3.1M, that is the top', requirement_raw: 'final budget is 3.1M, that is the top', stated_on: '2026-05-06', confidence: 'high' }] }),
+    ]);
+    expect(m.requirements!.map((r) => r.requirement_raw)).toEqual(['final budget is 3.1M, that is the top']);
+  });
+  it('paraphrased repeats across windows are one fact (concerns, personal facts per subject, next steps)', () => {
+    const m = mergeWindowExtractions([
+      empty({ concerns: ['AC still not fixed after two weeks'], personal_facts: [{ subject: 'Rania Haddad', fact: 'Kids are on school holiday, keeping her busy', category: 'family' }], next_steps: ['Resend the location pin to Rania'] }),
+      empty({ concerns: ['AC has not been fixed for two weeks', 'AC is still leaking - client is very disappointed'], personal_facts: [{ subject: 'Rania Haddad', fact: 'Kids on holiday, keeping her busy', category: 'family' }, { subject: 'Rania Haddad', fact: 'Prefers calls after 5pm', category: 'preference' }], next_steps: ['Resend the location pin'] }),
+    ]);
+    expect(m.concerns).toEqual(['AC still not fixed after two weeks', 'AC is still leaking - client is very disappointed']);
+    expect(m.personal_facts.map((f) => f.fact)).toEqual(['Kids are on school holiday, keeping her busy', 'Prefers calls after 5pm']);
+    expect(m.next_steps).toEqual(['Resend the location pin to Rania']);
+  });
+  it('NEGATIVE: the same fact about two different people stays two facts', () => {
+    const m = mergeWindowExtractions([empty({ personal_facts: [{ subject: 'Rania', fact: 'Kids are on holiday', category: 'family' }] }), empty({ personal_facts: [{ subject: 'Omar', fact: 'Kids are on holiday', category: 'family' }] })]);
+    expect(m.personal_facts).toHaveLength(2);
+  });
+
   it('NEGATIVE: different needs that only share a number are not "updates" of each other', () => {
     const a = empty({ requirements: [{ text: '3-bed villa', requirement_raw: '3-bedroom villa', stated_on: '2026-02-02', confidence: 'high' }] });
     const b = empty({ requirements: [{ text: 'parking for 2 cars', requirement_raw: 'covered parking for 2 cars', stated_on: '2026-03-02', confidence: 'high' }] });

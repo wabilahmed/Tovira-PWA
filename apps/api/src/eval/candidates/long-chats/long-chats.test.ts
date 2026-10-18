@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LONG_CHATS } from './fixtures.js';
-import { scoreLongChat, amountsIn } from './score.js';
+import { scoreLongChat, amountsIn, keywordsMatch } from './score.js';
 import { parseWhatsAppExport } from '../../../services/import/whatsapp.js';
 import type { Extraction } from '../../../services/extraction/types.js';
 
@@ -23,7 +23,7 @@ describe('[P23-B3] long-chat fixtures', () => {
   it('every expected fact is anchored in its transcript (nothing fails for the wrong reason)', () => {
     for (const f of LONG_CHATS) {
       const t = f.transcript.toLowerCase();
-      for (const p of f.expected.promises) expect(t, `${f.id}: ${p.match}`).toContain(p.match.toLowerCase());
+      for (const p of f.expected.promises) expect(f.transcript.split('\n').some((l) => keywordsMatch(p.match, l)), `${f.id}: ${p.match}`).toBe(true);
       for (const r of f.expected.requirements) expect(r.anyOf.some((a) => t.includes(a)), `${f.id}: ${r.id}`).toBe(true);
       expect(amountsIn(f.transcript), `${f.id} budget`).toContain(amountsIn(f.expected.budget.current)[0]);
       for (const m of f.expected.meetings) expect(m.anyOf.some((a) => t.includes(a)), `${f.id}: meeting ${m.day}`).toBe(true);
@@ -68,6 +68,36 @@ describe('[P23-B3] scorer', () => {
     expect(s.promiseStatus.found).toBe(0); // kept in the chat, but returned as an open promise
     const markedKept = { ...openKept, promises: [{ ...openKept.promises[0]!, kept_at: '2026-02-05T16:40' } as never] };
     expect(scoreLongChat(buyer.expected, markedKept).promiseStatus.found).toBe(1);
+  });
+
+  it('reports a budget that is only in the free-text summary (not a structured fact) separately', () => {
+    const buyer = LONG_CHATS[0]!;
+    const s = scoreLongChat(buyer.expected, { ...empty(), summary: 'budget moved to a final cap of AED 3.1M' });
+    expect(s.budget).toMatchObject({ found: 0, inSummaryOnly: true });
+  });
+
+  it('counts a paraphrased repeat in concerns / personal facts as a duplicate', () => {
+    const f = LONG_CHATS[1]!;
+    const s = scoreLongChat(f.expected, { ...empty(), concerns: ['AC still not fixed after two weeks', 'AC has not been fixed for two weeks'], personal_facts: [{ subject: 'Rania', fact: 'Kids are on school holiday, keeping her busy', category: 'family' }, { subject: 'Rania', fact: 'Kids on holiday, keeping her busy', category: 'family' }] });
+    expect(s.duplicates).toBe(2);
+  });
+
+  it('promise anchors are order-free whole words, so a reworded promise still matches ("landlord number" ⟵ "Confirm the landlord\'s rent number")', () => {
+    const f = LONG_CHATS[1]!;
+    const x = { ...empty(), promises: [
+      { text: "Confirm the landlord's rent number", owner: 'rep' as const, due_date: '2026-06-10', due_raw: 'by Wednesday', confidence: 'high' as const },
+      { text: 'Get the landlord to fix the leaking AC in the master bedroom', owner: 'rep' as const, due_date: '2026-06-30', due_raw: 'before the end of the month', confidence: 'high' as const },
+    ] };
+    expect(scoreLongChat(f.expected, x).promises.found).toBe(2);
+    // NEGATIVE: a short anchor word must be a whole word ("ac" never matches "according").
+    const y = { ...empty(), promises: [{ text: 'Get the landlord to fix it according to the contract', owner: 'rep' as const, due_date: '2026-06-30', due_raw: null, confidence: 'high' as const }] };
+    expect(scoreLongChat(f.expected, y).promises.found).toBe(0);
+  });
+
+  it('a decision date surfaced as a promise due that day counts ("Decide on Villa 22", due 15 Jun)', () => {
+    const f = LONG_CHATS[0]!;
+    const x = { ...empty(), promises: [{ text: 'Decide on Villa 22', owner: 'client' as const, due_date: '2026-06-15', due_raw: 'by 15 June 2026', confidence: 'high' as const }] };
+    expect(scoreLongChat(f.expected, x).decisionDate).toBe(true);
   });
 
   it('flags an earlier budget still presented alongside the current one', () => {

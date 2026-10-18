@@ -29,8 +29,27 @@ import type { Extraction } from '../../../services/extraction/types.js';
 import { SpendCap } from '../../spend-cap.js';
 import { LONG_CHATS } from './fixtures.js';
 import { scoreLongChat } from './score.js';
+import { resolveExtractionDates } from '../../../services/extraction/resolve-date.js';
+
+/** LONG_CHAT_RESCORE=1: re-score stored results (re-running the deterministic date resolution with the
+ *  current code) without any model call — for comparing runs made before a resolver/scorer fix. */
+function rescore(out: string): void {
+  for (const f of LONG_CHATS) {
+    const file = join(out, `${f.id}.json`);
+    if (!existsSync(file)) continue;
+    const r = JSON.parse(readFileSync(file, 'utf8')) as { extraction: Extraction | null; score: unknown; rescored?: boolean };
+    if (!r.extraction) continue;
+    if (r.extraction.meeting) { r.extraction.meeting.resolved_datetime = undefined; r.extraction.meeting.resolution = undefined; }
+    resolveExtractionDates(r.extraction, f.today, f.id, { dayFirst: true, log: () => undefined });
+    r.score = scoreLongChat(f.expected, r.extraction);
+    r.rescored = true;
+    writeFileSync(file, JSON.stringify(r, null, 1));
+    console.log(`[long-chat] rescored ${f.id}`);
+  }
+}
 
 async function main(): Promise<void> {
+  if (process.env.LONG_CHAT_RESCORE === '1') { rescore(join(process.env.LONG_CHAT_OUT ?? './.long-chat-results', process.env.LONG_CHAT_LABEL ?? 'run')); return; }
   const config = loadConfig();
   const modelId = config.models.extraction;
   const out = join(process.env.LONG_CHAT_OUT ?? './.long-chat-results', process.env.LONG_CHAT_LABEL ?? 'run');
@@ -56,7 +75,8 @@ async function main(): Promise<void> {
     const clients = new InMemoryClientRepository();
     const notes = new InMemoryNoteRepository();
     const svc = new ExtractionService(model, clients, notes, new InMemoryFactsRepository(), new StubEmbedder(8), new InMemoryExtractionLogRepository(), modelId,
-      undefined, undefined, undefined, '1h');
+      undefined, undefined, undefined, '1h', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      config.windowing); // EXTRACT_WINDOWED=1 → the shipped windowed path
     const client = await clients.create('eval', f.clientName);
     const parsed = parseWhatsAppExport(f.transcript);
     if (!parsed.ok) throw new Error(`${f.id}: transcript did not parse`);
@@ -67,7 +87,7 @@ async function main(): Promise<void> {
     const result = { id: f.id, messages: f.messageCount, model: modelId, status: (outcome as { status?: string }).status, calls: fixtureCalls, promptTokens: fixtureIn, outputTokens: fixtureOut, aed: Number(fixtureAed.toFixed(4)), score, extraction: stored };
     writeFileSync(file, JSON.stringify(result, null, 1));
     const s = score;
-    console.log(`[long-chat] ${f.id} (${f.messageCount} msgs): ${s ? `promises ${s.promises.found}/${s.promises.expected} (dates ${s.promiseDates.found}, status ${s.promiseStatus.found}) · reqs ${s.requirements.found}/${s.requirements.expected} · budget ${s.budget.found}/1 (stale ${s.budget.staleAlsoCurrent}) · meetings ${s.meetings.found}/${s.meetings.expected} · keyDates ${s.keyDates.found}/${s.keyDates.expected} · decision ${s.decisionDate ? 'yes' : 'no'} · dups ${s.duplicates} · ${s.pass ? 'PASS' : 'FAIL'}` : `no extraction (${result.status})`} · ${fixtureCalls} call(s) · AED ${fixtureAed.toFixed(3)}`);
+    console.log(`[long-chat] ${f.id} (${f.messageCount} msgs): ${s ? `promises ${s.promises.found}/${s.promises.expected} (dates ${s.promiseDates.found}, status ${s.promiseStatus.found}) · reqs ${s.requirements.found}/${s.requirements.expected} · budget ${s.budget.found}/1${s.budget.inSummaryOnly ? ' (summary only)' : ''} (stale ${s.budget.staleAlsoCurrent}) · meetings ${s.meetings.found}/${s.meetings.expected} · keyDates ${s.keyDates.found}/${s.keyDates.expected} · decision ${s.decisionDate ? 'yes' : 'no'} · dups ${s.duplicates} · ${s.pass ? 'PASS' : 'FAIL'}` : `no extraction (${result.status})`} · ${fixtureCalls} call(s) · AED ${fixtureAed.toFixed(3)}`);
     if (s && s.misses.length) console.log(`[long-chat]   misses: ${s.misses.join('; ')}`);
   }
   const total = LONG_CHATS.map((f) => join(out, `${f.id}.json`)).filter(existsSync).reduce((n, p) => n + (JSON.parse(readFileSync(p, 'utf8')) as { aed: number }).aed, 0);

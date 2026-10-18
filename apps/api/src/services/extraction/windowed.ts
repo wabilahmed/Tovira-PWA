@@ -68,14 +68,34 @@ function samePromise(a: ExtractedPromise, b: ExtractedPromise): boolean {
   return inter / Math.max(1, Math.min(ta.size, tb.size)) >= 0.75;
 }
 
-const AMOUNT = /\d[\d,.]*\s*(?:m\b|mn\b|million\b|k\b)?/gi;
-const VALUE_NEED = /\b(budget|price|rent|offer|afford|stretch|up to|max(?:imum)?|top)\b/i;
-/** A value-bearing need with its amounts removed — "budget around AED 2.5M" and "…3.1M" share this. */
+const AMOUNT = /\d[\d,.]*\s*(?:m\b|mn\b|million\b|k\b)?/i;
+// The value a need is about, by family: every way of stating a spending ceiling is the BUDGET slot.
+const VALUE_SLOTS: Array<[string, RegExp]> = [
+  ['rent', /\brent\b/i],
+  ['price', /\b(price|offer|asking)\b/i],
+  ['budget', /\b(budget|afford|stretch|up to|max(?:imum)?|top|spend)\b/i],
+];
+/** The value slot a requirement restates ("budget around AED 2.5M" / "stretch to 2.8M" / "final budget
+ *  3.1M, that is the top" → 'budget'), or null when it carries no amount. */
 function valueSlot(r: Requirement): string | null {
   const t = `${r.text} ${r.requirement_raw}`;
-  if (!VALUE_NEED.test(t) || !AMOUNT.test(t)) return null;
-  AMOUNT.lastIndex = 0;
-  return VALUE_NEED.exec(t)![1]!.toLowerCase();
+  if (!AMOUNT.test(t)) return null;
+  return VALUE_SLOTS.find(([, re]) => re.test(t))?.[0] ?? null;
+}
+
+/** Two short texts state the same thing when most of the smaller one's content words are in the other
+ *  (stemmed, function words dropped — query-terms). Conservative: needs ≥ 2 content words and 75%. */
+function sameStatement(a: string, b: string): boolean {
+  const ta = queryTerms(a);
+  const tb = new Set(queryTerms(b));
+  if (ta.length < 2 || tb.size < 2) return norm(a) === norm(b);
+  const inter = ta.filter((t) => tb.has(t)).length;
+  return inter / Math.min(ta.length, tb.size) >= 0.75;
+}
+function dedupeSimilar<T>(items: T[], text: (t: T) => string, group: (t: T) => string = () => ''): T[] {
+  const out: T[] = [];
+  for (const it of items) if (!out.some((o) => group(o) === group(it) && sameStatement(text(o), text(it)))) out.push(it);
+  return out;
 }
 
 function mergePeople(lists: ExtractedPerson[][]): ExtractedPerson[] {
@@ -108,7 +128,8 @@ export function mergeWindowExtractions(parts: Extraction[]): Extraction {
 
   const keyDate = (k: KeyDate) => `${k.date ?? ''}|${norm(k.description)}`;
   const key_dates = dedupeBy(parts.flatMap((x) => x.key_dates), keyDate);
-  const personal_facts = dedupeBy(parts.flatMap((x) => x.personal_facts), (f: PersonalFact) => `${norm(f.subject)}|${norm(f.fact)}`);
+  // Paraphrased repeats (the overlap, or a fact restated later) are one fact — per subject for personal facts.
+  const personal_facts = dedupeSimilar(parts.flatMap((x) => x.personal_facts), (f: PersonalFact) => f.fact, (f) => norm(f.subject));
   const meetings = parts.map((x) => x.meeting).filter((m): m is NonNullable<Extraction['meeting']> => m !== null);
   const meeting = meetings.length === 0 ? null : meetings.reduce((a, b) => ((b.source_message_at ?? '') >= (a.source_message_at ?? '') ? b : a));
   const pointers = parts.some((x) => x.pointers) ? dedupeBy(parts.flatMap((x) => x.pointers ?? []), (p) => `${p.section}|${norm(p.text)}`) : undefined;
@@ -119,8 +140,8 @@ export function mergeWindowExtractions(parts: Extraction[]): Extraction {
     people: mergePeople(parts.map((x) => x.people)),
     personal_facts,
     key_dates,
-    concerns: dedupeBy(parts.flatMap((x) => x.concerns), norm),
-    next_steps: dedupeBy(parts.flatMap((x) => x.next_steps), norm),
+    concerns: dedupeSimilar(parts.flatMap((x) => x.concerns), (c) => c),
+    next_steps: dedupeSimilar(parts.flatMap((x) => x.next_steps), (c) => c),
     requirements,
     meeting,
     ...(pointers ? { pointers } : {}),
