@@ -75,3 +75,19 @@ export function formatMonthYear(input: DateInput): string {
   const p = parts(input);
   return p ? `${MONTHS[p.m]!.toUpperCase()} ${p.y}` : '';
 }
+
+// YYYY-MM-DD, optionally followed by THH:MM[:SS[.fff]][Z|±HH:MM] — the only shape humanizeIsoDates touches.
+const ISO_IN_TEXT = /\b(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?(?![\d-])/g;
+
+/** [P21-D] Replace every ISO date / timestamp inside free text (a pointer, a model-written line) with the
+ *  body form — `6 Apr 2026`, or `2 Apr 2026, 13:02` with a time — read positionally (wall-clock, no
+ *  timezone shift). Only ISO shapes are touched: "20/03/2026", amounts and references stay as written. */
+export function humanizeIsoDates(text: string): string {
+  return text.replace(ISO_IN_TEXT, (whole, y: string, mo: string, d: string, hh?: string, mm?: string) => {
+    const m = Number(mo);
+    const day = Number(d);
+    if (m < 1 || m > 12 || day < 1 || day > 31) return whole;
+    const date = `${day} ${MONTHS[m - 1]} ${y}`;
+    return hh !== undefined && mm !== undefined ? `${date}, ${hh}:${mm}` : date;
+  });
+}

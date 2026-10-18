@@ -1,4 +1,4 @@
-import { formatStamp } from '../format/dates.js';
+import { formatStamp, humanizeIsoDates } from '../format/dates.js';
 
 /**
  * [POINTERS · D8/D9] The pointers card — shown in the client thread after a chat import and in the
@@ -52,7 +52,7 @@ function PointerGroup({ heading, pointers }: { heading: string; pointers: Pointe
       <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.2rem' }}>
         {pointers.map((p, i) => (
           <li key={i}>
-            {p.text}
+            {humanizeIsoDates(p.text) /* [P21-D] "(for 2026-04-06)" → "(for 6 Apr 2026)" */}
             {p.inferred && <span style={{ color: 'var(--text-secondary)' }}> (our read)</span>}
             {p.receipts.length > 0 && (
               <details style={{ marginTop: '0.15rem' }}>
