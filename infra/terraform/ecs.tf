@@ -40,6 +40,7 @@ resource "aws_ecs_task_definition" "api" {
       { name = "PORT", value = "3001" },
       { name = "AUTH_STORE", value = "postgres" },
       { name = "MODEL_PROVIDER", value = "anthropic" },
+      { name = "MODEL_AUX", value = "claude-haiku-5-5" },
       { name = "TRANSCRIBER", value = "groq" },
       # Real embeddings (STAGING-EMBEDDER): recall + semantic search need a live
       # embedder — a stub returns nothing and assertDeployReady refuses to boot a
