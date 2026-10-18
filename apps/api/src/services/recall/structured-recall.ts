@@ -9,6 +9,7 @@ import type { UnansweredQuestion } from '../import/unanswered.js';
 import type { Restriction } from '../erasure/restriction.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { queryTerms, termHits } from './query-terms.js';
+import { namesEqual } from '../text/normalize-name.js';
 
 /**
  * [P18-5] Structured cross-client retrieval for Ask.
@@ -228,10 +229,17 @@ function noteRows(n: NoteRecord, clientName: string): Row[] {
   }
   for (const p of ex.people ?? []) {
     if (!p.name?.trim()) continue;
-    const role = p.role?.trim() ? ` (${p.role.trim()})` : '';
-    const notes = p.notes?.trim() ? `: ${p.notes.trim()}` : '';
+    // [P21-R5] The client as a "person": show the fact once after the client's name, never "Name — Name";
+    // with no role and no notes there is no fact, so no row.
+    const self = namesEqual(p.name, clientName);
+    const roleText = p.role?.trim() ?? '';
+    const notesText = p.notes?.trim() ?? '';
+    if (self && !roleText && !notesText) continue;
+    const label = self
+      ? [roleText, notesText].filter(Boolean).join(': ')
+      : `${p.name.trim()}${roleText ? ` (${roleText})` : ''}${notesText ? `: ${notesText}` : ''}`;
     rows.push({
-      receipt: { quote: `${clientName} — ${p.name.trim()}${role}${notes}`, date: dayOf(p.source_message_at ?? null) ?? noteDay, clientId: n.clientId, noteId: n.id },
+      receipt: { quote: `${clientName} — ${label}`, date: dayOf(p.source_message_at ?? null) ?? noteDay, clientId: n.clientId, noteId: n.id },
       content: `${p.name} ${p.role ?? ''} ${p.notes ?? ''} ${p.source_span ?? ''}`,
       digest: false,
     });
@@ -239,7 +247,7 @@ function noteRows(n: NoteRecord, clientName: string): Row[] {
   for (const f of ex.personal_facts ?? []) {
     if (!f.fact?.trim()) continue;
     rows.push({
-      receipt: { quote: `${clientName} — ${f.subject?.trim() ? `${f.subject.trim()}: ` : ''}${f.fact.trim()}`, date: dayOf(f.source_message_at ?? null) ?? noteDay, clientId: n.clientId, noteId: n.id },
+      receipt: { quote: `${clientName} — ${f.subject?.trim() && !namesEqual(f.subject, clientName) ? `${f.subject.trim()}: ` : ''}${f.fact.trim()}`, date: dayOf(f.source_message_at ?? null) ?? noteDay, clientId: n.clientId, noteId: n.id },
       content: `${f.subject ?? ''} ${f.fact} ${f.category ?? ''} ${f.source_span ?? ''}`,
       digest: false,
     });
