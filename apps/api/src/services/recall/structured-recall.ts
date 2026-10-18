@@ -69,7 +69,14 @@ const MAX_MATCHED = 12;
 /** Notes not yet in the vault (an unconfirmed Ask capture) never feed an answer. */
 const PENDING = 'pending_confirmation';
 
-interface Row { receipt: Receipt; content: string; digest: boolean }
+interface Row { receipt: Receipt; content: string; digest: boolean; clientOwned?: boolean }
+
+/** [P21-A4] A question about the REP's own promises ("what have I promised", "my promises", "what do I
+ *  owe", Arabic وعدت / وعودي). Client-owned promises are left out of its answer. */
+const MY_PROMISES = /\b(?:i|i've|ive|i have|i'd)\s+(?:\w+\s+){0,2}?(?:promis\w*|owe|committed|commit)\b|\bmy\s+(?:promises?|commitments?)\b|وعدت|وعودي|التزاماتي/i;
+export function asksAboutMyPromises(question: string): boolean {
+  return MY_PROMISES.test(question);
+}
 
 function isoDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
@@ -111,10 +118,16 @@ export class StructuredRecall {
     const open = promises
       .filter((p) => !p.done && inScope(p.clientId))
       .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'));
+    // [P21-A4] The owner is carried: a client's promise reads as the client's, and a question about the
+    // rep's own promises doesn't get the client's.
+    const mine = query.question ? asksAboutMyPromises(query.question) : false;
     for (const p of open) {
+      const clientOwned = p.owner === 'client';
+      if (clientOwned && mine) continue;
       rows.push({
+        clientOwned,
         receipt: {
-          quote: `${who(p.clientId)} — you promised to ${p.text}`,
+          quote: clientOwned ? `${who(p.clientId)} promised to ${p.text}` : `${who(p.clientId)} — you promised to ${p.text}`,
           date: p.dueDate ?? dayOf(p.sourceMessageAt) ?? p.captureAt ?? isoDate(p.createdAt),
           clientId: p.clientId,
           noteId: p.noteId,
@@ -190,7 +203,7 @@ export class StructuredRecall {
 
     // The aggregate digest (promises / meetings / key dates), each kind capped, minus what matched.
     const perKind = (kind: (r: Row) => boolean) => rows.filter((r) => r.digest && kind(r) && !taken.has(r)).slice(0, this.config.maxPerKind);
-    const isPromise = (r: Row) => r.receipt.quote.includes(' — you promised to ');
+    const isPromise = (r: Row) => r.clientOwned !== undefined;
     const isMeeting = (r: Row) => r.receipt.quote.includes(' — meeting: ');
     const digest = [...perKind(isPromise), ...perKind(isMeeting), ...perKind((r) => !isPromise(r) && !isMeeting(r))];
     out.push(...digest.map((r) => r.receipt));
