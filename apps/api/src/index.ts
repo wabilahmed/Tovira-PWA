@@ -11,6 +11,7 @@ import { AccessApprovalService, INVITE_RESEND_MAX_PER_DAY } from './services/acc
 import { AccessRequestRetentionService, ACCESS_REQUEST_RETENTION_DAYS } from './services/access/access-request-retention.js';
 import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/audio-retention-service.js';
 import { BulkImportService } from './services/import/bulk-import-service.js';
+import { BulkBatchNotifier } from './services/import/bulk-batch-notifier.js';
 import { BulkBatchRetentionService, BULK_BATCH_TTL_MS } from './services/import/bulk-batch-retention.js';
 import { BulkUpsellService } from './services/import/bulk-upsell.js';
 import { bulkConcurrency } from './services/import/bulk-extraction.js';
@@ -351,12 +352,12 @@ async function main(): Promise<void> {
   // [P20-3 / BULK-08] Notes currently owned by an in-flight bulk batch — their per-note import_complete
   // is suppressed in favour of the batch's one aggregate notification. Shared across the in-process
   // sweep + bulk orchestrator (both run in this process via the ScheduledBrain).
-  const bulkNotes = new Set<string>();
+  const bulkBatch = new BulkBatchNotifier((userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs));
   const importCompletion = new ImportCompletionService({
     notes,
     clients,
     dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs),
-    isBulkNote: (noteId) => bulkNotes.has(noteId),
+    isBulkNote: bulkBatch.isBulkNote,
   });
   // [RULING 2 items 2/5/6] The single claim-then-extract path shared by the sweep and the bulk
   // orchestrator. It is the ONE call site that passes forceAllowance (inside createClaimAndExtract).
@@ -548,20 +549,8 @@ async function main(): Promise<void> {
     modelId: config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub',
     repNames,
     // [P20-3 / BULK-08] Suppress per-note notifications for batch notes; emit ONE aggregate at the end.
-    bulkNotes: { add: (id) => bulkNotes.add(id), remove: (id) => bulkNotes.delete(id) },
-    onBatchComplete: async (userId, summary) => {
-      if (summary.chatsImported === 0) return; // nothing landed → no notification
-      const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
-      const found = [plural(summary.promises, 'promise'), plural(summary.requirements, 'requirement')].join(', ');
-      await pushDispatch.dispatch(userId, [{
-        type: 'import_complete',
-        dedupeKey: `bulk:${Date.now()}`,
-        clientId: null,
-        title: 'Import ready',
-        body: `Imported ${plural(summary.chatsImported, 'chat')} — found ${found}. Open the Book Scan.`,
-        url: '/app?view=bookscan',
-      }], Date.now());
-    },
+    bulkNotes: bulkBatch.bulkNotes,
+    onBatchComplete: bulkBatch.onBatchComplete,
   });
   const bulkUpsell = new BulkUpsellService({
     topUpOptions: TOP_UP_OPTIONS,

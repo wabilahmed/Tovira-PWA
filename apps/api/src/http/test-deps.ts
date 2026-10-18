@@ -69,6 +69,8 @@ import { PrioritiesService } from '../services/hero/priorities-service.js';
 import { InMemoryPrioritiesRepository } from '../adapters/priorities/in-memory-priorities-repository.js';
 import { BookScanService } from '../services/book-scan/book-scan-service.js';
 import { RecallService } from '../services/recall/recall-service.js';
+import { BulkBatchNotifier } from '../services/import/bulk-batch-notifier.js';
+import { ImportCompletionService } from '../services/notes/import-completion-service.js';
 import { StructuredRecall } from '../services/recall/structured-recall.js';
 import { InMemoryRecallSessionRepository } from '../adapters/recall/in-memory-recall-session-repository.js';
 import { AskCaptureService } from '../services/recall/ask-capture-service.js';
@@ -277,12 +279,22 @@ export function buildInMemoryDeps(
     claim: (u, id, now) => notes.claimForExtraction(u, id, now),
     extract: (u, id, today, o) => extraction.extractNote(u, id, today, o),
   });
+  // [P21-D / BULK-08] Same notification wiring as index.ts: per-note import_complete on settle, suppressed
+  // for notes in a bulk batch, which emits one aggregate instead.
+  const bulkBatch = new BulkBatchNotifier((userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs));
+  const importCompletion = new ImportCompletionService({
+    notes,
+    clients,
+    dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs),
+    isBulkNote: bulkBatch.isBulkNote,
+  });
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),
     listPending: (u) => notes.listPendingByUser(u).then((rows) => rows.map((n) => ({ id: n.id, status: n.status, sweepAttempts: n.sweepAttempts }))),
     transcribe: (u, id) => transcription.transcribeNote(u, id).then(() => undefined),
     extract: (u, id, today) => claimAndExtract(u, id, today).then(() => undefined),
     reclaim: (u) => notes.reclaimStaleExtracting(u, Date.now(), EXTRACTION_CLAIM_TIMEOUT_MS).then(() => undefined),
+    onSettled: (u, id) => importCompletion.onNoteSettled(u, id), // IMPORT-DONE (mirrors index.ts)
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
     isVerified: opts.enforceVerification ? (u: string) => auth.getPublicUser(u).then((x) => x?.emailVerified ?? false) : undefined,
@@ -327,6 +339,8 @@ export function buildInMemoryDeps(
     allowanceAed: DEFAULT_MONTHLY_AI_ALLOWANCE_AED,
     modelId: 'stub',
     repNames,
+    bulkNotes: bulkBatch.bulkNotes,
+    onBatchComplete: bulkBatch.onBatchComplete,
   });
   const bulkUpsell = new BulkUpsellService({
     topUpOptions: TOP_UP_OPTIONS,
