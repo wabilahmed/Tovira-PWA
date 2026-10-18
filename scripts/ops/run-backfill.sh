@@ -10,6 +10,9 @@
 #   trials         apps/api/src/scripts/backfill-trials.ts          (--only <userId>)
 #   promise-dates  apps/api/src/scripts/backfill-promise-dates.ts   (--only-user <userId>)
 #   meeting-dates  apps/api/src/scripts/backfill-meeting-dates.ts   (--only-user <userId>)
+#   kept-promise-check  apps/api/src/scripts/kept-promise-check.ts  [P26-2] READ-ONLY: prints two counts
+#                  (auto-closed promises, notes with a model kept_at); takes no args and refuses --apply.
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script kept-promise-check
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script promise-dates --only-user <userId>   # dry run
 #
 # USAGE (with YOUR admin profile):
@@ -60,7 +63,7 @@ while [ "$#" -gt 0 ]; do
     --script)
       # consumed here (never sent to the container) but part of the guard key, so a dry run of one
       # backfill never authorises --apply of another
-      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates)"
+      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | kept-promise-check)"
       SCRIPT_NAME="$2"; KEYARGS+=("$1" "$2"); shift 2 ;;
     *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --apply, --i-checked-the-dry-run)" ;;
   esac
@@ -70,8 +73,17 @@ case "$SCRIPT_NAME" in
   trials)        SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-trials.ts" ;;
   promise-dates) SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-promise-dates.ts" ;;
   meeting-dates) SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-meeting-dates.ts" ;;
-  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates)" ;;
+  kept-promise-check) SCRIPT_IN_IMAGE="apps/api/src/scripts/kept-promise-check.ts" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | kept-promise-check)" ;;
 esac
+
+# [P26-2] A read-only check: nothing to apply, no args — refused here, before any AWS call.
+READ_ONLY=0
+if [ "$SCRIPT_NAME" = "kept-promise-check" ]; then
+  READ_ONLY=1
+  [ "$APPLY" -eq 0 ] || die "kept-promise-check is read-only — --apply is refused"
+  [ "${#PASSTHROUGH[@]}" -eq 0 ] || die "kept-promise-check is read-only and takes no arguments"
+fi
 
 # Stable key for "same args" = the non---apply args (so a dry run for --only X authorises --apply --only X).
 key_for() { printf '%s\n' "${KEYARGS[*]-}" | /usr/bin/shasum 2>/dev/null | cut -d' ' -f1 || printf '%s' "${KEYARGS[*]-}" | cksum | cut -d' ' -f1; }
@@ -88,7 +100,7 @@ if [ "$APPLY" -eq 1 ] && [ "$I_CHECKED" -eq 0 ]; then
   fi
 fi
 
-echo "run-backfill: script=$SCRIPT_IN_IMAGE cluster=$CLUSTER service=$SERVICE region=$REGION mode=$([ "$APPLY" -eq 1 ] && echo APPLY || echo 'DRY RUN')"
+echo "run-backfill: script=$SCRIPT_IN_IMAGE cluster=$CLUSTER service=$SERVICE region=$REGION mode=$([ "$READ_ONLY" -eq 1 ] && echo READ-ONLY || { [ "$APPLY" -eq 1 ] && echo APPLY || echo 'DRY RUN'; })"
 
 # --- Discover the service's CURRENT task definition + network config (so we always match the live API) ---
 svc_json="$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --region "$REGION" \
@@ -134,7 +146,7 @@ echo "run-backfill: ------------------------------------------------------------
 echo "run-backfill: task exit code = $EXIT_CODE"
 
 # --- Record a successful DRY RUN so a subsequent --apply for the same args is authorised ---
-if [ "$APPLY" -eq 0 ] && [ "$EXIT_CODE" -eq 0 ]; then
+if [ "$APPLY" -eq 0 ] && [ "$READ_ONLY" -eq 0 ] && [ "$EXIT_CODE" -eq 0 ]; then
   mkdir -p "$STATE_DIR"; date +%s > "$STAMP"
   echo "run-backfill: dry run OK — recorded; you have $((DRYRUN_TTL/60))m to re-run with --apply for these args."
 fi
