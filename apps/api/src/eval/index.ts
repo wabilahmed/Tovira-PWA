@@ -12,6 +12,11 @@ import type { Extraction } from '../services/extraction/types.js';
 import type { ModelClient } from '../ports/model.js';
 import { ModelBudget } from '../services/metrics/model-budget.js';
 import { SpendCap } from './spend-cap.js';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { PROMPT_VERSION } from '../services/extraction/prompt.js';
+import { FAB_TRIPWIRE_PCT, parseFabLedger, poolFabWindow, fabWindowVerdict, freshWindowPlan, fabRecordLine, type FabLedgerRecord, type FabWindowKey } from './fab-window.js';
+import { fingerprintFiles, NARROW_SURFACE, CERT_SURFACE } from './extraction-fingerprint.js';
 
 /**
  * The P1-9 quality gate under the redefined standard (temperature is deprecated
@@ -82,6 +87,27 @@ function spuriousRequirements(scored: Scored[]): void {
 async function main(): Promise<void> {
   const config = loadConfig();
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
+
+  // [P25-2] The rolling fabrication window. CI passes GATE_LEDGER_FILE (the append-only ledger) and
+  // GATE_LEDGER_REQUIRED=1: an unreadable, empty or missing ledger FAILS CLOSED here — before any model call.
+  const srcRoot = fileURLToPath(new URL('..', import.meta.url));
+  const windowKey: FabWindowKey = {
+    promptVersion: PROMPT_VERSION,
+    model: modelId,
+    fingerprint: fingerprintFiles(srcRoot, NARROW_SURFACE),
+    certFingerprint: fingerprintFiles(srcRoot, CERT_SURFACE),
+  };
+  let ledger: FabLedgerRecord[] | null = null;
+  if (process.env.GATE_LEDGER_FILE || process.env.GATE_LEDGER_REQUIRED === '1') {
+    try {
+      if (!process.env.GATE_LEDGER_FILE) throw new Error('GATE_LEDGER_REQUIRED=1 but no GATE_LEDGER_FILE was given');
+      ledger = parseFabLedger(readFileSync(process.env.GATE_LEDGER_FILE, 'utf8'));
+    } catch (err) {
+      console.error(`[gate] FABRICATION LEDGER unreadable: ${err instanceof Error ? err.message : String(err)} — FAIL (closed)`);
+      process.exit(1);
+    }
+  }
+  const windowPlan = ledger ? freshWindowPlan(ledger, windowKey) : null;
   // Wrap the real client so the gate reports its own cache health + spend (the discipline:
   // warm the prefix, then confirm it's actually being read, and know what the run cost).
   const realModel = createModelClient(config);
@@ -129,7 +155,16 @@ async function main(): Promise<void> {
 
   // Runs are configurable: 3 (default) is the cheap per-run/soft deploy gate; a fabrication
   // CERTIFICATION needs GATE_RUNS high enough to clear GATE_FAB.minExtractions (~15 = 480).
-  const RUNS = Math.max(1, Number(process.env.GATE_RUNS ?? 3));
+  let RUNS = Math.max(1, Number(process.env.GATE_RUNS ?? 3));
+  // [P25-2, owner ruling 18 Oct] A changed prompt version / model / gate code / scorer: this job runs the full
+  // certification itself — at least GATE_FAB.minExtractions extractions — before its result can count.
+  if (windowPlan?.mode === 'full-cert') {
+    const certRuns = Math.ceil(GATE_FAB.minExtractions / EVAL_NOTES.length);
+    if (RUNS < certRuns) RUNS = certRuns;
+    console.log(`[gate] fabrication window: the prompt version, model, gate code or scorer changed — running the full certification in this job (${RUNS} runs, ≥ ${GATE_FAB.minExtractions} extractions)`);
+  } else if (windowPlan?.mode === 'refill') {
+    console.log(`[gate] fabrication window: extraction code changed — a fresh window refills from ordinary gates (${windowPlan.sameKeyExtractions}/${GATE_FAB.minExtractions} so far; the ${FAB_TRIPWIRE_PCT}% single-run tripwire applies meanwhile)`);
+  }
   for (const run of Array.from({ length: RUNS }, (_, i) => i + 1)) {
     console.log(`\n[gate] === RUN ${run} — model: ${modelId} (default sampling; temperature deprecated) ===`);
     const scored = await runOnce(model);
@@ -170,13 +205,20 @@ async function main(): Promise<void> {
 
   // Fabrication: aggregate rate bar (owner ruling). Only a non-provisional pass certifies.
   const fab = fabricationGate(agg, modelId);
-  const runsToCertify = Math.ceil(GATE_FAB.minExtractions / EVAL_NOTES.length);
-  const fabState = fab.provisional
-    ? `PROVISIONAL (${agg.fabricatedPromises}/${fab.extractions} = ${fab.ratePct.toFixed(2)}% ≤ ${GATE_FAB.maxRatePct}%, but N<${GATE_FAB.minExtractions} — run GATE_RUNS=${runsToCertify} to certify)`
-    : fab.passed
-      ? `CERTIFIED (${agg.fabricatedPromises}/${fab.extractions} = ${fab.ratePct.toFixed(2)}% ≤ ${GATE_FAB.maxRatePct}% tripwire; published rate ${GATE_FAB.certifiedRatePct}% from N=${GATE_FAB.justifyingN})`
-      : `FAIL: ${fab.reasons.join('; ')}`;
-  console.log(`[gate]   FABRICATION: ${fabState}`);
+  const fabCurrent = { extractions: fab.extractions, fabricated: agg.fabricatedPromises };
+  // [P25-2] Pool with the ledger's same-key records (none when run locally without a ledger → this run alone).
+  const pooled = poolFabWindow(ledger ?? [], windowKey, fabCurrent);
+  const fabVerdict = fabWindowVerdict({ current: fabCurrent, pooled });
+  console.log(`[gate]   FABRICATION: ${fabCurrent.fabricated}/${fabCurrent.extractions} this run; pooled ${pooled.fabricated}/${pooled.extractions} over ${pooled.runs} runs — ${fabVerdict.status}`);
+  for (const r of fabVerdict.reasons) console.log(`[gate]   FABRICATION FAIL: ${r}`);
+  if (process.env.GATE_LEDGER_OUT) {
+    // This run's record — written whatever the verdict (a failing run must never vanish from the window).
+    writeFileSync(process.env.GATE_LEDGER_OUT, fabRecordLine({
+      type: 'run', sha: process.env.GITHUB_SHA ?? 'local', at: new Date().toISOString(),
+      runId: process.env.GITHUB_RUN_ID ?? 'local', attempt: Number(process.env.GITHUB_RUN_ATTEMPT ?? 1),
+      extractions: fabCurrent.extractions, fabricated: fabCurrent.fabricated, ...windowKey,
+    }));
+  }
 
   // LEAKAGE — reported as TWO distinct guarantees, never one number (owner condition).
   // TIER-1 (format): deterministic, ingest-enforced, per-run ZERO. Verified without the model.
@@ -329,7 +371,9 @@ async function main(): Promise<void> {
   // reported, not enforced — a 1/9 Tier-2 spike at 3 runs is noise, not a regression, and
   // gating on it would make CI flaky and teach re-rolling. The aggregates are certified at
   // the periodic large-N run (GATE_RUNS≥30 => FULL CERTIFICATION), not on every push.
-  const fabGates = fab.provisional || fab.passed;
+  // [P25-2] Fabrication now FAILS CI: the pooled ≥ 960-extraction window over the 1.2% ceiling, or this single
+  // run over the 3% tripwire. A window still filling is provisional — it does not fail, and never reads as a pass.
+  const fabGates = fabVerdict.status !== 'fail';
   // [TIER2-SPLIT] The privacy gate is the SPECIAL-CATEGORY bar only — an alias-normalisation or 'other'
   // leak never fails it (they're reported, tracked separately). Provisional below the min sample.
   const scGates = scBar.provisional || scBar.passed;

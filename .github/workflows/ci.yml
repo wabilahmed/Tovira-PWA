@@ -58,10 +58,21 @@ jobs:
   # key, so it self-activates: a no-op until ANTHROPIC_API_KEY is in the repo
   # secrets, then it fails the build if extraction ever guesses a date /
   # fabricates a promise / merges two people. Runs on main only (it spends).
+  #
+  # [P25-2] Fabrication FAILS this job: every gate run (re-runs included) appends one record to the
+  # append-only ledger on the `gate-ledger` branch (fab-ledger.jsonl), and the gate pools the most recent
+  # same-key records (prompt version + model + extraction fingerprint) to >= 960 extractions; pooled > 1.2%
+  # fails, and a single run > 3% fails at once. A missing/unreadable ledger fails CLOSED. Gate jobs are
+  # serialised so each one reads the ledger after the previous run's record has landed.
   gate:
     needs: [verify, migrations-pg]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # to append this run's record to the gate-ledger branch
+    concurrency:
+      group: fab-ledger
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -77,9 +88,40 @@ jobs:
           # DB connection. loadConfig requires DATABASE_URL to be present, so give
           # it a syntactically valid dummy that is never dialed.
           DATABASE_URL: postgres://gate:gate@localhost:5432/gate
+          GATE_LEDGER_REQUIRED: '1'
+          GATE_LEDGER_FILE: ${{ runner.temp }}/fab-ledger.jsonl
+          GATE_LEDGER_OUT: ${{ runner.temp }}/fab-record.jsonl
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
             echo "No ANTHROPIC_API_KEY secret set — skipping the P1-9 gate."
             exit 0
           fi
+          # Fail closed: no ledger branch / no ledger file → the gate refuses to run.
+          git fetch --no-tags --depth=1 origin gate-ledger || { echo "FABRICATION LEDGER: the gate-ledger branch is missing — FAIL (closed)"; exit 1; }
+          git show FETCH_HEAD:fab-ledger.jsonl > "$GATE_LEDGER_FILE" || { echo "FABRICATION LEDGER: fab-ledger.jsonl is missing — FAIL (closed)"; exit 1; }
           npm run gate
+      - name: Append this run to the fabrication ledger (whatever the verdict)
+        if: always()
+        env:
+          RECORD: ${{ runner.temp }}/fab-record.jsonl
+          LEDGER_DIR: ${{ runner.temp }}/gate-ledger
+        run: |
+          if [ ! -s "$RECORD" ]; then
+            echo "No fabrication record (the gate was skipped or stopped before scoring)."
+            exit 0
+          fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4 5; do
+            rm -rf "$LEDGER_DIR"
+            git fetch --no-tags origin gate-ledger
+            git worktree add --detach "$LEDGER_DIR" FETCH_HEAD
+            cat "$RECORD" >> "$LEDGER_DIR/fab-ledger.jsonl"
+            git -C "$LEDGER_DIR" add fab-ledger.jsonl
+            git -C "$LEDGER_DIR" commit -m "gate: ${GITHUB_SHA::7} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+            if git -C "$LEDGER_DIR" push origin HEAD:gate-ledger; then exit 0; fi
+            git worktree remove --force "$LEDGER_DIR"
+            sleep $((attempt * 5))
+          done
+          echo "Could not append to the fabrication ledger after 5 attempts."
+          exit 1
