@@ -30,6 +30,8 @@ import { SpendCap } from '../../spend-cap.js';
 import { LONG_CHATS } from './fixtures.js';
 import { scoreLongChat } from './score.js';
 import { resolveExtractionDates } from '../../../services/extraction/resolve-date.js';
+import { IMPORT_FIXTURES } from '../../import-fixtures.js';
+import { scoreInvariants } from '../../score-invariants.js';
 
 /** LONG_CHAT_RESCORE=1: re-score stored results (re-running the deterministic date resolution with the
  *  current code) without any model call — for comparing runs made before a resolver/scorer fix. */
@@ -68,6 +70,30 @@ async function main(): Promise<void> {
     },
   };
   const only = process.env.LONG_CHAT_ONLY?.split(',');
+  // LONG_CHAT_IMPORTS=1: the certified import fixtures ABOVE the window threshold (cert-only), through the
+  // same shipped path, scored by the gate's own invariant contract (wrongness gates; recall reported).
+  if (process.env.LONG_CHAT_IMPORTS === '1') {
+    for (const f of IMPORT_FIXTURES.filter((x) => x.mode === 'invariant' && (!only || only.includes(x.id)))) {
+      const file = join(out, `${f.id}.json`);
+      if (existsSync(file)) { console.log(`[long-chat] ${f.id}: done already — skipped (resume)`); continue; }
+      fixtureCalls = 0; fixtureAed = 0; fixtureIn = 0; fixtureOut = 0;
+      const clients = new InMemoryClientRepository();
+      const notes = new InMemoryNoteRepository();
+      const svc = new ExtractionService(model, clients, notes, new InMemoryFactsRepository(), new StubEmbedder(8), new InMemoryExtractionLogRepository(), modelId,
+        undefined, undefined, undefined, '1h', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, config.windowing);
+      const client = await clients.create('eval', f.clientName);
+      const parsed = parseWhatsAppExport(f.transcript);
+      if (!parsed.ok) throw new Error(`${f.id}: transcript did not parse`);
+      const note = await notes.create('eval', { clientId: client.id, source: 'whatsapp_export', rawText: f.transcript, audioKey: null, status: 'pending_extraction', messages: assignSpeakerRoles(parsed.messages, f.clientName) });
+      const outcome = await svc.extractNote('eval', note.id, f.today);
+      const stored = (await notes.findByIdForUser('eval', note.id))?.extracted as Extraction | null;
+      const inv = f.mode === 'invariant' && stored ? scoreInvariants(f.contract, stored) : null;
+      writeFileSync(file, JSON.stringify({ id: f.id, messages: parsed.messages.length, model: modelId, status: (outcome as { status?: string }).status, calls: fixtureCalls, promptTokens: fixtureIn, outputTokens: fixtureOut, aed: Number(fixtureAed.toFixed(4)), invariant: inv, extraction: stored }, null, 1));
+      console.log(`[long-chat] ${f.id} (${parsed.messages.length} msgs): ${inv ? `GATE ${inv.passed ? 'PASS' : 'FAIL'} · recall ${inv.anchorsFound}/${inv.anchorsRequired}${inv.wrongness.length ? ' · WRONGNESS: ' + inv.wrongness.join('; ') : ''}${inv.recallMisses.length ? ' · misses: ' + inv.recallMisses.join('; ') : ''}` : `no extraction (${(outcome as { status?: string }).status})`} · ${fixtureCalls} call(s) · AED ${fixtureAed.toFixed(3)}`);
+    }
+    console.log(`[long-chat] this invocation AED ${cap.spentAed.toFixed(3)}`);
+    return;
+  }
   for (const f of LONG_CHATS.filter((x) => !only || only.includes(x.id))) {
     const file = join(out, `${f.id}.json`);
     if (existsSync(file)) { console.log(`[long-chat] ${f.id}: done already — skipped (resume)`); continue; }
