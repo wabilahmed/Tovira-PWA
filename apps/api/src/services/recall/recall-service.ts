@@ -10,6 +10,7 @@ import type { RecallMessage, RecallSessionRepository } from '../../ports/recall-
 import type { StatementDetector } from './statement-detector.js';
 import type { AskCaptureService } from './ask-capture-service.js';
 import type { StructuredQuery } from './structured-recall.js';
+import { normalizeName } from '../text/normalize-name.js';
 import { callCostUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { estimateTokens } from '../extraction/prompt.js';
 
@@ -68,6 +69,24 @@ const HISTORY_DIRECTIVE =
   'The conversation so far is provided for context only — use it to understand what the latest question refers to. Answer only the latest question. Do not revisit, re-answer, or summarise earlier turns, and do not volunteer answers to questions that were already answered.';
 
 const NO_ANSWER = "I don't have that on record.";
+
+/** [P21-A2] A question that points back at the previous answer's clients ("which of them", "those",
+ *  "the same clients", Arabic منهم / هؤلاء / نفس العملاء). */
+const FOLLOW_UP = /\b(?:them|those|these|they|the same (?:clients?|ones|people)|which ones)\b|منهم|هؤلاء|هذول|نفس العملاء/i;
+
+/** [P21-A2] The clients an answer names: the full (folded) name, or a word of it that no other client's
+ *  name shares — so "Gate" finds "QA P14 Gate Client" but "QA" / "Client" never pull in the whole book. */
+export function clientsNamedIn(text: string, dir: ClientRef[]): ClientRef[] {
+  const hay = ` ${normalizeName(text)} `;
+  const tokensOf = (name: string) => normalizeName(name).split(' ').filter((t) => t.length >= 3);
+  const freq = new Map<string, number>();
+  for (const c of dir) for (const t of new Set(tokensOf(c.name))) freq.set(t, (freq.get(t) ?? 0) + 1);
+  return dir.filter((c) => {
+    const full = normalizeName(c.name);
+    if (full && hay.includes(` ${full} `)) return true;
+    return tokensOf(c.name).some((t) => freq.get(t) === 1 && !/^\d+$/.test(t) && hay.includes(` ${t} `));
+  });
+}
 // [SPEND-CAP] Honest, non-punitive — never an accusation. Shown only while over the cap, past the
 // day's recall limit; everything else keeps working.
 const RECALL_PAUSED = "You've used this month's AI allowance, so Ask is paused. Add usage or wait for it to reset — your notes and everything else are unaffected.";
@@ -230,6 +249,15 @@ export class RecallService {
       history = await this.sessions.recentMessages(userId, sessionId, this.config.historyWindow ?? DEFAULT_HISTORY_WINDOW);
     }
 
+    // [P21-A2] A follow-up ("which of them…") is limited to the clients the previous answer named. No
+    // back-reference, no previous answer, or no client named in it → the whole book, as before.
+    let scope: Set<string> | null = null;
+    const lastAnswer = [...history].reverse().find((m) => m.role === 'assistant')?.content;
+    if (lastAnswer && FOLLOW_UP.test(question) && this.clientDirectory) {
+      const named = clientsNamedIn(lastAnswer, await this.clientDirectory(userId).catch(() => [] as ClientRef[]));
+      if (named.length > 0) scope = new Set(named.map((c) => c.id));
+    }
+
     const embedding = await this.embedder.embed(userId, question);
     const matches = await this.notes.searchSimilarByUser(userId, embedding, this.config.topK);
     // [TASK 2] Apply the erasure-window restriction to each retrieved note BEFORE relevance + receipts,
@@ -237,7 +265,7 @@ export class RecallService {
     // wholly the restricted party's then has empty safe text and drops out below.
     const restriction = this.restriction ? await this.restriction.forUser(userId) : NO_RESTRICTION;
     const restricted = restriction.active ? matches.map((m) => ({ ...m, note: restrictNote(m.note, restriction) })) : matches;
-    const relevant = restricted.filter((m) => m.similarity >= this.config.minSimilarity && modelSafeText(m.note).trim());
+    const relevant = restricted.filter((m) => m.similarity >= this.config.minSimilarity && modelSafeText(m.note).trim() && (!scope || scope.has(m.note.clientId)));
 
     // [P18-5] Structured cross-client facts (promises/meetings/key dates across the whole book) joined
     // with the vector matches. Vector receipts come FIRST so they win the token budget for a specific
@@ -246,7 +274,7 @@ export class RecallService {
     // [P21-A1] Rows that share content words with the question (a requirement, an unanswered question,
     // a person…) are short, precise receipts — they go FIRST so a long vector note can't crowd them out.
     const structuredRows = this.structured
-      ? await this.structured.forUser(userId, nowMs, { question, restriction }).catch(() => [] as Array<Receipt & { matched?: boolean }>)
+      ? await this.structured.forUser(userId, nowMs, { question, restriction, ...(scope ? { clientIds: [...scope] } : {}) }).catch(() => [] as Array<Receipt & { matched?: boolean }>)
       : [];
     const strip = ({ matched: _m, ...r }: Receipt & { matched?: boolean }): Receipt => r;
     const matchedRows = structuredRows.filter((r) => r.matched).map(strip);
