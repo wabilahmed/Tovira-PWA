@@ -41,6 +41,9 @@ resource "aws_ecs_task_definition" "api" {
       { name = "AUTH_STORE", value = "postgres" },
       { name = "MODEL_PROVIDER", value = "anthropic" },
       { name = "MODEL_AUX", value = "claude-haiku-5-5" },
+      # [P23-B4] Windowed extraction for long imported chats (validated in config.ts: 1/0/true/false).
+      # Owner turned it on 2026-10-19 after the read-only kept-promise check came back zero.
+      { name = "EXTRACT_WINDOWED", value = "1" },
       { name = "TRANSCRIBER", value = "groq" },
       # Real embeddings (STAGING-EMBEDDER): recall + semantic search need a live
       # embedder — a stub returns nothing and assertDeployReady refuses to boot a
