@@ -46,7 +46,7 @@ export class StubStripeGateway implements StripeGateway {
 
   /** Recorded so a test can assert a portal session was opened for the right customer + return URL. */
   readonly portalSessions: Array<{ customerId: string; returnUrl: string }> = [];
-  async createPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }> {
+  async createPortalSession(customerId: string, returnUrl: string, _owner?: { userId: string; email: string }): Promise<{ url: string; customerId?: string }> {
     this.portalSessions.push({ customerId, returnUrl });
     return { url: `https://billing.stripe.test/portal?cus=${customerId}` };
   }

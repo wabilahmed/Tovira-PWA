@@ -200,10 +200,13 @@ export class BillingService {
    * (they have never checked out) — the UI only offers this once subscribed. `returnUrl` is the app's
    * Billing page, where Stripe sends them back.
    */
-  async portalSession(userId: string, returnUrl: string): Promise<{ url: string } | null> {
+  async portalSession(userId: string, returnUrl: string, email = ''): Promise<{ url: string } | null> {
     const customerId = (await this.subs.get(userId))?.stripeCustomerId ?? undefined;
     if (!customerId) return null;
-    return this.stripe.createPortalSession(customerId, returnUrl);
+    // [P29] A test-mode customer id after the switch to live is replaced by a fresh one — store it.
+    const session = await this.stripe.createPortalSession(customerId, returnUrl, { userId, email });
+    if (session.customerId && session.customerId !== customerId) await this.subs.update(userId, { stripeCustomerId: session.customerId });
+    return { url: session.url };
   }
 
   /** [VAT-BOUNDARY] Freeze the tax treatment of a paid invoice: computed from ITS date + the VAT

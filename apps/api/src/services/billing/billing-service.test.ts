@@ -573,3 +573,15 @@ describe('[BILLING-DUNNING] invoice.paid + invoice.payment_succeeded for ONE inv
     expect(confirmed).toHaveBeenCalledTimes(1); // a new invoice's success reactivates + emails again
   });
 });
+
+/** [P29] The portal hands back a fresh customer when the stored one was test-mode: the app stores it. */
+describe('[P29] portal with a replaced (test-mode) customer stores the new id', () => {
+  it('persists the customer id the gateway returns', async () => {
+    const { subs, billing, stripe } = make();
+    stripe.createPortalSession = async () => ({ url: 'https://billing.stripe.com/p/new', customerId: 'cus_LIVE1' });
+    await subs.create('u1', NOW);
+    await subs.update('u1', { stripeCustomerId: 'cus_TEST1' });
+    expect(await billing.portalSession('u1', 'http://app/billing', 'a@b.com')).toEqual({ url: 'https://billing.stripe.com/p/new' });
+    expect((await subs.get('u1'))!.stripeCustomerId).toBe('cus_LIVE1');
+  });
+});

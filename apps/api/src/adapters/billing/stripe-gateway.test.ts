@@ -201,3 +201,83 @@ describe('StripeGatewayImpl', () => {
     });
   });
 });
+
+/**
+ * [P29] Stripe goes LIVE: an account whose stored customer id came from TEST mode gets
+ *   "No such customer: 'cus_…'; a similar object exists in test mode, but a live mode key was used…"
+ * (resource_missing, param customer) from every live call that names it. Checkout, top-up and the portal now
+ * create a fresh customer in the current mode, retry once, and hand back the new id for the app to store; a
+ * Settings name sync on such a customer is a no-op (the next checkout carries the name). Anything else still throws.
+ * (The fake key below is a test key on purpose — the mode mismatch comes from Stripe's error, not the key string.)
+ */
+describe('[P29] a test-mode customer id in live mode', () => {
+  const opts = { secretKey: 'sk_test_x', webhookSecret: 'whsec_x', priceId: 'price_1', successUrl: 'http://s', cancelUrl: 'http://c' };
+  const noSuchCustomer = () => Object.assign(new Error("No such customer: 'cus_TEST1'; a similar object exists in test mode, but a live mode key was used to make this request."), { type: 'StripeInvalidRequestError', code: 'resource_missing', param: 'customer', statusCode: 400 });
+  function modeMismatch(over: { sessionCreate?: (p: Record<string, unknown>) => Promise<unknown>; portalCreate?: (p: Record<string, unknown>) => Promise<unknown>; customerUpdate?: () => Promise<unknown> } = {}) {
+    const customerCreate = vi.fn(async (_p: Record<string, unknown>) => ({ id: 'cus_LIVE1' }));
+    const sessionCreate = vi.fn(over.sessionCreate ?? (async (p: Record<string, unknown>) => {
+      if (p.customer === 'cus_TEST1') throw noSuchCustomer();
+      return { url: 'https://checkout.stripe.com/live', id: 'cs_live' };
+    }));
+    const portalCreate = vi.fn(over.portalCreate ?? (async (p: Record<string, unknown>) => {
+      if (p.customer === 'cus_TEST1') throw noSuchCustomer();
+      return { url: `https://billing.stripe.com/p/${String(p.customer)}` };
+    }));
+    const stripe = {
+      checkout: { sessions: { create: sessionCreate } },
+      customers: { create: customerCreate, update: vi.fn(over.customerUpdate ?? (async () => { throw noSuchCustomer(); })) },
+      prices: { retrieve: async (id: string) => ({ recurring: { interval: id.includes('annual') ? 'year' : 'month' } }) },
+      billingPortal: { sessions: { create: portalCreate } },
+      webhooks: { constructEvent: () => ({}) },
+    } as unknown as StripeLike;
+    return { g: new StripeGatewayImpl({ ...opts, stripe }), customerCreate, sessionCreate, portalCreate };
+  }
+
+  it('checkout: creates a fresh customer (name + user-id metadata), retries once, returns the new id', async () => {
+    const { g, customerCreate, sessionCreate } = modeMismatch();
+    const out = await g.createCheckoutSession('user-1', 'a@b.com', 'monthly', { existingCustomerId: 'cus_TEST1', name: 'Ahmed Kareem' });
+    expect(out.customerId).toBe('cus_LIVE1');
+    expect(out.url).toBe('https://checkout.stripe.com/live');
+    expect(customerCreate).toHaveBeenCalledTimes(1);
+    expect(customerCreate.mock.calls[0]![0]).toMatchObject({ email: 'a@b.com', name: 'Ahmed Kareem', metadata: { tovira_user_id: 'user-1' } });
+    expect(sessionCreate.mock.calls.map((c) => c[0].customer)).toEqual(['cus_TEST1', 'cus_LIVE1']);
+  });
+
+  it('top-up: the same — fresh customer, one retry, new id returned', async () => {
+    const { g, sessionCreate } = modeMismatch();
+    const out = await g.createTopUpCheckout('user-1', 'a@b.com', 'topup_15', 50, { existingCustomerId: 'cus_TEST1' });
+    expect(out.customerId).toBe('cus_LIVE1');
+    expect(sessionCreate.mock.calls.map((c) => c[0].customer)).toEqual(['cus_TEST1', 'cus_LIVE1']);
+  });
+
+  it('portal: fresh customer, portal opened for it, new id returned', async () => {
+    const { g, portalCreate } = modeMismatch();
+    const out = await g.createPortalSession('cus_TEST1', 'http://app/billing', { userId: 'user-1', email: 'a@b.com' });
+    expect(out).toEqual({ url: 'https://billing.stripe.com/p/cus_LIVE1', customerId: 'cus_LIVE1' });
+    expect(portalCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('a Settings name sync on a test-mode customer does not fail the save', async () => {
+    const { g } = modeMismatch();
+    await expect(g.updateCustomer('cus_TEST1', { name: 'X' })).resolves.toBeUndefined();
+  });
+
+  it('NEGATIVE: any other Stripe error still throws, and no customer is created', async () => {
+    const limited = Object.assign(new Error('rate limited'), { type: 'StripeRateLimitError', code: 'rate_limit' });
+    const otherMissing = Object.assign(new Error("No such price: 'price_1'"), { type: 'StripeInvalidRequestError', code: 'resource_missing', param: 'line_items[0][price]' });
+    for (const err of [limited, otherMissing]) {
+      const { g, customerCreate } = modeMismatch({ sessionCreate: async () => { throw err; } });
+      await expect(g.createCheckoutSession('user-1', 'a@b.com', 'monthly', { existingCustomerId: 'cus_TEST1' })).rejects.toBe(err);
+      expect(customerCreate).not.toHaveBeenCalled();
+    }
+    const { g } = modeMismatch({ customerUpdate: async () => { throw limited; } });
+    await expect(g.updateCustomer('cus_X', { name: 'X' })).rejects.toBe(limited);
+  });
+
+  it('NEGATIVE: retries ONCE — if the fresh customer is also refused, the error surfaces (no loop)', async () => {
+    const { g, customerCreate, sessionCreate } = modeMismatch({ sessionCreate: async () => { throw noSuchCustomer(); } });
+    await expect(g.createCheckoutSession('user-1', 'a@b.com', 'monthly', { existingCustomerId: 'cus_TEST1' })).rejects.toThrow(/No such customer/);
+    expect(customerCreate).toHaveBeenCalledTimes(1);
+    expect(sessionCreate).toHaveBeenCalledTimes(2);
+  });
+});

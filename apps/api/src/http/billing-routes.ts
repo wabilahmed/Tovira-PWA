@@ -61,7 +61,8 @@ export async function handleBillingRoute(
   // invoice history). Only a subscriber has a Stripe customer — otherwise 409 with a clear message.
   if (isPortal) {
     const returnUrl = `${deps.appBaseUrl ?? ''}/billing`;
-    const session = await deps.billing.portalSession(userId, returnUrl);
+    const portalUser = await deps.auth.getPublicUser(userId);
+    const session = await deps.billing.portalSession(userId, returnUrl, portalUser?.email ?? '');
     if (!session) {
       sendJson(res, 409, { error: 'no_subscription', message: 'Subscribe first to manage your subscription.' });
       return true;

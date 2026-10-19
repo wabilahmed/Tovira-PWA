@@ -205,7 +205,9 @@ export interface StripeGateway {
   /** [TASK 3] Open a Stripe Customer Portal session for an existing customer — the rep manages their
    *  subscription there: cancel (at period end), update the payment method, and see invoice history.
    *  `returnUrl` is where Stripe sends them back (the app's Billing page). Test mode only. */
-  createPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }>;
+  /** [P29] With `owner`, a stored customer that doesn't exist in this Stripe mode (test id after going live)
+   *  is replaced by a fresh one; the new id comes back as `customerId` for the caller to store. */
+  createPortalSession(customerId: string, returnUrl: string, owner?: { userId: string; email: string }): Promise<{ url: string; customerId?: string }>;
   /** Verify + parse a webhook; returns null if the signature is invalid. */
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null;
   /** [P14-2] Retrieve a Checkout Session by id for the server-side success confirmation — returns null
