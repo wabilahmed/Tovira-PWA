@@ -7,6 +7,8 @@ import { PgInviteRepository } from '../adapters/access/pg-invite-repository.js';
 import { PgAccessApprovalTx } from '../adapters/access/pg-access-approval-tx.js';
 import { PgInviteActivationTx } from '../adapters/access/pg-invite-activation-tx.js';
 import { PgUserRepository } from '../adapters/auth/pg-user-repository.js';
+import { PgKeptSuggestionRepository } from '../adapters/promises/pg-kept-suggestion-repository.js';
+import { promiseDedupeKey } from '../services/facts/promise-identity.js';
 
 /**
  * [DEPLOY-READY · REAL-PG] Run the REAL migration set against a REAL Postgres.
@@ -274,5 +276,28 @@ suite('[DEPLOY-READY] migrations apply against real Postgres', () => {
       await client.query('ROLLBACK').catch(() => undefined);
       client.release();
     }
+  });
+
+  // [P27-1] Live QA (19 Oct): every kept-promise suggestion insert failed on Postgres — the promise key held a
+  // NUL byte ("invalid byte sequence for encoding UTF8: 0x00") — while the in-memory store accepted it.
+  it('PgKeptSuggestionRepository stores and lists the live floor-plans suggestion (promise key has no NUL) (P27-1)', async () => {
+    const setup = await pool.connect();
+    let uid = '', cid = '';
+    try {
+      uid = (await setup.query(`INSERT INTO users (email, password_hash, referral_code) VALUES ('kept@x.com', 'h', 'rc-kept') RETURNING id`)).rows[0].id as string;
+      cid = (await setup.query(`INSERT INTO clients (user_id, name) VALUES ($1, 'QA Windowed Buyer') RETURNING id`, [uid])).rows[0].id as string;
+    } finally {
+      setup.release();
+    }
+    const repo = new PgKeptSuggestionRepository(pool);
+    const key = promiseDedupeKey('rep', 'Send the floor plans');
+    const s = { clientId: cid, noteId: '', promiseKey: key, promiseOwner: 'rep' as const, promiseText: 'Send the floor plans',
+      promiseSpan: "Great, I'll send you the floor plans tomorrow", promiseAt: '2026-05-03T11:15',
+      deliveryAt: '2026-05-14T09:40', deliveryBody: 'Here are the floor plans as promised, sent them by email' };
+    expect(await repo.createIfAbsent(uid, s)).toBe(true);
+    expect(await repo.createIfAbsent(uid, s)).toBe(false); // the same delivery message never suggests twice
+    const [row] = await repo.listOpen(uid);
+    expect(row).toMatchObject({ promiseKey: key, deliveryBody: s.deliveryBody, status: 'open' });
+    expect(await repo.deliveryTimes(uid, cid, key)).toEqual(new Set(['2026-05-14T09:40']));
   });
 });

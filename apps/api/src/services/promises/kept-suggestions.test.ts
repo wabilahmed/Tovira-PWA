@@ -145,3 +145,48 @@ describe('[P24-2] copy', () => {
     expect(keptSuggestionCopy('rep', 'Arrange the viewing', 'Sara')).toBe('Looks like you did this for Sara: "Arrange the viewing". Mark done?');
   });
 });
+
+import { promiseDedupeKey } from '../facts/promise-identity.js';
+/**
+ * [P27-1] Live QA, 19 Oct (build 0477307, EXTRACT_WINDOWED=1, "QA Windowed Buyer", 187 messages): the delivery
+ * WAS detected, but saving the suggestion failed on Postgres — `invalid byte sequence for encoding "UTF8": 0x00`
+ * — because the promise key joined owner and text with a NUL byte, which Postgres text cannot hold. The
+ * in-memory store accepted it, so every test passed. Now the in-memory store rejects NUL exactly as Postgres
+ * does, and the key is printable.
+ */
+describe('[P27-1] the live case: floor plans promised 3 May, delivered 14 May, in a 187-message windowed chat', () => {
+  const PROMISE_FP = m('rep', '2026-05-03T11:15', "Great, I'll send you the floor plans tomorrow");
+  const DELIVERY_FP = m('rep', '2026-05-14T09:40', 'Here are the floor plans as promised, sent them by email');
+  const chat = (): ImportedMessage[] => {
+    const f = Array.from({ length: 185 }, (_, i) => m(i % 2 ? 'client' : 'rep', `2026-05-${String(1 + Math.floor(i / 9)).padStart(2, '0')}T${String(8 + (i % 9)).padStart(2, '0')}:${String((i * 7) % 60).padStart(2, '0')}`, `general chat ${i}`));
+    const all = [...f, PROMISE_FP, DELIVERY_FP].sort((a, b) => a.sentAt!.localeCompare(b.sentAt!));
+    return all.map((x) => ({ ...x, sender: x.role === 'rep' ? 'Wabil' : 'QA Windowed Buyer' }));
+  };
+
+  it('the stored promise key is printable — no NUL byte (Postgres text rejects 0x00)', () => {
+    expect(promiseDedupeKey('rep', 'Send the floor plans')).not.toContain('\u0000');
+  });
+
+  it('the in-memory store rejects a NUL byte exactly like Postgres does (so a test can never pass on what prod refuses)', async () => {
+    const repo = new InMemoryKeptSuggestionRepository();
+    await expect(repo.createIfAbsent(U, { clientId: 'c', noteId: 'n', promiseKey: 'rep\u0000send', promiseOwner: 'rep', promiseText: 't', promiseSpan: null, promiseAt: null, deliveryAt: '2026-05-14T09:40', deliveryBody: 'b' }))
+      .rejects.toThrow(/0x00/);
+  });
+
+  it('windowed (187 > 150): one To Confirm suggestion with both receipts; the promise stays open', async () => {
+    const msgs = chat();
+    expect(msgs).toHaveLength(187);
+    const h = await setup(msgs, { windowed: true, model: model('Send the floor plans', 'rep', "Great, I'll send you the floor plans tomorrow") });
+    await h.svc.extractNote(U, h.note.id, '2026-05-20');
+    const [p] = await h.facts.listPromisesByUser(U);
+    expect(p!.done).toBe(false);
+    const list = await h.kept.listOpen(U);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({
+      promiseId: p!.id,
+      promise: { quote: "Great, I'll send you the floor plans tomorrow", date: '2026-05-03' },
+      delivery: { quote: 'Here are the floor plans as promised, sent them by email', date: '2026-05-14' },
+    });
+    expect(list[0]!.message).toMatch(/^Looks like you sent the floor plans to .+\. Mark done\?$/);
+  });
+});

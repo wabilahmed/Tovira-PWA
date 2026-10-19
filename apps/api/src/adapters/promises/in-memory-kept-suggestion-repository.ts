@@ -6,6 +6,9 @@ export class InMemoryKeptSuggestionRepository implements KeptSuggestionRepositor
   private rows: KeptSuggestionRecord[] = [];
 
   async createIfAbsent(userId: string, s: NewKeptSuggestion): Promise<boolean> {
+    // [P27-1] Postgres text cannot hold a NUL byte ("invalid byte sequence for encoding UTF8: 0x00"); refuse
+    // it here too, so an in-memory test can never pass on a value production rejects.
+    for (const v of Object.values(s)) if (typeof v === 'string' && v.includes('\u0000')) throw new Error('invalid byte sequence for encoding "UTF8": 0x00');
     if (this.rows.some((r) => r.userId === userId && r.clientId === s.clientId && r.promiseKey === s.promiseKey && r.deliveryAt === s.deliveryAt)) return false;
     this.rows.push({ ...s, id: randomUUID(), userId, status: 'open', createdAt: Date.now(), resolvedAt: null });
     return true;
