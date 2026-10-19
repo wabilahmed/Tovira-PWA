@@ -80,9 +80,9 @@ jobs:
             -var="region=${AWS_REGION}" \
             -var="env=${DEPLOY_ENV}" \
             -var="api_image=${{ steps.live.outputs.image }}" \
-            -var="marketing_domain=${{ vars.MARKETING_DOMAIN }}" \
-            -var="marketing_acm_certificate_arn=${{ vars.MARKETING_ACM_CERT_ARN }}" \
             -out=tfplan
+        # [P30] The domains (tovira.io + legacy staging.tovira.io) come from prod.auto.tfvars only — a -var here
+        # would override it (the old MARKETING_DOMAIN repo var still says staging). The cert is managed (acm.tf).
 
       - name: terraform apply
         if: ${{ github.event.inputs.action == 'apply' }}

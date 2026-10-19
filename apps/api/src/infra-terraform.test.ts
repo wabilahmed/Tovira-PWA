@@ -51,3 +51,38 @@ describe('[P26-1] terraform', () => {
     expect(y).toMatch(/api_image=\$\{\{ steps\.live\.outputs\.image \}\}/);
   });
 });
+
+/**
+ * [P30] The app moves to tovira.io; staging.tovira.io must keep working (sent invites/emails link to it).
+ * One Terraform-managed ACM cert (us-east-1, DNS validation) covers tovira.io + www + staging; CloudFront
+ * serves all three; the viewer-request function (file) sends www → apex; the apply waits on
+ * aws_acm_certificate_validation instead of attaching a pending cert. No pre-made cert ARN variable.
+ */
+describe('[P30] tovira.io domain', () => {
+  it('prod serves tovira.io (+ www) and keeps staging.tovira.io', () => {
+    const tfvars = read('infra/terraform/prod.auto.tfvars');
+    expect(tfvars).toMatch(/^marketing_domain\s*=\s*"tovira\.io"/m);
+    expect(tfvars).toMatch(/^legacy_domains\s*=\s*\["staging\.tovira\.io"\]/m);
+    expect(tfvars).not.toMatch(/tovira\.com/);
+    expect(read('infra/terraform/marketing.tf')).toMatch(/concat\([\s\S]*var\.legacy_domains/);
+  });
+
+  it('one us-east-1 DNS-validated cert covers every alias; CloudFront uses it only once validated', () => {
+    const acm = read('infra/terraform/acm.tf');
+    expect(acm).toMatch(/resource "aws_acm_certificate" "app"[\s\S]*provider\s*=\s*aws\.us_east_1[\s\S]*validation_method\s*=\s*"DNS"/);
+    expect(acm).toMatch(/subject_alternative_names\s*=\s*slice\(local\.marketing_aliases/);
+    expect(acm).toMatch(/resource "aws_acm_certificate_validation" "app"/);
+    expect(acm).toMatch(/output "app_cert_validation_records"/);
+    expect(read('infra/terraform/storage.tf')).toMatch(/acm_certificate_arn\s*=\s*aws_acm_certificate_validation\.app\[0\]\.certificate_arn/);
+  });
+
+  it('the old pre-made cert ARN input is gone everywhere (tfvars, variables, provision workflow)', () => {
+    expect(read('infra/terraform/prod.auto.tfvars')).not.toMatch(/marketing_acm_certificate_arn/);
+    expect(read('infra/terraform/variables.tf')).not.toMatch(/marketing_acm_certificate_arn/);
+    expect(read('.github/workflows/provision.yml')).not.toMatch(/marketing_acm_certificate_arn|MARKETING_ACM_CERT_ARN/);
+  });
+
+  it('the viewer-request function is loaded from the tested file, not inline', () => {
+    expect(read('infra/terraform/marketing.tf')).toMatch(/code\s*=\s*file\("\$\{path\.module\}\/functions\/frontend-viewer-request\.js"\)/);
+  });
+});

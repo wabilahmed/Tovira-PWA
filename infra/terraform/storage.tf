@@ -134,17 +134,18 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  # Default CloudFront cert until a marketing domain + ACM cert (us-east-1) are set.
+  # Default CloudFront cert until a marketing domain is set; then the Terraform-managed cert (acm.tf), and
+  # only once ACM reports it ISSUED (aws_acm_certificate_validation) — never a pending cert.
   dynamic "viewer_certificate" {
-    for_each = var.marketing_acm_certificate_arn == "" ? [1] : []
+    for_each = var.marketing_domain == "" ? [1] : []
     content {
       cloudfront_default_certificate = true
     }
   }
   dynamic "viewer_certificate" {
-    for_each = var.marketing_acm_certificate_arn == "" ? [] : [1]
+    for_each = var.marketing_domain == "" ? [] : [1]
     content {
-      acm_certificate_arn      = var.marketing_acm_certificate_arn
+      acm_certificate_arn      = aws_acm_certificate_validation.app[0].certificate_arn
       ssl_support_method       = "sni-only"
       minimum_protocol_version = "TLSv1.2_2021"
     }

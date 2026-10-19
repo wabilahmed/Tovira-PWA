@@ -110,23 +110,19 @@ variable "marketing_domain" {
   description = "Apex domain for the marketing site (e.g. tovira.io). Empty = default CloudFront domain, no aliases."
   type        = string
   default     = ""
-  # [FOOTGUN-FIX] Empty in prod DROPS the CloudFront custom domain (staging.tovira.io) + its ACM cert and
+  # [FOOTGUN-FIX] Empty in prod DROPS the CloudFront custom domains + the managed ACM cert (acm.tf) and
   # downgrades TLS to TLSv1 (marketing.tf). A bare plan/apply with defaults must not silently do that.
   validation {
     condition     = var.env != "prod" || trimspace(var.marketing_domain) != ""
-    error_message = "marketing_domain must be set when env=prod (empty drops the custom domain + ACM cert and downgrades TLS). Use prod.auto.tfvars or pass -var=\"marketing_domain=...\"."
+    error_message = "marketing_domain must be set when env=prod (empty drops the custom domains + ACM cert and downgrades TLS). Use prod.auto.tfvars or pass -var=\"marketing_domain=...\"."
   }
 }
 
-variable "marketing_acm_certificate_arn" {
-  description = "ACM cert ARN in us-east-1 covering the apex + www for the marketing CloudFront. Empty = default cert."
-  type        = string
-  default     = ""
-  # [FOOTGUN-FIX] Empty in prod falls back to the default CloudFront cert (no custom-domain TLS).
-  validation {
-    condition     = var.env != "prod" || trimspace(var.marketing_acm_certificate_arn) != ""
-    error_message = "marketing_acm_certificate_arn must be set when env=prod (empty falls back to the default cert). Use prod.auto.tfvars or pass -var=\"marketing_acm_certificate_arn=...\"."
-  }
+# [P30] The CloudFront cert is Terraform-managed now (acm.tf); the old pre-made cert ARN input is gone.
+variable "legacy_domains" {
+  description = "Extra hostnames the distribution keeps serving (and the cert keeps covering) after a domain move, e.g. staging.tovira.io — invites and emails already sent link to it."
+  type        = list(string)
+  default     = []
 }
 
 # --- Transactional email (SES; authored, not applied — see ses.tf) ---

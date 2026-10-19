@@ -12,8 +12,11 @@ locals {
   # The exact hostname(s) the distribution answers on. A bare subdomain
   # (staging.tovira.io) is used as-is; an apex adds www too. Empty → default CF
   # cert only.
-  marketing_aliases = var.marketing_domain == "" ? [] : (
-    length(split(".", var.marketing_domain)) > 2 ? [var.marketing_domain] : [var.marketing_domain, "www.${var.marketing_domain}"]
+  # [P30] Plus any legacy hostnames that must keep serving (staging.tovira.io — invites and emails already
+  # sent link to it). The first entry is the cert's primary name (acm.tf).
+  marketing_aliases = var.marketing_domain == "" ? [] : concat(
+    length(split(".", var.marketing_domain)) > 2 ? [var.marketing_domain] : [var.marketing_domain, "www.${var.marketing_domain}"],
+    var.legacy_domains,
   )
 }
 
@@ -25,29 +28,16 @@ locals {
 resource "aws_cloudfront_function" "frontend_dir_index" {
   name    = "tovira-${var.env}-frontend-dir-index"
   runtime = "cloudfront-js-2.0"
-  comment = "Marketing directory-index + SPA fallback (S3 behavior only; /api bypasses this)"
+  comment = "www to apex redirect + marketing directory-index + SPA fallback (S3 behavior only)"
   publish = true
   # Runs on the S3 (default) behavior only — /api/* has its own behavior and is
-  # never seen here. Static files (a dot in the path) pass through. The prerendered
-  # marketing pages map to their index.html. Everything else dotless is an app
-  # client-side route and is served the app shell — replacing the old
-  # custom_error_response fallback, which could not be scoped away from /api.
-  code = <<-JS
-    var MARKETING = ['/privacy', '/terms'];
-    function handler(event) {
-      var req = event.request;
-      var uri = req.uri;
-      if (uri.indexOf('.') !== -1) { return req; }           // real static asset
-      if (uri === '/') { req.uri = '/index.html'; return req; }
-      var trimmed = uri.endsWith('/') ? uri.slice(0, -1) : uri;
-      if (MARKETING.indexOf(trimmed) !== -1) {               // prerendered marketing page
-        req.uri = trimmed + '/index.html';
-        return req;
-      }
-      req.uri = '/app.html';                                 // app client-side route
-      return req;
-    }
-  JS
+  # never seen here. [P30] www.<apex> → 301 to the apex (path + query kept). Then:
+  # static files (a dot in the path) pass through, the prerendered marketing pages
+  # map to their index.html, and everything else dotless is an app client-side route
+  # served the app shell (replacing the old custom_error_response fallback, which
+  # could not be scoped away from /api). The code lives in a file so it is unit-tested
+  # (apps/api/src/infra-cloudfront-function.test.ts).
+  code = file("${path.module}/functions/frontend-viewer-request.js")
 }
 
 # COST GUARD (mirrors rds_single_az / no_nat_gateway / ses_no_dedicated_ip): the
