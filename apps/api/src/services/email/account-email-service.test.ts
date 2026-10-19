@@ -76,3 +76,22 @@ describe('AccountEmailService', () => {
     expect(email.to('a@x.com')).toHaveLength(5); // next day → sends
   });
 });
+
+/** [P33] The owner's new-request email leads with the review page (/ops/access) — Approve/Reject buttons —
+ *  and keeps the curl command as a fallback. */
+describe('[P33] access-request notification links the review page', () => {
+  it('names the applicant and links https://<app>/ops/access first', async () => {
+    const { appLinks } = await import('./email-links.js');
+    const { email, svc } = make();
+    const links = appLinks('https://tovira.io');
+    expect(links.opsAccess).toBe('https://tovira.io/ops/access');
+    const request = { id: 'r1', fullName: 'Sara Khan', workEmail: 'sara@khanrealty.ae', phone: '+971501234567', companyName: 'Khan Realty', roleTitle: 'Broker', ownership: 'owns_or_manages', tradeLicenceNumber: null, conversationOwnership: 'own_clients', conversationOwnershipOther: null, expectedVolume: '50_200' } as unknown as Parameters<typeof svc.sendAccessRequestNotification>[1];
+    await svc.sendAccessRequestNotification('wabil@prospera-technologies.com', request, links.opsApprove('r1'), links.opsAccess);
+    const [m] = email.to('wabil@prospera-technologies.com');
+    expect(m!.subject).toMatch(/Sara Khan/);
+    const text = m!.text;
+    expect(text).toContain('Review and approve: https://tovira.io/ops/access');
+    expect(text.indexOf('https://tovira.io/ops/access')).toBeLessThan(text.indexOf('curl'));
+    expect(text).toContain('https://tovira.io/api/ops/access-requests/r1/approve'); // fallback kept
+  });
+});

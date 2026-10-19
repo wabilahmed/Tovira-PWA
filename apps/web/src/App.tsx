@@ -1,4 +1,6 @@
 import { API_BASE } from './apiBase.js';
+import { AccessRequestsAdmin } from './ops/AccessRequestsAdmin.js';
+import { HttpOpsAccessClient } from './ops/opsAccessClient.js';
 import { useEffect, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
 import { ResetPassword } from './auth/PasswordReset.js';
@@ -80,7 +82,7 @@ import { NotFound } from './components/NotFound.js';
 // [BILL-13] The Stripe return paths are real app routes (not a 404): success/cancel land on the return
 // pages below; /billing is the Customer Portal return → the Billing (Settings) page.
 export const BILLING_RETURN_PATHS = ['/billing/success', '/billing/cancel', '/billing'] as const;
-export const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite', '/verify-email', '/request-access', ...BILLING_RETURN_PATHS]);
+export const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite', '/verify-email', '/request-access', '/ops/access', ...BILLING_RETURN_PATHS]);
 import { InstallBanner } from './pwa/InstallBanner.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
@@ -100,6 +102,7 @@ import { startRecording, type ActiveRecording } from './capture/recorder.js';
 
 const auth = new AuthClient(API_BASE);
 const accessRequestApi = new HttpAccessRequestClient(API_BASE);
+const opsAccessApi = new HttpOpsAccessClient(API_BASE); // [P33] /ops/access
 const clientsApi = new ClientsClient(API_BASE);
 const onboardingApi = new OnboardingClient(API_BASE);
 const bulkImportApi = new BulkImportClient(API_BASE);
@@ -225,6 +228,10 @@ export function App(): JSX.Element {
   // and /verify-email, it is served by the SPA before the session gate (no infra route needed).
   if (typeof window !== 'undefined' && window.location.pathname === '/request-access') {
     return <RequestAccess client={accessRequestApi} />;
+  }
+  // [P33] The owner's beta-request review page. Pre-auth (it uses the ops token, not a rep session).
+  if (typeof window !== 'undefined' && window.location.pathname === '/ops/access') {
+    return <AccessRequestsAdmin api={opsAccessApi} />;
   }
   // [BILL-13] Stripe return pages — a rep must never hit a 404 after paying. These render before the
   // session gate (the rep is authed by cookie); the pages poll billing status and route onward.

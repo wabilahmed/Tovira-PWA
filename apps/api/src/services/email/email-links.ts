@@ -15,6 +15,8 @@ export interface AppLinks {
   verifyEmail: (token: string) => string;
   /** The owner-only approve endpoint — an API route, so it goes through the /api prefix behind CloudFront. */
   opsApprove: (requestId: string) => string;
+  /** [P33] The owner's review page (Approve / Reject / Re-invite buttons; asks for the ops token). */
+  opsAccess: string;
 }
 
 export function appLinks(appBaseUrl: string): AppLinks {
@@ -27,5 +29,6 @@ export function appLinks(appBaseUrl: string): AppLinks {
     invite: (t) => `${base}/invite?token=${encodeURIComponent(t)}`,
     verifyEmail: (t) => `${base}/verify-email?token=${encodeURIComponent(t)}`,
     opsApprove: (id) => `${base}/api/ops/access-requests/${encodeURIComponent(id)}/approve`,
+    opsAccess: `${base}/ops/access`,
   };
 }

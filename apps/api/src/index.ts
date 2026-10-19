@@ -657,7 +657,7 @@ async function main(): Promise<void> {
     accessApproval, // [BETA-8] public /auth/invite/resend
     accessRequestLimiter: new FixedWindowRateLimiter(5, 60 * 60 * 1000),
     accessRequestNotify: config.accessRequestNotifyEmail
-      ? (rec) => accountEmail.sendAccessRequestNotification(config.accessRequestNotifyEmail!, rec, appLinks(config.appBaseUrl).opsApprove(rec.id) /* [P22-4] via /api behind CloudFront */)
+      ? (rec) => accountEmail.sendAccessRequestNotification(config.accessRequestNotifyEmail!, rec, appLinks(config.appBaseUrl).opsApprove(rec.id) /* [P22-4] via /api behind CloudFront */, appLinks(config.appBaseUrl).opsAccess /* [P33] review page */)
       : undefined,
   });
   server.listen(config.port, () => {

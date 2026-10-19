@@ -84,10 +84,12 @@ export class AccountEmailService {
    * request. The ops token is NOT in the email — it is left as the placeholder <OPS_TOKEN> for the owner
    * to fill. NOT idempotency-logged (no userId yet; one email per submission).
    */
-  async sendAccessRequestNotification(to: string, r: AccessRequestRecord, approveUrl: string): Promise<void> {
+  async sendAccessRequestNotification(to: string, r: AccessRequestRecord, approveUrl: string, reviewUrl?: string): Promise<void> {
     const lines = [
       `New beta access request (${r.id}).`,
       '',
+      // [P33] The review page first (buttons, asks for the ops token); the curl below is the fallback.
+      ...(reviewUrl ? [`Review and approve: ${reviewUrl}`, ''] : []),
       `Name:        ${r.fullName}`,
       `Work email:  ${r.workEmail}`,
       `Phone:       ${r.phone}`,
@@ -100,7 +102,7 @@ export class AccountEmailService {
       `Expected volume: ${VOLUME_LABEL[r.expectedVolume] ?? r.expectedVolume}`,
       '',
       ...(r.ownership === 'employed' ? ['This applicant is EMPLOYED — ask for the company NOC by email before approving.', ''] : []),
-      'To approve this request (fill in your ops token):',
+      reviewUrl ? 'Or approve from a terminal (fill in your ops token):' : 'To approve this request (fill in your ops token):',
       '',
       `curl -X POST '${approveUrl}' \\`,
       `  -H 'x-ops-token: <OPS_TOKEN>' \\`,
