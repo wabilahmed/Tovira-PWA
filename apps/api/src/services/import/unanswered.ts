@@ -28,17 +28,34 @@ function matchesClient(sender: string, clientName: string): boolean {
   return firstToken(sender) === firstToken(clientName);
 }
 
+const squashName = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, ' ');
+
+export interface SpeakerIdentity {
+  /** [P28] The client's learned aliases (exact sender names the rep confirmed, e.g. "Bubu DXB"). */
+  aliases?: readonly string[];
+  /** [P28] The rep's own WhatsApp name, when known. */
+  repName?: string | null;
+}
+
 /**
- * Tag each message's role by matching its sender against the client's name. The
- * matching speaker is the client; the rest are the rep. If NO speaker matches,
- * every role stays 'unknown' (we won't guess and risk a false accusation).
+ * Tag each message's role. The client speaker is the one whose sender matches the client's name or — [P28] —
+ * one of its confirmed aliases (exact, ignoring case and spacing); every other speaker is the rep. If the
+ * client is not identified that way but the rep's own name is known and the chat has exactly TWO speakers,
+ * one of them the rep, the other is the client (by elimination — the same rule the import uses to identify
+ * the counterpart). Otherwise every role stays 'unknown' (we won't guess and risk a false accusation).
  */
-export function assignSpeakerRoles(messages: ImportedMessage[], clientName: string): ImportedMessage[] {
-  const anyMatch = messages.some((m) => matchesClient(m.sender, clientName));
-  return messages.map((m) => ({
-    ...m,
-    role: !anyMatch ? 'unknown' : matchesClient(m.sender, clientName) ? 'client' : 'rep',
-  }));
+export function assignSpeakerRoles(messages: ImportedMessage[], clientName: string, who: SpeakerIdentity = {}): ImportedMessage[] {
+  const aliases = new Set((who.aliases ?? []).map(squashName).filter(Boolean));
+  const isClient = (sender: string): boolean => matchesClient(sender, clientName) || aliases.has(squashName(sender));
+  if (messages.some((m) => isClient(m.sender))) {
+    return messages.map((m) => ({ ...m, role: isClient(m.sender) ? 'client' : 'rep' }));
+  }
+  const rep = who.repName ? squashName(who.repName) : '';
+  const speakers = [...new Set(messages.map((m) => squashName(m.sender)).filter(Boolean))];
+  if (rep && speakers.length === 2 && speakers.includes(rep)) {
+    return messages.map((m) => ({ ...m, role: squashName(m.sender) === rep ? 'rep' : 'client' }));
+  }
+  return messages.map((m) => ({ ...m, role: 'unknown' }));
 }
 
 /**

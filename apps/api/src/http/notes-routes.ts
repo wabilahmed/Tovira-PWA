@@ -505,7 +505,13 @@ export async function handleNoteRoute(
       const misfileOverridden = detection.status === 'mismatch' && confirmAck;
       // Tag each speaker as client/rep so the extractor can flag unanswered
       // client questions (P1-6). Store ONLY the new slice.
-      const messages = assignSpeakerRoles(fresh, client.name);
+      // [P28] Identify the client speaker by name, by its learned aliases (incl. the one just confirmed above),
+      // or by elimination against the rep's own name — so an aliased chat gets roles, not 'unknown'.
+      const confirmedAlias = misfileOverridden && !detection.group ? ((typeof body.counterpart === 'string' && body.counterpart.trim()) || detection.counterpart) : null;
+      const messages = assignSpeakerRoles(fresh, client.name, {
+        aliases: [...selectedAliases, ...(confirmedAlias ? [confirmedAlias] : [])],
+        repName: repName ?? (deps.repNames ? await deps.repNames.get(userId) : null),
+      });
       // [SCREEN] Record what was held: the count of flagged messages excluded from extraction. The flags
       // themselves live on the stored messages (the review UI, next batch, reads them). rawText below is
       // the FULL thread (the rep's record + receipt source); extraction/embedding read modelSafeText,

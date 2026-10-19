@@ -356,6 +356,27 @@ describe('[ALIAS] confirm the counterpart before extraction, then learn the alia
     extractSpy.mockRestore();
   });
 
+  // [P28] The confirmed alias must also identify WHO SPOKE: before, the client's name ("Imtinan") matched no
+  // speaker, every role stayed 'unknown', and kept-promise suggestions, the owner check and unanswered-question
+  // detection were silently off for every aliased chat.
+  it('[P28] a confirmed alias tags the speakers: Bubu DXB = client, Wabil = rep — on the confirming import AND the next silent one', async () => {
+    const { token } = await signup('alias-roles@example.com');
+    const cid = await createClient(token, 'Imtinan');
+    const chat1 = ['13/07/2019, 5:10 am - Wabil: salaam', '15/07/2019, 9:30 am - Bubu DXB: can you send the price list?'].join('\n');
+    expect((await importChat(token, cid, { content: chat1, consent: true })).status).toBe(409);
+    expect((await importChat(token, cid, { content: chat1, consent: true, confirmImport: true, counterpart: 'Bubu DXB' })).status).toBe(202);
+    const roles = async () => (await listNotes(token, cid)).map((n) => (n.messages as Array<{ sender: string; role?: string }>).map((m) => `${m.sender}=${m.role}`));
+    expect((await roles())[0]).toEqual(['Wabil=rep', 'Bubu DXB=client']);
+    await drainImport(token, cid);
+    const [note] = await listNotes(token, cid);
+    expect(note!.extracted!.unanswered_questions!.map((q) => q.question)).toEqual(['can you send the price list?']);
+    // A later import from the same contact goes through silently (alias learned) — and is tagged too.
+    const chat2 = ['16/07/2019, 8:00 am - Bubu DXB: any news?', '16/07/2019, 8:05 am - Wabil: sending it now'].join('\n');
+    expect((await importChat(token, cid, { content: chat2, consent: true })).status).toBe(202);
+    expect((await roles()).flat()).toEqual(expect.arrayContaining(['Bubu DXB=client', 'Wabil=rep']));
+    expect((await roles()).flat().some((r) => r.endsWith('=unknown'))).toBe(false);
+  });
+
   it('confirm-and-remember stores the alias; a later import from the same contact is silent', async () => {
     const { token } = await signup('alias-learn@example.com');
     const cid = await createClient(token, 'Imtinan');

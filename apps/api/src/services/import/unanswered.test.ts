@@ -101,3 +101,42 @@ describe('detectUnansweredQuestions (P1-6)', () => {
     expect(detectUnansweredQuestions(messages)).toEqual([]);
   });
 });
+
+/**
+ * [P28] Alias role gap: when the chat's counterpart is a CONFIRMED alias ("Bubu DXB" for client "Imtinan"), the
+ * client's name matches no speaker, so every role stayed 'unknown' — silently switching off kept-promise
+ * suggestions, the owner check and unanswered-question detection for that chat. Roles now also come from the
+ * client's learned aliases, and — when the rep's own WhatsApp name is known — by elimination in a two-speaker
+ * chat (the same rule the import already uses to identify the counterpart).
+ */
+describe('[P28] assignSpeakerRoles with a confirmed alias', () => {
+  const chat = [msg('Bubu DXB', 'salaam, can you send the price list?'), msg('Wabil', "wsalaam, I'll send it tomorrow")];
+
+  it('a learned alias identifies the client speaker; the other is the rep', () => {
+    const tagged = assignSpeakerRoles(chat, 'Imtinan', { aliases: ['Bubu DXB'] });
+    expect(tagged.map((m) => m.role)).toEqual(['client', 'rep']);
+  });
+
+  it('alias matching ignores case and spacing, but is exact — "Bubu" alone is not "Bubu DXB"', () => {
+    expect(assignSpeakerRoles([msg('  bubu   dxb ', 'hi'), msg('Wabil', 'hey')], 'Imtinan', { aliases: ['Bubu DXB'] }).map((m) => m.role)).toEqual(['client', 'rep']);
+    expect(assignSpeakerRoles([msg('Bubu', 'hi'), msg('Wabil', 'hey')], 'Imtinan', { aliases: ['Bubu DXB'] }).every((m) => m.role === 'unknown')).toBe(true);
+  });
+
+  it('the rep\'s known name identifies a two-speaker chat by elimination', () => {
+    expect(assignSpeakerRoles(chat, 'Imtinan', { repName: 'Wabil' }).map((m) => m.role)).toEqual(['client', 'rep']);
+  });
+
+  it('NEGATIVE: a group chat with no client match stays unknown, even with the rep\'s name known', () => {
+    const group = [...chat, msg('Khalid', 'hello all')];
+    expect(assignSpeakerRoles(group, 'Imtinan', { repName: 'Wabil' }).every((m) => m.role === 'unknown')).toBe(true);
+  });
+
+  it('NEGATIVE: a two-speaker chat where neither speaker is the known rep stays unknown', () => {
+    expect(assignSpeakerRoles(chat, 'Imtinan', { repName: 'Someone Else' }).every((m) => m.role === 'unknown')).toBe(true);
+  });
+
+  it('with an alias, a client question the rep never answered is detected (it was silently missed)', () => {
+    const tagged = assignSpeakerRoles([msg('Wabil', 'hi'), msg('Bubu DXB', 'can you send the price list?')], 'Imtinan', { aliases: ['Bubu DXB'] });
+    expect(detectUnansweredQuestions(tagged).map((q) => q.question)).toEqual(['can you send the price list?']);
+  });
+});

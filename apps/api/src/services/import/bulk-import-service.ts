@@ -40,6 +40,8 @@ export interface BulkImportDeps {
   allowanceAed: number;
   modelId: string;
   repNames?: RepNameRepository;
+  /** [P28] The client's confirmed aliases, so a chat merged into an aliased client gets speaker roles. */
+  aliases?: { listByClient: (userId: string, clientId: string) => Promise<string[]> };
   /** [P20-3 / BULK-08] Register/unregister a note as belonging to the in-flight batch, so its per-note
    *  import_complete notification is suppressed in favour of the one aggregate below. */
   bulkNotes?: { add: (noteId: string) => void; remove: (noteId: string) => void };
@@ -198,7 +200,10 @@ export class BulkImportService {
           clientId = c.id;
           clientName = c.name;
         }
-        const messages = assignSpeakerRoles(it.fresh, clientName);
+        // [P28] Name, confirmed aliases (merge into an existing client), or elimination against the rep's name.
+        const aliases = it.decision.action === 'merge' && this.deps.aliases ? await this.deps.aliases.listByClient(userId, clientId) : [];
+        const repName = this.deps.repNames ? await this.deps.repNames.get(userId) : null;
+        const messages = assignSpeakerRoles(it.fresh, clientName, { aliases, repName });
         const note = await this.deps.notes.create(userId, {
           clientId,
           source: 'whatsapp_export',

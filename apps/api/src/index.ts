@@ -553,6 +553,7 @@ async function main(): Promise<void> {
     allowanceAed: config.monthlyAiAllowanceAed,
     modelId: config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub',
     repNames,
+    aliases: contactAliases, // [P28] speaker roles for chats merged into an aliased client
     // [P20-3 / BULK-08] Suppress per-note notifications for batch notes; emit ONE aggregate at the end.
     bulkNotes: bulkBatch.bulkNotes,
     onBatchComplete: bulkBatch.onBatchComplete,

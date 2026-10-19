@@ -51,6 +51,7 @@ function makeService(over: Partial<ConstructorParameters<typeof BulkImportServic
     allowanceAed: over.allowanceAed ?? 45,
     modelId: over.modelId ?? 'claude-sonnet-5',
     repNames: over.repNames,
+    aliases: over.aliases,
     bulkNotes: over.bulkNotes,
     onBatchComplete: over.onBatchComplete,
   });
@@ -239,5 +240,21 @@ describe('[BULK-IMPORT] BulkImportService', () => {
     ], '2026-10-04');
     const states = res.jobs.map((j) => j.state).sort();
     expect(states).toEqual(['done', 'failed']);
+  });
+});
+
+/** [P28] A chat merged into a client with a CONFIRMED alias ("Bubu DXB" → Imtinan) gets speaker roles too. */
+describe('[P28] bulk import tags speakers via the client\'s confirmed alias', () => {
+  it('merge into an aliased client: Bubu DXB = client, Wabil = rep (was all unknown)', async () => {
+    const clients = fakeClients([clientRecord('cI', 'u', 'Imtinan')]);
+    const { svc, notes } = makeService({ clients, aliases: { listByClient: async (_u: string, cid: string) => (cid === 'cI' ? ['Bubu DXB'] : []) } });
+    await svc.importConfirmed('u', [{ name: 'a.txt', content: androidChat('Wabil', 'Bubu DXB') }], [{ fileName: 'a.txt', action: 'merge', clientId: 'cI' }], '2026-10-04');
+    expect(notes.all[0]!.messages!.map((m) => `${m.sender}=${m.role}`)).toEqual(['Wabil=rep', 'Bubu DXB=client']);
+  });
+  it('NEGATIVE: no alias and no known rep name → still unknown (never a guess)', async () => {
+    const clients = fakeClients([clientRecord('cI', 'u', 'Imtinan')]);
+    const { svc, notes } = makeService({ clients });
+    await svc.importConfirmed('u', [{ name: 'a.txt', content: androidChat('Wabil', 'Bubu DXB') }], [{ fileName: 'a.txt', action: 'merge', clientId: 'cI' }], '2026-10-04');
+    expect(notes.all[0]!.messages!.every((m) => m.role === 'unknown')).toBe(true);
   });
 });

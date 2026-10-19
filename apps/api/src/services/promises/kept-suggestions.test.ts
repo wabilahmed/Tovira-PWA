@@ -190,3 +190,14 @@ describe('[P27-1] the live case: floor plans promised 3 May, delivered 14 May, i
     expect(list[0]!.message).toMatch(/^Looks like you sent the floor plans to .+\. Mark done\?$/);
   });
 });
+
+import { assignSpeakerRoles } from '../import/unanswered.js';
+describe('[P28] an aliased chat (counterpart "Bubu DXB" confirmed for the client) gets kept suggestions', () => {
+  it('roles from the confirmed alias → the delivery is detected → one To Confirm suggestion', async () => {
+    const raw = [PROMISE, m('client', '2026-03-03T09:00', 'Thanks'), DELIVERY].map((x) => ({ ...x, sender: x.role === 'rep' ? 'Wabil' : 'Bubu DXB', role: 'unknown' as const }));
+    expect(assignSpeakerRoles(raw, 'Imtinan').every((x) => x.role === 'unknown')).toBe(true); // the gap: name alone tags nobody
+    const h = await setup(assignSpeakerRoles(raw, 'Imtinan', { aliases: ['Bubu DXB'] }));
+    await h.svc.extractNote(U, h.note.id, '2026-03-06');
+    expect(await h.kept.listOpen(U)).toHaveLength(1);
+  });
+});
