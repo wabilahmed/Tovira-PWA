@@ -11,6 +11,9 @@
  *  - LATER WINS: a requirement restating a value-bearing need with a different amount ("budget 2.5M" →
  *    "final budget 3.1M") is the same need updated; the later one is current. The Requirement schema has no
  *    history field, so the earlier value is not kept as a second current need (it stays in the chat).
+ *    [P27-2] A later value replaces only the VALUE: an earlier requirement that says anything else ("4BR villa
+ *    in Mirdif, budget around 3M") is never dropped — its stale value clause leaves the display text when it
+ *    separates cleanly, else the text is kept whole; the verbatim receipt (requirement_raw) is never edited.
  *  - one meeting (the schema holds one): the most recently arranged.
  * `deliveryFor` then looks, over the WHOLE chat, for a later message that delivered a promise — so a promise
  * made in window 1 and delivered in window 3 is noticed even though the windows were read apart. [P24-2] It
@@ -84,6 +87,26 @@ function valueSlot(r: Requirement): string | null {
   return VALUE_SLOTS.find(([, re]) => re.test(t))?.[0] ?? null;
 }
 
+// Words that only phrase a value statement ("updated budget of", "willing to stretch to", "final … that is the
+// top"). A requirement whose text has NOTHING besides these and amounts is value-only; anything else (a
+// property type, an area, "4BR") is a need in its own right and is never dropped by a later value.
+const VALUE_FILLER = new Set(['budget', 'budgets', 'afford', 'stretch', 'up', 'to', 'max', 'maximum', 'top', 'spend', 'rent', 'rental', 'price',
+  'offer', 'asking', 'around', 'about', 'approximately', 'approx', 'roughly', 'final', 'finally', 'updated', 'update', 'now', 'new', 'revised',
+  'current', 'our', 'their', 'his', 'her', 'is', 'of', 'the', 'a', 'an', 'aed', 'dhs', 'dirhams', 'willing', 'can', 'could', 'able', 'go', 'that',
+  'this', 'it', 'we', 'us', 'my', 'i', 'increased', 'increase', 'raised', 'total', 'only', 'just', 'still', 'firm', 'flexible', 'maybe', 'plus',
+  'million', 'mn', 'm', 'k', 'per', 'year', 'annual', 'annually', 'be', 'will', 'would', 'at', 'most', 'least', 'for', 'and']);
+const valueOnly = (text: string): boolean => (text.toLowerCase().match(/[\p{L}]+/gu) ?? []).every((w) => VALUE_FILLER.has(w));
+/** The text without its value clause(s) — "4BR villa in Mirdif, budget around 3M" → "4BR villa in Mirdif" —
+ *  or null when the value is not a separable clause (then the caller keeps the text whole). */
+function withoutValueClause(text: string, slot: string): string | null {
+  const re = VALUE_SLOTS.find(([s]) => s === slot)![1];
+  const parts = text.split(/\s*[,;]\s*/);
+  const kept = parts.filter((c) => !(AMOUNT.test(c) && re.test(c)));
+  if (kept.length === 0 || kept.length === parts.length) return null;
+  const out = kept.join(', ').trim();
+  return out && !valueOnly(out) ? out : null;
+}
+
 /** Two short texts state the same thing when most of the smaller one's content words are in the other
  *  (stemmed, function words dropped — query-terms). Conservative: needs ≥ 2 content words and 75%. */
 function sameStatement(a: string, b: string): boolean {
@@ -125,7 +148,14 @@ export function mergeWindowExtractions(parts: Extraction[]): Extraction {
   // LATER WINS for a value-bearing need: keep the last restatement of each slot.
   const lastOfSlot = new Map<string, Requirement>();
   for (const r of reqs) { const s = valueSlot(r); if (s) lastOfSlot.set(s, r); }
-  const requirements = reqs.filter((r) => { const s = valueSlot(r); return !s || lastOfSlot.get(s) === r; });
+  const requirements: Requirement[] = [];
+  for (const r of reqs) {
+    const s = valueSlot(r);
+    if (!s || lastOfSlot.get(s) === r) { requirements.push(r); continue; }
+    if (valueOnly(r.text)) continue; // a superseded value statement and nothing else
+    // [P27-2] A need that also carried the old value: keep the need, drop only the stale value from its text.
+    requirements.push({ ...r, text: withoutValueClause(r.text, s) ?? r.text });
+  }
 
   const keyDate = (k: KeyDate) => `${k.date ?? ''}|${norm(k.description)}`;
   const key_dates = dedupeBy(parts.flatMap((x) => x.key_dates), keyDate);

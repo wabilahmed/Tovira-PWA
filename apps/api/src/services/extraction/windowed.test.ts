@@ -128,3 +128,46 @@ describe('[P24-2] delivery detection (suggests; never completes)', () => {
     expect(deliveryFor(p, messages, new Set(['2026-02-05T16:40']))).toBeNull();
   });
 });
+
+/**
+ * [P27-2] Live QA, 19 Oct ("QA Windowed Buyer"): "looking for a 4BR villa in Mirdif, budget around 3M" then later
+ * "our budget is now 3.4M" saved only "Updated budget of 3.4M" — the LATER-WINS budget rule dropped the whole
+ * villa/Mirdif requirement because it also mentioned a budget. A budget update replaces only the BUDGET: a
+ * requirement that says anything else (type, area, bedrooms…) is never dropped; its stale budget clause leaves
+ * the display text, and its verbatim receipt (requirement_raw) is never edited.
+ */
+describe('[P27-2] a budget update replaces only the budget', () => {
+  const villa = { text: '4BR villa in Mirdif, budget around 3M', requirement_raw: 'looking for a 4BR villa in Mirdif, budget around 3M', stated_on: '2026-05-01', confidence: 'high' as const };
+  const update = { text: 'Updated budget of 3.4M', requirement_raw: 'our budget is now 3.4M', stated_on: '2026-05-16', confidence: 'high' as const };
+
+  it('the live case across windows: the villa/Mirdif need stays; the budget is 3.4M; the receipt is untouched', () => {
+    const m = mergeWindowExtractions([empty({ requirements: [villa] }), empty({ requirements: [update] })]);
+    expect(m.requirements).toHaveLength(2);
+    expect(m.requirements![0]).toEqual({ ...villa, text: '4BR villa in Mirdif' });
+    expect(m.requirements![1]).toEqual(update);
+    expect(m.requirements!.some((r) => /\b3M\b/.test(r.text))).toBe(false); // the stale 3M is never shown as current
+  });
+
+  it('…and the same when both are read in ONE window', () => {
+    const m = mergeWindowExtractions([empty({ requirements: [villa, update] })]);
+    expect(m.requirements!.map((r) => r.text)).toEqual(['4BR villa in Mirdif', 'Updated budget of 3.4M']);
+  });
+
+  it('NEGATIVE: a need whose budget cannot be cleanly separated is kept whole — never dropped', () => {
+    const inline = { text: '4BR villa in Mirdif within a 3M budget', requirement_raw: 'a 4BR villa in Mirdif within a 3M budget', stated_on: '2026-05-01', confidence: 'high' as const };
+    const m = mergeWindowExtractions([empty({ requirements: [inline] }), empty({ requirements: [update] })]);
+    expect(m.requirements).toEqual([inline, update]);
+  });
+
+  it('NEGATIVE: a later full need with a new budget does not drop an earlier, different need', () => {
+    const later = { text: '5BR villa in Mirdif, budget 3.4M', requirement_raw: 'now we want 5BR in Mirdif, budget 3.4M', stated_on: '2026-05-16', confidence: 'high' as const };
+    const m = mergeWindowExtractions([empty({ requirements: [villa] }), empty({ requirements: [later] })]);
+    expect(m.requirements!.map((r) => r.text)).toEqual(['4BR villa in Mirdif', '5BR villa in Mirdif, budget 3.4M']);
+  });
+
+  it('a budget-only statement is still superseded by a later budget (unchanged)', () => {
+    const early = { text: 'Budget around AED 3M', requirement_raw: 'budget around 3M', stated_on: '2026-05-01', confidence: 'high' as const };
+    expect(mergeWindowExtractions([empty({ requirements: [early, villa] }), empty({ requirements: [update] })]).requirements!.map((r) => r.text))
+      .toEqual(['4BR villa in Mirdif', 'Updated budget of 3.4M']);
+  });
+});
