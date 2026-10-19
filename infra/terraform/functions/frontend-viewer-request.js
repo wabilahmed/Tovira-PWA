@@ -21,6 +21,7 @@ function queryString(qs) {
   return parts.length ? '?' + parts.join('&') : '';
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- CloudFront invokes `handler` by name.
 function handler(event) {
   var req = event.request;
   var host = req.headers.host ? req.headers.host.value.toLowerCase() : '';
