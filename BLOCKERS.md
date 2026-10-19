@@ -49,3 +49,14 @@ is left to the owner:
     off the rep's region/timezone (we store IANA tz per rep). Resolve `12/04/2026` → 12 Apr for a
     day-first rep, mark `resolution:'explicit'`. Risk: a month-first (US) rep's export mis-resolves.
 Recommendation: Option B gated on a stored, explicit rep locale (not inferred), else Option A.
+
+## [P30] Landing canonical: relative "/" (pinned by [SITE-5]) vs absolute https://tovira.io/ — owner call
+`apps/web/index.html` has `<link rel="canonical" href="/">`, and `apps/web/src/marketing/a11y.test.ts`
+([SITE-5]) pins exactly `'/'`. After the move to tovira.io, staging.tovira.io keeps serving the same page
+(old invite links), and a relative canonical makes each host canonical to itself — so search engines may
+index both. An absolute `https://tovira.io/` would consolidate them on tovira.io. Changing it means
+changing the [SITE-5] test, which the rules forbid without an owner decision — so it is left as `/`.
+The share tags (og:url, og:image, twitter:image) were made absolute (not pinned by any test).
+  - Option A (keep): relative canonical; accept staging may be indexed until it is retired.
+  - Option B: absolute `https://tovira.io/`, update [SITE-5] to pin that instead.
+Recommendation: B (staging is a legacy alias now; tovira.io is the one public host).

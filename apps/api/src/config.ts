@@ -282,7 +282,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
   const port = parsePort(env.PORT);
   // Checkout redirects default to the app itself, so setting APP_BASE_URL is
   // enough — no separate STRIPE_SUCCESS_URL/CANCEL_URL to keep in sync in prod.
-  const appBaseUrl = env.APP_BASE_URL?.trim() || 'http://localhost:5173';
+  // [P30] No trailing slash: invite/reset/verify links and the Stripe return URLs append "/path" to it.
+  const appBaseUrl = (env.APP_BASE_URL?.trim() || 'http://localhost:5173').replace(/\/+$/, '');
 
   return {
     databaseUrl: env.DATABASE_URL!.trim(),

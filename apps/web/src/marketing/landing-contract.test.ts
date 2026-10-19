@@ -65,3 +65,18 @@ describe('[LANDING-REVERT] carried-forward facts', () => {
     expect(d.querySelector('[data-mobile-cta]')).not.toBeNull(); // mobile sticky CTA
   });
 });
+
+// [P30] The app moves to tovira.io. Link-preview crawlers (WhatsApp, LinkedIn, X, Facebook) do not resolve
+// relative og:url / og:image, so the share tags name the public host. (The canonical stays relative — pinned
+// by [SITE-5]; whether it should name tovira.io is an open owner question in BLOCKERS.md.)
+describe('[P30] share tags point at https://tovira.io', () => {
+  const attr = (sel: string, a: string) => d.querySelector(sel)?.getAttribute(a);
+  it('og:url, og:image and twitter:image are absolute on tovira.io', () => {
+    expect(attr('meta[property="og:url"]', 'content')).toBe('https://tovira.io/');
+    expect([...d.querySelectorAll('meta[property="og:image"]')].map((m) => m.getAttribute('content'))).toEqual(['https://tovira.io/og.png', 'https://tovira.io/og.svg']);
+    expect(attr('meta[name="twitter:image"]', 'content')).toBe('https://tovira.io/og.png');
+  });
+  it('NEGATIVE: no staging, cloudfront or tovira.com host anywhere in the page', () => {
+    expect(html).not.toMatch(/staging\.tovira\.io|cloudfront\.net|tovira\.com/);
+  });
+});

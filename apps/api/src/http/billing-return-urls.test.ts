@@ -30,3 +30,15 @@ describe('[BILL-13] configured Stripe return URLs are real app routes', () => {
     expect(new URL(over.stripeCancelUrl).pathname).toBe('/billing/cancel');
   });
 });
+
+// [P30] APP_BASE_URL becomes https://tovira.io at the move. A trailing slash in the secret must not produce
+// "//invite" / "//billing/success" links — invite, reset, verify and Stripe return URLs append a path to it.
+describe('[P30] APP_BASE_URL trailing slash', () => {
+  it('is trimmed, so every link built from it has exactly one slash', async () => {
+    const { loadConfig } = await import('../config.js');
+    const cfg = loadConfig({ DATABASE_URL: 'postgres://u:p@localhost:5432/t', APP_BASE_URL: 'https://tovira.io/' } as NodeJS.ProcessEnv);
+    expect(cfg.appBaseUrl).toBe('https://tovira.io');
+    expect(`${cfg.appBaseUrl}/invite?token=x`).toBe('https://tovira.io/invite?token=x');
+    expect(cfg.stripeSuccessUrl).toBe('https://tovira.io/billing/success');
+  });
+});
