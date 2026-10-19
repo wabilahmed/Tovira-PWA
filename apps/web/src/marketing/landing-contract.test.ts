@@ -18,10 +18,12 @@ describe('[LANDING-REVERT] carried-forward facts', () => {
     expect(html).not.toMatch(/@prospera-technologies\.com|@tovira\.com/i);
   });
 
-  it('prices are AED 299 / AED 2,990, VAT-inclusive, with a 14-day trial', () => {
+  // [P32] Owner, 2026-10-19: Prospera is NOT VAT-registered — the price is just the price (it used to pin
+  // "VAT-inclusive"). Prices unchanged.
+  it('prices are AED 299 / AED 2,990 with a 14-day trial, and no VAT wording', () => {
     expect(html).toContain('AED 299');
     expect(html).toContain('AED 2,990');
-    expect(html).toMatch(/include[s]? VAT|VAT[- ]inclusive/i);
+    expect(html).not.toMatch(/\bVAT\b|inclusive/i);
     expect(html).toMatch(/14[- ]day/i);
   });
 

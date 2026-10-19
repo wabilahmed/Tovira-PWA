@@ -1,7 +1,7 @@
 /**
  * [P11-ship] The single source of the plan ids and their displayed prices, shared by the Billing page
  * and every SubscribeNow upsell so a price can never drift between two surfaces. The AED amounts are
- * the published subscription prices (VAT-inclusive); they mirror the Stripe prices behind
+ * the published subscription prices (no VAT: Prospera is not VAT-registered — P32); they mirror the Stripe prices behind
  * STRIPE_PRICE_ID / STRIPE_ANNUAL_PRICE_ID. `annual.save` is the two-months-free saving (2 × 299 = 598).
  */
 export type Plan = 'monthly' | 'annual';

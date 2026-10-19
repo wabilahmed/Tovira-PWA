@@ -102,12 +102,13 @@ export function Billing({
               {busy ? 'Starting…' : <>Subscribe annually — <span className="tov-mono">{PLANS.annual.price}</span> (2 months free)</>}
             </button>
           </div>
-          {/* [TASK 3] Checkout disclosure beside the plans. Grounded in the real behaviour: prices are
-              VAT-inclusive (VAT is decomposed out, never added on top — vat.ts); subscriptions renew at
+          {/* [TASK 3] Checkout disclosure beside the plans. Grounded in the real behaviour: prices are in AED
+              and nothing is added on top ([P32] Prospera is not VAT-registered, so no VAT wording — the
+              dormant VAT switch, vat.ts, stays off); subscriptions renew at
               the same date and time (Terms 6.3); you can cancel anytime from Billing via the Customer
               Portal; and access continues until the end of the paid period (Terms 6.5). */}
           <p data-testid="checkout-disclosure" className="standard" style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            Prices are in AED and include VAT. Your subscription renews automatically at the same date and
+            Prices are in AED. Your subscription renews automatically at the same date and
             time each period — monthly plans each month, yearly plans each year — until you cancel. Your plan
             includes a monthly allowance of AI processing; you can buy more anytime. You can cancel anytime
             from Billing; your access continues until the end of the period you have paid for.{' '}

@@ -78,10 +78,13 @@ describe('<Billing>', () => {
   });
 
   // [TASK 3] The checkout disclosure renders beside the plans, with a working Terms link.
-  it('shows the checkout disclosure beside the plans (VAT, renewal, cancellation, period-end) + a Terms link', async () => {
+  // [P32] Owner, 2026-10-19: not VAT-registered — the disclosure states AED prices with no VAT wording
+  // (it used to pin "include VAT").
+  it('shows the checkout disclosure beside the plans (AED, no VAT wording, renewal, cancellation, period-end) + a Terms link', async () => {
     render(<Billing api={makeApi({ entitled: false, status: 'none', trialEndsAt: 0 })} now={NOW} />);
     const disclosure = await screen.findByTestId('checkout-disclosure');
-    expect(disclosure).toHaveTextContent(/includes? VAT/i); // prices include VAT
+    expect(disclosure).toHaveTextContent(/Prices are in AED\./); // the price is just the price
+    expect(disclosure).not.toHaveTextContent(/VAT|inclusive/i);
     expect(disclosure).toHaveTextContent(/same date and time/i); // renews at the same date & time
     expect(disclosure).toHaveTextContent(/cancel anytime from Billing/i); // cancel from Billing
     expect(disclosure).toHaveTextContent(/until the end of the period you have paid for/i); // access to period end

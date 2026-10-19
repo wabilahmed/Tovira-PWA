@@ -281,3 +281,23 @@ describe('[P29] a test-mode customer id in live mode', () => {
     expect(sessionCreate).toHaveBeenCalledTimes(2);
   });
 });
+
+/** [P32] Not VAT-registered: with the VAT switch off, NO checkout (subscription or top-up) asks Stripe to
+ *  compute, add or collect tax — no automatic_tax, no tax_rates, no tax-id collection — anywhere in the params. */
+describe('[P32] checkout sends no tax parameters while the VAT switch is off', () => {
+  it('subscription (monthly + annual) and top-up sessions carry no automatic_tax / tax_rates / tax_id_collection', async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const stripe = {
+      checkout: { sessions: { create: async (p: Record<string, unknown>) => { calls.push(p); return { url: 'https://checkout.stripe.com/x', id: 'cs' }; } } },
+      customers: { create: async () => ({ id: 'cus_1' }), update: async () => ({ id: 'cus_1' }) },
+      prices: { retrieve: async (id: string) => ({ recurring: { interval: id.includes('annual') ? 'year' : 'month' } }) },
+      webhooks: { constructEvent: () => ({}) },
+    } as unknown as StripeLike;
+    const g = new StripeGatewayImpl({ secretKey: 'sk_test_x', webhookSecret: 'whsec_x', priceId: 'price_1', annualPriceId: 'price_annual', successUrl: 'http://s', cancelUrl: 'http://c', stripe });
+    await g.createCheckoutSession('u', 'a@b.com', 'monthly', { collectTaxId: false });
+    await g.createCheckoutSession('u', 'a@b.com', 'annual', { collectTaxId: false });
+    await g.createTopUpCheckout('u', 'a@b.com', 'topup_15', 50);
+    expect(calls).toHaveLength(3);
+    for (const p of calls) expect(JSON.stringify(p)).not.toMatch(/automatic_tax|tax_rates|tax_id_collection|tax_behavior/);
+  });
+});
