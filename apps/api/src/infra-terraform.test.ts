@@ -86,3 +86,10 @@ describe('[P30] tovira.io domain', () => {
     expect(read('infra/terraform/marketing.tf')).toMatch(/code\s*=\s*file\("\$\{path\.module\}\/functions\/frontend-viewer-request\.js"\)/);
   });
 });
+
+/** [P33] New beta access requests (and the monthly AI-spend alert) email the owner. */
+describe('[P33] owner notifications', () => {
+  it('the API task sets ACCESS_REQUEST_NOTIFY_TO to the owner\'s address', () => {
+    expect(read('infra/terraform/ecs.tf')).toMatch(/\{ name = "ACCESS_REQUEST_NOTIFY_TO", value = "wabil@prospera-technologies\.com" \}/);
+  });
+});

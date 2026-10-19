@@ -44,6 +44,9 @@ resource "aws_ecs_task_definition" "api" {
       # [P23-B4] Windowed extraction for long imported chats (validated in config.ts: 1/0/true/false).
       # Owner turned it on 2026-10-19 after the read-only kept-promise check came back zero.
       { name = "EXTRACT_WINDOWED", value = "1" },
+      # [P33] Each new beta access request (with a link to /ops/access) and the monthly AI-spend alert
+      # are emailed here. Not a secret. Owner, 2026-10-19.
+      { name = "ACCESS_REQUEST_NOTIFY_TO", value = "wabil@prospera-technologies.com" },
       { name = "TRANSCRIBER", value = "groq" },
       # Real embeddings (STAGING-EMBEDDER): recall + semantic search need a live
       # embedder — a stub returns nothing and assertDeployReady refuses to boot a
