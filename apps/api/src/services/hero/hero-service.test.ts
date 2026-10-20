@@ -224,3 +224,23 @@ describe('[P34-2] a cached list from before this change gets its client names at
     expect(out.map((a) => a.clientName)).toEqual(['Sara Khan', 'Renamed Already', null]);
   });
 });
+
+/**
+ * [P34-7] Receipts are Tovira's core promise: every Today entry carries its source, fetched WITH the list (no
+ * per-card round-trip) — the stored verbatim span + when it was said, or for a cooling client the last contact.
+ */
+describe('[P34-7] Today actions carry their receipt', () => {
+  it('a chat promise → its stored span + message time; a cooling client → its last contact date', async () => {
+    const ctx = make(5, 20);
+    const sara = await ctx.clients.create('u', 'Sara Khan');
+    const soon = new Date(NOW + DAY).toISOString().slice(0, 10);
+    await ctx.facts.saveExtraction('u', { noteId: 'n1', clientId: sara.id, captureAt: '2026-05-07', promises: [
+      { text: 'Send the floor plans', owner: 'rep', due_date: soon, due_raw: 'tomorrow', confidence: 'high', source_span: "Great, I'll send you the floor plans tomorrow", source_message_at: '2026-05-07T11:15' },
+    ] });
+    const omar = await ctx.clients.create('u', 'Omar Ali');
+    (omar as { lastTouchedAt: number }).lastTouchedAt = Date.parse('2026-05-20T10:00:00Z');
+    const actions = await ctx.hero.today('u', NOW);
+    expect(actions.find((a) => a.kind === 'promise')!.receipt).toEqual({ quote: "Great, I'll send you the floor plans tomorrow", source: 'message', at: '2026-05-07T11:15' });
+    expect(actions.find((a) => a.kind === 'cold')!.receipt).toEqual({ quote: null, source: 'contact', at: '2026-05-20' });
+  });
+});

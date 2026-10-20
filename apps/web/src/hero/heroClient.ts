@@ -39,6 +39,8 @@ export interface TodayAction {
   /** [P34-2] Whose action — a client-owned promise reads "<name> promised: …". */
   owner?: 'rep' | 'client';
   refId?: string;
+  /** [P34-7] Where it came from, sent with the list. Absent on a list cached before this field existed. */
+  receipt?: { quote: string | null; source: 'message' | 'capture' | 'none' | 'contact'; at: string | null };
 }
 
 export class HeroClient {

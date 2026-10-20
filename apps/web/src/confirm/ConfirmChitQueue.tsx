@@ -4,6 +4,7 @@ import type { OpenPromise } from '../promises/promisesClient.js';
 import { ConfirmChit } from './ConfirmChit.js';
 import type { PendingCapture } from '../recall/recallClient.js';
 import { Receipt } from '../components/Receipt.js';
+import { SourceLine } from '../components/SourceLine.js';
 import type { KeptSuggestion } from '../promises/promisesClient.js';
 
 /** The subset of the promises client the confirmation queue needs. */
@@ -123,10 +124,19 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
       node: (
         <div key={`kept:${s.id}`} className="tov-confirm-chit" role="group" aria-label="Looks sent — confirm">
           <p className="tov-confirm-chit__text" style={{ margin: '0 0 0.4rem' }}><strong>{s.clientName}</strong> — <span>{s.message}</span></p>
-          <div style={{ display: 'grid', gap: '0.35rem', marginBottom: '0.5rem' }}>
-            <Receipt quote={s.promise.quote} source="Promise" date={s.promise.date} />
-            <Receipt quote={s.delivery.quote} source="Delivered" date={s.delivery.date} />
-          </div>
+          {/* [P34-7] one line (the promise); a tap shows both messages, as before */}
+          <SourceLine
+            kind="message"
+            who={s.clientName}
+            quote={s.promise.quote}
+            at={s.promise.date}
+            expanded={
+              <div style={{ display: 'grid', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                <Receipt quote={s.promise.quote} source="Promise" date={s.promise.date} />
+                <Receipt quote={s.delivery.quote} source="Delivered" date={s.delivery.date} />
+              </div>
+            }
+          />
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button className="tov-link" onClick={() => void markKept(s)}>Mark done</button>
             <button className="tov-link" onClick={() => void notYet(s)}>Not yet</button>
@@ -142,6 +152,7 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
           key={`capture:${c.noteId}`}
           who={c.clientName}
           text={c.summary ?? c.statement}
+          source={<SourceLine kind="note" at={c.capturedAt} quote={c.statement} />}
           onConfirm={() => void resolveHeld(c.noteId, 'confirm')}
           onReject={() => void resolveHeld(c.noteId, 'reject')}
         />
@@ -156,6 +167,7 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
           text={p.text}
           // [P34-2] the client's name (or "Your note"); an older payload without clientName shows no lead.
           {...(p.clientName !== undefined ? { who: p.clientName ?? 'Your note', promised: p.owner === 'client' } : {})}
+          source={<SourceLine kind={p.receipt?.source ?? 'none'} who={p.clientName ?? null} quote={p.receipt?.quote ?? null} at={p.receipt?.at ?? null} />}
           onConfirm={() => void confirm(p.id)}
           onReject={() => void reject(p.id)}
         />

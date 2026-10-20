@@ -21,7 +21,9 @@ describe('[P24-2] <ConfirmChitQueue> kept-promise suggestion', () => {
     render(<ConfirmChitQueue api={none} kept={kept()} />);
     const card = await screen.findByRole('group', { name: /looks sent/i });
     expect(within(card).getByText('Looks like you sent the options to QA P14 Gate Client. Mark done?')).toBeInTheDocument();
-    expect(within(card).getByText(/I'll send you three options by Thursday/)).toBeInTheDocument();
+    // [P34-7] one source line by default; a tap shows BOTH receipts, as before.
+    await userEvent.click(within(card).getByTestId('source-line'));
+    expect(within(card).getAllByText(/I'll send you three options by Thursday/).length).toBeGreaterThan(0);
     expect(within(card).getByText(/Here are the options/)).toBeInTheDocument();
     expect(card.textContent).toContain('2 MAR 2026');
     expect(card.textContent).toContain('5 MAR 2026');
@@ -34,12 +36,12 @@ describe('[P24-2] <ConfirmChitQueue> kept-promise suggestion', () => {
     render(<ConfirmChitQueue api={none} kept={api} />);
     await userEvent.click(await screen.findByRole('button', { name: 'Mark done' }));
     expect(api.markKeptDone).toHaveBeenCalledWith('s1');
-    await waitFor(() => expect(screen.queryByText(/Here are the options/)).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('group', { name: /looks sent/i })).toBeNull()); // [P34-7] the card, not a now-collapsed quote
     const toast = await screen.findByTestId('kept-undo');
     expect(toast.textContent).toMatch(/Marked done/);
     await userEvent.click(within(toast).getByRole('button', { name: 'Undo' }));
     expect(api.undoKept).toHaveBeenCalledWith('s1');
-    expect(await screen.findByText(/Here are the options/)).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: /looks sent/i })).toBeInTheDocument();
   });
 
   it('Not yet → dismissed, no Undo toast, promise untouched', async () => {
@@ -48,7 +50,7 @@ describe('[P24-2] <ConfirmChitQueue> kept-promise suggestion', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Not yet' }));
     expect(api.notYetKept).toHaveBeenCalledWith('s1');
     expect(api.markKeptDone).not.toHaveBeenCalled();
-    await waitFor(() => expect(screen.queryByText(/Here are the options/)).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('group', { name: /looks sent/i })).toBeNull());
     expect(screen.queryByTestId('kept-undo')).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 import { isActivePromise } from '../facts/promise-lifecycle.js';
 import { evaluateGate, type GateState, type VolumeGateConfig } from './volume-gate.js';
+import { withReceipt } from '../receipts/receipt.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_PATTERN_SAMPLE = 2; // a pattern needs >= 2 supporting deals (thin-sample guard)
@@ -66,7 +67,23 @@ export interface TodayAction {
   owner?: 'rep' | 'client';
   /** [P34-2] The promise / meeting this action came from (for its receipt). */
   refId?: string;
+  /** [P34-7] Where this came from, fetched WITH the list: the stored verbatim span + when it was said
+   *  ('message' = chat time, 'capture' = the rep's own note's date, 'none' = no span saved), or for a cooling
+   *  client the last contact ('contact', date only). Absent on a list cached before this field existed. */
+  receipt?: TodayReceipt;
 }
+
+export interface TodayReceipt {
+  quote: string | null;
+  source: 'message' | 'capture' | 'none' | 'contact';
+  /** ISO instant ('message') or YYYY-MM-DD ('capture' / 'contact'); null when unknown. */
+  at: string | null;
+}
+
+const receiptOf = (f: { sourceSpan: string | null; sourceMessageAt: string | null; captureAt: string | null }): TodayReceipt => {
+  const r = withReceipt(f).receipt;
+  return { quote: r.quote, source: r.source, at: r.at };
+};
 
 /** [P34-2] Fill in the client name on actions that lack it (a list cached before clientName existed). A name
  *  already present is kept; an unknown client → null. Pure: no model call, no extra fetch per action. */
@@ -211,17 +228,18 @@ export class HeroService {
           title: p.text,
           owner: p.owner === 'client' ? 'client' : 'rep',
           refId: p.id,
+          receipt: receiptOf(p),
         });
       }
     }
     for (const m of meetings) {
       if (m.datetime && m.datetime >= nowIso && m.datetime <= soonIso) {
-        actions.push({ kind: 'meeting', reason: 'meeting', priority: 3, text: `Prep for meeting (${m.datetimeRaw})`, clientId: m.clientId, subline: `meeting ${m.datetimeRaw}`, clientName: clientName(m.clientId), title: `Prep for the meeting (${m.datetimeRaw})`, refId: m.id });
+        actions.push({ kind: 'meeting', reason: 'meeting', priority: 3, text: `Prep for meeting (${m.datetimeRaw})`, clientId: m.clientId, subline: `meeting ${m.datetimeRaw}`, clientName: clientName(m.clientId), title: `Prep for the meeting (${m.datetimeRaw})`, refId: m.id, receipt: receiptOf(m) });
       }
     }
     for (const s of sig) {
       if (s.silentDays > this.coldThresholdDays) {
-        actions.push({ kind: 'cold', reason: 'cooling', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days`, clientName: s.name, title: 'Reach out — going cold' });
+        actions.push({ kind: 'cold', reason: 'cooling', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days`, clientName: s.name, title: 'Reach out — going cold', receipt: { quote: null, source: 'contact', at: new Date(nowMs - s.silentDays * DAY_MS).toISOString().slice(0, 10) } });
       }
     }
     // INV-MATCH: STRONG matches enter the register at priority 0 — BELOW every fact (overdue
@@ -240,6 +258,7 @@ export class HeroService {
           subline: `asked: "${s.receipt.requirementRaw}"${when}`,
           clientName: client?.name ?? null,
           title: `${s.itemTitle} may suit them`,
+          receipt: { quote: s.receipt.requirementRaw, source: 'message', at: s.receipt.statedOn },
         });
       }
     }

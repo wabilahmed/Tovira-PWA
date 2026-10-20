@@ -15,6 +15,8 @@ export interface ConfirmChitProps {
   who?: string;
   /** [P34-2] A client-owned promise reads "<who> promised: <text>". */
   promised?: boolean;
+  /** [P34-7] The card's source line (SourceLine), under the text. */
+  source?: React.ReactNode;
   /** An optional rep-entered value (AED) — still a guess, so it sits in the chit. */
   aed?: number;
   /** Once confirmed, the tick reads brass (a fact) rather than amber. */
@@ -23,7 +25,7 @@ export interface ConfirmChitProps {
   onReject: () => void;
 }
 
-export function ConfirmChit({ text, who, promised = false, aed, confirmed = false, onConfirm, onReject }: ConfirmChitProps): JSX.Element {
+export function ConfirmChit({ text, who, promised = false, source, aed, confirmed = false, onConfirm, onReject }: ConfirmChitProps): JSX.Element {
   const rtl = ARABIC.test(text);
   return (
     <div className="tov-confirm-chit" role="group" aria-label="Unconfirmed — worth checking">
@@ -53,6 +55,7 @@ export function ConfirmChit({ text, who, promised = false, aed, confirmed = fals
           </>
         )}
       </p>
+      {source}
       <div className="tov-confirm-chit__actions">
         <button type="button" className="tov-chit-action" onClick={onConfirm}>Confirm</button>
         <button type="button" className="tov-chit-action" onClick={onReject}>Not right</button>

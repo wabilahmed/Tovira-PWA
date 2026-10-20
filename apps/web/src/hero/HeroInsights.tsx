@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { GateState, Pattern, RiskItem, TodayAction } from './heroClient.js';
+import { SourceLine } from '../components/SourceLine.js';
 
 export interface HeroApi {
   status(): Promise<GateState | null>;
@@ -84,6 +85,8 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
                 <span>
                   <div><TodayLead action={a} /></div>
                   {a.subline && <div className="tov-stamp" style={{ color: act ? 'var(--claret)' : 'var(--text-secondary)', marginTop: 2 }}>{a.subline}</div>}
+                  {/* [P34-7] where it came from — sent with the list, tap to expand */}
+                  <SourceLine kind={a.receipt?.source ?? 'pending'} who={a.clientName ?? null} quote={a.receipt?.quote ?? null} at={a.receipt?.at ?? null} />
                 </span>
               </li>
             );

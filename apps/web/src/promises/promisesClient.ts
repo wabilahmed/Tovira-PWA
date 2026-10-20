@@ -10,6 +10,8 @@ export interface OpenPromise {
   confidence: string;
   done: boolean;
   confirmed: boolean;
+  /** [P34-7] The stored receipt (verbatim span + when) — sent by /confirmations and /promises. */
+  receipt?: { quote: string | null; source: 'message' | 'capture' | 'none'; at: string | null; label: string };
   /** [P34-3] When the item was written (ms) — the To Confirm queue shows the newest first. */
   createdAt?: number;
   /** [P34-2] The client's name, for To Confirm cards (/confirmations); null = no client; absent elsewhere. */
