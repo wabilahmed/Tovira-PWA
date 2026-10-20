@@ -23,7 +23,7 @@ const RAW = '[2026-05-03T10:00:00] Windowed Buyer: looking for a 4BR villa in Mi
 const OVERVIEW = {
   lastMessageAt: new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 16),
   openPromises: 2, overduePromises: 1,
-  wants: { summary: '4BR villa · Mirdif · up to 3.4M', listLine: '4BR villa · Mirdif · 3.4M', budgets: ['3M', '3.4M'], items: [{ id: 'r1', text: '4BR villa in Mirdif', quote: 'looking for a 4BR villa in Mirdif', noteId: 'n1', statedOn: '2026-05-03' }] },
+  wants: { summary: '4BR villa · Mirdif · budget 3.4M', listLine: '4BR villa · Mirdif · 3.4M', budgets: ['3M', '3.4M'], items: [{ id: 'r1', text: '4BR villa in Mirdif', quote: 'looking for a 4BR villa in Mirdif', noteId: 'n1', statedOn: '2026-05-03' }] },
   promises: [
     { id: 'p1', noteId: 'n1', text: 'send the ID document photos', owner: 'client', dueDate: '2026-10-15', done: false, overdue: true, stale: false, sourceSpan: null, sourceMessageAt: null },
     { id: 'p2', noteId: 'n1', text: 'send the floor plans', owner: 'rep', dueDate: null, done: false, overdue: false, stale: false, sourceSpan: null, sourceMessageAt: null },
@@ -84,7 +84,7 @@ describe('[P36-5] the client page', () => {
   it('six accordions, in order, each with its title and summary', async () => {
     stub();
     await openClient();
-    await waitFor(() => expect(screen.getByTestId('section-wants-summary')).toHaveTextContent('4BR villa · Mirdif · up to 3.4M'));
+    await waitFor(() => expect(screen.getByTestId('section-wants-summary')).toHaveTextContent('4BR villa · Mirdif · budget 3.4M'));
     const titles = screen.getAllByTestId(/^section-[a-z]+$/).map((s) => s.querySelector('.tov-acc__title')?.textContent);
     expect(titles).toEqual(['Before your next meeting', 'What they want', 'Promises', 'Meetings and viewings', 'People involved', 'Conversations']);
     expect(screen.getByTestId('section-meeting-summary')).toHaveTextContent('3 things to keep in mind');

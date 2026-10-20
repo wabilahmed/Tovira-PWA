@@ -31,7 +31,7 @@ describe('[P36-5] GET /clients/:id/overview', () => {
     const res = await fetch(`${base}/clients/${c.id}/overview`, { headers: { authorization: `Bearer ${token}` } });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { wants: { summary: string }; conversations: Array<{ kind: string; messageCount: number }> };
-    expect(body.wants.summary).toBe('4BR villa · Mirdif · up to 3M');
+    expect(body.wants.summary).toBe('4BR villa · Mirdif · budget ~3M'); // "budget around 3M"
     expect(body.conversations).toEqual([expect.objectContaining({ kind: 'whatsapp', messageCount: 1 })]);
   });
 
