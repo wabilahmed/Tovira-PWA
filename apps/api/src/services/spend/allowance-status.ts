@@ -22,6 +22,9 @@ export interface AllowanceStatus {
   exhausted: boolean;
   /** When this window's allowance resets (ms) — the "paused until …" banner date (D9). */
   resetAtMs: number;
+  /** [P37] The top-up balance still unspent, as a whole % of the monthly allowance (rounded down) — "Extra
+   *  usage: +80% left (never expires)". The month is used first, so this only falls once the month is spent. */
+  extraPercentLeft: number;
 }
 
 export interface AllowanceStatusDeps {
@@ -60,6 +63,9 @@ export class AllowanceStatusService {
       rawPercentUsed,
       exhausted,
       resetAtMs: w.endMs,
+      extraPercentLeft: m.allowanceAed > 0
+        ? Math.floor((Math.max(0, m.topupAed - Math.max(0, m.spentAed - m.allowanceAed)) / m.allowanceAed) * 100 + 1e-9)
+        : 0,
     };
   }
 

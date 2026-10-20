@@ -88,3 +88,35 @@ describe('[P37] the top-up packs', () => {
     expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(before + 0.5 * DEFAULT_MONTHLY_AI_ALLOWANCE_AED);
   });
 });
+
+describe('[P37] a balance is for subscribers only', () => {
+  it('a balance left on a lapsed account is kept but not usable: AI is refused while unsubscribed', async () => {
+    const { token, userId } = await signup('packs-lapsed@example.com');
+    await subscribe(userId);
+    expect((await credit('evt_lapse_bal', userId, 'topup_100')).status).toBe(200);
+    // The subscription ends (the dunning clock's day-30 end).
+    const subs = (deps.billing as unknown as { subs: { update(id: string, p: Record<string, unknown>): Promise<void> } }).subs;
+    await subs.update(userId, { status: 'canceled' });
+    const ask = await fetch(`${base}/recall`, { method: 'POST', headers: H(token), body: JSON.stringify({ question: 'what did Sara promise?' }) });
+    expect(ask.status).toBe(402);
+    const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { canTopUp: boolean; options: unknown[]; extraPercentLeft: number };
+    expect(s.extraPercentLeft).toBe(100); // still on the account
+    expect(s.canTopUp).toBe(false); // and no picker
+    expect(s.options).toEqual([]);
+  });
+
+  it('the top-up checkout refuses every non-subscribed state (trial, lapsed, payment failed)', async () => {
+    const subs = (deps.billing as unknown as { subs: { update(id: string, p: Record<string, unknown>): Promise<void> } }).subs;
+    const trial = await signup('packs-no-trial@example.com');
+    const lapsed = await signup('packs-no-lapsed@example.com');
+    await subscribe(lapsed.userId);
+    await subs.update(lapsed.userId, { status: 'canceled' });
+    const failed = await signup('packs-no-failed@example.com');
+    await subscribe(failed.userId);
+    await subs.update(failed.userId, { billingState: 'payment_failed' });
+    for (const who of [trial, lapsed, failed]) {
+      const res = await fetch(`${base}/billing/top-up`, { method: 'POST', headers: H(who.token), body: JSON.stringify({ optionId: 'topup_50' }) });
+      expect(res.status).toBe(403);
+    }
+  });
+});
