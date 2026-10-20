@@ -148,3 +148,34 @@ describe('[P35-2] <Ask> not-found answer', () => {
     expect(screen.queryByText(/on record$/i)).toBeNull();
   });
 });
+
+/** [P35-1] A count / list answer: the count first (bold), then one line per client, each with its own receipt. */
+describe('[P35-1] <Ask> count & list answers', () => {
+  it('"3 clients have open requirements:" with the count bold and one receipted line per client, then "…and N more"', async () => {
+    const user = userEvent.setup();
+    const item = (id: string, name: string, line: string, quote: string) => ({ clientId: id, clientName: name, line, receipts: [{ quote, date: '2026-04-12', clientId: id, noteId: `n-${id}` }] });
+    render(<Ask api={api({
+      answer: '3 clients have open requirements:\n• …',
+      receipts: [],
+      list: {
+        count: 13, headline: '13 clients have open requirements:', more: 10,
+        items: [
+          item('c1', 'QA P14 Gate Client', '2BR in JVC, budget around 1.5M, parking for two cars', 'looking for a 2BR in JVC'),
+          item('c2', 'QA Windowed Buyer 2', '4BR villa in Mirdif, Updated budget of 3.4M', 'looking for a 4BR villa in Mirdif, budget around 3M'),
+          item('c3', 'QA Enter Key Client', '3BR townhouse in Arabian Ranches, budget 2.2M', 'A 3BR townhouse in Arabian Ranches, budget 2.2M'),
+        ],
+      },
+    })} />);
+    await user.type(screen.getByLabelText('Your question'), 'How many clients do I have with open requirements?');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    const answer = await screen.findByTestId('answer');
+    expect(answer).toHaveTextContent('13 clients have open requirements:');
+    expect(screen.getByText('13 clients').tagName).toBe('STRONG');
+    const lines = screen.getAllByTestId('list-line');
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toHaveTextContent('QA P14 Gate Client: 2BR in JVC, budget around 1.5M, parking for two cars');
+    for (const l of lines) expect(l.querySelector('[data-testid="receipt"], .tov-receipt, [data-testid="receipt-thread"]')).not.toBeNull();
+    expect(screen.getByText('…and 10 more.')).toBeInTheDocument();
+    expect(screen.queryByText('Receipts')).toBeNull(); // each line carries its own
+  });
+});

@@ -10,6 +10,7 @@ import type { RecallMessage, RecallSessionRepository } from '../../ports/recall-
 import type { StatementDetector } from './statement-detector.js';
 import type { AskCaptureService } from './ask-capture-service.js';
 import type { StructuredQuery } from './structured-recall.js';
+import type { AggregateAnswer, AggregateList } from './aggregate-recall.js';
 import { normalizeName, namesEqual } from '../text/normalize-name.js';
 import { explicitStatement, captureSummary } from './explicit-statement.js';
 import { formatMessageStamp, humanizeIsoDates } from '../text/format-date.js';
@@ -54,6 +55,8 @@ export interface RecallAnswer {
   /** [P35-2] A not-found answer never carries receipts; what retrieval did find is returned here, for a
    *  collapsed "Closest messages I found" — never shown under "Receipts". */
   nearMisses?: Receipt[];
+  /** [P35-1] A count / list across clients: the count, one line per client, each with its receipts. */
+  list?: AggregateList;
   /** [ASK-CAPTURE] present only when the rep's turn was a factual statement about a client. */
   capture?: CaptureOutcome;
 }
@@ -247,6 +250,8 @@ export class RecallService {
      *  dates across ALL clients, merged with the vector matches so aggregate questions are answerable.
      *  Optional — recall is vector-only (single-client-ish) without it. */
     private readonly structured?: { forUser(userId: string, nowMs: number, query?: StructuredQuery): Promise<Array<Receipt & { matched?: boolean; clientName?: string }>> },
+    /** [P35-1] Deterministic count / list answers across clients (no vector search, no model call). */
+    private readonly aggregate?: { answer(userId: string, question: string, nowMs: number, opts?: { clientIds?: string[] }): Promise<AggregateAnswer | null> },
   ) {}
 
   /** [ASK-CAPTURE] Detect whether the rep's turn stated a fact about a client and, if so, route it
@@ -364,6 +369,22 @@ export class RecallService {
     if (lastAnswer && FOLLOW_UP.test(question) && this.clientDirectory) {
       const named = clientsNamedIn(lastAnswer, await this.clientDirectory(userId).catch(() => [] as ClientRef[]));
       if (named.length > 0) scope = new Set(named.map((c) => c.id));
+    }
+
+    // [P35-1] "How many / which clients …" — counted and listed from the structured tables, no model call. The
+    // answer names every listed client, so it scopes a follow-up ("which of them …") like any answer.
+    if (this.aggregate) {
+      const agg = await this.aggregate.answer(userId, question, nowMs, scope ? { clientIds: [...scope] } : {}).catch((err) => {
+        console.warn(`[ask-aggregate] failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`);
+        return null;
+      });
+      if (agg) {
+        if (this.sessions && sessionId) {
+          await this.sessions.appendMessage(userId, sessionId, 'user', question, nowMs);
+          await this.sessions.appendMessage(userId, sessionId, 'assistant', agg.answer, nowMs);
+        }
+        return { answer: agg.answer, receipts: agg.receipts.map((r) => ({ ...r, quote: humanizeIsoDates(r.quote) })), list: agg.list };
+      }
     }
 
     const embedding = await this.embedder.embed(userId, question);

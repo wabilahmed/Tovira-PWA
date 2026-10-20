@@ -27,6 +27,13 @@ function pausedMessage(reason?: string): string {
   }
 }
 
+/** [P35-1] "3 clients have open requirements:" with the count ("3 clients") in bold. */
+function CountHeadline({ text }: { text: string }): JSX.Element {
+  const m = /\d[\d,]*\s+clients?/.exec(text);
+  if (!m) return <>{text}</>;
+  return <>{text.slice(0, m.index)}<strong>{m[0]}</strong>{text.slice(m.index + m[0].length)}</>;
+}
+
 /** [P35-2] The server's honest not-found reply. */
 const NOT_FOUND = "I don't have that on record.";
 const notFound = (r: RecallAnswer): boolean => r.answer.trim() === NOT_FOUND;
@@ -133,7 +140,23 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
           {result.receipts.length > 0 && !notFound(result) && <div className="tov-stamp" style={{ marginBottom: 4 }}>On record</div>}
           {/* [P18-5] The answer is already plain text (markdown stripped server-side); pre-wrap keeps
               any line breaks (e.g. a bulleted list) without rendering literal markup. */}
-          <p data-testid="answer" style={{ whiteSpace: 'pre-wrap' }}>{result.answer}</p>
+          {result.list ? (
+            <>
+              {/* [P35-1] the count first (bold), then one line per client, each with its own receipt */}
+              <p data-testid="answer" style={{ margin: '0 0 0.5rem' }}><CountHeadline text={result.list.headline} /></p>
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                {result.list.items.map((item) => (
+                  <div key={item.clientId} data-testid="list-line">
+                    <div><strong>{item.clientName}</strong>{item.line ? `: ${item.line}` : ''}</div>
+                    {item.receipts[0] && <Receipt quote={item.receipts[0].quote} date={item.receipts[0].date} />}
+                  </div>
+                ))}
+              </div>
+              {result.list.more > 0 && <p style={{ color: 'var(--text-secondary)' }}>…and {result.list.more} more.</p>}
+            </>
+          ) : (
+            <p data-testid="answer" style={{ whiteSpace: 'pre-wrap' }}>{result.answer}</p>
+          )}
           {/* [P35-2] near-misses only behind a collapsed link — never under "Receipts" */}
           {notFound(result) && (result.nearMisses?.length ?? 0) > 0 && (
             <div style={{ marginTop: '0.5rem' }}>
@@ -145,7 +168,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
               )}
             </div>
           )}
-          {result.receipts.length > 0 && !notFound(result) && (
+          {result.receipts.length > 0 && !notFound(result) && !result.list && (
             <div>
               <strong>Receipts</strong>
               <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>

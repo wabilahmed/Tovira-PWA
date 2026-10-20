@@ -84,6 +84,7 @@ import { BedrockEmbedder } from './adapters/embedding/bedrock.js';
 import { ExtractionService } from './services/extraction/extraction-service.js';
 import { RecallService } from './services/recall/recall-service.js';
 import { StructuredRecall } from './services/recall/structured-recall.js';
+import { AggregateRecall } from './services/recall/aggregate-recall.js';
 import type { RecallMetrics } from './services/metrics/recall-metrics.js';
 import type { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import type { RecallSessionRepository } from './ports/recall-session-repository.js';
@@ -260,7 +261,9 @@ export function createRecallService(
     : undefined;
   // [P18-5] Structured cross-client retrieval (promises/meetings/key dates across all clients).
   const structured = facts && meetings && clients ? new StructuredRecall({ facts, meetings, clients, requirements, notes }) : undefined;
-  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, allowanceExhausted, restriction, structured);
+  // [P35-1] count / list questions across clients — answered from the tables, no model call.
+  const aggregate = clients && requirements ? new AggregateRecall({ clients, requirements, facts, notes }) : undefined;
+  return new RecallService(createEmbedder(config), notes, createModelClient(config, 'recall'), undefined, metrics, config.models.recall, sessions, detector, capture, clientDirectory, allowanceExhausted, restriction, structured, aggregate);
 }
 
 /**
