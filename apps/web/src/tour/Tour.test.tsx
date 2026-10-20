@@ -85,6 +85,14 @@ describe('[P37] the tour', () => {
     expect(r.onFinish).toHaveBeenCalled();
   });
 
+  it('renders above everything: portalled to <body>, outside the app\'s screen (so the tab bar never covers it)', () => {
+    const host = document.createElement('main');
+    document.body.appendChild(host);
+    render(<Tour {...props()} />, { container: host });
+    expect(screen.getByTestId('tour').parentElement).toBe(document.body);
+    expect(host.contains(screen.getByTestId('tour'))).toBe(false);
+  });
+
   it('resumes at the saved step', () => {
     render(<Tour {...props({ startStep: 4 })} />);
     expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 5 of 9');

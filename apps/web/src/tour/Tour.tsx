@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { TourApi } from './tourClient.js';
 import type { View } from '../shell/nav.js';
 import type { AllowanceStatus } from '../usage/allowanceClient.js';
@@ -105,14 +106,15 @@ export function Tour(props: TourProps): JSX.Element {
     else if (!e.shiftKey && document.activeElement === end) { e.preventDefault(); first.focus(); }
   }
 
-  return (
+  // Portalled to <body>: above the tab bar and outside the screen's own stacking context.
+  return createPortal(
     <div className="tov-tour" data-testid="tour">
       {/* Dims the app and takes its taps: the tour is required. */}
       <div className="tov-tour__block" aria-hidden="true" />
       {rect && <div className="tov-tour__spot" aria-hidden="true" style={{ top: rect.top - 6, left: rect.left - 6, width: rect.width + 12, height: rect.height + 12 }} />}
       <div
         ref={cardRef}
-        className={`tov-tour__card${rect ? ' tov-tour__card--with-spot' : ''}`}
+        className={`tov-tour__card${rect ? ' tov-tour__card--with-spot' : ''}${rect && rect.top > window.innerHeight / 2 ? ' tov-tour__card--top' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="tov-tour-title"
@@ -130,7 +132,8 @@ export function Tour(props: TourProps): JSX.Element {
             : <button type="button" className="tov-primary" onClick={next}>Next</button>}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

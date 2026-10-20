@@ -605,7 +605,7 @@
 
 /* [P37] The required tour. Token colours (both themes); phone-first, a centred card on a laptop; the spotlit
    element stays visible through a ring whose shadow dims everything else. No motion unless the rep allows it. */
-.tov-tour { position: fixed; inset: 0; z-index: 1000; }
+.tov-tour { position: fixed; inset: 0; z-index: 2000; }
 .tov-tour__block { position: fixed; inset: 0; background: color-mix(in srgb, var(--surface-base) 20%, rgb(0 0 0 / 0.55)); }
 .tov-tour__spot { position: fixed; border-radius: var(--radius-card); outline: 2px solid var(--brass); box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55); pointer-events: none; }
 .tov-tour:has(.tov-tour__spot) .tov-tour__block { background: transparent; }
@@ -616,10 +616,13 @@
   border-radius: var(--radius-card); padding: 1rem 1.1rem; box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
   display: grid; gap: 0.5rem;
 }
+/* The spotlit element is low on the screen (a tab) → the card moves to the top so it never covers it. */
+.tov-tour__card--top { top: max(16px, env(safe-area-inset-top)); bottom: auto; }
 @media (min-width: 760px) { .tov-tour__card:not(.tov-tour__card--with-spot) { top: 50%; bottom: auto; transform: translate(-50%, -50%); } }
 .tov-tour__count { margin: 0; color: var(--text-secondary); font-size: 0.8rem; letter-spacing: 0.02em; }
 .tov-tour__title { margin: 0; font-size: 1.2rem; }
-.tov-tour__title:focus-visible, .tov-tour__card button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.tov-tour__title:focus { outline: none; } /* focus lands here so readers start at the title; the ring is for controls */
+.tov-tour__card button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .tov-tour__body p { margin: 0 0 0.5rem; }
 .tov-tour__nav { display: flex; justify-content: space-between; gap: 0.75rem; margin-top: 0.25rem; }
 .tov-tour__example { margin: 0.25rem 0 0.5rem; padding: 0.6rem 0.7rem; border: 1px dashed var(--hairline); border-radius: var(--radius-card); background: var(--surface-base); }
