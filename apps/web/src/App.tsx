@@ -49,8 +49,6 @@ import { AiPausedBanner } from './usage/AiPausedBanner.js';
 import type { Entitlement } from './billing/billingClient.js';
 import { AccountClient } from './account/accountClient.js';
 import { AccountControls } from './account/AccountControls.js';
-import { ImagesClient } from './gallery/imagesClient.js';
-import { Gallery } from './gallery/Gallery.js';
 import { FollowUpDraft } from './followup/FollowUpDraft.js';
 import { NotesTimeline } from './clients/NotesTimeline.js';
 import { NoteMoveClient } from './notes/noteMoveClient.js';
@@ -123,7 +121,6 @@ const startCheckout = async (plan: Plan): Promise<void> => {
   if (url) window.location.href = url;
 };
 const accountApi = new AccountClient(API_BASE);
-const imagesApi = new ImagesClient(API_BASE);
 const recallApi = new RecallClient(API_BASE);
 const corpusApi = new CorpusClient(API_BASE);
 const mondayApi = new MondayClient(API_BASE);
@@ -979,8 +976,6 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
           {pending.length} recording(s) pending upload — they’re saved and will retry automatically.
         </p>
       )}
-
-      <Gallery clientId={client.id} api={imagesApi} />
 
       <ClientInventory api={inventoryApi} clientId={client.id} />
 
