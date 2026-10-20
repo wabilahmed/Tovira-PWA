@@ -114,7 +114,7 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept }
       )}
       {looksSent.map((s) => (
         <div key={`kept:${s.id}`} className="tov-confirm-chit" role="group" aria-label="Looks sent — confirm">
-          <p className="tov-confirm-chit__text" style={{ margin: '0 0 0.4rem' }}>{s.message}</p>
+          <p className="tov-confirm-chit__text" style={{ margin: '0 0 0.4rem' }}><strong>{s.clientName}</strong> — <span>{s.message}</span></p>
           <div style={{ display: 'grid', gap: '0.35rem', marginBottom: '0.5rem' }}>
             <Receipt quote={s.promise.quote} source="Promise" date={s.promise.date} />
             <Receipt quote={s.delivery.quote} source="Delivered" date={s.delivery.date} />
@@ -128,7 +128,8 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept }
       {held.map((c) => (
         <ConfirmChit
           key={`capture:${c.noteId}`}
-          text={`${c.clientName} — ${c.summary ?? c.statement}`}
+          who={c.clientName}
+          text={c.summary ?? c.statement}
           onConfirm={() => void resolveHeld(c.noteId, 'confirm')}
           onReject={() => void resolveHeld(c.noteId, 'reject')}
         />
@@ -137,6 +138,8 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept }
         <ConfirmChit
           key={p.id}
           text={p.text}
+          // [P34-2] the client's name (or "Your note"); an older payload without clientName shows no lead.
+          {...(p.clientName !== undefined ? { who: p.clientName ?? 'Your note', promised: p.owner === 'client' } : {})}
           onConfirm={() => void confirm(p.id)}
           onReject={() => void reject(p.id)}
         />

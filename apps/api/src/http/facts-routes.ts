@@ -29,6 +29,8 @@ export interface FactsRouteDeps {
   /** [PROMISE-STALE] days overdue after which an open promise is tagged stale in the tracker (the UI
    *  keeps it behind a filter and out of the active count/claret). Defaults to 90 when unset (tests). */
   promiseStaleThresholdDays?: number;
+  /** [P34-2] Client names for the To Confirm cards (optional: absent → no clientName). */
+  clients?: Pick<import('../ports/client-repository.js').ClientRepository, 'listByUser'>;
 }
 
 const CONFIRM_RE = /^\/promises\/([^/]+)\/confirm$/;
@@ -84,7 +86,10 @@ export async function handleFactsRoute(
       mentioned: n.moveSuggestion?.mentioned ?? [],
       reason: n.moveSuggestion?.reason ?? '',
     }));
-    sendJson(res, 200, { promises: pendingConfirmations(promises).map(withReceipt), meetings: meetings.map(withReceipt), moveSuggestions });
+    // [P34-2] Every To Confirm card names its client.
+    const names = deps.clients ? new Map((await deps.clients.listByUser(userId)).map((c) => [c.id, c.name])) : null;
+    const named = <T extends { clientId: string | null }>(r: T) => (names ? { ...r, clientName: r.clientId ? names.get(r.clientId) ?? null : null } : r);
+    sendJson(res, 200, { promises: pendingConfirmations(promises).map(withReceipt).map(named), meetings: meetings.map(withReceipt), moveSuggestions });
     return true;
   }
 

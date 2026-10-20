@@ -179,3 +179,48 @@ describe('[INV-MATCH] strong matches enter Today\'s register below every fact', 
     expect(actions.findIndex((a) => a.kind === 'promise')).toBeLessThan(actions.findIndex((a) => a.kind === 'match'));
   });
 });
+
+/**
+ * [P34-2] Phone review, 20 Oct: "Due soon: Send the floor plans" didn't say for which client, and a client's
+ * own promise ("Send ID document photos", owner: client) read like the rep's task. Each Today action now carries
+ * the client's name, whose action it is, and the bare title; the "Due …"/"Overdue …" date stays in the subline.
+ */
+describe('[P34-2] Today actions name the client and whose action it is', () => {
+  it('a rep promise and a client promise both carry the client name, owner and bare title', async () => {
+    const ctx = make(5, 20);
+    const sara = await ctx.clients.create('u', 'Sara Khan');
+    const soon = new Date(NOW + DAY).toISOString().slice(0, 10);
+    await ctx.facts.saveExtraction('u', { noteId: 'n1', clientId: sara.id, promises: [
+      { text: 'Send the floor plans', owner: 'rep', due_date: soon, due_raw: 'tomorrow', confidence: 'high' },
+      { text: 'Send ID document photos', owner: 'client', due_date: soon, due_raw: 'tomorrow', confidence: 'high' },
+    ] });
+    const actions = await ctx.hero.today('u', NOW);
+    const rep = actions.find((a) => a.title === 'Send the floor plans')!;
+    const client = actions.find((a) => a.title === 'Send ID document photos')!;
+    expect(rep).toMatchObject({ clientName: 'Sara Khan', owner: 'rep', subline: expect.stringMatching(/^due /) });
+    expect(client).toMatchObject({ clientName: 'Sara Khan', owner: 'client' });
+    expect(rep.refId).toBeTruthy();
+  });
+
+  it('a cooling client carries its name without repeating it in the title', async () => {
+    const ctx = make(5, 20);
+    const c = await ctx.clients.create('u', 'Omar Ali');
+    (c as { lastTouchedAt: number }).lastTouchedAt = NOW - 45 * DAY;
+    const [a] = await ctx.hero.today('u', NOW);
+    expect(a).toMatchObject({ kind: 'cold', clientName: 'Omar Ali' });
+    expect(a!.title).not.toContain('Omar Ali');
+  });
+});
+
+import { withClientNames } from './hero-service.js';
+describe('[P34-2] a cached list from before this change gets its client names at serve time', () => {
+  it('fills a missing clientName from the rep\'s clients; leaves present ones; unknown → null', () => {
+    const names = new Map([['c1', 'Sara Khan']]);
+    const out = withClientNames([
+      { kind: 'promise', reason: 'promise_due', priority: 3, text: 'Due soon: Send the floor plans', clientId: 'c1' },
+      { kind: 'promise', reason: 'promise_due', priority: 3, text: 'x', clientId: 'c1', clientName: 'Renamed Already' },
+      { kind: 'promise', reason: 'promise_due', priority: 3, text: 'y', clientId: 'gone' },
+    ], names);
+    expect(out.map((a) => a.clientName)).toEqual(['Sara Khan', 'Renamed Already', null]);
+  });
+});

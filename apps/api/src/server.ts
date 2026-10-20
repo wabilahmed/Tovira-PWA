@@ -419,6 +419,7 @@ export function createApiServer(deps: ApiDeps): Server {
         await handleFactsRoute(request, response, {
           auth: deps.auth,
           facts: deps.facts,
+          clients: deps.clients, // [P34-2] To Confirm cards name their client
           corrections: deps.corrections,
           extractionLog: deps.extractionLog,
           glossary: deps.repGlossary,
@@ -454,7 +455,7 @@ export function createApiServer(deps: ApiDeps): Server {
       )
         return;
       if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
-      if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero, priorities: deps.priorities, billing: deps.billing })) return;
+      if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero, priorities: deps.priorities, billing: deps.billing, clients: deps.clients })) return;
       if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan, billing: deps.billing })) return;
       if (await handleRecallRoute(request, response, { auth: deps.auth, recall: deps.recall, billing: deps.billing, capture: deps.askCapture })) return;
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;

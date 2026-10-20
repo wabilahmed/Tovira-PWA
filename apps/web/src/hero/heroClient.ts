@@ -32,6 +32,13 @@ export interface TodayAction {
   clientId: string | null;
   /** A dated fact — the reason this is on the register (server-computed). */
   subline?: string;
+  /** [P34-2] The client's name; null = genuinely no client ("Your note"); absent on older payloads. */
+  clientName?: string | null;
+  /** [P34-2] The bare action (no "Due soon:" prefix — the date is in the subline). */
+  title?: string;
+  /** [P34-2] Whose action — a client-owned promise reads "<name> promised: …". */
+  owner?: 'rep' | 'client';
+  refId?: string;
 }
 
 export class HeroClient {

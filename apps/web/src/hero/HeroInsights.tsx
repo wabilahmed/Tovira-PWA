@@ -82,7 +82,7 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
                 <span className="tov-register__idx">{String(i + 1).padStart(2, '0')}</span>
                 {act && <span className="tov-dot tov-dot--claret" aria-hidden="true" style={{ marginTop: 6 }} />}
                 <span>
-                  <div>{a.text}</div>
+                  <div><TodayLead action={a} /></div>
                   {a.subline && <div className="tov-stamp" style={{ color: act ? 'var(--claret)' : 'var(--text-secondary)', marginTop: 2 }}>{a.subline}</div>}
                 </span>
               </li>
@@ -132,6 +132,21 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
 }
 
 const pad = (n: number): string => String(n).padStart(2, '0');
+
+/** [P34-2] "**Sara Khan** · Send the floor plans", "**Sara Khan** promised: Send ID document photos", or
+ *  "**Your note** · …" when the item genuinely has no client. Older payloads (no clientName/title) fall back to
+ *  the action's text as before. */
+function TodayLead({ action: a }: { action: TodayAction }): JSX.Element {
+  if (a.clientName === undefined) return <>{a.text}</>;
+  const who = a.clientName ?? 'Your note';
+  return (
+    <>
+      <strong>{who}</strong>
+      {a.owner === 'client' ? ' promised: ' : ' · '}
+      <span>{a.title ?? a.text}</span>
+    </>
+  );
+}
 
 /** [P34-6] Why Patterns & risk is empty below the volume gate — quoting the server's REAL thresholds, and only
  *  the dimension(s) still short: "Patterns appear once you have 5 clients and 20 notes. You have 4 clients and

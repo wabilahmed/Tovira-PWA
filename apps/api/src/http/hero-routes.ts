@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
-import type { HeroService } from '../services/hero/hero-service.js';
+import { withClientNames, type HeroService } from '../services/hero/hero-service.js';
+import type { ClientRepository } from '../ports/client-repository.js';
 import { PrioritiesService, RefreshLimitError } from '../services/hero/priorities-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import { extractToken, sendJson, requireEntitled } from './helpers.js';
@@ -10,6 +11,8 @@ export interface HeroRouteDeps {
   hero: HeroService;
   priorities: PrioritiesService;
   billing: BillingService;
+  /** [P34-2] Names for a cached list that predates clientName (optional: absent → served as cached). */
+  clients?: Pick<ClientRepository, 'listByUser'>;
 }
 
 const GET_PATHS = ['/hero/status', '/hero/patterns', '/hero/risk', '/today'];
@@ -56,7 +59,11 @@ export async function handleHeroRoute(
   // each a full per-client signals scan — a 400-client rep paid for it on every app open — and the web
   // only ever reads `actions`. Dropped. `actions` (the flat feed) and `refreshesRemaining` are unchanged.
   else {
-    const actions = await deps.priorities.getForToday(userId, now);
+    const cached = await deps.priorities.getForToday(userId, now);
+    // [P34-2] A list cached before clientName existed gets names here (one client list, no model call).
+    const actions = deps.clients && cached.some((a) => a.clientName === undefined)
+      ? withClientNames(cached, new Map((await deps.clients.listByUser(userId)).map((c) => [c.id, c.name])))
+      : cached;
     sendJson(res, 200, { actions, refreshesRemaining: await deps.priorities.refreshesRemaining(userId, now) });
   }
   return true;

@@ -11,6 +11,10 @@ const ARABIC = /[؀-ۿ]/;
 
 export interface ConfirmChitProps {
   text: string;
+  /** [P34-2] Whose card this is — the client's name in bold before the text ("Sara Khan — …"). */
+  who?: string;
+  /** [P34-2] A client-owned promise reads "<who> promised: <text>". */
+  promised?: boolean;
   /** An optional rep-entered value (AED) — still a guess, so it sits in the chit. */
   aed?: number;
   /** Once confirmed, the tick reads brass (a fact) rather than amber. */
@@ -19,7 +23,7 @@ export interface ConfirmChitProps {
   onReject: () => void;
 }
 
-export function ConfirmChit({ text, aed, confirmed = false, onConfirm, onReject }: ConfirmChitProps): JSX.Element {
+export function ConfirmChit({ text, who, promised = false, aed, confirmed = false, onConfirm, onReject }: ConfirmChitProps): JSX.Element {
   const rtl = ARABIC.test(text);
   return (
     <div className="tov-confirm-chit" role="group" aria-label="Unconfirmed — worth checking">
@@ -40,7 +44,8 @@ export function ConfirmChit({ text, aed, confirmed = false, onConfirm, onReject 
         data-testid="confirm-chit-text"
         {...(rtl ? { dir: 'rtl' as const, lang: 'ar' } : {})}
       >
-        {text}
+        {who && <><strong>{who}</strong>{promised ? ' promised: ' : ' — '}</>}
+        <span>{text}</span>
         {aed !== undefined && (
           <>
             {' '}

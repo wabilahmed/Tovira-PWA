@@ -389,3 +389,14 @@ describe('[AUDIT item 2] editing a promise date preserves the receipt (note link
     expect(after!.noteId).toBe(before!.noteId);       // receipt (note link) preserved — not delete/recreate
   });
 });
+
+/** [P34-2] Every To Confirm card names its client — the queue carries clientName on each promise. */
+describe('[P34-2] /confirmations names the client of each promise', () => {
+  it('each pending promise carries clientName', async () => {
+    const { token, userId } = await signup('confirm-name@example.com');
+    const sara = await deps.clients.create(userId, 'Sara Khan');
+    await deps.facts.saveExtraction(userId, { noteId: 'n-name', clientId: sara.id, promises: [lowConfidence] });
+    const body = (await (await fetch(`${base}/confirmations`, { headers: { authorization: `Bearer ${token}` } })).json()) as { promises: Array<{ clientName?: string }> };
+    expect(body.promises.map((p) => p.clientName)).toEqual(['Sara Khan']);
+  });
+});

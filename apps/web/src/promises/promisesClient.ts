@@ -10,6 +10,8 @@ export interface OpenPromise {
   confidence: string;
   done: boolean;
   confirmed: boolean;
+  /** [P34-2] The client's name, for To Confirm cards (/confirmations); null = no client; absent elsewhere. */
+  clientName?: string | null;
   /** [PROMISE-STALE] overdue past the window → shown behind a filter, out of the active count/claret.
    *  Server-computed by the /promises endpoint; absent (treated false) on older payloads. */
   stale?: boolean;

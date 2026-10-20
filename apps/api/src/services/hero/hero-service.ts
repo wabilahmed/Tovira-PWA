@@ -57,6 +57,21 @@ export interface TodayAction {
    *  register (§10 body date form). e.g. "overdue since 1 Jul 2026", "silent 21 days". */
   subline?: string;
   clientId: string | null;
+  /** [P34-2] The client's name (Today shows "Sara Khan · Send the floor plans"); null when none. Optional:
+   *  a list cached before this field existed gets it at serve time (withClientNames). */
+  clientName?: string | null;
+  /** [P34-2] The bare action, without the client name or the "Due soon:" prefix (that is in the subline). */
+  title?: string;
+  /** [P34-2] Whose action it is — a client-owned promise reads "Sara Khan promised: …". */
+  owner?: 'rep' | 'client';
+  /** [P34-2] The promise / meeting this action came from (for its receipt). */
+  refId?: string;
+}
+
+/** [P34-2] Fill in the client name on actions that lack it (a list cached before clientName existed). A name
+ *  already present is kept; an unknown client → null. Pure: no model call, no extra fetch per action. */
+export function withClientNames(actions: TodayAction[], names: ReadonlyMap<string, string>): TodayAction[] {
+  return actions.map((a) => (a.clientName !== undefined ? a : { ...a, clientName: a.clientId ? names.get(a.clientId) ?? null : null }));
 }
 
 export interface HeroDeps {
@@ -177,6 +192,8 @@ export class HeroService {
     const nowIso = new Date(nowMs).toISOString();
     const todayDate = nowIso.slice(0, 10);
 
+    const nameOf = new Map(sig.map((s) => [s.clientId, s.name]));
+    const clientName = (id: string | null) => (id ? nameOf.get(id) ?? null : null);
     const actions: TodayAction[] = [];
     // [PROMISE-STALE] Today's register shows the ACTIVE set only — a promise overdue past the window
     // is stale and drops off here (still stored/searchable, and still surfaced by the Book Scan count).
@@ -190,17 +207,21 @@ export class HeroService {
           text: `${overdue ? 'Overdue' : 'Due soon'}: ${p.text}`,
           clientId: p.clientId,
           subline: `${overdue ? 'overdue since' : 'due'} ${bodyDate(p.dueDate)}`,
+          clientName: clientName(p.clientId),
+          title: p.text,
+          owner: p.owner === 'client' ? 'client' : 'rep',
+          refId: p.id,
         });
       }
     }
     for (const m of meetings) {
       if (m.datetime && m.datetime >= nowIso && m.datetime <= soonIso) {
-        actions.push({ kind: 'meeting', reason: 'meeting', priority: 3, text: `Prep for meeting (${m.datetimeRaw})`, clientId: m.clientId, subline: `meeting ${m.datetimeRaw}` });
+        actions.push({ kind: 'meeting', reason: 'meeting', priority: 3, text: `Prep for meeting (${m.datetimeRaw})`, clientId: m.clientId, subline: `meeting ${m.datetimeRaw}`, clientName: clientName(m.clientId), title: `Prep for the meeting (${m.datetimeRaw})`, refId: m.id });
       }
     }
     for (const s of sig) {
       if (s.silentDays > this.coldThresholdDays) {
-        actions.push({ kind: 'cold', reason: 'cooling', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days` });
+        actions.push({ kind: 'cold', reason: 'cooling', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days`, clientName: s.name, title: 'Reach out — going cold' });
       }
     }
     // INV-MATCH: STRONG matches enter the register at priority 0 — BELOW every fact (overdue
@@ -217,6 +238,8 @@ export class HeroService {
           text: `${s.itemTitle} may suit ${client?.name ?? 'a client'}`,
           clientId: s.clientId,
           subline: `asked: "${s.receipt.requirementRaw}"${when}`,
+          clientName: client?.name ?? null,
+          title: `${s.itemTitle} may suit them`,
         });
       }
     }

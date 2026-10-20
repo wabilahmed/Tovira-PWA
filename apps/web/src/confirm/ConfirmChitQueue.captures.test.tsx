@@ -17,7 +17,8 @@ describe('[P21-A3] <ConfirmChitQueue> shows Ask captures', () => {
   it('lists a held Ask statement and confirms it via the capture endpoint', async () => {
     const cap = captures();
     render(<ConfirmChitQueue api={none} captures={cap} />);
-    expect(await screen.findByText(/QA Sara Khan — Sara's budget → 2\.2M/)).toBeInTheDocument();
+    // [P34-2] the name is its own bold element now — the card reads the same: "QA Sara Khan — Sara's budget → 2.2M".
+    expect((await screen.findByText(/Sara's budget → 2\.2M/)).closest('p')).toHaveTextContent("QA Sara Khan — Sara's budget → 2.2M");
     expect(screen.getByText(/to confirm/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /^confirm$/i }));
     expect(cap.confirmCapture).toHaveBeenCalledWith('n9');
