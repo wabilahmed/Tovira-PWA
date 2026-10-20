@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import type { NoteSummary } from '../clientsClient.js';
 import { extractionStateOf } from '../clientsClient.js';
-import { NoteState, NoteSubscribe } from '../NotesTimeline.js';
+import { NoteState, NoteSubscribe } from './NoteState.js';
 import { CeilingNotice } from '../../import/CeilingNotice.js';
 import { MoveNoteControl, type MoveNoteApi } from '../../notes/MoveNoteControl.js';
 import type { ClientOption } from '../../meetings/Meetings.js';
