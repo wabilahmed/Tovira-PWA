@@ -22,7 +22,7 @@ export interface NavItem {
 /** Mobile bottom-bar primaries — the taste screens + the capture path. */
 export const PRIMARY: NavItem[] = [
   { view: 'clients', label: 'Clients' },
-  { view: 'today', label: 'Today’s register' },
+  { view: 'today', label: 'Today' },
   { view: 'ask', label: 'Ask' },
   { view: 'bookscan', label: 'Book Scan' },
 ];
@@ -53,7 +53,7 @@ export function isView(s: string | null | undefined): s is View {
 export const SIDEBAR: NavItem[] = [
   { view: 'clients', label: 'Clients' },
   { view: 'capture', label: 'Capture' },
-  { view: 'today', label: 'Today’s register' },
+  { view: 'today', label: 'Today' },
   { view: 'week', label: 'The Monday Statement' },
   { view: 'ask', label: 'Ask' },
   { view: 'promises', label: 'Promises' },

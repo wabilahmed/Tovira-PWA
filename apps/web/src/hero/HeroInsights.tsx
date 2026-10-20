@@ -58,10 +58,10 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
   const needActing = actions.filter((a) => a.kind === 'cold' || a.kind === 'risk').length;
 
   return (
-    <section aria-label="Today's register">
+    <section aria-label="Today">
       <header className="tov-screenhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
         <div>
-          <h2 style={{ marginTop: 0 }}>Today&rsquo;s register</h2>
+          <h2 style={{ marginTop: 0 }}>Today</h2>
           <div className="tov-screenmeta">
             {actions.length} entr{actions.length === 1 ? 'y' : 'ies'}
             {needActing > 0 && <> · {needActing} need acting on</>}
@@ -73,7 +73,7 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
       </header>
       {refreshMsg && <p data-testid="refresh-msg" style={{ color: rateLimited ? 'var(--amber)' : 'var(--text-secondary)', fontSize: '0.85rem' }}>{refreshMsg}</p>}
       {actions.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Nothing on the register today. Capture a note after your next conversation and tomorrow&rsquo;s will write itself.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Nothing for today yet. Capture a note after your next conversation and tomorrow&rsquo;s list will write itself.</p>
       ) : (
         <ol data-testid="today-list" className="tov-register">
           {actions.map((a, i) => {
