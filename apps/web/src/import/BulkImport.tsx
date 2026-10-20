@@ -18,7 +18,14 @@ export const BULK_MAX_UPLOAD_BYTES = 10_000_000;
 
 type Step = 'pick' | 'uploading' | 'review' | 'ack' | 'progress';
 
-export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan }: { api: BulkImportApi; pollMs?: number; onSubscribe?: (plan: Plan) => void; onOpenBookScan?: () => void }): JSX.Element {
+export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, single = false, onClientReady }: {
+  api: BulkImportApi; pollMs?: number; onSubscribe?: (plan: Plan) => void; onOpenBookScan?: () => void;
+  /** [P36-1] "New client from a chat": one export → one client (the same deterministic parse + review). */
+  single?: boolean;
+  /** [P36-1] Called with the client a chat was filed under as soon as its import starts — the rep then
+   *  lands on that client's page with the import running. */
+  onClientReady?: (clientId: string) => void;
+}): JSX.Element {
   const [step, setStep] = useState<Step>('pick');
   const [overCap, setOverCap] = useState<File[] | null>(null); // selection > 20, awaiting confirm
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +97,8 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan }: {
   async function poll(): Promise<void> {
     for (;;) {
       const s = await api.status(batchId);
+      const ready = onClientReady ? Object.values(s.started ?? {})[0]?.clientId : undefined;
+      if (ready) { onClientReady!(ready); return; }
       setJobs(s.jobs);
       if (s.done) { setResultUpsell(s.upsell); setSummary(s.summary); setDone(true); return; }
       await new Promise((r) => setTimeout(r, pollMs));
@@ -99,12 +108,18 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan }: {
   if (step === 'pick') {
     return (
       <section aria-label="Import chats" data-testid="bulk-import" style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
-        <h2 style={{ margin: 0 }}>Import chats</h2>
-        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Export your chats from WhatsApp (Without media) and select up to {BULK_MAX_FILES} at once.</p>
+        <h2 style={{ margin: 0 }}>{single ? 'New client from a chat' : 'Import chats'}</h2>
+        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+          {single
+            ? 'Export the chat from WhatsApp (Without media) and choose it here. Tovira works out who it is with — you confirm before anything is read.'
+            : `Export your chats from WhatsApp (Without media) and select up to ${BULK_MAX_FILES} at once.`}
+        </p>
         <label>
           {/* [P18-10i] ".zip or .txt" — same order as the single-import screen + the not_whatsapp error. */}
-          <span style={{ display: 'block', marginBottom: '0.25rem' }}>Choose chat exports (.zip or .txt)</span>
-          <input type="file" multiple accept=".txt,.zip,text/plain,application/zip" aria-label="Choose chat exports" onChange={(e) => onPick(e.target.files)} />
+          <span style={{ display: 'block', marginBottom: '0.25rem' }}>{single ? 'Choose a chat export (.zip or .txt)' : 'Choose chat exports (.zip or .txt)'}</span>
+          {single
+            ? <input type="file" accept=".txt,.zip,text/plain,application/zip" aria-label="Choose a chat export" onChange={(e) => onPick(e.target.files)} />
+            : <input type="file" multiple accept=".txt,.zip,text/plain,application/zip" aria-label="Choose chat exports" onChange={(e) => onPick(e.target.files)} />}
         </label>
         {overCap && (
           <div role="alert" data-testid="over-cap" style={{ display: 'grid', gap: '0.5rem' }}>

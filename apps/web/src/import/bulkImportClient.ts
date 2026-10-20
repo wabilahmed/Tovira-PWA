@@ -16,6 +16,8 @@ export interface BulkStatusResponse {
   upsell?: Upsell;
   /** [P20-3 / BULK-08] the one batch summary, present once done. */
   summary?: { chatsImported: number; promises: number; requirements: number };
+  /** [P36-1] the client + note each started chat was filed under, by file name. */
+  started?: Record<string, { clientId: string; noteId: string }>;
 }
 
 export interface BulkImportApi {

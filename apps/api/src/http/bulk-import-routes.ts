@@ -64,6 +64,8 @@ interface BatchStatus {
   upsell?: unknown;
   /** [P20-3 / BULK-08] The batch summary shown on the finished screen (one Book Scan, one notification). */
   summary?: { chatsImported: number; promises: number; requirements: number };
+  /** [P36-1] The client + note each started chat was filed under, by file name. */
+  started?: Record<string, { clientId: string; noteId: string }>;
   /** Last write time (ms); staleness past INTERRUPTED_TIMEOUT_MS triggers the heal. */
   updatedAt?: number;
 }
@@ -109,7 +111,7 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
         jobs.push({ ...job, state: 'failed_interrupted' }); // never started → no note → discarded
       }
       const done = jobs.every((j) => TERMINAL.has(j.state));
-      const healed: BatchStatus = { jobs, done, updatedAt: Date.now(), ...(status.upsell ? { upsell: status.upsell } : {}) };
+      const healed: BatchStatus = { jobs, done, updatedAt: Date.now(), ...(status.upsell ? { upsell: status.upsell } : {}), ...(status.started ? { started: status.started } : {}) };
       await writeBatchStatus(deps.storage, userId, batchId, healed);
       sendJson(res, 200, healed);
       return true;
@@ -224,8 +226,12 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
   // poll /status. Live per-chat state is streamed to the status blob via onProgress; the final write
   // carries done=true plus the result upsell (top-ups) for any chats that failed at the usage limit.
   await writeBatchStatus(deps.storage, userId, batchId, { jobs: decisions.map((d) => ({ key: d.fileName, state: 'queued' as const })), done: false, updatedAt: Date.now() });
-  const onProgress = (jobs: ChatJob[]): void => { void writeBatchStatus(deps.storage, userId, batchId, { jobs, done: false, updatedAt: Date.now() }); };
-  void deps.bulkImport.importConfirmed(userId, files, decisions, today, onProgress)
+  // [P36-1] `started` rides on every write so a poll can open the client a chat landed on mid-import.
+  const started: Record<string, { clientId: string; noteId: string }> = {};
+  let lastJobs: ChatJob[] = decisions.map((d) => ({ key: d.fileName, state: 'queued' as const }));
+  const onProgress = (jobs: ChatJob[]): void => { lastJobs = jobs; void writeBatchStatus(deps.storage, userId, batchId, { jobs, done: false, started, updatedAt: Date.now() }); };
+  const onStarted = (fileName: string, ids: { clientId: string; noteId: string }): void => { started[fileName] = ids; onProgress(lastJobs); };
+  void deps.bulkImport.importConfirmed(userId, files, decisions, today, onProgress, onStarted)
     .then(async (result) => {
       // [FIX 2a] Delete the staged files BEFORE marking the batch done, so a client that polls done=true
       // can trust the staged conversation content is already gone.
@@ -233,7 +239,7 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
       const limited = result.jobs.filter((j) => j.state === 'failed_usage_limit').length;
       const upsell = limited > 0 && deps.bulkUpsell ? await deps.bulkUpsell.forResult(userId, limited) : undefined;
       // [P20-3 / BULK-08] carry the one summary so the finished screen shows it with "Open Book Scan".
-      await writeBatchStatus(deps.storage, userId, batchId, { jobs: result.jobs, done: true, summary: result.summary, updatedAt: Date.now(), ...(upsell ? { upsell } : {}) });
+      await writeBatchStatus(deps.storage, userId, batchId, { jobs: result.jobs, done: true, summary: result.summary, started, updatedAt: Date.now(), ...(upsell ? { upsell } : {}) });
     })
     .catch(async () => {
       await clearBatchInputs(deps.storage, userId, batchId);

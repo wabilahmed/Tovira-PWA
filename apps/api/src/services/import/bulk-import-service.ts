@@ -156,7 +156,12 @@ export class BulkImportService {
     return null;
   }
 
-  async importConfirmed(userId: string, files: BulkInputFile[], decisions: BulkDecision[], today: string, onProgress?: (jobs: ChatJob[]) => void): Promise<BulkImportOutcome> {
+  async importConfirmed(
+    userId: string, files: BulkInputFile[], decisions: BulkDecision[], today: string, onProgress?: (jobs: ChatJob[]) => void,
+    /** [P36-1] Called once a chat is STARTED (its client + note exist), before its extraction runs — lets the
+     *  "New client from a chat" page open that client while the import is still running. */
+    onStarted?: (fileName: string, ids: { clientId: string; noteId: string }) => void,
+  ): Promise<BulkImportOutcome> {
     const byName = new Map(files.map((f) => [f.name, f]));
     const clientNameCache = new Map<string, string>();
     const plan: PlanItem[] = [];
@@ -217,6 +222,7 @@ export class BulkImportService {
         // [P20-3] Mark the note as part of this batch so the sweep's per-note import_complete is
         // suppressed (the batch emits one aggregate instead), even if the sweep wins the claim race.
         this.deps.bulkNotes?.add(note.id);
+        onStarted?.(it.decision.fileName, { clientId, noteId: note.id });
         const outcome = await this.deps.extract(userId, note.id, today);
         return { noteId: note.id, outcome };
       },

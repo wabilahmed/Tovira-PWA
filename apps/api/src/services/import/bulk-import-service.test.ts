@@ -87,6 +87,17 @@ describe('[BULK-IMPORT] BulkImportService', () => {
     expect(notes.all[0]!.messages!.some((m) => m.role === 'client')).toBe(true);
   });
 
+  it('[P36-1] reports the client + note a chat was filed under BEFORE its extraction runs', async () => {
+    const order: string[] = [];
+    const extract = vi.fn(async (): Promise<ExtractOutcome> => { order.push('extract'); return { status: 'extracted' }; });
+    const { svc, clients } = makeService({ extract });
+    const started: Array<[string, { clientId: string; noteId: string }]> = [];
+    await svc.importConfirmed('u', [{ name: 'a.txt', content: androidChat('Wabil', 'Layla') }], [{ fileName: 'a.txt', action: 'new', name: 'Layla' }], '2026-10-04', undefined, (key, ids) => { order.push('started'); started.push([key, ids]); });
+    expect(order).toEqual(['started', 'extract']);
+    expect(started[0]![0]).toBe('a.txt');
+    expect(started[0]![1].clientId).toBe(clients.all[0]!.id);
+  });
+
   // [P20-3 / BULK-08] One batch → one aggregate summary + one onBatchComplete call; batch notes are
   // registered (suppressing per-note notifications) and unregistered at the end.
   it('[P20-3] emits ONE aggregate summary for the batch and registers/unregisters its notes', async () => {

@@ -18,6 +18,7 @@ import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingCli
 import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
 import { BulkImportClient } from './import/bulkImportClient.js';
+import { BulkImport } from './import/BulkImport.js';
 import { BookScan } from './bookscan/BookScan.js';
 import { Inventory } from './inventory/Inventory.js';
 import { InventoryClient } from './inventory/inventoryClient.js';
@@ -303,6 +304,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ClientSummary | null>(null);
+  // [P36-1] A chat for a client who doesn't exist yet (or several chats) comes in from the Clients list.
+  const [clientsAction, setClientsAction] = useState<'newFromChat' | 'importSeveral' | null>(null);
+  /** [P36-1] The import started for `clientId` → reload the book and open that client's page. */
+  const openImportedClient = async (clientId: string): Promise<void> => {
+    const list = await clientsApi.list();
+    setClients(list);
+    setClientsAction(null);
+    const c = list.find((x) => x.id === clientId);
+    if (c) setOpen(c);
+  };
   // [LEAD-STATUS] The active filter chip, remembered per device (not per account — it's a view
   // preference). Wrapped in try/catch: a private window or blocked storage falls back to "All".
   const [leadFilter, setLeadFilter] = useState<LeadFilter>(() => {
@@ -637,6 +648,20 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             <span>{session.user.email} · <button onClick={onLogout} className="tov-link">Log out</button></span>
           </div>
           <h2 className="clients-title">Clients</h2>
+          {/* [P36-1] Capture lives inside a client; a chat for a client you don't have yet starts here. */}
+          {!clientsAction && <div className="clients-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', margin: '0 0 0.9rem' }}>
+            <button type="button" className="tov-primary" onClick={() => setClientsAction('newFromChat')}>New client from a chat</button>
+            <button type="button" onClick={() => setClientsAction('importSeveral')}>Import several chats</button>
+          </div>}
+          {clientsAction && (
+            <div data-testid="clients-action" style={{ margin: '0 0 1rem' }}>
+              <button type="button" className="tov-link" onClick={() => setClientsAction(null)}>← Back to clients</button>
+              {clientsAction === 'newFromChat'
+                ? <BulkImport key="single" api={bulkImportApi} single onSubscribe={startCheckout} onOpenBookScan={() => setView('bookscan')} onClientReady={(id) => void openImportedClient(id)} />
+                : <BulkImport key="several" api={bulkImportApi} onSubscribe={startCheckout} onOpenBookScan={() => setView('bookscan')} />}
+            </div>
+          )}
+          {!clientsAction && <>
           <form onSubmit={addClient} className="clients-add">
             <input
               value={name}
@@ -714,6 +739,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
                   ))}
             </ul>
           )}
+          </>}
           </div>
           {isDesktop && (
             <div className="tov-split__detail">
