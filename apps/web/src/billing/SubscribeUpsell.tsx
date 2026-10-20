@@ -10,9 +10,9 @@
  */
 import { PLANS, type Plan } from './plans.js';
 
-/** The reassurance line. AED 60 is DEFAULT_MONTHLY_AI_ALLOWANCE_AED (apps/api/src/config.ts) — the
- *  published monthly allowance; conversion resets a trial's used allowance to the full month. */
-export const ALLOWANCE_RESET_LINE = 'Subscribing resets your AI allowance to the full AED 60.';
+/** The reassurance line: subscribing resets a trial's used allowance to a full month. No AED figure — the
+ *  allowance's dirham value is never shown to reps (guarded by no-ai-cost-figures.guard.test.ts). */
+export const ALLOWANCE_RESET_LINE = "Subscribing gives you a full month's allowance."; // [P37 · owner] no AED-of-AI figure shown to reps
 
 export function SubscribeNow({ onSubscribe }: { onSubscribe?: (plan: Plan) => void }): JSX.Element {
   return (

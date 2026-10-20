@@ -46,7 +46,7 @@ describe('<BulkImportResult>', () => {
   it('a trial sees Subscribe now + the allowance-reset line on the result, not top-ups', async () => {
     const onSubscribe = vi.fn();
     render(<BulkImportResult jobs={jobs} upsell={{ shortfall: true, n: 2, canTopUp: false, recommendedOptionId: null, options: [] }} onSubscribe={onSubscribe} />);
-    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent(/resets your AI allowance to the full AED 60/i);
+    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent("Subscribing gives you a full month's allowance."); // [P37 · owner] was "…to the full AED 60."
     await userEvent.click(screen.getByTestId('subscribe-annual'));
     expect(onSubscribe).toHaveBeenLastCalledWith('annual');
     await userEvent.click(screen.getByTestId('subscribe-monthly'));

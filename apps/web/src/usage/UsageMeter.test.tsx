@@ -102,7 +102,7 @@ describe('<UsageMeter>', () => {
     expect(screen.queryByTestId('topup-sheet')).toBeNull();
     expect(screen.getByTestId('subscribe-annual')).toBeInTheDocument();
     expect(screen.getByTestId('subscribe-monthly')).toBeInTheDocument();
-    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent(/resets your AI allowance to the full AED 60/i);
+    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent("Subscribing gives you a full month's allowance."); // [P37 · owner] was "…to the full AED 60."
     await userEvent.click(screen.getByTestId('subscribe-annual'));
     expect(onSubscribe).toHaveBeenLastCalledWith('annual');
     await userEvent.click(screen.getByTestId('subscribe-monthly'));

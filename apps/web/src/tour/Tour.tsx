@@ -220,7 +220,7 @@ function buildSteps(c: {
       title: "A client's page",
       body: (
         <>
-          <p>Each client has a page. <strong>Add</strong> takes a voice note, a pasted message or a chat. The status: Warm, Cold or Done.</p>
+          <p>Each client has a page. <strong>Add</strong> takes a voice note, a pasted message or a chat. Set its status: Warm, Cold or Done.</p>
           <Example>
             <div className="tov-tour__mock">
               <div className="tov-tour__mock-head"><strong>Sara Khan</strong> <span className="lead-pill lead-pill--warm">Warm ▾</span> <span className="tov-tour__mock-add">+ Add</span></div>
