@@ -33,7 +33,7 @@ export interface CaptureOutcome {
   candidates?: string[];
 }
 
-export interface ClientRef { id: string; name: string }
+export interface ClientRef { id: string; name: string; /** Learned per-client aliases (optional). */ aliases?: string[] }
 
 /**
  * Conversational recall (P4-8): answer a rep's question from their own notes.
@@ -108,6 +108,13 @@ export function clientsNamedIn(text: string, dir: ClientRef[]): ClientRef[] {
     if (full && hay.includes(` ${full} `)) return true;
     return tokensOf(c.name).some((t) => freq.get(t) === 1 && !/^\d+$/.test(t) && hay.includes(` ${t} `));
   });
+}
+/** [P35-1c] Does the question name one specific client — by a name (as clientsNamedIn reads it) or by a
+ *  learned alias (whole alias only)? Such a question is about that client, never a count across the book. */
+export function namesAClient(question: string, dir: ClientRef[]): boolean {
+  if (clientsNamedIn(question, dir).length > 0) return true;
+  const hay = ` ${normalizeName(question)} `;
+  return dir.some((c) => (c.aliases ?? []).some((a) => { const n = normalizeName(a); return n.length > 0 && hay.includes(` ${n} `); }));
 }
 // [SPEND-CAP] Honest, non-punitive — never an accusation. Shown only while over the cap, past the
 // day's recall limit; everything else keeps working.
@@ -384,12 +391,20 @@ export class RecallService {
 
     // [P35-1] "How many / which clients …" — counted and listed from the structured tables, no model call. The
     // answer names every listed client, so it scopes a follow-up ("which of them …") like any answer.
-    if (this.aggregate) {
+    // [P35-1c] A question that names a specific client (name or alias) is about that client → the normal path.
+    // A zero from the count path is held back: the normal path goes first, and the zero is the answer only if
+    // that also finds nothing.
+    let zeroFallback: AggregateAnswer | null = null;
+    const named = this.aggregate && this.clientDirectory
+      ? namesAClient(question, await this.clientDirectory(userId).catch(() => [] as ClientRef[]))
+      : false;
+    if (this.aggregate && !named) {
       const agg = await this.aggregate.answer(userId, question, nowMs, scope ? { clientIds: [...scope] } : {}).catch((err) => {
         console.warn(`[ask-aggregate] failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`);
         return null;
       });
-      if (agg) {
+      if (agg && agg.list.count === 0) zeroFallback = agg;
+      else if (agg) {
         if (this.sessions && sessionId) {
           await this.sessions.appendMessage(userId, sessionId, 'user', question, nowMs);
           await this.sessions.appendMessage(userId, sessionId, 'assistant', agg.answer, nowMs);
@@ -491,6 +506,15 @@ export class RecallService {
         // Never fabricate on a model failure — fall back to the verbatim receipts.
         answer = 'Here is what I found in your notes.';
       }
+    }
+
+    // [P35-1c] The normal path found nothing either → the held count-path zero is the honest answer.
+    if (zeroFallback && answer === NO_ANSWER) {
+      if (this.sessions && sessionId) {
+        await this.sessions.appendMessage(userId, sessionId, 'user', question, nowMs);
+        await this.sessions.appendMessage(userId, sessionId, 'assistant', zeroFallback.answer, nowMs);
+      }
+      return { answer: zeroFallback.answer, receipts: [], list: zeroFallback.list };
     }
 
     // Persist the exchange so pronouns/follow-ups resolve next turn.

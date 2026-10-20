@@ -252,12 +252,18 @@ export function createRecallService(
   meetings?: MeetingRepository,
   /** [P21-A1] open requirements across clients (people/facts/unanswered come from `notes`). */
   requirements?: RequirementRepository,
+  /** [P35-1c] learned per-client aliases — a question naming a client by alias is about that client. */
+  aliases?: ContactAliasRepository,
 ): RecallService {
   // Detection runs on the cheap recall model (Haiku); it only classifies (statement vs question),
   // never extracts. The capture pipeline routes a detected statement to the CERTIFIED engine.
   const detector = capture ? new ModelStatementDetector(createModelClient(config, 'recall')) : undefined;
-  const clientDirectory = capture && clients
-    ? async (userId: string) => (await clients.listByUser(userId)).map((c) => ({ id: c.id, name: c.name }))
+  // [P35-1c] Also needed by the count path (a question naming a client skips it), so not only with capture.
+  const clientDirectory = clients
+    ? async (userId: string) => {
+      const [list, learned] = await Promise.all([clients.listByUser(userId), aliases ? aliases.listByUser(userId).catch(() => []) : []]);
+      return list.map((c) => ({ id: c.id, name: c.name, aliases: learned.filter((a) => a.clientId === c.id).map((a) => a.alias) }));
+    }
     : undefined;
   // [P18-5] Structured cross-client retrieval (promises/meetings/key dates across all clients).
   const structured = facts && meetings && clients ? new StructuredRecall({ facts, meetings, clients, requirements, notes }) : undefined;

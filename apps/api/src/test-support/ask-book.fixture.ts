@@ -32,7 +32,7 @@ export interface Book {
   modelCalls: () => number;
 }
 
-export async function buildBook(opts: { empty?: boolean; extraClients?: number } = {}): Promise<Book> {
+export async function buildBook(opts: { empty?: boolean; extraClients?: number; modelAnswer?: string; aliases?: Record<string, string[]> } = {}): Promise<Book> {
   const clients = new InMemoryClientRepository();
   const notes = new InMemoryNoteRepository();
   const requirements = new InMemoryRequirementRepository();
@@ -97,9 +97,9 @@ export async function buildBook(opts: { empty?: boolean; extraClients?: number }
   ] });
 
   let calls = 0;
-  const model: ModelClient = { complete: async () => { calls += 1; return { text: "I don't have that on record." }; } };
+  const model: ModelClient = { complete: async () => { calls += 1; return { text: opts.modelAnswer ?? "I don't have that on record." }; } };
   const noVector = { searchSimilarByUser: async (): Promise<SimilarNote[]> => [] } as never;
-  const dir = async (userId: string) => (await clients.listByUser(userId)).map((c) => ({ id: c.id, name: c.name }));
+  const dir = async (userId: string) => (await clients.listByUser(userId)).map((c) => ({ id: c.id, name: c.name, aliases: opts.aliases?.[c.name] ?? [] }));
   const structured = new StructuredRecall({ facts, meetings, clients, requirements, notes });
   const aggregate = new AggregateRecall({ clients, requirements, facts, notes });
   const svc = new RecallService(
