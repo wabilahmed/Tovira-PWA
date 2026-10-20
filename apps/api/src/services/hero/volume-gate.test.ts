@@ -21,3 +21,11 @@ describe('[P4b-4] volume gate', () => {
     expect(evaluateGate({ clients: 10, notes: 3 }, config).unlocked).toBe(false);
   });
 });
+
+/** [P34-6] The Today screen quotes the REAL gate in its copy — so the gate state carries the thresholds. */
+describe('[P34-6] the gate reports its thresholds', () => {
+  it('thresholds come from the config, locked or unlocked', () => {
+    expect(evaluateGate({ clients: 2, notes: 5 }, { minClients: 7, minNotes: 33 }).thresholds).toEqual({ clients: 7, notes: 33 });
+    expect(evaluateGate({ clients: 9, notes: 40 }, { minClients: 5, minNotes: 20 }).thresholds).toEqual({ clients: 5, notes: 20 });
+  });
+});

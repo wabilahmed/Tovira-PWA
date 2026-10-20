@@ -94,7 +94,7 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
       <h2>Patterns &amp; risk</h2>
       {status && !status.unlocked ? (
         <div role="status" style={warmBox}>
-          <p style={{ margin: '0 0 0.6rem' }}>{status.message}</p>
+          <p style={{ margin: '0 0 0.6rem' }}>{gateCopy(status)}</p>
           <div className="tov-mono" style={gateRow}><span>Clients on file</span><span>{pad(status.counts.clients)} / {pad(status.counts.clients + status.needed.clients)}</span></div>
           <div className="tov-mono" style={gateRow}><span>Notes captured</span><span>{pad(status.counts.notes)} / {pad(status.counts.notes + status.needed.notes)}</span></div>
           <small style={{ color: 'var(--text-secondary)' }}>
@@ -105,7 +105,7 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
         </div>
       ) : (
         <>
-          {patterns.length === 0 && risk.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>No patterns or risks surfaced yet.</p>}
+          {patterns.length === 0 && risk.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>Nothing stands out right now.</p>}
           {patterns.map((p) => (
             <div key={p.id} data-testid="pattern" style={card}>
               <strong>{p.title}</strong> <span style={badge}>{p.confidence}</span>
@@ -132,6 +132,22 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
 }
 
 const pad = (n: number): string => String(n).padStart(2, '0');
+
+/** [P34-6] Why Patterns & risk is empty below the volume gate — quoting the server's REAL thresholds, and only
+ *  the dimension(s) still short: "Patterns appear once you have 5 clients and 20 notes. You have 4 clients and
+ *  12 notes." / "Patterns appear once you have 20 notes. You have 12." */
+export function gateCopy(s: GateState): string {
+  const t = s.thresholds ?? { clients: s.counts.clients + s.needed.clients, notes: s.counts.notes + s.needed.notes };
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const short = (['clients', 'notes'] as const).filter((k) => s.needed[k] > 0);
+  if (short.length === 0) return 'Patterns appear as your book grows.';
+  const word = (k: 'clients' | 'notes') => (k === 'clients' ? 'client' : 'note');
+  if (short.length === 1) {
+    const k = short[0]!;
+    return `Patterns appear once you have ${plural(t[k], word(k))}. You have ${s.counts[k]}.`;
+  }
+  return `Patterns appear once you have ${plural(t.clients, 'client')} and ${plural(t.notes, 'note')}. You have ${plural(s.counts.clients, 'client')} and ${plural(s.counts.notes, 'note')}.`;
+}
 const warmBox: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: '0.75rem 1rem', background: 'var(--surface-raised)' };
 const gateRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', padding: '2px 0' };
 const card: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.5rem 0' };

@@ -36,7 +36,7 @@ describe('<HeroInsights>', () => {
         })}
       />,
     );
-    expect(await screen.findByRole('status')).toHaveTextContent(/keep feeding tovira/i);
+    expect(await screen.findByRole('status')).toHaveTextContent('Patterns appear once you have 5 clients and 20 notes. You have 2 clients and 3 notes.'); // [P34-6]
     expect(screen.getByText(/3 more client/i)).toBeInTheDocument();
     expect(screen.getByText(/17 more note/i)).toBeInTheDocument();
     expect(screen.queryByTestId('pattern')).toBeNull();

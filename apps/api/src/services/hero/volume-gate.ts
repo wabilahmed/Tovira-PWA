@@ -19,6 +19,8 @@ export interface GateState {
   unlocked: boolean;
   counts: VolumeCounts;
   needed: { clients: number; notes: number };
+  /** [P34-6] The configured thresholds themselves, so the UI quotes the real gate (never a hardcoded number). */
+  thresholds: { clients: number; notes: number };
   message: string;
 }
 
@@ -30,5 +32,5 @@ export function evaluateGate(counts: VolumeCounts, config: VolumeGateConfig): Ga
     ? 'Pattern insights are active.'
     : `Keep feeding Tovira: ${neededClients} more client${neededClients === 1 ? '' : 's'} and ` +
       `${neededNotes} more note${neededNotes === 1 ? '' : 's'} unlock cross-client pattern insights.`;
-  return { unlocked, counts, needed: { clients: neededClients, notes: neededNotes }, message };
+  return { unlocked, counts, needed: { clients: neededClients, notes: neededNotes }, thresholds: { clients: config.minClients, notes: config.minNotes }, message };
 }

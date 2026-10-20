@@ -4,6 +4,8 @@ export interface GateState {
   unlocked: boolean;
   counts: { clients: number; notes: number };
   needed: { clients: number; notes: number };
+  /** [P34-6] The server's configured gate. Absent on older payloads → derived as counts + needed. */
+  thresholds?: { clients: number; notes: number };
   message: string;
 }
 
