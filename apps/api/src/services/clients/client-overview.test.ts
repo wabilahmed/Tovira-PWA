@@ -88,6 +88,14 @@ describe('[P36-7] an inferred status is only ever a suggestion', () => {
     expect((await b.repos.clients.findByIdForUser(U, b.ids.quiet))!.leadStatus).toBeNull();
   });
 
+  it('the going-cold threshold is the real 30 days: day 30 → nothing, day 31 → "No reply in 31 days."', async () => {
+    const { b, svc } = await overview();
+    const touched = Date.parse('2026-09-01T00:00:00Z');
+    await b.repos.clients.setLastTouched(U, b.ids.quiet, touched);
+    expect((await svc.forClient(U, b.ids.quiet, touched + 30 * DAY))!.statusSuggestion).toBeNull();
+    expect((await svc.forClient(U, b.ids.quiet, touched + 31 * DAY))!.statusSuggestion).toEqual({ status: 'cold', reason: 'No reply in 31 days.' });
+  });
+
   it('lost_inferred → suggests Done (Lost); never sets it', async () => {
     const { b, svc } = await overview();
     await b.repos.clients.setOutcome(U, b.ids.quiet, 'lost_inferred', 'inferred', NOW);

@@ -31,7 +31,7 @@ function stub(calls: Call[], opts: { status?: string | null } = {}): void {
     const method = init?.method ?? 'GET';
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ method, url, body });
-    const client = () => ({ id: 'c1', name: NAME, phone: null, createdAt: Date.parse('2026-09-01'), leadStatus: lead, outcome: 'open' });
+    const client = () => ({ id: 'c1', name: NAME, phone: null, createdAt: Date.parse('2026-09-01'), leadStatus: lead, leadStatusChangedAt: null, outcome: 'open', outcomeSource: null, outcomeChangedAt: null });
     if (url.endsWith('/me')) return json(200, SESSION);
     if (url.includes('onboarding')) return json(200, SEEDED);
     if (url.includes('/clients/status-suggestions')) return json(200, { suggestions: lead ? [] : [{ clientId: 'c1', clientName: NAME, status: 'cold', reason: 'No reply in 34 days.' }] });
@@ -82,7 +82,24 @@ describe('[P36-7] the status sheet', () => {
     const toast = await screen.findByTestId('lead-toast');
     expect(toast).toHaveTextContent(`${NAME} moved to Cold.`);
     await user.click(within(toast).getByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(posts(calls, '/lead-status')).toEqual([{ status: 'cold' }, { status: null }]));
+    // [owner, 20 Oct] Undo restores the exact previous status (with its own changed-at) — and no outcome call.
+    await waitFor(() => expect(posts(calls, '/lead-status')).toEqual([{ status: 'cold' }, { status: null, restoreChangedAt: null }]));
+    expect(posts(calls, '/outcome')).toEqual([]);
+  });
+
+  it('Done (lost), then Undo: the original status and outcome come back exactly — never "still open" (no clock reset)', async () => {
+    const calls: Call[] = [];
+    stub(calls);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(within((await screen.findByRole('button', { name: `Open ${NAME}` })).closest('li')!).getByRole('button', { name: 'Change status' }));
+    await user.click(await screen.findByTestId('lead-option-done'));
+    await user.click(await screen.findByRole('button', { name: 'Lost' }));
+    await waitFor(() => expect(screen.getByTestId('lead-toast')).toHaveTextContent('moved to Done (lost).'));
+    await user.click(within(screen.getByTestId('lead-toast')).getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(posts(calls, '/outcome')).toEqual([{ outcome: 'lost' }, { outcome: 'restore', previous: { outcome: 'open', source: null, changedAt: null } }]));
+    expect(posts(calls, '/lead-status')).toEqual([{ status: 'done' }, { status: null, restoreChangedAt: null }]);
+    expect(posts(calls, '/outcome')).not.toContainEqual({ outcome: 'open' });
   });
 
   it('Done asks Won or Lost and sets the outcome', async () => {

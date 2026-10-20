@@ -16,6 +16,17 @@ export interface ClientSummary {
   leadStatusChangedAt?: number | null;
   /** [OUTCOME] the deal outcome (open / won / lost_confirmed / lost_inferred); absent on older responses. */
   outcome?: string;
+  outcomeSource?: string | null;
+  outcomeChangedAt?: number | null;
+}
+
+/** [P36-7] What a status change replaced — Undo puts back exactly this (never "still open", no clock reset). */
+export interface StatusSnapshot {
+  leadStatus: LeadStatus | null;
+  leadStatusChangedAt: number | null;
+  outcome: string;
+  outcomeSource: string | null;
+  outcomeChangedAt: number | null;
 }
 
 export type ExtractionState = 'queued' | 'processing' | 'done' | 'failed';
@@ -142,6 +153,23 @@ export class ClientsClient {
         body: JSON.stringify({ outcome }),
       });
       return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /** [P36-7] Undo: restore the exact previous status (its own changed-at) and, when it changed, the exact
+   *  previous outcome (value, source, time). Neither touches the going-quiet clock. */
+  async restoreStatus(id: string, snap: StatusSnapshot, restoreOutcome: boolean): Promise<boolean> {
+    const post = (path: string, body: unknown) => fetch(this.url(`/clients/${encodeURIComponent(id)}${path}`), {
+      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+    try {
+      const a = await post('/lead-status', { status: snap.leadStatus, restoreChangedAt: snap.leadStatusChangedAt });
+      if (!a.ok) return false;
+      if (!restoreOutcome) return true;
+      const b = await post('/outcome', { outcome: 'restore', previous: { outcome: snap.outcome, source: snap.outcomeSource, changedAt: snap.outcomeChangedAt } });
+      return b.ok;
     } catch {
       return false;
     }

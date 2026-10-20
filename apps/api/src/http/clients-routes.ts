@@ -59,8 +59,25 @@ export async function handleClientRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const body = (await readJsonBody(req)) as { outcome?: unknown };
+      const body = (await readJsonBody(req)) as { outcome?: unknown; previous?: unknown };
       const choice = typeof body.outcome === 'string' ? body.outcome : '';
+      // [P36-7] Undo: put back EXACTLY the outcome the rep had (value, source, time). Unlike "still open" this
+      // never touches the going-quiet clock — an undo is not a sign of life from the client.
+      if (choice === 'restore') {
+        const p = (body.previous ?? {}) as { outcome?: unknown; source?: unknown; changedAt?: unknown };
+        const outcomes: readonly string[] = ['open', 'won', 'lost_confirmed', 'lost_inferred'];
+        const sources: readonly unknown[] = ['rep', 'inferred', null];
+        const at = p.changedAt;
+        const atOk = at === null || (typeof at === 'number' && Number.isFinite(at) && at >= 0 && at <= Date.now());
+        if (typeof p.outcome !== 'string' || !outcomes.includes(p.outcome) || !sources.includes(p.source ?? null) || !atOk || (p.outcome !== 'open' && (at === null || p.source == null))) {
+          sendJson(res, 400, { error: 'validation', message: 'previous must be the outcome, source and time to restore.' });
+          return true;
+        }
+        if (p.outcome === 'open' && (p.source ?? null) === null) await clients.clearOutcome(userId, id, 'rep', Date.now());
+        else await clients.setOutcome(userId, id, p.outcome as ClientOutcome, p.source as 'rep' | 'inferred', at as number);
+        sendJson(res, 200, await clients.findByIdForUser(userId, id));
+        return true;
+      }
       const mapped: ClientOutcome | null =
         choice === 'won' ? 'won' : choice === 'lost' ? 'lost_confirmed' : choice === 'open' ? 'open' : null;
       if (mapped === null) {
@@ -93,14 +110,20 @@ export async function handleClientRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      const body = (await readJsonBody(req)) as { status?: unknown };
+      const body = (await readJsonBody(req)) as { status?: unknown; restoreChangedAt?: unknown };
       // Accept exactly the three labels or an explicit null; reject anything else (including a missing
       // key, a string like 'unsorted', or a number) so a typo never silently clears a rep's label.
       if (!('status' in body) || !(body.status === null || body.status === 'warm' || body.status === 'cold' || body.status === 'done')) {
         sendJson(res, 400, { error: 'validation', message: "status must be 'warm', 'cold', 'done', or null." });
         return true;
       }
-      await clients.setLeadStatus(userId, id, body.status, Date.now());
+      // [P36-7] Undo carries the previous status's own changed-at, so the restore is exact.
+      const restoreAt = body.restoreChangedAt;
+      if (restoreAt !== undefined && restoreAt !== null && !(typeof restoreAt === 'number' && Number.isFinite(restoreAt) && restoreAt >= 0 && restoreAt <= Date.now())) {
+        sendJson(res, 400, { error: 'validation', message: 'restoreChangedAt must be a past time in ms.' });
+        return true;
+      }
+      await clients.setLeadStatus(userId, id, body.status, typeof restoreAt === 'number' ? restoreAt : Date.now());
       sendJson(res, 200, await clients.findByIdForUser(userId, id));
       return true;
     }

@@ -9,7 +9,7 @@ import { RequestAccess } from './access/RequestAccess.js';
 import { HttpAccessRequestClient } from './access/requestAccessClient.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
-import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus, type Stakeholder } from './clients/clientsClient.js';
+import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus, type Stakeholder, type StatusSnapshot } from './clients/clientsClient.js';
 import { HttpClientPageClient, type ClientOverview } from './clients/page/clientPageClient.js';
 import { Accordion } from './clients/page/Accordion.js';
 import { ClientHeader, headerLine } from './clients/page/ClientHeader.js';
@@ -355,7 +355,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   });
   // The client whose status sheet is open, and a transient toast (rollback error, or drop-out Undo).
   const [statusSheetFor, setStatusSheetFor] = useState<ClientSummary | null>(null);
-  const [leadToast, setLeadToast] = useState<{ kind: 'error'; message: string } | { kind: 'undo'; clientId: string; prev: LeadStatus | null; prevOutcome?: string; name: string; nowLabel: string } | null>(null);
+  const [leadToast, setLeadToast] = useState<{ kind: 'error'; message: string } | { kind: 'undo'; clientId: string; prev: StatusSnapshot; name: string; nowLabel: string } | null>(null);
   // [P36-7] Done asks how it ended (won / lost → the existing outcome); and what the inference would change,
   // shown in the sheet as a suggestion only.
   const [outcomeFor, setOutcomeFor] = useState<ClientSummary | null>(null);
@@ -470,7 +470,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // (like Delete); Done then asks Won or Lost unless the rep already said (a "Done (lost)" suggestion).
   async function changeLeadStatus(client: ClientSummary, next: LeadStatus | null, opts: { outcome?: 'won' | 'lost'; undo?: boolean } = {}): Promise<void> {
     const prev = client.leadStatus ?? null;
-    const prevOutcome = client.outcome;
+    const snapshot: StatusSnapshot = { leadStatus: prev, leadStatusChangedAt: client.leadStatusChangedAt ?? null, outcome: client.outcome ?? 'open', outcomeSource: client.outcomeSource ?? null, outcomeChangedAt: client.outcomeChangedAt ?? null };
     setStatusSheetFor(null);
     if (prev === next && !opts.outcome) return; // one tap, one choice — re-picking the current status is a no-op
     setClients((list) => list.map((c) => (c.id === client.id ? { ...c, leadStatus: next, leadStatusChangedAt: Date.now() } : c)));
@@ -486,7 +486,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     if (opts.outcome) await setClientOutcome(client, opts.outcome);
     loadSuggestions();
     if (opts.undo) { setLeadToast(null); return; }
-    setLeadToast({ kind: 'undo', clientId: client.id, prev, prevOutcome, name: client.name, nowLabel: next === 'done' && opts.outcome ? `Done (${opts.outcome})` : leadStatusLabel(next) });
+    setLeadToast({ kind: 'undo', clientId: client.id, prev: snapshot, name: client.name, nowLabel: next === 'done' && opts.outcome ? `Done (${opts.outcome})` : leadStatusLabel(next) });
     if (next === 'done' && !opts.outcome) setOutcomeFor({ ...client, leadStatus: next });
   }
 
@@ -571,16 +571,21 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // active status chip (search + filter combine). Below the min length, search is inactive.
   const search = searchClients(clients.map((c) => ({ ...c, aliases: rows[c.id]?.aliases ?? [] })), debouncedQuery);
   const visibleHits = search.active ? search.hits.filter((h) => matchesLeadFilter(h.client, leadFilter)) : [];
-  function undoLeadStatus(t: { clientId: string; prev: LeadStatus | null; prevOutcome?: string }): void {
+  /** [P36-7] Undo puts back EXACTLY what the change replaced — the status with its own changed-at, and the
+   *  outcome (value, source, time) if a Done changed it. Never "still open": the going-quiet clock is untouched. */
+  function undoLeadStatus(t: { clientId: string; prev: StatusSnapshot }): void {
     const c = clients.find((x) => x.id === t.clientId);
     setLeadToast(null);
     setOutcomeFor(null);
     if (!c) return;
-    void changeLeadStatus(c, t.prev, { undo: true });
-    // Done → won/lost also set the outcome: put that back too (a rep-confirmed won/lost, or open).
-    if (c.outcome !== t.prevOutcome && t.prevOutcome !== undefined) {
-      void setClientOutcome(c, t.prevOutcome === 'won' ? 'won' : t.prevOutcome === 'lost_confirmed' ? 'lost' : 'open');
-    }
+    const restoreOutcome = (c.outcome ?? 'open') !== t.prev.outcome;
+    const back = (x: ClientSummary): ClientSummary => ({ ...x, leadStatus: t.prev.leadStatus, leadStatusChangedAt: t.prev.leadStatusChangedAt, ...(restoreOutcome ? { outcome: t.prev.outcome, outcomeSource: t.prev.outcomeSource, outcomeChangedAt: t.prev.outcomeChangedAt } : {}) });
+    setClients((list) => list.map((x) => (x.id === c.id ? back(x) : x)));
+    setOpen((o) => (o && o.id === c.id ? back(o) : o));
+    void clientsApi.restoreStatus(c.id, t.prev, restoreOutcome).then((ok) => {
+      if (!ok) setLeadToast({ kind: 'error', message: 'Could not undo. Please try again.' });
+      loadSuggestions();
+    });
   }
 
   /** The status toast — an error, or the change with its Undo. [P36-7] Also on the phone's full-screen client page. */
