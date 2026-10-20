@@ -6,6 +6,7 @@ export class InMemoryUserRepository implements UserRepository {
   private readonly byId = new Map<string, UserRecord>();
   private readonly byEmail = new Map<string, string>();
   private readonly byCode = new Map<string, string>();
+  private readonly uiPrefs = new Map<string, Record<string, unknown>>();
 
   async findByEmail(email: string): Promise<UserRecord | null> {
     const id = this.byEmail.get(email);
@@ -48,6 +49,14 @@ export class InMemoryUserRepository implements UserRepository {
   async updateTimezone(id: string, timezone: string): Promise<void> {
     const rec = this.byId.get(id);
     if (rec) rec.timezone = timezone;
+  }
+
+  async getUiPrefs(id: string): Promise<Record<string, unknown>> {
+    return structuredClone(this.uiPrefs.get(id) ?? {});
+  }
+
+  async updateUiPrefs(id: string, prefs: Record<string, unknown>): Promise<void> {
+    if (this.byId.has(id)) this.uiPrefs.set(id, structuredClone(prefs));
   }
 
   async markEmailVerified(id: string): Promise<void> {

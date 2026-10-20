@@ -293,6 +293,22 @@ export async function handleAuthRoute(
       return true;
     }
 
+    // [P36-5] The rep's UI preferences (client-page section state), saved with the account so they follow
+    // the rep across devices. Validated to an allow-list server-side.
+    if ((method === 'GET' || method === 'PUT') && url === '/me/ui-prefs') {
+      const identity = await auth.authenticate(extractToken(req));
+      if (!identity) {
+        sendJson(res, 401, { error: 'unauthorized' });
+        return true;
+      }
+      if (method === 'GET') {
+        sendJson(res, 200, await auth.uiPrefs(identity.userId));
+        return true;
+      }
+      sendJson(res, 200, await auth.updateUiPrefs(identity.userId, await readJsonBody(req)));
+      return true;
+    }
+
     return false;
   } catch (err) {
     if (err instanceof BadJsonError) {

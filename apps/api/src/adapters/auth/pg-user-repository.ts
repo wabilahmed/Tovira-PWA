@@ -102,6 +102,15 @@ export class PgUserRepository implements UserRepository {
     await this.pool.query('UPDATE users SET timezone = $2 WHERE id = $1', [id, timezone]);
   }
 
+  async getUiPrefs(id: string): Promise<Record<string, unknown>> {
+    const { rows } = await this.pool.query<{ ui_prefs: Record<string, unknown> | null }>('SELECT ui_prefs FROM users WHERE id = $1', [id]);
+    return rows[0]?.ui_prefs ?? {};
+  }
+
+  async updateUiPrefs(id: string, prefs: Record<string, unknown>): Promise<void> {
+    await this.pool.query('UPDATE users SET ui_prefs = $2::jsonb WHERE id = $1', [id, JSON.stringify(prefs)]);
+  }
+
   async markEmailVerified(id: string): Promise<void> {
     await this.pool.query('UPDATE users SET email_verified = true WHERE id = $1', [id]);
   }

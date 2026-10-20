@@ -42,6 +42,9 @@ export interface UserRepository {
   updatePassword(id: string, passwordHash: string): Promise<void>;
   /** Update the rep's IANA timezone (Settings). Caller normalizes to a valid zone. */
   updateTimezone(id: string, timezone: string): Promise<void>;
+  /** [P36-5] The rep's UI preferences (validated by the caller); '{}' when none saved. */
+  getUiPrefs(id: string): Promise<Record<string, unknown>>;
+  updateUiPrefs(id: string, prefs: Record<string, unknown>): Promise<void>;
   /** Mark the email verified (soft verification). */
   markEmailVerified(id: string): Promise<void>;
   /** Delete the user (and, on Postgres, cascade all their data). */

@@ -206,6 +206,20 @@ export class AuthService {
     return timezone;
   }
 
+  /** [P36-5] The rep's saved UI preferences — only the known client-page sections, as booleans. */
+  async uiPrefs(userId: string): Promise<UiPrefs> {
+    return { clientSections: cleanSections((await this.deps.users.getUiPrefs(userId)).clientSections) };
+  }
+
+  /** [P36-5] Merge a change into the rep's saved UI preferences (per section); anything unknown is dropped. */
+  async updateUiPrefs(userId: string, patch: unknown): Promise<UiPrefs> {
+    const current = await this.uiPrefs(userId);
+    const incoming = cleanSections((patch as { clientSections?: unknown } | null)?.clientSections);
+    const next: UiPrefs = { clientSections: { ...current.clientSections, ...incoming } };
+    await this.deps.users.updateUiPrefs(userId, next as unknown as Record<string, unknown>);
+    return next;
+  }
+
   /**
    * Begin a password reset (TASK EMAIL). Returns the RAW token + the user when
    * the email has an account, else null — the ROUTE responds 200 either way (no
@@ -333,4 +347,19 @@ function toPublic(user: UserRecord): PublicUser {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+/** [P36-5] The client page's accordion sections, in page order. */
+export const CLIENT_SECTIONS = ['meeting', 'wants', 'promises', 'meetings', 'people', 'conversations'] as const;
+export type ClientSection = (typeof CLIENT_SECTIONS)[number];
+export interface UiPrefs { clientSections: Partial<Record<ClientSection, boolean>> }
+
+function cleanSections(raw: unknown): Partial<Record<ClientSection, boolean>> {
+  const out: Partial<Record<ClientSection, boolean>> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const k of CLIENT_SECTIONS) {
+    const v = (raw as Record<string, unknown>)[k];
+    if (typeof v === 'boolean') out[k] = v;
+  }
+  return out;
 }
