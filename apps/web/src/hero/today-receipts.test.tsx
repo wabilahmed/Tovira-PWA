@@ -58,8 +58,9 @@ describe('[P35-3] every Today entry shows its source as a chat bubble', () => {
   it('a tap opens the conversation around the source message', async () => {
     inProvider(<HeroInsights api={heroApi([action({ receipt: { quote: "Great, I'll send you the floor plans tomorrow", source: 'message', at: '2026-05-07T11:15', noteId: 'n1' } })])} />);
     await screen.findByText("Great, I'll send you the floor plans tomorrow");
-    await userEvent.click(screen.getByRole('button', { name: /show the conversation/i }));
-    expect(screen.getAllByTestId('bubble')).toHaveLength(2);
+    // [owner-approved, 20 Oct] the conversation loads asynchronously — wait for it (same assertions).
+    await userEvent.click(await screen.findByRole('button', { name: /show the conversation/i }));
+    expect(await screen.findAllByTestId('bubble')).toHaveLength(2);
     expect(screen.getByText('Can you send the floor plans?')).toBeInTheDocument();
   });
 });
