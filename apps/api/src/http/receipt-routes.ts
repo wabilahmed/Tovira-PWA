@@ -9,6 +9,7 @@ import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js
  * [P35-3] Receipts as WhatsApp-style chat, for every surface.
  *   POST /receipts/sources { refs: ReceiptRef[] }  → { sources }  — one request per list (≤ 60 refs), never one per card
  *   POST /receipts/thread  { ref, full?: boolean } → { source }   — tap: 3 messages either side, or the whole thread
+ *   POST /receipts/conversation { noteId, before?, limit? } → { source, from } — [P36-5] a page of a whole chat
  * Tenant-bound (the rep's own notes only) and erasure-restricted, via ReceiptSourceService.
  */
 export interface ReceiptRouteDeps {
@@ -26,7 +27,7 @@ function toRef(v: unknown): ReceiptRef | null {
 
 export async function handleReceiptRoute(req: IncomingMessage, res: ServerResponse, deps: ReceiptRouteDeps): Promise<boolean> {
   const path = (req.url ?? '/').split('?')[0]!;
-  if (req.method !== 'POST' || (path !== '/receipts/sources' && path !== '/receipts/thread')) return false;
+  if (req.method !== 'POST' || (path !== '/receipts/sources' && path !== '/receipts/thread' && path !== '/receipts/conversation')) return false;
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
     sendJson(res, 401, { error: 'unauthorized' });
@@ -50,6 +51,20 @@ export async function handleReceiptRoute(req: IncomingMessage, res: ServerRespon
     const resolved = await deps.receipts.resolve(identity.userId, refs.filter((r): r is ReceiptRef => r !== null));
     let k = 0;
     sendJson(res, 200, { sources: refs.map((r) => (r ? resolved[k++] ?? null : null)) });
+    return true;
+  }
+  // [P36-5] POST /receipts/conversation { noteId, before?, limit? } → { source, from } — a page of a whole chat.
+  if (path === '/receipts/conversation') {
+    const noteId = str(body.noteId);
+    if (!noteId) {
+      sendJson(res, 400, { error: 'validation', message: 'noteId is required.' });
+      return true;
+    }
+    const before = typeof body.before === 'number' && Number.isInteger(body.before) && body.before >= 0 ? body.before : undefined;
+    const limit = typeof body.limit === 'number' && Number.isInteger(body.limit) ? body.limit : 50;
+    const page = await deps.receipts.conversation(identity.userId, noteId, before, limit);
+    if (!page) sendJson(res, 404, { error: 'not_found' });
+    else sendJson(res, 200, page);
     return true;
   }
   const ref = toRef(body.ref);

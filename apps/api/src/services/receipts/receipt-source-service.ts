@@ -1,7 +1,7 @@
 import type { NoteRepository, NoteRecord } from '../../ports/note-repository.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
-import { sourceFromNote, threadFromNote, quoteOnlySource, type ReceiptRef, type ReceiptSource } from './receipt-source.js';
+import { sourceFromNote, threadFromNote, quoteOnlySource, conversationPage, type ReceiptRef, type ReceiptSource } from './receipt-source.js';
 
 /**
  * [P35-3] Resolve receipt references to WhatsApp-style sources for one rep: by note id (the usual case), else
@@ -53,5 +53,13 @@ export class ReceiptSourceService {
     const n = await this.deps.notes.findByIdForUser(userId, first.noteId);
     if (!n) return first;
     return threadFromNote(restriction.active ? restrictNote(n, restriction) : n, ref, size);
+  }
+
+  /** [P36-5] One page of a whole conversation (newest first on screen; older pages on scroll-up), restricted. */
+  async conversation(userId: string, noteId: string, before: number | undefined, limit: number): Promise<{ source: ReceiptSource; from: number } | null> {
+    const n = await this.deps.notes.findByIdForUser(userId, noteId).catch(() => null);
+    if (!n) return null;
+    const restriction = this.deps.restriction ? await this.deps.restriction.forUser(userId) : NO_RESTRICTION;
+    return conversationPage(restriction.active ? restrictNote(n, restriction) : n, before, Math.min(Math.max(1, limit), 200));
   }
 }

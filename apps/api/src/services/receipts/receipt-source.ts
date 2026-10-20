@@ -121,6 +121,22 @@ export function threadFromNote(note: NoteLike, ref: ReceiptRef, size: number | '
   return window(note, ref, size);
 }
 
+/** [P36-5] A conversation read like WhatsApp: the `limit` messages before index `before` (default: the end),
+ *  oldest-to-newest, nothing outlined. `from` is the index of the first one — the next older page is
+ *  `before: from`. A voice note / pasted message is its one bubble. */
+export function conversationPage(note: NoteLike, before: number | undefined, limit: number): { source: ReceiptSource; from: number } {
+  const shown = (note.messages ?? []).filter((m) => !m.excluded);
+  if (shown.length === 0) {
+    const one = noteBubble(note, {});
+    return { source: { ...one, bubbles: one.bubbles.map((b) => ({ ...b, source: false })) }, from: 0 };
+  }
+  const repKnown = shown.some((m) => m.role === 'rep');
+  const to = Math.max(0, Math.min(shown.length, before ?? shown.length));
+  const from = Math.max(0, to - Math.max(1, limit));
+  const bubbles: Bubble[] = shown.slice(from, to).map((m) => ({ sender: m.sender, side: repKnown && m.role === 'rep' ? 'rep' : 'other', at: m.sentAt, text: m.body, source: false }));
+  return { source: { kind: 'chat', noteId: note.id, repKnown, bubbles, hasMore: from > 0 }, from };
+}
+
 /** No note to look in (a fact predating its note link): one bubble from the stored quote, named, never on the
  *  rep's side (we don't know who said it). */
 export function quoteOnlySource(ref: ReceiptRef): ReceiptSource {
