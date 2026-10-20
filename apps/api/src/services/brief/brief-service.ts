@@ -99,8 +99,8 @@ export class BriefService {
     const extracted = notes.map((n) => extractedOf(n.extracted));
     // People and personal facts carry no created_at of their own — bind each receipt's capture-date
     // fallback to the ORIGINATING note's created_at before deduping across notes.
-    // [P36-5] …and never the client themselves (by name, chat name or alias).
-    const selfNames = clientSelfNames(client.name, rawNotes, this.aliases ? await this.aliases.listByClient(userId, clientId).catch(() => []) : []);
+    // [P36-5] …and never the client themselves (by name or learned alias).
+    const selfNames = clientSelfNames(client.name, this.aliases ? await this.aliases.listByClient(userId, clientId).catch(() => []) : []);
     const keyPeople = dedupePeople(
       notes.flatMap((n) => extractedOf(n.extracted).people.map((p) => withExtractedReceipt(p, n.createdAt))),
     ).filter((p) => !isTheClient(p.name, selfNames));
