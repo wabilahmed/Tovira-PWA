@@ -16,7 +16,7 @@ export interface Pointer {
 }
 
 const SECOND_HEADING: Record<Exclude<Pointer['section'], 'relationship'>, string> = {
-  close: 'To close the sale:',
+  close: 'Closing the sale',
   next_opportunity: 'Next opportunity:',
   retrospective: 'What we think went wrong:',
 };
@@ -39,7 +39,7 @@ export function PointersCard({ clientName, clientId, pointers, disclosure }: {
         <p style={{ margin: 0, color: 'var(--text-secondary)' }}>This chat is short, so only a couple of things stood out.</p>
       ) : (
         <>
-          {relationship.length > 0 && <PointerGroup heading="To build the relationship:" pointers={relationship} clientId={clientId} />}
+          {relationship.length > 0 && <PointerGroup heading="Building the relationship" pointers={relationship} clientId={clientId} />}
           {secondSection && <PointerGroup heading={SECOND_HEADING[secondSection]} pointers={second} clientId={clientId} />}
           {disclosure && <p style={{ margin: 0, fontStyle: 'italic', color: 'var(--text-secondary)' }}>{disclosure}</p>}
         </>
@@ -56,7 +56,8 @@ function PointerGroup({ heading, pointers, clientId }: { heading: string; pointe
         {pointers.map((p, i) => (
           <li key={i}>
             {humanizeIsoDates(p.text) /* [P21-D] "(for 2026-04-06)" → "(for 6 Apr 2026)" */}
-            {p.inferred && <span style={{ color: 'var(--text-secondary)' }}> (our read)</span>}
+            {/* [P36-5] an inferred pointer is labelled as Tovira's read, not a stated fact */}
+            {p.inferred && <span className="tov-read" style={{ color: 'var(--text-secondary)' }}> · Tovira's read</span>}
             {p.receipts.length > 0 && (
               <details style={{ marginTop: '0.15rem' }}>
                 <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.85em' }}>why</summary>

@@ -57,14 +57,18 @@ describe('[P36-3] capture lives inside a client', () => {
     expect(await screen.findByText('Layla asked something')).toBeInTheDocument();
   });
 
-  it('every capture type is on the client page: voice note, paste a message, import a WhatsApp chat', async () => {
+  it('every capture type is on the client page, behind its one Add button: voice note, paste a message, import a WhatsApp chat', async () => {
     stub({ seeded: true, clients: [client('c1', 'Sara Khan')] });
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByText('Sara Khan'));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Sara Khan' })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
     expect(screen.getByRole('button', { name: /record voice note/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Paste a message' }));
     expect(screen.getByLabelText('Paste a message')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '+ Add' })); // closes
+    await user.click(screen.getByRole('button', { name: '+ Add' })); // reopens the options
     await user.click(screen.getByRole('button', { name: /import a whatsapp chat/i }));
     expect(await screen.findByLabelText(/consent to import/i)).toBeInTheDocument();
   });

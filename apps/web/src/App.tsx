@@ -9,9 +9,15 @@ import { RequestAccess } from './access/RequestAccess.js';
 import { HttpAccessRequestClient } from './access/requestAccessClient.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
-import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus } from './clients/clientsClient.js';
+import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus, type Stakeholder } from './clients/clientsClient.js';
+import { HttpClientPageClient, type ClientOverview } from './clients/page/clientPageClient.js';
+import { Accordion } from './clients/page/Accordion.js';
+import { ClientHeader, headerLine } from './clients/page/ClientHeader.js';
+import { Conversations, conversationsSummary } from './clients/page/Conversations.js';
+import { WantsSection, wantsSummary, PromisesSection, promisesSummary, MeetingsSection, meetingsSummary } from './clients/page/Sections.js';
+import { useSections } from './clients/page/useSections.js';
 import { PointersCard, type Pointer } from './clients/PointersCard.js';
-import { LeadStatusFilterBar, LeadStatusPill, LeadStatusSheet, leadStatusCounts, matchesLeadFilter, leadStatusLabel, type LeadFilter } from './clients/LeadStatus.js';
+import { LeadStatusFilterBar, LeadStatusSheet, leadStatusCounts, matchesLeadFilter, leadStatusLabel, type LeadFilter } from './clients/LeadStatus.js';
 import { searchClients } from './clients/searchClients.js';
 import { ClientRow } from './clients/ClientRow.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
@@ -50,7 +56,6 @@ import type { Entitlement } from './billing/billingClient.js';
 import { AccountClient } from './account/accountClient.js';
 import { AccountControls } from './account/AccountControls.js';
 import { FollowUpDraft } from './followup/FollowUpDraft.js';
-import { NotesTimeline } from './clients/NotesTimeline.js';
 import { NoteMoveClient } from './notes/noteMoveClient.js';
 import { notesToExtract } from './notes/extractQueue.js';
 import { MoveSuggestions } from './notes/MoveSuggestions.js';
@@ -72,7 +77,6 @@ import { NotificationSetup, type NotificationApi } from './push/NotificationSetu
 import { ThemeToggle } from './settings/ThemeToggle.js';
 import { TimezoneSetting } from './settings/TimezoneSetting.js';
 import { DisclosureLine } from './settings/DisclosureLine.js';
-import { formatMonthYear } from './format/dates.js';
 import { BriefOpenPromises } from './brief/BriefOpenPromises.js';
 import { AppShell } from './shell/AppShell.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
@@ -103,6 +107,7 @@ const auth = new AuthClient(API_BASE);
 const accessRequestApi = new HttpAccessRequestClient(API_BASE);
 const opsAccessApi = new HttpOpsAccessClient(API_BASE); // [P33] /ops/access
 const clientsApi = new ClientsClient(API_BASE);
+const clientPageApi = new HttpClientPageClient(API_BASE); // [P36-5]
 const onboardingApi = new OnboardingClient(API_BASE);
 const bulkImportApi = new BulkImportClient(API_BASE);
 const bookScanApi = new BookScanClient(API_BASE);
@@ -807,9 +812,16 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
   // [POINTERS · D8] the client-thread pointers card — appears once pointers exist (after an import),
   // and updates silently as later voice/paste extractions revise the set (refreshed with the notes).
   const [pointers, setPointers] = useState<{ pointers: Pointer[]; disclosure: string | null }>({ pointers: [], disclosure: null });
+  // [P36-5] the page's summaries (from the stored record) and the people around the deal.
+  const [overview, setOverview] = useState<ClientOverview | null>(null);
+  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
+  const [addOpen, setAddOpen] = useState(!!initialImport);
+  const [capture, setCapture] = useState<'voice' | 'paste' | 'import' | null>(initialImport ? 'import' : null);
 
   const refresh = (): void => {
     void clientsApi.getPointers(client.id).then(setPointers);
+    void clientPageApi.overview(client.id).then(setOverview);
+    void clientsApi.getStakeholders(client.id).then(setStakeholders).catch(() => setStakeholders([]));
     void clientsApi.listNotes(client.id).then(async (list) => {
       setNotes(list);
       // Advance any notes through the pipeline: transcribe, then extract. Skip
@@ -872,6 +884,8 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
     setActive(null);
     await outbox.enqueue({ id: randomId(), clientId: client.id, blob, createdAt: Date.now() });
     hapticTick(); // the recording is captured — a commit
+    setCapture(null);
+    setAddOpen(false);
     refresh();
   }
 
@@ -883,83 +897,82 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
       await clientsApi.createPasteNote(client.id, paste);
       hapticTick(); // the message is saved — a commit
       setPaste('');
+      setCapture(null);
+      setAddOpen(false);
       refresh();
     } catch (err) {
       setStatus(err instanceof Error ? err.message : 'Could not save the message.');
     }
   }
 
+  // [P36-5] The page's summaries + people count, and which sections the rep keeps open (saved with the account).
+  const nowMs = Date.now();
+  const { open: sections, toggle } = useSections(clientPageApi);
+  const people = stakeholders.length;
+  const thingsToKeep = pointers.pointers.length;
+  const recording = active !== null;
+
   return (
-    <main style={{ fontFamily: 'var(--font-sans)', padding: '2rem', maxWidth: 640, margin: '0 auto' }}>
+    <main className="tov-clientpage" style={{ fontFamily: 'var(--font-sans)', padding: '1rem', maxWidth: 640, margin: '0 auto' }}>
       <button onClick={onBack} style={linkButton}>← Clients</button>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
-        <h1 style={{ margin: 0 }}>{client.name}</h1>
-        {onOpenLeadSheet && (
-          <span data-testid={`lead-pill-book-${client.id}`}>
-            <LeadStatusPill status={client.leadStatus} onClick={onOpenLeadSheet} />
-          </span>
-        )}
-      </div>
-      {/* Possession language (§10): the client is a holding, on file since a date. */}
-      <p className="tov-stamp" style={{ margin: '0 0 0.75rem' }}>
-        on file since {formatMonthYear(client.createdAt)} · {notes.length} moment{notes.length === 1 ? '' : 's'}
-      </p>
-
-      <ClientPhoneField
+      <ClientHeader
+        name={client.name}
+        status={client.leadStatus}
+        line={headerLine(overview, nowMs)}
         phone={phone}
-        onSave={async (p) => {
-          const updated = await clientsApi.setPhone(client.id, p);
-          setPhone(updated ? updated.phone : p);
-        }}
-      />
-
-      {pointers.pointers.length > 0 && (
-        <div style={{ margin: '0.75rem 0' }}>
-          <PointersCard clientName={client.name} pointers={pointers.pointers} disclosure={pointers.disclosure} />
-        </div>
-      )}
-
-      <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)}>Pre-meeting brief</button>
-      {brief === LOCKED ? (
-        <Locked onSubscribe={onSubscribe} status={billingStatus} />
-      ) : (
-        brief && <BriefPanel brief={brief} clientId={client.id} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />
-      )}
-
-      <details style={{ margin: '1rem 0' }}>
-        <summary style={{ cursor: 'pointer' }}>Stakeholder map</summary>
-        <StakeholderMap clientId={client.id} api={clientsApi} />
-      </details>
-
-      {active ? (
-        <button onClick={() => void stopRec()} style={{ background: 'var(--claret-surface)', borderColor: 'var(--claret)', color: 'var(--claret)', fontWeight: 600 }}>■ Stop &amp; save</button>
-      ) : (
-        <button className="tov-primary" onClick={() => void startRec()}>● Record voice note</button>
-      )}
-
-      <form onSubmit={savePaste} style={{ marginTop: '1rem' }}>
-        <textarea
-          value={paste}
-          onChange={(e) => setPaste(e.target.value)}
-          placeholder="Paste a message (WhatsApp, email…)"
-          aria-label="Paste a message"
-          rows={3}
-          style={{ width: '100%' }}
-        />
-        <button type="submit" disabled={!paste.trim()}>Save message</button>
-      </form>
-
-      <div style={{ marginTop: '1rem' }}>
-        <button onClick={() => setShowImport((s) => !s)} style={linkButton}>
-          {showImport ? 'Hide chat import' : 'Import a WhatsApp chat export'}
-        </button>
-        {showImport && (
-          <div style={{ marginTop: '0.75rem' }}>
+        phoneEditor={
+          <ClientPhoneField
+            phone={phone}
+            onSave={async (p) => {
+              const updated = await clientsApi.setPhone(client.id, p);
+              setPhone(updated ? updated.phone : p);
+            }}
+          />
+        }
+        onStatus={() => onOpenLeadSheet?.()}
+        addOpen={addOpen}
+        onAdd={() => { setAddOpen((o) => !o); setCapture(null); }}
+      >
+        {/* [P36-5] Add: every capture for this client starts here — voice note, a pasted message, a WhatsApp chat. */}
+        {addOpen && !capture && (
+          <div className="tov-addmenu" role="group" aria-label="Add to this client">
+            <button type="button" onClick={() => { setCapture('voice'); void startRec(); }}>● Record voice note</button>
+            <button type="button" onClick={() => setCapture('paste')}>Paste a message</button>
+            <button type="button" onClick={() => setCapture('import')}>Import a WhatsApp chat</button>
+          </div>
+        )}
+        {(capture === 'voice' || recording) && (
+          <div className="tov-capture">
+            {recording ? (
+              <button onClick={() => void stopRec()} style={{ background: 'var(--claret-surface)', borderColor: 'var(--claret)', color: 'var(--claret)', fontWeight: 600 }}>■ Stop &amp; save</button>
+            ) : (
+              <button className="tov-primary" onClick={() => void startRec()}>● Record voice note</button>
+            )}
+          </div>
+        )}
+        {capture === 'paste' && (
+          <form onSubmit={savePaste} className="tov-capture">
+            <textarea
+              value={paste}
+              onChange={(e) => setPaste(e.target.value)}
+              placeholder="Paste a message (WhatsApp, email…)"
+              aria-label="Paste a message"
+              rows={3}
+              style={{ width: '100%' }}
+              dir="auto"
+            />
+            <button type="submit" disabled={!paste.trim()}>Save message</button>
+          </form>
+        )}
+        {(capture === 'import' || showImport) && (
+          <div className="tov-capture">
             <ImportChat
               clientId={client.id}
               api={clientsApi}
               onImported={() => {
                 setShowImport(false);
+                setCapture(null);
+                setAddOpen(false);
                 refresh();
               }}
               onOpenClient={onOpenClient}
@@ -968,32 +981,57 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
             />
           </div>
         )}
-      </div>
+        {status && <p style={{ color: 'var(--claret)' }}>{status}</p>}
+        {pending.length > 0 && (
+          <p style={{ color: 'var(--amber)' }}>
+            {pending.length} recording(s) pending upload — they’re saved and will retry automatically.
+          </p>
+        )}
+      </ClientHeader>
 
-      {status && <p style={{ color: 'var(--claret)' }}>{status}</p>}
-      {pending.length > 0 && (
-        <p style={{ color: 'var(--amber)' }}>
-          {pending.length} recording(s) pending upload — they’re saved and will retry automatically.
-        </p>
-      )}
+      <Accordion id="meeting" title="Before your next meeting" summary={thingsToKeep > 0 ? `${thingsToKeep} thing${thingsToKeep === 1 ? '' : 's'} to keep in mind` : null} open={sections.meeting} onToggle={() => toggle('meeting')}>
+        {pointers.pointers.length > 0 && <PointersCard clientName={client.name} clientId={client.id} pointers={pointers.pointers} disclosure={pointers.disclosure} />}
+        <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)} style={{ marginTop: '0.75rem' }}>Pre-meeting brief</button>
+        {brief === LOCKED ? (
+          <Locked onSubscribe={onSubscribe} status={billingStatus} />
+        ) : (
+          brief && <BriefPanel brief={brief} clientId={client.id} onChange={() => void clientsApi.getBrief(client.id).then(setBrief)} />
+        )}
+      </Accordion>
 
-      <ClientInventory api={inventoryApi} clientId={client.id} />
+      <Accordion id="wants" title="What they want" summary={wantsSummary(overview)} open={sections.wants} onToggle={() => toggle('wants')}>
+        {overview ? <WantsSection overview={overview} /> : <p className="tov-muted">Loading…</p>}
+        <ClientInventory api={inventoryApi} clientId={client.id} />
+      </Accordion>
 
-      <h2 style={{ fontSize: '1rem', marginTop: '1.5rem' }}>Notes</h2>
-      <NotesTimeline
-        notes={notes}
-        ceilingNoteIds={ceilingNoteIds}
-        timeZone={timeZone}
-        onSubscribe={onSubscribe}
-        renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} onSubscribe={onSubscribe} status={billingStatus} />}
-        move={{
-          api: noteMoveApi,
-          clientId: client.id,
-          clients: clients.filter((c) => c.id !== client.id),
-          // The row stays in place showing "Moved to X · Undo" (the control owns that state) so the
-          // reverse-move Undo stays reachable; on the next reload the note is correctly gone from here.
-        }}
-      />
+      <Accordion id="promises" title="Promises" summary={promisesSummary(overview)} open={sections.promises} onToggle={() => toggle('promises')}>
+        {overview ? <PromisesSection overview={overview} clientName={client.name} clientId={client.id} /> : <p className="tov-muted">Loading…</p>}
+      </Accordion>
+
+      <Accordion id="meetings" title="Meetings and viewings" summary={meetingsSummary(overview, timeZone)} open={sections.meetings} onToggle={() => toggle('meetings')}>
+        {overview ? <MeetingsSection overview={overview} timeZone={timeZone} /> : <p className="tov-muted">Loading…</p>}
+      </Accordion>
+
+      <Accordion id="people" title="People involved" summary={people > 0 ? `${people} ${people === 1 ? 'person' : 'people'}` : null} open={sections.people} onToggle={() => toggle('people')}>
+        <StakeholderMap clientId={client.id} api={{ getStakeholders: async () => stakeholders }} />
+      </Accordion>
+
+      <Accordion id="conversations" title="Conversations" summary={conversationsSummary(overview?.conversations ?? [])} open={sections.conversations} onToggle={() => toggle('conversations')}>
+        <Conversations
+          notes={notes}
+          entries={overview?.conversations ?? []}
+          ceilingNoteIds={ceilingNoteIds}
+          onSubscribe={onSubscribe}
+          renderFollowUp={(noteId) => <FollowUpDraft noteId={noteId} api={clientsApi} phone={phone ?? undefined} onSubscribe={onSubscribe} status={billingStatus} />}
+          move={{
+            api: noteMoveApi,
+            clientId: client.id,
+            clients: clients.filter((c) => c.id !== client.id),
+            // The row stays in place showing "Moved to X · Undo" (the control owns that state) so the
+            // reverse-move Undo stays reachable; on the next reload the note is correctly gone from here.
+          }}
+        />
+      </Accordion>
     </main>
   );
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { API_BASE } from '../apiBase.js';
 import { formatBody } from '../format/dates.js';
 import { HttpReceiptsClient, type Bubble, type ReceiptRef, type ReceiptSource, type ReceiptsApi } from './receiptsClient.js';
@@ -50,9 +50,16 @@ export interface ReceiptThreadProps {
   emptyText?: string;
   /** Extra content revealed with the conversation (a kept suggestion's delivery message). */
   alsoOnExpand?: ReactNode;
+  /** [P36-5] A whole conversation (by note id) instead of one receipt: the newest messages, newest day last,
+   *  older pages loading as the rep scrolls up. Nothing is outlined — it is the chat, not a source. */
+  conversation?: string;
 }
 
-export function ReceiptThread({ refInfo, compact = true, emptyText, alsoOnExpand }: ReceiptThreadProps): JSX.Element | null {
+export function ReceiptThread(props: ReceiptThreadProps): JSX.Element | null {
+  return props.conversation ? <ConversationThread noteId={props.conversation} /> : <SourceThread {...props} />;
+}
+
+function SourceThread({ refInfo, compact = true, emptyText, alsoOnExpand }: ReceiptThreadProps): JSX.Element | null {
   const api = useContext(ReceiptsContext) ?? fallbackApi();
   const key = JSON.stringify(refInfo);
   const fallback = useMemo(() => fallbackSource(refInfo), [key]);
@@ -108,6 +115,79 @@ export function ReceiptThread({ refInfo, compact = true, emptyText, alsoOnExpand
       {open && alsoOnExpand}
       {open && shown.hasMore && !full && (
         <button type="button" className="tov-link tov-thread__more" onClick={() => void showFull()}>Show full conversation</button>
+      )}
+    </div>
+  );
+}
+
+/** [P36-5] One conversation, a page at a time — WhatsApp order (oldest at the top, newest at the bottom, opened
+ *  at the bottom); scrolling to the top (or "Load earlier messages") fetches the page before. */
+function ConversationThread({ noteId }: { noteId: string }): JSX.Element {
+  const api = useContext(ReceiptsContext) ?? fallbackApi();
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  const [named, setNamed] = useState(false);
+  const [from, setFrom] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const topRef = useRef<HTMLDivElement | null>(null);
+  const keep = useRef<{ height: number; top: number } | null>(null);
+
+  async function load(before?: number): Promise<void> {
+    if (!api.conversation || loading) return;
+    setLoading(true);
+    const el = listRef.current;
+    keep.current = before !== undefined && el ? { height: el.scrollHeight, top: el.scrollTop } : null;
+    const page = await api.conversation(noteId, before).catch(() => null);
+    setLoading(false);
+    if (!page) { if (before === undefined) setFailed(true); return; }
+    setNamed(page.source.kind === 'chat' && !page.source.repKnown);
+    setBubbles((prev) => (before === undefined ? page.source.bubbles : [...page.source.bubbles, ...prev]));
+    setFrom(page.from);
+    setHasMore(page.source.hasMore);
+  }
+
+  useEffect(() => { void load(); }, [noteId]);
+  // Opened at the newest message; after an older page is prepended, the rep stays where they were.
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    if (keep.current) { el.scrollTop = el.scrollHeight - keep.current.height + keep.current.top; keep.current = null; }
+    else el.scrollTop = el.scrollHeight;
+  }, [bubbles]);
+  // Scrolling up to the top loads the page before (where IntersectionObserver exists; the button always works).
+  useEffect(() => {
+    const top = topRef.current;
+    if (!top || !hasMore || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting) && from !== null) void load(from); }, { root: listRef.current });
+    io.observe(top);
+    return () => io.disconnect();
+  }, [hasMore, from]);
+
+  return (
+    <div className="tov-thread tov-thread--conversation" data-testid="receipt-thread" role="figure" aria-label="Conversation">
+      {failed ? <p className="tov-thread__empty">This conversation couldn't be loaded. Try again later.</p> : (
+        <div className="tov-thread__list tov-thread__list--scroll" ref={listRef}>
+          <div ref={topRef} aria-hidden="true" />
+          {hasMore && from !== null && (
+            <button type="button" className="tov-link tov-thread__more" onClick={() => void load(from)} disabled={loading}>
+              {loading ? 'Loading…' : 'Load earlier messages'}
+            </button>
+          )}
+          {bubbles.map((b, i) => {
+            const prev = bubbles[i - 1];
+            const day = dayKey(b.at);
+            const newDay = day !== null && day !== dayKey(prev?.at ?? null);
+            const runStart = !prev || prev.sender !== b.sender || newDay;
+            return (
+              <div key={`${i}:${b.at ?? ''}`} className="tov-thread__item">
+                {newDay && <div className="tov-datechip" data-testid="date-chip">{formatBody(day)}</div>}
+                <BubbleView bubble={b} showName={runStart || named} tail={runStart} dim={false} />
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

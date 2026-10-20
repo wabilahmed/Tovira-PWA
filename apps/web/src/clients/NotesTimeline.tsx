@@ -54,25 +54,9 @@ export function NotesTimeline({
           <li key={n.id} style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--hairline)' }}>
             <small className="tov-stamp">
               {formatDateTime(n.createdAt, timeZone)} · {n.source}
-              {!ceiling && inProgress && (n.blockedReason
-                ? <em data-testid="note-blocked" style={{ color: 'var(--text-secondary)', fontStyle: 'normal' }}> · {blockedMessage(n.blockedReason)}</em>
-                : <em style={{ color: 'var(--amber)', fontStyle: 'normal' }}> · {state === 'queued' ? 'queued…' : processingLabel(n.status)}</em>)}
-              {/* [ASYNC-EXTRACT] a failure reads as failed — never an endless spinner. [TRANSCRIBE-MISSING]
-                  a missing recording is a DISTINCT, honest reason — not "tap to retry" (retry can't find it). */}
-              {!ceiling && state === 'failed' && n.status === 'transcription_failed' && (
-                <em data-testid="transcription-failed" style={{ color: 'var(--danger, #b00)', fontStyle: 'normal' }}> · recording not found — couldn’t transcribe</em>
-              )}
-              {!ceiling && state === 'failed' && n.status !== 'transcription_failed' && (
-                <em data-testid="extract-failed" style={{ color: 'var(--danger, #b00)', fontStyle: 'normal' }}> · couldn’t analyse — saved; tap to retry</em>
-              )}
+              <NoteState note={n} ceiling={ceiling} />
             </small>
-            {/* [IMP-17] A trial/ended rep gets a Subscribe CTA right on the held note; payment/allowance
-                reps are told the reason and manage it from Billing (the global banner carries those CTAs). */}
-            {!ceiling && inProgress && n.blockedReason === 'subscribe' && onSubscribe && (
-              <div style={{ marginTop: 2 }}>
-                <button type="button" className="tov-link" data-testid="note-subscribe" onClick={() => onSubscribe('monthly')}>Subscribe to read it</button>
-              </div>
-            )}
+            <NoteSubscribe note={n} ceiling={ceiling} onSubscribe={onSubscribe} />
             <div style={{ marginTop: 4 }}>
               {n.restricted ? (
                 <em data-testid="note-restricted" style={{ color: 'var(--text-secondary)' }}>
@@ -92,5 +76,38 @@ export function NotesTimeline({
         );
       })}
     </ul>
+  );
+}
+
+/** [P36-5] A note's pipeline state, inline after its stamp (queued / analysing / held by billing / failed).
+ *  Shared by the timeline and the client page's Conversations. Nothing when the note is settled. */
+export function NoteState({ note: n, ceiling }: { note: NoteSummary; ceiling: boolean }): JSX.Element | null {
+  if (ceiling) return null;
+  const state = extractionStateOf(n);
+  const inProgress = state === 'queued' || state === 'processing';
+  if (inProgress) {
+    return n.blockedReason
+      ? <em data-testid="note-blocked" style={{ color: 'var(--text-secondary)', fontStyle: 'normal' }}> · {blockedMessage(n.blockedReason)}</em>
+      : <em style={{ color: 'var(--amber)', fontStyle: 'normal' }}> · {state === 'queued' ? 'queued…' : processingLabel(n.status)}</em>;
+  }
+  // [ASYNC-EXTRACT] a failure reads as failed — never an endless spinner. [TRANSCRIBE-MISSING] a missing
+  // recording is a DISTINCT, honest reason — not "tap to retry" (retry can't find it).
+  if (state === 'failed' && n.status === 'transcription_failed') {
+    return <em data-testid="transcription-failed" style={{ color: 'var(--danger, #b00)', fontStyle: 'normal' }}> · recording not found — couldn’t transcribe</em>;
+  }
+  if (state === 'failed') return <em data-testid="extract-failed" style={{ color: 'var(--danger, #b00)', fontStyle: 'normal' }}> · couldn’t analyse — saved; tap to retry</em>;
+  return null;
+}
+
+/** [IMP-17] A trial/ended rep gets a Subscribe CTA right on the held note; payment/allowance reps are told the
+ *  reason and manage it from Billing (the global banner carries those CTAs). */
+export function NoteSubscribe({ note: n, ceiling, onSubscribe }: { note: NoteSummary; ceiling: boolean; onSubscribe?: (plan: 'monthly' | 'annual') => void }): JSX.Element | null {
+  const state = extractionStateOf(n);
+  const inProgress = state === 'queued' || state === 'processing';
+  if (ceiling || !inProgress || n.blockedReason !== 'subscribe' || !onSubscribe) return null;
+  return (
+    <div style={{ marginTop: 2 }}>
+      <button type="button" className="tov-link" data-testid="note-subscribe" onClick={() => onSubscribe('monthly')}>Subscribe to read it</button>
+    </div>
   );
 }

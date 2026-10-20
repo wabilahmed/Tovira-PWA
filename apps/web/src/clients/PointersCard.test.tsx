@@ -5,11 +5,13 @@ import { PointersCard, type Pointer } from './PointersCard.js';
 const P = (o: Partial<Pointer> & { text: string }): Pointer => ({ section: 'relationship', receipts: [{ source_span: 'q', source_message_at: '2026-01-01T10:00' }], ...o });
 
 describe('<PointersCard>', () => {
-  it('renders the template heading + both sections (open deal → To close the sale)', () => {
+  // [P36-5] owner copy (20 Oct): "Building the relationship" / "Closing the sale" (was "To build the relationship:" /
+  // "To close the sale:"); an inferred pointer reads "Tovira's read" (was "(our read)").
+  it('renders the template heading + both sections (open deal → Closing the sale)', () => {
     render(<PointersCard clientName="Layla" pointers={[P({ text: "don't push on timeline" }), P({ section: 'close', text: 'offer the Marina unit' })]} disclosure={null} />);
     expect(screen.getByText(/in your next meeting with layla, keep these in mind/i)).toBeInTheDocument();
-    expect(screen.getByText(/to build the relationship:/i)).toBeInTheDocument();
-    expect(screen.getByText(/to close the sale:/i)).toBeInTheDocument();
+    expect(screen.getByText('Building the relationship')).toBeInTheDocument();
+    expect(screen.getByText('Closing the sale')).toBeInTheDocument();
     expect(screen.getByText(/offer the marina unit/i)).toBeInTheDocument();
   });
 
@@ -28,7 +30,8 @@ describe('<PointersCard>', () => {
 
   it('labels an inferred pointer', () => {
     render(<PointersCard clientName="Layla" pointers={[P({ text: 'seemed irritated when pushed', inferred: true })]} disclosure={null} />);
-    expect(screen.getByText(/our read/i)).toBeInTheDocument();
+    expect(screen.getByText(/Tovira's read/)).toBeInTheDocument();
+    expect(screen.queryByText(/our read/i)).toBeNull();
   });
 
   it('renders the retrospective heading + the exact disclosure for a confirmed loss', () => {

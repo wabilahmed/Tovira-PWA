@@ -37,7 +37,12 @@ export interface ReceiptRef {
 export interface ReceiptsApi {
   source(ref: ReceiptRef): Promise<ReceiptSource | null>;
   thread(ref: ReceiptRef, full: boolean): Promise<ReceiptSource | null>;
+  /** [P36-5] A page of a whole conversation: the `limit` messages before index `before` (default: the end). */
+  conversation?(noteId: string, before?: number, limit?: number): Promise<ConversationPage | null>;
 }
+
+/** [P36-5] One page of a conversation; `from` is the index of its first message (the next older page ends there). */
+export interface ConversationPage { source: ReceiptSource; from: number }
 
 const BATCH = 60;
 
@@ -89,6 +94,20 @@ export class HttpReceiptsClient implements ReceiptsApi {
       });
       if (res.status !== 200) return null;
       return ((await res.json()) as { source: ReceiptSource | null }).source;
+    } catch {
+      return null;
+    }
+  }
+
+  async conversation(noteId: string, before?: number, limit = 50): Promise<ConversationPage | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/receipts/conversation`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ noteId, limit, ...(before !== undefined ? { before } : {}) }),
+      });
+      return res.status === 200 ? ((await res.json()) as ConversationPage) : null;
     } catch {
       return null;
     }

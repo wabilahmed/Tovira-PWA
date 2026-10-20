@@ -551,3 +551,41 @@
 .tov-bubble__text--clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .tov-bubble__readmore { all: unset; cursor: pointer; color: var(--brass-strong); font-size: 0.78rem; }
 .tov-bubble__time { position: absolute; right: 8px; bottom: 3px; font-size: 0.68rem; color: var(--text-secondary); font-family: var(--font-mono); }
+
+/* [P36-5] The client page: a fixed header + accordion sections. Token-only colours (both themes), works at 390px. */
+.tov-clientpage { overflow-wrap: anywhere; }
+.tov-clienthead { position: sticky; top: 0; z-index: 2; background: var(--surface-base); padding: 0.5rem 0 0.75rem; border-bottom: 1px solid var(--hairline); display: grid; gap: 0.4rem; }
+.tov-clienthead__row { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.tov-clienthead__name { margin: 0; font-size: 1.5rem; line-height: 1.2; min-width: 0; }
+.tov-clienthead__line { margin: 0; color: var(--text-secondary); font-size: 0.92rem; }
+.tov-clienthead__contact { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.tov-clienthead__add { justify-self: start; }
+.tov-chip-link { display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border: 1px solid var(--hairline); border-radius: 999px; color: var(--brass); text-decoration: none; font-size: 0.85rem; }
+.tov-chip-link:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.lead-pill--unset { color: var(--text-secondary); border-style: dashed; }
+.tov-addmenu { display: grid; gap: 0.4rem; }
+.tov-addmenu button { text-align: left; }
+.tov-capture { display: grid; gap: 0.5rem; }
+.tov-muted { color: var(--text-secondary); margin: 0; }
+.tov-overdue { color: var(--claret); }
+
+.tov-acc { border-bottom: 1px solid var(--hairline); }
+.tov-acc__h { margin: 0; font-size: 1rem; }
+.tov-acc__btn {
+  width: 100%; display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'title chev' 'summary chev';
+  text-align: left; gap: 0.1rem 0.75rem; padding: 0.85rem 0.25rem; background: none; border: none; border-radius: 0;
+  color: var(--text-primary); font: inherit; cursor: pointer; min-height: 44px;
+}
+.tov-acc__btn:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; border-radius: var(--radius-card); }
+.tov-acc__title { grid-area: title; font-weight: 600; }
+.tov-acc__summary { grid-area: summary; color: var(--text-secondary); font-size: 0.88rem; font-weight: 400; }
+.tov-acc__chev { grid-area: chev; align-self: center; color: var(--text-tertiary); }
+.tov-acc__panel { padding: 0 0.25rem 1rem; }
+
+.tov-convo { border-top: 1px solid var(--hairline); }
+.tov-convo:first-child { border-top: none; }
+.tov-convo__btn { width: 100%; text-align: left; background: none; border: none; padding: 0.6rem 0; color: var(--text-primary); font: inherit; cursor: pointer; display: grid; gap: 0.1rem; }
+.tov-convo__btn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.tov-convo__state { color: var(--text-secondary); }
+.tov-convo__body { padding: 0 0 0.75rem; display: grid; gap: 0.5rem; }
+.tov-thread__list--scroll { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; }
