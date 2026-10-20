@@ -5,12 +5,16 @@ import type { ClientRepository } from '../ports/client-repository.js';
 import { aggregatePeople, aggregatePersonalFacts, extractedOf } from '../services/insights/insights.js';
 import { withExtractedReceipt } from '../services/receipts/receipt.js';
 import { extractToken, sendJson } from './helpers.js';
+import type { ContactAliasRepository } from '../ports/contact-alias-repository.js';
+import { normalizeName } from '../services/text/normalize-name.js';
 
 export interface InsightsRouteDeps {
   auth: AuthService;
   notes: NoteRepository;
   /** [SEC-01] to 404 a stakeholder/personal-facts read on an unknown / not-the-rep's client. */
   clients: ClientRepository;
+  /** [P36-5] learned per-client aliases — the client under another name is still the client. */
+  aliases?: ContactAliasRepository;
 }
 
 const STAKEHOLDERS_RE = /^\/clients\/([^/]+)\/stakeholders$/;
@@ -36,7 +40,8 @@ export async function handleInsightsRoute(
   const userId = identity.userId;
   const clientId = decodeURIComponent((stakeholders ?? personal)![1]!);
   // [SEC-01] An unknown / not-the-rep's client is 404 — not a 200 with an empty people/facts list.
-  if (!(await deps.clients.findByIdForUser(userId, clientId))) {
+  const client = await deps.clients.findByIdForUser(userId, clientId);
+  if (!client) {
     sendJson(res, 404, { error: 'not_found' });
     return true;
   }
@@ -53,7 +58,14 @@ export async function handleInsightsRoute(
   });
 
   if (stakeholders) {
-    sendJson(res, 200, { people: aggregatePeople(extractions) });
+    // [P36-5] The client is never a stakeholder of their own record: drop anyone named as the client — the
+    // client name, the name they write under in the chat (client-role senders), or a learned alias.
+    const selfNames = new Set([
+      client.name,
+      ...notes.flatMap((n) => (n.messages ?? []).filter((m) => m.role === 'client').map((m) => m.sender)),
+      ...(deps.aliases ? await deps.aliases.listByClient(userId, clientId) : []),
+    ].map(normalizeName).filter(Boolean));
+    sendJson(res, 200, { people: aggregatePeople(extractions).filter((p) => !(p.name && selfNames.has(normalizeName(p.name)))) });
   } else {
     sendJson(res, 200, { facts: aggregatePersonalFacts(extractions) });
   }

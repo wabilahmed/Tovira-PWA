@@ -437,7 +437,7 @@ export function createApiServer(deps: ApiDeps): Server {
       )
         return;
       if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing, activation: deps.activation, meetings: deps.meetings, ledger: deps.ledger })) return;
-      if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes, clients: deps.clients })) return;
+      if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes, clients: deps.clients, aliases: deps.aliases })) return;
       if (
         await handleMeetingRoute(request, response, {
           auth: deps.auth,
