@@ -30,6 +30,8 @@ export interface Book {
   svc: RecallService;
   ids: Record<'gate' | 'windowed' | 'enterKey' | 'closed' | 'quiet', string>;
   modelCalls: () => number;
+  /** [P36-5] the book's repositories, for services that read the same book (the client page overview). */
+  repos: { clients: InMemoryClientRepository; notes: InMemoryNoteRepository; requirements: InMemoryRequirementRepository; facts: InMemoryFactsRepository; meetings: InMemoryMeetingRepository };
 }
 
 export async function buildBook(opts: { empty?: boolean; extraClients?: number; modelAnswer?: string; aliases?: Record<string, string[]> } = {}): Promise<Book> {
@@ -106,5 +108,5 @@ export async function buildBook(opts: { empty?: boolean; extraClients?: number; 
     { dimension: 8, embed: async () => [1, 0, 0, 0, 0, 0, 0, 0] }, noVector, model, undefined, undefined, 'stub',
     sessions, undefined, undefined, dir, undefined, undefined, structured, aggregate,
   );
-  return { svc, ids: { gate: gate.c.id, windowed: windowed.c.id, enterKey: enterKey.c.id, closed: closed.c.id, quiet: quiet.c.id }, modelCalls: () => calls };
+  return { svc, ids: { gate: gate.c.id, windowed: windowed.c.id, enterKey: enterKey.c.id, closed: closed.c.id, quiet: quiet.c.id }, modelCalls: () => calls, repos: { clients, notes, requirements, facts, meetings } };
 }

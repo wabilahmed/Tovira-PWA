@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { loadConfig, assertDeployReady, describeAdapters, emailConfigSummary, opsSurfaceWarning, topUpOptionById, TOP_UP_OPTIONS } from './config.js';
+import { ClientOverviewService } from './services/clients/client-overview.js';
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { AccessRequestService } from './services/access/access-request-service.js';
 import { PgAccessRequestRepository } from './adapters/access/pg-access-request-repository.js';
@@ -583,6 +584,8 @@ async function main(): Promise<void> {
   });
   const accessRequestRetention = new AccessRequestRetentionService(accessRequests);
   const server = createApiServer({
+    // [P36-5] the client page's summaries — deterministic, no model call.
+    clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays }),
     pool: appPool,
     auth,
     clients,

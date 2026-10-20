@@ -61,6 +61,7 @@ import { InMemoryClientPointerRepository } from '../adapters/import/in-memory-cl
 import { InMemoryContactAliasRepository, InMemoryRepNameRepository } from '../adapters/import/in-memory-contact-alias-repository.js';
 import { InMemoryImportAckRepository } from '../adapters/import/in-memory-import-ack-repository.js';
 import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
+import { ClientOverviewService } from '../services/clients/client-overview.js';
 import { MeetingParser } from '../services/meetings/meeting-parser.js';
 import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
 import { ScanService } from '../services/scan/scan-service.js';
@@ -359,6 +360,7 @@ export function buildInMemoryDeps(
   });
 
   return {
+    clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
     pool: stubPool,
     auth,
     clients,
