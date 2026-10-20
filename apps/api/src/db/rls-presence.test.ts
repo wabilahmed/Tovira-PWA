@@ -47,6 +47,7 @@ const RLS_EXEMPT: Record<string, string> = {
   erasure_receipts: 'post-erasure receipt (ERASURE §10); deliberately carries no user_id — the subject may be erased — so it cannot be tenant-scoped; operator-written',
   sensitive_flag_restores: 'global aggregate (SCREEN-REVIEW); has no user/note/client column by design, so there is nothing to tenant-scope',
   ai_global_month: 'USAGE-ALLOWANCE global spend record, one row per calendar month across ALL accounts (no user_id); for the email alert only, written+read on the superuser pool — nothing to tenant-scope',
+  tour_funnel: 'P37 anonymous tour funnel — counts per (tour version, step, event) with no user_id and no personal data by design; nothing to tenant-scope',
   ai_pause: 'USAGE-ALLOWANCE runtime kill switch (D14) — a single platform-global row (no user_id), written by the ops token + read by the gate on the superuser pool; nothing to tenant-scope',
 };
 

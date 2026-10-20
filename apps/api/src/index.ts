@@ -2,6 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { loadConfig, assertDeployReady, describeAdapters, emailConfigSummary, opsSurfaceWarning, topUpCreditAed, TOP_UP_OPTIONS } from './config.js';
 import { ClientOverviewService } from './services/clients/client-overview.js';
+import { TourService } from './services/tour/tour-service.js';
+import { PgTourFunnelRepository } from './adapters/tour/pg-tour-funnel-repository.js';
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { AccessRequestService } from './services/access/access-request-service.js';
 import { PgAccessRequestRepository } from './adapters/access/pg-access-request-repository.js';
@@ -584,7 +586,11 @@ async function main(): Promise<void> {
     resendLimiter: new FixedWindowRateLimiter(INVITE_RESEND_MAX_PER_DAY, 24 * 60 * 60 * 1000),
   });
   const accessRequestRetention = new AccessRequestRetentionService(accessRequests);
+  // [P37] the required first-login tour: state on the users row, anonymous funnel counts in tour_funnel.
+  const tourFunnel = new PgTourFunnelRepository(appPool);
+  const tour = new TourService({ users: new PgUserRepository(appPool), funnel: tourFunnel });
   const server = createApiServer({
+    tour,
     // [P36-5] the client page's summaries — deterministic, no model call.
     clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, aliases: contactAliases, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays }),
     pool: appPool,
@@ -647,7 +653,7 @@ async function main(): Promise<void> {
     trainingLog: trainingLogStats,
     spend,
     opsAlerts,
-    opsRoute: { opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause },
+    opsRoute: { tourFunnel, opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause },
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),

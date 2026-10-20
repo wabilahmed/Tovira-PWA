@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import type { CreateUserInput, UserRecord, UserRepository } from '../../ports/user-repository.js';
+import type { CreateUserInput, TourRecord, UserRecord, UserRepository } from '../../ports/user-repository.js';
 
 interface UserRow {
   id: string;
@@ -109,6 +109,36 @@ export class PgUserRepository implements UserRepository {
 
   async updateUiPrefs(id: string, prefs: Record<string, unknown>): Promise<void> {
     await this.pool.query('UPDATE users SET ui_prefs = $2::jsonb WHERE id = $1', [id, JSON.stringify(prefs)]);
+  }
+
+  async getTour(id: string): Promise<TourRecord> {
+    const { rows } = await this.pool.query<{ tour_completed_at: Date | null; tour_version: number | null; tour_step: number; tour_step_version: number | null; tour_max_step: number }>(
+      'SELECT tour_completed_at, tour_version, tour_step, tour_step_version, tour_max_step FROM users WHERE id = $1', [id]);
+    const r = rows[0];
+    return r
+      ? { completedAt: r.tour_completed_at ? r.tour_completed_at.getTime() : null, completedVersion: r.tour_version, step: r.tour_step, stepVersion: r.tour_step_version, maxStep: r.tour_max_step }
+      : { completedAt: null, completedVersion: null, step: 0, stepVersion: null, maxStep: -1 };
+  }
+
+  async setTourStep(id: string, version: number, step: number): Promise<{ previousMax: number }> {
+    // One statement: the previous max (for this version) is read and raised atomically.
+    const { rows } = await this.pool.query<{ previous_max: number }>(
+      `UPDATE users u SET tour_step = $3, tour_step_version = $2,
+         tour_max_step = GREATEST(CASE WHEN old.tour_step_version = $2 THEN old.tour_max_step ELSE -1 END, $3)
+       FROM (SELECT id, tour_step_version, tour_max_step FROM users WHERE id = $1 FOR UPDATE) old
+       WHERE u.id = old.id
+       RETURNING CASE WHEN old.tour_step_version = $2 THEN old.tour_max_step ELSE -1 END AS previous_max`,
+      [id, version, step],
+    );
+    return { previousMax: rows[0]?.previous_max ?? -1 };
+  }
+
+  async completeTour(id: string, version: number, atMs: number): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      'UPDATE users SET tour_completed_at = to_timestamp($3 / 1000.0), tour_version = $2 WHERE id = $1 AND (tour_version IS NULL OR tour_version < $2)',
+      [id, version, atMs],
+    );
+    return (rowCount ?? 0) > 0;
   }
 
   async markEmailVerified(id: string): Promise<void> {

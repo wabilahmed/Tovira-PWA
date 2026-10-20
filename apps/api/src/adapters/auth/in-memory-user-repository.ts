@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { CreateUserInput, UserRecord, UserRepository } from '../../ports/user-repository.js';
+import type { CreateUserInput, TourRecord, UserRecord, UserRepository } from '../../ports/user-repository.js';
 
 /** In-memory user store for tests and quick local runs. */
 export class InMemoryUserRepository implements UserRepository {
@@ -7,6 +7,7 @@ export class InMemoryUserRepository implements UserRepository {
   private readonly byEmail = new Map<string, string>();
   private readonly byCode = new Map<string, string>();
   private readonly uiPrefs = new Map<string, Record<string, unknown>>();
+  private readonly tours = new Map<string, TourRecord>();
 
   async findByEmail(email: string): Promise<UserRecord | null> {
     const id = this.byEmail.get(email);
@@ -57,6 +58,24 @@ export class InMemoryUserRepository implements UserRepository {
 
   async updateUiPrefs(id: string, prefs: Record<string, unknown>): Promise<void> {
     if (this.byId.has(id)) this.uiPrefs.set(id, structuredClone(prefs));
+  }
+
+  async getTour(id: string): Promise<TourRecord> {
+    return { ...(this.tours.get(id) ?? { completedAt: null, completedVersion: null, step: 0, stepVersion: null, maxStep: -1 }) };
+  }
+
+  async setTourStep(id: string, version: number, step: number): Promise<{ previousMax: number }> {
+    const t = await this.getTour(id);
+    const previousMax = t.stepVersion === version ? t.maxStep : -1;
+    this.tours.set(id, { ...t, step, stepVersion: version, maxStep: Math.max(previousMax, step) });
+    return { previousMax };
+  }
+
+  async completeTour(id: string, version: number, atMs: number): Promise<boolean> {
+    const t = await this.getTour(id);
+    if (t.completedVersion !== null && t.completedVersion >= version) return false;
+    this.tours.set(id, { ...t, completedAt: atMs, completedVersion: version });
+    return true;
   }
 
   async markEmailVerified(id: string): Promise<void> {

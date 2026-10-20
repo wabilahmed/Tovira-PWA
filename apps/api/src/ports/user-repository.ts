@@ -44,6 +44,12 @@ export interface UserRepository {
   updateTimezone(id: string, timezone: string): Promise<void>;
   /** [P36-5] The rep's UI preferences (validated by the caller); '{}' when none saved. */
   getUiPrefs(id: string): Promise<Record<string, unknown>>;
+  /** [P37] The required tour's state on the account. */
+  getTour(id: string): Promise<TourRecord>;
+  /** [P37] Save the step reached (for a tour version); raises max_step when higher. Returns the previous max. */
+  setTourStep(id: string, version: number, step: number): Promise<{ previousMax: number }>;
+  /** [P37] Mark the tour version completed (first time only). Returns true when it newly completed. */
+  completeTour(id: string, version: number, atMs: number): Promise<boolean>;
   updateUiPrefs(id: string, prefs: Record<string, unknown>): Promise<void>;
   /** Mark the email verified (soft verification). */
   markEmailVerified(id: string): Promise<void>;
@@ -51,4 +57,15 @@ export interface UserRepository {
   delete(id: string): Promise<void>;
   /** All user ids — used by the nightly priorities precompute job (P4b-3). */
   listAllIds(): Promise<string[]>;
+}
+
+/** [P37] The tour on the account: the version completed (null = never), when, and where the rep is. */
+export interface TourRecord {
+  completedAt: number | null;
+  completedVersion: number | null;
+  step: number;
+  /** The tour version the stored step belongs to (null = none yet). */
+  stepVersion: number | null;
+  /** Highest step reached for stepVersion (-1 = none). */
+  maxStep: number;
 }

@@ -32,6 +32,8 @@ export interface OpsRouteDeps {
   accessApproval?: Pick<AccessApprovalService, 'list' | 'get' | 'approve' | 'reject' | 'reissueByRequestId'>;
   /** [USAGE-ALLOWANCE · D14] the runtime kill switch — set/clear via /ops/ai-pause. Absent → 404. */
   aiPause?: { getPaused(): Promise<boolean>; setPaused(paused: boolean): Promise<void> };
+  /** [P37] the anonymous tour funnel (where reps drop off). Absent → 404. */
+  tourFunnel?: { list(): Promise<unknown[]> };
 }
 
 const ACCESS_STATUSES: ReadonlySet<string> = new Set<AccessRequestStatus>(['pending', 'approved', 'rejected', 'invited', 'activated']);
@@ -131,6 +133,13 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
   // Ops auth — a single token, constant-time compared. No token configured → disabled.
   if (!authed) {
     sendJson(res, 403, { error: 'forbidden' });
+    return true;
+  }
+
+  // [P37] GET /ops/tour-funnel — anonymous counts per tour step (reached / completed / "Import your first chat").
+  if (req.method === 'GET' && url === '/ops/tour-funnel') {
+    if (!deps.tourFunnel) { sendJson(res, 404, { error: 'not_found' }); return true; }
+    sendJson(res, 200, { rows: await deps.tourFunnel.list() });
     return true;
   }
 

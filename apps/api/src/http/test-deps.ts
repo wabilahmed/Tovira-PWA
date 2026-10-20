@@ -62,6 +62,8 @@ import { InMemoryContactAliasRepository, InMemoryRepNameRepository } from '../ad
 import { InMemoryImportAckRepository } from '../adapters/import/in-memory-import-ack-repository.js';
 import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
 import { ClientOverviewService } from '../services/clients/client-overview.js';
+import { TourService } from '../services/tour/tour-service.js';
+import { InMemoryTourFunnelRepository } from '../adapters/tour/in-memory-tour-funnel-repository.js';
 import { MeetingParser } from '../services/meetings/meeting-parser.js';
 import { InMemoryNotificationRepository } from '../adapters/notifications/in-memory-notification-repository.js';
 import { ScanService } from '../services/scan/scan-service.js';
@@ -359,6 +361,9 @@ export function buildInMemoryDeps(
     canTopUp: async (uid) => (await billing.entitlement(uid, Date.now())).status === 'active',
   });
 
+  // [P37] the required tour + its anonymous funnel
+  const tourFunnel = new InMemoryTourFunnelRepository();
+  const tour = new TourService({ users: authUsers, funnel: tourFunnel });
   return {
     clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, aliases: contactAliases, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
     pool: stubPool,
@@ -385,7 +390,9 @@ export function buildInMemoryDeps(
     repGlossary,
     extractionLog,
     // [HEALTH-LEAK] ops surface with a known token; only opsToken is read by the /health split.
+    tour,
     opsRoute: {
+      tourFunnel,
       opsToken: TEST_OPS_TOKEN,
       overrides: new InMemorySpendOverrideRepository(),
       spend: { status: async () => ({ periodKey: 'test', spentAed: 0, capAed: 45, state: 'ok' }), report: async () => [] },

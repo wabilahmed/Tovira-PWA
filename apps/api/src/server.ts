@@ -43,6 +43,8 @@ import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
 import { handleClientOverviewRoute } from './http/client-overview-routes.js';
+import { handleTourRoute } from './http/tour-routes.js';
+import type { TourService } from './services/tour/tour-service.js';
 import type { ClientOverviewService } from './services/clients/client-overview.js';
 import { handleInventoryRoute } from './http/inventory-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
@@ -116,6 +118,8 @@ function summarizeJobs(jobs: JobRun[], nowMs: number) {
 
 export interface ApiDeps {
   pool: Pool;
+  /** [P37] The required first-login tour (GET/PUT /me/tour, POST /me/tour/complete). */
+  tour?: TourService;
   /** [P36-5] The client page's header + section summaries (GET /clients/:id/overview). */
   clientOverview?: ClientOverviewService;
   auth: AuthService;
@@ -477,6 +481,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleAllowanceRoute(request, response, { auth: deps.auth, allowanceStatus: deps.allowanceStatus, billing: deps.billing, aiPaused: deps.aiPaused })) return;
       if (await handleAccountRoute(request, response, { auth: deps.auth, account: deps.account })) return;
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
+      if (await handleTourRoute(request, response, { auth: deps.auth, tour: deps.tour })) return;
       if (await handleClientOverviewRoute(request, response, { auth: deps.auth, overview: deps.clientOverview })) return;
       if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction)) return;
       if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing, matching: deps.matching })) return;
