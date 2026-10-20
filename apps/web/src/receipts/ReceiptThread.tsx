@@ -89,6 +89,14 @@ function SourceThread({ refInfo, compact = true, emptyText, alsoOnExpand }: Rece
     const t = await api.thread(refInfo, true);
     if (t) setFull(t);
   }
+  // A receipt with a note behind it may have a conversation even before its source has loaded — offer the tap
+  // from the first render; tapping early loads the conversation around the source.
+  const loading = source === null && !!refInfo.noteId;
+  async function openEarly(): Promise<void> {
+    setExpanded(true);
+    const t = await api.thread(refInfo, false).catch(() => null);
+    if (t && t.bubbles.length > 0) setSource(t);
+  }
 
   return (
     <div className="tov-thread" data-testid="receipt-thread" role="figure" aria-label="Receipt">
@@ -109,7 +117,10 @@ function SourceThread({ refInfo, compact = true, emptyText, alsoOnExpand }: Rece
       {compact && !expanded && shown.bubbles.length > 1 && (
         <button type="button" className="tov-link tov-thread__more" aria-expanded={false} onClick={() => setExpanded(true)}>Show the conversation</button>
       )}
-      {compact && !expanded && shown.bubbles.length <= 1 && (shown.hasMore || alsoOnExpand) && (
+      {compact && !expanded && shown.bubbles.length <= 1 && loading && !alsoOnExpand && (
+        <button type="button" className="tov-link tov-thread__more" aria-expanded={false} onClick={() => void openEarly()}>Show the conversation</button>
+      )}
+      {compact && !expanded && shown.bubbles.length <= 1 && (shown.hasMore || alsoOnExpand) && !(loading && !alsoOnExpand) && (
         <button type="button" className="tov-link tov-thread__more" aria-expanded={false} onClick={() => { setExpanded(true); if (shown.hasMore) void showFull(); }}>Show the conversation</button>
       )}
       {open && alsoOnExpand}
