@@ -84,9 +84,9 @@ export class BillingService {
 
   /** [USAGE-ALLOWANCE · D6/D10/D12] Open a one-time top-up checkout. Trial accounts (no card on file)
    *  cannot buy top-ups — the caller enforces D10 and this throws if reached in trial as a backstop. */
-  async topUpCheckout(userId: string, email: string, topUpOptionId: string, amountAed: number): Promise<{ url: string }> {
+  async topUpCheckout(userId: string, email: string, topUpOptionId: string, amountAed: number, productName?: string): Promise<{ url: string }> {
     const existingCustomerId = (await this.subs.get(userId))?.stripeCustomerId ?? undefined;
-    const session = await this.stripe.createTopUpCheckout(userId, email, topUpOptionId, amountAed, { existingCustomerId });
+    const session = await this.stripe.createTopUpCheckout(userId, email, topUpOptionId, amountAed, { existingCustomerId, ...(productName ? { productName } : {}) });
     if (session.customerId) await this.subs.update(userId, { stripeCustomerId: session.customerId });
     return { url: session.url };
   }

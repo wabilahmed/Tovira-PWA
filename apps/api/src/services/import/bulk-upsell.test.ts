@@ -1,10 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { pickTopUp, buildUpsell, BulkUpsellService } from './bulk-upsell.js';
-import { TOP_UP_OPTIONS } from '../../config.js';
+import type { TopUpOption } from '../../config.js';
 
 // Use the REAL options (addedAed 9/15/30/45/60 — a share of the AED 60 allowance, derived) so this test
 // can never drift from production, and the picker is exercised against the shipped tiers.
-const OPTIONS = TOP_UP_OPTIONS;
+// [P37] The pick-the-smallest-covering-option algorithm, tested over a fixed five-option set (the pre-P37
+// packs) so the algorithm's checks don't move with the product's pack list.
+const OPTIONS: TopUpOption[] = [
+  { id: 'topup_15', addedAed: 9, priceAed: 50, label: '+15%' },
+  { id: 'topup_25', addedAed: 15, priceAed: 65, label: '+25%' },
+  { id: 'topup_50', addedAed: 30, priceAed: 85, label: '+50%' },
+  { id: 'topup_75', addedAed: 45, priceAed: 100, label: '+75%' },
+  { id: 'topup_100', addedAed: 60, priceAed: 120, label: '+100%' },
+];
 
 describe('[BULK-IMPORT] top-up upsell', () => {
   it('pickTopUp returns the SMALLEST option whose added allowance covers the shortfall', () => {

@@ -182,7 +182,7 @@ export class StripeGatewayImpl implements StripeGateway {
     email: string,
     topUpOptionId: string,
     amountAed: number,
-    details: { existingCustomerId?: string } = {},
+    details: { existingCustomerId?: string; productName?: string } = {},
   ): Promise<StripeCheckout> {
     const newCustomer = async () => (await this.stripe.customers.create({ email: email || undefined, metadata: this.metadataFor(userId) })).id;
     const { result: session, customerId } = await this.withCustomer(details.existingCustomerId, newCustomer, (customerId) => this.stripe.checkout.sessions.create({
@@ -192,7 +192,7 @@ export class StripeGatewayImpl implements StripeGateway {
         price_data: {
           currency: 'aed',
           unit_amount: Math.round(amountAed * 100), // fils
-          product_data: { name: `Tovira AI usage top-up (${topUpOptionId})` },
+          product_data: { name: details.productName ?? `Tovira extra usage (${topUpOptionId})` }, // [P37] e.g. "Tovira extra usage: +50%"
         },
       }],
       customer: customerId,

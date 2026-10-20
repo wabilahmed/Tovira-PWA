@@ -13,14 +13,16 @@ describe('[USAGE-ALLOWANCE] allowance default + derived top-ups', () => {
     expect(loadConfig({ DATABASE_URL: 'postgres://x', PORT: '3001', NODE_ENV: 'development', MONTHLY_AI_ALLOWANCE_AED: '80' }).monthlyAiAllowanceAed).toBe(80);
   });
 
-  it('each top-up addedAed is its label % of the allowance (9/15/30/45/60), never hard-coded', () => {
+  // [P37 · owner, 20 Oct] "AED 1 buys 1% of your monthly allowance" — AED 50 / 100 / 150 for +50 / +100 / +150%
+  // (was AED 50 / 65 / 85 / 100 / 120 for +15 / 25 / 50 / 75 / 100%).
+  it('each top-up addedAed is its label % of the allowance (30/60/90), never hard-coded', () => {
     const pct = (id: string): number => Number(id.replace('topup_', ''));
     for (const o of TOP_UP_OPTIONS) {
-      expect(o.addedAed).toBe(Math.round((DEFAULT_MONTHLY_AI_ALLOWANCE_AED * pct(o.id)) / 100));
+      expect(o.addedAed).toBe((DEFAULT_MONTHLY_AI_ALLOWANCE_AED * pct(o.id)) / 100);
     }
-    expect(TOP_UP_OPTIONS.map((o) => o.addedAed)).toEqual([9, 15, 30, 45, 60]);
-    expect(TOP_UP_OPTIONS.map((o) => o.priceAed)).toEqual([50, 65, 85, 100, 120]); // prices are fixed, unchanged
-    expect(TOP_UP_OPTIONS.map((o) => o.label)).toEqual(['+15%', '+25%', '+50%', '+75%', '+100%']);
+    expect(TOP_UP_OPTIONS.map((o) => o.addedAed)).toEqual([30, 60, 90]);
+    expect(TOP_UP_OPTIONS.map((o) => o.priceAed)).toEqual([50, 100, 150]); // AED 1 = 1%
+    expect(TOP_UP_OPTIONS.map((o) => o.label)).toEqual(['+50%', '+100%', '+150%']);
   });
 });
 

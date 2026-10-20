@@ -28,37 +28,54 @@ export type EmailProvider = 'stub' | 'ses' | 'resend';
 export const DEFAULT_MONTHLY_AI_ALLOWANCE_AED = 60;
 
 /**
- * [USAGE-ALLOWANCE · D6] One-time top-up products. `addedAed` is the AI-cost allowance added — a fixed
- * SHARE of the monthly allowance, DERIVED from DEFAULT_MONTHLY_AI_ALLOWANCE_AED (never hard-coded, so it
- * cannot drift from the allowance). `priceAed` is what the rep PAYS — a product price set by the owner,
- * not derived from cost. Top-ups never expire and are spent only after the monthly allowance (D7); buying
- * one drops the meter (D8).
+ * [USAGE-ALLOWANCE · D6 → P37] One-time top-up products. The rule (owner, 20 Oct): "AED 1 buys 1% of your monthly
+ * allowance". Each pack is {priceAed, percent}; the allowance it adds is percent × the monthly allowance AT THE
+ * TIME OF PURCHASE (topUpCreditAed), so the rule holds if the allowance changes. Top-ups never expire and are
+ * spent only after the monthly allowance (D7); buying one drops the meter (D8). Subscribers only (D10).
  */
 export interface TopUpOption {
   id: string;
-  /** Allowance (AI cost, AED) this top-up adds — a share of the monthly allowance. */
+  /** Allowance (AI cost, AED) this top-up adds at the DEFAULT allowance — for server-side shortfall maths only. */
   addedAed: number;
   /** What the rep pays, AED. */
   priceAed: number;
-  /** Share of the monthly allowance, for the label (e.g. '+25%'). */
+  /** Share of the monthly allowance, for the label (e.g. '+50%'). */
   label: string;
 }
-/** Each top-up's share of the monthly allowance (the label %) and its fixed product price (AED). */
-const TOP_UP_TIERS: ReadonlyArray<{ pct: number; priceAed: number }> = [
-  { pct: 15, priceAed: 50 },
-  { pct: 25, priceAed: 65 },
-  { pct: 50, priceAed: 85 },
-  { pct: 75, priceAed: 100 },
-  { pct: 100, priceAed: 120 },
+/** [P37] The packs on sale. */
+export const TOP_UP_PACKS: ReadonlyArray<{ id: string; priceAed: number; percent: number }> = [
+  { id: 'topup_50', priceAed: 50, percent: 50 },
+  { id: 'topup_100', priceAed: 100, percent: 100 },
+  { id: 'topup_150', priceAed: 150, percent: 150 },
 ];
-export const TOP_UP_OPTIONS: readonly TopUpOption[] = TOP_UP_TIERS.map(({ pct, priceAed }) => ({
-  id: `topup_${pct}`,
-  addedAed: Math.round((DEFAULT_MONTHLY_AI_ALLOWANCE_AED * pct) / 100), // 60 → 9 / 15 / 30 / 45 / 60
+/** [P37] Retired packs (AED 50 +15%, AED 65 +25%, AED 100 +75%): never sold again (refused at checkout), but a
+ *  checkout opened before the change still credits what it was sold for when its webhook lands. (The retired
+ *  AED 85 +50% and AED 120 +100% shared ids with today's packs and credit the same share.) */
+const RETIRED_TOP_UP_PERCENT: Readonly<Record<string, number>> = { topup_15: 15, topup_25: 25, topup_75: 75 };
+
+export const TOP_UP_OPTIONS: readonly TopUpOption[] = TOP_UP_PACKS.map(({ id, priceAed, percent }) => ({
+  id,
+  addedAed: (DEFAULT_MONTHLY_AI_ALLOWANCE_AED * percent) / 100, // 60 → 30 / 60 / 90
   priceAed,
-  label: `+${pct}%`,
+  label: `+${percent}%`,
 }));
+/** A pack that can be BOUGHT now (checkout). */
 export function topUpOptionById(id: string): TopUpOption | undefined {
+  return TOP_UP_OPTIONS.find((o) => o.id === id) ?? retiredOption(id);
+}
+/** [P37] Only the packs on sale — the checkout endpoint accepts nothing else. */
+export function purchasableTopUp(id: string): TopUpOption | undefined {
   return TOP_UP_OPTIONS.find((o) => o.id === id);
+}
+function retiredOption(id: string): TopUpOption | undefined {
+  const percent = RETIRED_TOP_UP_PERCENT[id];
+  return percent === undefined ? undefined : { id, addedAed: (DEFAULT_MONTHLY_AI_ALLOWANCE_AED * percent) / 100, priceAed: 0, label: `+${percent}%` };
+}
+/** [P37] The allowance (AED) a confirmed top-up credits: its percent × the monthly allowance at purchase time.
+ *  Covers retired pack ids too, so a checkout opened before the change is never lost. Null for an unknown id. */
+export function topUpCreditAed(id: string, monthlyAllowanceAed: number): number | null {
+  const percent = TOP_UP_PACKS.find((p) => p.id === id)?.percent ?? RETIRED_TOP_UP_PERCENT[id];
+  return percent === undefined ? null : (monthlyAllowanceAed * percent) / 100;
 }
 
 /**

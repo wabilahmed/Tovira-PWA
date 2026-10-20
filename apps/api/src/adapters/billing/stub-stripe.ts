@@ -34,7 +34,7 @@ export class StubStripeGateway implements StripeGateway {
   /** Recorded so a test can assert the top-up amount + option sent to Stripe. */
   readonly topUps: Array<{ userId: string; topUpOptionId: string; amountAed: number }> = [];
 
-  async createTopUpCheckout(userId: string, _email: string, topUpOptionId: string, amountAed: number, details: { existingCustomerId?: string } = {}): Promise<StripeCheckout> {
+  async createTopUpCheckout(userId: string, _email: string, topUpOptionId: string, amountAed: number, details: { existingCustomerId?: string; productName?: string } = {}): Promise<StripeCheckout> {
     const customerId = details.existingCustomerId ?? `cus_test_${userId}`;
     this.topUps.push({ userId, topUpOptionId, amountAed });
     return { url: `https://checkout.stripe.test/topup?ref=${userId}&option=${topUpOptionId}`, sessionId: `cs_topup_${userId}_${topUpOptionId}`, customerId };

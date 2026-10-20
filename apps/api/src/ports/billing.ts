@@ -200,7 +200,7 @@ export interface StripeGateway {
     email: string,
     topUpOptionId: string,
     amountAed: number,
-    details?: { existingCustomerId?: string },
+    details?: { existingCustomerId?: string; productName?: string },
   ): Promise<StripeCheckout>;
   /** [TASK 3] Open a Stripe Customer Portal session for an existing customer — the rep manages their
    *  subscription there: cancel (at period end), update the payment method, and see invoice history.

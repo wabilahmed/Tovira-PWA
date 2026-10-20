@@ -49,12 +49,13 @@ describe('[USAGE-ALLOWANCE · D3/D10] the meter status', () => {
     expect(typeof s.resetAt).toBe('string');
   });
 
-  it('a subscribed rep sees the five top-up options', async () => {
+  // [P37 · owner, 20 Oct] three packs (AED 50 / 100 / 150), was five.
+  it('a subscribed rep sees the three top-up options', async () => {
     const { token, userId } = await signup('meter-sub@example.com');
     await subscribe(userId);
     const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { canTopUp: boolean; options: unknown[] };
     expect(s.canTopUp).toBe(true);
-    expect(s.options).toHaveLength(5);
+    expect(s.options).toHaveLength(3);
   });
 
   it('shows 100% + exhausted once the allowance is used up', async () => {

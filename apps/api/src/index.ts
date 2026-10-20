@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { loadConfig, assertDeployReady, describeAdapters, emailConfigSummary, opsSurfaceWarning, topUpOptionById, TOP_UP_OPTIONS } from './config.js';
+import { loadConfig, assertDeployReady, describeAdapters, emailConfigSummary, opsSurfaceWarning, topUpCreditAed, TOP_UP_OPTIONS } from './config.js';
 import { ClientOverviewService } from './services/clients/client-overview.js';
 import { FixedWindowRateLimiter } from './services/security/rate-limiter.js';
 import { AccessRequestService } from './services/access/access-request-service.js';
@@ -272,10 +272,11 @@ async function main(): Promise<void> {
   // [USAGE-ALLOWANCE · D12] Credit a confirmed top-up to the rep's current window (idempotent via the
   // webhook_events dedupe). Set here because the allowance repo is built after billing.
   billing.setTopUpHandler(async (eventId, userId, optionId) => {
-    const opt = topUpOptionById(optionId);
-    if (!opt) { console.warn(`[usage-allowance] unknown top-up option ${optionId} for ${userId}`); return; }
+    // [P37] percent × the monthly allowance at the time of purchase (retired pack ids still credit what they sold).
+    const added = topUpCreditAed(optionId, config.monthlyAiAllowanceAed);
+    if (added === null) { console.warn(`[usage-allowance] unknown top-up option ${optionId} for ${userId}`); return; }
     const w = allowanceWindow(await aiBillingWindowFor(userId), Date.now());
-    await aiAllowance.creditTopUpOnce(eventId, userId, w.key, w.startMs, config.monthlyAiAllowanceAed, opt.addedAed);
+    await aiAllowance.creditTopUpOnce(eventId, userId, w.key, w.startMs, config.monthlyAiAllowanceAed, added);
   });
   // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));

@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import { extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
-import { TOP_UP_OPTIONS, topUpOptionById } from '../config.js';
+import { TOP_UP_OPTIONS, purchasableTopUp } from '../config.js';
 import { PriceIntervalMismatchError } from '../ports/billing.js';
 
 export interface BillingRouteDeps {
@@ -80,13 +80,13 @@ export async function handleBillingRoute(
       return true;
     }
     const body = (await readJsonBody(req).catch(() => ({}))) as { optionId?: unknown };
-    const option = typeof body.optionId === 'string' ? topUpOptionById(body.optionId) : undefined;
+    const option = typeof body.optionId === 'string' ? purchasableTopUp(body.optionId) : undefined; // [P37] retired packs refused
     if (!option) {
       sendJson(res, 400, { error: 'validation', message: 'Choose a top-up option.', options: TOP_UP_OPTIONS });
       return true;
     }
     const user = await deps.auth.getPublicUser(userId);
-    sendJson(res, 200, await deps.billing.topUpCheckout(userId, user?.email ?? '', option.id, option.priceAed));
+    sendJson(res, 200, await deps.billing.topUpCheckout(userId, user?.email ?? '', option.id, option.priceAed, `Tovira extra usage: ${option.label}`));
     return true;
   }
 

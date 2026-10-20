@@ -157,6 +157,15 @@ describe('StripeGatewayImpl', () => {
     expect(String(sessionCreate.mock.calls.at(-1)![0].success_url)).toMatch(/[?&]topup=1/);
   });
 
+  // [P37] The Stripe line item reads as the product the rep bought: "Tovira extra usage: +50%".
+  it('names the top-up line item "Tovira extra usage: +50%" (inline price_data, nothing to create in Stripe)', async () => {
+    const { stripe, sessionCreate } = fakeStripe();
+    const g = new StripeGatewayImpl({ ...opts, stripe });
+    await g.createTopUpCheckout('u', 'a@b.com', 'topup_50', 50, { productName: 'Tovira extra usage: +50%' });
+    const item = (sessionCreate.mock.calls.at(-1)![0] as { line_items: Array<{ price_data: unknown }> }).line_items[0]!;
+    expect(item.price_data).toMatchObject({ currency: 'aed', unit_amount: 5000, product_data: { name: 'Tovira extra usage: +50%' } });
+  });
+
   // [PAY-04] The interval guard: NEVER create a checkout on a price whose recurring interval doesn't match
   // the plan (a yearly SKU Stripe has as a monthly interval would bill AED 2,990 every month). On a
   // mismatch we refuse BEFORE creating a customer or a session — nothing is charged.
