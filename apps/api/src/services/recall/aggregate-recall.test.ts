@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBook, NOW, U } from './aggregate.fixture.js';
+import { buildBook, NOW, U } from '../../test-support/ask-book.fixture.js';
 
 /**
  * [P35-1] Phone test, 20 Oct: "How many clients do I have with open requirements?" answered "I don't have that on

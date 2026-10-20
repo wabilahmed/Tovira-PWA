@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBook, NOW, U } from './aggregate.fixture.js';
+import { buildBook, NOW, U } from '../../test-support/ask-book.fixture.js';
 
 /**
  * [P35-4] The rest of Ask, checked for the same failure ("I don't have that on record" when the data exists).

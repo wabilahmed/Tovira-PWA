@@ -1,5 +1,6 @@
 /**
- * [P35] A test-rep-shaped book for the Ask count / list tests (test helper — imported only by tests).
+ * [P35] A test-rep-shaped book for the Ask count / list tests (test helper — imported only by tests; kept
+ * out of services/, whose files may not import adapters).
  *  - QA P14 Gate Client      open: 2BR in JVC · budget around 1.5M · parking for two cars   (last client msg 15 Oct)
  *  - QA Windowed Buyer 2     open: 4BR villa in Mirdif · updated budget 3.4M                (last client msg 16 Oct)
  *  - QA Enter Key Client     open: 3BR townhouse in Arabian Ranches, budget 2.2M            (last client msg 1 Sep)
@@ -8,17 +9,17 @@
  * Promises (NOW = Tue 20 Oct 2026): Gate — rep, due 18 Oct (overdue) · Windowed — client-owned, due 15 Oct
  * (overdue) · Enter Key — rep, made 19 Oct ("I'll send the payment plan"), due 27 Oct.
  */
-import { RecallService } from './recall-service.js';
-import { StructuredRecall } from './structured-recall.js';
-import { AggregateRecall } from './aggregate-recall.js';
-import { InMemoryClientRepository } from '../../adapters/clients/in-memory-client-repository.js';
-import { InMemoryFactsRepository } from '../../adapters/facts/in-memory-facts-repository.js';
-import { InMemoryMeetingRepository } from '../../adapters/meetings/in-memory-meeting-repository.js';
-import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
-import { InMemoryRequirementRepository } from '../../adapters/requirements/in-memory-requirement-repository.js';
-import { InMemoryRecallSessionRepository } from '../../adapters/recall/in-memory-recall-session-repository.js';
-import type { ModelClient } from '../../ports/model.js';
-import type { ImportedMessage, SimilarNote } from '../../ports/note-repository.js';
+import { RecallService } from '../services/recall/recall-service.js';
+import { StructuredRecall } from '../services/recall/structured-recall.js';
+import { AggregateRecall } from '../services/recall/aggregate-recall.js';
+import { InMemoryClientRepository } from '../adapters/clients/in-memory-client-repository.js';
+import { InMemoryFactsRepository } from '../adapters/facts/in-memory-facts-repository.js';
+import { InMemoryMeetingRepository } from '../adapters/meetings/in-memory-meeting-repository.js';
+import { InMemoryNoteRepository } from '../adapters/notes/in-memory-note-repository.js';
+import { InMemoryRequirementRepository } from '../adapters/requirements/in-memory-requirement-repository.js';
+import { InMemoryRecallSessionRepository } from '../adapters/recall/in-memory-recall-session-repository.js';
+import type { ModelClient } from '../ports/model.js';
+import type { ImportedMessage, SimilarNote } from '../ports/note-repository.js';
 
 export const NOW = Date.parse('2026-10-20T08:00:00Z');
 export const U = 'u-agg';
