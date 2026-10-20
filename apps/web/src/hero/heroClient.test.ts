@@ -29,13 +29,15 @@ describe('HeroClient', () => {
     fetchMock.mockResolvedValueOnce(json(200, { atRisk: [{ clientId: 'c', name: 'Acme', reasons: ['silence'] }] }));
     expect(await new HeroClient().risk()).toHaveLength(1);
 
-    fetchMock.mockResolvedValueOnce(json(200, { actions: [{ kind: 'promise', priority: 1, text: 'do it', clientId: 'c' }] }));
-    expect(await new HeroClient().today()).toHaveLength(1);
+    fetchMock.mockResolvedValueOnce(json(200, { actions: [{ kind: 'promise', priority: 1, text: 'do it', clientId: 'c' }], refreshesRemaining: 1 }));
+    const day = await new HeroClient().today();
+    expect(day.actions).toHaveLength(1);
+    expect(day.refreshesRemaining).toBe(1); // [P34-5] the remaining-refresh count rides along with the list
 
     fetchMock.mockResolvedValueOnce(json(500, {}));
     expect(await new HeroClient().patterns()).toEqual([]);
     fetchMock.mockRejectedValueOnce(new Error('offline'));
-    expect(await new HeroClient().today()).toEqual([]);
+    expect(await new HeroClient().today()).toEqual({ actions: [], refreshesRemaining: null });
   });
 
   it('calls the right endpoints', async () => {

@@ -7,7 +7,7 @@ import type { GateState, Pattern, RiskItem, TodayAction } from './heroClient.js'
 function makeApi(over: Partial<{ status: GateState | null; today: TodayAction[]; patterns: Pattern[]; risk: RiskItem[]; refreshToday: HeroApi['refreshToday'] }> = {}): HeroApi {
   return {
     status: vi.fn().mockResolvedValue(over.status ?? { unlocked: true, counts: { clients: 5, notes: 20 }, needed: { clients: 0, notes: 0 }, message: '' }),
-    today: vi.fn().mockResolvedValue(over.today ?? []),
+    today: vi.fn().mockResolvedValue({ actions: over.today ?? [], refreshesRemaining: 2 }),
     patterns: vi.fn().mockResolvedValue(over.patterns ?? []),
     risk: vi.fn().mockResolvedValue(over.risk ?? []),
     refreshToday: over.refreshToday ?? vi.fn().mockResolvedValue({ actions: [], refreshesRemaining: 1 }),
@@ -64,15 +64,15 @@ describe('<HeroInsights>', () => {
     expect(screen.getByText(/working out your day/i)).toBeInTheDocument();
   });
 
-  // [P4b-3] manual refresh updates the list and reports remaining refreshes.
-  it('refreshes the list and shows the remaining count', async () => {
+  // [P4b-3] manual refresh updates the list. [P34-5] owner, 20 Oct: no remaining-count text while a refresh is left.
+  it('refreshes the list (and shows no remaining-count text while refreshes are left)', async () => {
     const user = userEvent.setup();
     const refreshToday = vi.fn().mockResolvedValue({ actions: [{ kind: 'promise', priority: 1, text: 'Fresh action', clientId: 'c1' }], refreshesRemaining: 1 });
     render(<HeroInsights api={makeApi({ today: [], refreshToday })} />);
     await screen.findByText(/nothing for today yet/i);
     await user.click(screen.getByRole('button', { name: /^refresh$/i }));
     expect(await screen.findByText(/fresh action/i)).toBeInTheDocument();
-    expect(screen.getByTestId('refresh-msg')).toHaveTextContent(/1 refresh left today/i);
+    expect(screen.queryByTestId('refresh-msg')).toBeNull();
   });
 
   // The button reflects the rate-limit state (server-enforced).
@@ -81,7 +81,7 @@ describe('<HeroInsights>', () => {
     render(<HeroInsights api={makeApi({ refreshToday: vi.fn().mockResolvedValue('rate_limited') })} />);
     await screen.findByRole('button', { name: /^refresh$/i });
     await user.click(screen.getByRole('button', { name: /^refresh$/i }));
-    expect(await screen.findByTestId('refresh-msg')).toHaveTextContent(/refresh limit reached/i);
+    expect(await screen.findByTestId('refresh-msg')).toHaveTextContent('Updated overnight. Next refresh tomorrow.'); // [P34-5]
     await waitFor(() => expect(screen.getByRole('button', { name: /^refresh$/i })).toBeDisabled());
   });
 

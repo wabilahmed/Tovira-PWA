@@ -5,7 +5,7 @@ export interface HeroApi {
   status(): Promise<GateState | null>;
   patterns(): Promise<Pattern[]>;
   risk(): Promise<RiskItem[]>;
-  today(): Promise<TodayAction[]>;
+  today(): Promise<{ actions: TodayAction[]; refreshesRemaining: number | null }>;
   refreshToday(): Promise<{ actions: TodayAction[]; refreshesRemaining: number } | 'rate_limited' | null>;
 }
 
@@ -20,8 +20,8 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [risk, setRisk] = useState<RiskItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
-  const [rateLimited, setRateLimited] = useState(false);
+  // [P34-5] No counter while a refresh is left; at zero the button is disabled with the overnight copy.
+  const [outOfRefreshes, setOutOfRefreshes] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -29,7 +29,8 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
     void Promise.all([api.status(), api.today(), api.patterns(), api.risk()]).then(([s, t, p, r]) => {
       if (!live) return;
       setStatus(s);
-      setActions(t);
+      setActions(t.actions);
+      setOutOfRefreshes(t.refreshesRemaining === 0);
       setPatterns(p);
       setRisk(r);
       setLoading(false);
@@ -44,12 +45,10 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
     const r = await api.refreshToday();
     setRefreshing(false);
     if (r === 'rate_limited') {
-      setRateLimited(true);
-      setRefreshMsg('Daily refresh limit reached — your list updates again tomorrow.');
+      setOutOfRefreshes(true);
     } else if (r) {
       setActions(r.actions);
-      setRateLimited(r.refreshesRemaining === 0);
-      setRefreshMsg(r.refreshesRemaining === 0 ? 'No more refreshes today.' : `${r.refreshesRemaining} refresh${r.refreshesRemaining === 1 ? '' : 'es'} left today.`);
+      setOutOfRefreshes(r.refreshesRemaining === 0);
     }
   }
 
@@ -67,11 +66,11 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
             {needActing > 0 && <> · {needActing} need acting on</>}
           </div>
         </div>
-        <button onClick={() => void refresh()} disabled={refreshing || rateLimited}>
+        <button onClick={() => void refresh()} disabled={refreshing || outOfRefreshes}>
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
       </header>
-      {refreshMsg && <p data-testid="refresh-msg" style={{ color: rateLimited ? 'var(--amber)' : 'var(--text-secondary)', fontSize: '0.85rem' }}>{refreshMsg}</p>}
+      {outOfRefreshes && <p data-testid="refresh-msg" style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Updated overnight. Next refresh tomorrow.</p>}
       {actions.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>Nothing for today yet. Capture a note after your next conversation and tomorrow&rsquo;s list will write itself.</p>
       ) : (

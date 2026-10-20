@@ -54,8 +54,16 @@ export class HeroClient {
   risk(): Promise<RiskItem[]> {
     return this.get('/hero/risk', (b) => (b as { atRisk: RiskItem[] }).atRisk, []);
   }
-  today(): Promise<TodayAction[]> {
-    return this.get('/today', (b) => (b as { actions: TodayAction[] }).actions, []);
+  /** [P34-5] The day's list plus how many manual refreshes are left (null if the server didn't say). */
+  today(): Promise<{ actions: TodayAction[]; refreshesRemaining: number | null }> {
+    return this.get(
+      '/today',
+      (b) => {
+        const body = b as { actions: TodayAction[]; refreshesRemaining?: number };
+        return { actions: body.actions, refreshesRemaining: typeof body.refreshesRemaining === 'number' ? body.refreshesRemaining : null };
+      },
+      { actions: [], refreshesRemaining: null },
+    );
   }
 
   /** Manual refresh of today's priorities (rate-limited server-side). */

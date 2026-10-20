@@ -12,7 +12,7 @@ const api = (): HeroApi => ({
   status: vi.fn().mockResolvedValue({ unlocked: true, counts: { clients: 5, notes: 20 }, needed: { clients: 0, notes: 0 }, message: '' }),
   patterns: vi.fn().mockResolvedValue([]),
   risk: vi.fn().mockResolvedValue([]),
-  today: vi.fn().mockResolvedValue([]),
+  today: vi.fn().mockResolvedValue({ actions: [], refreshesRemaining: 2 }),
   refreshToday: vi.fn().mockResolvedValue(null),
 });
 
