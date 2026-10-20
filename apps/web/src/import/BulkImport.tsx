@@ -3,6 +3,7 @@ import { ImportReview, type ReviewResult, type ReviewRow, type ReviewDecision, t
 import { BulkImportResult, type BulkJob } from './BulkImportResult.js';
 import type { BulkImportApi } from './bulkImportClient.js';
 import type { Plan } from '../billing/plans.js';
+import { ExportSteps } from '../onboarding/exportSteps.js';
 
 /**
  * [BULK-IMPORT page] The end-to-end flow: pick up to 20 chat exports (.txt/.zip) → upload one per request
@@ -113,9 +114,10 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
         <h2 style={{ margin: 0 }}>{single ? 'New client from a chat' : 'Import chats'}</h2>
         <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
           {single
-            ? 'Export the chat from WhatsApp (Without media) and choose it here. Tovira works out who it is with — you confirm before anything is read.'
-            : `Export your chats from WhatsApp (Without media) and select up to ${BULK_MAX_FILES} at once.`}
+            ? 'Export the chat from WhatsApp and choose it here. Tovira works out who it is with — you confirm before anything is read.'
+            : `Export your chats from WhatsApp and select up to ${BULK_MAX_FILES} at once.`}
         </p>
+        <ExportSteps />
         <label>
           {/* [P18-10i] ".zip or .txt" — same order as the single-import screen + the not_whatsapp error. */}
           <span style={{ display: 'block', marginBottom: '0.25rem' }}>{single ? 'Choose a chat export (.zip or .txt)' : 'Choose chat exports (.zip or .txt)'}</span>

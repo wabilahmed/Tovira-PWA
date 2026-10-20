@@ -4,6 +4,7 @@ import type { ImportResult } from '../clients/clientsClient.js';
 import { CeilingNotice } from './CeilingNotice.js';
 import { RepIdentification } from './RepIdentification.js';
 import { formatBody, formatRange } from '../format/dates.js';
+import { ExportSteps } from '../onboarding/exportSteps.js';
 
 export interface ImportApi {
   importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string }, consent: boolean): Promise<ImportResult>;
@@ -165,10 +166,9 @@ export function ImportChat({
 
   return (
     <form onSubmit={submit} aria-label="Import WhatsApp chat" style={{ display: 'grid', gap: '0.75rem' }}>
-      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
-        In WhatsApp, open the chat, choose Export Chat, then <strong>Without Media</strong>. On iPhone this gives a
-        .zip; on Android a .txt. Share it into Tovira, or upload the file here. Tovira accepts either.
-      </p>
+      {/* [P37] the shared export steps for the rep's own phone */}
+      <ExportSteps />
+      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Then choose the file here (.zip or .txt), or paste the chat.</p>
 
       <label>
         Chat export (.zip or .txt)

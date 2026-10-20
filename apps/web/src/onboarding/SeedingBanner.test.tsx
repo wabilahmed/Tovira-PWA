@@ -36,8 +36,9 @@ describe('<SeedingBanner>', () => {
     render(<SeedingBanner status={STATUS} onStartImport={vi.fn()} onFallback={vi.fn()} />);
     expect(screen.getByText(/on android/i)).toBeInTheDocument();
     expect(screen.getByText(/on iphone/i)).toBeInTheDocument();
-    expect(screen.getByText(/share it to tovira/i)).toBeInTheDocument();
-    expect(screen.getByText(/upload the .txt/i)).toBeInTheDocument();
+    // [P37] the shared export steps (one source everywhere) — on this test's unknown device, both phones.
+    expect(screen.getByText(/choose tovira from the share list/i)).toBeInTheDocument();
+    expect(screen.getByText(/save to files/i)).toBeInTheDocument();
   });
 
   it('starts the multi-select import when the primary button is clicked', async () => {

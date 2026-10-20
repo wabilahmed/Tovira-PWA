@@ -1,11 +1,13 @@
 import type { SeedingStatus } from './onboardingClient.js';
+import { ExportSteps } from './exportSteps.js';
 
 /**
  * First-session seeding guidance (P5-3 / BULK-IMPORT). Leads with the bulk ask — export your ten most
  * active chats and select up to 20 at once ("Import chats" opens the multi-select) — never paste-based
  * bulk entry, and offers fallbacks so a rep who skips isn't left with an empty app. The next-step line
  * is a fixed bulk instruction (RULING 2 item 3); the per-platform export steps stay. `status.nextStep`
- * is no longer rendered (the fixed copy replaced it); `status` still drives the steps + fallbacks.
+ * is no longer rendered (the fixed copy replaced it); `status` drives the fallbacks. [P37] The export steps come
+ * from the shared <ExportSteps> (the rep's own phone), not the server's copy.
  */
 export function SeedingBanner({
   status,
@@ -21,10 +23,8 @@ export function SeedingBanner({
       <h2 style={{ marginTop: 0 }}>Start with your ten most active clients.</h2>
       <p style={{ marginTop: 0 }}>Export a chat from WhatsApp, then come back here. You can select up to 20 at once.</p>
 
-      <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>
-        <Steps title="On Android" steps={status.seeding.steps.android} />
-        <Steps title="On iPhone" steps={status.seeding.steps.ios} />
-      </div>
+      {/* [P37] The rep's own phone's steps (both on a laptop) — the one shared source of export instructions. */}
+      <ExportSteps />
 
       <button className="tov-primary" onClick={onStartImport} style={{ marginTop: '1rem' }}>Import chats</button>
 
@@ -35,19 +35,6 @@ export function SeedingBanner({
         ))}
       </div>
     </section>
-  );
-}
-
-function Steps({ title, steps }: { title: string; steps: string[] }): JSX.Element {
-  return (
-    <div>
-      <strong>{title}</strong>
-      <ol style={{ margin: '0.25rem 0 0', paddingLeft: '1.2rem' }}>
-        {steps.map((s, i) => (
-          <li key={i}>{s}</li>
-        ))}
-      </ol>
-    </div>
   );
 }
 
