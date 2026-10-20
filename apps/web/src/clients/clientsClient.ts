@@ -147,6 +147,18 @@ export class ClientsClient {
     }
   }
 
+  /** [P36-6] What each Clients row says: wants line, last message, overdue promises, aliases (by client id). */
+  async rowSummaries(): Promise<Record<string, { listLine: string | null; lastMessageAt: string | null; overduePromises: number; aliases: string[] }>> {
+    try {
+      const res = await fetch(this.url('/clients/row-summaries'), { credentials: 'include' });
+      if (res.status !== 200) return {};
+      const body = (await res.json()) as { rows?: unknown };
+      return body.rows && typeof body.rows === 'object' ? (body.rows as Awaited<ReturnType<ClientsClient['rowSummaries']>>) : {};
+    } catch {
+      return {};
+    }
+  }
+
   /** [P36-7] What the existing inference would change, as suggestions only (To Confirm + the status sheet). */
   async statusSuggestions(): Promise<Array<{ clientId: string; clientName: string; status: 'cold' | 'done'; outcome?: 'lost'; reason: string }>> {
     try {

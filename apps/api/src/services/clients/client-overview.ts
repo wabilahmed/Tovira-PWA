@@ -3,6 +3,7 @@ import type { NoteRepository } from '../../ports/note-repository.js';
 import type { RequirementRepository } from '../../ports/requirement-repository.js';
 import type { FactsRepository, PromiseRecord } from '../../ports/facts-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
+import type { ContactAliasRepository } from '../../ports/contact-alias-repository.js';
 import { withReceipt } from '../receipts/receipt.js';
 import { isStalePromise } from '../facts/promise-lifecycle.js';
 import { summarizeRequirements } from './requirement-summary.js';
@@ -19,6 +20,8 @@ export interface ClientOverviewDeps {
   requirements: RequirementRepository;
   facts: FactsRepository;
   meetings?: MeetingRepository;
+  /** [P36-6] learned per-client aliases — shown for search on the Clients list. */
+  aliases?: Pick<ContactAliasRepository, 'listByUser'>;
   /** The going-cold threshold the Today / Monday alerts use (config.coldThresholdDays). */
   coldThresholdDays: number;
   /** Overdue past this many days → stale (off the active count, still listed). Default 90. */
@@ -43,6 +46,8 @@ export interface StatusSuggestion {
   /** One plain sentence, e.g. "No reply in 34 days." */
   reason: string;
 }
+export interface ClientRowSummary { listLine: string | null; lastMessageAt: string | null; overduePromises: number; aliases: string[] }
+
 export interface ClientOverview {
   lastMessageAt: string | null;
   openPromises: number;
@@ -125,6 +130,33 @@ export class ClientOverviewService {
       conversations,
       statusSuggestion: this.suggest(client, nowMs),
     };
+  }
+
+  /** [P36-6] One line of facts per client for the Clients list: the wants line (stored requirements), the last
+   *  message, the overdue promises (active, not stale) and the learned aliases (for search). */
+  async rowSummaries(userId: string, nowMs: number): Promise<Record<string, ClientRowSummary>> {
+    const [clients, reqs, promises, aliases] = await Promise.all([
+      this.deps.clients.listByUser(userId),
+      this.deps.requirements.listOpenByUser(userId),
+      this.deps.facts.listPromisesByUser(userId),
+      this.deps.aliases ? this.deps.aliases.listByUser(userId) : Promise.resolve([]),
+    ]);
+    const today = new Date(nowMs).toISOString().slice(0, 10);
+    const threshold = this.deps.promiseStaleThresholdDays ?? 90;
+    const out: Record<string, ClientRowSummary> = {};
+    for (const c of clients) {
+      let last: string | null = null;
+      for (const n of await this.deps.notes.listByClient(userId, c.id)) {
+        for (const m of n.messages ?? []) if (!m.excluded && m.sentAt && (!last || m.sentAt > last)) last = m.sentAt;
+      }
+      out[c.id] = {
+        listLine: summarizeRequirements(reqs.filter((r) => r.clientId === c.id)).listLine,
+        lastMessageAt: last,
+        overduePromises: promises.filter((p) => p.clientId === c.id && !p.done && p.dueDate !== null && p.dueDate < today && !isStalePromise(p, nowMs, threshold)).length,
+        aliases: aliases.filter((a) => a.clientId === c.id).map((a) => a.alias),
+      };
+    }
+    return out;
   }
 
   /** [P36-7] Every client whose status the existing inference would change — To Confirm cards. Reads only. */

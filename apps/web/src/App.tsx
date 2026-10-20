@@ -19,7 +19,7 @@ import { useSections } from './clients/page/useSections.js';
 import { PointersCard, type Pointer } from './clients/PointersCard.js';
 import { LeadStatusFilterBar, LeadStatusSheet, OutcomeSheet, leadStatusCounts, matchesLeadFilter, leadStatusLabel, type LeadFilter, type StatusSuggestion } from './clients/LeadStatus.js';
 import { searchClients } from './clients/searchClients.js';
-import { ClientRow } from './clients/ClientRow.js';
+import { ClientRow, type RowSummary } from './clients/ClientRow.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
 import { BookScanClient } from './bookscan/bookScanClient.js';
 import { GetStarted } from './onboarding/GetStarted.js';
@@ -360,6 +360,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // shown in the sheet as a suggestion only.
   const [outcomeFor, setOutcomeFor] = useState<ClientSummary | null>(null);
   const [suggestions, setSuggestions] = useState<Map<string, StatusSuggestion>>(new Map());
+  // [P36-6] What each row says (wants line, last message, overdue promises, aliases) and the list's order.
+  const [rows, setRows] = useState<Record<string, RowSummary>>({});
+  const [sortBy, setSortBy] = useState<'last' | 'name' | 'overdue'>('last');
+  const loadRows = (): void => void clientsApi.rowSummaries().then(setRows);
   const loadSuggestions = (): void => void clientsApi.statusSuggestions().then((list) => setSuggestions(new Map(list.map((x) => [x.clientId, x]))));
   useEffect(loadSuggestions, []);
   const [view, setView] = useState<View>(() => {
@@ -446,6 +450,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     if (view !== 'clients') return;
     void clientsApi.list().then(setClients);
     loadSuggestions();
+    loadRows();
   }, [view]);
 
   // [CLIENT-SEARCH] Debounce the typed query (~200ms) so highlight re-renders stay smooth.
@@ -555,10 +560,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
   // [LEAD-STATUS] Counts come from the FULL loaded list; the rendered list is the active-filter slice.
   const leadCounts = leadStatusCounts(clients);
-  const visibleClients = clients.filter((c) => matchesLeadFilter(c, leadFilter));
+  // [P36-6] Last message first by default (no message → after everyone with one); or by name; or most overdue.
+  const lastAt = (c: ClientSummary): string => rows[c.id]?.lastMessageAt ?? '';
+  const sorted = clients.slice().sort((a, b) =>
+    sortBy === 'name' ? a.name.localeCompare(b.name)
+      : sortBy === 'overdue' ? (rows[b.id]?.overduePromises ?? 0) - (rows[a.id]?.overduePromises ?? 0) || lastAt(b).localeCompare(lastAt(a))
+        : lastAt(b).localeCompare(lastAt(a)) || a.name.localeCompare(b.name));
+  const visibleClients = sorted.filter((c) => matchesLeadFilter(c, leadFilter));
   // [CLIENT-SEARCH] When a query is active, the list is the ranked search hits that ALSO match the
   // active status chip (search + filter combine). Below the min length, search is inactive.
-  const search = searchClients(clients, debouncedQuery);
+  const search = searchClients(clients.map((c) => ({ ...c, aliases: rows[c.id]?.aliases ?? [] })), debouncedQuery);
   const visibleHits = search.active ? search.hits.filter((h) => matchesLeadFilter(h.client, leadFilter)) : [];
   function undoLeadStatus(t: { clientId: string; prev: LeadStatus | null; prevOutcome?: string }): void {
     const c = clients.find((x) => x.id === t.clientId);
@@ -786,14 +797,24 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, phone or email…"
-              aria-label="Search clients by name, phone or email"
+              placeholder="Search name, alias, phone or email…"
+              aria-label="Search clients by name, alias, phone or email"
               className="clients-search"
             />
             {query && (
               <button type="button" className="clients-search__clear" aria-label="Clear search" data-testid="search-clear" onClick={() => setQuery('')}>×</button>
             )}
           </div>
+
+          {/* [P36-6] Sort: last message (default), name, or most overdue promises. */}
+          <label className="clients-sort">
+            <span>Sort</span>
+            <select aria-label="Sort clients" value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+              <option value="last">Last message</option>
+              <option value="name">Name</option>
+              <option value="overdue">Overdue promises</option>
+            </select>
+          </label>
 
           {/* [LEAD-STATUS] Filter chips with per-bucket counts; the active one is highlighted. */}
           <LeadStatusFilterBar filter={leadFilter} counts={leadCounts} onChange={setLeadFilter} />
@@ -824,10 +845,11 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
                       onOpen={() => setOpen(h.client)}
                       onOpenStatus={() => setStatusSheetFor(h.client)}
                       match={{ field: h.field, value: h.value, ranges: h.ranges }}
+                      summary={rows[h.client.id]}
                     />
                   ))
                 : visibleClients.map((c) => (
-                    <ClientRow key={c.id} client={c} onOpen={() => setOpen(c)} onOpenStatus={() => setStatusSheetFor(c)} />
+                    <ClientRow key={c.id} client={c} summary={rows[c.id]} onOpen={() => setOpen(c)} onOpenStatus={() => setStatusSheetFor(c)} />
                   ))}
             </ul>
           )}

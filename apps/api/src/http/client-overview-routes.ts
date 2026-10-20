@@ -16,7 +16,8 @@ export async function handleClientOverviewRoute(req: IncomingMessage, res: Serve
   const path = (req.url ?? '/').split('?')[0]!;
   const m = OVERVIEW_RE.exec(path);
   const isSuggestions = path === '/clients/status-suggestions';
-  if (!m && !isSuggestions) return false;
+  const isRows = path === '/clients/row-summaries';
+  if (!m && !isSuggestions && !isRows) return false;
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
     sendJson(res, 401, { error: 'unauthorized' });
@@ -24,6 +25,11 @@ export async function handleClientOverviewRoute(req: IncomingMessage, res: Serve
   }
   if (!deps.overview) {
     sendJson(res, 501, { error: 'not_available' });
+    return true;
+  }
+  // [P36-6] GET /clients/row-summaries — what each Clients row says (no names in the URL; owner-scoped).
+  if (isRows) {
+    sendJson(res, 200, { rows: await deps.overview.rowSummaries(identity.userId, Date.now()) });
     return true;
   }
   // [P36-7] GET /clients/status-suggestions — what the inference would change, as suggestions only.

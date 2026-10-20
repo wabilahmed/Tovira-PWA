@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, configure } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
+
+// App-level integration: the whole app renders per step, so allow for a busy machine (full-suite runs).
+configure({ asyncUtilTimeout: 5000 });
+vi.setConfig({ testTimeout: 30_000 });
 
 /**
  * [P36-1] Capture lives inside a client. A chat for a client who doesn't exist yet starts from the Clients

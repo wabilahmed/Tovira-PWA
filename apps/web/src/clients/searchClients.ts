@@ -1,5 +1,5 @@
 /**
- * [CLIENT-SEARCH · P12 Feature 2] Find clients by name, phone OR email — all at once.
+ * [CLIENT-SEARCH · P12 Feature 2] Find clients by name, phone OR email — all at once. [P36-6] Also by alias.
  *
  * This runs ENTIRELY in the browser over the already-loaded client list. That is a deliberate privacy
  * choice: the search text never leaves the device, so it can never land in a CloudFront / ALB access
@@ -17,7 +17,7 @@
  * Ranking: exact (0) → prefix (1) → substring (2); ties broken name → phone → email, then by name.
  */
 
-export type MatchField = 'name' | 'phone' | 'email';
+export type MatchField = 'name' | 'alias' | 'phone' | 'email';
 
 /** A half-open highlight range [start, end) into the ORIGINAL (un-normalised) field value. */
 export interface Range {
@@ -45,6 +45,8 @@ export interface SearchResult<T> {
 
 export interface SearchableClient {
   name: string;
+  /** [P36-6] learned per-client aliases (the name they write under in WhatsApp, a nickname). */
+  aliases?: string[];
   phone?: string | null;
   email?: string | null;
 }
@@ -128,7 +130,7 @@ function phoneRange(originalPhone: string, queryDigits: string): Range {
   return { start: digitIdx[at]!, end: digitIdx[at + queryDigits.length - 1]! + 1 };
 }
 
-const FIELD_TIEBREAK: Record<MatchField, number> = { name: 0, phone: 1, email: 2 };
+const FIELD_TIEBREAK: Record<MatchField, number> = { name: 0, alias: 1, phone: 2, email: 3 };
 
 /** Match ONE client; return its strongest field hit, or null. */
 function matchClient<T extends SearchableClient>(client: T, raw: string): ClientHit<T> | null {
@@ -147,6 +149,13 @@ function matchClient<T extends SearchableClient>(client: T, raw: string): Client
     if (nameRank !== null) {
       const rg = foldedRange(client.name, qNorm);
       candidates.push({ field: 'name', value: client.name, ranges: rg ? [rg] : [], rank: nameRank });
+    }
+    // [P36-6] …and the client's aliases, so "Abu Khalid" finds the client he is filed under.
+    for (const alias of client.aliases ?? []) {
+      const r = textRank(normalizeArabic(alias), qNorm);
+      if (r === null) continue;
+      const rg = foldedRange(alias, qNorm);
+      candidates.push({ field: 'alias', value: alias, ranges: rg ? [rg] : [], rank: r });
     }
     const email = client.email ?? '';
     const emailRank = textRank(normalizeArabic(email), qNorm);

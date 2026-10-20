@@ -585,7 +585,7 @@ async function main(): Promise<void> {
   const accessRequestRetention = new AccessRequestRetentionService(accessRequests);
   const server = createApiServer({
     // [P36-5] the client page's summaries — deterministic, no model call.
-    clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays }),
+    clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, aliases: contactAliases, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays }),
     pool: appPool,
     auth,
     clients,

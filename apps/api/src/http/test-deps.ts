@@ -360,7 +360,7 @@ export function buildInMemoryDeps(
   });
 
   return {
-    clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
+    clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, aliases: contactAliases, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
     pool: stubPool,
     auth,
     clients,

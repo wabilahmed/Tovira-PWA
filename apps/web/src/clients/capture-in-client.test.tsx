@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, configure } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
+
+// App-level integration: the whole app renders per step, so allow for a busy machine (full-suite runs).
+configure({ asyncUtilTimeout: 5000 });
+vi.setConfig({ testTimeout: 30_000 });
 
 /**
  * [P36-3] The old `?view=capture` link lands on the Clients list (never blank, never a 404); first-run

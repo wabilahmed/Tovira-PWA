@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, configure } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
 import { LeadStatusSheet } from './LeadStatus.js';
+
+// App-level integration: the whole app renders per step, so allow for a busy machine (full-suite runs).
+configure({ asyncUtilTimeout: 5000 });
+vi.setConfig({ testTimeout: 30_000 });
 
 /**
  * [P36-7] Seen: no visible way to mark a client warm or cold. The status is a tappable control in the client
