@@ -59,8 +59,9 @@ export async function handleInsightsRoute(
 
   if (stakeholders) {
     // [P36-5] The client is never a stakeholder of their own record: drop anyone named as the client — the
-    // client name or a learned alias (see clientSelfNames for why chat senders are not included).
-    const selfNames = clientSelfNames(client.name, deps.aliases ? await deps.aliases.listByClient(userId, clientId) : []);
+    // client name (and, for an individual client, a learned alias — see clientSelfNames).
+    // No client type is recorded yet → unknown: an alias hides no one (owner, 20 Oct); see clientSelfNames.
+    const selfNames = clientSelfNames(client.name, deps.aliases ? await deps.aliases.listByClient(userId, clientId) : [], null);
     sendJson(res, 200, { people: aggregatePeople(extractions).filter((p) => !isTheClient(p.name, selfNames)) });
   } else {
     sendJson(res, 200, { facts: aggregatePersonalFacts(extractions) });

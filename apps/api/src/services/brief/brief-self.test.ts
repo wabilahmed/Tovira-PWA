@@ -13,7 +13,7 @@ const embedder: Embedder = { dimension: 3, embed: async () => [0, 0, 0] };
 const person = (name: string, decision_role = 'unknown') => ({ name, role: null, reports_to: null, decision_role, notes: null });
 
 describe('[P36-5] the pre-meeting brief\'s People leave the client out', () => {
-  it('drops the client (name, alias); keeps everyone else', async () => {
+  it('drops the client by name; with no client type recorded, an alias person is shown', async () => {
     const clients = new InMemoryClientRepository();
     const notes = new InMemoryNoteRepository();
     const facts = new InMemoryFactsRepository();
@@ -23,6 +23,6 @@ describe('[P36-5] the pre-meeting brief\'s People leave the client out', () => {
     await notes.update('u', n.id, { extracted: { summary: 's', promises: [], people: [person('QA Windowed Buyer 2'), person('Windowed Buyer'), person('Abu Khalid'), person('Sara Agent', 'influencer')], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null } });
     const aliases = { listByClient: async (_u: string, id: string) => (id === c.id ? ['Abu Khalid'] : []) };
     const brief = await new BriefService(clients, notes, facts, embedder, undefined, undefined, aliases).buildBrief('u', c.id);
-    expect(brief!.keyPeople.map((p) => p.name)).toEqual(['Windowed Buyer', 'Sara Agent'] /* a chat sender is kept: for a company client it is a real stakeholder */);
+    expect(brief!.keyPeople.map((p) => p.name)).toEqual(['Windowed Buyer', 'Abu Khalid', 'Sara Agent'] /* [owner, 20 Oct] no client type recorded → an alias hides no one; a chat sender is never the client */);
   });
 });
