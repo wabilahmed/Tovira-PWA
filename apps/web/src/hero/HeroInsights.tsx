@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { GateState, Pattern, RiskItem, TodayAction } from './heroClient.js';
-import { SourceLine } from '../components/SourceLine.js';
+import { ReceiptThread } from '../receipts/ReceiptThread.js';
+import { formatBody } from '../format/dates.js';
 
 export interface HeroApi {
   status(): Promise<GateState | null>;
@@ -85,8 +86,11 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
                 <span>
                   <div><TodayLead action={a} /></div>
                   {a.subline && <div className="tov-stamp" style={{ color: act ? 'var(--claret)' : 'var(--text-secondary)', marginTop: 2 }}>{a.subline}</div>}
-                  {/* [P34-7] where it came from — sent with the list, tap to expand */}
-                  <SourceLine kind={a.receipt?.source ?? 'pending'} who={a.clientName ?? null} quote={a.receipt?.quote ?? null} at={a.receipt?.at ?? null} />
+                  {/* [P34-7 → P35-3] where it came from, as the source chat bubble — tap for the conversation */}
+                  <ReceiptThread
+                    refInfo={a.receipt?.quote ? { noteId: a.receipt.noteId ?? null, clientId: a.clientId, span: a.receipt.quote, at: a.receipt.at, quote: a.receipt.quote, sender: a.receipt.source === 'capture' ? 'Your note' : a.clientName ?? null } : {}}
+                    emptyText={!a.receipt ? 'Source shows after the next refresh' : a.receipt.source === 'contact' ? `Last contact ${formatBody(a.receipt.at ?? '')}` : 'No source quote was saved for this fact'}
+                  />
                 </span>
               </li>
             );

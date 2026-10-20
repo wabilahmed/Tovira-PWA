@@ -40,7 +40,7 @@ export interface TodayAction {
   owner?: 'rep' | 'client';
   refId?: string;
   /** [P34-7] Where it came from, sent with the list. Absent on a list cached before this field existed. */
-  receipt?: { quote: string | null; source: 'message' | 'capture' | 'none' | 'contact'; at: string | null };
+  receipt?: { quote: string | null; source: 'message' | 'capture' | 'none' | 'contact'; at: string | null; noteId?: string };
 }
 
 export class HeroClient {

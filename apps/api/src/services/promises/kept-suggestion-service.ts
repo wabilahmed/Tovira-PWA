@@ -22,6 +22,10 @@ export interface KeptSuggestionView {
   delivery: { quote: string; date: string };
   /** [P34-3] When the suggestion was raised (ms) — To Confirm shows the newest first. */
   createdAt: number;
+  /** [P35-3] The chat both messages are in, and their exact times — shown as chat bubbles. */
+  noteId: string | null;
+  promiseAt: string | null;
+  deliveryAt: string;
 }
 
 const PAST: Record<string, string> = {
@@ -87,6 +91,9 @@ export class KeptSuggestionService {
         promise: { quote: r.promiseSpan ?? r.promiseText, date: day(r.promiseAt) },
         delivery: { quote: r.deliveryBody, date: day(r.deliveryAt)! },
         createdAt: r.createdAt,
+        noteId: r.noteId || null,
+        promiseAt: r.promiseAt,
+        deliveryAt: r.deliveryAt,
       });
     }
     return out;

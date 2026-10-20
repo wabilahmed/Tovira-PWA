@@ -1,4 +1,5 @@
-import { formatStamp, humanizeIsoDates } from '../format/dates.js';
+import { humanizeIsoDates } from '../format/dates.js';
+import { ReceiptThread } from '../receipts/ReceiptThread.js';
 
 /**
  * [POINTERS · D8/D9] The pointers card — shown in the client thread after a chat import and in the
@@ -20,8 +21,10 @@ const SECOND_HEADING: Record<Exclude<Pointer['section'], 'relationship'>, string
   retrospective: 'What we think went wrong:',
 };
 
-export function PointersCard({ clientName, pointers, disclosure }: {
+export function PointersCard({ clientName, clientId, pointers, disclosure }: {
   clientName: string;
+  /** [P35-3] Whose chats the "why" receipts come from. */
+  clientId?: string;
   pointers: Pointer[];
   disclosure: string | null;
 }): JSX.Element {
@@ -36,8 +39,8 @@ export function PointersCard({ clientName, pointers, disclosure }: {
         <p style={{ margin: 0, color: 'var(--text-secondary)' }}>This chat is short, so only a couple of things stood out.</p>
       ) : (
         <>
-          {relationship.length > 0 && <PointerGroup heading="To build the relationship:" pointers={relationship} />}
-          {secondSection && <PointerGroup heading={SECOND_HEADING[secondSection]} pointers={second} />}
+          {relationship.length > 0 && <PointerGroup heading="To build the relationship:" pointers={relationship} clientId={clientId} />}
+          {secondSection && <PointerGroup heading={SECOND_HEADING[secondSection]} pointers={second} clientId={clientId} />}
           {disclosure && <p style={{ margin: 0, fontStyle: 'italic', color: 'var(--text-secondary)' }}>{disclosure}</p>}
         </>
       )}
@@ -45,7 +48,7 @@ export function PointersCard({ clientName, pointers, disclosure }: {
   );
 }
 
-function PointerGroup({ heading, pointers }: { heading: string; pointers: Pointer[] }): JSX.Element {
+function PointerGroup({ heading, pointers, clientId }: { heading: string; pointers: Pointer[]; clientId?: string }): JSX.Element {
   return (
     <div>
       <div className="tov-stamp">{heading}</div>
@@ -57,11 +60,12 @@ function PointerGroup({ heading, pointers }: { heading: string; pointers: Pointe
             {p.receipts.length > 0 && (
               <details style={{ marginTop: '0.15rem' }}>
                 <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.85em' }}>why</summary>
-                <ul style={{ margin: '0.15rem 0 0', paddingLeft: '1rem' }}>
+                {/* [P35-3] each "why" as the chat it came from */}
+                <div style={{ display: 'grid', gap: '0.35rem', marginTop: '0.15rem' }}>
                   {p.receipts.map((r, j) => (
-                    <li key={j} style={{ color: 'var(--text-secondary)', fontSize: '0.85em' }}>&ldquo;{r.source_span}&rdquo;{r.source_message_at ? ` — ${formatStamp(r.source_message_at)}` : ''}</li>
+                    <ReceiptThread key={j} compact={false} refInfo={{ clientId: clientId ?? null, span: r.source_span, at: r.source_message_at, quote: r.source_span }} />
                   ))}
-                </ul>
+                </div>
               </details>
             )}
           </li>

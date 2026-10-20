@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { BookScanReport, BookScanItem } from './bookScanClient.js';
-import { Receipt } from '../components/Receipt.js';
+import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { daysSince } from '../format/dates.js';
 import { findingId, appendFindings } from './streaming.js';
 
@@ -123,7 +123,8 @@ function Finding({ item, index, now }: { item: BookScanItem; index: number; now:
       {silent !== null && (
         <div className="tov-stamp" style={{ color: 'var(--claret)', marginTop: 2 }}>silent {silent} day{silent === 1 ? '' : 's'}</div>
       )}
-      <Receipt quote={item.receipt.quote} source={item.clientName} date={item.receipt.date} />
+      {/* [P35-3] the source as a chat, with up to 3 messages either side */}
+      <ReceiptThread compact={false} refInfo={{ noteId: item.receipt.ref?.noteId ?? null, clientId: item.clientId, span: item.receipt.ref?.span ?? item.receipt.quote, at: item.receipt.ref?.at ?? item.receipt.date, quote: item.receipt.quote, sender: item.clientName }} />
     </div>
   );
 }

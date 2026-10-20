@@ -1,4 +1,4 @@
-import { Receipt } from '../components/Receipt.js';
+import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import type { MatchSuggestion as Match } from './inventoryClient.js';
 
 /** Confidence as a WORD — never a percentage the rep reads as precision (§4/§10). */
@@ -35,12 +35,9 @@ export function MatchSuggestion({
         <strong>{heading ?? match.itemTitle}</strong>
         <span style={{ color: 'var(--text-secondary)', fontSize: '0.85em', whiteSpace: 'nowrap' }}>{LABEL[match.confidence]}</span>
       </div>
-      {/* The receipt — the client's own words + the date, always visible (no disclosure tap). */}
-      <Receipt
-        quote={match.receipt.requirementRaw}
-        date={match.receipt.statedOn}
-        onOpen={onOpenNote ? () => onOpenNote(match.receipt.noteId) : undefined}
-      />
+      {/* The receipt — the client's own words, always visible (no disclosure tap); [P35-3] as the chat it came from. */}
+      <ReceiptThread compact={false} refInfo={{ noteId: match.receipt.noteId, span: match.receipt.requirementRaw, at: match.receipt.statedOn, quote: match.receipt.requirementRaw }} />
+      {onOpenNote && <button type="button" className="tov-link" style={{ justifySelf: 'start' }} onClick={() => onOpenNote(match.receipt.noteId)}>Open the note</button>}
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <button type="button" onClick={() => onShare(match.matchId)} disabled={busy}>Share</button>
         <button type="button" onClick={() => onDismiss(match.matchId)} disabled={busy} style={{ background: 'none', color: 'var(--text-secondary)' }}>

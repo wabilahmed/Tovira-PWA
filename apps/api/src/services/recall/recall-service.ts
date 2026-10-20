@@ -17,6 +17,7 @@ import { formatMessageStamp, humanizeIsoDates } from '../text/format-date.js';
 import { AUX_MAX_TOKENS } from '../ai/aux-budgets.js';
 import { callCostUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { estimateTokens } from '../extraction/prompt.js';
+import { queryTerms, termHits } from './query-terms.js';
 
 /** [ASK-CAPTURE] What the recall turn detected about the rep's own message (detection only). */
 export interface CaptureOutcome {
@@ -47,6 +48,9 @@ export interface Receipt {
   date: string;
   clientId: string;
   noteId: string;
+  /** [P35-3] The stored span + message time this came from — so the screen shows it as the source bubble. */
+  span?: string | null;
+  at?: string | null;
 }
 
 export interface RecallAnswer {
@@ -132,7 +136,7 @@ function capByTokenBudget(receipts: Receipt[], budget: number): Receipt[] {
   return kept;
 }
 
-function toReceipt(m: SimilarNote): Receipt {
+function toReceipt(m: SimilarNote, terms: string[] = []): Receipt {
   // [SCREEN] excerpt excludes held messages — never sent to the model. [P21-A5] A chat reads
   // "Name, 7 May 2026, 13:02: message" (not the raw "[ISO] Name:" thread form) and is dated by its first
   // shown message, not by the day it was imported.
@@ -141,11 +145,18 @@ function toReceipt(m: SimilarNote): Receipt {
     ? shown.map((msg) => { const at = formatMessageStamp(msg.sentAt); return `${msg.sender}${at ? `, ${at}` : ''}: ${msg.body}`; }).join('\n')
     : modelSafeText(m.note)).trim();
   const firstDay = /^(\d{4}-\d{2}-\d{2})/.exec(shown.find((msg) => msg.sentAt)?.sentAt ?? '')?.[1];
+  // [P35-3] The message the answer most likely came from: the one sharing the most question words (else the first).
+  const best = shown.reduce<{ msg: (typeof shown)[number] | null; hits: number }>((acc, msg) => {
+    const hits = termHits(terms, msg.body);
+    return hits > acc.hits ? { msg, hits } : acc;
+  }, { msg: shown[0] ?? null, hits: 0 }).msg;
   return {
     quote: text.length > MAX_QUOTE ? `${text.slice(0, MAX_QUOTE)}…` : text,
     date: firstDay ?? isoDate(m.note.createdAt),
     clientId: m.note.clientId,
     noteId: m.note.id,
+    span: best?.body ?? null,
+    at: best?.sentAt ?? null,
   };
 }
 
@@ -411,7 +422,8 @@ export class RecallService {
     const digestRows = structuredRows.filter((r) => !r.matched).map(strip);
     // [RECALL-TOPK] top-k caps the vector ITEM count (the DB LIMIT); this caps the total TOKEN budget so
     // a few long notes (or a long structured digest) can't blow up the context. Always at least the top.
-    const capped = capByTokenBudget([...matchedRows, ...relevant.map(toReceipt), ...digestRows], this.config.maxRetrievalTokens);
+    const qTerms = queryTerms(question);
+    const capped = capByTokenBudget([...matchedRows, ...relevant.map((m) => toReceipt(m, qTerms)), ...digestRows], this.config.maxRetrievalTokens);
     // [P21-R2] The matching clients that made it into the excerpts — first matched receipt per client.
     let matchedClients: Array<{ id: string; name: string; quote: string }> = [];
     for (const m of matchedInfo) {

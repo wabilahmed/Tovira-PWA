@@ -3,8 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { OpenPromise } from '../promises/promisesClient.js';
 import { ConfirmChit } from './ConfirmChit.js';
 import type { PendingCapture } from '../recall/recallClient.js';
-import { Receipt } from '../components/Receipt.js';
-import { SourceLine } from '../components/SourceLine.js';
+import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import type { KeptSuggestion } from '../promises/promisesClient.js';
 
 /** The subset of the promises client the confirmation queue needs. */
@@ -124,17 +123,11 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
       node: (
         <div key={`kept:${s.id}`} className="tov-confirm-chit" role="group" aria-label="Looks sent — confirm">
           <p className="tov-confirm-chit__text" style={{ margin: '0 0 0.4rem' }}><strong>{s.clientName}</strong> — <span>{s.message}</span></p>
-          {/* [P34-7] one line (the promise); a tap shows both messages, as before */}
-          <SourceLine
-            kind="message"
-            who={s.clientName}
-            quote={s.promise.quote}
-            at={s.promise.date}
-            expanded={
-              <div style={{ display: 'grid', gap: '0.35rem', marginBottom: '0.5rem' }}>
-                <Receipt quote={s.promise.quote} source="Promise" date={s.promise.date} />
-                <Receipt quote={s.delivery.quote} source="Delivered" date={s.delivery.date} />
-              </div>
+          {/* [P34-7 → P35-3] the promise as a chat bubble; a tap opens the conversation AND the delivery message */}
+          <ReceiptThread
+            refInfo={{ noteId: s.noteId ?? null, clientId: s.clientId, span: s.promise.quote, at: s.promiseAt ?? s.promise.date, quote: s.promise.quote, sender: s.clientName }}
+            alsoOnExpand={
+              <ReceiptThread compact={false} refInfo={{ noteId: s.noteId ?? null, clientId: s.clientId, span: s.delivery.quote, at: s.deliveryAt ?? s.delivery.date, quote: s.delivery.quote }} />
             }
           />
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -152,7 +145,7 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
           key={`capture:${c.noteId}`}
           who={c.clientName}
           text={c.summary ?? c.statement}
-          source={<SourceLine kind="note" at={c.capturedAt} quote={c.statement} />}
+          source={<ReceiptThread refInfo={{ noteId: c.noteId, quote: c.statement, at: new Date(c.capturedAt).toISOString().slice(0, 10), sender: 'Your note' }} />}
           onConfirm={() => void resolveHeld(c.noteId, 'confirm')}
           onReject={() => void resolveHeld(c.noteId, 'reject')}
         />
@@ -167,7 +160,10 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
           text={p.text}
           // [P34-2] the client's name (or "Your note"); an older payload without clientName shows no lead.
           {...(p.clientName !== undefined ? { who: p.clientName ?? 'Your note', promised: p.owner === 'client' } : {})}
-          source={<SourceLine kind={p.receipt?.source ?? 'none'} who={p.clientName ?? null} quote={p.receipt?.quote ?? null} at={p.receipt?.at ?? null} />}
+          source={<ReceiptThread
+            refInfo={p.receipt?.quote ? { noteId: p.noteId ?? null, clientId: p.clientId, span: p.sourceSpan ?? p.receipt.quote, at: p.sourceMessageAt ?? p.receipt.at, quote: p.receipt.quote, sender: p.receipt.source === 'capture' ? 'Your note' : p.clientName ?? null } : {}}
+            emptyText="No source quote was saved for this fact"
+          />}
           onConfirm={() => void confirm(p.id)}
           onReject={() => void reject(p.id)}
         />

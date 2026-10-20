@@ -22,7 +22,7 @@ describe('<PointersCard>', () => {
         disclosure={null}
       />,
     );
-    expect(container.textContent).toContain('5 MAR 2026');            // the message date, formatted
+    expect(container.textContent).toContain('5 Mar 2026');            // the message date, formatted ([P35-3] the chat's date chip)
     expect(container.textContent).not.toContain('2026-03-05T09:00');  // not the raw ISO timestamp
   });
 

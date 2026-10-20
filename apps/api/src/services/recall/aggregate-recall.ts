@@ -139,7 +139,7 @@ function clientBudget(reqs: RequirementRecord[]): number | null {
 const isClosed = (c: ClientRecord): boolean => c.outcome === 'won' || c.outcome === 'lost_confirmed' || c.leadStatus === 'done';
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 const day = (r: RequirementRecord) => r.statedOn ?? new Date(r.createdAt).toISOString().slice(0, 10);
-const reqReceipt = (r: RequirementRecord): Receipt => ({ quote: (r.requirementRaw || r.text).trim(), date: day(r), clientId: r.clientId, noteId: r.noteId });
+const reqReceipt = (r: RequirementRecord): Receipt => ({ quote: (r.requirementRaw || r.text).trim(), date: day(r), clientId: r.clientId, noteId: r.noteId, span: r.requirementRaw || r.text, at: r.statedOn });
 
 /** The count line for a requirements question, phrased by the filter asked for:
  *  "3 clients have open requirements:" · "1 client wants a villa:" · "2 clients have a budget over 2M:" ·
@@ -257,7 +257,7 @@ export class AggregateRecall {
       clientId: p.clientId,
       clientName: nameOf.get(p.clientId) ?? 'A client',
       line: `${p.owner === 'client' ? 'promised' : 'you promised'} to ${p.text}${p.dueDate ? ` · due ${bodyDate(p.dueDate)}` : ''}`,
-      receipts: [{ quote: (p.sourceSpan ?? p.text).trim(), date: dayOf(p.sourceMessageAt) ?? p.captureAt ?? new Date(p.createdAt).toISOString().slice(0, 10), clientId: p.clientId, noteId: p.noteId }],
+      receipts: [{ quote: (p.sourceSpan ?? p.text).trim(), date: dayOf(p.sourceMessageAt) ?? p.captureAt ?? new Date(p.createdAt).toISOString().slice(0, 10), clientId: p.clientId, noteId: p.noteId, span: p.sourceSpan, at: p.sourceMessageAt }],
     }));
     const n = items.length;
     const headline = overdue
@@ -298,7 +298,7 @@ export class AggregateRecall {
           clientId: c.id,
           clientName: c.name,
           line: last ? `last replied ${when}` : `no reply on record — last contact ${when}`,
-          receipts: last ? [{ quote: last.body.trim(), date: last.at.slice(0, 10), clientId: c.id, noteId: last.noteId }] : [],
+          receipts: last ? [{ quote: last.body.trim(), date: last.at.slice(0, 10), clientId: c.id, noteId: last.noteId, span: last.body, at: last.at }] : [],
         },
       });
     }

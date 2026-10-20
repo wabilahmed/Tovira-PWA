@@ -21,12 +21,13 @@ describe('[P24-2] <ConfirmChitQueue> kept-promise suggestion', () => {
     render(<ConfirmChitQueue api={none} kept={kept()} />);
     const card = await screen.findByRole('group', { name: /looks sent/i });
     expect(within(card).getByText('Looks like you sent the options to QA P14 Gate Client. Mark done?')).toBeInTheDocument();
-    // [P34-7] one source line by default; a tap shows BOTH receipts, as before.
-    await userEvent.click(within(card).getByTestId('source-line'));
-    expect(within(card).getAllByText(/I'll send you three options by Thursday/).length).toBeGreaterThan(0);
-    expect(within(card).getByText(/Here are the options/)).toBeInTheDocument();
-    expect(card.textContent).toContain('2 MAR 2026');
-    expect(card.textContent).toContain('5 MAR 2026');
+    // [P35-3] the promise as a chat bubble by default; a tap shows the conversation AND the delivery message,
+    // each dated by the chat's date chip (shown once per day).
+    await within(card).findByText(/I'll send you three options by Thursday/);
+    await userEvent.click(within(card).getByRole('button', { name: /show the conversation/i }));
+    expect(await within(card).findByText(/Here are the options/)).toBeInTheDocument();
+    expect(card.textContent).toContain('2 Mar 2026');
+    expect(card.textContent).toContain('5 Mar 2026');
     expect(within(card).getByRole('button', { name: 'Mark done' })).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Not yet' })).toBeInTheDocument();
   });

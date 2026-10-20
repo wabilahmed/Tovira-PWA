@@ -57,7 +57,7 @@ describe('<MondayDigest>', () => {
     render(<MondayDigest api={api({ ...full, surfacedNotActed: surfaced })} />);
     const sec = await screen.findByTestId('surfaced');
     expect(sec).toHaveTextContent(/marina heights 402/i);
-    expect(within(sec).getByTestId('receipt')).toHaveTextContent(/a 2-bed near the marina/);
+    expect(within(sec).getByTestId('receipt-thread')).toHaveTextContent(/a 2-bed near the marina/); // [P35-3] the chat receipt
   });
 
   // A week clear of obligations but holding a suggestion is NOT a bare "clear week".

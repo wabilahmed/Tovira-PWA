@@ -10,6 +10,10 @@ export interface OpenPromise {
   confidence: string;
   done: boolean;
   confirmed: boolean;
+  /** [P35-3] The note + stored span + message time — resolved to the source chat bubble. */
+  noteId?: string;
+  sourceSpan?: string | null;
+  sourceMessageAt?: string | null;
   /** [P34-7] The stored receipt (verbatim span + when) — sent by /confirmations and /promises. */
   receipt?: { quote: string | null; source: 'message' | 'capture' | 'none'; at: string | null; label: string };
   /** [P34-3] When the item was written (ms) — the To Confirm queue shows the newest first. */
@@ -32,6 +36,10 @@ export interface KeptSuggestion {
   delivery: { quote: string; date: string };
   /** [P34-3] When the suggestion was raised (ms) — newest first in To Confirm. */
   createdAt?: number;
+  /** [P35-3] The chat both messages are in, and their exact times. */
+  noteId?: string | null;
+  promiseAt?: string | null;
+  deliveryAt?: string;
 }
 
 export class PromisesClient {

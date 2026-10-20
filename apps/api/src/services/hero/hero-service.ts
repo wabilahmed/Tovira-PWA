@@ -29,6 +29,8 @@ export interface ClientSignals {
   missedPromises: number;
   openPromises: number;
   upcomingMeetings: number;
+  /** [P35-3] The client's last message to the rep — a cooling client's receipt. */
+  lastClientMessage?: { noteId: string; body: string; at: string } | null;
 }
 
 export interface Pattern {
@@ -78,11 +80,13 @@ export interface TodayReceipt {
   source: 'message' | 'capture' | 'none' | 'contact';
   /** ISO instant ('message') or YYYY-MM-DD ('capture' / 'contact'); null when unknown. */
   at: string | null;
+  /** [P35-3] The note it came from — the screen shows the message as a chat bubble. */
+  noteId?: string;
 }
 
-const receiptOf = (f: { sourceSpan: string | null; sourceMessageAt: string | null; captureAt: string | null }): TodayReceipt => {
+const receiptOf = (f: { sourceSpan: string | null; sourceMessageAt: string | null; captureAt: string | null; noteId?: string | null }): TodayReceipt => {
   const r = withReceipt(f).receipt;
-  return { quote: r.quote, source: r.source, at: r.at };
+  return { quote: r.quote, source: r.source, at: r.at, ...(f.noteId ? { noteId: f.noteId } : {}) };
 };
 
 /** [P34-2] Fill in the client name on actions that lack it (a list cached before clientName existed). A name
@@ -135,6 +139,10 @@ export class HeroService {
       const rawNotes = await this.deps.notes.listByClient(userId, c.id);
       const notes = restriction.active ? rawNotes.map((n) => restrictNote(n, restriction)) : rawNotes;
       const people = notes.flatMap((n) => extractedOf(n.extracted).people);
+      let lastClientMessage: { noteId: string; body: string; at: string } | null = null;
+      for (const n of notes) for (const m of n.messages ?? []) {
+        if (m.role === 'client' && !m.excluded && m.sentAt && (!lastClientMessage || m.sentAt > lastClientMessage.at)) lastClientMessage = { noteId: n.id, body: m.body, at: m.sentAt };
+      }
       out.push({
         clientId: c.id,
         name: c.name,
@@ -144,6 +152,7 @@ export class HeroService {
         missedPromises: cp.filter((p) => isActivePromise(p, nowMs, this.promiseStaleThresholdDays) && p.dueDate !== null && p.dueDate < todayIso).length,
         openPromises: cp.filter((p) => isActivePromise(p, nowMs, this.promiseStaleThresholdDays)).length,
         upcomingMeetings: meetings.filter((m) => m.clientId === c.id && m.datetime !== null && m.datetime >= nowIso).length,
+        lastClientMessage,
       });
     }
     return out;
@@ -239,7 +248,10 @@ export class HeroService {
     }
     for (const s of sig) {
       if (s.silentDays > this.coldThresholdDays) {
-        actions.push({ kind: 'cold', reason: 'cooling', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days`, clientName: s.name, title: 'Reach out — going cold', receipt: { quote: null, source: 'contact', at: new Date(nowMs - s.silentDays * DAY_MS).toISOString().slice(0, 10) } });
+        actions.push({ kind: 'cold', reason: 'cooling', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days`, clientName: s.name, title: 'Reach out — going cold', receipt: s.lastClientMessage
+          // [P35-3] their last message to you, as the receipt; else the last-contact date
+          ? { quote: s.lastClientMessage.body, source: 'message', at: s.lastClientMessage.at, noteId: s.lastClientMessage.noteId }
+          : { quote: null, source: 'contact', at: new Date(nowMs - s.silentDays * DAY_MS).toISOString().slice(0, 10) } });
       }
     }
     // INV-MATCH: STRONG matches enter the register at priority 0 — BELOW every fact (overdue

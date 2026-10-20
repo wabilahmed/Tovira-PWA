@@ -16,7 +16,7 @@ describe('<MatchSuggestion>', () => {
     expect(screen.getByText('Marina Heights 402')).toBeInTheDocument();
     expect(screen.getByText('Strong match')).toBeInTheDocument(); // a word, not a percentage
     // The receipt (client's quoted words + date) is visible without any tap.
-    expect(screen.getByTestId('receipt')).toHaveTextContent('looking for a 2-bed near the marina');
+    expect(screen.getByTestId('receipt-thread')).toHaveTextContent('looking for a 2-bed near the marina'); // [P35-3] the chat receipt
     // No similarity number is rendered anywhere.
     expect(document.body.textContent).not.toMatch(/\d+%/);
   });

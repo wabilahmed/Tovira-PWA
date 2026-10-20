@@ -1,4 +1,4 @@
-import { Receipt } from '../components/Receipt.js';
+import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody } from '../format/dates.js';
 import type { FactReceipt } from '../clients/clientsClient.js';
 
@@ -8,6 +8,11 @@ export interface BriefPromise {
   dueDate: string | null;
   dueRaw: string | null;
   receipt?: FactReceipt;
+  /** [P35-3] Sent with the brief (the stored promise row) — resolved to the source chat bubble. */
+  noteId?: string;
+  clientId?: string;
+  sourceSpan?: string | null;
+  sourceMessageAt?: string | null;
 }
 
 /**
@@ -27,7 +32,9 @@ export function BriefOpenPromises({ promises }: { promises: BriefPromise[] }): J
               {p.text}
               {p.dueDate ? ` (due ${formatBody(p.dueDate)})` : p.dueRaw ? ` (${p.dueRaw})` : ''}
             </span>
-            {p.receipt?.quote && <Receipt quote={p.receipt.quote} date={p.receipt.at ?? undefined} />}
+            {p.receipt?.quote && (
+              <ReceiptThread compact={false} refInfo={{ noteId: p.noteId ?? null, clientId: p.clientId ?? null, span: p.sourceSpan ?? p.receipt.quote, at: p.sourceMessageAt ?? p.receipt.at, quote: p.receipt.quote, sender: p.receipt.source === 'capture' ? 'Your note' : null }} />
+            )}
           </li>
         ))}
       </ul>

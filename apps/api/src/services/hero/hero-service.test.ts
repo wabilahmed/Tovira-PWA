@@ -240,7 +240,7 @@ describe('[P34-7] Today actions carry their receipt', () => {
     const omar = await ctx.clients.create('u', 'Omar Ali');
     (omar as { lastTouchedAt: number }).lastTouchedAt = Date.parse('2026-05-20T10:00:00Z');
     const actions = await ctx.hero.today('u', NOW);
-    expect(actions.find((a) => a.kind === 'promise')!.receipt).toEqual({ quote: "Great, I'll send you the floor plans tomorrow", source: 'message', at: '2026-05-07T11:15' });
+    expect(actions.find((a) => a.kind === 'promise')!.receipt).toEqual({ quote: "Great, I'll send you the floor plans tomorrow", source: 'message', at: '2026-05-07T11:15', noteId: 'n1' }); // [P35-3] + its note
     expect(actions.find((a) => a.kind === 'cold')!.receipt).toEqual({ quote: null, source: 'contact', at: '2026-05-20' });
   });
 });

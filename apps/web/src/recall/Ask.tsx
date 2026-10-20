@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import type { CaptureOutcome, RecallAnswer } from './recallClient.js';
-import { Receipt } from '../components/Receipt.js';
+import { ReceiptThread } from '../receipts/ReceiptThread.js';
+import type { Receipt as AskReceipt } from './recallClient.js';
+
+/** [P35-3] An Ask receipt → the shared chat receipt's reference. */
+const refOf = (r: AskReceipt, sender?: string) => ({ noteId: r.noteId || null, clientId: r.clientId || null, span: r.span ?? null, at: r.at ?? r.date, quote: r.quote, sender: sender ?? null });
 
 export interface RecallApi {
   ask(question: string): Promise<RecallAnswer | null>;
@@ -148,7 +152,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
                 {result.list.items.map((item) => (
                   <div key={item.clientId} data-testid="list-line">
                     <div><strong>{item.clientName}</strong>{item.line ? `: ${item.line}` : ''}</div>
-                    {item.receipts[0] && <Receipt quote={item.receipts[0].quote} date={item.receipts[0].date} />}
+                    {item.receipts[0] && <ReceiptThread refInfo={refOf(item.receipts[0], item.clientName)} />}
                   </div>
                 ))}
               </div>
@@ -163,7 +167,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
               <button type="button" className="tov-link" aria-expanded={showNear} onClick={() => setShowNear((v) => !v)}>Closest messages I found</button>
               {showNear && (
                 <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  {result.nearMisses!.map((r, i) => <Receipt key={i} quote={r.quote} date={r.date} />)}
+                  {result.nearMisses!.map((r, i) => <ReceiptThread key={i} refInfo={refOf(r)} />)}
                 </div>
               )}
             </div>
@@ -173,7 +177,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
               <strong>Receipts</strong>
               <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
                 {result.receipts.map((r, i) => (
-                  <Receipt key={i} quote={r.quote} date={r.date} />
+                  <ReceiptThread key={i} refInfo={refOf(r)} compact={false} />
                 ))}
               </div>
             </div>

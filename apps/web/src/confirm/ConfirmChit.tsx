@@ -15,7 +15,7 @@ export interface ConfirmChitProps {
   who?: string;
   /** [P34-2] A client-owned promise reads "<who> promised: <text>". */
   promised?: boolean;
-  /** [P34-7] The card's source line (SourceLine), under the text. */
+  /** [P34-7 → P35-3] The card's receipt (ReceiptThread), under the text. */
   source?: React.ReactNode;
   /** An optional rep-entered value (AED) — still a guess, so it sits in the chit. */
   aed?: number;

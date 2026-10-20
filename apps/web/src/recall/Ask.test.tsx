@@ -78,7 +78,7 @@ describe('<Ask>', () => {
     await user.type(screen.getByLabelText(/your question/i), 'What did Ahmed say?');
     await user.click(screen.getByRole('button', { name: /^ask$/i }));
     expect(await screen.findByTestId('answer')).toHaveTextContent(/pricing was too high/i);
-    expect(screen.getByTestId('receipt')).toHaveTextContent(/pricing is too high/i);
+    expect(screen.getByTestId('receipt-thread')).toHaveTextContent(/pricing is too high/i); // [P35-3] the chat receipt
     expect(a.ask).toHaveBeenCalledWith('What did Ahmed say?');
   });
 

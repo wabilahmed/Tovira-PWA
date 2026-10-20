@@ -29,7 +29,7 @@ describe('<ItemMatches> (INV-MATCH — reverse, on an item)', () => {
     expect(api.itemMatches).toHaveBeenCalledWith('i1');
     expect(await screen.findByText('Ahmed Kareem')).toBeInTheDocument();
     expect(screen.queryByText('Marina Heights 402')).not.toBeInTheDocument(); // the item is known here
-    expect(screen.getByTestId('receipt')).toHaveTextContent('wants a 2-bed near the marina');
+    expect(screen.getByTestId('receipt-thread')).toHaveTextContent('wants a 2-bed near the marina'); // [P35-3] the chat receipt
     expect(screen.getByText(/1 client asked for something like this/)).toBeInTheDocument();
   });
 

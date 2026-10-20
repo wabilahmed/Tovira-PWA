@@ -90,7 +90,7 @@ import { isView } from './shell/nav.js';
 import type { Plan } from './billing/plans.js';
 import { useIsDesktop } from './shell/useIsDesktop.js';
 import { hapticTick } from './haptics.js';
-import { Receipt } from './components/Receipt.js';
+import { ReceiptThread } from './receipts/ReceiptThread.js';
 import { Capture } from './capture/Capture.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
@@ -958,7 +958,7 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
       <p className="tov-stamp" style={{ margin: '0 0 0.5rem' }}>Pre-meeting brief</p>
       {brief.pointers && brief.pointers.length > 0 && (
         <div style={briefSection}>
-          <PointersCard clientName={brief.clientName} pointers={brief.pointers} disclosure={brief.pointersDisclosure ?? null} />
+          <PointersCard clientName={brief.clientName} clientId={clientId} pointers={brief.pointers} disclosure={brief.pointersDisclosure ?? null} />
         </div>
       )}
       {brief.openPromises.length > 0 && (
@@ -1010,7 +1010,7 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
         <div style={briefSection}>
           <div className="tov-stamp">Recent context</div>
           <div style={{ display: 'grid', gap: '0.5rem', marginTop: 6 }}>
-            {brief.relatedNotes.map((n) => <Receipt key={n.noteId} quote={n.snippet} />)}
+            {brief.relatedNotes.map((n) => <ReceiptThread key={n.noteId} compact={false} refInfo={{ noteId: n.noteId, span: n.snippet, quote: n.snippet }} />)}
           </div>
         </div>
       )}

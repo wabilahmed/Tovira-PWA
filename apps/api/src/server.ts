@@ -53,6 +53,8 @@ import type { ContactAliasRepository, RepNameRepository } from './ports/contact-
 import type { ImportAckRepository } from './ports/import-ack-repository.js';
 import { handleFactsRoute } from './http/facts-routes.js';
 import { handleKeptSuggestionRoute } from './http/kept-suggestion-routes.js';
+import { handleReceiptRoute } from './http/receipt-routes.js';
+import { ReceiptSourceService } from './services/receipts/receipt-source-service.js';
 import type { KeptSuggestionService } from './services/promises/kept-suggestion-service.js';
 import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
@@ -126,6 +128,8 @@ export interface ApiDeps {
   /** [TASK 2] Erasure-window restriction reader — withholds a restricted counterparty in the rep's book
    *  and pointer surfaces. Optional (older wiring → no restriction). */
   restriction?: { forUser(userId: string): Promise<Restriction> };
+  /** [P35-3] Receipt sources as chat bubbles; defaults to one built from notes + restriction. */
+  receiptSources?: ReceiptSourceService;
   corrections: CorrectionRepository;
   extractionLog: ExtractionLogRepository;
   /** [NO-TRAINING-RETENTION] operational per-rep glossary (P4-9) — fed by edit verdicts. */
@@ -223,6 +227,7 @@ export interface ApiDeps {
  */
 export function createApiServer(deps: ApiDeps): Server {
   const cookieSecure = deps.cookieSecure ?? false;
+  const receiptSources = deps.receiptSources ?? new ReceiptSourceService({ notes: deps.notes, restriction: deps.restriction });
 
   return createServer((req, res) => {
     void dispatch(req, res).catch((err: unknown) => {
@@ -415,6 +420,8 @@ export function createApiServer(deps: ApiDeps): Server {
       )
         return;
       if (await handleKeptSuggestionRoute(request, response, { auth: deps.auth, keptSuggestions: deps.keptSuggestions })) return;
+      // [P35-3] receipts as WhatsApp-style chat — one batched request per list, the thread on tap.
+      if (await handleReceiptRoute(request, response, { auth: deps.auth, receipts: receiptSources })) return;
       if (
         await handleFactsRoute(request, response, {
           auth: deps.auth,

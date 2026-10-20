@@ -133,6 +133,7 @@ export class StructuredRecall {
           date: p.dueDate ?? dayOf(p.sourceMessageAt) ?? p.captureAt ?? isoDate(p.createdAt),
           clientId: p.clientId,
           noteId: p.noteId,
+          span: p.sourceSpan, at: p.sourceMessageAt,
         },
         content: p.text,
         digest: true,
@@ -150,6 +151,7 @@ export class StructuredRecall {
           date: dayOf(m.datetime) ?? today,
           clientId: m.clientId,
           noteId: m.noteId ?? '',
+          span: m.sourceSpan ?? null, at: m.sourceMessageAt ?? null,
         },
         content: `${m.title ?? ''} ${m.datetimeRaw ?? ''}`,
         digest: true,
@@ -162,7 +164,7 @@ export class StructuredRecall {
       .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
     for (const k of upcomingDates) {
       rows.push({
-        receipt: { quote: `${who(k.clientId)} — ${k.description.trim()}`, date: k.date ?? today, clientId: k.clientId, noteId: k.noteId },
+        receipt: { quote: `${who(k.clientId)} — ${k.description.trim()}`, date: k.date ?? today, clientId: k.clientId, noteId: k.noteId, span: (k as { sourceSpan?: string | null }).sourceSpan ?? null, at: (k as { sourceMessageAt?: string | null }).sourceMessageAt ?? null },
         content: k.description,
         digest: true,
       });
@@ -174,7 +176,7 @@ export class StructuredRecall {
       const phrase = (r.requirementRaw || r.text).trim();
       if (!phrase) continue;
       rows.push({
-        receipt: { quote: `${who(r.clientId)} — needs: ${phrase}`, date: dayOf(r.statedOn) ?? isoDate(r.createdAt), clientId: r.clientId, noteId: r.noteId },
+        receipt: { quote: `${who(r.clientId)} — needs: ${phrase}`, date: dayOf(r.statedOn) ?? isoDate(r.createdAt), clientId: r.clientId, noteId: r.noteId, span: r.requirementRaw || r.text, at: r.statedOn },
         content: `${r.text} ${r.requirementRaw}`,
         digest: false,
       });
@@ -223,7 +225,7 @@ function noteRows(n: NoteRecord, clientName: string): Row[] {
     const question = q.question?.trim();
     if (!question) continue;
     rows.push({
-      receipt: { quote: `${clientName} asked: ${question}`, date: dayOf(q.sentAt) ?? noteDay, clientId: n.clientId, noteId: n.id },
+      receipt: { quote: `${clientName} asked: ${question}`, date: dayOf(q.sentAt) ?? noteDay, clientId: n.clientId, noteId: n.id, span: question, at: q.sentAt ?? null },
       content: question,
       digest: false,
     });
@@ -240,7 +242,7 @@ function noteRows(n: NoteRecord, clientName: string): Row[] {
       ? [roleText, notesText].filter(Boolean).join(': ')
       : `${p.name.trim()}${roleText ? ` (${roleText})` : ''}${notesText ? `: ${notesText}` : ''}`;
     rows.push({
-      receipt: { quote: `${clientName} — ${label}`, date: dayOf(p.source_message_at ?? null) ?? noteDay, clientId: n.clientId, noteId: n.id },
+      receipt: { quote: `${clientName} — ${label}`, date: dayOf(p.source_message_at ?? null) ?? noteDay, clientId: n.clientId, noteId: n.id, span: p.source_span ?? null, at: p.source_message_at ?? null },
       content: `${p.name} ${p.role ?? ''} ${p.notes ?? ''} ${p.source_span ?? ''}`,
       digest: false,
     });
@@ -248,7 +250,7 @@ function noteRows(n: NoteRecord, clientName: string): Row[] {
   for (const f of ex.personal_facts ?? []) {
     if (!f.fact?.trim()) continue;
     rows.push({
-      receipt: { quote: `${clientName} — ${f.subject?.trim() && !namesEqual(f.subject, clientName) ? `${f.subject.trim()}: ` : ''}${f.fact.trim()}`, date: dayOf(f.source_message_at ?? null) ?? noteDay, clientId: n.clientId, noteId: n.id },
+      receipt: { quote: `${clientName} — ${f.subject?.trim() && !namesEqual(f.subject, clientName) ? `${f.subject.trim()}: ` : ''}${f.fact.trim()}`, date: dayOf(f.source_message_at ?? null) ?? noteDay, clientId: n.clientId, noteId: n.id, span: f.source_span ?? null, at: f.source_message_at ?? null },
       content: `${f.subject ?? ''} ${f.fact} ${f.category ?? ''} ${f.source_span ?? ''}`,
       digest: false,
     });

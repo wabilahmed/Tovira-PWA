@@ -26,7 +26,7 @@ describe('<BriefMatches> (INV-MATCH — the brief, primary surface)', () => {
     render(<BriefMatches api={api} clientId="c1" />);
     expect(api.matches).toHaveBeenCalledWith('c1');
     expect(await screen.findByText('Marina Heights 402')).toBeInTheDocument();
-    expect(screen.getByTestId('receipt')).toHaveTextContent('looking for a 2-bed near the marina');
+    expect(screen.getByTestId('receipt-thread')).toHaveTextContent('looking for a 2-bed near the marina'); // [P35-3] the chat receipt
   });
 
   it('renders nothing when there are no suggestions', async () => {

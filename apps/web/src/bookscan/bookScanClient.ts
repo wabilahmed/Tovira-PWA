@@ -11,7 +11,7 @@ export interface BookScanItem {
   clientId: string;
   clientName: string;
   headline: string;
-  receipt: { quote: string; date: string | null };
+  receipt: { quote: string; date: string | null; ref?: { noteId: string | null; span: string | null; at: string | null } };
   framing: 'worth_checking' | 'informational';
 }
 

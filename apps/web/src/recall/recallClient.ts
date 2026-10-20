@@ -5,6 +5,9 @@ export interface Receipt {
   date: string;
   clientId: string;
   noteId: string;
+  /** [P35-3] The stored span + message time — resolved to the source chat bubble. */
+  span?: string | null;
+  at?: string | null;
 }
 
 /** [ASK-CAPTURE] present only when the rep's turn was a factual statement about a client. */

@@ -76,7 +76,7 @@ describe('<BookScan>', () => {
   it('never renders an item without a receipt quote', async () => {
     render(<BookScan api={api(FULL)} />);
     await screen.findByText(/thread went quiet/i);
-    const receipts = screen.getAllByTestId('receipt');
+    const receipts = screen.getAllByTestId('receipt-thread'); // [P35-3] the chat receipt
     expect(receipts).toHaveLength(FULL.items.length);
     for (const r of receipts) expect(r.textContent?.trim().length).toBeGreaterThan(1);
   });

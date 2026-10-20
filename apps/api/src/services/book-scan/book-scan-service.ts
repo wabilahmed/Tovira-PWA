@@ -28,6 +28,8 @@ export interface BookScanReceipt {
   quote: string;
   /** A date tying the receipt to reality. Always present. */
   date: string | null;
+  /** [P35-3] Where it came from (note + stored span + message time) — shown as the source chat bubble. */
+  ref?: { noteId: string | null; span: string | null; at: string | null };
 }
 
 export interface BookScanItem {
@@ -158,7 +160,7 @@ export class BookScanService {
         headline: `Worth checking: did you ${lowerLead(p.text)}?${looksSent.has(`${p.clientId}|${promiseDedupeKey(p.owner, p.text)}`) ? ' (looks sent — confirm)' : ''}`,
         // [P21-B] Dated by the message it was said in (then the conversation date) — never the due day or
         // the import day. The due date is only a last resort for a pre-receipt fact with neither.
-        receipt: { quote: p.text, date: dayOf(p.sourceMessageAt) ?? p.captureAt ?? p.dueDate ?? isoDate(p.createdAt) },
+        receipt: { quote: p.text, date: dayOf(p.sourceMessageAt) ?? p.captureAt ?? p.dueDate ?? isoDate(p.createdAt), ref: { noteId: p.noteId, span: p.sourceSpan, at: p.sourceMessageAt } },
         framing: 'worth_checking',
       });
     }
@@ -196,7 +198,7 @@ export class BookScanService {
             clientId: c.id,
             clientName: c.name,
             headline: `${c.name} asked something and the thread went quiet`,
-            receipt: { quote: q.question.trim(), date: q.sentAt ?? isoDate(n.createdAt) },
+            receipt: { quote: q.question.trim(), date: q.sentAt ?? isoDate(n.createdAt), ref: { noteId: n.id, span: q.question.trim(), at: q.sentAt ?? null } },
             framing: 'worth_checking',
           });
         }
@@ -215,7 +217,7 @@ export class BookScanService {
             headline: `${c.name} has gone quiet — worth a nudge?`,
             // [P18-4] Date the receipt by the quoted MESSAGE, not the note's createdAt — for an imported
             // chat createdAt is the import date, not when the thread actually went quiet.
-            receipt: { quote: snippet(lastText), date: dayOf(lastMsg?.sentAt ?? null) ?? isoDate(last.createdAt) },
+            receipt: { quote: snippet(lastText), date: dayOf(lastMsg?.sentAt ?? null) ?? isoDate(last.createdAt), ref: { noteId: last.id, span: lastText, at: lastMsg?.sentAt ?? null } },
             framing: 'informational',
           });
         }
@@ -235,7 +237,7 @@ export class BookScanService {
           clientId: kd.clientId,
           clientName: nameOf.get(kd.clientId) ?? 'Unknown',
           headline: `Upcoming: ${kd.description}`,
-          receipt: { quote: kd.description.trim(), date: kd.date },
+          receipt: { quote: kd.description.trim(), date: kd.date, ref: { noteId: kd.noteId, span: (kd as { sourceSpan?: string | null }).sourceSpan ?? null, at: (kd as { sourceMessageAt?: string | null }).sourceMessageAt ?? null } },
           framing: 'informational',
         });
       }

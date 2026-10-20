@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { MondayDigest as Digest } from './mondayClient.js';
-import { Receipt } from '../components/Receipt.js';
+import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody, formatRange, daysSince } from '../format/dates.js';
 import { OutcomeControl, type OutcomeChoice } from '../outcomes/OutcomeControl.js';
 
@@ -79,7 +79,7 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
       <Section testid="questions" label="Unanswered questions" count={digest.unansweredQuestions.length}>
         <div style={{ display: 'grid', gap: '0.5rem' }}>
           {digest.unansweredQuestions.map((q, i) => (
-            <Receipt key={i} quote={q.question} date={q.date} />
+            <ReceiptThread key={i} compact={false} refInfo={{ clientId: q.clientId, span: q.question, at: q.date, quote: q.question }} />
           ))}
         </div>
       </Section>
@@ -96,7 +96,7 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
           {surfaced.map((s, i) => (
             <div key={i}>
               <div>{s.itemTitle}</div>
-              <Receipt quote={s.requirementRaw} date={s.statedOn} />
+              <ReceiptThread compact={false} refInfo={{ noteId: s.noteId, clientId: s.clientId, span: s.requirementRaw, at: s.statedOn, quote: s.requirementRaw }} />
             </div>
           ))}
         </div>
