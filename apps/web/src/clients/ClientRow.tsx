@@ -55,6 +55,8 @@ export function ClientRow({
       <span data-testid={`lead-pill-${client.id}`}>
         <LeadStatusPill status={client.leadStatus} onClick={onOpenStatus} />
       </span>
+      {/* [P36-7] Sort the list without opening every client: the row's own status menu. */}
+      <button type="button" className="tov-rowmenu" aria-label="Change status" aria-haspopup="dialog" onClick={(e) => { e.stopPropagation(); onOpenStatus(); }}>⋯</button>
     </li>
   );
 }

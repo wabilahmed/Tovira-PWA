@@ -17,7 +17,7 @@ import { Conversations, conversationsSummary } from './clients/page/Conversation
 import { WantsSection, wantsSummary, PromisesSection, promisesSummary, MeetingsSection, meetingsSummary } from './clients/page/Sections.js';
 import { useSections } from './clients/page/useSections.js';
 import { PointersCard, type Pointer } from './clients/PointersCard.js';
-import { LeadStatusFilterBar, LeadStatusSheet, leadStatusCounts, matchesLeadFilter, leadStatusLabel, type LeadFilter } from './clients/LeadStatus.js';
+import { LeadStatusFilterBar, LeadStatusSheet, OutcomeSheet, leadStatusCounts, matchesLeadFilter, leadStatusLabel, type LeadFilter, type StatusSuggestion } from './clients/LeadStatus.js';
 import { searchClients } from './clients/searchClients.js';
 import { ClientRow } from './clients/ClientRow.js';
 import { OnboardingClient, type SeedingStatus } from './onboarding/onboardingClient.js';
@@ -36,7 +36,7 @@ import { consumeSharedChat, idbSharedChatStore } from './pwa/sharedChat.js';
 import { resumePendingNotes } from './capture/resume.js';
 import { PromisesClient } from './promises/promisesClient.js';
 import { PromisesTracker } from './promises/PromisesTracker.js';
-import { ConfirmChitQueue } from './confirm/ConfirmChitQueue.js';
+import { ConfirmChitQueue, type StatusSuggestionsApi } from './confirm/ConfirmChitQueue.js';
 import { Locked } from './billing/Locked.js';
 import { LOCKED } from './billing/gated.js';
 import { HeroClient } from './hero/heroClient.js';
@@ -132,6 +132,21 @@ const mondayApi = new MondayClient(API_BASE);
 const ledgerApi = new LedgerClient(API_BASE);
 const shareCardApi = new ShareCardClient(API_BASE);
 const pushClient = new PushClient(API_BASE);
+/** [P36-7] The To Confirm status cards: the rep's answer is the only thing that changes a status.
+ *  Mark cold → Cold. Keep warm → Warm + "still open" (resets the going-quiet clock, so it stops suggesting).
+ *  Mark lost → Done + lost. Keep open → "still open" (clears the inferred loss, resets the clock). */
+const statusSuggestionsApi: StatusSuggestionsApi = {
+  list: () => clientsApi.statusSuggestions(),
+  apply: async (s) => {
+    const ok = (await clientsApi.setLeadStatus(s.clientId, s.status)) !== null;
+    if (ok && s.status === 'done') await clientsApi.setOutcome(s.clientId, s.outcome ?? 'lost');
+    return ok;
+  },
+  keep: async (s) => {
+    if (s.status === 'cold' && (await clientsApi.setLeadStatus(s.clientId, 'warm')) === null) return false;
+    return clientsApi.setOutcome(s.clientId, 'open');
+  },
+};
 
 // Optional voice input for recall: use the browser's SpeechRecognition when the
 // engine exists, otherwise recall stays text-only (no dead button).
@@ -340,7 +355,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   });
   // The client whose status sheet is open, and a transient toast (rollback error, or drop-out Undo).
   const [statusSheetFor, setStatusSheetFor] = useState<ClientSummary | null>(null);
-  const [leadToast, setLeadToast] = useState<{ kind: 'error'; message: string } | { kind: 'undo'; clientId: string; prev: LeadStatus | null; name: string; nowLabel: string } | null>(null);
+  const [leadToast, setLeadToast] = useState<{ kind: 'error'; message: string } | { kind: 'undo'; clientId: string; prev: LeadStatus | null; prevOutcome?: string; name: string; nowLabel: string } | null>(null);
+  // [P36-7] Done asks how it ended (won / lost → the existing outcome); and what the inference would change,
+  // shown in the sheet as a suggestion only.
+  const [outcomeFor, setOutcomeFor] = useState<ClientSummary | null>(null);
+  const [suggestions, setSuggestions] = useState<Map<string, StatusSuggestion>>(new Map());
+  const loadSuggestions = (): void => void clientsApi.statusSuggestions().then((list) => setSuggestions(new Map(list.map((x) => [x.clientId, x]))));
+  useEffect(loadSuggestions, []);
   const [view, setView] = useState<View>(() => {
     // A `?view=<section>` deep-link opens that section directly (shared links, screenshots-by-URL).
     // Any known view is honoured; an unknown or missing value falls back to Clients. [AUDIT item 2]
@@ -420,6 +441,12 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   useEffect(() => {
     void clientsApi.list().then(setClients);
   }, []);
+  // [P36-7] A status answered elsewhere (a To Confirm card) shows on the list the moment the rep comes back.
+  useEffect(() => {
+    if (view !== 'clients') return;
+    void clientsApi.list().then(setClients);
+    loadSuggestions();
+  }, [view]);
 
   // [CLIENT-SEARCH] Debounce the typed query (~200ms) so highlight re-renders stay smooth.
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -434,12 +461,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   }, [leadFilter]);
 
   // [LEAD-STATUS] Apply a rep's status choice with OPTIMISTIC UI: the list updates instantly (no
-  // reload). On a save failure we roll the row back and show a toast. On success, if the row no longer
-  // matches the active filter it drops out — we surface an Undo toast so the move is never a trap.
-  async function changeLeadStatus(client: ClientSummary, next: LeadStatus | null): Promise<void> {
+  // reload). On a save failure we roll the row back and show a toast. [P36-7] Every change shows an Undo
+  // (like Delete); Done then asks Won or Lost unless the rep already said (a "Done (lost)" suggestion).
+  async function changeLeadStatus(client: ClientSummary, next: LeadStatus | null, opts: { outcome?: 'won' | 'lost'; undo?: boolean } = {}): Promise<void> {
     const prev = client.leadStatus ?? null;
+    const prevOutcome = client.outcome;
     setStatusSheetFor(null);
-    if (prev === next) return; // one tap, one choice — re-picking the current status is a no-op
+    if (prev === next && !opts.outcome) return; // one tap, one choice — re-picking the current status is a no-op
     setClients((list) => list.map((c) => (c.id === client.id ? { ...c, leadStatus: next, leadStatusChangedAt: Date.now() } : c)));
     const saved = await clientsApi.setLeadStatus(client.id, next);
     if (!saved) {
@@ -450,8 +478,19 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     }
     // Keep the open book in sync if it's this client.
     setOpen((o) => (o && o.id === client.id ? { ...o, leadStatus: next, leadStatusChangedAt: saved.leadStatusChangedAt } : o));
-    const droppedOut = leadFilter !== 'all' && !matchesLeadFilter({ leadStatus: next }, leadFilter);
-    if (droppedOut) setLeadToast({ kind: 'undo', clientId: client.id, prev, name: client.name, nowLabel: leadStatusLabel(next) });
+    if (opts.outcome) await setClientOutcome(client, opts.outcome);
+    loadSuggestions();
+    if (opts.undo) { setLeadToast(null); return; }
+    setLeadToast({ kind: 'undo', clientId: client.id, prev, prevOutcome, name: client.name, nowLabel: next === 'done' && opts.outcome ? `Done (${opts.outcome})` : leadStatusLabel(next) });
+    if (next === 'done' && !opts.outcome) setOutcomeFor({ ...client, leadStatus: next });
+  }
+
+  /** [P36-7] The existing outcome: won / lost (rep-sourced — the nightly inference never overwrites it). */
+  async function setClientOutcome(client: ClientSummary, outcome: 'won' | 'lost' | 'open'): Promise<void> {
+    if (!(await clientsApi.setOutcome(client.id, outcome))) return;
+    const stored = outcome === 'lost' ? 'lost_confirmed' : outcome;
+    setClients((list) => list.map((c) => (c.id === client.id ? { ...c, outcome: stored } : c)));
+    setLeadToast((t) => (t && t.kind === 'undo' && t.clientId === client.id && outcome !== 'open' ? { ...t, nowLabel: `Done (${outcome})` } : t));
   }
 
   // Deep link (NUDGE-CONTENT): a pre-meeting nudge opens `/app?client=<id>`. Once the book has
@@ -491,7 +530,9 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }}
               initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined}
             />
-            <LeadStatusSheet client={statusSheetFor} onClose={() => setStatusSheetFor(null)} onPick={(s) => void changeLeadStatus(statusSheetFor!, s)} />
+            <LeadStatusSheet client={statusSheetFor} suggestion={statusSheetFor ? suggestions.get(statusSheetFor.id) ?? null : null} onClose={() => setStatusSheetFor(null)} onPick={(s, outcome) => void changeLeadStatus(statusSheetFor!, s, { outcome })} />
+            <OutcomeSheet client={outcomeFor} onClose={() => setOutcomeFor(null)} onPick={(o) => { const c = outcomeFor!; setOutcomeFor(null); void setClientOutcome(c, o); }} />
+            {renderLeadToast()}
           </>
         )}
       </PushView>
@@ -519,10 +560,36 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // active status chip (search + filter combine). Below the min length, search is inactive.
   const search = searchClients(clients, debouncedQuery);
   const visibleHits = search.active ? search.hits.filter((h) => matchesLeadFilter(h.client, leadFilter)) : [];
-  function undoLeadStatus(t: { clientId: string; prev: LeadStatus | null }): void {
+  function undoLeadStatus(t: { clientId: string; prev: LeadStatus | null; prevOutcome?: string }): void {
     const c = clients.find((x) => x.id === t.clientId);
     setLeadToast(null);
-    if (c) void changeLeadStatus(c, t.prev);
+    setOutcomeFor(null);
+    if (!c) return;
+    void changeLeadStatus(c, t.prev, { undo: true });
+    // Done → won/lost also set the outcome: put that back too (a rep-confirmed won/lost, or open).
+    if (c.outcome !== t.prevOutcome && t.prevOutcome !== undefined) {
+      void setClientOutcome(c, t.prevOutcome === 'won' ? 'won' : t.prevOutcome === 'lost_confirmed' ? 'lost' : 'open');
+    }
+  }
+
+  /** The status toast — an error, or the change with its Undo. [P36-7] Also on the phone's full-screen client page. */
+  function renderLeadToast(): JSX.Element | null {
+    if (!leadToast) return null;
+    return (
+      <div className="lead-toast" role="status" data-testid="lead-toast">
+        {leadToast.kind === 'error' ? (
+          <>
+            <span>{leadToast.message}</span>
+            <button type="button" onClick={() => setLeadToast(null)}>Dismiss</button>
+          </>
+        ) : (
+          <>
+            <span><strong>{leadToast.name}</strong> moved to {leadToast.nowLabel}.</span>
+            <button type="button" onClick={() => undoLeadStatus(leadToast)}>Undo</button>
+          </>
+        )}
+      </div>
+    );
   }
 
   const needsSeeding = seeding !== null && !seeding.seeded;
@@ -583,14 +650,14 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           <HeroInsights api={heroApi} />
           <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
           {/* [P34-3] the newest 3 on Today; the rest one tap away */}
-          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} limit={3} onSeeAll={() => setView('confirm')} />
+          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} limit={3} onSeeAll={() => setView('confirm')} />
         </>,
       )}
 
       {view === 'confirm' && (
         <>
           <h2 className="tov-screenhead" style={{ marginTop: 0 }}>To Confirm</h2>
-          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} standalone />
+          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} standalone />
         </>
       )}
 
@@ -731,21 +798,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {/* [LEAD-STATUS] Filter chips with per-bucket counts; the active one is highlighted. */}
           <LeadStatusFilterBar filter={leadFilter} counts={leadCounts} onChange={setLeadFilter} />
 
-          {leadToast && (
-            <div className="lead-toast" role="status" data-testid="lead-toast">
-              {leadToast.kind === 'error' ? (
-                <>
-                  <span>{leadToast.message}</span>
-                  <button type="button" onClick={() => setLeadToast(null)}>Dismiss</button>
-                </>
-              ) : (
-                <>
-                  <span><strong>{leadToast.name}</strong> moved to {leadToast.nowLabel}.</span>
-                  <button type="button" onClick={() => undoLeadStatus(leadToast)}>Undo</button>
-                </>
-              )}
-            </div>
-          )}
+          {renderLeadToast()}
 
           {(search.active ? visibleHits.length === 0 : visibleClients.length === 0) ? (
             <p style={{ color: 'var(--text-secondary)' }} data-testid="clients-empty">
@@ -789,7 +842,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               )}
             </div>
           )}
-          <LeadStatusSheet client={statusSheetFor} onClose={() => setStatusSheetFor(null)} onPick={(s) => void changeLeadStatus(statusSheetFor!, s)} />
+          <LeadStatusSheet client={statusSheetFor} suggestion={statusSheetFor ? suggestions.get(statusSheetFor.id) ?? null : null} onClose={() => setStatusSheetFor(null)} onPick={(s, outcome) => void changeLeadStatus(statusSheetFor!, s, { outcome })} />
+            <OutcomeSheet client={outcomeFor} onClose={() => setOutcomeFor(null)} onPick={(o) => { const c = outcomeFor!; setOutcomeFor(null); void setClientOutcome(c, o); }} />
         </div>
       )}
       </ErrorBoundary>

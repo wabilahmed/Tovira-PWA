@@ -589,3 +589,9 @@
 .tov-convo__state { color: var(--text-secondary); }
 .tov-convo__body { padding: 0 0 0.75rem; display: grid; gap: 0.5rem; }
 .tov-thread__list--scroll { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; }
+
+/* [P36-7] The row's status menu and the sheet's suggestion. */
+.tov-rowmenu { background: none; border: none; color: var(--text-secondary); font-size: 1.2rem; line-height: 1; padding: 0.4rem 0.5rem; min-height: 44px; min-width: 44px; cursor: pointer; border-radius: var(--radius-card); }
+.tov-rowmenu:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.lead-sheet__suggestion { display: grid; gap: 0.25rem; padding: 0.6rem 0.7rem; margin: 0 0 0.5rem; border: 1px dashed var(--hairline); border-radius: var(--radius-card); color: var(--text-secondary); font-size: 0.9rem; }
+.lead-sheet__suggestion .tov-link { justify-self: start; }

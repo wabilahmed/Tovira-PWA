@@ -98,28 +98,48 @@ export function LeadStatusFilterBar({
   );
 }
 
-/** The bottom sheet: one tap + one choice. Four options; the client's current one is marked. */
+/** [P36-7] What Tovira's existing inference points at (gone quiet / lost_inferred) — shown, never applied. */
+export interface StatusSuggestion { status: 'cold' | 'done'; outcome?: 'lost'; reason: string }
+
+/** [P36-7] Each status, with the one plain line that explains it (the real set: warm / cold / done / none). */
+export const STATUS_OPTIONS: ReadonlyArray<{ value: LeadStatus | null; label: string; hint: string; key: string }> = [
+  { value: 'warm', label: 'Warm', hint: 'Actively talking — a deal is possible', key: 'warm' },
+  { value: 'cold', label: 'Cold', hint: 'Gone quiet or lost interest', key: 'cold' },
+  { value: 'done', label: 'Done', hint: 'Closed — you’ll say whether it was won or lost', key: 'done' },
+  { value: null, label: 'No status', hint: 'Not sorted yet', key: 'unsorted' },
+];
+
+/** The bottom sheet: one tap + one choice; the client's current one is marked. [P36-7] An inferred status is
+ *  offered above the options as a suggestion with its reason — it changes nothing until the rep taps. */
 export function LeadStatusSheet({
   client,
   onPick,
   onClose,
+  suggestion,
 }: {
   client: ClientSummary | null;
-  onPick: (status: LeadStatus | null) => void;
+  /** The rep's choice; `outcome` when they took a "Done (lost)" suggestion (no need to ask Won or Lost). */
+  onPick: (status: LeadStatus | null, outcome?: 'won' | 'lost') => void;
   onClose: () => void;
+  suggestion?: StatusSuggestion | null;
 }): JSX.Element {
   const current = client?.leadStatus ?? null;
-  const options: Array<{ value: LeadStatus | null; label: string; hint: string; key: string }> = [
-    { value: 'warm', label: 'Warm', hint: 'Active — in play right now', key: 'warm' },
-    { value: 'cold', label: 'Cold', hint: 'Gone quiet', key: 'cold' },
-    { value: 'done', label: 'Done', hint: 'Satisfied and completed', key: 'done' },
-    { value: null, label: 'Unsorted', hint: 'No label yet', key: 'unsorted' },
-  ];
+  const options = STATUS_OPTIONS;
+  const suggested = suggestion && suggestion.status !== current ? suggestion : null;
+  const suggestedLabel = suggested ? (suggested.status === 'cold' ? 'Cold' : 'Done (lost)') : '';
   return (
     <BottomSheet open={client !== null} onClose={onClose} label="Set lead status" portal>
       {client && (
         <div className="lead-sheet" data-testid="lead-sheet">
           <p className="lead-sheet__title">Status for <strong>{client.name}</strong></p>
+          {suggested && (
+            <div className="lead-sheet__suggestion" data-testid="lead-suggestion">
+              <span>Tovira suggests {suggestedLabel} — {suggested.reason}</span>
+              <button type="button" className="tov-link" onClick={() => onPick(suggested.status, suggested.outcome)}>
+                {suggested.status === 'cold' ? 'Mark cold' : 'Mark lost'}
+              </button>
+            </div>
+          )}
           {options.map((o) => (
             <button
               key={o.key}
@@ -136,6 +156,23 @@ export function LeadStatusSheet({
               {current === o.value && <span className="lead-sheet__check" aria-hidden="true">✓</span>}
             </button>
           ))}
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+/** [P36-7] Choosing Done asks how it ended — the existing outcome (won / lost). "Not sure yet" leaves it open. */
+export function OutcomeSheet({ client, onPick, onClose }: { client: ClientSummary | null; onPick: (outcome: 'won' | 'lost') => void; onClose: () => void }): JSX.Element {
+  return (
+    <BottomSheet open={client !== null} onClose={onClose} label="Won or lost?" portal>
+      {client && (
+        <div className="lead-sheet" data-testid="outcome-sheet">
+          <p className="lead-sheet__title">Won or lost?</p>
+          <p className="lead-sheet__hint" style={{ margin: '0 0 0.5rem' }}>{client.name} is done. How did it end?</p>
+          <button type="button" className="lead-sheet__option" data-tone="done" onClick={() => onPick('won')}><span className="lead-sheet__label">Won</span></button>
+          <button type="button" className="lead-sheet__option" data-tone="cold" onClick={() => onPick('lost')}><span className="lead-sheet__label">Lost</span></button>
+          <button type="button" className="tov-link" onClick={onClose}>Not sure yet</button>
         </div>
       )}
     </BottomSheet>

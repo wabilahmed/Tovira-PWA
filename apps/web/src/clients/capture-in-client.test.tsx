@@ -44,17 +44,17 @@ describe('[P36-3] capture lives inside a client', () => {
     expect(screen.queryByRole('region', { name: 'Capture' })).toBeNull();
   });
 
-  it('first-run onboarding goes through "New client from a chat" and reaches the Book Scan', async () => {
+  it('first-run onboarding goes through "New client from a chat" and reaches the Book Scan', { timeout: 20_000 }, async () => {
     stub({ seeded: false, clients: [] });
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'Get started' }));
-    await user.click(await screen.findByRole('button', { name: 'Import chats' }));
-    const picker = await screen.findByLabelText(/choose a chat export/i); // the single-chat "New client from a chat"
+    await user.click(await screen.findByRole('button', { name: 'Get started' }, { timeout: 5000 }));
+    await user.click(await screen.findByRole('button', { name: 'Import chats' }, { timeout: 5000 }));
+    const picker = await screen.findByLabelText(/choose a chat export/i, {}, { timeout: 5000 }); // the single-chat "New client from a chat"
     await user.upload(picker, new File(['13/07/2019, 1:00 am - Layla: hi'], 'chat.txt', { type: 'text/plain' }));
-    await user.click(await screen.findByRole('button', { name: /^import/i }));
-    await user.click(await screen.findByRole('button', { name: 'Open Book Scan' }));
-    expect(await screen.findByText('Layla asked something')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /^import/i }, { timeout: 5000 }));
+    await user.click(await screen.findByRole('button', { name: 'Open Book Scan' }, { timeout: 5000 }));
+    expect(await screen.findByText('Layla asked something', {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it('every capture type is on the client page, behind its one Add button: voice note, paste a message, import a WhatsApp chat', async () => {

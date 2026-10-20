@@ -14,6 +14,8 @@ export interface ClientSummary {
   /** [LEAD-STATUS] null = Unsorted. Absent on older responses → treat as Unsorted. */
   leadStatus?: LeadStatus | null;
   leadStatusChangedAt?: number | null;
+  /** [OUTCOME] the deal outcome (open / won / lost_confirmed / lost_inferred); absent on older responses. */
+  outcome?: string;
 }
 
 export type ExtractionState = 'queued' | 'processing' | 'done' | 'failed';
@@ -142,6 +144,18 @@ export class ClientsClient {
       return res.ok;
     } catch {
       return false;
+    }
+  }
+
+  /** [P36-7] What the existing inference would change, as suggestions only (To Confirm + the status sheet). */
+  async statusSuggestions(): Promise<Array<{ clientId: string; clientName: string; status: 'cold' | 'done'; outcome?: 'lost'; reason: string }>> {
+    try {
+      const res = await fetch(this.url('/clients/status-suggestions'), { credentials: 'include' });
+      if (res.status !== 200) return [];
+      const body = (await res.json()) as { suggestions?: unknown };
+      return Array.isArray(body.suggestions) ? (body.suggestions as Awaited<ReturnType<ClientsClient['statusSuggestions']>>) : [];
+    } catch {
+      return [];
     }
   }
 

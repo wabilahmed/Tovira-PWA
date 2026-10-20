@@ -38,11 +38,22 @@ const KEPT_UNDO_MS = 10_000;
  * guess into a fact; Not right removes it — a wrong fact is worse than a missing
  * one.
  */
-export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, limit, onSeeAll, standalone = false }: {
+/** [P36-7] What the existing inference would change (gone quiet → Cold; lost_inferred → Done, lost). Shown as a
+ *  question; nothing changes until the rep answers. `keep` is the rep saying it's still alive. */
+export interface StatusSuggestionCard { clientId: string; clientName: string; status: 'cold' | 'done'; outcome?: 'lost'; reason: string }
+export interface StatusSuggestionsApi {
+  list(): Promise<StatusSuggestionCard[]>;
+  apply(s: StatusSuggestionCard): Promise<boolean>;
+  keep(s: StatusSuggestionCard): Promise<boolean>;
+}
+
+export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, statusSuggestions, limit, onSeeAll, standalone = false }: {
   api: ConfirmQueueApi;
   heading?: string;
   captures?: CaptureQueueApi;
   kept?: KeptQueueApi;
+  /** [P36-7] status suggestions from the existing inference — "Mark … as Cold?" */
+  statusSuggestions?: StatusSuggestionsApi;
   /** [P34-3] Show at most this many cards (newest first) and a "See all N" link — Today uses 3. */
   limit?: number;
   /** [P34-3] Opens the full To Confirm screen. */
@@ -54,6 +65,7 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
   const [held, setHeld] = useState<PendingCapture[]>([]);
   const [looksSent, setLooksSent] = useState<KeptSuggestion[]>([]);
   const [undoKept, setUndoKept] = useState<KeptSuggestion | null>(null);
+  const [statusCards, setStatusCards] = useState<StatusSuggestionCard[]>([]);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
@@ -64,10 +76,19 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
     });
     if (captures) void captures.listCaptures().then((x) => { if (live) setHeld(x); });
     if (kept) void kept.listKept().then((x) => { if (live) setLooksSent(x); });
+    if (statusSuggestions) void statusSuggestions.list().then((x) => { if (live) setStatusCards(x); });
     return () => {
       live = false;
     };
-  }, [api, captures, kept]);
+  }, [api, captures, kept, statusSuggestions]);
+
+  async function answerStatus(s: StatusSuggestionCard, take: boolean): Promise<void> {
+    if (!statusSuggestions) return;
+    if (await (take ? statusSuggestions.apply(s) : statusSuggestions.keep(s))) {
+      if (take) hapticTick();
+      setStatusCards((prev) => prev.filter((x) => x.clientId !== s.clientId));
+    }
+  }
 
   // [P24-2] Mark done → closed now, undoable for 10s; Not yet → dismissed (no undo needed: nothing changed).
   async function markKept(s: KeptSuggestion): Promise<void> {
@@ -89,7 +110,7 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
     if (kept && (await kept.notYetKept(s.id))) setLooksSent((prev) => prev.filter((x) => x.id !== s.id));
   }
 
-  const total = items.length + held.length + looksSent.length;
+  const total = items.length + held.length + looksSent.length + statusCards.length;
   if (total === 0 && !undoKept) {
     return standalone ? <section aria-label="To confirm" className="tov-confirm-queue"><p style={{ color: 'var(--text-secondary)' }}>Nothing to confirm.</p></section> : null;
   }
@@ -167,6 +188,21 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
           onConfirm={() => void confirm(p.id)}
           onReject={() => void reject(p.id)}
         />
+      ),
+    })),
+    ...statusCards.map((c) => ({
+      key: `status:${c.clientId}`,
+      at: 0,
+      node: (
+        <div key={`status:${c.clientId}`} className="tov-confirm-chit" role="group" aria-label="Status suggestion" data-testid="status-suggestion">
+          <p className="tov-confirm-chit__text" style={{ margin: '0 0 0.4rem' }}>
+            {c.reason} Mark <strong>{c.clientName}</strong> as {c.status === 'cold' ? 'Cold' : 'Done (lost)'}?
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="tov-link" onClick={() => void answerStatus(c, true)}>{c.status === 'cold' ? 'Mark cold' : 'Mark lost'}</button>
+            <button className="tov-link" onClick={() => void answerStatus(c, false)}>{c.status === 'cold' ? 'Keep warm' : 'Keep open'}</button>
+          </div>
+        </div>
       ),
     })),
   ].sort((a, b) => b.at - a.at);

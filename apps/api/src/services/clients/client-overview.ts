@@ -127,6 +127,16 @@ export class ClientOverviewService {
     };
   }
 
+  /** [P36-7] Every client whose status the existing inference would change — To Confirm cards. Reads only. */
+  async suggestions(userId: string, nowMs: number): Promise<Array<StatusSuggestion & { clientId: string; clientName: string }>> {
+    const out: Array<StatusSuggestion & { clientId: string; clientName: string }> = [];
+    for (const c of await this.deps.clients.listByUser(userId)) {
+      const s = this.suggest(c, nowMs);
+      if (s) out.push({ clientId: c.id, clientName: c.name, ...s });
+    }
+    return out;
+  }
+
   /** The status the existing inference points at, if the rep hasn't already said so. Never applied here. */
   private suggest(client: { outcome: string; leadStatus: string | null; lastTouchedAt: number }, nowMs: number): StatusSuggestion | null {
     if (client.leadStatus === 'done') return null;
