@@ -32,6 +32,8 @@ export interface PendingCapture {
 export interface RecallAnswer {
   answer: string;
   receipts: Receipt[];
+  /** [P35-2] Retrieved-but-not-the-answer, for a collapsed "Closest messages I found". */
+  nearMisses?: Receipt[];
   capture?: CaptureOutcome;
   /** [AUDIT gap C] 402 from the entitlement/billing gate — AI is paused (trial lapsed or payment
    *  failed), not a transient error. The UI shows a "paused, check Billing" notice, not "try again". */

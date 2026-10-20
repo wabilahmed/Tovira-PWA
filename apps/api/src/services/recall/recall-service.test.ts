@@ -185,3 +185,25 @@ describe('[P18-5] cleanAnswer', () => {
     expect(cleanAnswer('From the first meeting, they wanted a discount.')).toBe('From the first meeting, they wanted a discount.');
   });
 });
+
+/**
+ * [P35-2] Phone test, 20 Oct: "I don't have that on record." came back WITH three receipts under it — it looked
+ * like Tovira found something and then denied it. A not-found answer carries no receipts; what retrieval did
+ * find is returned separately as near-misses (shown collapsed as "Closest messages I found", never as receipts).
+ */
+describe('[P35-2] a not-found answer carries no receipts', () => {
+  it('the model says it doesn\'t have it → receipts [] and the retrieved notes as nearMisses', async () => {
+    const n = note('n1', 'Gate client chat about the weather and a viewing.');
+    const svc = new RecallService(embedder, notesRepo([{ note: n, similarity: 0.9 }]), model("I don't have that on record."));
+    const out = await svc.ask('u1', 'How many clients do I have with open requirements?');
+    expect(out.answer).toBe("I don't have that on record.");
+    expect(out.receipts).toEqual([]);
+    expect(out.nearMisses).toHaveLength(1);
+  });
+  it('NEGATIVE: a real answer keeps its receipts and has no nearMisses', async () => {
+    const n = note('n1', 'Ahmed said the pricing is too high for the villas.');
+    const out = await new RecallService(embedder, notesRepo([{ note: n, similarity: 0.9 }]), model('Ahmed felt the pricing was too high.')).ask('u1', 'What did Ahmed say about pricing?');
+    expect(out.receipts).toHaveLength(1);
+    expect(out.nearMisses).toBeUndefined();
+  });
+});

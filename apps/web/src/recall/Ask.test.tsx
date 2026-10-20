@@ -121,3 +121,30 @@ describe('<Ask>', () => {
     expect(screen.queryByRole('button', { name: /ask by voice/i })).toBeNull();
   });
 });
+
+/** [P35-2] A not-found answer shows no "Receipts" section and no "On record" label; near-misses sit behind a
+ *  collapsed "Closest messages I found". */
+describe('[P35-2] <Ask> not-found answer', () => {
+  const NOT_FOUND = "I don't have that on record.";
+  async function ask(result: RecallAnswer) {
+    const user = userEvent.setup();
+    render(<Ask api={api(result)} />);
+    await user.type(screen.getByLabelText('Your question'), 'How many clients do I have with open requirements?');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    await screen.findByTestId('answer');
+    return user;
+  }
+  it('no Receipts heading, no On record label; near-misses collapsed behind "Closest messages I found"', async () => {
+    const user = await ask({ answer: NOT_FOUND, receipts: [], nearMisses: [{ quote: 'Gate client chat', date: '2026-05-04', clientId: 'c1', noteId: 'n1' }] });
+    expect(screen.queryByText('Receipts')).toBeNull();
+    expect(screen.queryByText(/on record$/i)).toBeNull();
+    expect(screen.queryByText(/Gate client chat/)).toBeNull(); // collapsed
+    await user.click(screen.getByText('Closest messages I found'));
+    expect(await screen.findByText(/Gate client chat/)).toBeInTheDocument();
+  });
+  it('even an older server that sends receipts with a not-found answer shows no Receipts section', async () => {
+    await ask({ answer: NOT_FOUND, receipts: [{ quote: 'Gate client chat', date: '2026-05-04', clientId: 'c1', noteId: 'n1' }] });
+    expect(screen.queryByText('Receipts')).toBeNull();
+    expect(screen.queryByText(/on record$/i)).toBeNull();
+  });
+});

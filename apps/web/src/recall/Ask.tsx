@@ -27,6 +27,10 @@ function pausedMessage(reason?: string): string {
   }
 }
 
+/** [P35-2] The server's honest not-found reply. */
+const NOT_FOUND = "I don't have that on record.";
+const notFound = (r: RecallAnswer): boolean => r.answer.trim() === NOT_FOUND;
+
 export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<string> }): JSX.Element {
   const [question, setQuestion] = useState('');
   const [result, setResult] = useState<RecallAnswer | null>(null);
@@ -34,6 +38,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
   const [error, setError] = useState<string | null>(null);
   const [capture, setCapture] = useState<CaptureOutcome | null>(null);
   const [captureMsg, setCaptureMsg] = useState<string | null>(null);
+  const [showNear, setShowNear] = useState(false); // [P35-2] near-misses stay collapsed until asked for
 
   async function submit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -43,6 +48,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
     setResult(null);
     setCapture(null);
     setCaptureMsg(null);
+    setShowNear(false);
     const r = await api.ask(question);
     setBusy(false);
     if (!r) {
@@ -123,12 +129,23 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
       {/* [P21-A3] the held-statement card already says what was saved — don't repeat it as an answer. */}
       {result && !(result.capture?.status === 'captured' && result.capture.summary && result.receipts.length === 0) && (
         <div className="tov-deal" style={{ marginTop: '1rem' }}>
-          {/* §7: the label states provenance ("on record"), not "answer". */}
-          {result.receipts.length > 0 && <div className="tov-stamp" style={{ marginBottom: 4 }}>On record</div>}
+          {/* §7: the label states provenance ("on record"), not "answer". [P35-2] never above a not-found answer. */}
+          {result.receipts.length > 0 && !notFound(result) && <div className="tov-stamp" style={{ marginBottom: 4 }}>On record</div>}
           {/* [P18-5] The answer is already plain text (markdown stripped server-side); pre-wrap keeps
               any line breaks (e.g. a bulleted list) without rendering literal markup. */}
           <p data-testid="answer" style={{ whiteSpace: 'pre-wrap' }}>{result.answer}</p>
-          {result.receipts.length > 0 && (
+          {/* [P35-2] near-misses only behind a collapsed link — never under "Receipts" */}
+          {notFound(result) && (result.nearMisses?.length ?? 0) > 0 && (
+            <div style={{ marginTop: '0.5rem' }}>
+              <button type="button" className="tov-link" aria-expanded={showNear} onClick={() => setShowNear((v) => !v)}>Closest messages I found</button>
+              {showNear && (
+                <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  {result.nearMisses!.map((r, i) => <Receipt key={i} quote={r.quote} date={r.date} />)}
+                </div>
+              )}
+            </div>
+          )}
+          {result.receipts.length > 0 && !notFound(result) && (
             <div>
               <strong>Receipts</strong>
               <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>

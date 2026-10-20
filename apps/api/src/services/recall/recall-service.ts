@@ -51,6 +51,9 @@ export interface Receipt {
 export interface RecallAnswer {
   answer: string;
   receipts: Receipt[];
+  /** [P35-2] A not-found answer never carries receipts; what retrieval did find is returned here, for a
+   *  collapsed "Closest messages I found" — never shown under "Receipts". */
+  nearMisses?: Receipt[];
   /** [ASK-CAPTURE] present only when the rep's turn was a factual statement about a client. */
   capture?: CaptureOutcome;
 }
@@ -463,8 +466,11 @@ export class RecallService {
       await this.sessions.appendMessage(userId, sessionId, 'assistant', answer, nowMs);
     }
 
+    // [P35-2] "I don't have that on record" with receipts under it reads as found-then-denied: a not-found
+    // answer carries none; the retrieved excerpts go back as near-misses instead.
+    const base: RecallAnswer = answer === NO_ANSWER && receipts.length > 0 ? { answer, receipts: [], nearMisses: receipts } : { answer, receipts };
     // [ASK-CAPTURE] separately from answering, see if the rep STATED a fact worth capturing.
     const capture = await this.detectAndCapture(userId, question, nowMs);
-    return capture && capture.status !== 'none' ? { answer, receipts, capture } : { answer, receipts };
+    return capture && capture.status !== 'none' ? { ...base, capture } : base;
   }
 }
