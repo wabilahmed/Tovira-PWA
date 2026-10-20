@@ -12,7 +12,9 @@ export type View =
   | 'inventory'
   | 'getstarted'
   | 'confirm'
-  | 'settings';
+  | 'settings'
+  /** [P37] not a screen: More → "Take the tour again" replays the tour. Never a ?view= deep link. */
+  | 'tour';
 
 export interface NavItem {
   view: View;
@@ -37,6 +39,7 @@ export const OVERFLOW: NavItem[] = [
   { view: 'inventory', label: 'Inventory' },
   { view: 'ledger', label: 'The Ledger' },
   { view: 'settings', label: 'Settings' },
+  { view: 'tour', label: 'Take the tour again' },
 ];
 
 /** Every view the app knows, for validating a `?view=` deep-link (screenshots, shared links). */
@@ -63,4 +66,5 @@ export const SIDEBAR: NavItem[] = [
   { view: 'inventory', label: 'Inventory' },
   { view: 'ledger', label: 'The Ledger' },
   { view: 'settings', label: 'Settings' },
+  { view: 'tour', label: 'Take the tour again' },
 ];

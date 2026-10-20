@@ -151,7 +151,7 @@ export function UsageMeter({
       {/* [P37] The one home of the picker: directly under the bar, for an active subscriber, at any percentage. */}
       {!updating && s.canTopUp && (
         <div>
-          <button type="button" className={s.exhausted ? 'tov-primary' : undefined} aria-expanded={picker || s.exhausted} onClick={() => setPicker((p) => !p)}>Buy more usage</button>
+          <button type="button" data-tour="buy-more" className={s.exhausted ? 'tov-primary' : undefined} aria-expanded={picker || s.exhausted} onClick={() => setPicker((p) => !p)}>Buy more usage</button>
           {(picker || s.exhausted) && <TopUp options={s.options} busy={busy} onBuy={buy} />}
         </div>
       )}

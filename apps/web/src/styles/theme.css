@@ -602,3 +602,40 @@
 .tov-row__activity { color: var(--text-secondary); font-size: 0.82rem; }
 .clients-sort { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.6rem; color: var(--text-secondary); font-size: 0.88rem; }
 .clients-sort select { max-width: 60vw; }
+
+/* [P37] The required tour. Token colours (both themes); phone-first, a centred card on a laptop; the spotlit
+   element stays visible through a ring whose shadow dims everything else. No motion unless the rep allows it. */
+.tov-tour { position: fixed; inset: 0; z-index: 1000; }
+.tov-tour__block { position: fixed; inset: 0; background: color-mix(in srgb, var(--surface-base) 20%, rgb(0 0 0 / 0.55)); }
+.tov-tour__spot { position: fixed; border-radius: var(--radius-card); outline: 2px solid var(--brass); box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55); pointer-events: none; }
+.tov-tour:has(.tov-tour__spot) .tov-tour__block { background: transparent; }
+.tov-tour__card {
+  position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto;
+  background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--hairline);
+  border-radius: var(--radius-card); padding: 1rem 1.1rem; box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
+  display: grid; gap: 0.5rem;
+}
+@media (min-width: 760px) { .tov-tour__card:not(.tov-tour__card--with-spot) { top: 50%; bottom: auto; transform: translate(-50%, -50%); } }
+.tov-tour__count { margin: 0; color: var(--text-secondary); font-size: 0.8rem; letter-spacing: 0.02em; }
+.tov-tour__title { margin: 0; font-size: 1.2rem; }
+.tov-tour__title:focus-visible, .tov-tour__card button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.tov-tour__body p { margin: 0 0 0.5rem; }
+.tov-tour__nav { display: flex; justify-content: space-between; gap: 0.75rem; margin-top: 0.25rem; }
+.tov-tour__example { margin: 0.25rem 0 0.5rem; padding: 0.6rem 0.7rem; border: 1px dashed var(--hairline); border-radius: var(--radius-card); background: var(--surface-base); }
+.tov-tour__example-tag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 0.35rem; }
+.tov-tour__mock { display: grid; gap: 0.35rem; }
+.tov-tour__mock-head { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.tov-tour__mock-add { margin-left: auto; color: var(--brass); font-weight: 600; }
+.tov-tour__mock-row { display: grid; border-top: 1px solid var(--hairline); padding-top: 0.3rem; }
+.tov-tour__mock-row small { color: var(--text-secondary); }
+.tov-tour__fake-btn { color: var(--brass); font-size: 0.9rem; }
+.tov-tour__questions { margin: 0; padding-left: 1.2rem; }
+.tov-tour__usage-bar { background: var(--surface-elevated); border-radius: 999px; height: 8px; overflow: hidden; margin-bottom: 0.35rem; }
+.tov-tour__usage-bar > div { height: 100%; background: var(--green); }
+.tov-tour__setup { border-top: 1px solid var(--hairline); padding-top: 0.5rem; margin-bottom: 0.5rem; }
+.tov-tour__setup p, .tov-tour__setup ul { margin: 0.25rem 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .tov-tour__card { transition: opacity 160ms ease; }
+  .tov-tour__spot { transition: top 200ms ease, left 200ms ease, width 200ms ease, height 200ms ease; }
+}

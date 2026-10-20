@@ -49,6 +49,8 @@ import { BillingClient } from './billing/billingClient.js';
 import { AllowanceClient } from './usage/allowanceClient.js';
 import { UsageMeter } from './usage/UsageMeter.js';
 import { UsageBanner } from './usage/UsageBanner.js';
+import { Tour } from './tour/Tour.js';
+import { HttpTourClient } from './tour/tourClient.js';
 import { Billing } from './billing/Billing.js';
 import { BillingReturn } from './billing/BillingReturn.js';
 import { PaymentBanner } from './billing/PaymentBanner.js';
@@ -110,6 +112,7 @@ const accessRequestApi = new HttpAccessRequestClient(API_BASE);
 const opsAccessApi = new HttpOpsAccessClient(API_BASE); // [P33] /ops/access
 const clientsApi = new ClientsClient(API_BASE);
 const clientPageApi = new HttpClientPageClient(API_BASE); // [P36-5]
+const tourApi = new HttpTourClient(API_BASE); // [P37]
 const onboardingApi = new OnboardingClient(API_BASE);
 const bulkImportApi = new BulkImportClient(API_BASE);
 const bookScanApi = new BookScanClient(API_BASE);
@@ -323,6 +326,17 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ClientSummary | null>(null);
+  // [P37] The required first-login tour: shown whenever the account hasn't completed it (resuming at its saved
+  // step), before anything else; "Take the tour again" (More) replays it without touching the record.
+  const [tour, setTour] = useState<{ mode: 'required' | 'replay'; start: number } | null>(null);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/ops')) return; // never on /ops/*
+    void tourApi.state().then((t) => { if (t?.required) { setOpen(null); setTour({ mode: 'required', start: t.step }); } });
+  }, []);
+  const navigate = (v: View): void => {
+    if (v === 'tour') { setOpen(null); setTour({ mode: 'replay', start: 0 }); return; }
+    setView(v);
+  };
   // [P37] Settings → Subscription is the one home of "Buy more usage" — every banner and message links here.
   const openSubscription = (): void => {
     setOpen(null);
@@ -626,7 +640,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   return (
     <AppShell
       view={view}
-      onNavigate={setView}
+      onNavigate={navigate}
       needsSeeding={needsSeeding}
       badges={{ inventory: matchBadge }}
       sidebarFooter={
@@ -797,7 +811,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             </div>
           )}
           {!clientsAction && <div className="clients-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', margin: '0 0 0.9rem' }}>
-            <button type="button" className="tov-primary" onClick={() => setClientsAction('newFromChat')}>New client from a chat</button>
+            <button type="button" className="tov-primary" data-tour="new-from-chat" onClick={() => setClientsAction('newFromChat')}>New client from a chat</button>
             <button type="button" onClick={() => setClientsAction('importSeveral')}>Import several chats</button>
           </div>}
           {clientsAction && (
@@ -903,6 +917,25 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </div>
       )}
       </ErrorBoundary>
+      {tour && (
+        <Tour
+          mode={tour.mode}
+          startStep={tour.start}
+          api={tourApi}
+          billing={billingApi}
+          usage={usageApi}
+          notifications={notificationApi}
+          standalone={readPushState().standalone}
+          onNavigate={(v) => { setOpen(null); setClientsAction(null); setView(v); }}
+          onFinish={() => {
+            // "Import your first chat" → New client from a chat; the Day-One Book Scan follows the import.
+            setTour(null);
+            setOnboardingImport(true);
+            setClientsAction('newFromChat');
+            setView('clients');
+          }}
+        />
+      )}
     </AppShell>
   );
 }

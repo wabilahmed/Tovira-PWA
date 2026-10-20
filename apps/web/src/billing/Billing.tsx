@@ -99,7 +99,7 @@ export function Billing({
       {status !== 'active' && status !== 'past_due' && status !== 'payment_failed' && (
         <>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button className="tov-primary" onClick={() => void subscribe('monthly')} disabled={busy}>
+            <button className="tov-primary" data-tour="subscribe" onClick={() => void subscribe('monthly')} disabled={busy}>
               {busy ? 'Starting…' : <>Subscribe monthly — <span className="tov-mono">{PLANS.monthly.price}</span></>}
             </button>
             <button className="tov-link" onClick={() => void subscribe('annual')} disabled={busy}>

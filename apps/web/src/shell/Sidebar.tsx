@@ -40,6 +40,7 @@ export function Sidebar({
             key={i.view}
             type="button"
             className="tov-sidebar__item"
+            data-tour={`nav-${i.view}`}
             data-active={view === i.view || undefined}
             aria-current={view === i.view ? 'page' : undefined}
             onClick={() => onNavigate(i.view)}

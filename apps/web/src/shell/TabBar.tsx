@@ -58,6 +58,7 @@ export function TabBar({ view, onNavigate, badges }: { view: View; onNavigate: (
             }}
             type="button"
             className="tov-tab"
+            data-tour={`nav-${i.view}`}
             aria-current={view === i.view ? 'page' : undefined}
             data-active={view === i.view || undefined}
             onClick={() => go(i.view)}
