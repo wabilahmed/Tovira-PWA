@@ -25,6 +25,7 @@ import { InventoryClient } from './inventory/inventoryClient.js';
 import { ClientInventory } from './inventory/ClientInventory.js';
 import { BriefMatches } from './inventory/BriefMatches.js';
 import { ImportChat } from './import/ImportChat.js';
+import { SharedChatPicker } from './import/SharedChatPicker.js';
 import { consumeSharedChat, idbSharedChatStore } from './pwa/sharedChat.js';
 import { resumePendingNotes } from './capture/resume.js';
 import { PromisesClient } from './promises/promisesClient.js';
@@ -306,7 +307,19 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [open, setOpen] = useState<ClientSummary | null>(null);
   // [P36-1] A chat for a client who doesn't exist yet (or several chats) comes in from the Clients list.
   const [clientsAction, setClientsAction] = useState<'newFromChat' | 'importSeveral' | null>(null);
+  // [P36-2] A chat shared into the app waits here until the rep picks its client, then rides to that
+  // client's page prefilled (the import there still needs the rep's consent + Import).
+  const [sharedFor, setSharedFor] = useState<{ clientId: string; content: string; contentB64: string } | null>(null);
   /** [P36-1] The import started for `clientId` → reload the book and open that client's page. */
+  // [P36-2] The prefill is one-shot: leaving that client's page drops it (it never reappears later).
+  useEffect(() => { if (sharedFor && open?.id !== sharedFor.clientId) setSharedFor(null); }, [open]);
+  /** [P36-2] The rep picked (or created) the shared chat's client → open it with the chat prefilled. */
+  const openSharedOn = (c: ClientSummary): void => {
+    setSharedFor({ clientId: c.id, content: sharedContent, contentB64: sharedContentB64 });
+    setSharedContent('');
+    setSharedContentB64('');
+    setOpen(c);
+  };
   const openImportedClient = async (clientId: string): Promise<void> => {
     const list = await clientsApi.list();
     setClients(list);
@@ -378,7 +391,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     void consumeSharedChat(idbSharedChatStore, (chat) => {
       setSharedContent(chat.text ?? '');
       setSharedContentB64(chat.base64 ?? '');
-      setView('getstarted');
+      setOpen(null);
+      setView('clients'); // [P36-2] → the client picker on the Clients list
     });
   }, []);
 
@@ -464,6 +478,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               timeZone={session.user.timezone}
               billingStatus={billing?.status}
               onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }}
+              initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined}
             />
             <LeadStatusSheet client={statusSheetFor} onClose={() => setStatusSheetFor(null)} onPick={(s) => void changeLeadStatus(statusSheetFor!, s)} />
           </>
@@ -649,6 +664,18 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           </div>
           <h2 className="clients-title">Clients</h2>
           {/* [P36-1] Capture lives inside a client; a chat for a client you don't have yet starts here. */}
+          {(sharedContent || sharedContentB64) && (
+            <div data-testid="shared-chat" style={{ margin: '0 0 1rem' }}>
+              <SharedChatPicker
+                api={bulkImportApi}
+                clients={clients.map((c) => ({ id: c.id, name: c.name }))}
+                content={sharedContent}
+                contentB64={sharedContentB64}
+                onChooseClient={(id) => { const c = clients.find((x) => x.id === id); if (c) openSharedOn(c); }}
+                onNewClient={(n) => void clientsApi.create(n).then((created) => { setClients((prev) => [created, ...prev]); openSharedOn(created); })}
+              />
+            </div>
+          )}
           {!clientsAction && <div className="clients-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', margin: '0 0 0.9rem' }}>
             <button type="button" className="tov-primary" onClick={() => setClientsAction('newFromChat')}>New client from a chat</button>
             <button type="button" onClick={() => setClientsAction('importSeveral')}>Import several chats</button>
@@ -744,7 +771,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }} initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -758,14 +785,14 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string } }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [paste, setPaste] = useState('');
   const [brief, setBrief] = useState<Brief | typeof LOCKED | null>(null);
-  const [showImport, setShowImport] = useState(false);
+  const [showImport, setShowImport] = useState(!!initialImport);
   const [phone, setPhone] = useState<string | null>(client.phone);
   // Notes the server refused to extract because of the trial seeding ceiling. We
   // stop retrying them and show the non-scary ceiling state (no client-side math).
@@ -922,6 +949,8 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
                 refresh();
               }}
               onOpenClient={onOpenClient}
+              initialContent={initialImport?.content}
+              initialContentBase64={initialImport?.contentB64}
             />
           </div>
         )}
