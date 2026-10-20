@@ -56,3 +56,21 @@ describe('<ConfirmChit> (§6 confirmation queue — a guess never reads as a fac
     expect(screen.getByTestId('confirm-chit-tick')).toHaveAttribute('data-confirmed', 'true');
   });
 });
+
+/**
+ * [P34-4] Phone review, 20 Oct: "Worth checking" cards showed a ✓ in a circle — a tick means "done", these mean
+ * the opposite. An unconfirmed chit shows a neutral "?" labelled "Needs your check"; the tick is kept only for
+ * the confirmed state.
+ */
+describe('[P34-4] the worth-checking marker is neutral, not a tick', () => {
+  it('unconfirmed: no ✓ anywhere; a "?" with the accessible label "Needs your check"', () => {
+    const { container } = render(<ConfirmChit text="Sara's budget → 2.2M" onConfirm={() => {}} onReject={() => {}} />);
+    expect(container.textContent).not.toContain('✓');
+    const marker = screen.getByRole('img', { name: 'Needs your check' });
+    expect(marker).toHaveTextContent('?');
+  });
+  it('confirmed: the ✓ is shown, labelled "Confirmed"', () => {
+    render(<ConfirmChit text="Sara's budget → 2.2M" confirmed onConfirm={() => {}} onReject={() => {}} />);
+    expect(screen.getByRole('img', { name: 'Confirmed' })).toHaveTextContent('✓');
+  });
+});

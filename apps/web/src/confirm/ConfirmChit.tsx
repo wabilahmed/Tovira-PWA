@@ -1,7 +1,8 @@
 /**
  * The confirmation-queue chit (board §6): an unconfirmed guess, shown honestly
- * as a guess and never as a fact. An amber tick + "worth checking" label carry
- * the doubt; the tick turns brass once confirmed. Both replies — Confirm and
+ * as a guess and never as a fact. A neutral "?" marker + "worth checking" label
+ * carry the doubt ([P34-4]: a tick means "done", so it is kept ONLY for the
+ * confirmed state, where it turns brass). Both replies — Confirm and
  * Not right — are quiet outlines, never claret, because rejecting a guess is not
  * destructive. One component everywhere: an Arabic guess renders RTL, with any
  * mono value held LTR.
@@ -27,9 +28,10 @@ export function ConfirmChit({ text, aed, confirmed = false, onConfirm, onReject 
           className="tov-confirm-chit__tick"
           data-testid="confirm-chit-tick"
           data-confirmed={confirmed ? 'true' : 'false'}
-          aria-hidden="true"
+          role="img"
+          aria-label={confirmed ? 'Confirmed' : 'Needs your check'}
         >
-          ✓
+          {confirmed ? '✓' : '?'}
         </span>
         <span className="tov-stamp tov-confirm-chit__label">Worth checking</span>
       </div>
