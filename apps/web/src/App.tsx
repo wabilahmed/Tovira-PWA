@@ -548,8 +548,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         <>
           <HeroInsights api={heroApi} />
           <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
-          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} />
+          {/* [P34-3] the newest 3 on Today; the rest one tap away */}
+          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} limit={3} onSeeAll={() => setView('confirm')} />
         </>,
+      )}
+
+      {view === 'confirm' && (
+        <>
+          <h2 className="tov-screenhead" style={{ marginTop: 0 }}>To Confirm</h2>
+          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} standalone />
+        </>
       )}
 
       {view === 'week' && gated(

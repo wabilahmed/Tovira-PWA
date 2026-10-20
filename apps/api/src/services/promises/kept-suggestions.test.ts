@@ -201,3 +201,13 @@ describe('[P28] an aliased chat (counterpart "Bubu DXB" confirmed for the client
     expect(await h.kept.listOpen(U)).toHaveLength(1);
   });
 });
+
+/** [P34-3] To Confirm shows the newest first across all kinds — a kept suggestion carries when it was raised. */
+describe('[P34-3] kept suggestions carry createdAt', () => {
+  it('each open suggestion has a numeric createdAt', async () => {
+    const h = await setup([PROMISE, m('client', '2026-03-03T09:00', 'Thanks'), DELIVERY]);
+    await h.svc.extractNote(U, h.note.id, '2026-03-06');
+    const [s] = await h.kept.listOpen(U);
+    expect(typeof s!.createdAt).toBe('number');
+  });
+});

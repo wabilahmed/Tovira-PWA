@@ -20,6 +20,8 @@ export interface KeptSuggestionView {
   message: string;
   promise: { quote: string; date: string | null };
   delivery: { quote: string; date: string };
+  /** [P34-3] When the suggestion was raised (ms) — To Confirm shows the newest first. */
+  createdAt: number;
 }
 
 const PAST: Record<string, string> = {
@@ -84,6 +86,7 @@ export class KeptSuggestionService {
         message: keptSuggestionCopy(r.promiseOwner, r.promiseText, clientName),
         promise: { quote: r.promiseSpan ?? r.promiseText, date: day(r.promiseAt) },
         delivery: { quote: r.deliveryBody, date: day(r.deliveryAt)! },
+        createdAt: r.createdAt,
       });
     }
     return out;

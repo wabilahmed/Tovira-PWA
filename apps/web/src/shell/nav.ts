@@ -12,6 +12,7 @@ export type View =
   | 'inventory'
   | 'capture'
   | 'getstarted'
+  | 'confirm'
   | 'settings';
 
 export interface NavItem {
@@ -34,6 +35,7 @@ export const OVERFLOW: NavItem[] = [
   { view: 'promises', label: 'Promises' },
   { view: 'meetings', label: 'Meetings' },
   { view: 'alerts', label: 'Alerts' },
+  { view: 'confirm', label: 'To Confirm' }, // [P34-3] the full queue (Today shows the newest 3)
   { view: 'inventory', label: 'Inventory' },
   { view: 'ledger', label: 'The Ledger' },
   { view: 'settings', label: 'Settings' },
@@ -41,7 +43,7 @@ export const OVERFLOW: NavItem[] = [
 
 /** Every view the app knows, for validating a `?view=` deep-link (screenshots, shared links). */
 export const VIEWS: readonly View[] = [
-  'clients', 'today', 'week', 'ask', 'promises', 'meetings', 'alerts', 'bookscan', 'ledger', 'inventory', 'capture', 'getstarted', 'settings',
+  'clients', 'today', 'week', 'ask', 'promises', 'meetings', 'alerts', 'bookscan', 'ledger', 'inventory', 'capture', 'getstarted', 'confirm', 'settings',
 ];
 
 /** True when `s` is a known View — guards an untrusted `?view=` query value. */
@@ -59,6 +61,7 @@ export const SIDEBAR: NavItem[] = [
   { view: 'promises', label: 'Promises' },
   { view: 'meetings', label: 'Meetings' },
   { view: 'alerts', label: 'Alerts' },
+  { view: 'confirm', label: 'To Confirm' },
   { view: 'bookscan', label: 'Book Scan' },
   { view: 'inventory', label: 'Inventory' },
   { view: 'ledger', label: 'The Ledger' },

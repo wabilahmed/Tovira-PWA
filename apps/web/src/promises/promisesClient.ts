@@ -10,6 +10,8 @@ export interface OpenPromise {
   confidence: string;
   done: boolean;
   confirmed: boolean;
+  /** [P34-3] When the item was written (ms) — the To Confirm queue shows the newest first. */
+  createdAt?: number;
   /** [P34-2] The client's name, for To Confirm cards (/confirmations); null = no client; absent elsewhere. */
   clientName?: string | null;
   /** [PROMISE-STALE] overdue past the window → shown behind a filter, out of the active count/claret.
@@ -26,6 +28,8 @@ export interface KeptSuggestion {
   message: string;
   promise: { quote: string; date: string | null };
   delivery: { quote: string; date: string };
+  /** [P34-3] When the suggestion was raised (ms) — newest first in To Confirm. */
+  createdAt?: number;
 }
 
 export class PromisesClient {

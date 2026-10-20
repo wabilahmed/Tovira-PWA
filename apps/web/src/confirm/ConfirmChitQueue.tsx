@@ -38,7 +38,18 @@ const KEPT_UNDO_MS = 10_000;
  * guess into a fact; Not right removes it — a wrong fact is worse than a missing
  * one.
  */
-export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept }: { api: ConfirmQueueApi; heading?: string; captures?: CaptureQueueApi; kept?: KeptQueueApi }): JSX.Element | null {
+export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, limit, onSeeAll, standalone = false }: {
+  api: ConfirmQueueApi;
+  heading?: string;
+  captures?: CaptureQueueApi;
+  kept?: KeptQueueApi;
+  /** [P34-3] Show at most this many cards (newest first) and a "See all N" link — Today uses 3. */
+  limit?: number;
+  /** [P34-3] Opens the full To Confirm screen. */
+  onSeeAll?: () => void;
+  /** [P34-3] The dedicated To Confirm screen: says so when there is nothing to confirm (instead of vanishing). */
+  standalone?: boolean;
+}): JSX.Element | null {
   const [items, setItems] = useState<OpenPromise[]>([]);
   const [held, setHeld] = useState<PendingCapture[]>([]);
   const [looksSent, setLooksSent] = useState<KeptSuggestion[]>([]);
@@ -78,7 +89,10 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept }
     if (kept && (await kept.notYetKept(s.id))) setLooksSent((prev) => prev.filter((x) => x.id !== s.id));
   }
 
-  if (items.length === 0 && held.length === 0 && looksSent.length === 0 && !undoKept) return null;
+  const total = items.length + held.length + looksSent.length;
+  if (total === 0 && !undoKept) {
+    return standalone ? <section aria-label="To confirm" className="tov-confirm-queue"><p style={{ color: 'var(--text-secondary)' }}>Nothing to confirm.</p></section> : null;
+  }
 
   const dropHeld = (noteId: string) => setHeld((prev) => prev.filter((c) => c.noteId !== noteId));
   async function resolveHeld(noteId: string, action: 'confirm' | 'reject'): Promise<void> {
@@ -101,18 +115,12 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept }
     if (await api.reject(id)) drop(id);
   }
 
-  return (
-    <section aria-label="To confirm" className="tov-confirm-queue">
-      <h3 className="tov-stamp" style={{ color: 'var(--amber)' }}>
-        {heading} · <span className="tov-mono">{items.length + held.length + looksSent.length}</span>
-      </h3>
-      {undoKept && (
-        <div role="status" data-testid="kept-undo" className="lead-toast">
-          <span>Marked done.</span>
-          <button onClick={() => void undoMarkKept()}>Undo</button>
-        </div>
-      )}
-      {looksSent.map((s) => (
+  // [P34-3] One list across the three kinds, newest first; Today shows the first `limit` and links to the rest.
+  const entries: Array<{ key: string; at: number; node: JSX.Element }> = [
+    ...looksSent.map((s) => ({
+      key: `kept:${s.id}`,
+      at: s.createdAt ?? 0,
+      node: (
         <div key={`kept:${s.id}`} className="tov-confirm-chit" role="group" aria-label="Looks sent — confirm">
           <p className="tov-confirm-chit__text" style={{ margin: '0 0 0.4rem' }}><strong>{s.clientName}</strong> — <span>{s.message}</span></p>
           <div style={{ display: 'grid', gap: '0.35rem', marginBottom: '0.5rem' }}>
@@ -124,8 +132,12 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept }
             <button className="tov-link" onClick={() => void notYet(s)}>Not yet</button>
           </div>
         </div>
-      ))}
-      {held.map((c) => (
+      ),
+    })),
+    ...held.map((c) => ({
+      key: `capture:${c.noteId}`,
+      at: c.capturedAt ?? 0,
+      node: (
         <ConfirmChit
           key={`capture:${c.noteId}`}
           who={c.clientName}
@@ -133,8 +145,12 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept }
           onConfirm={() => void resolveHeld(c.noteId, 'confirm')}
           onReject={() => void resolveHeld(c.noteId, 'reject')}
         />
-      ))}
-      {items.map((p) => (
+      ),
+    })),
+    ...items.map((p) => ({
+      key: p.id,
+      at: p.createdAt ?? 0,
+      node: (
         <ConfirmChit
           key={p.id}
           text={p.text}
@@ -143,7 +159,26 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept }
           onConfirm={() => void confirm(p.id)}
           onReject={() => void reject(p.id)}
         />
-      ))}
+      ),
+    })),
+  ].sort((a, b) => b.at - a.at);
+  const shown = limit !== undefined ? entries.slice(0, limit) : entries;
+
+  return (
+    <section aria-label="To confirm" className="tov-confirm-queue">
+      <h3 className="tov-stamp" style={{ color: 'var(--amber)' }}>
+        {heading} · <span className="tov-mono">{total}</span>
+      </h3>
+      {undoKept && (
+        <div role="status" data-testid="kept-undo" className="lead-toast">
+          <span>Marked done.</span>
+          <button onClick={() => void undoMarkKept()}>Undo</button>
+        </div>
+      )}
+      {shown.map((e) => e.node)}
+      {limit !== undefined && total > limit && (
+        <button className="tov-link" onClick={onSeeAll}>See all {total}</button>
+      )}
     </section>
   );
 }
