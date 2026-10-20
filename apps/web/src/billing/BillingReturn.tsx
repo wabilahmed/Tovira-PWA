@@ -43,6 +43,12 @@ export function BillingReturn({
 
   const isTopUp = mode === 'success' && queryParam('topup') === '1';
 
+  // [P37] Back from a top-up checkout: straight to Settings → Subscription, which says "Updating your balance…"
+  // until the webhook has credited it (never a claim that it's already there).
+  useEffect(() => {
+    if (isTopUp) onNavigate('/app?view=settings&topup=1');
+  }, []);
+
   useEffect(() => {
     if (mode !== 'success' || isTopUp) return; // a top-up doesn't flip subscription status — nothing to confirm
     alive.current = true;
@@ -87,9 +93,9 @@ export function BillingReturn({
 
   if (isTopUp) {
     return (
-      <AuthShell subtitle="Top-up added">
-        <p className="auth__intro" role="status">Your top-up has been added. It&apos;s ready to use now.</p>
-        <button className="auth__submit" type="button" onClick={() => onNavigate('/app?view=today')}>Go to Today</button>
+      <AuthShell subtitle="Payment received">
+        <p className="auth__intro" role="status">Thanks. Updating your balance…</p>
+        <button className="auth__submit" type="button" onClick={() => onNavigate('/app?view=settings&topup=1')}>Back to Subscription</button>
       </AuthShell>
     );
   }

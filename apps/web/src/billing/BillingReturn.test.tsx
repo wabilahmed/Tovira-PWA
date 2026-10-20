@@ -72,12 +72,16 @@ describe('[BILL-13] BillingReturn', () => {
     expect(screen.queryByText(/payment received/i)).not.toBeInTheDocument();
   });
 
-  it('top-up: shows "Top-up added" and never confirms/polls for a subscription', async () => {
+  // [P37] Never claims the top-up is there before the webhook lands: back to Subscription, "Updating your balance…".
+  it('top-up: says "Updating your balance…", returns to Subscription, and never confirms/polls for a subscription', async () => {
     window.history.replaceState({}, '', '/billing/success?topup=1');
     const status = vi.fn();
     const confirmSuccess = vi.fn();
-    render(<BillingReturn mode="success" billing={{ status, confirmSuccess }} />);
-    expect(screen.getByText(/top-up has been added/i)).toBeInTheDocument();
+    const onNavigate = vi.fn();
+    render(<BillingReturn mode="success" billing={{ status, confirmSuccess }} onNavigate={onNavigate} />);
+    expect(screen.getByText(/updating your balance/i)).toBeInTheDocument();
+    expect(screen.queryByText(/top-up has been added/i)).toBeNull();
+    expect(onNavigate).toHaveBeenCalledWith('/app?view=settings&topup=1');
     expect(status).not.toHaveBeenCalled();
     expect(confirmSuccess).not.toHaveBeenCalled();
   });

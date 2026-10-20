@@ -122,12 +122,13 @@ function decide(row: ReviewRow, choice: Choice | undefined, repName: string | nu
   }
 }
 
-export function ImportReview({ result, onImport, upsell, onTopUp, onSubscribe }: {
+export function ImportReview({ result, onImport, upsell, onOpenSubscription, onSubscribe }: {
   result: ReviewResult;
   onImport: (decisions: ReviewDecision[]) => void;
   /** [RULING 2] when the batch would exceed the allowance, the top-up / subscribe prompt. */
   upsell?: Upsell;
-  onTopUp?: (optionId: string) => void;
+  /** [P37] open Settings → Subscription (the one home of the top-up picker). */
+  onOpenSubscription?: () => void;
   onSubscribe?: (plan: Plan) => void;
 }): JSX.Element {
   const [choices, setChoices] = useState<Record<string, Choice>>({});
@@ -189,7 +190,7 @@ export function ImportReview({ result, onImport, upsell, onTopUp, onSubscribe }:
         <UpsellBanner
           upsell={upsell}
           lead={`This batch needs more usage than you have left this month. Top up now to import all ${upsell.n}.`}
-          onTopUp={onTopUp}
+          onOpenSubscription={onOpenSubscription}
           onSubscribe={onSubscribe}
         />
       )}
@@ -214,34 +215,20 @@ export function ImportReview({ result, onImport, upsell, onTopUp, onSubscribe }:
 
 /** [RULING 2] The top-up (or Subscribe, for a trial) prompt. Prices + percentages only — never a usage
  *  value. The recommended option (smallest covering the shortfall) is highlighted. */
-export function UpsellBanner({ upsell, lead, onTopUp, onSubscribe }: {
+export function UpsellBanner({ upsell, lead, onOpenSubscription, onSubscribe }: {
   upsell: Upsell;
   lead: string;
-  onTopUp?: (optionId: string) => void;
+  /** [P37] The picker lives only in Settings → Subscription — this opens it. */
+  onOpenSubscription?: () => void;
   onSubscribe?: (plan: Plan) => void;
 }): JSX.Element {
   return (
     <div role="status" data-testid="bulk-upsell" style={{ border: '1px solid var(--border, #ddd)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
       <p style={{ margin: 0 }}>{lead}</p>
       {upsell.canTopUp ? (
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {upsell.options.map((o) => {
-            const recommended = o.id === upsell.recommendedOptionId;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => onTopUp?.(o.id)}
-                data-testid={recommended ? 'topup-recommended' : undefined}
-                aria-label={`Top up ${o.label} for AED ${o.priceAed}`}
-                className={recommended ? 'tov-primary' : undefined}
-                aria-pressed={recommended}
-              >
-                {o.label} — AED {o.priceAed}
-              </button>
-            );
-          })}
-        </div>
+        <button type="button" className="tov-primary" data-testid="topup-recommended" onClick={() => onOpenSubscription?.()} style={{ justifySelf: 'start' }}>
+          Buy more usage
+        </button>
       ) : (
         <SubscribeNow onSubscribe={onSubscribe} />
       )}

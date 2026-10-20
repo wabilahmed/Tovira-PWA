@@ -48,6 +48,7 @@ import { Meetings } from './meetings/Meetings.js';
 import { BillingClient } from './billing/billingClient.js';
 import { AllowanceClient } from './usage/allowanceClient.js';
 import { UsageMeter } from './usage/UsageMeter.js';
+import { UsageBanner } from './usage/UsageBanner.js';
 import { Billing } from './billing/Billing.js';
 import { BillingReturn } from './billing/BillingReturn.js';
 import { PaymentBanner } from './billing/PaymentBanner.js';
@@ -322,6 +323,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ClientSummary | null>(null);
+  // [P37] Settings → Subscription is the one home of "Buy more usage" — every banner and message links here.
+  const openSubscription = (): void => {
+    setOpen(null);
+    setView('settings');
+    setTimeout(() => { try { document.getElementById('subscription')?.scrollIntoView({ block: 'start' }); } catch { /* jsdom */ } }, 0);
+  };
+  // [P37] Back from a top-up checkout (?topup=1): the usage shows "Updating your balance…" until it lands.
+  const [awaitingTopUp, setAwaitingTopUp] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get('topup') === '1'; } catch { return false; }
+  });
   // [P36-1] A chat for a client who doesn't exist yet (or several chats) comes in from the Clients list.
   const [clientsAction, setClientsAction] = useState<'newFromChat' | 'importSeveral' | null>(null);
   // [P36-3] First-run: "New client from a chat" finishes on the batch summary + Open Book Scan (Day One).
@@ -535,6 +546,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               billingStatus={billing?.status}
               onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }}
               initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined}
+              onOpenSubscription={openSubscription}
             />
             <LeadStatusSheet client={statusSheetFor} suggestion={statusSheetFor ? suggestions.get(statusSheetFor.id) ?? null : null} onClose={() => setStatusSheetFor(null)} onPick={(s, outcome) => void changeLeadStatus(statusSheetFor!, s, { outcome })} />
             <OutcomeSheet client={outcomeFor} onClose={() => setOutcomeFor(null)} onPick={(o) => { const c = outcomeFor!; setOutcomeFor(null); void setClientOutcome(c, o); }} />
@@ -664,6 +676,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'today' && gated(
         <>
+          {/* [P37] 80 / 95 / 100% of the allowance → a banner that opens Settings → Subscription. */}
+          <UsageBanner api={usageApi} onOpenSubscription={openSubscription} />
           <HeroInsights api={heroApi} />
           <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
           {/* [P34-3] the newest 3 on Today; the rest one tap away */}
@@ -685,7 +699,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </>,
       )}
 
-      {view === 'ask' && gated(<Ask api={recallApi} listen={speechListen} />)}
+      {view === 'ask' && gated(<Ask api={recallApi} listen={speechListen} onOpenSubscription={openSubscription} />)}
 
       {view === 'promises' && <PromisesTracker api={promisesApi} />}
 
@@ -736,9 +750,23 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               <span className="tov-unverified">Not confirmed yet</span>
             )}
           </p>
-          <Billing api={billingApi} />
-          {/* [P11-1] a trial rep at 100% gets Subscribe now here → checkout, instead of a dead end. */}
-          <UsageMeter api={usageApi} onSubscribe={startCheckout} />
+          {/* [P37] Subscription: the plan, the trial or renewal date, the usage bar, "Buy more usage" right under
+              it (an active subscriber only), and Manage billing. The one home of the top-up picker. */}
+          <section id="subscription" aria-label="Subscription" className="tov-subscription">
+            <h2 style={{ marginTop: '1.5rem' }}>Subscription</h2>
+            <Billing api={billingApi} />
+            {/* [P11-1] a trial rep at 100% gets Subscribe now here → checkout, instead of a dead end. */}
+            <UsageMeter
+              api={usageApi}
+              onSubscribe={startCheckout}
+              onUpdateCard={() => void billingApi.portal().then((url) => { if (url) window.location.href = url; })}
+              awaitingTopUp={awaitingTopUp}
+              onTopUpSettled={() => {
+                setAwaitingTopUp(false);
+                try { const u = new URL(window.location.href); u.searchParams.delete('topup'); window.history.replaceState({}, '', `${u.pathname}${u.search}`); } catch { /* jsdom */ }
+              }}
+            />
+          </section>
           <ThemeToggle />
           <TimezoneSetting current={session.user.timezone} api={auth} />
           <DisclosureLine />
@@ -777,11 +805,11 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               <button type="button" className="tov-link" onClick={() => { setClientsAction(null); setOnboardingImport(false); }}>← Back to clients</button>
               {clientsAction === 'newFromChat'
                 ? <BulkImport
-                    key="single" api={bulkImportApi} single onSubscribe={startCheckout}
+                    key="single" api={bulkImportApi} single onSubscribe={startCheckout} onOpenSubscription={openSubscription}
                     onOpenBookScan={() => { loadSeeding(); setClientsAction(null); setOnboardingImport(false); setView('bookscan'); }}
                     onClientReady={onboardingImport ? undefined : (id) => void openImportedClient(id)}
                   />
-                : <BulkImport key="several" api={bulkImportApi} onSubscribe={startCheckout} onOpenBookScan={() => setView('bookscan')} />}
+                : <BulkImport key="several" api={bulkImportApi} onSubscribe={startCheckout} onOpenSubscription={openSubscription} onOpenBookScan={() => setView('bookscan')} />}
             </div>
           )}
           {!clientsAction && <>
@@ -864,7 +892,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }} initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }} initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined} onOpenSubscription={openSubscription} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -879,7 +907,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string } }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport, onOpenSubscription }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string }; /** [P37] */ onOpenSubscription?: () => void }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
@@ -1064,6 +1092,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
               onOpenClient={onOpenClient}
               initialContent={initialImport?.content}
               initialContentBase64={initialImport?.contentB64}
+              onOpenSubscription={onOpenSubscription}
             />
           </div>
         )}

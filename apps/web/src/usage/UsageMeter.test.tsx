@@ -89,7 +89,7 @@ describe('<UsageMeter>', () => {
     expect(paused).toHaveTextContent(/paused until/i);
     expect(paused).toHaveTextContent(/1 NOV 2026/);
     expect(screen.getByTestId('topup-sheet')).toBeInTheDocument();
-    expect(screen.getByTestId('topup-topup_25')).toHaveTextContent('+25% — AED 65');
+    expect(screen.getByTestId('topup-topup_25')).toHaveTextContent('AED 65: +25% of your monthly allowance'); // [P37] pack copy
     expect(screen.queryByTestId('subscribe-annual')).toBeNull(); // a subscriber tops up, not re-subscribes
     expect(screen.queryByTestId('subscribe-monthly')).toBeNull();
   });

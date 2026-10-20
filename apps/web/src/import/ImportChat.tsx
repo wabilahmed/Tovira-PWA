@@ -47,6 +47,7 @@ export function ImportChat({
   onOpenClient,
   initialContent = '',
   initialContentBase64 = '',
+  onOpenSubscription,
 }: {
   clientId: string;
   api: ImportApi;
@@ -58,6 +59,8 @@ export function ImportChat({
   initialContent?: string;
   /** Prefill file bytes (e.g. a .zip shared via the Android share-target). */
   initialContentBase64?: string;
+  /** [P37] Over the allowance → "Buy more usage" opens Settings → Subscription. */
+  onOpenSubscription?: () => void;
 }): JSX.Element {
   const [content, setContent] = useState(initialContent);
   const [fileB64, setFileB64] = useState(initialContentBase64);
@@ -70,6 +73,7 @@ export function ImportChat({
   const [error, setError] = useState<string | null>(null);
   const [ceilingCount, setCeilingCount] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [overAllowance, setOverAllowance] = useState(false); // [P37] the refusal was the AI allowance
 
   // A selected/shared file takes precedence over the paste box.
   const canSubmit = (fileB64.length > 0 || content.trim().length > 0) && consent && !busy;
@@ -149,6 +153,7 @@ export function ImportChat({
       setFirstAck(result.message);
     } else {
       setError(result.message);
+      setOverAllowance(result.error === 'allowance');
     }
   }
 
@@ -198,6 +203,9 @@ export function ImportChat({
       </label>
 
       {error && <p role="alert" style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
+      {error && overAllowance && onOpenSubscription && (
+        <button type="button" className="tov-link" style={{ justifySelf: 'start' }} onClick={onOpenSubscription}>Buy more usage</button>
+      )}
       {notice && <p role="status" style={{ color: 'var(--text-secondary)', margin: 0 }}>{notice}</p>}
       {/* [P20-6] "Imported to X · Open" after filing to the suggested client (same toast as move Undo). */}
       {importedTo && (

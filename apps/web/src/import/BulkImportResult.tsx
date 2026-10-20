@@ -31,10 +31,11 @@ export function bulkSummaryLine(s: BulkSummary): string {
   return `Imported ${plural(s.chatsImported, 'chat')} — found ${plural(s.promises, 'promise')}, ${plural(s.requirements, 'requirement')}.`;
 }
 
-export function BulkImportResult({ jobs, upsell, onTopUp, onSubscribe, summary, onOpenBookScan }: {
+export function BulkImportResult({ jobs, upsell, onOpenSubscription, onSubscribe, summary, onOpenBookScan }: {
   jobs: BulkJob[];
   upsell?: Upsell;
-  onTopUp?: (optionId: string) => void;
+  /** [P37] open Settings → Subscription (the one home of the top-up picker). */
+  onOpenSubscription?: () => void;
   onSubscribe?: (plan: Plan) => void;
   /** [P20-3 / BULK-08] present once the batch is done — drives the summary + Open Book Scan button. */
   summary?: BulkSummary;
@@ -65,7 +66,7 @@ export function BulkImportResult({ jobs, upsell, onTopUp, onSubscribe, summary, 
             {limited} {limited === 1 ? 'chat' : 'chats'} weren&rsquo;t imported because you reached your monthly usage limit.
           </p>
           {upsell && (
-            <UpsellBanner upsell={upsell} lead="Re-upload them after topping up." onTopUp={onTopUp} onSubscribe={onSubscribe} />
+            <UpsellBanner upsell={upsell} lead="Re-upload them after topping up." onOpenSubscription={onOpenSubscription} onSubscribe={onSubscribe} />
           )}
         </div>
       )}

@@ -17,6 +17,11 @@ export interface AllowanceStatus {
   options: TopUpChoice[];
   /** [AUDIT item 4] ops AI-pause kill switch is on — processing is delayed, not broken. */
   aiPaused?: boolean;
+  /** [P37] the unspent top-up balance, % of the monthly allowance ("Extra usage: +80% left"). */
+  extraPercentLeft?: number;
+  /** [P37] the subscription state: 'active' | 'trialing' | 'trial_expired' | 'payment_failed' | 'past_due' |
+   *  'suspended' | 'ended' | 'canceled' | 'none'. Drives the 100% message. Absent on older payloads. */
+  subscription?: string | null;
 }
 
 export class AllowanceClient {

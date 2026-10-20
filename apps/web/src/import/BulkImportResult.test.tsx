@@ -30,16 +30,17 @@ describe('<BulkImportResult>', () => {
     expect(within(screen.getByTestId('result-row-b.txt')).getByText(/not imported\. you reached your monthly usage limit\./i)).toBeInTheDocument();
   });
 
+  // [P37] "Buy more usage" opens Settings → Subscription (the picker's one home).
   it('summarises the limit failures and invites a re-upload after topping up', async () => {
-    const onTopUp = vi.fn();
+    const onOpenSubscription = vi.fn();
     render(<BulkImportResult jobs={jobs} upsell={{ shortfall: true, n: 2, canTopUp: true, recommendedOptionId: 'topup_25', options: [
       { id: 'topup_15', label: '+15%', priceAed: 50 },
       { id: 'topup_25', label: '+25%', priceAed: 65 },
-    ] }} onTopUp={onTopUp} />);
+    ] }} onOpenSubscription={onOpenSubscription} />);
     expect(screen.getByText(/2 chats weren.t imported because you reached your monthly usage limit/i)).toBeInTheDocument();
     expect(screen.getByText(/re-upload them after topping up/i)).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('topup-recommended'));
-    expect(onTopUp).toHaveBeenCalledWith('topup_25');
+    expect(onOpenSubscription).toHaveBeenCalled();
   });
 
   it('a trial sees Subscribe now + the allowance-reset line on the result, not top-ups', async () => {

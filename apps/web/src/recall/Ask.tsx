@@ -21,7 +21,7 @@ export interface RecallApi {
 function pausedMessage(reason?: string): string {
   switch (reason) {
     case 'allowance_exhausted':
-      return "You've used this month's AI allowance, so Ask is paused. Top up from the usage meter in Settings, or wait for it to reset.";
+      return "You've used this month's AI allowance, so Ask is paused. Top up with Buy more usage in Settings → Subscription, or wait for it to reset.";
     case 'ai_paused':
     case 'account_suspended':
     case 'subscription_ended':
@@ -42,11 +42,12 @@ function CountHeadline({ text }: { text: string }): JSX.Element {
 const NOT_FOUND = "I don't have that on record.";
 const notFound = (r: RecallAnswer): boolean => r.answer.trim() === NOT_FOUND;
 
-export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<string> }): JSX.Element {
+export function Ask({ api, listen, onOpenSubscription }: { api: RecallApi; listen?: () => Promise<string>; /** [P37] the allowance refusal links to Subscription */ onOpenSubscription?: () => void }): JSX.Element {
   const [question, setQuestion] = useState('');
   const [result, setResult] = useState<RecallAnswer | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [overAllowance, setOverAllowance] = useState(false);
   const [capture, setCapture] = useState<CaptureOutcome | null>(null);
   const [captureMsg, setCaptureMsg] = useState<string | null>(null);
   const [showNear, setShowNear] = useState(false); // [P35-2] near-misses stay collapsed until asked for
@@ -70,6 +71,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
       // [AUDIT item 5] Point the rep at the RIGHT action for the reason the backend returned — a card
       // problem and a used-up allowance are different fixes, and showing one generic lock loses the sale.
       setError(pausedMessage(r.pausedReason));
+      setOverAllowance(r.pausedReason === 'allowance_exhausted');
       return;
     }
     setResult(r);
@@ -106,6 +108,7 @@ export function Ask({ api, listen }: { api: RecallApi; listen?: () => Promise<st
       </form>
 
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
+      {error && overAllowance && onOpenSubscription && <button type="button" className="tov-link" onClick={onOpenSubscription}>Buy more usage</button>}
 
       {/* [ASK-CAPTURE] a statement the rep made → confirm it into the vault, showing their own
           verbatim words (the receipt), not a paraphrase. Nothing is stored until they confirm. */}

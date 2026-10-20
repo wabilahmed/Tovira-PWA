@@ -66,8 +66,8 @@ export function Billing({
   const daysLeft = ent ? Math.max(0, Math.ceil((ent.trialEndsAt - now) / DAY)) : 0;
 
   return (
-    <section aria-label="Billing">
-      <h2 style={{ marginTop: 0 }}>Your plan</h2>
+    <section aria-label="Your plan">
+      <h3 style={{ marginTop: 0 }}>Your plan</h3>
       {status === 'active' ? (
         <>
           <p>You're subscribed. Thank you for keeping your book with Tovira.</p>
@@ -82,8 +82,11 @@ export function Billing({
         </>
       ) : status === 'trialing' ? (
         <p data-testid="trial-status">Free trial — <span className="tov-mono">{daysLeft}</span> day{daysLeft === 1 ? '' : 's'} left.</p>
-      ) : status === 'past_due' ? (
-        <p data-testid="past-due" style={{ color: 'var(--amber)' }}>Your last payment failed. Update billing to keep access.</p>
+      ) : status === 'past_due' || status === 'payment_failed' ? (
+        <>
+          <p data-testid="past-due" style={{ color: 'var(--amber)' }}>Your last payment failed. Update your card to keep access.</p>
+          <button className="tov-link" onClick={() => void manage()} disabled={busy}>{busy ? 'Opening…' : 'Update your card'}</button>
+        </>
       ) : status === 'canceled' ? (
         <p data-testid="canceled">Your subscription is canceled. Your book is preserved — resubscribe to reopen it.</p>
       ) : (
@@ -92,7 +95,8 @@ export function Billing({
 
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
 
-      {status !== 'active' && (
+      {/* A failed payment updates its card (above) — subscribing again would start a second subscription. */}
+      {status !== 'active' && status !== 'past_due' && status !== 'payment_failed' && (
         <>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="tov-primary" onClick={() => void subscribe('monthly')} disabled={busy}>

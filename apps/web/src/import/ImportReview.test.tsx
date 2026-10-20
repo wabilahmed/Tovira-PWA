@@ -140,12 +140,13 @@ describe('<ImportReview>', () => {
     expect(onImport).toHaveBeenCalledWith([{ fileName: 'b.txt', action: 'new', name: 'Omar' }]);
   });
 
+  // [P37] The picker lives only in Settings → Subscription: the review offers "Buy more usage", which opens it.
   it('shows the top-up upsell before Import when the batch exceeds the remaining allowance', async () => {
-    const onTopUp = vi.fn();
+    const onOpenSubscription = vi.fn();
     render(<ImportReview
       result={result({ rows: [row({ fileName: 'a.txt', state: 'new', counterpart: 'Layla' })] })}
       onImport={vi.fn()}
-      onTopUp={onTopUp}
+      onOpenSubscription={onOpenSubscription}
       upsell={{ shortfall: true, n: 8, canTopUp: true, recommendedOptionId: 'topup_50', options: [
         { id: 'topup_15', label: '+15%', priceAed: 50 },
         { id: 'topup_50', label: '+50%', priceAed: 85 },
@@ -154,9 +155,9 @@ describe('<ImportReview>', () => {
     expect(screen.getByText(/needs more usage than you have left this month/i)).toBeInTheDocument();
     expect(screen.getByText(/import all 8/i)).toBeInTheDocument();
     const rec = screen.getByTestId('topup-recommended');
-    expect(rec).toHaveTextContent(/\+50%.*AED\s*85/i);
+    expect(rec).toHaveTextContent('Buy more usage');
     await userEvent.click(rec);
-    expect(onTopUp).toHaveBeenCalledWith('topup_50');
+    expect(onOpenSubscription).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /^import/i })).toBeEnabled(); // Import still allowed without topping up
   });
 
