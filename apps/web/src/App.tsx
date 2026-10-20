@@ -101,7 +101,8 @@ import { registerUnsavedSource } from './pwa/unsavedWork.js';
 import { IdbRecordingStore } from './capture/idbRecordingStore.js';
 import { HttpUploader } from './capture/uploader.js';
 import { requestMicrophone } from './capture/microphone.js';
-import { startRecording, type ActiveRecording } from './capture/recorder.js';
+import { startRecording, MAX_RECORDING_MS, type ActiveRecording } from './capture/recorder.js';
+import { RecordingTimer } from './clients/page/RecordingTimer.js';
 
 const auth = new AuthClient(API_BASE);
 const accessRequestApi = new HttpAccessRequestClient(API_BASE);
@@ -882,6 +883,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
+  const [recStartedAt, setRecStartedAt] = useState<number | null>(null); // [P36-5] the recorder's timer
   const [status, setStatus] = useState<string | null>(null);
   const [paste, setPaste] = useState('');
   const [brief, setBrief] = useState<Brief | typeof LOCKED | null>(null);
@@ -957,12 +959,14 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
       return;
     }
     setActive(startRecording(mic.stream));
+    setRecStartedAt(Date.now());
   }
 
   async function stopRec(): Promise<void> {
     if (!active) return;
     const blob = await active.stop();
     setActive(null);
+    setRecStartedAt(null);
     await outbox.enqueue({ id: randomId(), clientId: client.id, blob, createdAt: Date.now() });
     hapticTick(); // the recording is captured — a commit
     setCapture(null);
@@ -1024,6 +1028,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
         )}
         {(capture === 'voice' || recording) && (
           <div className="tov-capture">
+            {recording && recStartedAt !== null && <RecordingTimer startedAt={recStartedAt} maxMs={MAX_RECORDING_MS} />}
             {recording ? (
               <button onClick={() => void stopRec()} style={{ background: 'var(--claret-surface)', borderColor: 'var(--claret)', color: 'var(--claret)', fontWeight: 600 }}>■ Stop &amp; save</button>
             ) : (

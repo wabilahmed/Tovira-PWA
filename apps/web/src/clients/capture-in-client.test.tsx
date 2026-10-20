@@ -76,4 +76,19 @@ describe('[P36-3] capture lives inside a client', () => {
     await user.click(screen.getByRole('button', { name: /import a whatsapp chat/i }));
     expect(await screen.findByLabelText(/consent to import/i)).toBeInTheDocument();
   });
+
+  it('[owner, 20 Oct] recording a voice note shows the mm:ss timer and the time left (10-minute cap)', async () => {
+    stub({ seeded: true, clients: [client('c1', 'Sara Khan')] });
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    vi.stubGlobal('navigator', { ...navigator, mediaDevices: { getUserMedia: async () => stream } });
+    vi.stubGlobal('MediaRecorder', class { state = 'recording'; ondataavailable: unknown = null; onstop: (() => void) | null = null; start(): void {} stop(): void { this.state = 'inactive'; this.onstop?.(); } });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByText('Sara Khan'));
+    await user.click(await screen.findByRole('button', { name: '+ Add' }));
+    await user.click(screen.getByRole('button', { name: /record voice note/i }));
+    expect(await screen.findByTestId('rec-elapsed')).toHaveTextContent(/^00:0\d$/);
+    expect(screen.getByTestId('rec-remaining')).toHaveTextContent(/^· (10:00|09:5\d) left$/);
+    expect(screen.getByRole('button', { name: /stop & save/i })).toBeInTheDocument();
+  });
 });
