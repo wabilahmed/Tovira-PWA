@@ -9,8 +9,11 @@ drifts from its constant.
 
 ## Contents
 
-- `2026-10-05/` — the current **published** Terms and Privacy (owner-approved). This is the version new
-  acceptances record (`TERMS_VERSION` / `PRIVACY_VERSION`). Snapshotted from `apps/web/{terms,privacy}/index.html`.
+- `2026-10-20/` — the current **published Terms** (owner-approved, P37). New acceptances record this
+  `TERMS_VERSION`. Adds clause 6.10, the lawyer-verified extra-usage sentence, word for word; no other wording
+  changed and nothing renumbered. Privacy is unchanged (still `2026-10-05`).
+- `2026-10-05/` — the prior published Terms, and the current **published Privacy** (owner-approved). This is
+  the version Privacy acceptances record (`PRIVACY_VERSION`). Snapshotted from `apps/web/{terms,privacy}/index.html`.
   The revision added the failed-payment procedure (Terms 6.7–6.8: pause AI, daily retry/remind, suspend at
   7 days, end at 30, 90-day retention then deletion), the same-date/time renewal wording (Terms 6.3), the
   Privacy retention row for an ended-after-failed-payment account, and changed every contact address to
