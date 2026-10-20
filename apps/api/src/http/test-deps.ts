@@ -239,7 +239,7 @@ export function buildInMemoryDeps(
     undefined, // windowing (EXTRACT_WINDOWED off, as in prod)
     keptSuggestions, // [P24-2]
   );
-  const brief = new BriefService(clients, notes, facts, embedder, clientPointers, restriction);
+  const brief = new BriefService(clients, notes, facts, embedder, clientPointers, restriction, contactAliases);
   const followUp = new FollowUpService(new StubModelClient(), notes, restriction);
   const meetings = new InMemoryMeetingRepository();
   const noteMove = new NoteMoveService(notes, facts, meetings, new InMemoryNoteMoveTx(notes, facts, meetings, clients, new InMemoryNoteMoveAuditRepository(), requirements, inventoryMatches));

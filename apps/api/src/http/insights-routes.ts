@@ -6,7 +6,7 @@ import { aggregatePeople, aggregatePersonalFacts, extractedOf } from '../service
 import { withExtractedReceipt } from '../services/receipts/receipt.js';
 import { extractToken, sendJson } from './helpers.js';
 import type { ContactAliasRepository } from '../ports/contact-alias-repository.js';
-import { normalizeName } from '../services/text/normalize-name.js';
+import { clientSelfNames, isTheClient } from '../services/clients/self-names.js';
 
 export interface InsightsRouteDeps {
   auth: AuthService;
@@ -60,12 +60,8 @@ export async function handleInsightsRoute(
   if (stakeholders) {
     // [P36-5] The client is never a stakeholder of their own record: drop anyone named as the client — the
     // client name, the name they write under in the chat (client-role senders), or a learned alias.
-    const selfNames = new Set([
-      client.name,
-      ...notes.flatMap((n) => (n.messages ?? []).filter((m) => m.role === 'client').map((m) => m.sender)),
-      ...(deps.aliases ? await deps.aliases.listByClient(userId, clientId) : []),
-    ].map(normalizeName).filter(Boolean));
-    sendJson(res, 200, { people: aggregatePeople(extractions).filter((p) => !(p.name && selfNames.has(normalizeName(p.name)))) });
+    const selfNames = clientSelfNames(client.name, notes, deps.aliases ? await deps.aliases.listByClient(userId, clientId) : []);
+    sendJson(res, 200, { people: aggregatePeople(extractions).filter((p) => !isTheClient(p.name, selfNames)) });
   } else {
     sendJson(res, 200, { facts: aggregatePersonalFacts(extractions) });
   }

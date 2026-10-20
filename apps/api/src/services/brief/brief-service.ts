@@ -1,4 +1,5 @@
 import type { ClientRepository } from '../../ports/client-repository.js';
+import { clientSelfNames, isTheClient } from '../clients/self-names.js';
 import type { NoteRepository, ImportedMessage } from '../../ports/note-repository.js';
 import { modelSafeText } from '../import/dedup.js';
 import { restrictNote } from '../erasure/restrict-note.js';
@@ -74,6 +75,8 @@ export class BriefService {
     /** [TASK 2] Active erasure-window restriction — a restricted counterparty's facts, context and
      *  pointers are withheld from the brief. Absent → no restriction. */
     private readonly restriction?: { forUser(userId: string): Promise<Restriction> },
+    /** [P36-5] learned per-client aliases — the client under another name is still not one of "People". */
+    private readonly aliases?: { listByClient(userId: string, clientId: string): Promise<string[]> },
   ) {}
 
   async buildBrief(userId: string, clientId: string): Promise<Brief | null> {
@@ -96,9 +99,11 @@ export class BriefService {
     const extracted = notes.map((n) => extractedOf(n.extracted));
     // People and personal facts carry no created_at of their own — bind each receipt's capture-date
     // fallback to the ORIGINATING note's created_at before deduping across notes.
+    // [P36-5] …and never the client themselves (by name, chat name or alias).
+    const selfNames = clientSelfNames(client.name, rawNotes, this.aliases ? await this.aliases.listByClient(userId, clientId).catch(() => []) : []);
     const keyPeople = dedupePeople(
       notes.flatMap((n) => extractedOf(n.extracted).people.map((p) => withExtractedReceipt(p, n.createdAt))),
-    );
+    ).filter((p) => !isTheClient(p.name, selfNames));
     const personalNotes = notes.flatMap((n) =>
       extractedOf(n.extracted).personal_facts.map((pf) => withExtractedReceipt(pf, n.createdAt)),
     );

@@ -322,7 +322,7 @@ async function main(): Promise<void> {
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));
   const followUp = createFollowUpService(config, notes, restriction);
-  const brief = createBriefService(config, clients, notes, facts, clientPointers, restriction);
+  const brief = createBriefService(config, clients, notes, facts, clientPointers, restriction, contactAliases);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
   const scan = createScanService(clients, meetings, facts, notifications, notes, (userId) => auth.timezoneFor(userId));
