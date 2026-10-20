@@ -60,3 +60,17 @@ The share tags (og:url, og:image, twitter:image) were made absolute (not pinned 
   - Option A (keep): relative canonical; accept staging may be indexed until it is retired.
   - Option B: absolute `https://tovira.io/`, update [SITE-5] to pin that instead.
 Recommendation: B (staging is a legacy alias now; tovira.io is the one public host).
+
+## [P35-3] today-receipts.test.tsx "a tap opens the conversation…" is timing-dependent — owner call
+The test taps "Show the conversation" and then checks `getAllByTestId('bubble')` (length 2) synchronously.
+The two bubbles come from the receipt's chat source, which loads asynchronously (`api.source`) after the
+first render shows the stored quote as one bubble. Whether the source has committed by the time of the
+synchronous check depends on React scheduling, so the test fails only under heavy CPU load (full suite run
+alongside another full suite). The race is on the button lookup: the button appears only once the source
+has loaded. ef77aab tried offering the button at once (an early tap then opened the conversation), but that
+moved the race to the bubble count and made it fail 2 runs in 3 even alone — reverted. No component change
+can make a synchronous check of async-loaded content deterministic.
+  - Option A: change line 61 to wait for the button — `await screen.findByRole('button', { name: /show the conversation/i })`
+    (identical check, waits up to the async timeout). Not weaker; needs owner sign-off under the rules.
+  - Option B: keep the test as is; accept a rare red under load.
+Recommendation: A. (19ff301 was also committed on a run where only this test was red — see the P36 report.)
