@@ -10,7 +10,6 @@ export type View =
   | 'bookscan'
   | 'ledger'
   | 'inventory'
-  | 'capture'
   | 'getstarted'
   | 'confirm'
   | 'settings';
@@ -20,7 +19,7 @@ export interface NavItem {
   label: string;
 }
 
-/** Mobile bottom-bar primaries — the taste screens + the capture path. */
+/** Mobile bottom-bar primaries — the taste screens. [P36-3] Capture lives inside each client's page. */
 export const PRIMARY: NavItem[] = [
   { view: 'clients', label: 'Clients' },
   { view: 'today', label: 'Today' },
@@ -30,7 +29,6 @@ export const PRIMARY: NavItem[] = [
 
 /** Reached through "More" on mobile; part of the full sidebar on desktop. */
 export const OVERFLOW: NavItem[] = [
-  { view: 'capture', label: 'Capture' },
   { view: 'week', label: 'The Monday Statement' },
   { view: 'promises', label: 'Promises' },
   { view: 'meetings', label: 'Meetings' },
@@ -43,7 +41,7 @@ export const OVERFLOW: NavItem[] = [
 
 /** Every view the app knows, for validating a `?view=` deep-link (screenshots, shared links). */
 export const VIEWS: readonly View[] = [
-  'clients', 'today', 'week', 'ask', 'promises', 'meetings', 'alerts', 'bookscan', 'ledger', 'inventory', 'capture', 'getstarted', 'confirm', 'settings',
+  'clients', 'today', 'week', 'ask', 'promises', 'meetings', 'alerts', 'bookscan', 'ledger', 'inventory', 'getstarted', 'confirm', 'settings',
 ];
 
 /** True when `s` is a known View — guards an untrusted `?view=` query value. */
@@ -54,7 +52,6 @@ export function isView(s: string | null | undefined): s is View {
 /** The full ordered nav for the desktop sidebar. */
 export const SIDEBAR: NavItem[] = [
   { view: 'clients', label: 'Clients' },
-  { view: 'capture', label: 'Capture' },
   { view: 'today', label: 'Today' },
   { view: 'week', label: 'The Monday Statement' },
   { view: 'ask', label: 'Ask' },

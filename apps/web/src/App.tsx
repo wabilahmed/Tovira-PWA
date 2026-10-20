@@ -1,7 +1,7 @@
 import { API_BASE } from './apiBase.js';
 import { AccessRequestsAdmin } from './ops/AccessRequestsAdmin.js';
 import { HttpOpsAccessClient } from './ops/opsAccessClient.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AuthClient, type Session } from './auth/authClient.js';
 import { ResetPassword } from './auth/PasswordReset.js';
 import { InviteAccept } from './auth/InviteAccept.js';
@@ -93,7 +93,6 @@ import type { Plan } from './billing/plans.js';
 import { useIsDesktop } from './shell/useIsDesktop.js';
 import { hapticTick } from './haptics.js';
 import { ReceiptThread } from './receipts/ReceiptThread.js';
-import { Capture } from './capture/Capture.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { registerUnsavedSource } from './pwa/unsavedWork.js';
@@ -307,6 +306,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [open, setOpen] = useState<ClientSummary | null>(null);
   // [P36-1] A chat for a client who doesn't exist yet (or several chats) comes in from the Clients list.
   const [clientsAction, setClientsAction] = useState<'newFromChat' | 'importSeveral' | null>(null);
+  // [P36-3] First-run: "New client from a chat" finishes on the batch summary + Open Book Scan (Day One).
+  const [onboardingImport, setOnboardingImport] = useState(false);
   // [P36-2] A chat shared into the app waits here until the rep picks its client, then rides to that
   // client's page prefilled (the import there still needs the rep's consent + Import).
   const [sharedFor, setSharedFor] = useState<{ clientId: string; content: string; contentB64: string } | null>(null);
@@ -344,7 +345,15 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     // "Back to Today" from the 404 lands on Today via ?view=today.
     try {
       const q = new URLSearchParams(window.location.search).get('view');
-      return isView(q) ? q : 'clients';
+      if (isView(q)) return q;
+      // [P36-3] A retired or unknown view (the retired standalone Capture screen) → the Clients list, and the
+      // address bar says so — never a blank screen or a 404.
+      if (q !== null) {
+        const u = new URL(window.location.href);
+        u.searchParams.set('view', 'clients');
+        window.history.replaceState({}, '', `${u.pathname}${u.search}`);
+      }
+      return 'clients';
     } catch { return 'clients'; }
   });
   const [seeding, setSeeding] = useState<SeedingStatus | null>(null);
@@ -563,11 +572,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
             setView('bookscan');
           }}
           onFallback={() => setView('clients')}
+          onStartImport={() => { setOnboardingImport(true); setClientsAction('newFromChat'); setView('clients'); }}
         />
-      )}
-
-      {view === 'capture' && (
-        <Capture clients={clients} importApi={clientsApi} outbox={outbox} onCaptured={() => void clientsApi.list().then(setClients)} onBulkImport={() => setView('getstarted')} />
       )}
 
       {view === 'today' && gated(
@@ -682,9 +688,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           </div>}
           {clientsAction && (
             <div data-testid="clients-action" style={{ margin: '0 0 1rem' }}>
-              <button type="button" className="tov-link" onClick={() => setClientsAction(null)}>← Back to clients</button>
+              <button type="button" className="tov-link" onClick={() => { setClientsAction(null); setOnboardingImport(false); }}>← Back to clients</button>
               {clientsAction === 'newFromChat'
-                ? <BulkImport key="single" api={bulkImportApi} single onSubscribe={startCheckout} onOpenBookScan={() => setView('bookscan')} onClientReady={(id) => void openImportedClient(id)} />
+                ? <BulkImport
+                    key="single" api={bulkImportApi} single onSubscribe={startCheckout}
+                    onOpenBookScan={() => { loadSeeding(); setClientsAction(null); setOnboardingImport(false); setView('bookscan'); }}
+                    onClientReady={onboardingImport ? undefined : (id) => void openImportedClient(id)}
+                  />
                 : <BulkImport key="several" api={bulkImportApi} onSubscribe={startCheckout} onOpenBookScan={() => setView('bookscan')} />}
             </div>
           )}
@@ -826,7 +836,8 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
         setNotes(await clientsApi.listNotes(client.id));
       }
     });
-    void outbox.pending().then(setPending);
+    // [P36-3] This client's queued recordings (they always carry their client) — not every client's.
+    void outbox.pending().then((p) => setPending(p.filter((r) => r.clientId === client.id)));
   };
   useEffect(() => {
     void outbox.flush().then(refresh);
@@ -841,6 +852,12 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
     }, 4000);
     return () => clearInterval(t);
   }, [notes, client.id]);
+
+  // [P14-4b → P36-3] A live recording is unsaved work (its audio is only in memory until stop() enqueues it):
+  // a service-worker update must prompt, not reload mid-capture. Moved here with capture from the old screen.
+  const recordingRef = useRef(false);
+  recordingRef.current = active !== null;
+  useEffect(() => registerUnsavedSource(() => recordingRef.current), []);
 
   async function startRec(): Promise<void> {
     setStatus(null);

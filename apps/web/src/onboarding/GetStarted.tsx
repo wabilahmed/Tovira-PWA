@@ -24,6 +24,7 @@ export function GetStarted({
   onViewBookScan,
   sharedContent = '',
   sharedContentB64 = '',
+  onStartImport,
 }: {
   seeding: SeedingStatus;
   clients: ClientSummary[];
@@ -44,6 +45,9 @@ export function GetStarted({
   sharedContent?: string;
   /** …or a shared file's bytes, base64 (a .zip export). */
   sharedContentB64?: string;
+  /** [P36-3] When set, "Import chats" hands off to the Clients list's "New client from a chat" (capture
+   *  lives inside a client) instead of importing here. */
+  onStartImport?: () => void;
 }): JSX.Element {
   // A shared chat (text or file) jumps straight past the guide to the import step, prefilled.
   const shared = Boolean(sharedContent || sharedContentB64);
@@ -60,7 +64,7 @@ export function GetStarted({
   if (step === 'guide') {
     return (
       <>
-        <SeedingBanner status={seeding} onStartImport={() => setStep('import')} onFallback={onFallback} />
+        <SeedingBanner status={seeding} onStartImport={onStartImport ?? (() => setStep('import'))} onFallback={onFallback} />
         {onAddInventory && (
           <p className="tov-seed-inv" style={{ color: 'var(--text-secondary)', marginTop: '1rem' }}>
             Or tell Tovira what you have to sell — a few items, no export needed.{' '}
