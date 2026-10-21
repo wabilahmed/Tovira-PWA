@@ -1,0 +1,71 @@
+/*
+ * [P39] The Tovira design system — TOKENS. The one file every app style and component draws from.
+ * Structure only: the palette, the serif display face, the body face and the mono labels are the brand's
+ * (packages/brand/tokens.css); this file gives them a fixed scale and semantic names.
+ *
+ * Rules (guarded by styles/design-tokens.guard.test.ts):
+ *   - spacing (margin, padding, gap, insets) only from --space-*  (4 · 8 · 12 · 16 · 24 · 32 · 48);
+ *   - font sizes only from the type scale (--text-*-size);
+ *   - colours only through the semantic --color-* tokens (both themes come from the palette).
+ */
+:root {
+  /* Spacing scale — no other values anywhere. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Layout */
+  --gutter: var(--space-4);          /* page gutter: 16 on a phone… */
+  --section-gap: var(--space-6);     /* between sections */
+  --stack-gap: var(--space-3);       /* inside a section (12–16) */
+  --touch: 44px;                     /* the smallest tap target */
+  --page-max: 720px;
+
+  /* Type scale — size / weight / line-height fixed per role. */
+  --text-title-size: 1.75rem;   --text-title-weight: 600;   --text-title-lh: 1.2;    /* page title (display serif) */
+  --text-section-size: 1.25rem; --text-section-weight: 600; --text-section-lh: 1.3;  /* section title (display serif) */
+  --text-body-size: 1rem;       --text-body-weight: 400;    --text-body-lh: 1.5;     /* body */
+  --text-secondary-size: 0.875rem; --text-secondary-weight: 400; --text-secondary-lh: 1.45; /* secondary lines */
+  --text-label-size: 0.75rem;   --text-label-weight: 500;   --text-label-lh: 1.3;    /* small meta labels (mono, uppercase) */
+  --text-caption-size: 0.75rem; --text-caption-weight: 400; --text-caption-lh: 1.4;  /* captions, timestamps */
+
+  /* Radii · borders · elevation — one scale each. */
+  --radius-1: 4px;   /* chips, badges */
+  --radius-2: 8px;   /* controls, cards */
+  --radius-3: 16px;  /* sheets */
+  --radius-pill: 999px;
+  --border-1: 1px solid var(--color-border);
+  --border-2: 2px solid var(--color-accent);
+  --elev-0: none;
+  --elev-1: 0 1px 2px rgb(0 0 0 / 0.06);
+  --elev-2: var(--shadow-overlay);
+
+  /* Semantic colours — the only colours components use. The palette (light + dark) lives in brand tokens. */
+  --color-surface: var(--surface-base);
+  --color-raised: var(--surface-raised);
+  --color-sunken: var(--surface-elevated);
+  --color-border: var(--hairline);
+  --color-text: var(--text-primary);
+  --color-muted: var(--text-secondary);
+  --color-faint: var(--text-tertiary);
+  --color-accent: var(--brass);
+  --color-accent-strong: var(--brass-strong);
+  --color-on-accent: var(--brass-ink);
+  --color-accent-soft: var(--brass-surface);
+  --color-danger: var(--claret);
+  --color-danger-soft: var(--claret-surface);
+  --color-danger-line: var(--claret-line);
+  --color-warning: var(--amber);
+  --color-warning-soft: var(--amber-surface);
+  --color-warning-line: var(--amber-line);
+  --color-success: var(--green);
+  --color-success-soft: var(--green-surface);
+  --color-success-line: var(--green-line);
+  --color-scrim: rgb(0 0 0 / 0.42);
+}
+@media (min-width: 600px) { :root { --gutter: var(--space-5); } }
+@media (min-width: 1024px) { :root { --gutter: var(--space-6); } }

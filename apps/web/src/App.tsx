@@ -11,7 +11,7 @@ import { LoginScreen } from './auth/LoginScreen.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus, type Stakeholder, type StatusSnapshot } from './clients/clientsClient.js';
 import { HttpClientPageClient, type ClientOverview } from './clients/page/clientPageClient.js';
-import { Accordion } from './clients/page/Accordion.js';
+import { Accordion } from './ui/Accordion.js';
 import { ClientHeader, headerLine } from './clients/page/ClientHeader.js';
 import { Conversations, conversationsSummary } from './clients/page/Conversations.js';
 import { WantsSection, wantsSummary, PromisesSection, promisesSummary, MeetingsSection, meetingsSummary } from './clients/page/Sections.js';
