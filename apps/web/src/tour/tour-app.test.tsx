@@ -117,7 +117,7 @@ describe('[P37] the tour in the app', () => {
     await screen.findByTestId('tour');
     for (let s = 1; s < 9; s += 1) await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: 'Import your first chat' }));
-    expect(await screen.findByLabelText(/choose a chat export/i)).toBeInTheDocument(); // New client from a chat
+    expect(await screen.findByLabelText(/choose the chat export/i /* [P39 · owner] the button reads "Choose the chat export (.zip or .txt)" */)).toBeInTheDocument(); // New client from a chat
     expect(screen.queryByTestId('tour')).toBeNull();
     expect(tourWrites(calls).map((c) => c.method)).toContain('POST'); // /me/tour/complete
     expect(calls.filter((c) => c.method !== 'GET' && NOT_TOUR_WRITES.test(c.url))).toEqual([]);

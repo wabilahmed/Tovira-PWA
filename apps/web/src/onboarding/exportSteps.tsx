@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { Card } from '../ui/Card.js';
+import { Tabs } from '../ui/Tabs.js';
 
 /**
  * [P37] How to export a WhatsApp chat, for the rep's own phone only. The ONE source of these instructions —
  * the tour, "New client from a chat", the chat import and the first-run guide all render <ExportSteps>, so
- * they never disagree. The export always happens on the phone, so a laptop (or an unknown device) shows both.
+ * they never disagree.
  */
 export type Platform = 'ios' | 'android' | 'unknown';
 
@@ -37,28 +39,20 @@ export function detectPlatform(nav: NavigatorLike | undefined = typeof navigator
   return 'unknown';
 }
 
-const TITLE = { ios: 'On iPhone', android: 'On Android' } as const;
+const TAB_LABEL = { ios: 'iPhone', android: 'Android' } as const;
 
+/** [P39 · owner] iPhone | Android tabs with the detected phone pre-selected (a laptop or unknown device starts on
+ *  iPhone), the three steps as a numbered list in a card. No loose "Using an Android?" link: the tab is the switch. */
 export function ExportSteps({ nav }: { nav?: NavigatorLike }): JSX.Element {
   const detected = detectPlatform(nav);
-  const [platform, setPlatform] = useState<Platform>(detected);
-  const both = platform === 'unknown';
-  const shown: Array<'ios' | 'android'> = both ? ['ios', 'android'] : [platform];
+  const [platform, setPlatform] = useState<'ios' | 'android'>(detected === 'android' ? 'android' : 'ios');
   return (
-    <div className="tov-export-steps" data-testid="export-steps">
-      {shown.map((p) => (
-        <div key={p}>
-          {both && <strong>{TITLE[p]}</strong>}
-          <ol style={{ margin: '0.25rem 0 0', paddingLeft: '1.2rem' }}>
-            {EXPORT_STEPS[p].map((line) => <li key={line}>{line}</li>)}
-          </ol>
-        </div>
-      ))}
-      {!both && (
-        <button type="button" className="tov-link" style={{ marginTop: '0.35rem' }} onClick={() => setPlatform(platform === 'ios' ? 'android' : 'ios')}>
-          {platform === 'ios' ? 'Using an Android?' : 'Using an iPhone?'}
-        </button>
-      )}
-    </div>
+    <Card data-testid="export-steps">
+      <Tabs label="Your phone" tabs={(['ios', 'android'] as const).map((p) => ({ value: p, label: TAB_LABEL[p] }))} value={platform} onChange={setPlatform}>
+        <ol className="ui-numbered">
+          {EXPORT_STEPS[platform].map((line) => <li key={line}>{line}</li>)}
+        </ol>
+      </Tabs>
+    </Card>
   );
 }

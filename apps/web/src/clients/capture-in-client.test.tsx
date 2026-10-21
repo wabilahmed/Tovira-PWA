@@ -54,7 +54,7 @@ describe('[P36-3] capture lives inside a client', () => {
     render(<App />);
     await user.click(await screen.findByRole('button', { name: 'Get started' }, { timeout: 5000 }));
     await user.click(await screen.findByRole('button', { name: 'Import chats' }, { timeout: 5000 }));
-    const picker = await screen.findByLabelText(/choose a chat export/i, {}, { timeout: 5000 }); // the single-chat "New client from a chat"
+    const picker = await screen.findByLabelText(/choose the chat export/i /* [P39 · owner] the button reads "Choose the chat export (.zip or .txt)" */, {}, { timeout: 5000 }); // the single-chat "New client from a chat"
     await user.upload(picker, new File(['13/07/2019, 1:00 am - Layla: hi'], 'chat.txt', { type: 'text/plain' }));
     await user.click(await screen.findByRole('button', { name: /^import/i }, { timeout: 5000 }));
     await user.click(await screen.findByRole('button', { name: 'Open Book Scan' }, { timeout: 5000 }));

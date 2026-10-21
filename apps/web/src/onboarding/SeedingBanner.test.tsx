@@ -32,13 +32,13 @@ describe('<SeedingBanner>', () => {
     expect(screen.getByText(/export a chat from whatsapp, then come back here\. you can select up to 20 at once\./i)).toBeInTheDocument();
   });
 
-  it('shows both platform guides (no paste bulk entry)', () => {
+  // [P39 · owner] The shared export steps are iPhone | Android tabs everywhere (an unknown device starts on iPhone).
+  it('shows both platform guides as tabs (no paste bulk entry)', async () => {
     render(<SeedingBanner status={STATUS} onStartImport={vi.fn()} onFallback={vi.fn()} />);
-    expect(screen.getByText(/on android/i)).toBeInTheDocument();
-    expect(screen.getByText(/on iphone/i)).toBeInTheDocument();
-    // [P37] the shared export steps (one source everywhere) — on this test's unknown device, both phones.
-    expect(screen.getByText(/choose tovira from the share list/i)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'iPhone' })).toBeInTheDocument();
     expect(screen.getByText(/save to files/i)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Android' }));
+    expect(screen.getByText(/choose tovira from the share list/i)).toBeInTheDocument();
   });
 
   it('starts the multi-select import when the primary button is clicked', async () => {

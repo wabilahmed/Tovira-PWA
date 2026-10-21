@@ -65,7 +65,7 @@ describe('[P36-1] the Clients list is where a new client\'s chat comes in', () =
     render(<App />);
     await openAddSheet(user);
     await user.click(await screen.findByRole('button', { name: /^New client from a chat/ }));
-    const picker = await screen.findByLabelText(/choose a chat export/i);
+    const picker = await screen.findByLabelText(/choose the chat export/i /* [P39 · owner] the button reads "Choose the chat export (.zip or .txt)" */);
     expect(picker).not.toHaveAttribute('multiple'); // one chat → one client
     await user.upload(picker, new File(['13/07/2019, 1:00 am - Layla: hi'], 'WhatsApp Chat with Layla.txt', { type: 'text/plain' }));
     const importBtn = await screen.findByRole('button', { name: /^import/i });

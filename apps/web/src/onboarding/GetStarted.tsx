@@ -80,7 +80,7 @@ export function GetStarted({
   if (!shared && bulkImportApi) {
     return (
       <section aria-label="Import for client">
-        <BulkImport api={bulkImportApi} onSubscribe={onSubscribe} onOpenBookScan={onViewBookScan} />
+        <BulkImport api={bulkImportApi} onSubscribe={onSubscribe} onOpenBookScan={onViewBookScan} title="Import chats" />
       </section>
     );
   }

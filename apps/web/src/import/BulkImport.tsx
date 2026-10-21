@@ -4,6 +4,7 @@ import { BulkImportResult, type BulkJob } from './BulkImportResult.js';
 import type { BulkImportApi } from './bulkImportClient.js';
 import type { Plan } from '../billing/plans.js';
 import { ExportSteps } from '../onboarding/exportSteps.js';
+import { Banner, Button, FileButton, formatSize } from '../ui/index.js';
 
 /**
  * [BULK-IMPORT page] The end-to-end flow: pick up to 20 chat exports (.txt/.zip) → upload one per request
@@ -19,8 +20,10 @@ export const BULK_MAX_UPLOAD_BYTES = 10_000_000;
 
 type Step = 'pick' | 'uploading' | 'review' | 'ack' | 'progress';
 
-export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, single = false, onClientReady, onOpenSubscription }: {
+export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, single = false, onClientReady, onOpenSubscription, title }: {
   api: BulkImportApi; pollMs?: number; onSubscribe?: (plan: Plan) => void; onOpenBookScan?: () => void;
+  /** [P39] A heading, only where no PageHeader already names the screen (the first-run guide). */
+  title?: string;
   /** [P36-1] "New client from a chat": one export → one client (the same deterministic parse + review). */
   single?: boolean;
   /** [P37] "Buy more usage" opens Settings → Subscription. */
@@ -30,6 +33,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
   onClientReady?: (clientId: string) => void;
 }): JSX.Element {
   const [step, setStep] = useState<Step>('pick');
+  const [chosen, setChosen] = useState<Array<{ name: string; size: number }>>([]);
   const [overCap, setOverCap] = useState<File[] | null>(null); // selection > 20, awaiting confirm
   const [error, setError] = useState<string | null>(null);
   const [batchId, setBatchId] = useState('');
@@ -54,6 +58,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
     setError(null);
     const files = Array.from(list ?? []);
     if (files.length === 0) return;
+    setChosen(files.map((f) => ({ name: f.name, size: f.size })));
     if (files.length > BULK_MAX_FILES) { setOverCap(files); return; } // ask before dropping extras
     void startBatch(files);
   }
@@ -110,34 +115,41 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
 
   if (step === 'pick') {
     return (
-      <section aria-label="Import chats" data-testid="bulk-import" style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
-        <h2 style={{ margin: 0 }}>{single ? 'New client from a chat' : 'Import chats'}</h2>
-        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+      <section aria-label="Import chats" data-testid="bulk-import" className="ui-stack ui-gap-4">
+        {title && <h2 className="ui-section-title">{title}</h2>}
+        {/* [P39 · owner] The intro, word for word; the export steps as iPhone | Android tabs in a card. */}
+        <p className="ui-body">
           {single
-            ? 'Export the chat from WhatsApp and choose it here. Tovira works out who it is with — you confirm before anything is read.'
-            : `Export your chats from WhatsApp and select up to ${BULK_MAX_FILES} at once.`}
+            ? "Export the chat from WhatsApp and choose it here. You confirm who it's with before anything is read."
+            : `Export your chats from WhatsApp and choose up to ${BULK_MAX_FILES} at once.`}
         </p>
         <ExportSteps />
-        <label>
-          {/* [P18-10i] ".zip or .txt" — same order as the single-import screen + the not_whatsapp error. */}
-          <span style={{ display: 'block', marginBottom: '0.25rem' }}>{single ? 'Choose a chat export (.zip or .txt)' : 'Choose chat exports (.zip or .txt)'}</span>
-          {single
-            ? <input type="file" accept=".txt,.zip,text/plain,application/zip" aria-label="Choose a chat export" onChange={(e) => onPick(e.target.files)} />
-            : <input type="file" multiple accept=".txt,.zip,text/plain,application/zip" aria-label="Choose chat exports" onChange={(e) => onPick(e.target.files)} />}
-        </label>
+        {/* [P18-10i] ".zip or .txt" — same order as the not_whatsapp error. [P39] A styled file button, never the
+            browser's "Choose file / No file chosen"; the chosen file's name and size show under it. */}
+        <FileButton
+          label={single ? 'Choose the chat export (.zip or .txt)' : 'Choose chat exports (.zip or .txt)'}
+          accept=".txt,.zip,text/plain,application/zip"
+          multiple={!single}
+          chosen={chosen}
+          onFiles={onPick}
+        />
         {overCap && (
-          <div role="alert" data-testid="over-cap" style={{ display: 'grid', gap: '0.5rem' }}>
-            <p style={{ margin: 0 }}>You chose {overCap.length} files. You can import up to {BULK_MAX_FILES} at a time — we’ll keep the first {BULK_MAX_FILES}.</p>
-            <button type="button" onClick={() => void startBatch(overCap.slice(0, BULK_MAX_FILES))}>Import the first {BULK_MAX_FILES}</button>
-          </div>
+          <Banner tone="warning" data-testid="over-cap" actions={<Button onClick={() => void startBatch(overCap.slice(0, BULK_MAX_FILES))}>Import the first {BULK_MAX_FILES}</Button>}>
+            You chose {overCap.length} files. You can import up to {BULK_MAX_FILES} at a time. We'll keep the first {BULK_MAX_FILES}.
+          </Banner>
         )}
-        {error && <p role="alert" style={{ color: 'var(--claret, #a23)', margin: 0 }}>{error}</p>}
+        {error && <p role="alert" className="ui-secondary ui-danger">{error}</p>}
       </section>
     );
   }
 
   if (step === 'uploading') {
-    return <section aria-label="Import chats" data-testid="bulk-import"><p role="status">Uploading and reading your chats…</p></section>;
+    return (
+      <section aria-label="Import chats" data-testid="bulk-import" className="ui-stack ui-gap-3">
+        {chosen.length > 0 && <p className="ui-secondary" data-testid="file-chosen">{chosen.map((f) => `${f.name} · ${formatSize(f.size)}`).join(', ')}</p>}
+        <p role="status" className="ui-body">{chosen.length === 1 ? 'Reading the chat…' : 'Uploading and reading your chats…'}</p>
+      </section>
+    );
   }
 
   if (step === 'review' && result) {
