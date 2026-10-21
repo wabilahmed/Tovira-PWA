@@ -198,6 +198,9 @@ export function resolveDueDate(raw: string | null, sourceMessageAt: string | nul
   phrase = phrase.replace(/\s+at\s+\d{1,2}(:\d{2})?\s*(am|pm)?$/i, ''); // strip a trailing "at 3pm" / "at 15:30"
   phrase = phrase.replace(/\s+\d{1,2}(:\d{2})?\s*(am|pm)$/i, '');       // strip a trailing bare "3pm"
   phrase = phrase.replace(/^(by|on|due(\s+on)?)\s+/i, '').replace(/[.,;!?]+$/g, '').trim();
+  // [P39-5] A trailing time of day names a part of THAT day, never another day: "Sunday morning" is Sunday.
+  // Only when something precedes it — "morning" alone is not a date and still resolves to null.
+  phrase = phrase.replace(/\s+(morning|afternoon|evening|night|noon|eod)$/, '').trim();
 
   const explicit = tryExplicit(phrase, opts.dayFirst === true);
   if (explicit) return { date: explicit, resolution: 'explicit' };
