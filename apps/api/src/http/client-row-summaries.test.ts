@@ -40,7 +40,7 @@ describe('[P36-6] GET /clients/row-summaries', () => {
     ] });
     await deps.aliases!.add(user.id, c.id, 'Abu Khalid');
     const body = (await (await fetch(`${base}/clients/row-summaries`, { headers: { authorization: `Bearer ${token}` } })).json()) as { rows: Record<string, { listLine: string | null; lastMessageAt: string | null; overduePromises: number; aliases: string[] }> };
-    expect(body.rows[c.id]).toEqual({ listLine: '4BR villa · Mirdif · 3.4M', lastMessageAt: '2026-05-16T12:00', overduePromises: 1, aliases: ['Abu Khalid'] });
+    expect(body.rows[c.id]).toEqual({ listLine: '4BR Villa · Mirdif · AED 3.4M', lastMessageAt: '2026-05-16T12:00', overduePromises: 1, aliases: ['Abu Khalid'] });
     expect(body.rows[bare.id]).toEqual({ listLine: null, lastMessageAt: null, overduePromises: 0, aliases: [] });
   });
 

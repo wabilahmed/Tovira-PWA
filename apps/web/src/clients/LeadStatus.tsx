@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 import { BottomSheet } from '../shell/BottomSheet.js';
+import { Chip, ChipGroup } from '../ui/Chips.js';
 import type { ClientSummary, LeadStatus } from './clientsClient.js';
 
 /**
@@ -28,7 +29,7 @@ export const LEAD_FILTERS: ReadonlyArray<{ value: LeadFilter; label: string }> =
   { value: 'warm', label: 'Warm' },
   { value: 'cold', label: 'Cold' },
   { value: 'done', label: 'Done' },
-  { value: 'unsorted', label: 'Unsorted' },
+  { value: 'unsorted', label: 'No status' }, // [P39 · owner] was "Unsorted"
 ];
 
 /** Bucket a client's (possibly absent / null) lead_status into a filter key. */
@@ -38,7 +39,7 @@ export function leadFilterKey(status: LeadStatus | null | undefined): Exclude<Le
 
 /** The display label for a status value (null → Unsorted). */
 export function leadStatusLabel(status: LeadStatus | null | undefined): string {
-  return LEAD_STATUSES.find((s) => s.value === status)?.label ?? 'Unsorted';
+  return LEAD_STATUSES.find((s) => s.value === status)?.label ?? 'No status';
 }
 
 /** Does a client belong in the list under the active filter? */
@@ -69,7 +70,8 @@ export function LeadStatusPill({ status, onClick }: { status: LeadStatus | null 
   );
 }
 
-/** The filter chip row: All · Warm · Cold · Done · Unsorted, each with its count. */
+/** The filter chip row: All · Warm · Cold · Done · No status, each with its count. [P39] A ChipGroup: it scrolls
+ *  sideways with a fade at the edge, so a chip is never clipped ("Unsor…"). */
 export function LeadStatusFilterBar({
   filter,
   counts,
@@ -80,21 +82,13 @@ export function LeadStatusFilterBar({
   onChange: (f: LeadFilter) => void;
 }): JSX.Element {
   return (
-    <div className="lead-chips" role="group" aria-label="Filter clients by lead status">
+    <ChipGroup label="Filter clients by status">
       {LEAD_FILTERS.map((f) => (
-        <button
-          key={f.value}
-          type="button"
-          className="lead-chip"
-          data-tone={f.value === 'all' ? undefined : f.value}
-          data-testid={`lead-filter-${f.value}`}
-          aria-pressed={filter === f.value}
-          onClick={() => onChange(f.value)}
-        >
-          {f.label} <span className="lead-chip__count">{counts[f.value]}</span>
-        </button>
+        <Chip key={f.value} selected={filter === f.value} count={counts[f.value]} onClick={() => onChange(f.value)} data-testid={`lead-filter-${f.value}`}>
+          {f.label}
+        </Chip>
       ))}
-    </div>
+    </ChipGroup>
   );
 }
 

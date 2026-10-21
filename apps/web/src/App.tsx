@@ -12,7 +12,14 @@ import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus, type Stakeholder, type StatusSnapshot } from './clients/clientsClient.js';
 import { HttpClientPageClient, type ClientOverview } from './clients/page/clientPageClient.js';
 import { Accordion } from './ui/Accordion.js';
-import { Page, PageHeader, Section, ListRow, Button } from './ui/index.js';
+import { Page, PageHeader, Section, ListRow, Button, IconButton, ActionRow, SearchInput, Sheet, TextInput, EmptyState } from './ui/index.js';
+
+/** [P36-6] The client-list sort orders. */
+const SORT_OPTIONS: Array<{ value: 'last' | 'name' | 'overdue'; label: string }> = [
+  { value: 'last', label: 'Last message' },
+  { value: 'name', label: 'Name' },
+  { value: 'overdue', label: 'Overdue promises' },
+];
 import { ClientHeader, headerLine } from './clients/page/ClientHeader.js';
 import { Conversations, conversationsSummary } from './clients/page/Conversations.js';
 import { WantsSection, wantsSummary, PromisesSection, promisesSummary, MeetingsSection, meetingsSummary } from './clients/page/Sections.js';
@@ -398,6 +405,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // [P36-6] What each row says (wants line, last message, overdue promises, aliases) and the list's order.
   const [rows, setRows] = useState<Record<string, RowSummary>>({});
   const [sortBy, setSortBy] = useState<'last' | 'name' | 'overdue'>('last');
+  const [sortSheet, setSortSheet] = useState(false);
+  const [addSheet, setAddSheet] = useState<'menu' | 'name' | null>(null);
   const loadRows = (): void => void clientsApi.rowSummaries().then(setRows);
   const loadSuggestions = (): void => void clientsApi.statusSuggestions().then((list) => setSuggestions(new Map(list.map((x) => [x.clientId, x]))));
   useEffect(loadSuggestions, []);
@@ -590,6 +599,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       const created = await clientsApi.create(name);
       setClients((prev) => [created, ...prev]);
       setName('');
+      setAddSheet(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create client.');
     } finally {
@@ -808,10 +818,31 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'clients' && (
         <div className={isDesktop ? 'tov-split' : undefined}>
           <div className={isDesktop ? 'tov-split__rail' : undefined}>
-          <h2 className="clients-title">Clients</h2>
+          {clientsAction ? (
+            /* [P39] "New client from a chat" / "Import several chats" are sub-screens with a back to Clients. */
+            <Page testId="clients-action" label={clientsAction === 'newFromChat' ? 'New client from a chat' : 'Import several chats'}>
+              <PageHeader
+                title={clientsAction === 'newFromChat' ? 'New client from a chat' : 'Import several chats'}
+                back={{ label: 'Clients', onBack: () => { setClientsAction(null); setOnboardingImport(false); } }}
+              />
+              {clientsAction === 'newFromChat'
+                ? <BulkImport
+                    key="single" api={bulkImportApi} single onSubscribe={startCheckout} onOpenSubscription={openSubscription}
+                    onOpenBookScan={() => { loadSeeding(); setClientsAction(null); setOnboardingImport(false); setView('bookscan'); }}
+                    onClientReady={onboardingImport ? undefined : (id) => void openImportedClient(id)}
+                  />
+                : <BulkImport key="several" api={bulkImportApi} onSubscribe={startCheckout} onOpenSubscription={openSubscription} onOpenBookScan={() => setView('bookscan')} />}
+            </Page>
+          ) : (
+          <Page testId="clients-page" label="Clients">
+          {/* [P39] One primary action: "+ Add client" opens a sheet with the three ways in. */}
+          <PageHeader
+            title="Clients"
+            action={<Button variant="primary" size="sm" data-tour="add-client" aria-haspopup="dialog" onClick={() => setAddSheet('menu')}>+ Add client</Button>}
+          />
           {/* [P36-1] Capture lives inside a client; a chat for a client you don't have yet starts here. */}
           {(sharedContent || sharedContentB64) && (
-            <div data-testid="shared-chat" style={{ margin: '0 0 1rem' }}>
+            <div data-testid="shared-chat">
               <SharedChatPicker
                 api={bulkImportApi}
                 clients={clients.map((c) => ({ id: c.id, name: c.name }))}
@@ -822,81 +853,48 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               />
             </div>
           )}
-          {!clientsAction && <div className="clients-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', margin: '0 0 0.9rem' }}>
-            <button type="button" className="tov-primary" data-tour="new-from-chat" onClick={() => setClientsAction('newFromChat')}>New client from a chat</button>
-            <button type="button" onClick={() => setClientsAction('importSeveral')}>Import several chats</button>
-          </div>}
-          {clientsAction && (
-            <div data-testid="clients-action" style={{ margin: '0 0 1rem' }}>
-              <button type="button" className="tov-link" onClick={() => { setClientsAction(null); setOnboardingImport(false); }}>← Back to clients</button>
-              {clientsAction === 'newFromChat'
-                ? <BulkImport
-                    key="single" api={bulkImportApi} single onSubscribe={startCheckout} onOpenSubscription={openSubscription}
-                    onOpenBookScan={() => { loadSeeding(); setClientsAction(null); setOnboardingImport(false); setView('bookscan'); }}
-                    onClientReady={onboardingImport ? undefined : (id) => void openImportedClient(id)}
-                  />
-                : <BulkImport key="several" api={bulkImportApi} onSubscribe={startCheckout} onOpenSubscription={openSubscription} onOpenBookScan={() => setView('bookscan')} />}
-            </div>
-          )}
-          {!clientsAction && <>
-          <form onSubmit={addClient} className="clients-add">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="New client name"
-              aria-label="New client name"
-            />
-            <button type="submit" className="tov-primary" disabled={busy}>Add</button>
-          </form>
-          {error && <p style={{ color: 'var(--claret)', margin: '0 0 0.9rem' }}>{error}</p>}
 
-          {/* [CLIENT-SEARCH] One box searches name + phone + email together. The value stays in React
-              state and is matched in the browser — it is never put in the request URL. */}
-          <div className="clients-search-wrap">
-            <input
-              type="search"
+          <div className="ui-stack">
+            {/* [CLIENT-SEARCH] One box searches name + alias + phone + email together. The value stays in React
+                state and is matched in the browser — it is never put in the request URL. [P39-3] The sort is an
+                icon button on the same row, opening a sheet. */}
+            <SearchInput
+              label="Search clients by name, alias, phone or email"
+              placeholder="Search name, alias, phone or email"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, alias, phone or email…"
-              aria-label="Search clients by name, alias, phone or email"
-              className="clients-search"
+              onChange={setQuery}
+              trailing={<IconButton label="Sort clients" aria-haspopup="dialog" onClick={() => setSortSheet(true)}>⇅</IconButton>}
             />
-            {query && (
-              <button type="button" className="clients-search__clear" aria-label="Clear search" data-testid="search-clear" onClick={() => setQuery('')}>×</button>
-            )}
+            {/* [LEAD-STATUS] Filter chips with per-bucket counts; the active one is highlighted. */}
+            <LeadStatusFilterBar filter={leadFilter} counts={leadCounts} onChange={setLeadFilter} />
           </div>
-
-          {/* [P36-6] Sort: last message (default), name, or most overdue promises. */}
-          <label className="clients-sort">
-            <span>Sort</span>
-            <select aria-label="Sort clients" value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-              <option value="last">Last message</option>
-              <option value="name">Name</option>
-              <option value="overdue">Overdue promises</option>
-            </select>
-          </label>
-
-          {/* [LEAD-STATUS] Filter chips with per-bucket counts; the active one is highlighted. */}
-          <LeadStatusFilterBar filter={leadFilter} counts={leadCounts} onChange={setLeadFilter} />
 
           {renderLeadToast()}
 
           {(search.active ? visibleHits.length === 0 : visibleClients.length === 0) ? (
-            <p style={{ color: 'var(--text-secondary)' }} data-testid="clients-empty">
-              {clients.length === 0
-                ? 'No clients yet. Add your first one above.'
-                : search.active
-                  ? `No clients match “${query.trim()}”.`
-                  : 'No clients match this filter.'}
-              {clients.length > 0 && search.active && (
-                <> <button type="button" className="tov-link" data-testid="search-clear-empty" onClick={() => setQuery('')}>Clear search</button></>
-              )}
-              {clients.length > 0 && !search.active && leadFilter !== 'all' && (
-                <> <button type="button" className="tov-link" onClick={() => setLeadFilter('all')}>Show all</button></>
-              )}
-            </p>
+            clients.length === 0 ? (
+              <EmptyState
+                data-testid="clients-empty"
+                title="No clients yet."
+                action={<Button variant="primary" onClick={() => setAddSheet('menu')}>+ Add client</Button>}
+              >
+                Add your first client from a WhatsApp chat, or by name.
+              </EmptyState>
+            ) : search.active ? (
+              <EmptyState
+                data-testid="clients-empty"
+                title={`No clients match “${query.trim()}”.`}
+                action={<Button data-testid="search-clear-empty" onClick={() => setQuery('')}>Clear search</Button>}
+              />
+            ) : (
+              <EmptyState
+                data-testid="clients-empty"
+                title="No clients match this filter."
+                action={leadFilter !== 'all' ? <Button onClick={() => setLeadFilter('all')}>Show all</Button> : undefined}
+              />
+            )
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0 }}>
+            <ul className="ui-list" data-testid="clients-list">
               {search.active
                 ? visibleHits.map((h) => (
                     <ClientRow
@@ -913,7 +911,42 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
                   ))}
             </ul>
           )}
-          </>}
+
+          <Sheet open={addSheet === 'menu'} onClose={() => setAddSheet(null)} title="Add a client">
+            <div className="ui-stack ui-gap-1">
+              <button type="button" className="ui-sheet__option" onClick={() => { setAddSheet(null); setClientsAction('newFromChat'); }}>
+                <span>New client from a chat</span><span className="ui-sheet__hint">Choose a WhatsApp chat export. You confirm who it's with first.</span>
+              </button>
+              <button type="button" className="ui-sheet__option" onClick={() => { setAddSheet(null); setClientsAction('importSeveral'); }}>
+                <span>Import several chats</span><span className="ui-sheet__hint">Add several clients at once from their chat exports.</span>
+              </button>
+              <button type="button" className="ui-sheet__option" onClick={() => setAddSheet('name')}>
+                <span>Add by name only</span><span className="ui-sheet__hint">Start an empty client and add notes later.</span>
+              </button>
+            </div>
+          </Sheet>
+          <Sheet open={addSheet === 'name'} onClose={() => { setAddSheet(null); setError(null); }} title="Add by name only">
+            <form onSubmit={(e) => void addClient(e)} className="ui-stack">
+              <TextInput label="Client name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+              {error && <p className="ui-secondary ui-danger" role="alert">{error}</p>}
+              <ActionRow>
+                <Button type="submit" variant="primary" loading={busy} disabled={!name.trim()}>Add client</Button>
+                <Button variant="text" onClick={() => { setAddSheet(null); setError(null); }}>Cancel</Button>
+              </ActionRow>
+            </form>
+          </Sheet>
+          <Sheet open={sortSheet} onClose={() => setSortSheet(false)} title="Sort clients">
+            {/* [P36-6] Sort: last message (default), name, or most overdue promises. */}
+            <div role="radiogroup" aria-label="Sort clients" className="ui-stack ui-gap-1">
+              {SORT_OPTIONS.map((o) => (
+                <button key={o.value} type="button" role="radio" aria-checked={sortBy === o.value} className="ui-sheet__option" onClick={() => { setSortBy(o.value); setSortSheet(false); }}>
+                  <span>{o.label}{sortBy === o.value ? ' ✓' : ''}</span>
+                </button>
+              ))}
+            </div>
+          </Sheet>
+          </Page>
+          )}
           </div>
           {isDesktop && (
             <div className="tov-split__detail">

@@ -20,7 +20,7 @@ describe('[LEAD-STATUS] bucketing helpers', () => {
     expect(leadFilterKey(null)).toBe('unsorted');
     expect(leadFilterKey(undefined)).toBe('unsorted');
     expect(leadFilterKey('warm')).toBe('warm');
-    expect(leadStatusLabel(null)).toBe('Unsorted');
+    expect(leadStatusLabel(null)).toBe('No status'); // [P39 · owner] was "Unsorted"
     expect(leadStatusLabel('done')).toBe('Done');
   });
 
@@ -43,9 +43,10 @@ describe('[LEAD-STATUS] bucketing helpers', () => {
 describe('<LeadStatusFilterBar>', () => {
   const counts = { all: 6, warm: 2, cold: 1, done: 1, unsorted: 2 };
 
-  it('renders All · Warm · Cold · Done · Unsorted, each with its count', () => {
+  // [P39 · owner] "Unsorted" is now "No status".
+  it('renders All · Warm · Cold · Done · No status, each with its count', () => {
     render(<LeadStatusFilterBar filter="all" counts={counts} onChange={() => {}} />);
-    for (const [key, label, n] of [['all', 'All', 6], ['warm', 'Warm', 2], ['cold', 'Cold', 1], ['done', 'Done', 1], ['unsorted', 'Unsorted', 2]] as const) {
+    for (const [key, label, n] of [['all', 'All', 6], ['warm', 'Warm', 2], ['cold', 'Cold', 1], ['done', 'Done', 1], ['unsorted', 'No status', 2]] as const) {
       const chip = screen.getByTestId(`lead-filter-${key}`);
       expect(chip).toHaveTextContent(label);
       expect(chip).toHaveTextContent(String(n));
@@ -78,9 +79,9 @@ describe('<LeadStatusPill>', () => {
     expect(rowClick).not.toHaveBeenCalled(); // stopPropagation: tapping the pill never opens the book
   });
 
-  it('shows Unsorted for a null status', () => {
+  it('shows No status for a null status [P39 · owner: was "Unsorted"]', () => {
     render(<LeadStatusPill status={null} onClick={() => {}} />);
-    expect(screen.getByText('Unsorted')).toBeInTheDocument();
+    expect(screen.getByText('No status')).toBeInTheDocument();
   });
 });
 

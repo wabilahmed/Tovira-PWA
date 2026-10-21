@@ -42,12 +42,20 @@ function stub(state: { clients: ReturnType<typeof client>[]; calls: Array<{ meth
   }));
 }
 
+// [P39 · owner] The two buttons moved into the "+ Add client" sheet, next to "Add by name only".
+async function openAddSheet(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(await screen.findByRole('button', { name: '+ Add client' }));
+}
+
 describe('[P36-1] the Clients list is where a new client\'s chat comes in', () => {
-  it('shows "New client from a chat" and "Import several chats"', async () => {
+  it('"+ Add client" offers "New client from a chat", "Import several chats" and "Add by name only"', async () => {
     stub({ clients: [client('c1', 'Sara Khan')], calls: [] });
+    const user = userEvent.setup();
     render(<App />);
-    expect(await screen.findByRole('button', { name: 'New client from a chat' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Import several chats' })).toBeInTheDocument();
+    await openAddSheet(user);
+    expect(await screen.findByRole('button', { name: /^New client from a chat/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Import several chats/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Add by name only/ })).toBeInTheDocument();
   });
 
   it('"New client from a chat": no import (no model) before the rep confirms; then lands on the new client\'s page', async () => {
@@ -55,7 +63,8 @@ describe('[P36-1] the Clients list is where a new client\'s chat comes in', () =
     stub(state);
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'New client from a chat' }));
+    await openAddSheet(user);
+    await user.click(await screen.findByRole('button', { name: /^New client from a chat/ }));
     const picker = await screen.findByLabelText(/choose a chat export/i);
     expect(picker).not.toHaveAttribute('multiple'); // one chat → one client
     await user.upload(picker, new File(['13/07/2019, 1:00 am - Layla: hi'], 'WhatsApp Chat with Layla.txt', { type: 'text/plain' }));
@@ -70,7 +79,8 @@ describe('[P36-1] the Clients list is where a new client\'s chat comes in', () =
     stub({ clients: [client('c1', 'Sara Khan')], calls: [] });
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'Import several chats' }));
+    await openAddSheet(user);
+    await user.click(await screen.findByRole('button', { name: /^Import several chats/ }));
     expect(await screen.findByLabelText(/choose chat exports/i)).toHaveAttribute('multiple');
   });
 });

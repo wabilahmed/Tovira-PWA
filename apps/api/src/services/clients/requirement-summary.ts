@@ -6,9 +6,9 @@
 export interface RequirementLike { text: string; requirementRaw: string; statedOn: string | null; createdAt: number }
 
 export interface RequirementSummary {
-  /** The client page: "4BR villa · Mirdif · budget 3.4M · decide by 30 Jun"; null when nothing is stated. */
+  /** The client page: "4BR Villa · Mirdif · budget AED 3.4M · decide by 30 Jun"; null when nothing is stated. */
   summary: string | null;
-  /** The clients list row: "4BR villa · Mirdif · 3.4M"; null when nothing is stated. */
+  /** The clients list row: "4BR Villa · Mirdif · AED 3.4M"; null when nothing is stated. */
   listLine: string | null;
   /** Every budget stated, oldest first, consecutive repeats dropped: ["3M", "3.4M"]. */
   budgets: string[];
@@ -62,10 +62,11 @@ export function summarizeRequirements(reqs: RequirementLike[]): RequirementSumma
       qualifier = qualifierOf(src, m.index ?? 0); // the latest mention decides the wording
     }
   }
-  const what = [beds, type].filter(Boolean).join(' ') || null;
+  // [P39 · owner] Property types capitalised ("4BR Villa"), and budgets always carry AED.
+  const what = [beds, type ? type[0]!.toUpperCase() + type.slice(1) : null].filter(Boolean).join(' ') || null;
   const budget = budgets[budgets.length - 1] ?? null;
-  // "budget ~1.5M" (around / about) · "up to 3.4M" (max / up to) · "budget 3.4M" (said plainly).
-  const said = budget ? (qualifier === 'around' ? `~${budget}` : qualifier === 'max' ? `up to ${budget}` : budget) : null;
+  // "budget ~AED 1.5M" (around / about) · "up to AED 3.4M" (max / up to) · "budget AED 3.4M" (said plainly).
+  const said = budget ? (qualifier === 'around' ? `~AED ${budget}` : qualifier === 'max' ? `up to AED ${budget}` : `AED ${budget}`) : null;
   const summaryParts = [what, area, said ? (qualifier === 'max' ? said : `budget ${said}`) : null, deadline ? `decide by ${deadline}` : null].filter((x): x is string => !!x);
   const listParts = [what, area, said].filter((x): x is string => !!x);
   return { summary: summaryParts.length > 0 ? summaryParts.join(' · ') : null, listLine: listParts.length > 0 ? listParts.join(' · ') : null, budgets };

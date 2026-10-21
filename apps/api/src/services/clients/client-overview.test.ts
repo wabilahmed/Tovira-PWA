@@ -17,48 +17,48 @@ async function overview(opts: Parameters<typeof buildBook>[0] = {}) {
 }
 
 describe('[P36-5] what they want — from the stored requirements', () => {
-  it('QA Windowed Buyer 2 → "4BR villa · Mirdif · budget 3.4M", budget history 3M → 3.4M', async () => {
+  it('QA Windowed Buyer 2 → "4BR Villa · Mirdif · budget AED 3.4M", budget history 3M → 3.4M', async () => {
     const { b, svc } = await overview();
     const o = (await svc.forClient(U, b.ids.windowed, NOW))!;
-    expect(o.wants.summary).toBe('4BR villa · Mirdif · budget 3.4M'); // "Updated budget of 3.4M" — stated plainly
-    expect(o.wants.listLine).toBe('4BR villa · Mirdif · 3.4M');
+    expect(o.wants.summary).toBe('4BR Villa · Mirdif · budget AED 3.4M'); // "Updated budget of 3.4M" — stated plainly
+    expect(o.wants.listLine).toBe('4BR Villa · Mirdif · AED 3.4M');
     expect(o.wants.budgets).toEqual(['3M', '3.4M']);
     expect(o.wants.items.map((i) => i.text)).toEqual(['4BR villa in Mirdif', 'Updated budget of 3.4M']);
   });
 
   it('a deadline in a requirement shows as "decide by …"', () => {
     const s = summarizeRequirements([{ text: 'Villa in Mirdif, budget 3M', requirementRaw: 'need to decide by 30 Jun', statedOn: '2026-05-01', createdAt: 1 }]);
-    expect(s.summary).toBe('villa · Mirdif · budget 3M · decide by 30 Jun');
+    expect(s.summary).toBe('Villa · Mirdif · budget AED 3M · decide by 30 Jun');
   });
 
-  // [owner, 20 Oct] Budget wording follows how the client said it — never a ceiling they didn't state.
-  it('"around / about" → "budget ~1.5M"', () => {
+  // [P39 · owner] property types capitalised, AED always shown. [owner, 20 Oct] Budget wording follows how the client said it — never a ceiling they didn't state.
+  it('"around / about" → "budget ~AED 1.5M"', () => {
     for (const said of ['budget around 1.5M', 'about 1.5M budget', 'roughly 1.5 million', 'approx 1.5M']) {
       const s = summarizeRequirements([{ text: '2BR in JVC', requirementRaw: said, statedOn: '2026-04-12', createdAt: 1 }]);
-      expect([said, s.summary, s.listLine]).toEqual([said, '2BR · JVC · budget ~1.5M', '2BR · JVC · ~1.5M']);
+      expect([said, s.summary, s.listLine]).toEqual([said, '2BR · JVC · budget ~AED 1.5M', '2BR · JVC · ~AED 1.5M']);
     }
   });
 
-  it('stated plainly → "budget 3.4M"', () => {
+  it('stated plainly → "budget AED 3.4M"', () => {
     for (const said of ['our budget is 3.4M', 'Updated budget of 3.4M', '3.4M']) {
       const s = summarizeRequirements([{ text: 'villa in Mirdif', requirementRaw: said, statedOn: '2026-05-16', createdAt: 1 }]);
-      expect([said, s.summary, s.listLine]).toEqual([said, 'villa · Mirdif · budget 3.4M', 'villa · Mirdif · 3.4M']);
+      expect([said, s.summary, s.listLine]).toEqual([said, 'Villa · Mirdif · budget AED 3.4M', 'Villa · Mirdif · AED 3.4M']);
     }
   });
 
-  it('"max / up to" → "up to 3.4M" — only then', () => {
+  it('"max / up to" → "up to AED 3.4M" — only then', () => {
     for (const said of ['max 3.4M', 'maximum budget 3.4M', 'up to 3.4M', 'no more than 3.4M']) {
       const s = summarizeRequirements([{ text: 'villa in Mirdif', requirementRaw: said, statedOn: '2026-05-16', createdAt: 1 }]);
-      expect([said, s.summary, s.listLine]).toEqual([said, 'villa · Mirdif · up to 3.4M', 'villa · Mirdif · up to 3.4M']);
+      expect([said, s.summary, s.listLine]).toEqual([said, 'Villa · Mirdif · up to AED 3.4M', 'Villa · Mirdif · up to AED 3.4M']);
     }
   });
 
-  it('the latest budget sets the wording: "around 3M" then "max 3.4M" → "up to 3.4M"', () => {
+  it('the latest budget sets the wording: "around 3M" then "max 3.4M" → "up to AED 3.4M"', () => {
     const s = summarizeRequirements([
       { text: 'villa in Mirdif', requirementRaw: 'budget around 3M', statedOn: '2026-05-01', createdAt: 1 },
       { text: 'budget', requirementRaw: 'max 3.4M now', statedOn: '2026-05-16', createdAt: 2 },
     ]);
-    expect(s.summary).toBe('villa · Mirdif · up to 3.4M');
+    expect(s.summary).toBe('Villa · Mirdif · up to AED 3.4M');
     expect(s.budgets).toEqual(['3M', '3.4M']);
   });
 

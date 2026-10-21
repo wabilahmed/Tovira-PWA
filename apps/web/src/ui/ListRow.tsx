@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 
 /** [P39] A list row: title (2 lines max), one secondary line, one meta line, a trailing action. Tappable. */
-export function ListRow({ title, secondary, meta, trailing, onOpen, openLabel, testId }: {
+export function ListRow({ title, note, secondary, meta, trailing, onOpen, openLabel, testId }: {
   title: ReactNode;
+  /** A small line under the title (e.g. why a search matched: "phone: 050…"). */
+  note?: ReactNode;
   secondary?: ReactNode;
   meta?: ReactNode;
   trailing?: ReactNode;
@@ -14,6 +16,7 @@ export function ListRow({ title, secondary, meta, trailing, onOpen, openLabel, t
   const body = (
     <>
       <span className="ui-row__title" dir="auto" data-testid="row-name">{title}</span>
+      {note && <span className="ui-row__meta">{note}</span>}
       {secondary && <span className="ui-row__secondary" dir="auto" data-testid="row-wants">{secondary}</span>}
       {meta && <span className="ui-row__meta" data-testid="row-activity">{meta}</span>}
     </>

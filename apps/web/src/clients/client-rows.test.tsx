@@ -77,11 +77,18 @@ describe('[P36-6] the Clients list', () => {
     const user = userEvent.setup();
     render(<App />);
     await waitFor(() => expect(order()).toEqual(['Open Bravo', 'Open Alpha', 'Open Charlie']));
-    expect(screen.getByLabelText('Sort clients')).toHaveValue('last');
-    await user.selectOptions(screen.getByLabelText('Sort clients'), 'name');
-    expect(order()).toEqual(['Open Alpha', 'Open Bravo', 'Open Charlie']);
-    await user.selectOptions(screen.getByLabelText('Sort clients'), 'overdue');
-    expect(order()).toEqual(['Open Charlie', 'Open Bravo', 'Open Alpha']);
+    // [P39 · owner] The sort is an icon button opening a sheet (no native <select>).
+    const sortBy = async (label: string): Promise<void> => {
+      await user.click(screen.getByRole('button', { name: 'Sort clients' }));
+      await user.click(await screen.findByRole('radio', { name: new RegExp(`^${label}`) }));
+    };
+    await user.click(screen.getByRole('button', { name: 'Sort clients' }));
+    expect(await screen.findByRole('radio', { name: /^Last message/ })).toHaveAttribute('aria-checked', 'true');
+    await user.keyboard('{Escape}');
+    await sortBy('Name');
+    await waitFor(() => expect(order()).toEqual(['Open Alpha', 'Open Bravo', 'Open Charlie']));
+    await sortBy('Overdue promises');
+    await waitFor(() => expect(order()).toEqual(['Open Charlie', 'Open Bravo', 'Open Alpha']));
   });
 
   it('the search box finds a client by alias', async () => {

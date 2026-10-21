@@ -208,10 +208,11 @@ function buildSteps(c: {
     {
       title: 'Your clients',
       view: 'clients',
-      spot: ['[data-tour="new-from-chat"]', '[data-tour="nav-clients"]'],
+      spot: ['[data-tour="add-client"]', '[data-tour="nav-clients"]'],
       body: (
         <>
-          <p>Tap <strong>New client from a chat</strong>. First, export the chat:</p>
+          {/* [P39-3] "New client from a chat" now sits behind "+ Add client". */}
+          <p><strong>Add client</strong> → <strong>New client from a chat</strong>. Export first:</p>
           <ExportSteps nav={c.nav} />
         </>
       ),
