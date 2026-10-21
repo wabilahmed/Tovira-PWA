@@ -12,6 +12,7 @@ import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus, type Stakeholder, type StatusSnapshot } from './clients/clientsClient.js';
 import { HttpClientPageClient, type ClientOverview } from './clients/page/clientPageClient.js';
 import { Accordion } from './ui/Accordion.js';
+import { Page, PageHeader, Section, ListRow, Button } from './ui/index.js';
 import { ClientHeader, headerLine } from './clients/page/ClientHeader.js';
 import { Conversations, conversationsSummary } from './clients/page/Conversations.js';
 import { WantsSection, wantsSummary, PromisesSection, promisesSummary, MeetingsSection, meetingsSummary } from './clients/page/Sections.js';
@@ -66,8 +67,6 @@ import { ClientPhoneField } from './clients/ClientPhoneField.js';
 import { StakeholderMap } from './stakeholders/StakeholderMap.js';
 import { RecallClient } from './recall/recallClient.js';
 import { Ask } from './recall/Ask.js';
-import { CorpusClient } from './corpus/corpusClient.js';
-import { CorpusBadge } from './corpus/CorpusBadge.js';
 import { MondayClient } from './monday/mondayClient.js';
 import { MondayDigest } from './monday/MondayDigest.js';
 import { LedgerClient } from './ledger/ledgerClient.js';
@@ -93,7 +92,7 @@ export const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite
 import { InstallBanner } from './pwa/InstallBanner.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
-import { isView } from './shell/nav.js';
+import { isView, VIEW_LABEL } from './shell/nav.js';
 import type { Plan } from './billing/plans.js';
 import { useIsDesktop } from './shell/useIsDesktop.js';
 import { hapticTick } from './haptics.js';
@@ -132,7 +131,6 @@ const startCheckout = async (plan: Plan): Promise<void> => {
 };
 const accountApi = new AccountClient(API_BASE);
 const recallApi = new RecallClient(API_BASE);
-const corpusApi = new CorpusClient(API_BASE);
 const mondayApi = new MondayClient(API_BASE);
 const ledgerApi = new LedgerClient(API_BASE);
 const shareCardApi = new ShareCardClient(API_BASE);
@@ -333,16 +331,27 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/ops')) return; // never on /ops/*
     void tourApi.state().then((t) => { if (t?.required) { setOpen(null); setTour({ mode: 'required', start: t.step }); } });
   }, []);
+  // [P39] Every sub-screen has a "← Back" to where the rep came from: a small stack of the screens visited.
+  const [trail, setTrail] = useState<View[]>([]);
   const navigate = (v: View): void => {
     if (v === 'tour') { setOpen(null); setTour({ mode: 'replay', start: 0 }); return; }
+    if (v === 'ask') v = 'find';
+    setOpen(null);
+    if (v !== view) setTrail((t) => [...t.slice(-9), view]);
     setView(v);
   };
-  // [P37] Settings → Subscription is the one home of "Buy more usage" — every banner and message links here.
-  const openSubscription = (): void => {
-    setOpen(null);
-    setView('settings');
-    setTimeout(() => { try { document.getElementById('subscription')?.scrollIntoView({ block: 'start' }); } catch { /* jsdom */ } }, 0);
+  /** Back to the previous screen (or `fallback` when there is none, e.g. after a deep link). */
+  const goBack = (fallback: View): void => {
+    const prev = trail[trail.length - 1];
+    setTrail((t) => t.slice(0, -1));
+    setView(prev ?? fallback);
   };
+  const backTo = (fallback: View): { label: string; onBack: () => void } => {
+    const prev = trail[trail.length - 1] ?? fallback;
+    return { label: VIEW_LABEL[prev] ?? 'Back', onBack: () => goBack(fallback) };
+  };
+  // [P37] Settings → Subscription is the one home of "Buy more usage" — every banner and message links here.
+  const openSubscription = (): void => navigate('subscription');
   // [P37] Back from a top-up checkout (?topup=1): the usage shows "Updating your balance…" until it lands.
   const [awaitingTopUp, setAwaitingTopUp] = useState(() => {
     try { return new URLSearchParams(window.location.search).get('topup') === '1'; } catch { return false; }
@@ -397,7 +406,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     // Any known view is honoured; an unknown or missing value falls back to Clients. [AUDIT item 2]
     // "Back to Today" from the 404 lands on Today via ?view=today.
     try {
-      const q = new URLSearchParams(window.location.search).get('view');
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('view');
+      if (q === 'ask') return 'find'; // [P39] Ask became Find
+      if (q === 'settings' && params.get('topup') === '1') return 'subscription'; // back from a top-up checkout
       if (isView(q)) return q;
       // [P36-3] A retired or unknown view (the retired standalone Capture screen) → the Clients list, and the
       // address bar says so — never a blank screen or a 404.
@@ -643,13 +655,6 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       onNavigate={navigate}
       needsSeeding={needsSeeding}
       badges={{ inventory: matchBadge }}
-      sidebarFooter={
-        <span>
-          {session.user.email}
-          <br />
-          <button onClick={onLogout} style={linkButton}>Log out</button>
-        </span>
-      }
     >
       <ErrorBoundary key={view}>
       <DevCrash />{/* dev-only: ?boom=1 throws here so the view ErrorBoundary fallback can be exercised */}
@@ -713,7 +718,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </>,
       )}
 
-      {view === 'ask' && gated(<Ask api={recallApi} listen={speechListen} onOpenSubscription={openSubscription} />)}
+      {(view === 'find' || view === 'ask') && gated(<Ask api={recallApi} listen={speechListen} onOpenSubscription={openSubscription} />)}
 
       {view === 'promises' && <PromisesTracker api={promisesApi} />}
 
@@ -750,24 +755,27 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'inventory' && <Inventory api={inventoryApi} clients={clients.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? null }))} onSubscribe={startCheckout} />}
 
       {view === 'settings' && (
-        <>
-          <header className="tov-screenhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
-            <h2 style={{ marginTop: 0 }}>Settings</h2>
-            <CorpusBadge api={corpusApi} />
-          </header>
-          <p className="tov-setting-line">
-            Email: {session.user.email}
-            {' — '}
-            {session.user.emailVerified ? (
-              <span className="tov-verified">Confirmed</span>
-            ) : (
-              <span className="tov-unverified">Not confirmed yet</span>
-            )}
-          </p>
-          {/* [P37] Subscription: the plan, the trial or renewal date, the usage bar, "Buy more usage" right under
-              it (an active subscriber only), and Manage billing. The one home of the top-up picker. */}
-          <section id="subscription" aria-label="Subscription" className="tov-subscription">
-            <h2 style={{ marginTop: '1.5rem' }}>Subscription</h2>
+        <Page testId="settings" label="Settings">
+          <PageHeader title="Settings" />
+          <Section>
+            <ul className="ui-list">
+              <ListRow title="Subscription" meta="Your plan, usage, and buying more usage" onOpen={() => navigate('subscription')} openLabel="Subscription" trailing={<span aria-hidden="true" className="ui-caption">›</span>} />
+              <ListRow title="Account" meta="Your email, signing out, your data" onOpen={() => navigate('account')} openLabel="Account" trailing={<span aria-hidden="true" className="ui-caption">›</span>} />
+            </ul>
+          </Section>
+          <Section title="Appearance"><ThemeToggle /></Section>
+          <Section title="Time zone"><TimezoneSetting current={session.user.timezone} api={auth} /></Section>
+          <Section title="Notifications"><NotificationSetup state={readPushState()} api={notificationApi} /></Section>
+          <Section title="Tell clients you keep notes"><DisclosureLine /></Section>
+        </Page>
+      )}
+
+      {/* [P37 → P39] Subscription: the plan, the trial or renewal date, the usage bar, "Buy more usage" right under
+          it (an active subscriber only), and Manage billing. The one home of the top-up picker. */}
+      {view === 'subscription' && (
+        <Page testId="subscription" label="Subscription">
+          <PageHeader title="Subscription" back={backTo('settings')} />
+          <section id="subscription" aria-label="Subscription" className="ui-section">
             <Billing api={billingApi} />
             {/* [P11-1] a trial rep at 100% gets Subscribe now here → checkout, instead of a dead end. */}
             <UsageMeter
@@ -781,21 +789,25 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               }}
             />
           </section>
-          <ThemeToggle />
-          <TimezoneSetting current={session.user.timezone} api={auth} />
-          <DisclosureLine />
-          <NotificationSetup state={readPushState()} api={notificationApi} />
-          <AccountControls api={accountApi} onDeleted={onLogout} />
-        </>
+        </Page>
+      )}
+
+      {/* [P39] Account: who is signed in, Log out (moved off every page), and the rep's data. */}
+      {view === 'account' && (
+        <Page testId="account" label="Account">
+          <PageHeader title="Account" back={backTo('settings')} />
+          <Section title="Signed in as">
+            <p className="ui-body" data-testid="account-email">{session.user.email}</p>
+            <p className="ui-secondary">{session.user.emailVerified ? 'Email confirmed' : 'Email not confirmed yet'}</p>
+            <div><Button onClick={onLogout}>Log out</Button></div>
+          </Section>
+          <Section title="Your data"><AccountControls api={accountApi} onDeleted={onLogout} /></Section>
+        </Page>
       )}
 
       {view === 'clients' && (
         <div className={isDesktop ? 'tov-split' : undefined}>
           <div className={isDesktop ? 'tov-split__rail' : undefined}>
-          <div className="clients-meta">
-            <CorpusBadge api={corpusApi} />
-            <span>{session.user.email} · <button onClick={onLogout} className="tov-link">Log out</button></span>
-          </div>
           <h2 className="clients-title">Clients</h2>
           {/* [P36-1] Capture lives inside a client; a chat for a client you don't have yet starts here. */}
           {(sharedContent || sharedContentB64) && (

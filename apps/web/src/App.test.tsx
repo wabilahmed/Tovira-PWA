@@ -55,7 +55,8 @@ describe('<App> integration', () => {
     await user.type(await screen.findByLabelText(/email/i), 'rep@example.com');
     await user.type(screen.getByLabelText(/password/i), 'password123');
     await user.click(screen.getByRole('button', { name: /log in/i }));
-    expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
+    // [P39 · owner] the email no longer shows on every page (it moved to More → Account): the Clients heading is the loaded signal.
+    expect(await screen.findByRole('heading', { name: 'Clients' })).toBeInTheDocument();
   });
 
   // POSITIVE: the Sign up toggle switches mode and creates an account.
@@ -78,7 +79,8 @@ describe('<App> integration', () => {
     expect(screen.getByRole('button', { name: /create account/i })).toBeDisabled();
     await user.click(screen.getByLabelText(/accept terms/i));
     await user.click(screen.getByRole('button', { name: /create account/i }));
-    expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
+    // [P39 · owner] the email no longer shows on every page (it moved to More → Account): the Clients heading is the loaded signal.
+    expect(await screen.findByRole('heading', { name: 'Clients' })).toBeInTheDocument();
     expect(signupCalled).toBe(true);
   });
 
@@ -108,7 +110,8 @@ describe('<App> integration', () => {
       ['/clients', () => json(200, { clients: [] })],
     ]);
     render(<App />);
-    expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
+    // [P39 · owner] the email no longer shows on every page (it moved to More → Account): the Clients heading is the loaded signal.
+    expect(await screen.findByRole('heading', { name: 'Clients' })).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /get started/i })).toBeInTheDocument();
   });
 
@@ -125,7 +128,8 @@ describe('<App> integration', () => {
     render(<App />);
     expect(await screen.findByText(/confirm your email so we can reach you/i)).toBeInTheDocument();
     // Full app is still reachable — the banner blocks nothing.
-    expect(screen.getByText(/rep@example.com/)).toBeInTheDocument();
+    // [P39 · owner] the email no longer shows on every page (it moved to More → Account): the Clients heading is the loaded signal.
+    expect(screen.getByRole('heading', { name: 'Clients' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /dismiss/i }));
     expect(screen.queryByText(/confirm your email so we can reach you/i)).not.toBeInTheDocument();
   });
@@ -225,9 +229,13 @@ describe('<App> integration', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByRole('button', { name: /^more$/i })); // overflow section
-    await user.click(await screen.findByRole('button', { name: /settings/i }));
+    await user.click(await screen.findByRole('button', { name: /^settings$/i }));
+    // [P39 · owner] Settings → Subscription (the plan) and Settings → Account (the data) are their own pages now.
+    await user.click(await screen.findByRole('button', { name: 'Subscription' }));
     expect(await screen.findByText(/you're subscribed/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /delete my account/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back to Settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Account' }));
+    expect(await screen.findByRole('button', { name: /delete my account/i })).toBeInTheDocument();
   });
 
   it('navigates to Ask and answers with receipts (API integration)', async () => {
@@ -239,7 +247,7 @@ describe('<App> integration', () => {
     ]);
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: /^ask$/i })); // nav tab
+    await user.click(await screen.findByRole('button', { name: /^find$/i })); // nav tab [P39: Ask is now the Find tab]
     await user.type(await screen.findByLabelText(/your question/i), 'What did Ahmed say?');
     // The form submit lives inside the Ask region (the nav tab shares its name).
     const region = await screen.findByRole('region', { name: /ask your memory/i });
@@ -293,8 +301,8 @@ describe('[AUDIT item 6] email-confirm banner is not duplicated', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByRole('button', { name: /^more$/i }));
-    await user.click(await screen.findByRole('button', { name: /settings/i }));
-    await screen.findByRole('button', { name: /delete my account/i }); // settings view is up
+    await user.click(await screen.findByRole('button', { name: /^settings$/i }));
+    await screen.findByRole('heading', { level: 1, name: 'Settings' }); // settings view is up [P39: its own page]
     expect(screen.getAllByLabelText('Confirm your email')).toHaveLength(1);
   });
 });
@@ -321,7 +329,8 @@ describe('[AUDIT item 5] ?view= deep-link opens any section directly', () => {
       ['/clients', () => json(200, { clients: [] })],
     ]);
     render(<App />);
-    expect(await screen.findByText(/rep@example.com/)).toBeInTheDocument();
+    // [P39 · owner] the email no longer shows on every page (it moved to More → Account): the Clients heading is the loaded signal.
+    expect(await screen.findByRole('heading', { name: 'Clients' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /^Promises$/i })).toBeNull();
     window.history.replaceState({}, '', '/');
   });

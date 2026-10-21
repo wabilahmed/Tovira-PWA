@@ -4,9 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { TabBar } from './TabBar.js';
 
 describe('<TabBar>', () => {
+  // [P39 · owner] Clients · Today · Find · Book Scan · More (Ask became Find).
   it('shows the four primary tabs and More', () => {
     render(<TabBar view="clients" onNavigate={vi.fn()} />);
-    for (const name of [/clients/i, /today/i, /^ask$/i, /book scan/i, /^more$/i]) {
+    for (const name of [/clients/i, /today/i, /^find$/i, /book scan/i, /^more$/i]) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
     // Overflow sections are not in the bar until More is opened.
@@ -36,9 +37,15 @@ describe('<TabBar>', () => {
     expect(onNavigate).toHaveBeenCalledWith('week');
   });
 
-  it('gives the fourth slot to the active overflow section (Book Scan steps aside)', () => {
-    render(<TabBar view="alerts" onNavigate={vi.fn()} />);
-    expect(screen.getByRole('button', { name: /alerts/i })).toHaveAttribute('aria-current', 'page');
-    expect(screen.queryByRole('button', { name: /book scan/i })).toBeNull();
+  // [P39 · owner] The same five tabs on every screen — an overflow section never takes Book Scan's slot (seen:
+  // To Confirm replaced it). A sub-screen highlights its parent: overflow screens → More, To Confirm → Today.
+  it('never replaces a tab: an overflow screen highlights More, To Confirm highlights Today', () => {
+    const { rerender } = render(<TabBar view="alerts" onNavigate={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /book scan/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^alerts$/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /^more$/i })).toHaveAttribute('aria-current', 'page');
+    rerender(<TabBar view="confirm" onNavigate={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /book scan/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /today/i })).toHaveAttribute('aria-current', 'page');
   });
 });

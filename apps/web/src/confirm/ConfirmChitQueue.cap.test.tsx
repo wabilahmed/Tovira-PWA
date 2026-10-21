@@ -70,8 +70,9 @@ describe('[P34-3] the full To Confirm screen', () => {
     expect(screen.getByRole('heading', { name: /to confirm · 9/i })).toBeInTheDocument();
   });
 
-  it('is reachable from More as "To Confirm" (?view=confirm)', () => {
-    expect(OVERFLOW.find((i) => i.view === 'confirm')?.label).toBe('To Confirm');
+  // [P39 · owner] the screen is now called "Needs your answer".
+  it('is reachable from More as "Needs your answer" (?view=confirm)', () => {
+    expect(OVERFLOW.find((i) => i.view === 'confirm')?.label).toBe('Needs your answer');
     expect(isView('confirm')).toBe(true);
   });
 

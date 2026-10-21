@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { PRIMARY, OVERFLOW, type NavItem, type View } from './nav.js';
+import { PRIMARY, OVERFLOW, activeTab, type View } from './nav.js';
 import { BottomSheet } from './BottomSheet.js';
 import { NavBadge } from './NavBadge.js';
 import { Spring } from '../motion/spring.js';
@@ -17,15 +17,17 @@ const MARKER_SPRING = { damping: 0.9, response: 0.4 } as const;
  */
 export function TabBar({ view, onNavigate, badges }: { view: View; onNavigate: (v: View) => void; badges?: Partial<Record<View, number>> }): JSX.Element {
   const [moreOpen, setMoreOpen] = useState(false);
-  const activeOverflow = OVERFLOW.find((i) => i.view === view);
-  const tabs: NavItem[] = activeOverflow ? [PRIMARY[0]!, PRIMARY[1]!, PRIMARY[2]!, activeOverflow] : PRIMARY;
-  // A badge sitting in the More overflow surfaces on the More button itself (its section is hidden).
-  const moreCount = OVERFLOW.reduce((n, i) => (i.view === activeOverflow?.view ? n : n + (badges?.[i.view] ?? 0)), 0);
+  // [P39] The same five tabs on every screen; a sub-screen highlights its parent (To Confirm → Today,
+  // Settings pages → More). An overflow screen never takes a primary tab's slot.
+  const active = activeTab(view);
+  const tabs = PRIMARY;
+  // A badge sitting in the More overflow surfaces on the More button itself.
+  const moreCount = OVERFLOW.reduce((n, i) => n + (badges?.[i.view] ?? 0), 0);
 
   const navRef = useRef<HTMLElement>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const reduced = usePrefersReducedMotion();
-  useTabMarker(navRef, tabRefs, view, tabs.map((t) => t.view).join(), reduced);
+  useTabMarker(navRef, tabRefs, active === 'more' ? view : active, tabs.map((t) => t.view).join(), reduced);
 
   function go(v: View): void {
     onNavigate(v);
@@ -59,8 +61,8 @@ export function TabBar({ view, onNavigate, badges }: { view: View; onNavigate: (
             type="button"
             className="tov-tab"
             data-tour={`nav-${i.view}`}
-            aria-current={view === i.view ? 'page' : undefined}
-            data-active={view === i.view || undefined}
+            aria-current={active === i.view ? 'page' : undefined}
+            data-active={active === i.view || undefined}
             onClick={() => go(i.view)}
           >
             {i.label}
@@ -68,10 +70,12 @@ export function TabBar({ view, onNavigate, badges }: { view: View; onNavigate: (
           </button>
         ))}
         <button
+          data-tour="nav-more"
+          aria-current={active === 'more' && !moreOpen ? 'page' : undefined}
           type="button"
           className="tov-tab"
           aria-expanded={moreOpen}
-          data-active={moreOpen || undefined}
+          data-active={moreOpen || active === 'more' || undefined}
           onClick={() => setMoreOpen((s) => !s)}
         >
           More
