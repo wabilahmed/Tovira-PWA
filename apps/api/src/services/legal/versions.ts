@@ -10,12 +10,12 @@
  * one source of truth, not three.
  */
 
-/** Terms of Service version. Derivation: matches "Last updated: 20 October 2026" on the published Terms
- *  page (apps/web/terms/index.html) — the last time the Terms wording changed (the 2026-10-20 revision added
- *  clause 6.10, the lawyer-verified extra-usage sentence, P37). The reconcile guard proves the page and this
- *  constant agree. Prior published versions are archived under legal-archive/ (2026-10-05, 2026-10-03,
- *  2026-10-02, 2026-09-22). PRIVACY_VERSION is unchanged — only the Terms changed. */
-export const TERMS_VERSION = '2026-10-20';
+/** Terms of Service version. Derivation: matches "Last updated: 21 October 2026" on the published Terms
+ *  page (apps/web/terms/index.html) — the last time the Terms wording changed (the 2026-10-21 revision, P38,
+ *  removed the unnumbered top-up paragraph under 6.9 that contradicted 6.10 on refunds; 2026-10-20 added 6.10).
+ *  The reconcile guard proves the page and this constant agree. Prior published versions are archived under
+ *  legal-archive/ (2026-10-20, 2026-10-05, 2026-10-03, 2026-10-02, 2026-09-22). PRIVACY_VERSION is unchanged. */
+export const TERMS_VERSION = '2026-10-21';
 
 /** Privacy Policy version. Derivation: matches "Last updated: 2 October 2026" on the published Privacy
  *  page (apps/web/privacy/index.html) — the 2026-10-02 revision corrected the voice redaction claim,

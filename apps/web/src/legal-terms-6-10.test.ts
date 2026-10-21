@@ -26,7 +26,10 @@ describe('[P37] Terms 6.10 — the extra-usage sentence, verbatim', () => {
     expect(six < nine && nine < ten && ten < seven).toBe(true);
   });
 
-  it('the page says it was last updated on 20 October 2026', () => {
-    expect(html).toContain('Last updated: 20 October 2026 · Version 2026-10-20');
+  // [P38] The Terms changed again on 21 Oct (the contradicting paragraph under 6.9 removed), so the page's date
+  // moved on; 6.10 itself is still pinned above, and the current date by legal-terms-p38.test.ts.
+  it('the page carries a dated version marker no earlier than 6.10 (20 October 2026)', () => {
+    const v = /data-doc-version="(\d{4}-\d{2}-\d{2})"/.exec(html)?.[1] ?? '';
+    expect(v >= '2026-10-20').toBe(true);
   });
 });

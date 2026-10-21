@@ -9,9 +9,11 @@ drifts from its constant.
 
 ## Contents
 
-- `2026-10-20/` — the current **published Terms** (owner-approved, P37). New acceptances record this
-  `TERMS_VERSION`. Adds clause 6.10, the lawyer-verified extra-usage sentence, word for word; no other wording
-  changed and nothing renumbered. Privacy is unchanged (still `2026-10-05`).
+- `2026-10-21/` — the current **published Terms** (owner-approved, P38). New acceptances record this
+  `TERMS_VERSION`. Removes the unnumbered top-up paragraph under 6.9 ("…non-refundable once any of it has
+  been used"), which contradicted 6.10; nothing else changed, nothing renumbered. Privacy unchanged (`2026-10-05`).
+- `2026-10-20/` — the prior published Terms (P37): added clause 6.10, the lawyer-verified extra-usage
+  sentence, word for word.
 - `2026-10-05/` — the prior published Terms, and the current **published Privacy** (owner-approved). This is
   the version Privacy acceptances record (`PRIVACY_VERSION`). Snapshotted from `apps/web/{terms,privacy}/index.html`.
   The revision added the failed-payment procedure (Terms 6.7–6.8: pause AI, daily retry/remind, suspend at
