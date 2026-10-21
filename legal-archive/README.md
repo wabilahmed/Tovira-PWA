@@ -11,7 +11,8 @@ drifts from its constant.
 
 - `2026-10-21/` — the current **published Terms** (owner-approved, P38). New acceptances record this
   `TERMS_VERSION`. Removes the unnumbered top-up paragraph under 6.9 ("…non-refundable once any of it has
-  been used"), which contradicted 6.10; nothing else changed, nothing renumbered. Privacy unchanged (`2026-10-05`).
+  been used"), which contradicted 6.10, and adds 14.8 (the lawyer-approved consumer-rights sentence, word
+  for word); nothing renumbered. Privacy unchanged (`2026-10-05`).
 - `2026-10-20/` — the prior published Terms (P37): added clause 6.10, the lawyer-verified extra-usage
   sentence, word for word.
 - `2026-10-05/` — the prior published Terms, and the current **published Privacy** (owner-approved). This is
