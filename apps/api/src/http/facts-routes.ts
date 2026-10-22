@@ -11,6 +11,7 @@ import { pendingConfirmations } from '../services/facts/confirmation.js';
 import { isStalePromise } from '../services/facts/promise-lifecycle.js';
 import { recordVerdict } from '../services/facts/verdict.js';
 import { resolveDueDate } from '../services/extraction/resolve-date.js';
+import { withinDateCardWindow } from '../services/facts/date-confirm-window.js';
 import { withReceipt } from '../services/receipts/receipt.js';
 import { isValidDateOnly } from './validate-date.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
@@ -93,7 +94,7 @@ export async function handleFactsRoute(
     // [P40-1] Promises whose date the resolver couldn't read, for the rep to answer — with a suggested date only
     // when the resolver (re-reading the phrase against its own message) now has one. Never the model's date.
     const datesToConfirm = promises
-      .filter((p) => p.dateStatus === 'to_confirm' && !p.done && p.dueDate === null)
+      .filter((p) => p.dateStatus === 'to_confirm' && !p.done && p.dueDate === null && withinDateCardWindow(p.sourceMessageAt ?? p.captureAt ?? p.createdAt, Date.now()))
       .map((p) => ({ ...named(withReceipt(p)), suggestedDate: resolveDueDate(p.dueRaw, p.sourceMessageAt ?? p.captureAt).date }));
     sendJson(res, 200, { promises: pendingConfirmations(promises).map(withReceipt).map(named), meetings: meetings.map(withReceipt), moveSuggestions, datesToConfirm });
     return true;

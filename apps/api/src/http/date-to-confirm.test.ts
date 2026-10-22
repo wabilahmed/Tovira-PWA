@@ -92,4 +92,18 @@ describe('[P40-1] dates to confirm', () => {
     const today = (await (await fetch(`${base}/today`, { headers: H(token) })).json()) as { actions: Array<{ title?: string }> };
     expect(today.actions.some((a) => a.title === 'Send the floor plans')).toBe(false);
   });
+
+  // [P40-1 · owner] cards only for items whose source message is within the last 90 days; older ones keep the label
+  it('the 90-day edge: said 90 days ago → a card; 91 days ago → no card, still "to confirm"', async () => {
+    const { token, userId } = await signup('a@example.com');
+    const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 16);
+    const c = await deps.clients.create(userId, 'Sara Khan');
+    await deps.facts.saveExtraction(userId, { noteId: 'n90', clientId: c.id, promises: [
+      { text: 'Send the floor plans', owner: 'rep', due_date: null, due_raw: 'soon', confidence: 'high', source_span: 'soon', source_message_at: day(90), date_status: 'to_confirm' },
+      { text: 'Send the brochure', owner: 'rep', due_date: null, due_raw: 'soon', confidence: 'high', source_span: 'soon', source_message_at: day(91), date_status: 'to_confirm' },
+    ] });
+    expect((await cards(token)).map((x) => x.text)).toEqual(['Send the floor plans']);
+    const old = (await deps.facts.listPromisesByUser(userId)).find((p) => p.text === 'Send the brochure')!;
+    expect(old.dateStatus).toBe('to_confirm'); // the label still shows; only the card is held back
+  });
 });

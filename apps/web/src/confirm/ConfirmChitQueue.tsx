@@ -2,6 +2,8 @@ import { hapticTick } from '../haptics.js';
 import { useEffect, useRef, useState } from 'react';
 import type { OpenPromise } from '../promises/promisesClient.js';
 import { AnswerCard, DateCard } from './ConfirmChit.js';
+import { ActionRow } from '../ui/Button.js';
+import { Card } from '../ui/Card.js';
 import { clientPromiseCopy, dateCopy, fieldCopy, keptCopy, noteCopy, repPromiseCopy, shortDay, statusCopy } from './cardCopy.js';
 import type { PendingCapture } from '../recall/recallClient.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
@@ -52,6 +54,15 @@ export interface StatusSuggestionsApi {
   keep(s: StatusSuggestionCard): Promise<boolean>;
 }
 
+/** [P40-1 · owner] More than this many dates to confirm from ONE import become a single card that opens the list. */
+const GROUP_OVER = 3;
+/** Items by the import (note) they came from, in first-seen order. */
+function groupedByImport<T extends { id: string; noteId?: string | null }>(items: T[]): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const it of items) { const k = it.noteId ?? it.id; groups.set(k, [...(groups.get(k) ?? []), it]); }
+  return [...groups.values()];
+}
+
 /** [P40-1] Promises whose date the rep gives (the resolver couldn't read the phrase). */
 export interface DateConfirmApi {
   listDatesToConfirm(): Promise<OpenPromise[]>;
@@ -82,6 +93,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
   const [undoKept, setUndoKept] = useState<KeptSuggestion | null>(null);
   const [statusCards, setStatusCards] = useState<StatusSuggestionCard[]>([]);
   const [dateCards, setDateCards] = useState<OpenPromise[]>([]);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set()); // [P40-1] opened "N promises need a due date" cards
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
@@ -163,6 +175,25 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
     if (await api.reject(id)) drop(id);
   }
 
+  const toggleGroup = (k: string): void => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const dateNode = (p: OpenPromise): JSX.Element => {
+    const copy = dateCopy(p);
+    const label = shortDay(p.suggestedDate);
+    return (
+      <DateCard
+        key={`date:${p.id}`}
+        question={copy.question}
+        said={copy.said}
+        suggested={p.suggestedDate && label ? { iso: p.suggestedDate, label } : null}
+        source={<ReceiptThread
+          refInfo={p.receipt?.quote ? { noteId: p.noteId ?? null, clientId: p.clientId, span: p.sourceSpan ?? p.receipt.quote, at: p.sourceMessageAt ?? p.receipt.at, quote: p.receipt.quote, sender: p.owner === 'client' ? p.clientName ?? null : null } : {}}
+          emptyText="No source quote was saved for this fact"
+        />}
+        onAnswer={(a) => void answerDate(p, a)}
+      />
+    );
+  };
+
   // [P34-3] One list across the kinds, newest first; Today shows the first `limit` and links to the rest.
   // [P39-6] Each card asks its question (cardCopy.ts), says what Yes does, shows its receipt, then the answers.
   const entries: Array<{ key: string; at: number; node: JSX.Element }> = [
@@ -215,26 +246,24 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
         />
       ),
     })),
-    ...dateCards.map((p) => {
-      const copy = dateCopy(p);
-      const label = shortDay(p.suggestedDate);
-      return {
-        key: `date:${p.id}`,
-        at: p.createdAt ?? 0,
-        node: (
-          <DateCard
-            key={`date:${p.id}`}
-            question={copy.question}
-            said={copy.said}
-            suggested={p.suggestedDate && label ? { iso: p.suggestedDate, label } : null}
-            source={<ReceiptThread
-              refInfo={p.receipt?.quote ? { noteId: p.noteId ?? null, clientId: p.clientId, span: p.sourceSpan ?? p.receipt.quote, at: p.sourceMessageAt ?? p.receipt.at, quote: p.receipt.quote, sender: p.owner === 'client' ? p.clientName ?? null : null } : {}}
-              emptyText="No source quote was saved for this fact"
-            />}
-            onAnswer={(a) => void answerDate(p, a)}
-          />
-        ),
-      };
+    ...groupedByImport(dateCards).flatMap((items) => {
+      // [P40-1 · owner] more than 3 from one import → one card that opens the list; otherwise a card each
+      if (items.length > GROUP_OVER) {
+        const key = `dates:${items[0]!.noteId ?? items[0]!.id}`;
+        return [{
+          key,
+          at: Math.max(...items.map((p) => p.createdAt ?? 0)),
+          node: (
+            <Card key={key} role="group" aria-label="Dates to confirm" data-testid="date-group">
+              <p className="ui-body ui-strong">{items.length} promises need a due date</p>
+              <p className="ui-secondary" dir="auto">From one chat{items[0]!.clientName ? ` with ${items[0]!.clientName}` : ''}.</p>
+              <ActionRow><Button size="sm" aria-expanded={openGroups.has(key)} onClick={() => toggleGroup(key)}>{openGroups.has(key) ? 'Hide' : 'Answer them'}</Button></ActionRow>
+              {openGroups.has(key) && <div className="ui-stack ui-gap-3">{items.map((p) => dateNode(p))}</div>}
+            </Card>
+          ),
+        }];
+      }
+      return items.map((p) => ({ key: `date:${p.id}`, at: p.createdAt ?? 0, node: dateNode(p) }));
     }),
     ...statusCards.map((c) => ({
       key: `status:${c.clientId}`,

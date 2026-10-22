@@ -74,3 +74,25 @@ describe('[P40-1] "Date to confirm" wherever a date would show', () => {
     expect(screen.queryByText(/overdue/i)).toBeNull();
   });
 });
+
+describe('[P40-1 · owner] more than 3 from one import → one card that opens the list', () => {
+  const many = (n: number, noteId: string) => Array.from({ length: n }, (_, i) => ({ ...P, id: `${noteId}-${i}`, noteId, text: `Send item ${i}` }));
+  it('5 from one chat → one card, "5 promises need a due date", that opens the 5 questions', async () => {
+    render(<ConfirmChitQueue api={none} dates={datesApi(many(5, 'n1'))} />);
+    const group = await screen.findByRole('group', { name: 'Dates to confirm' });
+    expect(within(group).getByText('5 promises need a due date')).toBeInTheDocument();
+    expect(screen.queryAllByRole('group', { name: 'Date to confirm' })).toHaveLength(0);
+    await userEvent.click(within(group).getByRole('button', { name: 'Answer them' }));
+    expect(within(group).getAllByRole('group', { name: 'Date to confirm' })).toHaveLength(5);
+  });
+  it('exactly 3 from one chat → 3 separate cards (the edge)', async () => {
+    render(<ConfirmChitQueue api={none} dates={datesApi(many(3, 'n1'))} />);
+    expect(await screen.findAllByRole('group', { name: 'Date to confirm' })).toHaveLength(3);
+    expect(screen.queryByRole('group', { name: 'Dates to confirm' })).toBeNull();
+  });
+  it('grouping is per import: 4 from one chat (grouped) and 1 from another (its own card)', async () => {
+    render(<ConfirmChitQueue api={none} dates={datesApi([...many(4, 'n1'), ...many(1, 'n2')])} />);
+    expect(await screen.findByText('4 promises need a due date')).toBeInTheDocument();
+    expect(screen.getAllByRole('group', { name: 'Date to confirm' })).toHaveLength(1);
+  });
+});
