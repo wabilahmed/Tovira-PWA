@@ -96,12 +96,15 @@ export function contradictions(rows: Array<{ client_id: string; name: string; te
   const by = new Map<string, typeof rows>();
   for (const r of rows) by.set(r.client_id, [...(by.get(r.client_id) ?? []), r]);
   const out: Array<{ clientId: string; name: string; says: string; requirements: string[] }> = [];
+  // [P40-5] read ONE requirement at a time — a "1BR" from one and a "Villa" from another is not a contradiction
   for (const [clientId, reqs] of by) {
-    const f = requirementFacets(reqs.map((r) => ({ text: r.text, requirementRaw: r.requirement_raw, statedOn: r.stated_on ? iso(r.stated_on) : null, createdAt: Date.parse(String(r.created_at)) || 0 })));
-    const beds = f.beds ? Number(f.beds.replace('BR', '')) : null;
-    const big = f.type === 'Villa' || f.type === 'Townhouse' || f.type === 'Penthouse';
-    if (beds !== null && ((big && beds <= 1) || (f.type === 'Studio' && beds >= 1))) {
-      out.push({ clientId, name: reqs[0]!.name, says: `${f.beds} ${f.type}`, requirements: reqs.map((r) => r.requirement_raw || r.text) });
+    for (const r of reqs) {
+      const f = requirementFacets([{ text: r.text, requirementRaw: r.requirement_raw, statedOn: r.stated_on ? iso(r.stated_on) : null, createdAt: Date.parse(String(r.created_at)) || 0 }]);
+      const beds = f.beds ? Number(f.beds.replace('BR', '')) : null;
+      const big = f.type === 'Villa' || f.type === 'Townhouse' || f.type === 'Penthouse';
+      if (beds !== null && ((big && beds <= 1) || (f.type === 'Studio' && beds >= 1))) {
+        out.push({ clientId, name: r.name, says: `${f.beds} ${f.type}`, requirements: [r.requirement_raw || r.text] });
+      }
     }
   }
   return out;

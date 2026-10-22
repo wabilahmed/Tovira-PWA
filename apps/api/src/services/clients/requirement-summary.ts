@@ -14,7 +14,9 @@ export interface RequirementSummary {
   budgets: string[];
 }
 
-const TYPES = ['penthouse', 'townhouse', 'villa', 'apartment', 'duplex', 'studio', 'office', 'plot', 'land', 'shop', 'warehouse'];
+const TYPES = ['penthouse', 'townhouse', 'villa', 'apartment', 'flat', 'duplex', 'studio', 'office', 'plot', 'land', 'shop', 'warehouse'];
+/** [P40-5] the same thing said another way */
+const TYPE_ALIAS: Record<string, string> = { flat: 'apartment' };
 const TYPE_RE = new RegExp(`\\b(${TYPES.join('|')})s?\\b`, 'i');
 const BEDS_RE = /\b(\d{1,2})\s?(?:br|bed(?:room)?s?)\b/i;
 // "in Mirdif", "in Arabian Ranches", "in JVC" — capitalised words after "in" (the stored text keeps the rep's casing).
@@ -60,7 +62,7 @@ export function requirementFacets(reqs: RequirementLike[]): RequirementFacets {
   for (const r of ordered) {
     for (const t of [r.text, r.requirementRaw]) {
       if (!beds) { const m = BEDS_RE.exec(t); if (m) beds = `${m[1]}BR`; }
-      if (!type) { const m = TYPE_RE.exec(t); if (m) type = m[1]!.toLowerCase(); }
+      if (!type) { const m = TYPE_RE.exec(t); if (m) type = TYPE_ALIAS[m[1]!.toLowerCase()] ?? m[1]!.toLowerCase(); }
       if (!area) { const m = AREA_RE.exec(t); if (m) area = m[1]!; }
       const d = DEADLINE_RE.exec(t);
       if (d) deadline = d[1]!;
@@ -83,14 +85,36 @@ export function budgetAmount(label: string): number {
   return label.endsWith('K') ? n * 1_000 : n * 1_000_000;
 }
 
+/** [P40-5] The one requirement a summary reads: the most recent open one that names what they want (a type, bedrooms
+ *  or an area) — else the most recent. Fields are NEVER combined across requirements ("1BR" from one, "Villa" from
+ *  another was the QA Ahmed bug); the others are counted as "+N more". */
+export function primaryRequirement<T extends RequirementLike>(reqs: T[]): T | null {
+  const ordered = reqs.slice().sort((a, b) => (a.statedOn ?? '').localeCompare(b.statedOn ?? '') || a.createdAt - b.createdAt);
+  const naming = ordered.filter((r) => { const f = requirementFacets([r]); return Boolean(f.beds || f.type || f.area); });
+  return naming[naming.length - 1] ?? ordered[ordered.length - 1] ?? null;
+}
+
 export function summarizeRequirements(reqs: RequirementLike[]): RequirementSummary {
-  const { beds, type, area, deadline, budgets, qualifier } = requirementFacets(reqs);
+  const primary = primaryRequirement(reqs);
+  // The labelled budget history ("3M → 3.4M") still lists every budget stated, oldest first.
+  const { budgets } = requirementFacets(reqs);
+  if (!primary) return { summary: null, listLine: null, budgets };
+  const ordered = reqs.slice().sort((a, b) => (a.statedOn ?? '').localeCompare(b.statedOn ?? '') || a.createdAt - b.createdAt);
+  const names = (r: RequirementLike) => { const f = requirementFacets([r]); return Boolean(f.beds || f.type || f.area); };
+  // [P40-5] With exactly ONE property need, a later budget-only message can only be that need's budget (the 20 Oct
+  // rule: the latest budget sets the wording), so it is read with it and is not a "+1 more". With two or more
+  // needs, a budget-only message is never attached to either.
+  const single = ordered.filter(names).length === 1;
+  const updates = single ? ordered.filter((r) => r !== primary && !names(r) && (r.statedOn ?? '') >= (primary.statedOn ?? '') && requirementFacets([r]).budgets.length > 0) : [];
+  const { beds, type, area, deadline, budgets: own, qualifier } = requirementFacets([primary, ...updates]);
+  const more = reqs.length - 1 - updates.length;
+  const moreLabel = more > 0 ? `+${more} more` : null;
   // [P39 · owner] Property types capitalised ("4BR Villa"), and budgets always carry AED.
   const what = [beds, type].filter(Boolean).join(' ') || null;
-  const budget = budgets[budgets.length - 1] ?? null;
+  const budget = own[own.length - 1] ?? null;
   // "budget ~AED 1.5M" (around / about) · "up to AED 3.4M" (max / up to) · "budget AED 3.4M" (said plainly).
   const said = budget ? (qualifier === 'around' ? `~AED ${budget}` : qualifier === 'max' ? `up to AED ${budget}` : `AED ${budget}`) : null;
-  const summaryParts = [what, area, said ? (qualifier === 'max' ? said : `budget ${said}`) : null, deadline ? `decide by ${deadline}` : null].filter((x): x is string => !!x);
-  const listParts = [what, area, said].filter((x): x is string => !!x);
-  return { summary: summaryParts.length > 0 ? summaryParts.join(' · ') : null, listLine: listParts.length > 0 ? listParts.join(' · ') : null, budgets };
+  const summaryParts = [what, area, said ? (qualifier === 'max' ? said : `budget ${said}`) : null, deadline ? `decide by ${deadline}` : null, moreLabel].filter((x): x is string => !!x);
+  const listParts = [what, area, said, moreLabel].filter((x): x is string => !!x);
+  return { summary: summaryParts.length > 1 || (summaryParts.length === 1 && !moreLabel) ? summaryParts.join(' · ') : null, listLine: listParts.length > 1 || (listParts.length === 1 && !moreLabel) ? listParts.join(' · ') : null, budgets };
 }

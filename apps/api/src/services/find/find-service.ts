@@ -6,7 +6,7 @@ import type { HeroService } from '../hero/hero-service.js';
 import { isActivePromise } from '../facts/promise-lifecycle.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
-import { budgetAmount, requirementFacets, summarizeRequirements } from '../clients/requirement-summary.js';
+import { budgetAmount, primaryRequirement, requirementFacets, summarizeRequirements } from '../clients/requirement-summary.js';
 
 /**
  * [P39-7] Find: fixed questions with fixed answers, read from what is STORED — clients, promises, requirements,
@@ -31,7 +31,8 @@ export const FIND_QUERIES = ['missed-promises', 'due-this-week', 'no-reply', 'wa
 export type FindQuery = (typeof FIND_QUERIES)[number];
 export const isFindQuery = (q: string): q is FindQuery => (FIND_QUERIES as readonly string[]).includes(q);
 
-export type WantingBy = 'type' | 'area' | 'budget';
+export type WantingBy = 'type' | 'area' | 'budget' | 'beds';
+export interface WantingFilter { by: WantingBy; value: string }
 
 export interface FindReceipt {
   quote: string;
@@ -109,12 +110,12 @@ const reqDay = (r: RequirementRecord) => r.statedOn ?? new Date(r.createdAt).toI
 export class FindService {
   constructor(private readonly deps: FindDeps) {}
 
-  async run(userId: string, query: FindQuery, nowMs: number, filter?: { by: WantingBy; value: string }): Promise<FindResult> {
+  async run(userId: string, query: FindQuery, nowMs: number, filter?: WantingFilter | WantingFilter[]): Promise<FindResult> {
     switch (query) {
       case 'missed-promises': return this.promises(userId, query, nowMs, 'missed');
       case 'due-this-week': return this.promises(userId, query, nowMs, 'week');
       case 'no-reply': return this.noReply(userId, nowMs);
-      case 'wanting': return this.requirementsList(userId, query, nowMs, filter ?? null);
+      case 'wanting': return this.requirementsList(userId, query, nowMs, filter ? (Array.isArray(filter) ? filter : [filter]) : null);
       case 'open-requirements': return this.requirementsList(userId, query, nowMs, null);
       case 'deals-at-risk': return this.risk(userId, nowMs);
       case 'active-clients': return this.activity(userId, nowMs, 'active');
@@ -128,8 +129,9 @@ export class FindService {
     const types = new Set<string>();
     const areas = new Set<string>();
     const bands = new Set<string>();
-    for (const reqs of perClient.values()) {
-      const f = requirementFacets(reqs);
+    // [P40-5] each requirement's own values — never a type from one and an area from another
+    for (const reqs of perClient.values()) for (const r of reqs) {
+      const f = requirementFacets([r]);
       if (f.type) types.add(f.type);
       if (f.area) areas.add(f.area);
       const b = f.budgets[f.budgets.length - 1];
@@ -252,25 +254,17 @@ export class FindService {
     return { clients, perClient };
   }
 
-  private async requirementsList(userId: string, query: FindQuery, nowMs: number, filter: { by: WantingBy; value: string } | null): Promise<FindResult> {
+  private async requirementsList(userId: string, query: FindQuery, nowMs: number, filter: WantingFilter[] | null): Promise<FindResult> {
     const [{ clients, perClient }, r] = await Promise.all([this.openRequirements(userId), this.restriction(userId)]);
     const withheld = this.withholder(userId, r, new Map(clients.map((c) => [c.id, c.name])));
     const items: FindItem[] = [];
     for (const c of clients) {
       const reqs = perClient.get(c.id);
       if (!reqs || reqs.length === 0) continue;
-      const f = requirementFacets(reqs);
-      if (filter) {
-        if (filter.by === 'type' && f.type !== filter.value) continue;
-        if (filter.by === 'area' && f.area !== filter.value) continue;
-        if (filter.by === 'budget') {
-          const band = BUDGET_BANDS.find((b) => b.value === filter.value);
-          const b = f.budgets[f.budgets.length - 1];
-          if (!band || !b) continue;
-          const v = budgetAmount(b);
-          if (!(v >= band.min && v < band.max)) continue;
-        }
-      }
+      // [P40-5] every filter must hold on the SAME requirement
+      if (filter && !reqs.some((r) => matchesAll(requirementFacets([r]), filter))) continue;
+      const primary = primaryRequirement(reqs);
+      const f = primary ? requirementFacets([primary]) : requirementFacets(reqs);
       const latest = reqs.slice().sort((a, b) => reqDay(b).localeCompare(reqDay(a)))[0]!;
       const quote = (latest.requirementRaw || latest.text).trim();
       // A restricted counterparty's wants are withheld whole (the line is read from their words).
@@ -340,6 +334,20 @@ export class FindService {
     }
     return { query: kind === 'active' ? 'active-clients' : 'cold-clients', count: items.length, items, footnote: null };
   }
+}
+
+/** [P40-5] One requirement's facets against every filter. */
+function matchesAll(f: ReturnType<typeof requirementFacets>, filters: WantingFilter[]): boolean {
+  return filters.every((x) => {
+    if (x.by === 'type') return f.type === x.value;
+    if (x.by === 'area') return f.area === x.value;
+    if (x.by === 'beds') return f.beds === x.value;
+    const band = BUDGET_BANDS.find((b) => b.value === x.value);
+    const b = f.budgets[f.budgets.length - 1];
+    if (!band || !b) return false;
+    const v = budgetAmount(b);
+    return v >= band.min && v < band.max;
+  });
 }
 
 /** A promise's receipt: its own stored words; withheld when they cite a restricted counterparty. */

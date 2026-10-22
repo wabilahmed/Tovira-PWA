@@ -11,7 +11,7 @@ export interface FindRouteDeps {
 }
 
 const FIND_RE = /^\/find\/([a-z-]+)$/;
-const BY = new Set<WantingBy>(['type', 'area', 'budget']);
+const BY = new Set<WantingBy>(['type', 'area', 'budget', 'beds']);
 
 /** [P39-7] GET /find/:query — a fixed question, answered from stored data (no model call, no allowance).
  *  GET /find/wanting/options — the stored property types, areas and budget bands "Clients wanting…" offers.

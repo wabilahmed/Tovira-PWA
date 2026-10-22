@@ -46,6 +46,13 @@ describe('[P39-10] QA data audit', () => {
     expect(c.map((x) => [x.clientId, x.says])).toEqual([['c1', '1BR Villa'], ['c3', '2BR Studio']]);
   });
 
+  it('[P40-5] negative: two separate requirements (a 1 bed flat, a 3 bedroom villa) are not a contradiction', () => {
+    expect(contradictions([
+      { client_id: 'a', name: 'QA Ahmed Al Mansouri', text: 'a 1 bed flat', requirement_raw: 'I need a 1 bed flat for my son', stated_on: '2026-09-01', created_at: T(0) },
+      { client_id: 'a', name: 'QA Ahmed Al Mansouri', text: '3 bedroom villa', requirement_raw: "I'm looking for a 3 bedroom villa in Arabian Ranches", stated_on: '2026-09-10', created_at: T(1) },
+    ])).toEqual([]);
+  });
+
   it('the dry-run delete names every flagged id and is only printed', () => {
     const s = dryRunDelete([
       { kind: 'client', id: 'c1', name: 'x', createdAt: '', account: '', why: '' },
