@@ -13,7 +13,8 @@ function make(minClients: number, minNotes: number) {
   const facts = new InMemoryFactsRepository();
   const meetings = new InMemoryMeetingRepository();
   const notes = new InMemoryNoteRepository();
-  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients, minNotes }, 30, 90);
+  // [P40-3 · owner] patterns are parked behind PATTERNS_ENABLED (off in prod); these tests exercise the kept code, so on.
+  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients, minNotes }, 30, 90, undefined, undefined, { patternsEnabled: true });
   return { clients, facts, meetings, notes, hero };
 }
 

@@ -809,7 +809,7 @@ export function createImageRepository(config: AppConfig, pool?: Pool): ImageRepo
 }
 
 export function createHeroService(config: AppConfig, clients: ClientRepository, facts: FactsRepository, meetings: MeetingRepository, notes: NoteRepository, matching?: MatchingService, restriction?: RestrictionService): HeroService {
-  return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays, config.promiseStaleThresholdDays, matching, restriction);
+  return new HeroService({ clients, facts, meetings, notes }, { minClients: config.heroMinClients, minNotes: config.heroMinNotes }, config.coldThresholdDays, config.promiseStaleThresholdDays, matching, restriction, { patternsEnabled: config.patternsEnabled });
 }
 
 export function createBillingService(config: AppConfig, pool?: Pool, emailHook?: BillingEmailHook, opsAlert?: (event: string, detail: Record<string, unknown>) => Promise<void> | void): BillingService {

@@ -182,6 +182,8 @@ export interface AppConfig {
   // "Activity" is operationalised as clients.last_touched_at (the same clock going-cold reads); true
   // per-message direction lives in extraction, which is out of this batch's scope.
   lostInferredThresholdDays: number;
+  /** [P40-3 · owner] Cross-client patterns are parked: off unless PATTERNS_ENABLED=true. */
+  patternsEnabled: boolean;
   heroMinClients: number;
   heroMinNotes: number;
   // --- billing (P5) ---
@@ -343,6 +345,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     promiseStaleThresholdDays: parsePositive(env.PROMISE_STALE_THRESHOLD_DAYS, 90, 'PROMISE_STALE_THRESHOLD_DAYS'),
     // [OUTCOME-2] default 90 — derivation recorded on the interface field above (not settled).
     lostInferredThresholdDays: parsePositive(env.LOST_INFERRED_THRESHOLD_DAYS, 90, 'LOST_INFERRED_THRESHOLD_DAYS'),
+    patternsEnabled: env.PATTERNS_ENABLED?.trim() === 'true',
     heroMinClients: parsePositive(env.HERO_MIN_CLIENTS, 5, 'HERO_MIN_CLIENTS'),
     heroMinNotes: parsePositive(env.HERO_MIN_NOTES, 20, 'HERO_MIN_NOTES'),
     trialDays: parsePositive(env.TRIAL_DAYS, DEFAULT_TRIAL_DAYS, 'TRIAL_DAYS'),

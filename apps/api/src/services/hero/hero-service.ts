@@ -121,6 +121,8 @@ export class HeroService {
     /** [TASK 2] Active erasure-window restriction — a restricted counterparty's facts never drive the
      *  daily list (e.g. its person entries are not counted as decision-makers). Absent → no restriction. */
     private readonly restriction?: { forUser(userId: string): Promise<Restriction> },
+    /** [P40-3 · owner] Cross-client patterns are parked: OFF unless PATTERNS_ENABLED=true. The code is kept. */
+    private readonly opts: { patternsEnabled?: boolean } = {},
   ) {}
 
   async status(userId: string): Promise<GateState> {
@@ -171,6 +173,7 @@ export class HeroService {
   /** Cross-client patterns (P4b-1). Locked below threshold; every pattern cites
    *  its supporting deals; correlation is never phrased as causation. */
   async patterns(userId: string, nowMs: number): Promise<Pattern[]> {
+    if (!this.opts.patternsEnabled) return []; // [P40-3] parked: shown nowhere while the switch is off
     if (!(await this.status(userId)).unlocked) return [];
     const sig = await this.signals(userId, nowMs);
     const patterns: Pattern[] = [];
