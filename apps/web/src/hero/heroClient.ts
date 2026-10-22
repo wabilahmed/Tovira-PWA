@@ -21,7 +21,11 @@ export interface RiskItem {
   clientId: string;
   name: string;
   reasons: string[];
+  /** [P39-5] Each reason with its receipt (null = no message proves it → not shown). Absent on older servers. */
+  details?: Array<{ reason: string; receipt: TodayReceipt | null }>;
 }
+
+export interface TodayReceipt { quote: string | null; source: 'message' | 'capture' | 'none' | 'contact'; at: string | null; noteId?: string }
 
 export interface TodayAction {
   // 'match' (INV-MATCH) enters at priority 0 — below every fact — carrying the client's quoted
@@ -39,8 +43,10 @@ export interface TodayAction {
   /** [P34-2] Whose action — a client-owned promise reads "<name> promised: …". */
   owner?: 'rep' | 'client';
   refId?: string;
+  /** [P39-5] A promise's due date (YYYY-MM-DD) — the Overdue / Due today / Due Thu badge. */
+  dueDate?: string;
   /** [P34-7] Where it came from, sent with the list. Absent on a list cached before this field existed. */
-  receipt?: { quote: string | null; source: 'message' | 'capture' | 'none' | 'contact'; at: string | null; noteId?: string };
+  receipt?: TodayReceipt;
 }
 
 export class HeroClient {

@@ -706,11 +706,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'today' && gated(
         <>
           {/* [P37] 80 / 95 / 100% of the allowance → a banner that opens Settings → Subscription. */}
-          <UsageBanner api={usageApi} onOpenSubscription={openSubscription} />
-          <HeroInsights api={heroApi} />
-          <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
-          {/* [P34-3] the newest 3 on Today; the rest one tap away */}
-          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} limit={3} onSeeAll={() => setView('confirm')} />
+          <HeroInsights
+            api={heroApi}
+            top={<>
+              {/* [P37] 80 / 95 / 100% of the allowance → a banner that opens Settings → Subscription. */}
+              <UsageBanner api={usageApi} onOpenSubscription={openSubscription} />
+              <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
+            </>}
+            /* [P34-3] the newest 3 on Today; the rest one tap away */
+            needsAnswer={<ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} limit={3} onSeeAll={() => navigate('confirm')} />}
+          />
         </>,
       )}
 

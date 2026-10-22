@@ -4,6 +4,8 @@ import type { OpenPromise } from '../promises/promisesClient.js';
 import { ConfirmChit } from './ConfirmChit.js';
 import type { PendingCapture } from '../recall/recallClient.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
+import { Button } from '../ui/Button.js';
+import { Section } from '../ui/layout.js';
 import type { KeptSuggestion } from '../promises/promisesClient.js';
 
 /** The subset of the promises client the confirmation queue needs. */
@@ -208,11 +210,8 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
   ].sort((a, b) => b.at - a.at);
   const shown = limit !== undefined ? entries.slice(0, limit) : entries;
 
-  return (
-    <section aria-label="To confirm" className="tov-confirm-queue">
-      <h3 className="tov-stamp" style={{ color: 'var(--amber)' }}>
-        {heading} · <span className="tov-mono">{total}</span>
-      </h3>
+  const body = (
+    <>
       {undoKept && (
         <div role="status" data-testid="kept-undo" className="lead-toast">
           <span>Marked done.</span>
@@ -220,9 +219,23 @@ export function ConfirmChitQueue({ api, heading = 'To confirm', captures, kept, 
         </div>
       )}
       {shown.map((e) => e.node)}
-      {limit !== undefined && total > limit && (
-        <button className="tov-link" onClick={onSeeAll}>See all {total}</button>
-      )}
+    </>
+  );
+  // [P39-5] On Today: section 3, "Needs your answer" — at most `limit`, then "See all N".
+  if (limit !== undefined) {
+    return (
+      <Section title="Needs your answer" explanation="Tovira isn't sure about these. Your answer decides." testId="needs-answer">
+        <div className="tov-confirm-queue ui-stack ui-gap-3">{body}</div>
+        {total > limit && <div><Button variant="text" onClick={onSeeAll}>See all {total}</Button></div>}
+      </Section>
+    );
+  }
+  return (
+    <section aria-label="To confirm" className="tov-confirm-queue">
+      <h3 className="tov-stamp" style={{ color: 'var(--amber)' }}>
+        {heading} · <span className="tov-mono">{total}</span>
+      </h3>
+      {body}
     </section>
   );
 }

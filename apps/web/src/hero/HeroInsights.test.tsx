@@ -42,21 +42,33 @@ describe('<HeroInsights>', () => {
     expect(screen.queryByTestId('pattern')).toBeNull();
   });
 
-  // Unlocked: patterns cite their evidence; risks show why.
-  it('renders patterns with evidence and risks with reasons when unlocked', async () => {
+  // [P39 · owner] Unlocked: "Deals at risk" shows each reason WITH its receipt; a reason without one is not shown,
+  // and cross-client patterns (no message receipt) are no longer on Today.
+  it('renders risks with their receipted reasons when unlocked; no patterns; no unreceipted reason', async () => {
     render(
       <HeroInsights
         api={makeApi({
           status: { unlocked: true, counts: { clients: 6, notes: 30 }, needed: { clients: 0, notes: 0 }, message: '' },
           patterns: [{ id: 'p1', title: 'Deals stall after pricing', description: 'They go quiet once pricing lands.', confidence: 'tentative', evidence: [{ clientId: 'c1', name: 'Acme' }] }],
-          risk: [{ clientId: 'c2', name: 'Meridian', reasons: ['silent 3 weeks', 'no decision-maker'] }],
+          risk: [
+            { clientId: 'c2', name: 'Meridian', reasons: ['No contact in 40 days', 'No decision-maker contact yet'], details: [
+              { reason: 'No contact in 40 days', receipt: { quote: 'Let me think about it', source: 'message', at: '2026-09-01T10:00', noteId: 'n1' } },
+              { reason: 'No decision-maker contact yet', receipt: null },
+            ] },
+            { clientId: 'c3', name: 'Nothing Proven', reasons: ['No contact in 40 days', 'No decision-maker contact yet'], details: [
+              { reason: 'No contact in 40 days', receipt: null },
+              { reason: 'No decision-maker contact yet', receipt: null },
+            ] },
+          ],
         })}
       />,
     );
-    expect(await screen.findByTestId('pattern')).toHaveTextContent(/deals stall after pricing/i);
-    expect(screen.getByText(/evidence: acme/i)).toBeInTheDocument();
-    expect(screen.getByTestId('risk')).toHaveTextContent(/meridian/i);
-    expect(screen.getByText(/no decision-maker/i)).toBeInTheDocument();
+    expect(await screen.findByTestId('risk')).toHaveTextContent(/meridian/i);
+    expect(screen.getAllByTestId('risk')).toHaveLength(1); // a client with no receipted reason is not listed
+    expect(screen.getByText('No contact in 40 days')).toBeInTheDocument();
+    expect(screen.queryByText(/no decision-maker/i)).toBeNull();
+    expect(screen.queryByText(/deals stall after pricing/i)).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Deals at risk' })).toBeInTheDocument();
   });
 
   it('shows a loading state first', () => {
@@ -101,8 +113,8 @@ describe('<HeroInsights>', () => {
     ] })} />);
     expect(await screen.findByText(/marina heights 402 may suit ahmed/i)).toBeInTheDocument();
     expect(screen.getByText(/a 2-bed near the marina/)).toBeInTheDocument();
-    // One entry, and it is a suggestion — "need acting on" (cold/risk only) must stay absent.
-    expect(screen.getByText(/^1 entry$/)).toBeInTheDocument();
+    // [P39 · owner] No "1 entry" count on Today any more; "need acting on" stays absent.
+    expect(screen.queryByText(/\bentr(y|ies)\b/i)).toBeNull();
     expect(screen.queryByText(/need acting on/i)).toBeNull();
     // No claret dot on a suggestion (claret is for overdue/cooling facts).
     expect(document.querySelector('.tov-dot--claret')).toBeNull();

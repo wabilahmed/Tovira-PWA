@@ -36,7 +36,7 @@ describe('[NOTIF-REWORK Task 5] groupPriorities — group by why', () => {
 
   it('volume-gated groups appear only when the gate passed them through', () => {
     const pattern: Pattern = { id: 'p', title: 'x', description: 'y', confidence: 'observed', evidence: [{ clientId: 'c', name: 'n' }, { clientId: 'd', name: 'm' }] };
-    const risk: RiskItem = { clientId: 'c', name: 'n', reasons: ['a', 'b'] };
+    const risk: RiskItem = { clientId: 'c', name: 'n', reasons: ['a', 'b'], details: [] }; // [P39-5] details added to the type
     expect(groupPriorities([], [], []).some((g) => g.reason === 'patterns')).toBe(false); // gated out → absent
     const withGated = groupPriorities([], [pattern], [risk]);
     expect(withGated.find((g) => g.reason === 'patterns')!.count).toBe(1);

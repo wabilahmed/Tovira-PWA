@@ -31,5 +31,5 @@ export function PageHeader({ title, subtitle, back, action, titleId }: {
 
 /** [P39] The page template: gutters, the section rhythm (32 between sections), a max width. */
 export function Page({ children, testId, label }: { children: ReactNode; testId?: string; label?: string }): JSX.Element {
-  return <div className="ui-page" data-testid={testId ?? 'page'} data-page-template="" aria-label={label}>{children}</div>;
+  return <div className="ui-page" data-testid={testId ?? 'page'} data-page-template="" role={label ? 'region' : undefined} aria-label={label}>{children}</div>;
 }

@@ -31,6 +31,8 @@ export interface ClientSignals {
   upcomingMeetings: number;
   /** [P35-3] The client's last message to the rep — a cooling client's receipt. */
   lastClientMessage?: { noteId: string; body: string; at: string } | null;
+  /** [P39-5] The oldest missed (overdue, active) promise — the missed-promise reason's receipt. */
+  oldestMissed?: { sourceSpan: string | null; sourceMessageAt: string | null; captureAt: string | null; noteId?: string | null } | null;
 }
 
 export interface Pattern {
@@ -45,6 +47,8 @@ export interface RiskItem {
   clientId: string;
   name: string;
   reasons: string[];
+  /** [P39-5] Each reason with its own receipt — null when no message proves it (Today hides those). */
+  details: Array<{ reason: string; receipt: TodayReceipt | null }>;
 }
 
 /** [NOTIF-REWORK Task 5] Why this item is on the register — drives the grouped surface. */
@@ -69,6 +73,8 @@ export interface TodayAction {
   owner?: 'rep' | 'client';
   /** [P34-2] The promise / meeting this action came from (for its receipt). */
   refId?: string;
+  /** [P39-5] A promise's due date (YYYY-MM-DD) — Today's "Overdue" / "Due today" / "Due Thu" badge. */
+  dueDate?: string;
   /** [P34-7] Where this came from, fetched WITH the list: the stored verbatim span + when it was said
    *  ('message' = chat time, 'capture' = the rep's own note's date, 'none' = no span saved), or for a cooling
    *  client the last contact ('contact', date only). Absent on a list cached before this field existed. */
@@ -143,8 +149,12 @@ export class HeroService {
       for (const n of notes) for (const m of n.messages ?? []) {
         if (m.role === 'client' && !m.excluded && m.sentAt && (!lastClientMessage || m.sentAt > lastClientMessage.at)) lastClientMessage = { noteId: n.id, body: m.body, at: m.sentAt };
       }
+      const missed = cp
+        .filter((p) => isActivePromise(p, nowMs, this.promiseStaleThresholdDays) && p.dueDate !== null && p.dueDate < todayIso)
+        .sort((a, b) => (a.dueDate! < b.dueDate! ? -1 : a.dueDate! > b.dueDate! ? 1 : 0));
       out.push({
         clientId: c.id,
+        oldestMissed: missed[0] ?? null,
         name: c.name,
         silentDays: (nowMs - c.lastTouchedAt) / DAY_MS,
         hasDecisionMaker: people.some((p) => p.decision_role === 'decision_maker'),
@@ -198,11 +208,20 @@ export class HeroService {
     const sig = await this.signals(userId, nowMs);
     return sig
       .map((s) => {
-        const reasons: string[] = [];
-        if (s.silentDays > this.coldThresholdDays) reasons.push(`No contact in ${Math.round(s.silentDays)} days`);
-        if (s.missedPromises > 0) reasons.push(`${s.missedPromises} missed promise${s.missedPromises === 1 ? '' : 's'}`);
-        if (!s.hasDecisionMaker) reasons.push('No decision-maker contact yet');
-        return { clientId: s.clientId, name: s.name, reasons };
+        const details: RiskItem['details'] = [];
+        // [P39-5] Silence rests on the client's last message to the rep (none on file → no receipt).
+        if (s.silentDays > this.coldThresholdDays) {
+          const m = s.lastClientMessage;
+          details.push({ reason: `No contact in ${Math.round(s.silentDays)} days`, receipt: m ? { quote: m.body, source: 'message', at: m.at, noteId: m.noteId } : null });
+        }
+        // Missed promises rest on the oldest one's own words (no saved words → no receipt).
+        if (s.missedPromises > 0) {
+          const r = s.oldestMissed ? receiptOf(s.oldestMissed) : null;
+          details.push({ reason: `${s.missedPromises} missed promise${s.missedPromises === 1 ? '' : 's'}`, receipt: r && r.quote ? r : null });
+        }
+        // An absence: no message proves it, so never a quote.
+        if (!s.hasDecisionMaker) details.push({ reason: 'No decision-maker contact yet', receipt: null });
+        return { clientId: s.clientId, name: s.name, reasons: details.map((d) => d.reason), details };
       })
       .filter((r) => r.reasons.length >= 2);
   }
@@ -237,6 +256,7 @@ export class HeroService {
           title: p.text,
           owner: p.owner === 'client' ? 'client' : 'rep',
           refId: p.id,
+          dueDate: p.dueDate,
           receipt: receiptOf(p),
         });
       }

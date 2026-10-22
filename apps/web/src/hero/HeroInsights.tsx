@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { GateState, Pattern, RiskItem, TodayAction } from './heroClient.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody } from '../format/dates.js';
+import { Badge, Card, IconButton, Page, PageHeader, Section } from '../ui/index.js';
 
 export interface HeroApi {
   status(): Promise<GateState | null>;
@@ -11,15 +12,45 @@ export interface HeroApi {
   refreshToday(): Promise<{ actions: TodayAction[]; refreshesRemaining: number } | 'rate_limited' | null>;
 }
 
+/** [P39-5] "Wednesday 21 Oct" — the date under the Today title, in the rep's own clock. */
+export function todaySubtitle(now: Date): string {
+  const weekday = now.toLocaleDateString('en-GB', { weekday: 'long' });
+  const dayMonth = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return `${weekday} ${dayMonth}`;
+}
+
+/** The rep's local calendar day, YYYY-MM-DD. */
+export function localIsoDate(now: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+}
+
+/** [P39-5] The status badge on a promise: "Overdue" (danger) / "Due today" / "Due Thu". Null without a due date. */
+export function dueBadge(dueDate: string | undefined, today: string): { label: string; tone?: 'danger' } | null {
+  if (!dueDate) return null;
+  if (dueDate < today) return { label: 'Overdue', tone: 'danger' };
+  if (dueDate === today) return { label: 'Due today' };
+  const [y, m, d] = dueDate.split('-').map(Number) as [number, number, number];
+  return { label: `Due ${new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short' })}` };
+}
+
 /**
- * The hero surface (P4b-*). "Today" is always on. Cross-client patterns and the
- * risk radar are volume-gated: below the threshold we show an honest "warming up"
- * state that says exactly what unlocks them, not a broken/empty feature.
+ * The Today screen (P4b-* → [P39-5] on the design system). Three sections, each with a one-line explanation:
+ *   1. To do today — what's due and who's waiting (always on);
+ *   2. Deals at risk — clients who may be slipping, each reason WITH its receipt (a reason without one is not
+ *      shown); volume-gated, below the gate the honest "what unlocks it" state (P34-6);
+ *   3. Needs your answer — the To Confirm preview, passed in by the app.
  */
-export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
+export function HeroInsights({ api, now = () => new Date(), top, needsAnswer }: {
+  api: HeroApi;
+  now?: () => Date;
+  /** Banners above the sections (allowance, misfiled-note suggestions). */
+  top?: ReactNode;
+  /** [P39-5] Section 3: the To Confirm preview. */
+  needsAnswer?: ReactNode;
+}): JSX.Element {
   const [status, setStatus] = useState<GateState | null>(null);
   const [actions, setActions] = useState<TodayAction[]>([]);
-  const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [risk, setRisk] = useState<RiskItem[]>([]);
   const [loading, setLoading] = useState(true);
   // [P34-5] No counter while a refresh is left; at zero the button is disabled with the overnight copy.
@@ -28,13 +59,13 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
 
   useEffect(() => {
     let live = true;
-    void Promise.all([api.status(), api.today(), api.patterns(), api.risk()]).then(([s, t, p, r]) => {
+    // [P39-5] Patterns are not on Today: they carry no message receipt. Only risk reasons with one are shown.
+    void Promise.all([api.status(), api.today(), api.risk()]).then(([s, t, r]) => {
       if (!live) return;
       setStatus(s);
-      setActions(t.actions);
-      setOutOfRefreshes(t.refreshesRemaining === 0);
-      setPatterns(p);
-      setRisk(r);
+      setActions(Array.isArray(t?.actions) ? t.actions : []); // a malformed body never crashes the screen
+      setOutOfRefreshes(t?.refreshesRemaining === 0);
+      setRisk(Array.isArray(r) ? r : []);
       setLoading(false);
     });
     return () => {
@@ -54,91 +85,96 @@ export function HeroInsights({ api }: { api: HeroApi }): JSX.Element {
     }
   }
 
-  if (loading) return <p>Working out your day…</p>;
+  const today = localIsoDate(now());
+  const header = (
+    <PageHeader
+      title="Today"
+      subtitle={todaySubtitle(now())}
+      action={!loading && (
+        <IconButton label="Refresh" onClick={() => void refresh()} disabled={refreshing || outOfRefreshes} aria-busy={refreshing || undefined}>↻</IconButton>
+      )}
+    />
+  );
+  if (loading) return <Page testId="today-page" label="Today">{header}<p className="ui-secondary">Working out your day…</p></Page>;
 
-  const needActing = actions.filter((a) => a.kind === 'cold' || a.kind === 'risk').length;
+  // A client is listed only with at least one reason that has its receipt.
+  const atRisk = risk
+    .map((r) => ({ ...r, shown: (r.details ?? []).filter((d) => d.receipt && d.receipt.quote) }))
+    .filter((r) => r.shown.length > 0);
 
   return (
-    <section aria-label="Today">
-      <header className="tov-screenhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem' }}>
-        <div>
-          <h2 style={{ marginTop: 0 }}>Today</h2>
-          <div className="tov-screenmeta">
-            {actions.length} entr{actions.length === 1 ? 'y' : 'ies'}
-            {needActing > 0 && <> · {needActing} need acting on</>}
-          </div>
-        </div>
-        <button onClick={() => void refresh()} disabled={refreshing || outOfRefreshes}>
-          {refreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
-      </header>
-      {outOfRefreshes && <p data-testid="refresh-msg" style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Updated overnight. Next refresh tomorrow.</p>}
-      {actions.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Nothing for today yet. Capture a note after your next conversation and tomorrow&rsquo;s list will write itself.</p>
-      ) : (
-        <ol data-testid="today-list" className="tov-register">
-          {actions.map((a, i) => {
-            const act = a.kind === 'risk' || a.kind === 'cold'; // overdue/cooling → claret
-            return (
-              <li key={i}>
-                <span className="tov-register__idx">{String(i + 1).padStart(2, '0')}</span>
-                {act && <span className="tov-dot tov-dot--claret" aria-hidden="true" style={{ marginTop: 6 }} />}
-                <span>
-                  <div><TodayLead action={a} /></div>
-                  {a.subline && <div className="tov-stamp" style={{ color: act ? 'var(--claret)' : 'var(--text-secondary)', marginTop: 2 }}>{a.subline}</div>}
-                  {/* [P34-7 → P35-3] where it came from, as the source chat bubble — tap for the conversation */}
-                  <ReceiptThread
-                    refInfo={a.receipt?.quote ? { noteId: a.receipt.noteId ?? null, clientId: a.clientId, span: a.receipt.quote, at: a.receipt.at, quote: a.receipt.quote, sender: a.receipt.source === 'capture' ? 'Your note' : a.clientName ?? null } : {}}
-                    emptyText={!a.receipt ? 'Source shows after the next refresh' : a.receipt.source === 'contact' ? `Last contact ${formatBody(a.receipt.at ?? '')}` : 'No source quote was saved for this fact'}
-                  />
-                </span>
-              </li>
-            );
-          })}
-        </ol>
-      )}
+    <Page testId="today-page" label="Today">
+      {header}
+      {outOfRefreshes && <p data-testid="refresh-msg" className="ui-secondary">Updated overnight. Next refresh tomorrow.</p>}
+      {top}
 
-      <h2>Patterns &amp; risk</h2>
-      {status && !status.unlocked ? (
-        <div role="status" style={warmBox}>
-          <p style={{ margin: '0 0 0.6rem' }}>{gateCopy(status)}</p>
-          <div className="tov-mono" style={gateRow}><span>Clients on file</span><span>{pad(status.counts.clients)} / {pad(status.counts.clients + status.needed.clients)}</span></div>
-          <div className="tov-mono" style={gateRow}><span>Notes captured</span><span>{pad(status.counts.notes)} / {pad(status.counts.notes + status.needed.notes)}</span></div>
-          <small style={{ color: 'var(--text-secondary)' }}>
-            {status.needed.clients > 0 && `${status.needed.clients} more clients`}
-            {status.needed.clients > 0 && status.needed.notes > 0 && ' and '}
-            {status.needed.notes > 0 && `${status.needed.notes} more notes`}.
-          </small>
-        </div>
-      ) : (
-        <>
-          {patterns.length === 0 && risk.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>Nothing stands out right now.</p>}
-          {patterns.map((p) => (
-            <div key={p.id} data-testid="pattern" style={card}>
-              <strong>{p.title}</strong> <span style={badge}>{p.confidence}</span>
-              <p style={{ margin: '0.25rem 0' }}>{p.description}</p>
-              {p.evidence.length > 0 && (
-                <small style={{ color: 'var(--text-tertiary)' }}>Evidence: {p.evidence.map((e) => e.name).join(', ')}</small>
-              )}
+      <Section title="To do today" explanation="What's due and who's waiting on you.">
+        {actions.length === 0 ? (
+          <p className="ui-secondary">Nothing for today yet. Capture a note after your next conversation and tomorrow&rsquo;s list will write itself.</p>
+        ) : (
+          <ul data-testid="today-list" className="ui-stack ui-gap-3 ui-plainlist">
+            {actions.map((a, i) => {
+              const badge = a.kind === 'promise' ? dueBadge(a.dueDate, today) : null;
+              return (
+                <li key={i}>
+                  <Card>
+                    <div className="ui-cluster ui-cluster--between ui-cluster--nowrap ui-gap-2">
+                      <p className="ui-body" dir="auto"><TodayLead action={a} /></p>
+                      {badge && <Badge tone={badge.tone} data-testid="due-badge">{badge.label}</Badge>}
+                    </div>
+                    {a.subline && <p className="ui-secondary">{a.subline}</p>}
+                    {/* [P34-7 → P35-3] where it came from, as the source chat bubble — tap for the conversation */}
+                    <ReceiptThread
+                      refInfo={a.receipt?.quote ? { noteId: a.receipt.noteId ?? null, clientId: a.clientId, span: a.receipt.quote, at: a.receipt.at, quote: a.receipt.quote, sender: a.receipt.source === 'capture' ? 'Your note' : a.clientName ?? null } : {}}
+                      emptyText={!a.receipt ? 'Source shows after the next refresh' : a.receipt.source === 'contact' ? `Last contact ${formatBody(a.receipt.at ?? '')}` : 'No source quote was saved for this fact'}
+                    />
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
+
+      <Section title="Deals at risk" explanation="Clients who may be slipping, and why.">
+        {status && !status.unlocked ? (
+          <Card role="status">
+            <p className="ui-body">{gateCopy(status)}</p>
+            <div className="ui-stack ui-gap-1">
+              <div className="ui-cluster ui-cluster--between ui-secondary"><span>Clients on file</span><span>{status.counts.clients} / {status.counts.clients + status.needed.clients}</span></div>
+              <div className="ui-cluster ui-cluster--between ui-secondary"><span>Notes captured</span><span>{status.counts.notes} / {status.counts.notes + status.needed.notes}</span></div>
             </div>
-          ))}
-          {risk.map((r) => (
-            <div key={r.clientId} data-testid="risk" style={{ ...card, borderColor: 'var(--claret-line)' }}>
-              <strong>{r.name} — at risk</strong>
-              <ul style={{ margin: '0.25rem 0 0' }}>
-                {r.reasons.map((reason, i) => (
-                  <li key={i}>{reason}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </>
-      )}
-    </section>
+            <p className="ui-caption">
+              {status.needed.clients > 0 && `${status.needed.clients} more clients`}
+              {status.needed.clients > 0 && status.needed.notes > 0 && ' and '}
+              {status.needed.notes > 0 && `${status.needed.notes} more notes`}.
+            </p>
+          </Card>
+        ) : atRisk.length === 0 ? (
+          <p className="ui-secondary">Nothing stands out right now.</p>
+        ) : (
+          <ul className="ui-stack ui-gap-3 ui-plainlist">
+            {atRisk.map((r) => (
+              <li key={r.clientId}>
+                <Card tone="danger" data-testid="risk">
+                  <p className="ui-body ui-strong" dir="auto">{r.name}</p>
+                  {r.shown.map((d) => (
+                    <div key={d.reason} className="ui-stack ui-gap-2" data-testid="risk-reason">
+                      <p className="ui-secondary">{d.reason}</p>
+                      <ReceiptThread refInfo={{ noteId: d.receipt!.noteId ?? null, clientId: r.clientId, span: d.receipt!.quote, at: d.receipt!.at, quote: d.receipt!.quote, sender: r.name }} />
+                    </div>
+                  ))}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      {needsAnswer}
+    </Page>
   );
 }
-
-const pad = (n: number): string => String(n).padStart(2, '0');
 
 /** [P34-2] "**Sara Khan** · Send the floor plans", "**Sara Khan** promised: Send ID document photos", or
  *  "**Your note** · …" when the item genuinely has no client. Older payloads (no clientName/title) fall back to
@@ -170,7 +206,3 @@ export function gateCopy(s: GateState): string {
   }
   return `Patterns appear once you have ${plural(t.clients, 'client')} and ${plural(t.notes, 'note')}. You have ${plural(s.counts.clients, 'client')} and ${plural(s.counts.notes, 'note')}.`;
 }
-const warmBox: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: '0.75rem 1rem', background: 'var(--surface-raised)' };
-const gateRow: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', padding: '2px 0' };
-const card: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.5rem 0' };
-const badge: React.CSSProperties = { fontSize: '0.7rem', background: 'var(--brass-surface)', color: 'var(--brass)', borderRadius: 999, padding: '0.1rem 0.5rem' };

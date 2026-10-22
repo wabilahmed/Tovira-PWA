@@ -19,6 +19,7 @@
 .ui-label { margin: 0; font-family: var(--font-mono); font-size: var(--text-label-size); font-weight: var(--text-label-weight); line-height: var(--text-label-lh); text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); }
 .ui-caption { margin: 0; font-size: var(--text-caption-size); line-height: var(--text-caption-lh); color: var(--color-faint); }
 .ui-strong { font-weight: 600; }
+.ui-plainlist { list-style: none; margin: 0; padding: 0; }
 .ui-danger { color: var(--color-danger); }
 
 /* ---- Layout primitives ---------------------------------------------------------------------- */
