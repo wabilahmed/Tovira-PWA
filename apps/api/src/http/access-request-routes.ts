@@ -29,7 +29,7 @@ export async function handleAccessRequestRoute(req: IncomingMessage, res: Server
   if (opts.limiter) {
     const gate = opts.limiter.check(ip);
     if (gate.limited) {
-      sendJson(res, 429, { error: 'rate_limited', message: 'Too many requests — please wait a little and try again.' }, { 'retry-after': String(gate.retryAfterSec) });
+      sendJson(res, 429, { error: 'rate_limited', message: 'Too many requests. Please wait a little and try again.' }, { 'retry-after': String(gate.retryAfterSec) });
       return true;
     }
     opts.limiter.record(ip);

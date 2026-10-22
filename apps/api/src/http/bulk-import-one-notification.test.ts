@@ -67,7 +67,7 @@ describe('[P21-D / BULK-08] a 3-file batch → one notification, one scan', () =
 
     const importDone = (await deps.notifications.listByUser(userId)).filter((n) => n.type === 'import_complete');
     expect(importDone).toHaveLength(1);
-    expect(importDone[0]!.body).toMatch(/^Imported 3 chats — .* Open the Book Scan\.$/);
+    expect(importDone[0]!.body).toMatch(/^Imported 3 chats\. Found .* Open the Book Scan\.$/) // [P40-4 · owner] no em-dashes in rep-facing copy;
     expect(importDone[0]!.dedupeKey).toMatch(/^bulk:/); // the batch aggregate, not a per-chat import:<noteId>
     expect(importDone[0]!.clientId).toBeNull();
 

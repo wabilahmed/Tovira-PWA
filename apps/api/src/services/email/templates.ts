@@ -69,7 +69,7 @@ export function renderEmail(c: EmailContent): string {
           ${button}
           ${secondary}
           ${paras(c.outro)}
-          <p style="margin:22px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:15px;color:#6b645d;">— Tovira</p>
+          <p style="margin:22px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:15px;color:#6b645d;">Tovira</p>
         </td></tr>
         <tr><td style="padding:16px 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#8b847a;">
           Your deal, our memory, instant success.

@@ -282,7 +282,7 @@ export class ClientsClient {
         body: bytes,
       });
     } catch {
-      return { ok: false, error: 'other', message: 'Network error — please try again.' };
+      return { ok: false, error: 'other', message: 'Network error. Please try again.' };
     }
     // 202 = accepted, messages stored, extraction running in the background
     // (IMPORT-ASYNC — the upload no longer blocks on a slow model); 201 = stored

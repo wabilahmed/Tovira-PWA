@@ -137,7 +137,7 @@ export async function handleInventoryRoute(
     if (!(await deps.clients.findByIdForUser(userId, body.clientId))) { sendJson(res, 404, { error: 'not_found' }); return true; } // foreign/unknown client
     const result = await deps.inventory.share(userId, itemId, body.clientId);
     if (!result.ok) {
-      if (result.reason === 'disabled') { sendJson(res, 409, { error: 'item_disabled', message: 'Out of stock — set a quantity to share this.' }); return true; }
+      if (result.reason === 'disabled') { sendJson(res, 409, { error: 'item_disabled', message: 'Out of stock. Set a quantity to share this.' }); return true; }
       sendJson(res, 404, { error: 'not_found' }); return true;
     }
     sendJson(res, 201, { share: shareDto(result.share), warning: result.warning ? result.warning.map(shareDto) : null });

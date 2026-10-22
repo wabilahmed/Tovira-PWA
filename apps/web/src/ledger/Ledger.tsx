@@ -49,7 +49,7 @@ export function Ledger({ api, clients }: { api: LedgerApi; clients: Array<{ id: 
       <PageHeader title="The Ledger" />
 
       {summary.totalTouched === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Nothing yet — as you act on flags and keep promises, they’ll show here.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Nothing yet. As you act on flags and keep promises, they’ll show here.</p>
       ) : (
         <>
           <p data-testid="headline" className="tov-statement" style={{ paddingTop: 'var(--space-2)' }}>

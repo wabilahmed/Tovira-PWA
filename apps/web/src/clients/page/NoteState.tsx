@@ -32,9 +32,9 @@ export function NoteState({ note: n, ceiling }: { note: NoteSummary; ceiling: bo
   // [ASYNC-EXTRACT] a failure reads as failed — never an endless spinner. [TRANSCRIBE-MISSING] a missing
   // recording is a DISTINCT, honest reason — not "tap to retry" (retry can't find it).
   if (state === 'failed' && n.status === 'transcription_failed') {
-    return <em data-testid="transcription-failed" style={{ color: 'var(--danger)', fontStyle: 'normal' }}> · recording not found — couldn’t transcribe</em>;
+    return <em data-testid="transcription-failed" style={{ color: 'var(--danger)', fontStyle: 'normal' }}> · recording not found, couldn’t transcribe</em>;
   }
-  if (state === 'failed') return <em data-testid="extract-failed" style={{ color: 'var(--danger)', fontStyle: 'normal' }}> · couldn’t analyse — saved; tap to retry</em>;
+  if (state === 'failed') return <em data-testid="extract-failed" style={{ color: 'var(--danger)', fontStyle: 'normal' }}> · couldn’t analyse. Saved; tap to retry</em>;
   return null;
 }
 

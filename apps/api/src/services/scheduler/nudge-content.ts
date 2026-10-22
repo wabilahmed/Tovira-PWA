@@ -55,9 +55,9 @@ function clip(text: string): string {
 
 /** The one line, in priority order, or null when nothing is substantive. */
 function topItem(s: NudgeSignals): string | null {
-  if (s.topPromise?.trim()) return `Open promise — ${clip(s.topPromise)}`;
-  if (s.topQuestion?.trim()) return `Unanswered — ${clip(s.topQuestion)}`;
-  if (s.silentDays && s.silentDays > 0) return `Going quiet — silent ${s.silentDays} days`;
+  if (s.topPromise?.trim()) return `Open promise: ${clip(s.topPromise)}`;
+  if (s.topQuestion?.trim()) return `Unanswered: ${clip(s.topQuestion)}`;
+  if (s.silentDays && s.silentDays > 0) return `Going quiet: silent ${s.silentDays} days`;
   return null;
 }
 

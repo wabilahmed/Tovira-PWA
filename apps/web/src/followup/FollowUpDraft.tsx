@@ -47,7 +47,7 @@ export function FollowUpDraft({
       return;
     }
     if (text == null) {
-      setError('Could not draft a follow-up — try again.');
+      setError('Could not draft a follow-up. Try again.');
       return;
     }
     setDraft(text);

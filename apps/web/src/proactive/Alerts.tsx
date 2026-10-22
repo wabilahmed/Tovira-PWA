@@ -68,7 +68,7 @@ export function Alerts({ api, now = Date.now(), onSetOutcome }: { api: Proactive
       />
 
       {notifications.length === 0 && cold.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Nothing needs you and no one has gone quiet. Tovira speaks rarely — this is what quiet looks like.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Nothing needs you and no one has gone quiet. Tovira speaks rarely. This is what quiet looks like.</p>
       ) : notifications.length === 0 ? null : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           <li className="tov-stamp" style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', paddingBottom: 'var(--space-1)' }}>

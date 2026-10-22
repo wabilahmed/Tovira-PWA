@@ -10,7 +10,7 @@ export interface NotificationApi {
 
 const RESULT_MESSAGE: Record<PushResult, string> = {
   enabled: 'Notifications are on.',
-  denied: 'Notifications are blocked — enable them in your browser settings, or rely on the in-app cold list.',
+  denied: 'Notifications are blocked. Turn them on in your browser settings, or rely on the in-app cold list.',
   unsupported: 'Notifications aren’t available here yet. On iPhone, add Tovira to your home screen first.',
   error: 'Something went wrong turning on notifications. Please try again.',
 };

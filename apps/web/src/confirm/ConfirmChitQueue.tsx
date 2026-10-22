@@ -172,7 +172,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
       node: (
         <AnswerCard
           key={`kept:${s.id}`}
-          label="Looks sent — confirm"
+          label="Looks sent, confirm"
           copy={keptCopy(s.message)}
           // [P34-7 → P35-3] the promise as a chat bubble; a tap opens the conversation AND the delivery message
           source={<ReceiptThread

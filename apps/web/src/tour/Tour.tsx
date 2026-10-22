@@ -252,7 +252,7 @@ function buildSteps(c: {
           <p>When Tovira isn&apos;t sure, it asks. Nothing changes until you tap Confirm.</p>
           <Example>
             <div className="tov-confirm-chit">
-              <p style={{ margin: '0 0 var(--space-2)' }}><strong>Sara Khan</strong> — send the floor plans by Saturday?</p>
+              <p style={{ margin: '0 0 var(--space-2)' }}><strong>Sara Khan</strong> : send the floor plans by Saturday?</p>
               <div style={{ display: 'flex', gap: 'var(--space-2)' }}><span className="tov-tour__fake-btn">Confirm</span><span className="tov-tour__fake-btn">Not right</span></div>
             </div>
           </Example>

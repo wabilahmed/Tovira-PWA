@@ -43,7 +43,7 @@ export class HttpAccessRequestClient implements AccessRequestClient {
       body: JSON.stringify(payload),
     });
     const json = (await res.json().catch(() => ({}))) as { ok?: boolean; id?: string; field?: string; message?: string };
-    if (res.status === 429) throw new AccessRequestError(null, 'Too many requests — please wait a little and try again.');
+    if (res.status === 429) throw new AccessRequestError(null, 'Too many requests. Please wait a little and try again.');
     if (res.status === 400) throw new AccessRequestError(json.field ?? null, json.message ?? 'Please check the form and try again.');
     if (!res.ok || !json.id) throw new AccessRequestError(null, 'Something went wrong. Please try again.');
     return { id: json.id };

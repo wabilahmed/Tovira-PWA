@@ -56,7 +56,7 @@ export function ShareCard({
       </ul>
       {referralCode && (
         <div style={{ marginTop: 'var(--space-3)' }}>
-          <p style={{ margin: '0 0 var(--space-1)', color: 'var(--text-secondary)', fontSize: 'var(--text-secondary-size)' }}>Share Tovira — you both get a free month.</p>
+          <p style={{ margin: '0 0 var(--space-1)', color: 'var(--text-secondary)', fontSize: 'var(--text-secondary-size)' }}>Share Tovira. You both get a free month.</p>
           <code data-testid="referral-link" className="tov-mono" style={{ fontSize: 'var(--text-caption-size)', color: 'var(--text-secondary)' }}>{referralUrl}</code>{' '}
           <button onClick={() => { onShare(referralUrl); setShared(true); }}>{shared ? 'Copied' : 'Copy link'}</button>
         </div>

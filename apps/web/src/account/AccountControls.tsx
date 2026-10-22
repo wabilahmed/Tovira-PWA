@@ -18,7 +18,7 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
     setError(null);
     const data = await api.exportData();
     if (data == null) {
-      setError('Could not export your data — please try again.');
+      setError('Could not export your data. Please try again.');
       return;
     }
     setDownload('data:application/json,' + encodeURIComponent(JSON.stringify(data, null, 2)));
@@ -32,7 +32,7 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
     if (ok) {
       hapticTick(); // account deletion confirmed — a commit
       onDeleted();
-    } else setError('Could not delete your account — please try again.');
+    } else setError('Could not delete your account. Please try again.');
   }
 
   return (

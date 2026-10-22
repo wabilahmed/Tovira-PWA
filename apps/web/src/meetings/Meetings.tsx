@@ -51,7 +51,7 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
     setProposal(null);
     const parsed = await api.parse(text);
     if (!parsed) {
-      setError("Couldn't read a meeting from that — try 'meeting with Acme Tuesday 3pm'.");
+      setError("Couldn't read a meeting from that. Try 'meeting with Acme Tuesday 3pm'.");
       setResult(null);
       return;
     }
@@ -115,7 +115,7 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
   async function directSave(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     setDError(null);
-    if (!dClient) { setDError('Choose a client — a meeting needs one to prepare a brief.'); return; }
+    if (!dClient) { setDError('Choose a client. A meeting needs one to prepare a brief.'); return; }
     if (!dDate || !dTime) { setDError('A date and time are both needed.'); return; }
     const created = await api.createForClient(dClient, {
       datetime: `${dDate}T${dTime}`, // naive wall-clock; the server resolves it on the rep's zone
@@ -233,7 +233,7 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
               <span style={{ minWidth: 0, flex: '1 1 12rem' }}>
                 {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small className="tov-stamp">{m.datetime ? formatDateTime(m.datetime, timeZone) : m.datetimeRaw}</small>
                 {m.confirmed === false && (
-                  <span style={{ color: 'var(--amber)', marginLeft: 'var(--space-2)' }}> · unconfirmed — is this right?</span>
+                  <span style={{ color: 'var(--amber)', marginLeft: 'var(--space-2)' }}> · unconfirmed. Is this right?</span>
                 )}
               </span>
               <span style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', alignItems: 'center' }}>

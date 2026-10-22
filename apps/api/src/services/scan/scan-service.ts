@@ -99,7 +99,7 @@ export class ScanService {
         dedupeKey: `promise:${p.id}`,
         clientId: p.clientId,
         title: 'Overdue promise',
-        body: `Overdue — ${p.text}`,
+        body: `Overdue: ${p.text}`,
       };
       const ok = await this.notifications.createIfAbsent(userId, entry);
       if (ok) { created += 1; sink?.push(entry); }
@@ -125,7 +125,7 @@ export class ScanService {
         dedupeKey: `due_today:${p.id}:${todayIso}`,
         clientId: p.clientId,
         title: 'Promise due today',
-        body: `Due today — ${p.text}`,
+        body: `Due today: ${p.text}`,
       };
       const ok = await this.notifications.createIfAbsent(userId, entry);
       if (ok) { created += 1; sink?.push(entry); }
@@ -149,7 +149,7 @@ export class ScanService {
     for (const m of due) {
       const content = compose
         ? await compose(m)
-        : { clientId: m.clientId, title: 'Upcoming meeting', body: `Meeting soon — ${m.datetimeRaw}` };
+        : { clientId: m.clientId, title: 'Upcoming meeting', body: `Meeting soon: ${m.datetimeRaw}` };
       const entry: PushableAlert = {
         type: 'pre_meeting_nudge',
         dedupeKey: `nudge:${m.id}`,
@@ -194,7 +194,7 @@ export class ScanService {
         dedupeKey: `date:${d.id}:${due}`,
         clientId: d.clientId,
         title: 'Upcoming date',
-        body: `${d.description} — ${due}`,
+        body: `${d.description}: ${due}`,
       };
       const ok = await this.notifications.createIfAbsent(userId, entry);
       if (ok) { created += 1; sink?.push(entry); }
@@ -222,7 +222,7 @@ export class ScanService {
         dedupeKey: `refresh:${c.id}:${latest.id}`,
         clientId: c.id,
         title: 'Refresh this chat',
-        body: `It's been a while — re-export ${c.name}'s WhatsApp chat (3 taps) to keep Tovira current.`,
+        body: `It's been a while. Re-export ${c.name}'s WhatsApp chat (3 taps) to keep Tovira current.`,
       };
       const ok = await this.notifications.createIfAbsent(userId, entry);
       if (ok) { created += 1; sink?.push(entry); }

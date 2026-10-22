@@ -214,7 +214,7 @@ export class BookScanService {
             id: c.id, // one going-quiet finding per client; the client id is its stable, unique key
             clientName: c.name,
             clientId: c.id,
-            headline: `${c.name} has gone quiet — worth a nudge?`,
+            headline: `${c.name} has gone quiet. Worth a nudge?`,
             // [P18-4] Date the receipt by the quoted MESSAGE, not the note's createdAt — for an imported
             // chat createdAt is the import date, not when the thread actually went quiet.
             receipt: { quote: snippet(lastText), date: dayOf(lastMsg?.sentAt ?? null) ?? isoDate(last.createdAt), ref: { noteId: last.id, span: lastText, at: lastMsg?.sentAt ?? null } },
@@ -249,8 +249,8 @@ export class BookScanService {
       isEmpty,
       message: isEmpty
         ? chatsRead === 0
-          ? "Nothing to scan yet — export your first WhatsApp chat and I'll X-ray it for you."
-          : "Not much here yet — export another chat and I'll scan it too."
+          ? "Nothing to scan yet. Export your first WhatsApp chat and I'll X-ray it for you."
+          : "Not much here yet. Export another chat and I'll scan it too."
         : null,
       invitation: INVITATION,
       chatsRead,

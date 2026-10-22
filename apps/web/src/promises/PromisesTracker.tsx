@@ -49,7 +49,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
     if (await api.markDone(id)) {
       hapticTick(); // promise kept
       setOpen((prev) => prev.filter((p) => p.id !== id));
-    } else setError('Could not mark that done — please try again.');
+    } else setError('Could not mark that done. Please try again.');
   }
   async function confirm(id: string): Promise<void> {
     if (await api.confirm(id)) {
@@ -66,7 +66,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
     if (!value) return;
     setError(null);
     if (await api.editDueDate(id, value)) setOpen((prev) => prev.map((p) => (p.id === id ? { ...p, dueDate: value } : p)));
-    else setError('Could not update that date — please try again.');
+    else setError('Could not update that date. Please try again.');
   }
 
   // [P20-2 / BOOK-09] Delete a promise (soft, undoable). Remove it from the list immediately and show
@@ -79,7 +79,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
     if (!ok) { // put it back; nothing was deleted
       if (where === 'open') setOpen((prev) => [p, ...prev]);
       else setPending((prev) => [p, ...prev]);
-      setError('Could not delete that — please try again.');
+      setError('Could not delete that. Please try again.');
       return;
     }
     if (undoTimer.current) clearTimeout(undoTimer.current);
@@ -95,7 +95,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
     if (await api.restore(p.id)) {
       if (where === 'open') setOpen((prev) => [p, ...prev].sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999')));
       else setPending((prev) => [p, ...prev]);
-    } else setError('Could not undo — please reload.');
+    } else setError('Could not undo. Please reload.');
   }
 
   if (loading) return <Page testId="promises-page" label="Promises"><PageHeader title="Promises" /><p className="ui-secondary">Loading your promises…</p></Page>;
@@ -126,7 +126,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
         </div>
       )}
       {active.length === 0 && stale.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>No open promises — you're all caught up.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>No open promises. You're all caught up.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {active.map((p) => (

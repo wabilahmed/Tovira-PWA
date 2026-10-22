@@ -45,7 +45,7 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
     return (
       <Page testId="week-page" label="The Monday Statement">
         <PageHeader title="The Monday Statement" subtitle={`Week of ${week}`} />
-        <p data-testid="clear-week" className="ui-secondary">A clear week — nothing due, no one cooling.</p>
+        <p data-testid="clear-week" className="ui-secondary">A clear week. Nothing due, no one cooling.</p>
       </Page>
     );
   }

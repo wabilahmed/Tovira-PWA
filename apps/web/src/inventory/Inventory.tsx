@@ -147,7 +147,7 @@ function AddForm(p: FormProps): JSX.Element {
   return (
     <form onSubmit={p.add} className="tov-inv-add">
       <input aria-label="Item title" placeholder="Title (e.g. Marina Heights 402)" value={p.title} onChange={(e) => p.setTitle(e.target.value)} />
-      <textarea aria-label="Item description" placeholder="Description — what it is, so Tovira can match it" value={p.description} onChange={(e) => p.setDescription(e.target.value)} rows={2} />
+      <textarea aria-label="Item description" placeholder="Description: what it is, so Tovira can match it" value={p.description} onChange={(e) => p.setDescription(e.target.value)} rows={2} />
       <div className="tov-inv-add__row">
         <input aria-label="Quantity" className="tov-mono" type="number" min={0} step={1} value={p.quantity} onChange={(e) => p.setQuantity(e.target.value)} style={{ width: '5rem' }} />
         <button type="submit" className="tov-primary">Add item</button>

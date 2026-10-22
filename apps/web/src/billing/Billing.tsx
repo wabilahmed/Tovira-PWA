@@ -48,7 +48,7 @@ export function Billing({
     const url = await api.checkout(plan);
     setBusy(false);
     if (url) onRedirect(url);
-    else setError('Could not start checkout — please try again.');
+    else setError('Could not start checkout. Please try again.');
   }
 
   async function manage(): Promise<void> {
@@ -57,7 +57,7 @@ export function Billing({
     const url = await api.portal();
     setBusy(false);
     if (url) onRedirect(url);
-    else setError('Could not open the billing portal — please try again.');
+    else setError('Could not open the billing portal. Please try again.');
   }
 
   if (loading) return <p>Loading your plan…</p>;
@@ -81,14 +81,14 @@ export function Billing({
           </button>
         </>
       ) : status === 'trialing' ? (
-        <p data-testid="trial-status">Free trial — <span className="tov-mono">{daysLeft}</span> day{daysLeft === 1 ? '' : 's'} left.</p>
+        <p data-testid="trial-status">Free trial: <span className="tov-mono">{daysLeft}</span> day{daysLeft === 1 ? '' : 's'} left.</p>
       ) : status === 'past_due' || status === 'payment_failed' ? (
         <>
           <p data-testid="past-due" style={{ color: 'var(--amber)' }}>Your last payment failed. Update your card to keep access.</p>
           <button className="tov-link" onClick={() => void manage()} disabled={busy}>{busy ? 'Opening…' : 'Update your card'}</button>
         </>
       ) : status === 'canceled' ? (
-        <p data-testid="canceled">Your subscription is canceled. Your book is preserved — resubscribe to reopen it.</p>
+        <p data-testid="canceled">Your subscription is canceled. Your book is preserved. Resubscribe to reopen it.</p>
       ) : (
         <p data-testid="expired">Your trial has ended. Subscribe to keep your memory bank.</p>
       )}
@@ -100,10 +100,10 @@ export function Billing({
         <>
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="tov-primary" data-tour="subscribe" onClick={() => void subscribe('monthly')} disabled={busy}>
-              {busy ? 'Starting…' : <>Subscribe monthly — <span className="tov-mono">{PLANS.monthly.price}</span></>}
+              {busy ? 'Starting…' : <>Subscribe monthly: <span className="tov-mono">{PLANS.monthly.price}</span></>}
             </button>
             <button className="tov-link" onClick={() => void subscribe('annual')} disabled={busy}>
-              {busy ? 'Starting…' : <>Subscribe annually — <span className="tov-mono">{PLANS.annual.price}</span> (2 months free)</>}
+              {busy ? 'Starting…' : <>Subscribe annually: <span className="tov-mono">{PLANS.annual.price}</span> (2 months free)</>}
             </button>
           </div>
           {/* [TASK 3] Checkout disclosure beside the plans. Grounded in the real behaviour: prices are in AED

@@ -173,7 +173,7 @@ export class ClientOverviewService {
   private suggest(client: { outcome: string; leadStatus: string | null; lastTouchedAt: number }, nowMs: number): StatusSuggestion | null {
     if (client.leadStatus === 'done') return null;
     const silentDays = Math.floor((nowMs - client.lastTouchedAt) / DAY_MS);
-    if (client.outcome === 'lost_inferred') return { status: 'done', outcome: 'lost', reason: `No reply in ${silentDays} days — this deal looks lost.` };
+    if (client.outcome === 'lost_inferred') return { status: 'done', outcome: 'lost', reason: `No reply in ${silentDays} days. This deal looks lost.` };
     if (client.outcome !== 'open' || client.leadStatus === 'cold') return null;
     if (silentDays > this.deps.coldThresholdDays) return { status: 'cold', reason: `No reply in ${silentDays} days.` };
     return null;

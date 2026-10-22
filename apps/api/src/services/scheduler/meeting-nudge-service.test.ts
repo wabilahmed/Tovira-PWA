@@ -150,7 +150,7 @@ describe('[NUDGE-SCHED] meeting-nudges on the frequent brain', () => {
     await svc.run(NOW);
     expect(alerts).toHaveLength(1);
     expect(alerts[0]?.title).toBe('Meridian');
-    expect(alerts[0]?.body).toBe('today at 3:00 PM · Open promise — send the quote');
+    expect(alerts[0]?.body).toBe('today at 3:00 PM · Open promise: send the quote') // [P40-4 · owner] no em-dashes in rep-facing copy;
     expect(alerts[0]?.url).toBe(`/app?client=${c.id}`);
   });
 });

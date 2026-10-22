@@ -115,7 +115,7 @@ export async function handleAuthRoute(
       const rlKey = `login:${clientIp(req)}:${email.trim().toLowerCase()}`;
       const gate = opts.loginLimiter?.check(rlKey);
       if (gate?.limited) {
-        sendJson(res, 429, { error: 'rate_limited', message: 'Too many attempts — please wait a moment and try again.' }, { 'retry-after': String(gate.retryAfterSec) });
+        sendJson(res, 429, { error: 'rate_limited', message: 'Too many attempts. Please wait a moment and try again.' }, { 'retry-after': String(gate.retryAfterSec) });
         return true;
       }
       try {

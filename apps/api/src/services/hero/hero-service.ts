@@ -195,7 +195,7 @@ export class HeroService {
       patterns.push({
         id: 'overdue-promises',
         title: 'Clients with overdue promises',
-        description: 'You have overdue commitments with these clients — a common precursor to lost trust.',
+        description: 'You have overdue commitments with these clients, a common precursor to lost trust.',
         confidence: 'observed',
         evidence: overdue.map((s) => ({ clientId: s.clientId, name: s.name })),
       });
@@ -271,7 +271,7 @@ export class HeroService {
     }
     for (const s of sig) {
       if (s.silentDays > this.coldThresholdDays) {
-        actions.push({ kind: 'cold', reason: 'cooling', priority: 1, text: `Reach out to ${s.name} — going cold`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days`, clientName: s.name, title: 'Reach out — going cold', receipt: s.lastClientMessage
+        actions.push({ kind: 'cold', reason: 'cooling', priority: 1, text: `Reach out to ${s.name}. Going cold for ${Math.round(s.silentDays)} days`, clientId: s.clientId, subline: `silent ${Math.round(s.silentDays)} days`, clientName: s.name, title: `Reach out. Going cold for ${Math.round(s.silentDays)} days`, receipt: s.lastClientMessage
           // [P35-3] their last message to you, as the receipt; else the last-contact date
           ? { quote: s.lastClientMessage.body, source: 'message', at: s.lastClientMessage.at, noteId: s.lastClientMessage.noteId }
           : { quote: null, source: 'contact', at: new Date(nowMs - s.silentDays * DAY_MS).toISOString().slice(0, 10) } });

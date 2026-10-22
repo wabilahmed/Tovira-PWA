@@ -164,5 +164,5 @@ export interface SharedWithClient extends InventoryShare {
 
 /** The template WhatsApp draft for an item share — no model call (Tovira never sends). */
 export function shareDraft(clientName: string, title: string, description: string): string {
-  return `Hi ${clientName}, I've got ${title} — ${description}. Thought it might be a fit. Want the details?`;
+  return `Hi ${clientName}, I've got ${title}: ${description}. Thought it might be a fit. Want the details?`;
 }

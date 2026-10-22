@@ -255,7 +255,7 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
     case 'new':
       return (
         <div>
-          <strong>{label}</strong> <span style={{ color: 'var(--text-secondary)' }}>— new client</span>
+          <strong>{label}</strong> <span style={{ color: 'var(--text-secondary)' }}>· new client</span>
           <label style={{ display: 'block', marginTop: 'var(--space-1)' }}>
             <span style={{ fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>Name</span>
             <input aria-label={`Name for ${row.fileName}`} value={choice?.name ?? label} onChange={(e) => onChoice({ name: e.target.value })} style={{ width: '100%' }} />
@@ -269,8 +269,8 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
           <strong>✓ {row.matchClientName ?? label}</strong>{' '}
           <span style={{ color: 'var(--text-secondary)' }}>
             {row.newMessageCount === 0
-              ? '— existing client. Already up to date.'
-              : `— existing client, ${row.newMessageCount ?? ''} new message${row.newMessageCount === 1 ? '' : 's'}.`}
+              ? '· existing client. Already up to date.'
+              : `· existing client, ${row.newMessageCount ?? ''} new message${row.newMessageCount === 1 ? '' : 's'}.`}
           </span>
         </div>
       );
@@ -278,7 +278,7 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
     case 'possible_match':
       return (
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
-          <legend><strong>{label}</strong> — matches your existing client {row.matchClientName}. Same person?</legend>
+          <legend><strong>{label}</strong> · matches your existing client {row.matchClientName}. Same person?</legend>
           <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
             <input type="radio" name={`match-${row.fileName}`} checked={choice?.answer === 'yes'} onChange={() => onChoice({ answer: 'yes' })} />
             <span>Yes, same person as {row.matchClientName}</span>
@@ -293,7 +293,7 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
     case 'unsaved_intro':
       return (
         <div>
-          <strong>{label}</strong> <span style={{ color: 'var(--text-secondary)' }}>— unsaved number. Looks like “{row.suggestedName}”. Use this name?</span>
+          <strong>{label}</strong> <span style={{ color: 'var(--text-secondary)' }}>· unsaved number. Looks like “{row.suggestedName}”. Use this name?</span>
           <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)', flexWrap: 'wrap' }}>
             <button type="button" onClick={() => onChoice({ name: row.suggestedName })}>Use “{row.suggestedName}”</button>
           </div>
@@ -307,7 +307,7 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
     case 'unsaved_no_intro':
       return (
         <div>
-          <strong>{label}</strong> <span style={{ color: 'var(--text-secondary)' }}>— unsaved number. Who is this? (optional — keep the number if you’re not sure)</span>
+          <strong>{label}</strong> <span style={{ color: 'var(--text-secondary)' }}>· unsaved number. Who is this? (Optional: keep the number if you’re not sure.)</span>
           <label style={{ display: 'block', marginTop: 'var(--space-1)' }}>
             <span style={{ fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>Name</span>
             <input aria-label={`Name for ${row.fileName}`} value={choice?.name ?? ''} placeholder={label} onChange={(e) => onChoice({ name: e.target.value })} style={{ width: '100%' }} />
@@ -320,7 +320,7 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
       return (
         <div>
           <strong>{other ?? row.fileName}</strong>{' '}
-          <span style={{ color: 'var(--text-secondary)' }}>{other ? '— new client' : '— tell us which sender is you (above)'}</span>
+          <span style={{ color: 'var(--text-secondary)' }}>{other ? '· new client' : '· tell us which sender is you (above)'}</span>
         </div>
       );
     }
@@ -328,7 +328,7 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
     case 'group':
       return (
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
-          <legend><strong>{row.fileName}</strong> — Group chat. Skipped.</legend>
+          <legend><strong>{row.fileName}</strong> · Group chat. Skipped.</legend>
           <label style={{ display: 'block', marginTop: 'var(--space-1)' }}>
             <span style={{ fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>Import anyway for one participant?</span>
             <select className="tov-client-select ui-native-select" aria-label={`Client participant for ${row.fileName}`} value={choice?.name ?? ''} onChange={(e) => onChoice({ name: e.target.value })}>
@@ -343,7 +343,7 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
     case 'duplicate':
       return (
         <div style={{ color: 'var(--text-secondary)' }}>
-          <strong>{row.fileName}</strong> — Same chat as {row.duplicateOfFileName}. Not imported twice.
+          <strong>{row.fileName}</strong> · Same chat as {row.duplicateOfFileName}. Not imported twice.
         </div>
       );
 

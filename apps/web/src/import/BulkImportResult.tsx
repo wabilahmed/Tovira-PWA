@@ -17,7 +17,7 @@ const ROW_COPY: Record<BulkJobState, string> = {
   queued: 'Waiting…',
   extracting: 'Analysing…',
   done: 'Imported.',
-  failed: "Couldn't be read — not imported.",
+  failed: "Couldn't be read. Not imported.",
   failed_usage_limit: 'Not imported. You reached your monthly usage limit.',
   failed_interrupted: 'Not imported. Something went wrong. Please re-upload this chat.',
 };
@@ -28,7 +28,7 @@ export interface BulkSummary { chatsImported: number; promises: number; requirem
 /** [P20-3] "Imported N chats — found X promises, Y requirements." (same wording as the notification). */
 export function bulkSummaryLine(s: BulkSummary): string {
   const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
-  return `Imported ${plural(s.chatsImported, 'chat')} — found ${plural(s.promises, 'promise')}, ${plural(s.requirements, 'requirement')}.`;
+  return `Imported ${plural(s.chatsImported, 'chat')}. Found ${plural(s.promises, 'promise')}, ${plural(s.requirements, 'requirement')}.`;
 }
 
 export function BulkImportResult({ jobs, upsell, onOpenSubscription, onSubscribe, summary, onOpenBookScan }: {

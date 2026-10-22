@@ -115,7 +115,7 @@ export class MondayDigestService {
   async notifyMonday(userId: string, nowMs: number): Promise<boolean> {
     const digest = await this.build(userId, nowMs);
     const body = digest.isLight
-      ? 'A clear week — nothing due, no one cooling. Nice.'
+      ? 'A clear week. Nothing due, no one cooling.'
       : `${digest.promisesDue.length} promise(s) due, ${digest.coolingClients.length} cooling, ${digest.unansweredQuestions.length} open question(s).`;
     const alert = {
       type: 'monday_digest' as const,

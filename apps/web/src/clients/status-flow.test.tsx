@@ -48,16 +48,16 @@ const posts = (calls: Call[], part: string) => calls.filter((c) => c.method === 
 describe('[P36-7] the status sheet', () => {
   it('every status has a one-line explanation', () => {
     render(<LeadStatusSheet client={{ id: 'c1', name: NAME, phone: null, createdAt: 1, leadStatus: null }} onPick={() => {}} onClose={() => {}} />);
-    expect(within(screen.getByTestId('lead-option-warm')).getByText('Actively talking — a deal is possible')).toBeInTheDocument();
+    expect(within(screen.getByTestId('lead-option-warm')).getByText('Actively talking. A deal is possible.') /* [P40-4 · owner] no em-dashes in rep-facing copy */).toBeInTheDocument();
     expect(within(screen.getByTestId('lead-option-cold')).getByText('Gone quiet or lost interest')).toBeInTheDocument();
-    expect(within(screen.getByTestId('lead-option-done')).getByText('Closed — you’ll say whether it was won or lost')).toBeInTheDocument();
+    expect(within(screen.getByTestId('lead-option-done')).getByText('Closed. You’ll say whether it was won or lost.')).toBeInTheDocument();
     expect(within(screen.getByTestId('lead-option-unsorted')).getByText('No status')).toBeInTheDocument();
   });
 
   it('an inferred status shows in the sheet as a suggestion only — nothing changes until the rep taps', async () => {
     const onPick = vi.fn();
     render(<LeadStatusSheet client={{ id: 'c1', name: NAME, phone: null, createdAt: 1, leadStatus: null }} suggestion={{ status: 'cold', reason: 'No reply in 34 days.' }} onPick={onPick} onClose={() => {}} />);
-    expect(screen.getByTestId('lead-suggestion')).toHaveTextContent('Tovira suggests Cold — No reply in 34 days.');
+    expect(screen.getByTestId('lead-suggestion')).toHaveTextContent('Tovira suggests Cold. No reply in 34 days.') /* [P40-4 · owner] */;
     expect(onPick).not.toHaveBeenCalled();
   });
 

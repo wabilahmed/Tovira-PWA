@@ -26,7 +26,7 @@ export function onboardingStep(state: OnboardingState): OnboardingStep {
     return {
       stage: 'install',
       message:
-        'Add Tovira to your home screen to turn on notifications. Until you do, nudges and alerts won’t arrive — but you can still open the app any time to see who’s going cold.',
+        'Add Tovira to your home screen to turn on notifications. Until you do, nudges and alerts won’t arrive, but you can still open the app any time to see who’s going cold.',
     };
   }
   if (state.notificationPermission === 'denied') {
@@ -38,5 +38,5 @@ export function onboardingStep(state: OnboardingState): OnboardingStep {
   if (state.notificationPermission !== 'granted') {
     return { stage: 'enable', message: 'Enable notifications to get a nudge before each meeting.' };
   }
-  return { stage: 'ready', message: 'You’re all set — notifications are on.' };
+  return { stage: 'ready', message: 'You’re all set. Notifications are on.' };
 }

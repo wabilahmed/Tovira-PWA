@@ -29,7 +29,7 @@ function stampDate(ms: number): string {
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
-const SIGNOFF = '\n\n— Tovira';
+const SIGNOFF = '\n\nTovira';
 
 /**
  * Transactional + lifecycle email (TASK EMAIL). Composes every account email in
@@ -67,13 +67,13 @@ export class AccountEmailService {
       text:
         `Someone asked to reset the password for this Tovira account.\n\n` +
         `To set a new password, open this link within the next hour:\n${resetUrl}\n\n` +
-        `If this wasn't you, no action is needed — your password stays the same and the link will expire.` +
+        `If this wasn't you, no action is needed. Your password stays the same and the link will expire.` +
         SIGNOFF,
       html: renderEmail({
         heading: 'Reset your password',
         intro: ['Someone asked to reset the password for this Tovira account.', 'To set a new password, open the link below within the next hour.'],
         button: { label: 'Reset password', url: resetUrl },
-        outro: ["If this wasn't you, no action is needed — your password stays the same and the link will expire."],
+        outro: ["If this wasn't you, no action is needed. Your password stays the same and the link will expire."],
       }),
     });
   }
@@ -149,10 +149,10 @@ export class AccountEmailService {
       : '';
     return this.once(userId, 'welcome', to, 'Welcome to Tovira',
       `Your Tovira trial has started. It runs until ${stampDate(trialEndsAt)}.\n\n` +
-      `Export one WhatsApp chat to see what your book has been hiding — that is the whole setup.` +
+      `Export one WhatsApp chat to see what your book has been hiding. That is the whole setup.` +
       (confirm || `\n\nOpen Tovira: ${this.links.open}`), {
         heading: 'Welcome to Tovira',
-        intro: [`Your Tovira trial has started. It runs until ${stampDate(trialEndsAt)}.`, 'Export one WhatsApp chat to see what your book has been hiding — that is the whole setup.'],
+        intro: [`Your Tovira trial has started. It runs until ${stampDate(trialEndsAt)}.`, 'Export one WhatsApp chat to see what your book has been hiding. That is the whole setup.'],
         ...(verifyUrl
           ? { button: { label: 'Confirm your email', url: verifyUrl }, outro: ['Confirming your email lets us reach you about your trial.'] }
           : { button: { label: 'Open Tovira', url: this.links.open } }), // [P22-4] never a link-less welcome
@@ -183,13 +183,13 @@ export class AccountEmailService {
   async sendTrialEnding(userId: string, to: string, trialEndsAt: number): Promise<boolean> {
     return this.once(userId, 'trial_ending', to, 'Your Tovira trial ends in two days',
       `Your Tovira trial ends on ${stampDate(trialEndsAt)}.\n\n` +
-      `When it ends, your captured notes and everything Tovira has filed are preserved — nothing is lost. ` +
+      `When it ends, your captured notes and everything Tovira has filed are preserved. Nothing is lost. ` +
       `To keep using briefs, recall and the Monday statement, subscribe from Settings before then.` + this.appLinesText(), {
         heading: 'Your trial ends in two days',
         ...this.appButtons('billing'),
         intro: [
           `Your Tovira trial ends on ${stampDate(trialEndsAt)}.`,
-          'When it ends, your captured notes and everything Tovira has filed are preserved — nothing is lost.',
+          'When it ends, your captured notes and everything Tovira has filed are preserved. Nothing is lost.',
           'To keep using briefs, recall and the Monday statement, subscribe from Settings before then.',
         ],
       });
@@ -212,7 +212,7 @@ export class AccountEmailService {
   // single source) and link to the payment page (the Stripe hosted invoice page / billing settings — the
   // rep completes 3DS there, ruling 2). Plain, factual tone; no threats, no countdowns.
   private pausedLine(): string {
-    return `While this is unresolved, the AI features of Tovira are paused: ${pausedFeaturesSentence()}. Everything else keeps working — you can view your book, clients, facts and existing briefs, make edits, and export your data. Voice notes you record are kept and transcribed once payment succeeds.`;
+    return `While this is unresolved, the AI features of Tovira are paused: ${pausedFeaturesSentence()}. Everything else keeps working: you can view your book, clients, facts and existing briefs, make edits, and export your data. Voice notes you record are kept and transcribed once payment succeeds.`;
   }
 
   async sendPaymentFailed(userId: string, to: string, eventKey: string, payUrl: string): Promise<boolean> {
@@ -279,10 +279,10 @@ export class AccountEmailService {
   async sendSubscriptionConfirmed(userId: string, to: string, eventKey: string, renewsAt: number | null): Promise<boolean> {
     const renews = renewsAt != null ? ` It renews on ${stampDate(renewsAt)}.` : '';
     return this.once(userId, eventKey, to, 'Your Tovira subscription is active',
-      `Your Tovira subscription is active — thank you for keeping your book with us.${renews}` + this.appLinesText(), {
+      `Your Tovira subscription is active. Thank you for keeping your book with us.${renews}` + this.appLinesText(), {
         heading: 'Your subscription is active',
         ...this.appButtons('open'),
-        intro: [`Your Tovira subscription is active — thank you for keeping your book with us.${renews}`],
+        intro: [`Your Tovira subscription is active. Thank you for keeping your book with us.${renews}`],
       });
   }
 

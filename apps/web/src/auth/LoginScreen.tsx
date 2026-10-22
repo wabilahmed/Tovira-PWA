@@ -62,7 +62,7 @@ export function LoginScreen({ auth, onAuthed, signupEnabled = true }: { auth: Au
         <div className="auth__form">
           <p role="status" className={done.referral === 'invalid' ? 'auth__error' : undefined}>
             {done.referral === 'applied'
-              ? '🎉 Referral applied — your referrer earns a free month.'
+              ? '🎉 Referral applied. Your referrer earns a free month.'
               : "We couldn't find that referral code, so no one was credited. Your account is all set."}
           </p>
           <button className="auth__submit" type="button" onClick={() => onAuthed(done.session)}>

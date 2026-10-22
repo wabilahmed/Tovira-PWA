@@ -111,7 +111,7 @@ export class AuthClient {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, message: body.message ?? 'Could not set up your account.' };
     } catch {
-      return { ok: false, message: 'Network error — please try again.' };
+      return { ok: false, message: 'Network error. Please try again.' };
     }
   }
 
@@ -134,7 +134,7 @@ export class AuthClient {
       }
       return { ok: false, message: 'Could not send a new link. Please try again.' };
     } catch {
-      return { ok: false, message: 'Network error — please try again.' };
+      return { ok: false, message: 'Network error. Please try again.' };
     }
   }
 
@@ -150,7 +150,7 @@ export class AuthClient {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, message: body.message ?? 'Could not reset your password.' };
     } catch {
-      return { ok: false, message: 'Network error — please try again.' };
+      return { ok: false, message: 'Network error. Please try again.' };
     }
   }
 
@@ -168,7 +168,7 @@ export class AuthClient {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, message: body.message ?? 'This verification link is invalid or has expired.' };
     } catch {
-      return { ok: false, message: 'Network error — please try again.' };
+      return { ok: false, message: 'Network error. Please try again.' };
     }
   }
 
@@ -181,7 +181,7 @@ export class AuthClient {
       if (res.status === 429) return { ok: false, rateLimited: true, message: 'Too many requests today. Try again tomorrow.' };
       return { ok: false, message: 'Could not send the email. Please try again.' };
     } catch {
-      return { ok: false, message: 'Network error — please try again.' };
+      return { ok: false, message: 'Network error. Please try again.' };
     }
   }
 

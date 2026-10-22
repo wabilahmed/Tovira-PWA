@@ -134,7 +134,7 @@ export function ImportChat({
       setFirstAck(null);
       // A fully-overlapping re-import is a correct no-op, not a failure — say so
       // calmly so the rep keeps re-exporting (that's what keeps the bank fed).
-      if (result.duplicate) setNotice("Already up to date — no new messages in that export.");
+      if (result.duplicate) setNotice("Already up to date. No new messages in that export.");
       // [FOLLOW-UP 2] A very long chat was cut to its most recent part — tell the rep on the result.
       else if (result.truncated) setNotice('Very long chat: only the most recent part was imported.');
       // The import succeeded and the chat is saved. If the trial ceiling stopped
@@ -223,7 +223,7 @@ export function ImportChat({
           <span>{firstAck}</span>
           <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <button type="button" onClick={() => void doImport(false, true)} disabled={busy}>
-              {busy ? 'Importing…' : 'I have the right to upload this — continue'}
+              {busy ? 'Importing…' : 'I have the right to upload this. Continue'}
             </button>
             <button type="button" onClick={() => setFirstAck(null)} disabled={busy}>Not now</button>
           </div>

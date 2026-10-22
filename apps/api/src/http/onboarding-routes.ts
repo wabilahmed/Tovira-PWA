@@ -46,9 +46,9 @@ export async function handleOnboardingRoute(
     seeded,
     bookScanReady: seeded, // once seeded, the Day-One Book Scan can fire (P5-3b)
     nextStep: !hasClient
-      ? 'Add your first client — your most important one.'
+      ? 'Add your first client: your most important one.'
       : !hasNote
-        ? "Export that client's WhatsApp chat and upload it — three taps, no typing."
+        ? "Export that client's WhatsApp chat and upload it. Three taps, no typing."
         : 'Open a client and generate your first pre-meeting brief.',
     // Seeding is a WhatsApp EXPORT, never paste-based bulk data entry (the CRM
     // disease Tovira exists to kill).

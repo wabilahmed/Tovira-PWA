@@ -97,9 +97,9 @@ export interface StatusSuggestion { status: 'cold' | 'done'; outcome?: 'lost'; r
 
 /** [P36-7] Each status, with the one plain line that explains it (the real set: warm / cold / done / none). */
 export const STATUS_OPTIONS: ReadonlyArray<{ value: LeadStatus | null; label: string; hint: string; key: string }> = [
-  { value: 'warm', label: 'Warm', hint: 'Actively talking — a deal is possible', key: 'warm' },
+  { value: 'warm', label: 'Warm', hint: 'Actively talking. A deal is possible.', key: 'warm' },
   { value: 'cold', label: 'Cold', hint: 'Gone quiet or lost interest', key: 'cold' },
-  { value: 'done', label: 'Done', hint: 'Closed — you’ll say whether it was won or lost', key: 'done' },
+  { value: 'done', label: 'Done', hint: 'Closed. You’ll say whether it was won or lost.', key: 'done' },
   { value: null, label: 'No status', hint: 'Not sorted yet', key: 'unsorted' },
 ];
 
@@ -128,7 +128,7 @@ export function LeadStatusSheet({
           <p className="lead-sheet__title">Status for <strong>{client.name}</strong></p>
           {suggested && (
             <div className="lead-sheet__suggestion" data-testid="lead-suggestion">
-              <span>Tovira suggests {suggestedLabel} — {suggested.reason}</span>
+              <span>Tovira suggests {suggestedLabel}. {suggested.reason}</span>
               <button type="button" className="tov-link" onClick={() => onPick(suggested.status, suggested.outcome)}>
                 {suggested.status === 'cold' ? 'Mark cold' : 'Mark lost'}
               </button>

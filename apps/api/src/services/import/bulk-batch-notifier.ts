@@ -35,7 +35,7 @@ export class BulkBatchNotifier {
       dedupeKey: `bulk:${nowMs}`,
       clientId: null,
       title: 'Import ready',
-      body: `Imported ${plural(summary.chatsImported, 'chat')} — found ${found}. Open the Book Scan.`,
+      body: `Imported ${plural(summary.chatsImported, 'chat')}. Found ${found}. Open the Book Scan.`,
       url: '/app?view=bookscan',
     }], nowMs);
   };

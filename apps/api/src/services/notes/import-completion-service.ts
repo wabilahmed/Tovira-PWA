@@ -58,11 +58,11 @@ export class ImportCompletionService {
       if (ex.key_dates?.length) found.push(plural(ex.key_dates.length, 'key date'));
       if (ex.people?.length) found.push(plural(ex.people.length, 'person').replace('persons', 'people'));
       const summary = found.length > 0 ? `found ${found.join(', ')}` : 'no new facts to surface';
-      title = `Import ready — ${name}`;
-      body = `Processed ${messages.toLocaleString()} message${messages === 1 ? '' : 's'} — ${summary}. Open the Book Scan.`;
+      title = `Import ready: ${name}`;
+      body = `Processed ${messages.toLocaleString()} message${messages === 1 ? '' : 's'}. ${summary}. Open the Book Scan.`;
     } else {
       // needs_review / import_failed — say so; the rep is waiting and a silent failure is the worst case.
-      title = `Import needs a look — ${name}`;
+      title = `Import needs a look: ${name}`;
       body = `We couldn't finish reading that chat with ${name}. Open it to review or try again.`;
     }
 

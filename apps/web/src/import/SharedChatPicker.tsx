@@ -63,7 +63,7 @@ export function SharedChatPicker({
       {reading && <p role="status" style={{ margin: 0, color: 'var(--text-secondary)' }}>Reading the chat…</p>}
       {suggested && (
         <div data-testid="shared-suggested" style={{ display: 'grid', gap: 'var(--space-1)' }}>
-          <span id="shared-suggested-hint" className="tov-stamp">Suggested — the chat is with this client</span>
+          <span id="shared-suggested-hint" className="tov-stamp">Suggested: the chat is with this client</span>
           <button type="button" className="tov-primary" aria-describedby="shared-suggested-hint" onClick={() => choose(suggested.id)} style={{ textAlign: 'left' }}>
             {suggested.name}
           </button>

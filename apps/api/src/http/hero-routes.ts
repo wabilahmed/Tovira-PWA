@@ -45,7 +45,7 @@ export async function handleHeroRoute(
       sendJson(res, 200, { actions, refreshesRemaining: await deps.priorities.refreshesRemaining(userId, now) });
     } catch (err) {
       if (err instanceof RefreshLimitError) {
-        sendJson(res, 429, { error: 'rate_limited', message: 'You’ve hit today’s refresh limit — your list updates again tomorrow.' });
+        sendJson(res, 429, { error: 'rate_limited', message: 'You’ve hit today’s refresh limit. Your list updates again tomorrow.' });
       } else throw err;
     }
     return true;

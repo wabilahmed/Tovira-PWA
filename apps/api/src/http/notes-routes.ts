@@ -480,7 +480,7 @@ export async function handleNoteRoute(
           dateTo: dates?.to ?? null,
           // Fallback copy (no ISO) for the rep-id ask + any non-web client.
           message: needsRepIdentification
-            ? `This chat has two people — ${detection.counterparts.join(' and ')}. Which one is ${client.name}? (the other is you)`
+            ? `This chat has two people: ${detection.counterparts.join(' and ')}. Which one is ${client.name}? (the other is you)`
             : `This chat looks like it's with ${who}, not ${client.name}.`,
         });
         return true;

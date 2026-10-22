@@ -44,11 +44,11 @@ describe('<Meetings>', () => {
     const unconfirmed: Meeting = { ...meeting, id: 'm2', confirmed: false };
     const confirm = vi.fn().mockResolvedValue({ ...unconfirmed, confirmed: true });
     render(<Meetings api={makeApi({ list: vi.fn().mockResolvedValue([unconfirmed]), confirm })} clients={clients} />);
-    expect(await screen.findByTestId('meeting')).toHaveTextContent(/unconfirmed — is this right\?/i);
+    expect(await screen.findByTestId('meeting')).toHaveTextContent(/unconfirmed\. Is this right\?/i) /* [P40-4 · owner] */;
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() => expect(confirm).toHaveBeenCalledWith('m2'));
     // the pending label clears once confirmed
-    await waitFor(() => expect(screen.queryByText(/unconfirmed — is this right\?/i)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/unconfirmed\. Is this right\?/i)).toBeNull());
   });
 
   it('shows an empty state when there are no meetings', async () => {

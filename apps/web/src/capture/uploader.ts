@@ -27,7 +27,7 @@ export class HttpUploader implements Uploader {
     const msg = typeof body.message === 'string' && body.message ? body.message : undefined;
     if (res.status === 413) throw new UploadError(413, true, msg ?? 'Recording too large to upload.');
     if (res.status === 415) throw new UploadError(415, true, msg ?? 'That recording format can’t be uploaded.');
-    if (res.status === 410) throw new UploadError(410, true, msg ?? 'That upload expired — please record again.');
-    throw new UploadError(res.status, false, msg ?? 'Upload failed — we’ll keep retrying.'); // transient
+    if (res.status === 410) throw new UploadError(410, true, msg ?? 'That upload expired. Please record again.');
+    throw new UploadError(res.status, false, msg ?? 'Upload failed. We’ll keep retrying.'); // transient
   }
 }
