@@ -6,7 +6,7 @@ import type { ExtractedPromise } from '../extraction/types.js';
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
 import { recordVerdict } from '../facts/verdict.js';
-import { captureSummary } from './explicit-statement.js';
+import { captureSummary, captureField } from './explicit-statement.js';
 
 const PENDING = 'pending_confirmation';
 const DEFAULT_TTL_MS = 14 * 24 * 60 * 60 * 1000; // ASK-CAPTURE constraint 3: 14-day expiry
@@ -25,6 +25,9 @@ export interface PendingCapture {
   capturedAt: number;
   /** [P21-A3] the one-line "what was held" shown in To Confirm ("Sara's budget → 2.2M"). */
   summary?: string;
+  /** [P39-6] The field + value the statement sets ("budget", "2.2M"), when it sets a known one. */
+  field?: string;
+  value?: string;
 }
 
 export interface AskCaptureDeps {
@@ -82,7 +85,8 @@ export class AskCaptureService {
       const client = await this.deps.clients.findByIdForUser(userId, n.clientId);
       const clientName = client?.name ?? 'a client';
       const statement = n.rawText ?? '';
-      out.push({ noteId: n.id, clientId: n.clientId, clientName, statement, capturedAt: n.createdAt, summary: captureSummary(statement, clientName) });
+      const set = captureField(statement);
+      out.push({ noteId: n.id, clientId: n.clientId, clientName, statement, capturedAt: n.createdAt, summary: captureSummary(statement, clientName), ...(set ? { field: set.field, value: set.value } : {}) });
     }
     return out;
   }

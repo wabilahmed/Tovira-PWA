@@ -16,35 +16,37 @@ function makeApi(items: OpenPromise[]): ConfirmQueueApi {
   };
 }
 
+// [P39-6 · owner] Each card asks its question ("Did you promise to guess one?") with Yes, track it / No
+// (was the guess text with Confirm / Not right); the default heading is "Needs your answer" (was "To confirm").
 describe('<ConfirmChitQueue>', () => {
   it('renders a chit for each unconfirmed item', async () => {
     render(<ConfirmChitQueue api={makeApi([p('1', 'Guess one'), p('2', 'Guess two')])} />);
-    expect(await screen.findByText('Guess one')).toBeInTheDocument();
-    expect(screen.getByText('Guess two')).toBeInTheDocument();
-    expect(screen.getByText(/to confirm/i)).toBeInTheDocument();
+    expect(await screen.findByText('Did you promise to guess one?')).toBeInTheDocument();
+    expect(screen.getByText('Did you promise to guess two?')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Needs your answer' })).toBeInTheDocument();
   });
 
   it('renders nothing when the queue is empty (a clean queue leaves no trace)', async () => {
     const { container } = render(<ConfirmChitQueue api={makeApi([])} />);
     await waitFor(() => expect((makeApi as unknown as { called?: boolean }) && container).toBeTruthy());
-    expect(screen.queryByText(/to confirm/i)).toBeNull();
+    expect(screen.queryByText(/to confirm|needs your answer/i)).toBeNull();
     expect(container.querySelector('.tov-confirm-queue')).toBeNull();
   });
 
   it('removes a chit once confirmed', async () => {
     const api = makeApi([p('1', 'Only guess')]);
     render(<ConfirmChitQueue api={api} />);
-    await userEvent.click(await screen.findByRole('button', { name: /^confirm$/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, track it' }));
     expect(api.confirm).toHaveBeenCalledWith('1');
-    await waitFor(() => expect(screen.queryByText('Only guess')).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/only guess/i)).toBeNull());
   });
 
   it('removes a chit once rejected as not right', async () => {
     const api = makeApi([p('1', 'Only guess')]);
     render(<ConfirmChitQueue api={api} />);
-    await userEvent.click(await screen.findByRole('button', { name: /not right/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'No' }));
     expect(api.reject).toHaveBeenCalledWith('1');
-    await waitFor(() => expect(screen.queryByText('Only guess')).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/only guess/i)).toBeNull());
   });
 
   it('accepts a custom heading (Today / Alerts / Monday context)', async () => {

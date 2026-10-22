@@ -30,6 +30,16 @@ export function explicitStatement(turn: string): string | null {
 const FIELD = /\b(budget|price|timeline|deadline|move-in date|phone number|phone|number|email|address|title|role|company|employer)\b/i;
 const VALUE = /(?:\bto\b|\bis now\b|\bnow\b|\bis\b|:|=)\s*(.+?)[.!\s]*$/i;
 
+/** [P39-6] The known field a statement sets and the value it sets it to, from the rep's own words — or null.
+ *  To Confirm asks about exactly this ("Did Sara Khan's budget change to AED 2.2M?"). */
+export function captureField(statement: string): { field: string; value: string } | null {
+  const body = explicitStatement(statement) ?? statement.trim();
+  const field = FIELD.exec(body);
+  if (!field) return null;
+  const value = VALUE.exec(body.slice(field.index + field[0].length));
+  return value && value[1]!.trim() ? { field: field[1]!.toLowerCase(), value: value[1]!.trim() } : null;
+}
+
 /** A short handle for a client: the first real word of its name ("QA Sara Khan" → "Sara"). */
 function shortName(clientName: string): string {
   return clientName.trim().split(/\s+/).find((w) => /^\p{L}{3,}$/u.test(w)) ?? clientName.trim();
@@ -42,11 +52,8 @@ function shortName(clientName: string): string {
  */
 export function captureSummary(statement: string, clientName: string): string {
   const body = explicitStatement(statement) ?? statement.trim();
-  const field = FIELD.exec(body);
-  if (field) {
-    const value = VALUE.exec(body.slice(field.index + field[0].length));
-    if (value && value[1]!.trim()) return `${shortName(clientName)}'s ${field[1]!.toLowerCase()} → ${value[1]!.trim()}`;
-  }
+  const set = captureField(statement);
+  if (set) return `${shortName(clientName)}'s ${set.field} → ${set.value}`;
   const rest = body.toLowerCase().startsWith(clientName.toLowerCase()) ? body.slice(clientName.length).trim() : body;
   return `${clientName}: ${rest.replace(/[.!\s]+$/, '')}`;
 }

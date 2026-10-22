@@ -56,8 +56,8 @@ describe('[P39-5] three sections, each explained', () => {
     const onSeeAll = vi.fn();
     render(<ConfirmChitQueue api={{ listConfirmations: vi.fn().mockResolvedValue(many), confirm: vi.fn(), reject: vi.fn() }} limit={3} onSeeAll={onSeeAll} />);
     const section = await screen.findByTestId('needs-answer');
-    expect(await within(section).findByText('Thing 4')).toBeInTheDocument();
-    expect(within(section).queryByText('Thing 1')).toBeNull();
+    expect(await within(section).findByText('Did Sara promise to thing 4?')).toBeInTheDocument();
+    expect(within(section).queryByText('Did Sara promise to thing 1?')).toBeNull();
     await userEvent.click(within(section).getByRole('button', { name: 'See all 5' }));
     expect(onSeeAll).toHaveBeenCalledOnce();
   });

@@ -16,11 +16,12 @@ function kept(): KeptQueueApi & { [k: string]: ReturnType<typeof vi.fn> } {
   return { listKept: vi.fn().mockResolvedValue([S]), markKeptDone: vi.fn().mockResolvedValue(true), undoKept: vi.fn().mockResolvedValue(true), notYetKept: vi.fn().mockResolvedValue(true) } as never;
 }
 
+// [P39-6 · owner] The card asks "… Mark it done?" with "Yes, mark done" / "Not yet" (was "… Mark done?" + Mark done).
 describe('[P24-2] <ConfirmChitQueue> kept-promise suggestion', () => {
   it('shows the copy and BOTH receipts (promise + delivery, dated) with Mark done / Not yet', async () => {
     render(<ConfirmChitQueue api={none} kept={kept()} />);
     const card = await screen.findByRole('group', { name: /looks sent/i });
-    expect(within(card).getByText('Looks like you sent the options to QA P14 Gate Client. Mark done?')).toBeInTheDocument();
+    expect(within(card).getByText('Looks like you sent the options to QA P14 Gate Client. Mark it done?')).toBeInTheDocument();
     // [P35-3] the promise as a chat bubble by default; a tap shows the conversation AND the delivery message,
     // each dated by the chat's date chip (shown once per day).
     await within(card).findByText(/I'll send you three options by Thursday/);
@@ -28,14 +29,14 @@ describe('[P24-2] <ConfirmChitQueue> kept-promise suggestion', () => {
     expect(await within(card).findByText(/Here are the options/)).toBeInTheDocument();
     expect(card.textContent).toContain('2 Mar 2026');
     expect(card.textContent).toContain('5 Mar 2026');
-    expect(within(card).getByRole('button', { name: 'Mark done' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Yes, mark done' })).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'Not yet' })).toBeInTheDocument();
   });
 
   it('Mark done → closes it with an Undo; Undo brings it back', async () => {
     const api = kept();
     render(<ConfirmChitQueue api={none} kept={api} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Mark done' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, mark done' }));
     expect(api.markKeptDone).toHaveBeenCalledWith('s1');
     await waitFor(() => expect(screen.queryByRole('group', { name: /looks sent/i })).toBeNull()); // [P34-7] the card, not a now-collapsed quote
     const toast = await screen.findByTestId('kept-undo');

@@ -30,6 +30,9 @@ export interface PendingCapture {
   statement: string;
   capturedAt: number;
   summary?: string;
+  /** [P39-6] The field + value the statement sets, when it sets a known one ("budget", "2.2M"). */
+  field?: string;
+  value?: string;
 }
 
 export interface RecallAnswer {

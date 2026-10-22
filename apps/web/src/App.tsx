@@ -720,10 +720,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       )}
 
       {view === 'confirm' && (
-        <>
-          <h2 className="tov-screenhead" style={{ marginTop: 0 }}>To Confirm</h2>
-          <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} standalone />
-        </>
+        <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} standalone back={backTo('today')} />
       )}
 
       {view === 'week' && gated(

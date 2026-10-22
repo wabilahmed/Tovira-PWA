@@ -51,7 +51,7 @@ describe('[P34-2] every To Confirm card names its client', () => {
       confirm: vi.fn(), reject: vi.fn(),
     };
     const captures: CaptureQueueApi = {
-      listCaptures: vi.fn().mockResolvedValue([{ noteId: 'n9', clientId: 'c1', clientName: 'QA Sara Khan', statement: 'Remember that…', capturedAt: Date.parse('2026-10-19T08:00:00Z'), summary: "Sara's budget → 2.2M" }]),
+      listCaptures: vi.fn().mockResolvedValue([{ noteId: 'n9', clientId: 'c1', clientName: 'QA Sara Khan', statement: 'Remember that…', capturedAt: Date.parse('2026-10-19T08:00:00Z'), summary: "Sara's budget → 2.2M", field: 'budget', value: '2.2M' }]),
       confirmCapture: vi.fn(), rejectCapture: vi.fn(),
     };
     const kept: KeptQueueApi = {
@@ -59,15 +59,18 @@ describe('[P34-2] every To Confirm card names its client', () => {
       markKeptDone: vi.fn(), undoKept: vi.fn(), notYetKept: vi.fn(),
     };
     render(<ConfirmChitQueue api={api} captures={captures} kept={kept} />);
-    await screen.findByText('Send the floor plans');
+    // [P39-6 · owner] Each card now ASKS, naming the client in the question (was "Sara Khan — …" with the name in
+    // bold); a promise with no client asks the rep directly ("Did you promise to …?") instead of "Your note — …".
+    await screen.findByText('Did you promise Sara Khan the floor plans?');
     const cards = screen.getAllByRole('group');
     expect(cards).toHaveLength(5);
-    const texts = cards.map((c) => c.textContent ?? '');
-    expect(texts.some((t) => t.includes('Sara Khan — Send the floor plans'))).toBe(true);
-    expect(texts.some((t) => t.includes('Sara Khan promised: Send ID document photos'))).toBe(true);
-    expect(texts.some((t) => t.includes('Your note — Renew the trade licence'))).toBe(true);
-    expect(texts.some((t) => t.includes("QA Sara Khan — Sara's budget → 2.2M"))).toBe(true);
-    expect(texts.some((t) => t.includes('Omar Ali — Looks like you sent the options'))).toBe(true);
-    for (const c of cards) expect(c.querySelector('strong')).not.toBeNull(); // the name is bold on every card
+    const questions = screen.getAllByTestId('answer-question').map((q) => q.textContent);
+    expect(questions.sort()).toEqual([
+      "Did QA Sara Khan's budget change to AED 2.2M?",
+      'Did Sara Khan promise to send ID document photos?',
+      'Did you promise Sara Khan the floor plans?',
+      'Did you promise to renew the trade licence?',
+      'Looks like you sent the options to Omar Ali. Mark it done?',
+    ]);
   });
 });
