@@ -107,9 +107,10 @@ describe('[BATCH-B] concurrent two-account isolation (mirror of the prod leak ru
     const leaks: string[] = [];
     // For each account, every surface must be free of the OTHER account's sentinel.
     for (const [self, other] of [[A, B], [B, A]] as const) {
-      // 1) recall receipts (searchSimilarByUser) — ask for Kai Sterling; must return only own notes.
-      const recall = await text(await fetch(`${base}/recall`, { method: 'POST', headers: H(self.token), body: JSON.stringify({ question: 'What do we know about Kai Sterling?' }) }));
-      if (recall.includes(other.sentinel)) leaks.push(`recall(${self.sentinel}) leaked ${other.sentinel}`);
+      // 1) vector retrieval (searchSimilarByUser) — [P39-7] POST /recall is gone; the brief's related notes are the
+      //    rep-facing path that still retrieves by similarity. Must return only own notes.
+      const recall = await text(await fetch(`${base}/clients/${self.clientId}/brief`, { headers: H(self.token) }));
+      if (recall.includes(other.sentinel)) leaks.push(`brief(${self.sentinel}) leaked ${other.sentinel}`);
       // 2) promises (listPromisesByUser).
       const promises = await text(await fetch(`${base}/promises`, { headers: H(self.token) }));
       if (promises.includes(other.sentinel)) leaks.push(`promises(${self.sentinel}) leaked ${other.sentinel}`);
@@ -120,10 +121,10 @@ describe('[BATCH-B] concurrent two-account isolation (mirror of the prod leak ru
 
     // Sanity: each account's OWN sentinel is actually present on its surfaces (else the test
     // would trivially "pass" by finding nothing anywhere — a detector must see real data).
-    const ownRecallA = await text(await fetch(`${base}/recall`, { method: 'POST', headers: H(A.token), body: JSON.stringify({ question: 'What do we know about Kai Sterling?' }) }));
+    const ownRecallA = await text(await fetch(`${base}/clients/${A.clientId}/brief`, { headers: H(A.token) }));
     const ownPromA = await text(await fetch(`${base}/promises`, { headers: H(A.token) }));
     const ownInvA = await text(await fetch(`${base}/inventory`, { headers: H(A.token) }));
-    expect(ownRecallA, 'own recall carries own sentinel').toContain(A.sentinel);
+    expect(ownRecallA, 'own brief carries own sentinel').toContain(A.sentinel);
     expect(ownPromA, 'own promises carry own sentinel').toContain(A.sentinel);
     expect(ownInvA, 'own inventory carries own sentinel').toContain(A.sentinel);
 

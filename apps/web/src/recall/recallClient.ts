@@ -1,28 +1,7 @@
-/** Client for conversational recall (P4-8). */
+/** [P39-7] The pending-note client: "Add a note" holds a statement for confirmation, and To Confirm lists,
+ *  confirms or rejects it. (The free-text Ask — POST /recall — is gone; Find answers fixed questions.) */
 
-export interface Receipt {
-  quote: string;
-  date: string;
-  clientId: string;
-  noteId: string;
-  /** [P35-3] The stored span + message time — resolved to the source chat bubble. */
-  span?: string | null;
-  at?: string | null;
-}
-
-/** [ASK-CAPTURE] present only when the rep's turn was a factual statement about a client. */
-export interface CaptureOutcome {
-  status: 'captured' | 'needs_client' | 'none';
-  statement?: string;
-  clientName?: string;
-  noteId?: string;
-  /** [P21-A3] what was held, in the rep's words ("Sara's budget → 2.2M"). */
-  summary?: string;
-  /** [P21-A3] needs_client: the clients it could be about. */
-  candidates?: string[];
-}
-
-/** [P21-A3] A statement held from Ask, waiting in To Confirm. */
+/** [P21-A3] A held statement ("Add a note"), waiting in To Confirm. */
 export interface PendingCapture {
   noteId: string;
   clientId: string;
@@ -35,46 +14,21 @@ export interface PendingCapture {
   value?: string;
 }
 
-export interface RecallAnswer {
-  answer: string;
-  receipts: Receipt[];
-  /** [P35-2] Retrieved-but-not-the-answer, for a collapsed "Closest messages I found". */
-  nearMisses?: Receipt[];
-  /** [P35-1] A count / list across clients: the count, one line per client with its own receipts. */
-  list?: {
-    count: number;
-    headline: string;
-    items: Array<{ clientId: string; clientName: string; line: string; receipts: Receipt[] }>;
-    more: number;
-  };
-  capture?: CaptureOutcome;
-  /** [AUDIT gap C] 402 from the entitlement/billing gate — AI is paused (trial lapsed or payment
-   *  failed), not a transient error. The UI shows a "paused, check Billing" notice, not "try again". */
-  paused?: boolean;
-  /** [AUDIT item 5] the distinct reason the backend returned, so the UI shows the right action
-   *  (update card vs subscribe) rather than one generic lock message. */
-  pausedReason?: string;
-}
-
 export class RecallClient {
   constructor(private readonly baseUrl: string = '') {}
 
-  async ask(question: string): Promise<RecallAnswer | null> {
+  /** [P39-7] "Add a note": hold a statement about a client for confirmation. 'paused' = AI is paused (402). */
+  async create(clientId: string, statement: string): Promise<'held' | 'paused' | 'failed'> {
     try {
-      const res = await fetch(`${this.baseUrl}/recall`, {
+      const res = await fetch(`${this.baseUrl}/captures`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ clientId, statement }),
       });
-      if (res.status === 402) {
-        const b = (await res.json().catch(() => ({}))) as { error?: string };
-        return { answer: '', receipts: [], paused: true, pausedReason: b.error }; // [item 5] carry the reason
-      }
-      if (res.status !== 200) return null;
-      return (await res.json()) as RecallAnswer;
+      return res.status === 201 ? 'held' : res.status === 402 ? 'paused' : 'failed';
     } catch {
-      return null;
+      return 'failed';
     }
   }
 

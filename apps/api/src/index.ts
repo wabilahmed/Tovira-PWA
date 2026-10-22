@@ -51,7 +51,6 @@ import {
   createExtractionService,
   createKeptSuggestionRepository,
   createExtractionModelRouter,
-  createRecallService,
   createRecallSessionRepository,
   createAskCaptureService,
   createLedgerService,
@@ -114,6 +113,7 @@ import { ScanRunnerService } from './services/scheduler/scan-runner-service.js';
 import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
 import { RecallMetrics } from './services/metrics/recall-metrics.js';
+import { FindService } from './services/find/find-service.js';
 import { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import { ExtractionHealthRegistry } from './services/metrics/extraction-health.js';
 import { ExtractionCanaryService } from './services/extraction/extraction-canary.js';
@@ -530,7 +530,8 @@ async function main(): Promise<void> {
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
   const askCapture = createAskCaptureService(config, notes, clients, facts, extraction, corrections, extractionLogs);
-  const recall = createRecallService(config, notes, recallMetrics, recallSessions, askCapture, clients, aiExhausted, restriction, facts, meetings, requirements, contactAliases);
+  // [P39-7] Find replaces the free-text Ask (POST /recall is gone): fixed questions over stored data, no model.
+  const find = new FindService({ clients, facts, notes, requirements, hero, restriction, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays });
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId), matching);
   const ledger = createLedgerService(config, appPool);
@@ -635,7 +636,7 @@ async function main(): Promise<void> {
     clientPointers,
     bulkImport,
     bulkUpsell,
-    recall,
+    find,
     askCapture,
     corpus,
     monday,

@@ -13,6 +13,7 @@ import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSu
 import { HttpClientPageClient, type ClientOverview } from './clients/page/clientPageClient.js';
 import { Accordion } from './ui/Accordion.js';
 import { Page, PageHeader, Section, ListRow, Button, IconButton, ActionRow, SearchInput, Sheet, TextInput, EmptyState } from './ui/index.js';
+import { AddNote } from './clients/page/AddNote.js';
 
 /** [P36-6] The client-list sort orders. */
 const SORT_OPTIONS: Array<{ value: 'last' | 'name' | 'overdue'; label: string }> = [
@@ -73,7 +74,8 @@ import { MoveSuggestions } from './notes/MoveSuggestions.js';
 import { ClientPhoneField } from './clients/ClientPhoneField.js';
 import { StakeholderMap } from './stakeholders/StakeholderMap.js';
 import { RecallClient } from './recall/recallClient.js';
-import { Ask } from './recall/Ask.js';
+import { Find, type FindScreen } from './find/Find.js';
+import { FindClient } from './find/findClient.js';
 import { MondayClient } from './monday/mondayClient.js';
 import { MondayDigest } from './monday/MondayDigest.js';
 import { LedgerClient } from './ledger/ledgerClient.js';
@@ -138,6 +140,7 @@ const startCheckout = async (plan: Plan): Promise<void> => {
 };
 const accountApi = new AccountClient(API_BASE);
 const recallApi = new RecallClient(API_BASE);
+const findApi = new FindClient(API_BASE);
 const mondayApi = new MondayClient(API_BASE);
 const ledgerApi = new LedgerClient(API_BASE);
 const shareCardApi = new ShareCardClient(API_BASE);
@@ -158,23 +161,6 @@ const statusSuggestionsApi: StatusSuggestionsApi = {
   },
 };
 
-// Optional voice input for recall: use the browser's SpeechRecognition when the
-// engine exists, otherwise recall stays text-only (no dead button).
-function makeSpeechListener(): (() => Promise<string>) | undefined {
-  const w = globalThis as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown };
-  const Recognition = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-  if (!Recognition) return undefined;
-  return () =>
-    new Promise<string>((resolve) => {
-      const rec = new Recognition() as { start(): void; onresult: (e: { results: Array<Array<{ transcript: string }>> }) => void; onerror: () => void; onend: () => void };
-      let heard = '';
-      rec.onresult = (e) => { heard = e.results[0]?.[0]?.transcript ?? ''; };
-      rec.onerror = () => resolve('');
-      rec.onend = () => resolve(heard);
-      rec.start();
-    });
-}
-const speechListen = makeSpeechListener();
 
 // Read the current push capability/permission, guarding for non-browser/jsdom.
 function readPushState(): OnboardingState {
@@ -406,6 +392,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   const [rows, setRows] = useState<Record<string, RowSummary>>({});
   const [sortBy, setSortBy] = useState<'last' | 'name' | 'overdue'>('last');
   const [sortSheet, setSortSheet] = useState(false);
+  const [findScreen, setFindScreen] = useState<FindScreen>({ kind: 'home' }); // [P39-7] kept across opening a client
   const [addSheet, setAddSheet] = useState<'menu' | 'name' | null>(null);
   const loadRows = (): void => void clientsApi.rowSummaries().then(setRows);
   const loadSuggestions = (): void => void clientsApi.statusSuggestions().then((list) => setSuggestions(new Map(list.map((x) => [x.clientId, x]))));
@@ -730,7 +717,16 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
         </>,
       )}
 
-      {(view === 'find' || view === 'ask') && gated(<Ask api={recallApi} listen={speechListen} onOpenSubscription={openSubscription} />)}
+      {/* [P39-7] Ask became Find: fixed questions over stored data — no free text, no voice, no model. */}
+      {(view === 'find' || view === 'ask') && gated(
+        <Find
+          api={findApi}
+          screen={findScreen}
+          onScreen={setFindScreen}
+          onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }}
+          onOpenClients={() => navigate('clients')}
+        />,
+      )}
 
       {view === 'promises' && <PromisesTracker api={promisesApi} />}
 
@@ -1007,7 +1003,8 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
   const [overview, setOverview] = useState<ClientOverview | null>(null);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [addOpen, setAddOpen] = useState(!!initialImport);
-  const [capture, setCapture] = useState<'voice' | 'paste' | 'import' | null>(initialImport ? 'import' : null);
+  const [capture, setCapture] = useState<'voice' | 'paste' | 'import' | 'note' | null>(initialImport ? 'import' : null);
+
 
   const refresh = (): void => {
     void clientsApi.getPointers(client.id).then(setPointers);
@@ -1132,8 +1129,10 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
             <button type="button" onClick={() => { setCapture('voice'); void startRec(); }}>● Record voice note</button>
             <button type="button" onClick={() => setCapture('paste')}>Paste a message</button>
             <button type="button" onClick={() => setCapture('import')}>Import a WhatsApp chat</button>
+            <button type="button" onClick={() => setCapture('note')}>Add a note</button>
           </div>
         )}
+        {capture === 'note' && <AddNote clientId={client.id} clientName={client.name} api={recallApi} onOpenSubscription={onOpenSubscription} />}
         {(capture === 'voice' || recording) && (
           <div className="tov-capture">
             {recording && recStartedAt !== null && <RecordingTimer startedAt={recStartedAt} maxMs={MAX_RECORDING_MS} />}

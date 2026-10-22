@@ -37,7 +37,19 @@ function amountLabel(num: string, unit: string): string {
   return u.startsWith('k') || u === 'thousand' ? `${n}K` : `${n}M`;
 }
 
-export function summarizeRequirements(reqs: RequirementLike[]): RequirementSummary {
+/** [P39-7] The structured pieces of a client's wants, as stated: what Find's "Clients wanting…" filters on. */
+export interface RequirementFacets {
+  beds: string | null;
+  /** Capitalised: "Villa". */
+  type: string | null;
+  area: string | null;
+  /** Every budget stated, oldest first ("3M", "3.4M"); the last is the current one. */
+  budgets: string[];
+  qualifier: 'around' | 'max' | 'plain';
+  deadline: string | null;
+}
+
+export function requirementFacets(reqs: RequirementLike[]): RequirementFacets {
   const ordered = reqs.slice().sort((a, b) => (a.statedOn ?? '').localeCompare(b.statedOn ?? '') || a.createdAt - b.createdAt);
   let beds: string | null = null;
   let type: string | null = null;
@@ -62,8 +74,19 @@ export function summarizeRequirements(reqs: RequirementLike[]): RequirementSumma
       qualifier = qualifierOf(src, m.index ?? 0); // the latest mention decides the wording
     }
   }
+  return { beds, type: type ? type[0]!.toUpperCase() + type.slice(1) : null, area, budgets, qualifier, deadline };
+}
+
+/** "3.4M" → 3_400_000; "800K" → 800_000. */
+export function budgetAmount(label: string): number {
+  const n = Number(label.slice(0, -1));
+  return label.endsWith('K') ? n * 1_000 : n * 1_000_000;
+}
+
+export function summarizeRequirements(reqs: RequirementLike[]): RequirementSummary {
+  const { beds, type, area, deadline, budgets, qualifier } = requirementFacets(reqs);
   // [P39 · owner] Property types capitalised ("4BR Villa"), and budgets always carry AED.
-  const what = [beds, type ? type[0]!.toUpperCase() + type.slice(1) : null].filter(Boolean).join(' ') || null;
+  const what = [beds, type].filter(Boolean).join(' ') || null;
   const budget = budgets[budgets.length - 1] ?? null;
   // "budget ~AED 1.5M" (around / about) · "up to AED 3.4M" (max / up to) · "budget AED 3.4M" (said plainly).
   const said = budget ? (qualifier === 'around' ? `~AED ${budget}` : qualifier === 'max' ? `up to AED ${budget}` : `AED ${budget}`) : null;

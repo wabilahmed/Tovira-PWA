@@ -68,8 +68,9 @@ import { handleHeroRoute } from './http/hero-routes.js';
 import { handleBookScanRoute } from './http/book-scan-routes.js';
 import type { BookScanService } from './services/book-scan/book-scan-service.js';
 import { handleRecallRoute } from './http/recall-routes.js';
+import { handleFindRoute } from './http/find-routes.js';
+import type { FindService } from './services/find/find-service.js';
 import { handleOpsRoute, opsTokenOk, type OpsRouteDeps } from './http/ops-routes.js';
-import type { RecallService } from './services/recall/recall-service.js';
 import type { AskCaptureService } from './services/recall/ask-capture-service.js';
 import { handleCorpusRoute } from './http/corpus-routes.js';
 import type { CorpusStatsService } from './services/corpus/corpus-service.js';
@@ -166,7 +167,8 @@ export interface ApiDeps {
   bulkImport?: BulkImportService;
   /** [BULK-IMPORT · RULING 2] the top-up / subscribe upsell for a batch that exceeds the allowance. */
   bulkUpsell?: BulkUpsellService;
-  recall: RecallService;
+  /** [P39-7] Find — fixed questions over stored data (replaces the free-text Ask). */
+  find?: FindService;
   /** [ASK-CAPTURE] pending-capture queue + confirm/reject. */
   askCapture?: AskCaptureService;
   /** [NOTE-MOVE/IMPORT-UNDO] move a misfiled note or undo an import (B3/B4). */
@@ -472,7 +474,9 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
       if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero, priorities: deps.priorities, billing: deps.billing, clients: deps.clients })) return;
       if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan, billing: deps.billing })) return;
-      if (await handleRecallRoute(request, response, { auth: deps.auth, recall: deps.recall, billing: deps.billing, capture: deps.askCapture })) return;
+      if (await handleRecallRoute(request, response, { auth: deps.auth, billing: deps.billing, capture: deps.askCapture })) return;
+      // [P39-7] Find: fixed questions over stored data — no model call.
+      if (deps.find && (await handleFindRoute(request, response, { auth: deps.auth, billing: deps.billing, find: deps.find }))) return;
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
       if (await handleMondayRoute(request, response, { auth: deps.auth, monday: deps.monday, billing: deps.billing })) return;
       if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger, clients: deps.clients })) return;

@@ -266,17 +266,20 @@ function buildSteps(c: {
       body: <p>Your plan for the day: what&apos;s due, who&apos;s waiting, and what needs your check.</p>,
     },
     {
-      title: 'Ask',
-      view: 'ask',
-      spot: ['[data-tour="nav-ask"]'],
+      // [P39-7] Ask became Find: fixed questions, answered from the rep's clients' messages.
+      title: 'Find',
+      view: 'find',
+      spot: ['[data-tour="nav-find"]'],
       body: (
         <>
-          <p>Ask about any client. Try these later:</p>
-          <ul className="tov-tour__questions">
-            <li dir="auto">What did I promise Sara?</li>
-            <li dir="auto">How many clients want a villa?</li>
-            <li dir="auto">Who hasn&apos;t replied in 2 weeks?</li>
-          </ul>
+          <p>Tap a question to see the answer from your clients&apos; messages.</p>
+          <Example>
+            <ul className="ui-list">
+              {['Missed promises', 'Due this week', "Who hasn't replied in 2 weeks"].map((q) => (
+                <li key={q} className="ui-row"><span className="ui-row__main"><span className="ui-row__title">{q}</span></span><span aria-hidden="true" className="ui-caption">›</span></li>
+              ))}
+            </ul>
+          </Example>
         </>
       ),
     },
@@ -341,7 +344,7 @@ function PlanStep({ ent, usage, now }: { ent: Entitlement | null; usage: Allowan
         </div>
         <p data-testid="tour-usage">{usage ? usageLabel(usage) : '0%'} used. This shows how much of this month&apos;s AI allowance you&apos;ve used. It resets each billing month.</p>
       </div>
-      <p>At 100%, Ask and new imports pause until it resets. Everything else keeps working.</p>
+      <p>At 100%, AI features like imports pause until it resets. Find and everything else keep working.</p>
       <p>{subscribed ? 'If you run low, tap Buy more usage here.' : 'Once you subscribe, you can buy extra usage here if you run low.'}</p>
       <p>Notifications and your time zone are in Settings too.</p>
     </>

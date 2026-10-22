@@ -36,7 +36,9 @@ const GATED: Array<[string, (t: string) => Promise<Response>]> = [
   ['GET /hero/patterns', (t) => GET('/hero/patterns', t)],
   ['GET /book-scan', (t) => GET('/book-scan', t)],
   ['GET /monday-digest', (t) => GET('/monday-digest', t)],
-  ['POST /recall', (t) => POST('/recall', t, { question: 'what did they say?' })],
+  // [P39-7] POST /recall is gone: Find (stored data, no model) and "Add a note" (an AI capture) replace it.
+  ['GET /find/:query', (t) => GET('/find/missed-promises', t)],
+  ['POST /captures', (t) => POST('/captures', t, { clientId: 'any', statement: 'a note' })],
   ['POST /notes/:id/follow-up', (t) => POST('/notes/any-note-id/follow-up', t, {})],
   ['GET /inventory', (t) => GET('/inventory', t)],
   // [P14-1] The two synchronous model-call routes that extract/transcribe INLINE (not via the sweep),

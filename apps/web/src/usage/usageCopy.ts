@@ -18,8 +18,9 @@ export function exhaustedAction(s: Pick<AllowanceStatus, 'canTopUp' | 'subscript
   return 'subscribe';
 }
 
-/** The 100% message — what stops and what keeps working, as the server actually behaves (Ask, imports and
- *  note analysis pause; the book, briefs already made and data export keep working). */
+/** The 100% message — what stops and what keeps working, as the server actually behaves: imports, voice notes
+ *  and note analysis pause; the book, Find (no AI, no allowance), briefs already made and data export keep
+ *  working. [P39-7] Ask is gone, so it is no longer named. */
 export function exhaustedMessage(s: Pick<AllowanceStatus, 'canTopUp' | 'subscription'>, resetWord: string): string {
   switch (exhaustedAction(s)) {
     case 'subscribe':
@@ -29,7 +30,7 @@ export function exhaustedMessage(s: Pick<AllowanceStatus, 'canTopUp' | 'subscrip
     case 'update_card':
       return 'Your last payment failed, so AI is paused. Update your card to keep going.';
     default:
-      return `AI features are paused until ${resetWord}. Everything else — your book, briefs already made, and exporting your data — still works. Buy more usage to keep going now.`;
+      return `AI features are paused until ${resetWord}. Your book, Find, briefs already made and exporting your data still work. Buy more usage to keep going now.`;
   }
 }
 

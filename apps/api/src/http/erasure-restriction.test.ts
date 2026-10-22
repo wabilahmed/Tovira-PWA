@@ -75,11 +75,14 @@ describe('[TASK 2] processing restriction during the erasure window', () => {
     expect(brief.personalNotes.some((p) => p.subject === 'Khalid')).toBe(false);
   });
 
-  it('an answer (recall) never quotes the restricted counterparty', async () => {
+  // [P39-7] The free-text answer (POST /recall) is gone; Find is where answers come from now.
+  it('an answer (Find) never quotes the restricted counterparty', async () => {
     const { token, userId } = await seed();
+    const before = await (await fetch(`${base}/find/no-reply`, { headers: auth(token) })).text();
+    expect(before).toContain('floor plan'); // a detector must see real data first
     await restrict(userId, ['Khalid']);
-    const ans = (await (await fetch(`${base}/recall`, { method: 'POST', headers: auth(token), body: JSON.stringify({ question: 'what did they ask?' }) })).json()) as { receipts: Array<{ quote: string }> };
-    expect(ans.receipts.every((r) => !r.quote.includes('floor plan'))).toBe(true); // Khalid's message withheld
+    const ans = await (await fetch(`${base}/find/no-reply`, { headers: auth(token) })).text();
+    expect(ans).not.toContain('floor plan'); // Khalid's message withheld
   });
 
   it('pointers citing the restricted counterparty are withheld from the thread card', async () => {

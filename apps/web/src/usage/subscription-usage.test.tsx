@@ -137,13 +137,14 @@ describe('[P37] over-allowance actions explain why and link to Subscription', ()
     expect(onOpen).toHaveBeenCalled();
   });
 
-  it('Ask refused for the allowance says why and links to Subscription', async () => {
-    const { Ask } = await import('../recall/Ask.js');
+  // [P39-7 · owner] Ask is gone; "Add a note" is the client-page action that needs the allowance now.
+  it('"Add a note" refused for the allowance says why and links to Subscription', async () => {
+    const { AddNote } = await import('../clients/page/AddNote.js');
     const onOpen = vi.fn();
-    render(<Ask api={{ ask: vi.fn(async () => ({ answer: '', receipts: [], paused: true, pausedReason: 'allowance_exhausted' })) }} onOpenSubscription={onOpen} />);
-    await userEvent.type(screen.getByLabelText('Your question'), 'anything');
-    await userEvent.click(screen.getByRole('button', { name: 'Ask' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/allowance/i);
+    render(<AddNote clientId="c1" clientName="Sara Khan" api={{ create: vi.fn(async () => 'paused' as const) }} onOpenSubscription={onOpen} />);
+    await userEvent.type(screen.getByLabelText('Add a note'), "Sara's budget is now 2.2M");
+    await userEvent.click(screen.getByRole('button', { name: 'Save the note' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/AI is paused/);
     await userEvent.click(screen.getByRole('button', { name: 'Buy more usage' }));
     expect(onOpen).toHaveBeenCalled();
   });

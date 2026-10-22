@@ -10,7 +10,7 @@ import { join, relative, resolve } from 'node:path';
  */
 const SRC = resolve(process.cwd(), 'apps/web/src');
 const SURFACES = [
-  'recall/Ask.tsx',                 // Ask answers, count/list lines, near-misses
+  'find/Find.tsx',                  // [P39-7] Find results (replaces recall/Ask.tsx, removed with Ask)
   'hero/HeroInsights.tsx',          // Today entries
   'confirm/ConfirmChitQueue.tsx',   // To Confirm cards, Ask captures, kept-promise suggestions (promise + delivery)
   'bookscan/BookScan.tsx',          // Book Scan items

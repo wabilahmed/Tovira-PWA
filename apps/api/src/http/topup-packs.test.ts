@@ -97,7 +97,8 @@ describe('[P37] a balance is for subscribers only', () => {
     // The subscription ends (the dunning clock's day-30 end).
     const subs = (deps.billing as unknown as { subs: { update(id: string, p: Record<string, unknown>): Promise<void> } }).subs;
     await subs.update(userId, { status: 'canceled' });
-    const ask = await fetch(`${base}/recall`, { method: 'POST', headers: H(token), body: JSON.stringify({ question: 'what did Sara promise?' }) });
+    // [P39-7] POST /recall is gone; "Add a note" (POST /captures) is the AI capture a rep can trigger directly.
+    const ask = await fetch(`${base}/captures`, { method: 'POST', headers: H(token), body: JSON.stringify({ clientId: 'any', statement: "Sara's budget is 2M" }) });
     expect(ask.status).toBe(402);
     const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { canTopUp: boolean; options: unknown[]; extraPercentLeft: number };
     expect(s.extraPercentLeft).toBe(100); // still on the account

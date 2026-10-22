@@ -238,21 +238,25 @@ describe('<App> integration', () => {
     expect(await screen.findByRole('button', { name: /delete my account/i })).toBeInTheDocument();
   });
 
-  it('navigates to Ask and answers with receipts (API integration)', async () => {
+  // [P39-7 · owner] Ask became Find: tap a fixed question, get the answer with its receipt (was: type a question).
+  it('navigates to Find and answers a fixed question with receipts (API integration)', async () => {
     routeFetch([
-      ['/recall', () => json(200, { answer: 'Ahmed felt pricing was high.', receipts: [{ quote: 'pricing is too high', date: '2026-01-16', clientId: 'c1', noteId: 'n1' }] })],
+      ['/find/missed-promises', () => json(200, { query: 'missed-promises', count: 1, footnote: null, items: [
+        { clientId: 'c1', clientName: 'Ahmed', line: 'Send the price list', meta: 'Due 1 Oct', overdue: true, owner: 'rep', tags: ['Yours'], receipt: { quote: "I'll send the price list", at: '2026-09-20T10:00', noteId: 'n1', clientId: 'c1', sender: 'Rep' } },
+      ] })],
       ['onboarding', () => json(200, NOT_SEEDED)],
       ['/me', () => json(200, SESSION)],
       ['/clients', () => json(200, { clients: [] })],
     ]);
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: /^find$/i })); // nav tab [P39: Ask is now the Find tab]
-    await user.type(await screen.findByLabelText(/your question/i), 'What did Ahmed say?');
-    // The form submit lives inside the Ask region (the nav tab shares its name).
-    const region = await screen.findByRole('region', { name: /ask your memory/i });
-    await user.click(within(region).getByRole('button', { name: /^ask$/i }));
-    expect(await screen.findByTestId('answer')).toHaveTextContent(/pricing was high/i);
+    await user.click(await screen.findByRole('button', { name: /^find$/i })); // the nav tab
+    expect(screen.queryByLabelText(/your question/i)).toBeNull(); // no free text
+    await user.click(await screen.findByRole('button', { name: 'Missed promises' }));
+    const page = await screen.findByTestId('find-result');
+    expect(await within(page).findByText('1 missed promise')).toBeInTheDocument();
+    expect(within(page).getByText('Send the price list')).toBeInTheDocument();
+    expect(await within(page).findByText("I'll send the price list")).toBeInTheDocument();
   });
 
   // Responsive: at ≥1180px the shell is a sidebar, not the mobile tab bar.

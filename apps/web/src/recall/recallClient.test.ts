@@ -1,28 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RecallClient } from './recallClient.js';
 
-const fetchMock = vi.fn();
-beforeEach(() => {
-  fetchMock.mockReset();
-  vi.stubGlobal('fetch', fetchMock);
-});
-const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+/** [P39-7] "Add a note" posts the statement to /captures (held for To Confirm); the free-text ask() is gone. */
+beforeEach(() => vi.unstubAllGlobals());
 
-describe('RecallClient.ask', () => {
-  it('POSTs the question and returns the answer + receipts', async () => {
-    fetchMock.mockResolvedValueOnce(json(200, { answer: 'Ahmed said pricing is high.', receipts: [{ quote: 'pricing is too high', date: '2026-01-16', clientId: 'c1', noteId: 'n1' }] }));
-    const r = await new RecallClient('http://api.test').ask('what did Ahmed say?');
-    expect(r?.receipts).toHaveLength(1);
-    const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe('http://api.test/recall');
-    expect((init as RequestInit).method).toBe('POST');
-    expect((init as RequestInit).body).toBe(JSON.stringify({ question: 'what did Ahmed say?' }));
+describe('RecallClient.create', () => {
+  it('POSTs { clientId, statement } to /captures → held', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ capture: {} }), { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await new RecallClient('').create('c1', "Sara's budget is now 2.2M")).toBe('held');
+    const [url, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit];
+    expect(url).toBe('/captures');
+    expect(JSON.parse(String(init.body))).toEqual({ clientId: 'c1', statement: "Sara's budget is now 2.2M" });
   });
 
-  it('returns null on a non-200 or a thrown request', async () => {
-    fetchMock.mockResolvedValueOnce(json(400, {}));
-    expect(await new RecallClient().ask('x')).toBeNull();
-    fetchMock.mockRejectedValueOnce(new Error('offline'));
-    expect(await new RecallClient().ask('x')).toBeNull();
+  it('402 → paused; anything else or a thrown request → failed', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 402 })));
+    expect(await new RecallClient('').create('c1', 'x')).toBe('paused');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 500 })));
+    expect(await new RecallClient('').create('c1', 'x')).toBe('failed');
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+    expect(await new RecallClient('').create('c1', 'x')).toBe('failed');
+  });
+
+  it('negative: there is no free-text ask any more', () => {
+    expect((new RecallClient('') as unknown as { ask?: unknown }).ask).toBeUndefined();
   });
 });

@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
 
 /** [P39] A list row: title (2 lines max), one secondary line, one meta line, a trailing action. Tappable. */
-export function ListRow({ title, note, secondary, meta, trailing, onOpen, openLabel, testId }: {
+export function ListRow({ title, note, secondary, meta, trailing, below, onOpen, openLabel, testId }: {
   title: ReactNode;
   /** A small line under the title (e.g. why a search matched: "phone: 050…"). */
   note?: ReactNode;
   secondary?: ReactNode;
   meta?: ReactNode;
   trailing?: ReactNode;
+  /** A full-width block under the row (e.g. a compact receipt) — outside the tap target. */
+  below?: ReactNode;
   onOpen?: () => void;
   /** The tap target's accessible name (e.g. "Open Sara Khan"). */
   openLabel?: string;
@@ -27,6 +29,7 @@ export function ListRow({ title, note, secondary, meta, trailing, onOpen, openLa
         ? <button type="button" className="ui-row__main" aria-label={openLabel} onClick={onOpen}>{body}</button>
         : <div className="ui-row__main">{body}</div>}
       {trailing && <div className="ui-row__trailing">{trailing}</div>}
+      {below && <div className="ui-row__below">{below}</div>}
     </li>
   );
 }
