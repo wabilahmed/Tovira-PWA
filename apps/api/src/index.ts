@@ -533,7 +533,7 @@ async function main(): Promise<void> {
   const activation = createActivationService(config, appPool);
   const recallMetrics = new RecallMetrics();
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
-  const askCapture = createAskCaptureService(config, notes, clients, facts, extraction, corrections, extractionLogs);
+  const askCapture = createAskCaptureService(config, notes, clients, facts, extraction, corrections, extractionLogs, requirements);
   // [P39-7] Find replaces the free-text Ask (POST /recall is gone): fixed questions over stored data, no model.
   const find = new FindService({ clients, facts, notes, requirements, hero, restriction, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays });
   const corpus = new CorpusStatsService(clients, notes);

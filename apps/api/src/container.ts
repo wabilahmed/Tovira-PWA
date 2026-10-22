@@ -233,8 +233,9 @@ export function createAskCaptureService(
   extraction: ExtractionService,
   corrections?: CorrectionRepository,
   extractionLog?: ExtractionLogRepository,
+  requirements?: Pick<RequirementRepository, 'listByClient'>, // [P40-3] the budget card's previous value
 ): AskCaptureService {
-  return new AskCaptureService({ notes, clients, facts, embedder: createEmbedder(config), extraction, corrections, extractionLog });
+  return new AskCaptureService({ notes, clients, facts, embedder: createEmbedder(config), extraction, corrections, extractionLog, requirements });
 }
 
 export function createRecallService(

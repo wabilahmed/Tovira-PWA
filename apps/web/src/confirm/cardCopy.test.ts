@@ -58,4 +58,12 @@ describe('[P39-6] card copy, one function per type', () => {
     expect(fieldCopy('Sara', 'budget', 'aed 3M').question).toBe("Did Sara's budget change to aed 3M?");
     expect(fieldCopy('Sara', 'email', 'sara@example.com').question).not.toMatch(/AED/);
   });
+
+  // [P40-3 · owner] with the stored budget: "change from AED 2M to AED 2.2M"; without one, as before.
+  it('budget with its previous value', () => {
+    const c = fieldCopy('Sara Khan', 'budget', '2.2M', '2M');
+    expect(c.question).toBe("Did Sara Khan's budget change from AED 2M to AED 2.2M?");
+    expect(c.consequence).toBe('Yes updates their budget.');
+    expect(fieldCopy('Sara Khan', 'budget', '2.2M').question).toBe("Did Sara Khan's budget change to AED 2.2M?");
+  });
 });

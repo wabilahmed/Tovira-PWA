@@ -23,11 +23,14 @@ function midSentence(text: string): string {
   return first.length > 1 && first === first.toUpperCase() ? t : t.charAt(0).toLowerCase() + t.slice(1);
 }
 
-/** A held statement that sets a known field: "Did Sara Khan's budget change to AED 2.2M?" */
-export function fieldCopy(clientName: string, field: string, value: string): CardCopy {
-  const said = field === 'budget' || field === 'price' ? withAed(value) : value;
+/** A held statement that sets a known field: "Did Sara Khan's budget change to AED 2.2M?" — and, when the value it
+ *  would replace is stored, [P40-3 · owner] "Did Sara Khan's budget change from AED 2M to AED 2.2M?". */
+export function fieldCopy(clientName: string, field: string, value: string, previous?: string | null): CardCopy {
+  const money = field === 'budget' || field === 'price';
+  const said = money ? withAed(value) : value;
+  const was = previous ? (money ? withAed(previous) : previous) : null;
   return {
-    question: `Did ${clientName}'s ${field} change to ${said}?`,
+    question: was ? `Did ${clientName}'s ${field} change from ${was} to ${said}?` : `Did ${clientName}'s ${field} change to ${said}?`,
     consequence: `Yes updates their ${field}.`,
     yes: 'Yes, update it',
     no: 'No',

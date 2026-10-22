@@ -12,6 +12,8 @@ export interface PendingCapture {
   /** [P39-6] The field + value the statement sets, when it sets a known one ("budget", "2.2M"). */
   field?: string;
   value?: string;
+  /** [P40-3] For a budget: the stored budget it would change ("2M"), when there is one. */
+  previousValue?: string;
 }
 
 export class RecallClient {

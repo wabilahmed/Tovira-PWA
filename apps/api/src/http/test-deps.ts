@@ -255,7 +255,7 @@ export function buildInMemoryDeps(
   const pushDispatch = new PushDispatchService(pushSender, pushSubscriptions, notifications);
   const images = new InMemoryImageRepository();
   const recallSessions = new InMemoryRecallSessionRepository();
-  const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog });
+  const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog, requirements });
   const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching, restriction);
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
   // [SPEND-INSTRUMENT] The durable spend cap (mirrors prod): status-aware caps (trial 20 / paid 45),

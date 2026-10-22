@@ -192,7 +192,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
       node: (
         <AnswerCard
           key={`capture:${c.noteId}`}
-          copy={c.field && c.value ? fieldCopy(c.clientName, c.field, c.value) : noteCopy(c.clientName)}
+          copy={c.field && c.value ? fieldCopy(c.clientName, c.field, c.value, c.previousValue) : noteCopy(c.clientName)}
           source={<ReceiptThread refInfo={{ noteId: c.noteId, quote: c.statement, at: new Date(c.capturedAt).toISOString().slice(0, 10), sender: 'Your note' }} />}
           onYes={() => void resolveHeld(c.noteId, 'confirm')}
           onNo={() => void resolveHeld(c.noteId, 'reject')}

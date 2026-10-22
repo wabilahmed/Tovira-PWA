@@ -12,6 +12,8 @@ export interface RequirementSummary {
   listLine: string | null;
   /** Every budget stated, oldest first, consecutive repeats dropped: ["3M", "3.4M"]. */
   budgets: string[];
+  /** [P40-3] The budget the wants line shows ("3.4M"), or null. */
+  budget?: string | null;
 }
 
 const TYPES = ['penthouse', 'townhouse', 'villa', 'apartment', 'flat', 'duplex', 'studio', 'office', 'plot', 'land', 'shop', 'warehouse'];
@@ -98,7 +100,7 @@ export function summarizeRequirements(reqs: RequirementLike[]): RequirementSumma
   const primary = primaryRequirement(reqs);
   // The labelled budget history ("3M → 3.4M") still lists every budget stated, oldest first.
   const { budgets } = requirementFacets(reqs);
-  if (!primary) return { summary: null, listLine: null, budgets };
+  if (!primary) return { summary: null, listLine: null, budgets, budget: null };
   const ordered = reqs.slice().sort((a, b) => (a.statedOn ?? '').localeCompare(b.statedOn ?? '') || a.createdAt - b.createdAt);
   const names = (r: RequirementLike) => { const f = requirementFacets([r]); return Boolean(f.beds || f.type || f.area); };
   // [P40-5] With exactly ONE property need, a later budget-only message can only be that need's budget (the 20 Oct
@@ -116,5 +118,5 @@ export function summarizeRequirements(reqs: RequirementLike[]): RequirementSumma
   const said = budget ? (qualifier === 'around' ? `~AED ${budget}` : qualifier === 'max' ? `up to AED ${budget}` : `AED ${budget}`) : null;
   const summaryParts = [what, area, said ? (qualifier === 'max' ? said : `budget ${said}`) : null, deadline ? `decide by ${deadline}` : null, moreLabel].filter((x): x is string => !!x);
   const listParts = [what, area, said, moreLabel].filter((x): x is string => !!x);
-  return { summary: summaryParts.length > 1 || (summaryParts.length === 1 && !moreLabel) ? summaryParts.join(' · ') : null, listLine: listParts.length > 1 || (listParts.length === 1 && !moreLabel) ? listParts.join(' · ') : null, budgets };
+  return { summary: summaryParts.length > 1 || (summaryParts.length === 1 && !moreLabel) ? summaryParts.join(' · ') : null, listLine: listParts.length > 1 || (listParts.length === 1 && !moreLabel) ? listParts.join(' · ') : null, budgets, budget };
 }

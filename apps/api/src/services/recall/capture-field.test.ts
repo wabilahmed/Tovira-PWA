@@ -45,3 +45,21 @@ describe('[P39-6] the pending queue carries field + value', () => {
     expect(byStatement.get('Remember that Sara loves the sea view')).not.toHaveProperty('field');
   });
 });
+
+describe('[P40-3 · owner] the budget card shows the stored budget it would change', () => {
+  it('a stored budget → previousValue; none → no previousValue', async () => {
+    const { InMemoryRequirementRepository } = await import('../../adapters/requirements/in-memory-requirement-repository.js');
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const requirements = new InMemoryRequirementRepository();
+    const capture = new AskCaptureService({ notes, clients, facts: new InMemoryFactsRepository(), embedder: new StubEmbedder(8), extraction: { extractNote: async () => undefined } as never, requirements, now: () => 1_000_000, ttlMs: 14 * 86_400_000 });
+    const sara = await clients.create('u', 'Sara Khan');
+    const omar = await clients.create('u', 'Omar Ali');
+    await requirements.saveForNote('u', 'n1', sara.id, [{ text: '4BR villa in Mirdif, budget 2M', requirementRaw: 'a 4BR villa in Mirdif, budget 2M', statedOn: '2026-10-01', confidence: 'high', embedding: null }]);
+    await capture.capture('u', sara.id, "Sara's budget is now 2.2M", '2026-10-21');
+    await capture.capture('u', omar.id, "Omar's budget is now 1.5M", '2026-10-21');
+    const byClient = new Map((await capture.listPending('u')).map((q) => [q.clientName, q]));
+    expect(byClient.get('Sara Khan')).toMatchObject({ field: 'budget', value: '2.2M', previousValue: '2M' });
+    expect(byClient.get('Omar Ali')).not.toHaveProperty('previousValue');
+  });
+});
