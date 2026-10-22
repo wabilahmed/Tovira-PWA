@@ -52,19 +52,19 @@ export function MoveSuggestions({ api, clients }: { api: MoveSuggestApi; clients
     <section aria-label="Misfiled notes" className="tov-move-suggestions">
       {items.map((s) => (
         <div key={s.noteId} data-testid="move-suggestion" style={box}>
-          <p style={{ margin: '0 0 0.5rem' }}>
+          <p style={{ margin: '0 0 var(--space-2)' }}>
             Filed under <strong>{nameOf(s.fromClientId)}</strong>, but this looks like{' '}
             <strong>{s.toClientName ?? nameOf(s.toClientId)}</strong>. Move it?
             {s.reason && <small className="tov-stamp" style={{ display: 'block', color: 'var(--text-secondary)' }}>{s.reason}</small>}
           </p>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <button onClick={() => void move(s)} disabled={!s.toClientId}>Move</button>
             <button onClick={() => drop(s.noteId)}>Keep</button>
           </div>
         </div>
       ))}
       {toast && (
-        <div role="status" data-testid="move-toast" style={{ ...box, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+        <div role="status" data-testid="move-toast" style={{ ...box, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--space-3)' }}>
           <span>Moved to <strong>{toast.toClientName}</strong>.</span>
           <button onClick={() => void undo(toast)}>Undo</button>
         </div>
@@ -73,4 +73,4 @@ export function MoveSuggestions({ api, clients }: { api: MoveSuggestApi; clients
   );
 }
 
-const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.75rem 0' };
+const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: 'var(--space-3) var(--space-4)', margin: 'var(--space-3) 0' };

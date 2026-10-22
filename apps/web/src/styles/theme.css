@@ -23,7 +23,7 @@
 }
 .tov-screen {
   flex: 1;
-  padding: 20px 18px 40px;
+  padding: var(--space-5) var(--space-4) var(--space-7);
   font-family: var(--font-sans);
 }
 /* Wrapper the ScreenTransition animates (opacity/rise on section change). */
@@ -38,13 +38,13 @@
   background: var(--surface-base);
   overflow-y: auto;
   will-change: transform;
-  box-shadow: -14px 0 44px -14px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--elev-side);
 }
 .tov-getstarted {
   position: sticky;
   bottom: 68px;
   z-index: 3;
-  margin: 8px 14px;
+  margin: var(--space-2) var(--space-4);
 }
 
 .tov-tabbar {
@@ -52,20 +52,20 @@
   bottom: 0;
   z-index: 4;
   display: flex;
-  gap: 1px;
+  gap: 0;
   background: var(--surface-base);
   border-top: 1px solid var(--hairline);
 }
 .tov-tab {
   flex: 1;
   min-height: 56px;
-  padding: 8px 4px;
+  padding: var(--space-2) var(--space-1);
   border: none;
   border-top: 2px solid transparent;
   border-radius: 0;
   background: none;
   color: var(--text-tertiary);
-  font-size: 0.72rem;
+  font-size: var(--text-caption-size);
   line-height: 1.15;
 }
 .tov-tab:hover:not(:disabled) { border-color: transparent; color: var(--text-secondary); }
@@ -89,13 +89,13 @@
 .tov-navbadge {
   display: inline-block;
   min-width: 1.1em;
-  margin-inline-start: 0.4em;
-  padding: 0 0.35em;
+  margin-inline-start: var(--space-2);
+  padding: 0 var(--space-1);
   border-radius: 999px;
   background: var(--brass);
   color: var(--surface-base);
   font-family: var(--font-mono);
-  font-size: 0.66rem;
+  font-size: var(--text-label-size);
   line-height: 1.5;
   text-align: center;
   vertical-align: middle;
@@ -109,7 +109,7 @@
   position: fixed;
   inset: 0;
   z-index: 20;
-  background: rgba(0, 0, 0, 0.42);
+  background: var(--color-scrim);
   opacity: 0; /* driven live 0→1 with the sheet's travel */
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -123,12 +123,12 @@
   margin-inline: auto;
   max-width: 460px;
   display: grid;
-  gap: 1px;
-  padding: 8px 10px calc(12px + env(safe-area-inset-bottom));
+  gap: 0;
+  padding: var(--space-2) var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom));
   background: var(--surface-raised);
   border-top: 1px solid var(--hairline);
   border-radius: 18px 18px 0 0;
-  box-shadow: 0 -14px 44px -14px rgba(0, 0, 0, 0.5); /* bigger surface reads thicker */
+  box-shadow: var(--elev-sheet); /* bigger surface reads thicker */
   will-change: transform;
   touch-action: none; /* the sheet owns the vertical drag */
   outline: none;
@@ -138,7 +138,7 @@
   height: 5px;
   border-radius: 999px;
   background: var(--hairline);
-  margin: 2px auto 8px;
+  margin: var(--space-1) auto var(--space-2);
 }
 .tov-sheet__item {
   min-height: 44px;
@@ -157,25 +157,25 @@
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 28px 16px;
+  padding: var(--space-6) var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: var(--space-5);
   border-inline-end: 1px solid var(--hairline);
 }
 .tov-sidebar__brand {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 1.35rem;
+  font-size: var(--text-section-size);
   letter-spacing: -0.02em;
-  padding-inline: 12px;
+  padding-inline: var(--space-3);
 }
 /* Wordmark: the T and v carry the brass accent (matches the marketing header). */
 .tov-wordmark__accent { color: var(--brass); }
-.tov-sidebar__nav { display: flex; flex-direction: column; gap: 2px; }
+.tov-sidebar__nav { display: flex; flex-direction: column; gap: var(--space-1); }
 .tov-sidebar__item {
   min-height: 40px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
   text-align: start;
   border: none;
   border-inline-start: 2px solid transparent;
@@ -206,40 +206,40 @@
   .tov-tabbar { background: var(--surface-base); backdrop-filter: none; }
   .tov-sheet { background: var(--surface-raised); backdrop-filter: none; }
 }
-.tov-sidebar__footer { margin-top: auto; padding-inline: 12px; color: var(--text-tertiary); font-size: 0.8rem; }
-.tov-content { padding: 32px 44px 56px; max-width: 1100px; }
+.tov-sidebar__footer { margin-top: auto; padding-inline: var(--space-3); color: var(--text-tertiary); font-size: var(--text-caption-size); }
+.tov-content { padding: var(--space-6) var(--space-7) var(--space-7); max-width: 1100px; }
 
 /* Desktop split (§8): a list rail + a detail pane; rows keep mobile grammar. */
-.tov-split { display: grid; grid-template-columns: 320px 1fr; gap: 32px; align-items: start; }
-.tov-split__detail { border-inline-start: 1px solid var(--hairline); padding-inline-start: 32px; min-height: 60vh; }
+.tov-split { display: grid; grid-template-columns: 320px 1fr; gap: var(--space-6); align-items: start; }
+.tov-split__detail { border-inline-start: 1px solid var(--hairline); padding-inline-start: var(--space-6); min-height: 60vh; }
 
 /* Screen header shared across the re-laid-out screens. */
-.tov-screenhead { margin: 0 0 1.25rem; }
+.tov-screenhead { margin: 0 0 var(--space-5); }
 .tov-screenhead h2, .tov-screenhead h1 { margin: 0; }
-.tov-screenmeta { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+.tov-screenmeta { font-family: var(--font-mono); font-size: var(--text-label-size); color: var(--text-secondary); margin-top: var(--space-1); }
 
 /* ── Clients screen header: the add / scan / search block ── */
 
-.clients-title { margin: 0.9rem 0 0.2rem; }
+.clients-title { margin: var(--space-4) 0 var(--space-1); }
 
 /* Add a client: a comfortable input + a brass action, same height. */
-.clients-add { display: flex; gap: 0.6rem; margin: 1rem 0 0.7rem; }
-.clients-add input { flex: 1; min-height: 48px; font-size: 1rem; }
-.clients-add button { min-height: 48px; padding-inline: 1.35rem; white-space: nowrap; }
+.clients-add { display: flex; gap: var(--space-2); margin: var(--space-4) 0 var(--space-3); }
+.clients-add input { flex: 1; min-height: 48px; font-size: var(--text-body-size); }
+.clients-add button { min-height: 48px; padding-inline: var(--space-5); white-space: nowrap; }
 
 /* Scan-a-card: a real secondary button, not a raw file input. */
 .tov-filebtn {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-height: 44px;
-  padding: 0 18px;
+  padding: 0 var(--space-4);
   border: 1px solid var(--hairline);
   border-radius: var(--radius-card);
   background: var(--surface-raised);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 0.92rem;
+  font-size: var(--text-secondary-size);
   transition: border-color 150ms ease-out, color 150ms ease-out, background 150ms ease-out, transform 80ms ease-out;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -252,14 +252,14 @@
   width: 1px;
   height: 1px;
   padding: 0;
-  margin: -1px;
+  margin: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
 }
 
-.clients-search { width: 100%; min-height: 48px; font-size: 1rem; margin: 0.2rem 0 1.4rem; }
+.clients-search { width: 100%; min-height: 48px; font-size: var(--text-body-size); margin: var(--space-1) 0 var(--space-5); }
 
 /* Bilingual receipt (brand §3 bidi): Arabic body keeps its own line-height. */
 .tov-receipt__rtl { direction: rtl; font-family: var(--font-arabic); line-height: var(--leading-arabic); }
@@ -280,14 +280,14 @@
   border: 1px solid var(--amber-line);
   background: var(--amber-surface);
   border-radius: 8px;
-  padding: 0.7rem 0.85rem;
-  margin: 0.5rem 0;
+  padding: var(--space-3) var(--space-3);
+  margin: var(--space-2) 0;
 }
 .tov-confirm-chit__head {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.3rem;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
 }
 .tov-confirm-chit__tick {
   display: inline-flex;
@@ -296,7 +296,7 @@
   width: 1.15rem;
   height: 1.15rem;
   border-radius: 50%;
-  font-size: 0.72rem;
+  font-size: var(--text-caption-size);
   color: var(--brass-ink);
   background: var(--amber);
 }
@@ -305,11 +305,11 @@
 }
 .tov-confirm-chit__label {
   color: var(--amber);
-  font-size: 0.68rem;
+  font-size: var(--text-caption-size);
   letter-spacing: 0.08em;
 }
 .tov-confirm-chit__text {
-  margin: 0 0 0.55rem;
+  margin: 0 0 var(--space-2);
   line-height: 1.5;
 }
 .tov-confirm-chit__text[dir='rtl'] {
@@ -322,30 +322,30 @@
 }
 .tov-confirm-chit__actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 .tov-chit-action {
   background: transparent;
   border: 1px solid var(--brass);
   color: var(--brass);
   border-radius: 6px;
-  padding: 0.32rem 0.8rem;
-  font-size: 0.85rem;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-secondary-size);
   cursor: pointer;
 }
 .tov-chit-action:hover {
   background: var(--brass-surface);
 }
 .tov-confirm-queue {
-  margin-top: 1rem;
+  margin-top: var(--space-4);
 }
 /* [OUTCOME-3] The won/lost/still-open control. Mobile-first: buttons wrap and stay tappable on a
    narrow screen; reuses the .tov-chit-action outline idiom. */
 .tov-outcome-control {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.4rem;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 .tov-outcome-control .tov-chit-action[aria-pressed='true'] {
   background: var(--brass-surface);
@@ -358,61 +358,61 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.5rem 1rem;
-  padding: 0.6rem 0.85rem;
-  margin: 0 0 0.85rem;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
   border: 1px solid var(--rule, var(--amber-line));
   border-radius: 6px;
   background: var(--surface-raised);
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: var(--text-secondary-size);
 }
-.tov-verify-banner__actions { margin-inline-start: auto; display: inline-flex; gap: 0.85rem; }
-.tov-verify-banner__status { flex-basis: 100%; margin: 0.2rem 0 0; font-size: 0.85rem; color: var(--text-secondary); }
+.tov-verify-banner__actions { margin-inline-start: auto; display: inline-flex; gap: var(--space-3); }
+.tov-verify-banner__status { flex-basis: 100%; margin: var(--space-1) 0 0; font-size: var(--text-secondary-size); color: var(--text-secondary); }
 /* Install banner (P0-5): shows only when Chrome deems the app installable. */
 .tov-install {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
-  padding: 0.6rem 0.85rem;
-  margin: 0 0 0.85rem;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
   border: 1px solid var(--brass);
   border-radius: 6px;
   background: var(--brass-surface);
   color: var(--text-primary);
 }
-.tov-install__copy { margin: 0; font-size: 0.9rem; flex: 1 1 16rem; }
+.tov-install__copy { margin: 0; font-size: var(--text-secondary-size); flex: 1 1 16rem; }
 .tov-install__btn { margin-inline-start: auto; }
-.tov-setting-line { color: var(--text-secondary); font-size: 0.9rem; }
+.tov-setting-line { color: var(--text-secondary); font-size: var(--text-secondary-size); }
 .tov-verified { color: var(--brass); }
 .tov-unverified { color: var(--amber); }
 
 /* Inventory (feat(INVENTORY-1)). Ledger-first; disabled items are muted (AA), never
    claret and never a warning — the state is told by the swapped action, not by dimming. */
-.tov-inv-add { display: flex; flex-direction: column; gap: 0.5rem; margin: 0 0 1.25rem; }
+.tov-inv-add { display: flex; flex-direction: column; gap: var(--space-2); margin: 0 0 var(--space-5); }
 .tov-inv-add input, .tov-inv-add textarea,
 .tov-inv-item__edit input, .tov-inv-item__edit textarea {
-  width: 100%; padding: 0.5rem 0.6rem; border: 1px solid var(--hairline);
+  width: 100%; padding: var(--space-2) var(--space-2); border: 1px solid var(--hairline);
   border-radius: var(--radius-input, 8px); background: var(--surface-base); color: var(--text-primary);
   font: inherit;
 }
-.tov-inv-add__row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-.tov-filter { display: flex; gap: 1.1rem; margin: 0 0 0.9rem; }
+.tov-inv-add__row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.tov-filter { display: flex; gap: var(--space-4); margin: 0 0 var(--space-4); }
 .tov-filter .tov-link--on { color: var(--text-primary); border-bottom: 2px solid var(--brass); }
-.tov-list-plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
-.tov-inv-item__head { display: flex; align-items: baseline; gap: 0.6rem; }
+.tov-list-plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.tov-inv-item__head { display: flex; align-items: baseline; gap: var(--space-2); }
 .tov-inv-item__title { font-weight: 600; flex: 1 1 auto; }
 .tov-inv-item__qty { margin-inline-start: auto; color: var(--text-secondary); }
-.tov-inv-item__edit { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.4rem; }
-.tov-inv-item__actions { margin-top: 0.2rem; }
-.tov-inv-warn { margin: 0 0 0.7rem; font-size: 0.9rem; }
-.tov-client-inv { margin: 1.1rem 0; }
-.tov-inv-history { margin-top: 0.6rem; }
-.tov-inv-shared { display: flex; align-items: baseline; gap: 0.6rem; }
+.tov-inv-item__edit { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.tov-inv-item__actions { margin-top: var(--space-1); }
+.tov-inv-warn { margin: 0 0 var(--space-3); font-size: var(--text-secondary-size); }
+.tov-client-inv { margin: var(--space-4) 0; }
+.tov-inv-history { margin-top: var(--space-2); }
+.tov-inv-shared { display: flex; align-items: baseline; gap: var(--space-2); }
 .tov-inv-shared__title { flex: 1 1 auto; }
 .tov-inv-shared__date { color: var(--text-secondary); }
-.tov-inv-shared__set { display: inline-flex; gap: 0.6rem; }
+.tov-inv-shared__set { display: inline-flex; gap: var(--space-2); }
 
 /* ---- [LEAD-STATUS] the rep's manual pipeline label: filter chips, row pill, status sheet ---------
  * Colours come only from brand tokens (no hardcoded hex): warm → brass, cold → amber, done → green,
@@ -428,28 +428,28 @@
 .lead-pill, .lead-chip, .lead-sheet__option { --tone: var(--text-tertiary); --tone-line: var(--hairline); --tone-surface: transparent; }
 
 /* Filter chips — horizontally scrollable on a 390px phone, each with its count. */
-.lead-chips { display: flex; gap: 0.4rem; margin: 0 0 0.9rem; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+.lead-chips { display: flex; gap: var(--space-2); margin: 0 0 var(--space-4); overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: var(--space-1); }
 .lead-chip {
-  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.35rem;
-  padding: 0.3rem 0.65rem; border: 1px solid var(--tone-line); border-radius: 999px;
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: var(--space-1) var(--space-3); border: 1px solid var(--tone-line); border-radius: 999px;
   background: var(--surface-raised); color: var(--text-secondary);
-  font: inherit; font-size: 0.82rem; cursor: pointer; min-height: 32px;
+  font: inherit; font-size: var(--text-secondary-size); cursor: pointer; min-height: 32px;
   transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 .lead-chip:hover:not([aria-pressed='true']) { border-color: var(--tone); color: var(--text-primary); }
 /* Active chip: filled with its own tone surface + a tone border, label in primary text. */
 .lead-chip[aria-pressed='true'] { background: var(--tone-surface); border-color: var(--tone); color: var(--text-primary); font-weight: 600; }
 .lead-chip__count {
-  font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-tertiary);
-  background: var(--surface-elevated); border-radius: 999px; padding: 0 0.4rem; min-width: 1.1rem; text-align: center;
+  font-family: var(--font-mono); font-size: var(--text-label-size); color: var(--text-tertiary);
+  background: var(--surface-elevated); border-radius: 999px; padding: 0 var(--space-2); min-width: 1.1rem; text-align: center;
 }
 .lead-chip[aria-pressed='true'] .lead-chip__count { color: var(--tone); background: var(--surface-raised); }
 
 /* Row / book pill. */
 .lead-pill {
-  display: inline-flex; align-items: center; padding: 0.12rem 0.5rem; border-radius: 999px;
+  display: inline-flex; align-items: center; padding: 0 var(--space-2); border-radius: 999px;
   border: 1px solid var(--tone-line); background: var(--tone-surface); color: var(--tone);
-  font: inherit; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em; cursor: pointer;
+  font: inherit; font-size: var(--text-caption-size); font-weight: 600; letter-spacing: 0.01em; cursor: pointer;
   line-height: 1.4; min-height: 0;
 }
 .lead-pill--unsorted { color: var(--text-tertiary); }
@@ -457,17 +457,17 @@
 .lead-pill:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 
 /* The status sheet — four options, one tap + one choice. */
-.lead-sheet { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.2rem 0 0.4rem; }
-.lead-sheet__title { margin: 0 0 0.5rem; color: var(--text-secondary); font-size: 0.92rem; }
+.lead-sheet { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-1) 0 var(--space-2); }
+.lead-sheet__title { margin: 0 0 var(--space-2); color: var(--text-secondary); font-size: var(--text-secondary-size); }
 .lead-sheet__option {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 0.65rem;
-  width: 100%; text-align: left; padding: 0.7rem 0.4rem; border: none; border-radius: var(--radius-card);
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: var(--space-3);
+  width: 100%; text-align: left; padding: var(--space-3) var(--space-2); border: none; border-radius: var(--radius-card);
   background: none; color: var(--text-primary); font: inherit; cursor: pointer; min-height: 44px;
 }
 .lead-sheet__option:hover { background: var(--tone-surface); }
 .lead-sheet__option[aria-current='true'] { background: var(--tone-surface); }
 .lead-sheet__label { font-weight: 600; }
-.lead-sheet__hint { grid-column: 2; color: var(--text-tertiary); font-size: 0.78rem; }
+.lead-sheet__hint { grid-column: 2; color: var(--text-tertiary); font-size: var(--text-caption-size); }
 .lead-sheet__check { color: var(--tone); font-weight: 700; }
 .lead-dot { width: 0.7rem; height: 0.7rem; border-radius: 999px; background: var(--tone); border: 1px solid var(--tone-line); }
 /* [UI-04] Distinct per-status dot colours from the brand tokens (AA in both themes). Set explicitly so
@@ -479,23 +479,23 @@
 
 /* The lead-status toast (rollback error / drop-out Undo) reuses the move-toast idiom. */
 .lead-toast {
-  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
-  margin: 0 0 0.9rem; padding: 0.6rem 0.8rem; border: 1px solid var(--hairline);
-  border-radius: var(--radius-card); background: var(--surface-elevated); color: var(--text-primary); font-size: 0.9rem;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border: 1px solid var(--hairline);
+  border-radius: var(--radius-card); background: var(--surface-elevated); color: var(--text-primary); font-size: var(--text-secondary-size);
 }
-.lead-toast button { background: none; border: none; color: var(--brass); font: inherit; font-weight: 600; cursor: pointer; padding: 0.2rem 0.3rem; }
+.lead-toast button { background: none; border: none; color: var(--brass); font: inherit; font-weight: 600; cursor: pointer; padding: var(--space-1) var(--space-1); }
 
 /* [CLIENT-SEARCH] the search box + clear affordance, and the matched-text highlight. */
 .clients-search-wrap { position: relative; display: block; }
-.clients-search-wrap .clients-search { width: 100%; box-sizing: border-box; padding-inline-end: 2.2rem; }
+.clients-search-wrap .clients-search { width: 100%; box-sizing: border-box; padding-inline-end: var(--space-6); }
 .clients-search__clear {
   position: absolute; inset-inline-end: 0.3rem; top: 50%; transform: translateY(-50%);
   width: 1.8rem; height: 1.8rem; border: none; background: none; cursor: pointer;
-  color: var(--text-tertiary); font-size: 1.2rem; line-height: 1; border-radius: 999px;
+  color: var(--text-tertiary); font-size: var(--text-section-size); line-height: 1; border-radius: 999px;
 }
 .clients-search__clear:hover { color: var(--text-primary); background: var(--surface-elevated); }
 /* The matched slice — a quiet brass wash, legible in both themes (never a flat yellow). */
-.lead-mark { background: var(--brass-surface); color: inherit; border-radius: 2px; padding: 0 0.05em; }
+.lead-mark { background: var(--brass-surface); color: inherit; border-radius: 2px; padding: 0 0; }
 
 /* [UI-01] Client-picker <select>s must never grow to the longest client name and push siblings
    off-screen at 390px. max-width caps them at the container; min-width:0 lets them shrink inside a
@@ -512,18 +512,18 @@
 
 /* [P35-3] Receipts as WhatsApp-style chat (ReceiptThread). Tokens only, so light + dark both follow the theme:
    the rep's bubbles on the tinted accent (--brass-surface), everyone else's on the raised surface. */
-.tov-thread { margin-top: 0.4rem; }
-.tov-thread__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.tov-thread { margin-top: var(--space-2); }
+.tov-thread__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
 .tov-thread__item { display: grid; }
-.tov-thread__more { justify-self: start; margin-top: 4px; font-size: 0.82rem; }
-.tov-thread__empty { margin: 4px 0 0; color: var(--text-secondary); font-size: 0.82rem; }
+.tov-thread__more { justify-self: start; margin-top: var(--space-1); font-size: var(--text-secondary-size); }
+.tov-thread__empty { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-secondary-size); }
 .tov-datechip {
-  justify-self: center; margin: 6px 0 4px; padding: 2px 10px; border-radius: 999px;
-  background: var(--surface-elevated); color: var(--text-secondary); font-size: 0.72rem;
+  justify-self: center; margin: var(--space-2) 0 var(--space-1); padding: var(--space-1) var(--space-3); border-radius: 999px;
+  background: var(--surface-elevated); color: var(--text-secondary); font-size: var(--text-caption-size);
 }
 .tov-bubble {
-  position: relative; max-width: 82%; padding: 5px 9px 16px; border-radius: 10px;
-  color: var(--text-primary); font-size: 0.88rem; line-height: 1.35; overflow-wrap: anywhere;
+  position: relative; max-width: 82%; padding: var(--space-1) var(--space-2) var(--space-4); border-radius: 10px;
+  color: var(--text-primary); font-size: var(--text-secondary-size); line-height: 1.35; overflow-wrap: anywhere;
 }
 .tov-bubble--right { justify-self: end; }
 .tov-bubble--left { justify-self: start; }
@@ -533,99 +533,99 @@
 .tov-bubble--tail.tov-bubble--left { border-top-left-radius: 2px; }
 .tov-bubble--source { outline: 2px solid var(--brass); outline-offset: 1px; }
 .tov-bubble--context { opacity: 0.72; }
-.tov-bubble__name { font-size: 0.72rem; font-weight: 600; color: var(--brass-strong); margin-bottom: 1px; }
-.tov-bubble__voice { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 2px; }
+.tov-bubble__name { font-size: var(--text-caption-size); font-weight: 600; color: var(--brass-strong); margin-bottom: 0; }
+.tov-bubble__voice { display: flex; align-items: center; gap: var(--space-1); font-size: var(--text-caption-size); color: var(--text-secondary); margin-bottom: var(--space-1); }
 .tov-bubble__text { white-space: pre-wrap; }
 .tov-bubble__text--clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.tov-bubble__readmore { all: unset; cursor: pointer; color: var(--brass-strong); font-size: 0.78rem; }
-.tov-bubble__time { position: absolute; right: 8px; bottom: 3px; font-size: 0.68rem; color: var(--text-secondary); font-family: var(--font-mono); }
+.tov-bubble__readmore { all: unset; cursor: pointer; color: var(--brass-strong); font-size: var(--text-caption-size); }
+.tov-bubble__time { position: absolute; right: 8px; bottom: 3px; font-size: var(--text-label-size); color: var(--text-secondary); font-family: var(--font-mono); }
 
 /* [P36-5] The client page: a fixed header + accordion sections. Token-only colours (both themes), works at 390px. */
 .tov-clientpage { overflow-wrap: anywhere; }
-.tov-clienthead { position: sticky; top: 0; z-index: 2; background: var(--surface-base); padding: 0.5rem 0 0.75rem; border-bottom: 1px solid var(--hairline); display: grid; gap: 0.4rem; }
-.tov-clienthead__row { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
-.tov-clienthead__name { margin: 0; font-size: 1.5rem; line-height: 1.2; min-width: 0; }
-.tov-clienthead__line { margin: 0; color: var(--text-secondary); font-size: 0.92rem; }
-.tov-clienthead__contact { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.tov-clienthead { position: sticky; top: 0; z-index: 2; background: var(--surface-base); padding: var(--space-2) 0 var(--space-3); border-bottom: 1px solid var(--hairline); display: grid; gap: var(--space-2); }
+.tov-clienthead__row { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.tov-clienthead__name { margin: 0; font-size: var(--text-section-size); line-height: 1.2; min-width: 0; }
+.tov-clienthead__line { margin: 0; color: var(--text-secondary); font-size: var(--text-secondary-size); }
+.tov-clienthead__contact { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .tov-clienthead__add { justify-self: start; }
-.tov-chip-link { display: inline-flex; align-items: center; padding: 0.2rem 0.65rem; border: 1px solid var(--hairline); border-radius: 999px; color: var(--brass); text-decoration: none; font-size: 0.85rem; }
+.tov-chip-link { display: inline-flex; align-items: center; padding: var(--space-1) var(--space-3); border: 1px solid var(--hairline); border-radius: 999px; color: var(--brass); text-decoration: none; font-size: var(--text-secondary-size); }
 .tov-chip-link:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .lead-pill--unset { color: var(--text-secondary); border-style: dashed; }
-.tov-addmenu { display: grid; gap: 0.4rem; }
+.tov-addmenu { display: grid; gap: var(--space-2); }
 .tov-addmenu button { text-align: left; }
-.tov-capture { display: grid; gap: 0.5rem; }
+.tov-capture { display: grid; gap: var(--space-2); }
 .tov-muted { color: var(--text-secondary); margin: 0; }
 .tov-overdue { color: var(--claret); }
 
 .tov-acc { border-bottom: 1px solid var(--hairline); }
-.tov-acc__h { margin: 0; font-size: 1rem; }
+.tov-acc__h { margin: 0; font-size: var(--text-body-size); }
 .tov-acc__btn {
   width: 100%; display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'title chev' 'summary chev';
-  text-align: left; gap: 0.1rem 0.75rem; padding: 0.85rem 0.25rem; background: none; border: none; border-radius: 0;
+  text-align: left; gap: 0 var(--space-3); padding: var(--space-3) var(--space-1); background: none; border: none; border-radius: 0;
   color: var(--text-primary); font: inherit; cursor: pointer; min-height: 44px;
 }
 .tov-acc__btn:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; border-radius: var(--radius-card); }
 .tov-acc__title { grid-area: title; font-weight: 600; }
-.tov-acc__summary { grid-area: summary; color: var(--text-secondary); font-size: 0.88rem; font-weight: 400; }
+.tov-acc__summary { grid-area: summary; color: var(--text-secondary); font-size: var(--text-secondary-size); font-weight: 400; }
 .tov-acc__chev { grid-area: chev; align-self: center; color: var(--text-tertiary); }
-.tov-acc__panel { padding: 0 0.25rem 1rem; }
+.tov-acc__panel { padding: 0 var(--space-1) var(--space-4); }
 
 .tov-convo { border-top: 1px solid var(--hairline); }
 .tov-convo:first-child { border-top: none; }
-.tov-convo__btn { width: 100%; text-align: left; background: none; border: none; padding: 0.6rem 0; color: var(--text-primary); font: inherit; cursor: pointer; display: grid; gap: 0.1rem; }
+.tov-convo__btn { width: 100%; text-align: left; background: none; border: none; padding: var(--space-2) 0; color: var(--text-primary); font: inherit; cursor: pointer; display: grid; gap: 0; }
 .tov-convo__btn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .tov-convo__state { color: var(--text-secondary); }
-.tov-convo__body { padding: 0 0 0.75rem; display: grid; gap: 0.5rem; }
+.tov-convo__body { padding: 0 0 var(--space-3); display: grid; gap: var(--space-2); }
 .tov-thread__list--scroll { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; }
 
 /* [P36-7] The row's status menu and the sheet's suggestion. */
-.tov-rowmenu { background: none; border: none; color: var(--text-secondary); font-size: 1.2rem; line-height: 1; padding: 0.4rem 0.5rem; min-height: 44px; min-width: 44px; cursor: pointer; border-radius: var(--radius-card); }
+.tov-rowmenu { background: none; border: none; color: var(--text-secondary); font-size: var(--text-section-size); line-height: 1; padding: var(--space-2) var(--space-2); min-height: 44px; min-width: 44px; cursor: pointer; border-radius: var(--radius-card); }
 .tov-rowmenu:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
-.lead-sheet__suggestion { display: grid; gap: 0.25rem; padding: 0.6rem 0.7rem; margin: 0 0 0.5rem; border: 1px dashed var(--hairline); border-radius: var(--radius-card); color: var(--text-secondary); font-size: 0.9rem; }
+.lead-sheet__suggestion { display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-3); margin: 0 0 var(--space-2); border: 1px dashed var(--hairline); border-radius: var(--radius-card); color: var(--text-secondary); font-size: var(--text-secondary-size); }
 .lead-sheet__suggestion .tov-link { justify-self: start; }
 
 /* [P36-6] Clients list rows: a 2-line name clamp, the wants line, the activity line; the sort control. */
 .tov-row__name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 600; }
-.tov-row__wants { color: var(--text-primary); font-size: 0.9rem; margin-top: 0.1rem; }
-.tov-row__activity { color: var(--text-secondary); font-size: 0.82rem; }
-.clients-sort { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.6rem; color: var(--text-secondary); font-size: 0.88rem; }
+.tov-row__wants { color: var(--text-primary); font-size: var(--text-secondary-size); margin-top: 0; }
+.tov-row__activity { color: var(--text-secondary); font-size: var(--text-secondary-size); }
+.clients-sort { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); color: var(--text-secondary); font-size: var(--text-secondary-size); }
 .clients-sort select { max-width: 60vw; }
 
 /* [P37] The required tour. Token colours (both themes); phone-first, a centred card on a laptop; the spotlit
    element stays visible through a ring whose shadow dims everything else. No motion unless the rep allows it. */
 .tov-tour { position: fixed; inset: 0; z-index: 2000; }
-.tov-tour__block { position: fixed; inset: 0; background: color-mix(in srgb, var(--surface-base) 20%, rgb(0 0 0 / 0.55)); }
-.tov-tour__spot { position: fixed; border-radius: var(--radius-card); outline: 2px solid var(--brass); box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55); pointer-events: none; }
+.tov-tour__block { position: fixed; inset: 0; background: color-mix(in srgb, var(--surface-base) 20%, var(--color-scrim-strong)); }
+.tov-tour__spot { position: fixed; border-radius: var(--radius-card); outline: 2px solid var(--brass); box-shadow: 0 0 0 9999px var(--color-scrim-strong); pointer-events: none; }
 .tov-tour:has(.tov-tour__spot) .tov-tour__block { background: transparent; }
 .tov-tour__card {
   position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
   width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto;
   background: var(--surface-raised); color: var(--text-primary); border: 1px solid var(--hairline);
-  border-radius: var(--radius-card); padding: 1rem 1.1rem; box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
-  display: grid; gap: 0.5rem;
+  border-radius: var(--radius-card); padding: var(--space-4) var(--space-4); box-shadow: var(--elev-3);
+  display: grid; gap: var(--space-2);
 }
 /* The spotlit element is low on the screen (a tab) → the card moves to the top so it never covers it. */
 .tov-tour__card--top { top: max(16px, env(safe-area-inset-top)); bottom: auto; }
 @media (min-width: 760px) { .tov-tour__card:not(.tov-tour__card--with-spot) { top: 50%; bottom: auto; transform: translate(-50%, -50%); } }
-.tov-tour__count { margin: 0; color: var(--text-secondary); font-size: 0.8rem; letter-spacing: 0.02em; }
-.tov-tour__title { margin: 0; font-size: 1.2rem; }
+.tov-tour__count { margin: 0; color: var(--text-secondary); font-size: var(--text-caption-size); letter-spacing: 0.02em; }
+.tov-tour__title { margin: 0; font-size: var(--text-section-size); }
 .tov-tour__title:focus { outline: none; } /* focus lands here so readers start at the title; the ring is for controls */
 .tov-tour__card button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
-.tov-tour__body p { margin: 0 0 0.5rem; }
-.tov-tour__nav { display: flex; justify-content: space-between; gap: 0.75rem; margin-top: 0.25rem; }
-.tov-tour__example { margin: 0.25rem 0 0.5rem; padding: 0.6rem 0.7rem; border: 1px dashed var(--hairline); border-radius: var(--radius-card); background: var(--surface-base); }
-.tov-tour__example-tag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 0.35rem; }
-.tov-tour__mock { display: grid; gap: 0.35rem; }
-.tov-tour__mock-head { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.tov-tour__body p { margin: 0 0 var(--space-2); }
+.tov-tour__nav { display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-1); }
+.tov-tour__example { margin: var(--space-1) 0 var(--space-2); padding: var(--space-2) var(--space-3); border: 1px dashed var(--hairline); border-radius: var(--radius-card); background: var(--surface-base); }
+.tov-tour__example-tag { font-size: var(--text-label-size); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: var(--space-1); }
+.tov-tour__mock { display: grid; gap: var(--space-1); }
+.tov-tour__mock-head { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .tov-tour__mock-add { margin-left: auto; color: var(--brass); font-weight: 600; }
-.tov-tour__mock-row { display: grid; border-top: 1px solid var(--hairline); padding-top: 0.3rem; }
+.tov-tour__mock-row { display: grid; border-top: 1px solid var(--hairline); padding-top: var(--space-1); }
 .tov-tour__mock-row small { color: var(--text-secondary); }
-.tov-tour__fake-btn { color: var(--brass); font-size: 0.9rem; }
-.tov-tour__questions { margin: 0; padding-left: 1.2rem; }
-.tov-tour__usage-bar { background: var(--surface-elevated); border-radius: 999px; height: 8px; overflow: hidden; margin-bottom: 0.35rem; }
+.tov-tour__fake-btn { color: var(--brass); font-size: var(--text-secondary-size); }
+.tov-tour__questions { margin: 0; padding-left: var(--space-4); }
+.tov-tour__usage-bar { background: var(--surface-elevated); border-radius: 999px; height: 8px; overflow: hidden; margin-bottom: var(--space-1); }
 .tov-tour__usage-bar > div { height: 100%; background: var(--green); }
-.tov-tour__setup { border-top: 1px solid var(--hairline); padding-top: 0.5rem; margin-bottom: 0.5rem; }
-.tov-tour__setup p, .tov-tour__setup ul { margin: 0.25rem 0; }
+.tov-tour__setup { border-top: 1px solid var(--hairline); padding-top: var(--space-2); margin-bottom: var(--space-2); }
+.tov-tour__setup p, .tov-tour__setup ul { margin: var(--space-1) 0; }
 @media (prefers-reduced-motion: no-preference) {
   .tov-tour__card { transition: opacity 160ms ease; }
   .tov-tour__spot { transition: top 200ms ease, left 200ms ease, width 200ms ease, height 200ms ease; }

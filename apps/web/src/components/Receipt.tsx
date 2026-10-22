@@ -49,7 +49,7 @@ export function Receipt({
         {openQ}{quote}{closeQ}
       </div>
       {/* The mono stamp stays LTR and left-aligned — the register reads the same down the column. */}
-      {stamp && <div className="tov-stamp" style={{ marginTop: 6 }}>{stamp}</div>}
+      {stamp && <div className="tov-stamp" style={{ marginTop: 'var(--space-2)' }}>{stamp}</div>}
     </>
   );
 

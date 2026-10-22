@@ -64,20 +64,20 @@ export function FollowUpDraft({
 
   if (locked) {
     return (
-      <div style={{ marginTop: '0.5rem' }}>
+      <div style={{ marginTop: 'var(--space-2)' }}>
         <Locked onSubscribe={(plan) => onSubscribe?.(plan)} status={status} />
       </div>
     );
   }
 
   return (
-    <div style={{ marginTop: '0.5rem' }}>
+    <div style={{ marginTop: 'var(--space-2)' }}>
       <button onClick={() => void makeDraft()} disabled={busy}>
         {busy ? 'Drafting…' : 'Draft follow-up'}
       </button>
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
       {draft != null && (
-        <div style={{ marginTop: '0.5rem' }}>
+        <div style={{ marginTop: 'var(--space-2)' }}>
           <textarea
             value={draft}
             onChange={(e) => { setDraft(e.target.value); setCopied(false); }}

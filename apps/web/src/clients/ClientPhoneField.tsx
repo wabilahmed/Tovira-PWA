@@ -27,8 +27,8 @@ export function ClientPhoneField({
   }
 
   return (
-    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', margin: '0.5rem 0' }}>
-      <label style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', margin: 'var(--space-2) 0' }}>
+      <label style={{ display: 'flex', gap: 'var(--space-1)', alignItems: 'center' }}>
         Phone
         <input
           type="tel"

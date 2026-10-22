@@ -32,9 +32,9 @@ export function NoteState({ note: n, ceiling }: { note: NoteSummary; ceiling: bo
   // [ASYNC-EXTRACT] a failure reads as failed — never an endless spinner. [TRANSCRIBE-MISSING] a missing
   // recording is a DISTINCT, honest reason — not "tap to retry" (retry can't find it).
   if (state === 'failed' && n.status === 'transcription_failed') {
-    return <em data-testid="transcription-failed" style={{ color: 'var(--danger, #b00)', fontStyle: 'normal' }}> · recording not found — couldn’t transcribe</em>;
+    return <em data-testid="transcription-failed" style={{ color: 'var(--danger)', fontStyle: 'normal' }}> · recording not found — couldn’t transcribe</em>;
   }
-  if (state === 'failed') return <em data-testid="extract-failed" style={{ color: 'var(--danger, #b00)', fontStyle: 'normal' }}> · couldn’t analyse — saved; tap to retry</em>;
+  if (state === 'failed') return <em data-testid="extract-failed" style={{ color: 'var(--danger)', fontStyle: 'normal' }}> · couldn’t analyse — saved; tap to retry</em>;
   return null;
 }
 
@@ -45,7 +45,7 @@ export function NoteSubscribe({ note: n, ceiling, onSubscribe }: { note: NoteSum
   const inProgress = state === 'queued' || state === 'processing';
   if (ceiling || !inProgress || n.blockedReason !== 'subscribe' || !onSubscribe) return null;
   return (
-    <div style={{ marginTop: 2 }}>
+    <div style={{ marginTop: 'var(--space-1)' }}>
       <button type="button" className="tov-link" data-testid="note-subscribe" onClick={() => onSubscribe('monthly')}>Subscribe to read it</button>
     </div>
   );

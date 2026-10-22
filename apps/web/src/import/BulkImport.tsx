@@ -162,7 +162,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
 
   if (step === 'ack') {
     return (
-      <section aria-label="Import chats" data-testid="bulk-import" style={{ display: 'grid', gap: '0.5rem' }}>
+      <section aria-label="Import chats" data-testid="bulk-import" style={{ display: 'grid', gap: 'var(--space-2)' }}>
         <p>These chats were written by other people. Confirm you have the right to upload them.</p>
         <button type="button" onClick={() => void doImport(pendingDecisions, true)}>I have the right to upload these</button>
       </section>

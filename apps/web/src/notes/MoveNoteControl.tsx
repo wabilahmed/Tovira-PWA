@@ -59,7 +59,7 @@ export function MoveNoteControl({ api, noteId, fromClientId, clients, onMoved }:
 
   if (moved) {
     return (
-      <div role="status" data-testid="move-note-toast" style={{ marginTop: 6, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+      <div role="status" data-testid="move-note-toast" style={{ marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
         <small className="tov-stamp">Moved to {nameOf(target)}.</small>
         <button onClick={() => void undo()}>Undo</button>
       </div>
@@ -68,13 +68,13 @@ export function MoveNoteControl({ api, noteId, fromClientId, clients, onMoved }:
 
   if (!open) {
     return (
-      <button className="tov-link" style={{ marginTop: 6 }} onClick={() => setOpen(true)}>Move to another client</button>
+      <button className="tov-link" style={{ marginTop: 'var(--space-2)' }} onClick={() => setOpen(true)}>Move to another client</button>
     );
   }
 
   const c = preview?.counts;
   return (
-    <div style={{ marginTop: 6 }}>
+    <div style={{ marginTop: 'var(--space-2)' }}>
       <label>
         Move this note to{' '}
         <select className="tov-client-select" value={target} onChange={(e) => void choose(e.target.value)} aria-label="Move this note to">
@@ -83,19 +83,19 @@ export function MoveNoteControl({ api, noteId, fromClientId, clients, onMoved }:
         </select>
       </label>
       {c && (
-        <div data-testid="move-note-preview" style={{ marginTop: 6 }}>
+        <div data-testid="move-note-preview" style={{ marginTop: 'var(--space-2)' }}>
           <small className="tov-stamp">
             Moves {c.messages} messages, {c.promises} promises, {c.keyDates} key dates, {c.meetings} meetings,{' '}
             {c.people} people and {c.requirements} requirements to <strong>{nameOf(target)}</strong>.
           </small>
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: 6 }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
             <button onClick={() => void confirm()}>Confirm move</button>
             <button onClick={cancel}>Cancel</button>
           </div>
         </div>
       )}
       {!c && (
-        <div style={{ marginTop: 6 }}>
+        <div style={{ marginTop: 'var(--space-2)' }}>
           <button onClick={cancel}>Cancel</button>
         </div>
       )}

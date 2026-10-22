@@ -24,12 +24,12 @@ export function DisclosureLine(): JSX.Element {
   }
 
   return (
-    <section aria-labelledby="disclosure-h" style={{ marginTop: '1.5rem' }}>
-      <h3 id="disclosure-h" style={{ margin: '0 0 0.25rem' }}>Tell clients you keep notes</h3>
-      <p style={{ color: 'var(--text-secondary)', margin: '0 0 0.6rem' }}>
+    <section aria-labelledby="disclosure-h" style={{ marginTop: 'var(--space-5)' }}>
+      <h3 id="disclosure-h" style={{ margin: '0 0 var(--space-1)' }}>Tell clients you keep notes</h3>
+      <p style={{ color: 'var(--text-secondary)', margin: '0 0 var(--space-2)' }}>
         A one-line disclosure to paste into your WhatsApp Business profile or a first message.
       </p>
-      <blockquote data-testid="disclosure-text" style={{ margin: '0 0 0.6rem', paddingLeft: '0.75rem', borderLeft: '2px solid var(--hairline)' }}>
+      <blockquote data-testid="disclosure-text" style={{ margin: '0 0 var(--space-2)', paddingLeft: 'var(--space-3)', borderLeft: '2px solid var(--hairline)' }}>
         {DISCLOSURE_LINE}
       </blockquote>
       <button type="button" className="tov-chit-action" onClick={() => void copy()} aria-label="Copy the disclosure line">

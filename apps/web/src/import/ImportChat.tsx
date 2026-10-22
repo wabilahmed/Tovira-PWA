@@ -165,7 +165,7 @@ export function ImportChat({
   }
 
   return (
-    <form onSubmit={submit} aria-label="Import WhatsApp chat" style={{ display: 'grid', gap: '0.75rem' }}>
+    <form onSubmit={submit} aria-label="Import WhatsApp chat" style={{ display: 'grid', gap: 'var(--space-3)' }}>
       {/* [P37] the shared export steps for the rep's own phone */}
       <ExportSteps />
       <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Then choose the file here (.zip or .txt), or paste the chat.</p>
@@ -192,7 +192,7 @@ export function ImportChat({
         />
       </label>
 
-      <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+      <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start' }}>
         <input
           type="checkbox"
           checked={consent}
@@ -219,9 +219,9 @@ export function ImportChat({
       {firstAck && (
         // [AUDIT gap A] First-ever import acknowledgement. Declining changes nothing; confirming
         // re-sends with firstImportAck so the import proceeds.
-        <div role="alert" style={{ border: '1px solid var(--hairline)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+        <div role="alert" style={{ border: '1px solid var(--hairline)', borderRadius: '0.5rem', padding: 'var(--space-3)', display: 'grid', gap: 'var(--space-2)' }}>
           <span>{firstAck}</span>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <button type="button" onClick={() => void doImport(false, true)} disabled={busy}>
               {busy ? 'Importing…' : 'I have the right to upload this — continue'}
             </button>
@@ -234,10 +234,10 @@ export function ImportChat({
         // [AUDIT gap B] Two-speaker first import: the rep says which speaker is the client (the other is
         // them). Reuses the bulk-import rep-identification control, then re-imports with the confirmed
         // counterpart so the server learns the rep's name + the client alias and proceeds.
-        <div role="group" aria-label="Who is this chat with" style={{ border: '1px solid var(--hairline)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+        <div role="group" aria-label="Who is this chat with" style={{ border: '1px solid var(--hairline)', borderRadius: '0.5rem', padding: 'var(--space-3)', display: 'grid', gap: 'var(--space-2)' }}>
           <span>{misfile.message}</span>
           <RepIdentification legend="Which name is the client?" candidates={misfile.participants} value={repChoice} onChange={setRepChoice} />
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <button type="button" onClick={() => repChoice && void doImport(false, false, { counterpart: repChoice })} disabled={busy || !repChoice}>
               {busy ? 'Importing…' : 'Continue'}
             </button>
@@ -249,13 +249,13 @@ export function ImportChat({
       ) : misfile ? (
         // Confirm, never block. The rep continues here, or cancels and files it under the right
         // client from the clients screen. Tovira never moves it on its own.
-        <div role="alert" style={{ border: '1px solid var(--claret)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+        <div role="alert" style={{ border: '1px solid var(--claret)', borderRadius: '0.5rem', padding: 'var(--space-3)', display: 'grid', gap: 'var(--space-2)' }}>
           {/* [P20-6] Build the copy from parts with the shared date formatter (never ISO); fall back to
               the server message only if the parts are missing (old payload). */}
           <span>{misfile.clientName
             ? mismatchCopy({ who: misfile.counterpart ?? misfile.participants[0] ?? 'this contact', clientName: misfile.clientName, hasSuggestion: !!misfile.suggestion, messageCount: misfile.messageCount, dateFrom: misfile.dateFrom, dateTo: misfile.dateTo })
             : misfile.message}</span>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
             {/* [P14-4c] When the chat matches ANOTHER existing client, offer to file it THERE — the right
                 place — not only "here anyway". This re-imports to the matched client's id. */}
             {misfile.suggestion && (

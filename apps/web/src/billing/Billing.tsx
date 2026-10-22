@@ -98,7 +98,7 @@ export function Billing({
       {/* A failed payment updates its card (above) — subscribing again would start a second subscription. */}
       {status !== 'active' && status !== 'past_due' && status !== 'payment_failed' && (
         <>
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="tov-primary" data-tour="subscribe" onClick={() => void subscribe('monthly')} disabled={busy}>
               {busy ? 'Starting…' : <>Subscribe monthly — <span className="tov-mono">{PLANS.monthly.price}</span></>}
             </button>
@@ -111,7 +111,7 @@ export function Billing({
               dormant VAT switch, vat.ts, stays off); subscriptions renew at
               the same date and time (Terms 6.3); you can cancel anytime from Billing via the Customer
               Portal; and access continues until the end of the paid period (Terms 6.5). */}
-          <p data-testid="checkout-disclosure" className="standard" style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+          <p data-testid="checkout-disclosure" className="standard" style={{ marginTop: 'var(--space-3)', fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>
             Prices are in AED. Your subscription renews automatically at the same date and
             time each period — monthly plans each month, yearly plans each year — until you cancel. Your plan
             includes a monthly allowance of AI processing; you can buy more anytime. You can cancel anytime

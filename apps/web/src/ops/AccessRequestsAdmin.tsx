@@ -81,22 +81,22 @@ export function AccessRequestsAdmin({ api }: { api: OpsAccessApi }): JSX.Element
   }
 
   return (
-    <main className="standard" style={{ maxWidth: 760, margin: '0 auto', padding: '24px 16px' }}>
-      <p style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1.4rem', margin: 0 }}><Wordmark /></p>
-      <h1 style={{ fontSize: '1.2rem', margin: '0.5rem 0 1rem' }}>Beta access requests</h1>
+    <main className="standard" style={{ maxWidth: 760, margin: '0 auto', padding: 'var(--space-5) var(--space-4)' }}>
+      <p style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'var(--text-section-size)', margin: 0 }}><Wordmark /></p>
+      <h1 style={{ fontSize: 'var(--text-section-size)', margin: 'var(--space-2) 0 var(--space-4)' }}>Beta access requests</h1>
       {notice && <p role="status" style={{ color: 'var(--green)' }}>{notice}</p>}
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
 
       {!token ? (
         <form onSubmit={(e) => { e.preventDefault(); const t = draft.trim(); if (!t) return; writeToken(t); setToken(t); setDraft(''); }}>
-          <label htmlFor="ops-token" style={{ display: 'block', marginBottom: 6 }}>Ops token</label>
+          <label htmlFor="ops-token" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>Ops token</label>
           <input id="ops-token" type="password" autoComplete="off" value={draft} onChange={(e) => setDraft(e.target.value)} style={{ width: '100%', maxWidth: 420 }} />
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>The OPS_TOKEN value from Secrets Manager (tovira/prod/app). Kept for this tab only.</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-secondary-size)' }}>The OPS_TOKEN value from Secrets Manager (tovira/prod/app). Kept for this tab only.</p>
           <button type="submit" className="tov-button">Open</button>
         </form>
       ) : (
         <>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap' }}>
             <button className="tov-link" aria-pressed={filter === 'pending'} onClick={() => setFilter('pending')}>Pending</button>
             <button className="tov-link" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All</button>
             <button className="tov-link" onClick={() => void load(token, filter)}>Refresh</button>
@@ -105,24 +105,24 @@ export function AccessRequestsAdmin({ api }: { api: OpsAccessApi }): JSX.Element
           {requests === null ? <p>Loading…</p> : requests.length === 0 ? (
             <p>{filter === 'pending' ? 'No pending requests.' : 'No requests yet.'}</p>
           ) : (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 'var(--space-3)' }}>
               {requests.map((r) => (
-                <li key={r.id} data-testid={`request-${r.id}`} style={{ border: '1px solid var(--hairline)', borderRadius: 6, padding: 14, background: 'var(--surface-raised)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <li key={r.id} data-testid={`request-${r.id}`} style={{ border: '1px solid var(--hairline)', borderRadius: 6, padding: 'var(--space-4)', background: 'var(--surface-raised)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
                     <strong>{r.fullName}</strong>
-                    <span className="tov-mono" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{STATUS_LABEL[r.status]} · {fmt(r.createdAt)}</span>
+                    <span className="tov-mono" style={{ fontSize: 'var(--text-caption-size)', color: 'var(--text-secondary)' }}>{STATUS_LABEL[r.status]} · {fmt(r.createdAt)}</span>
                   </div>
-                  <p style={{ margin: '6px 0' }}>{r.roleTitle}, {r.companyName}</p>
-                  <p style={{ margin: '2px 0' }}><a href={`mailto:${r.workEmail}`}>{r.workEmail}</a> · <a href={`tel:${r.phone}`}>{r.phone}</a></p>
-                  <p style={{ margin: '2px 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                  <p style={{ margin: 'var(--space-2) 0' }}>{r.roleTitle}, {r.companyName}</p>
+                  <p style={{ margin: 'var(--space-1) 0' }}><a href={`mailto:${r.workEmail}`}>{r.workEmail}</a> · <a href={`tel:${r.phone}`}>{r.phone}</a></p>
+                  <p style={{ margin: 'var(--space-1) 0', color: 'var(--text-secondary)', fontSize: 'var(--text-secondary-size)' }}>
                     {OWNERSHIP[r.ownership] ?? r.ownership}{r.tradeLicenceNumber ? ` · trade licence ${r.tradeLicenceNumber}` : ''} · conversations: {CONVERSATIONS[r.conversationOwnership] ?? r.conversationOwnership}
                     {r.conversationOwnershipOther ? ` (${r.conversationOwnershipOther})` : ''} · volume: {VOLUME[r.expectedVolume] ?? r.expectedVolume}
                   </p>
                   {r.ownership === 'employed' && r.status === 'pending' && (
-                    <p style={{ margin: '6px 0', color: 'var(--amber)' }}>Employed — ask for the company NOC before approving.</p>
+                    <p style={{ margin: 'var(--space-2) 0', color: 'var(--amber)' }}>Employed — ask for the company NOC before approving.</p>
                   )}
-                  {r.reviewedNote && <p style={{ margin: '6px 0', fontSize: '0.9rem' }}>Note: {r.reviewedNote}</p>}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  {r.reviewedNote && <p style={{ margin: 'var(--space-2) 0', fontSize: 'var(--text-secondary-size)' }}>Note: {r.reviewedNote}</p>}
+                  <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)' }}>
                     {r.status === 'pending' && (
                       <>
                         <button className="tov-button" disabled={busy === r.id} onClick={() => void act(r, 'approve')}>Approve</button>

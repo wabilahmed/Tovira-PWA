@@ -27,7 +27,7 @@ export function BriefOpenPromises({ promises }: { promises: BriefPromise[] }): J
       <div className="tov-stamp">Open promises</div>
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {promises.map((p) => (
-          <li key={p.id} style={{ padding: '4px 0' }}>
+          <li key={p.id} style={{ padding: 'var(--space-1) 0' }}>
             <span>
               {p.text}
               {p.dueDate ? ` (due ${formatBody(p.dueDate)})` : p.dueRaw ? ` (${p.dueRaw})` : ''}

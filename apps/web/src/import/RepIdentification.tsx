@@ -11,10 +11,10 @@ export function RepIdentification({ legend, candidates, value, onChange }: {
   onChange: (choice: string) => void;
 }): JSX.Element {
   return (
-    <fieldset data-testid="rep-id" style={{ border: '1px solid var(--hairline)', borderRadius: '0.5rem', padding: '0.75rem' }}>
+    <fieldset data-testid="rep-id" style={{ border: '1px solid var(--hairline)', borderRadius: '0.5rem', padding: 'var(--space-3)' }}>
       <legend>{legend}</legend>
       {candidates.map((p) => (
-        <label key={p} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <label key={p} style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
           <input type="radio" name="rep-id" checked={value === p} onChange={() => onChange(p)} />
           <span>{p}</span>
         </label>

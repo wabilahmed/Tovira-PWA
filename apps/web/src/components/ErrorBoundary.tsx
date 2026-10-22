@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; label?: stri
   override render(): ReactNode {
     if (!this.state.hasError) return this.props.children;
     return (
-      <section className="tov-card" role="alert" aria-label="Something went wrong" style={{ margin: '2rem auto', maxWidth: 440, textAlign: 'center', display: 'grid', gap: '0.75rem' }}>
+      <section className="tov-card" role="alert" aria-label="Something went wrong" style={{ margin: 'var(--space-6) auto', maxWidth: 440, textAlign: 'center', display: 'grid', gap: 'var(--space-3)' }}>
         <p style={{ margin: 0 }}>Something went wrong. Your data is safe.</p>
         <div>
           <button className="tov-primary" type="button" onClick={() => window.location.reload()}>Reload</button>

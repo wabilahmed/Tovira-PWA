@@ -44,24 +44,24 @@ export function BulkImportResult({ jobs, upsell, onOpenSubscription, onSubscribe
   const limited = jobs.filter((j) => j.state === 'failed_usage_limit').length;
 
   return (
-    <section aria-label="Import results" data-testid="bulk-import-result" style={{ display: 'grid', gap: '0.75rem' }}>
+    <section aria-label="Import results" data-testid="bulk-import-result" style={{ display: 'grid', gap: 'var(--space-3)' }}>
       {summary && summary.chatsImported > 0 && (
-        <div data-testid="bulk-summary" style={{ display: 'grid', gap: '0.5rem' }}>
+        <div data-testid="bulk-summary" style={{ display: 'grid', gap: 'var(--space-2)' }}>
           <p style={{ margin: 0 }}>{bulkSummaryLine(summary)}</p>
           {onOpenBookScan && <button type="button" className="tov-primary" onClick={onOpenBookScan}>Open Book Scan</button>}
         </div>
       )}
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.5rem' }}>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 'var(--space-2)' }}>
         {jobs.map((j) => (
-          <li key={j.key} data-testid={`result-row-${j.key}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <li key={j.key} data-testid={`result-row-${j.key}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
             <span>{j.key}</span>
-            <span style={{ color: j.state === 'done' ? 'var(--text-secondary)' : 'var(--claret, #a23)' }}>{ROW_COPY[j.state]}</span>
+            <span style={{ color: j.state === 'done' ? 'var(--text-secondary)' : 'var(--claret)' }}>{ROW_COPY[j.state]}</span>
           </li>
         ))}
       </ul>
 
       {limited > 0 && (
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
+        <div style={{ display: 'grid', gap: 'var(--space-2)' }}>
           <p style={{ margin: 0 }}>
             {limited} {limited === 1 ? 'chat' : 'chats'} weren&rsquo;t imported because you reached your monthly usage limit.
           </p>

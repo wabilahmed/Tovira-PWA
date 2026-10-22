@@ -26,10 +26,10 @@ export function SeedingBanner({
       {/* [P37] The rep's own phone's steps (both on a laptop) — the one shared source of export instructions. */}
       <ExportSteps />
 
-      <button className="tov-primary" onClick={onStartImport} style={{ marginTop: '1rem' }}>Import chats</button>
+      <button className="tov-primary" onClick={onStartImport} style={{ marginTop: 'var(--space-4)' }}>Import chats</button>
 
-      <p style={{ marginTop: '1.5rem', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Not ready? You can also:</p>
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <p style={{ marginTop: 'var(--space-5)', marginBottom: 'var(--space-1)', color: 'var(--text-secondary)' }}>Not ready? You can also:</p>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
         {status.fallbacks.map((f) => (
           <button key={f.kind} onClick={() => onFallback(f.kind)}>{f.label}</button>
         ))}
@@ -41,7 +41,7 @@ export function SeedingBanner({
 const box: React.CSSProperties = {
   border: '1px solid var(--hairline)',
   borderRadius: 8,
-  padding: '1rem 1.25rem',
+  padding: 'var(--space-4) var(--space-5)',
   background: 'var(--surface-raised)',
-  margin: '1rem 0',
+  margin: 'var(--space-4) 0',
 };

@@ -40,11 +40,11 @@ export function ItemMatches({
 
   if (suggestions.length === 0) return null;
   return (
-    <div style={{ marginTop: '0.6rem' }} data-testid="item-matches">
+    <div style={{ marginTop: 'var(--space-2)' }} data-testid="item-matches">
       <div className="tov-stamp">
         {suggestions.length} client{suggestions.length === 1 ? '' : 's'} asked for something like this
       </div>
-      <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.35rem' }}>
+      <div style={{ display: 'grid', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
         {suggestions.map((m) => (
           <MatchSuggestion
             key={m.matchId}

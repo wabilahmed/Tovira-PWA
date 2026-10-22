@@ -16,11 +16,11 @@ export function WantsSection({ overview }: { overview: ClientOverview }): JSX.El
   const w = overview.wants;
   if (w.items.length === 0) return <p className="tov-muted">Nothing stated yet.</p>;
   return (
-    <div style={{ display: 'grid', gap: '0.6rem' }}>
+    <div style={{ display: 'grid', gap: 'var(--space-2)' }}>
       {w.budgets.length > 1 && (
         <p style={{ margin: 0 }} data-testid="budget-history"><span className="tov-stamp">Budget</span> {w.budgets.join(' → ')}</p>
       )}
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.6rem' }}>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 'var(--space-2)' }}>
         {w.items.map((r) => (
           <li key={r.id}>
             <div dir="auto">{r.text}</div>
@@ -45,7 +45,7 @@ function whose(p: OverviewPromise, clientName: string): string {
 
 function PromiseItem({ p, clientName, clientId }: { p: OverviewPromise; clientName: string; clientId: string }): JSX.Element {
   return (
-    <li data-testid="client-promise" style={{ display: 'grid', gap: '0.25rem' }}>
+    <li data-testid="client-promise" style={{ display: 'grid', gap: 'var(--space-1)' }}>
       <div>
         <span className="tov-stamp" data-owner={p.owner === 'client' ? 'client' : 'rep'}>{whose(p, clientName)}</span>{' '}
         <span dir="auto">{p.text}</span>
@@ -65,13 +65,13 @@ export function PromisesSection({ overview, clientName, clientId }: { overview: 
   const done = overview.promises.filter((p) => p.done);
   if (overview.promises.length === 0) return <p className="tov-muted">No promises on record.</p>;
   return (
-    <div style={{ display: 'grid', gap: '0.6rem' }}>
+    <div style={{ display: 'grid', gap: 'var(--space-2)' }}>
       {open.length > 0 ? (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem' }}>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 'var(--space-3)' }}>
           {[...open, ...stale].map((p) => <PromiseItem key={p.id} p={p} clientName={clientName} clientId={clientId} />)}
         </ul>
       ) : stale.length > 0 ? (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.75rem' }}>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 'var(--space-3)' }}>
           {stale.map((p) => <PromiseItem key={p.id} p={p} clientName={clientName} clientId={clientId} />)}
         </ul>
       ) : <p className="tov-muted">Nothing open.</p>}
@@ -81,7 +81,7 @@ export function PromisesSection({ overview, clientName, clientId }: { overview: 
             {showDone ? 'Hide done' : `Show ${done.length} done`}
           </button>
           {showDone && (
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0', display: 'grid', gap: '0.75rem', opacity: 0.8 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-2) 0 0', display: 'grid', gap: 'var(--space-3)', opacity: 0.8 }}>
               {done.map((p) => <PromiseItem key={p.id} p={p} clientName={clientName} clientId={clientId} />)}
             </ul>
           )}

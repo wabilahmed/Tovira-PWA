@@ -40,9 +40,9 @@ export function BriefMatches({
 
   if (suggestions.length === 0) return null;
   return (
-    <div style={{ margin: '0.75rem 0' }} data-testid="brief-matches">
+    <div style={{ margin: 'var(--space-3) 0' }} data-testid="brief-matches">
       <div className="tov-stamp">Suggested from your inventory</div>
-      <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.35rem' }}>
+      <div style={{ display: 'grid', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
         {suggestions.map((m) => (
           <MatchSuggestion
             key={m.matchId}

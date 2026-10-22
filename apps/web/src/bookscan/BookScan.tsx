@@ -90,7 +90,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
             role="status"
             aria-live="polite"
             className="tov-screenmeta"
-            style={{ color: 'var(--amber)', position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface-base)', padding: '0.4rem 0', borderBottom: '1px solid var(--hairline)' }}
+            style={{ color: 'var(--amber)', position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface-base)', padding: 'var(--space-2) 0', borderBottom: '1px solid var(--hairline)' }}
           >
             Still scanning — analysed {progress.extractedChats} of {progress.totalChats} chat{progress.totalChats === 1 ? '' : 's'}
             {progress.failedChats > 0 && <> · {progress.failedChats} couldn’t be read</>}
@@ -101,13 +101,13 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
       {/* Flat, arrival-ordered list — keyed by a stable derived id so React never reorders the DOM as
           new findings append. No section grouping: grouping would re-sort a late arrival into its
           category, moving already-read entries. */}
-      <div style={{ margin: '1.25rem 0' }}>
+      <div style={{ margin: 'var(--space-5) 0' }}>
         {shown.map((item, i) => (
           <Finding key={findingId(item)} item={item} index={i} now={now} />
         ))}
       </div>
 
-      <p style={{ marginTop: '1.5rem', color: 'var(--brass)' }}>{report.invitation}</p>
+      <p style={{ marginTop: 'var(--space-5)', color: 'var(--brass)' }}>{report.invitation}</p>
     </section>
   );
 }
@@ -115,13 +115,13 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
 function Finding({ item, index, now }: { item: BookScanItem; index: number; now: number }): JSX.Element {
   const silent = item.kind === 'going_cold' && item.receipt.date ? daysSince(Date.parse(item.receipt.date), now) : null;
   return (
-    <div data-testid="scan-item" className="tov-deal" style={{ animationDelay: `${index * 60}ms`, margin: '0 0 0.85rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'baseline' }}>
+    <div data-testid="scan-item" className="tov-deal" style={{ animationDelay: `${index * 60}ms`, margin: '0 0 var(--space-3)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-2)', alignItems: 'baseline' }}>
         <strong>{item.headline}</strong>
         {item.framing === 'worth_checking' && <span style={chip}>worth checking</span>}
       </div>
       {silent !== null && (
-        <div className="tov-stamp" style={{ color: 'var(--claret)', marginTop: 2 }}>silent {silent} day{silent === 1 ? '' : 's'}</div>
+        <div className="tov-stamp" style={{ color: 'var(--claret)', marginTop: 'var(--space-1)' }}>silent {silent} day{silent === 1 ? '' : 's'}</div>
       )}
       {/* [P35-3] the source as a chat, with up to 3 messages either side */}
       <ReceiptThread compact={false} refInfo={{ noteId: item.receipt.ref?.noteId ?? null, clientId: item.clientId, span: item.receipt.ref?.span ?? item.receipt.quote, at: item.receipt.ref?.at ?? item.receipt.date, quote: item.receipt.quote, sender: item.clientName }} />
@@ -130,11 +130,11 @@ function Finding({ item, index, now }: { item: BookScanItem; index: number; now:
 }
 
 const chip: React.CSSProperties = {
-  fontSize: '0.7rem',
+  fontSize: 'var(--text-caption-size)',
   background: 'var(--amber-surface)',
   color: 'var(--amber)',
   borderRadius: 999,
-  padding: '0.1rem 0.5rem',
+  padding: '0 var(--space-2)',
   whiteSpace: 'nowrap',
   alignSelf: 'center',
 };

@@ -50,7 +50,7 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
   if (submitted) {
     return (
       <AuthShell subtitle="Request received">
-        <div aria-live="polite" style={{ display: 'grid', gap: '0.7rem', marginTop: '0.4rem' }}>
+        <div aria-live="polite" style={{ display: 'grid', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
           <p className="auth__intro">Thank you — your request has been recorded. We review requests within 2 business days.</p>
           {submitted.employed && (
             <p className="auth__hint">Because you are employed by the company, we will email you to ask for the company’s NOC (no-objection certificate) before activating your access.</p>

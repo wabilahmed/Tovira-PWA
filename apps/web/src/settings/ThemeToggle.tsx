@@ -87,8 +87,8 @@ export function ThemeToggle(): JSX.Element {
   }
 
   return (
-    <section aria-label="Appearance" style={{ margin: '1.5rem 0' }}>
-      <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Appearance</h2>
+    <section aria-label="Appearance" style={{ margin: 'var(--space-5) 0' }}>
+      <h2 style={{ fontSize: 'var(--text-body-size)', marginTop: 0 }}>Appearance</h2>
       <div
         ref={groupRef}
         role="group"
@@ -117,7 +117,7 @@ export function ThemeToggle(): JSX.Element {
                 minHeight: 40,
                 border: 'none',
                 borderRadius: 0,
-                padding: '0 16px',
+                padding: '0 var(--space-4)',
                 background: 'transparent',
                 color: active ? 'var(--brass-ink)' : 'var(--text-secondary)',
                 fontWeight: active ? 600 : 400,
@@ -129,7 +129,7 @@ export function ThemeToggle(): JSX.Element {
           );
         })}
       </div>
-      <p style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', marginBottom: 0 }}>
+      <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-caption-size)', marginBottom: 0 }}>
         Ledger is the default. Vault suits low light; System follows your device.
       </p>
     </section>

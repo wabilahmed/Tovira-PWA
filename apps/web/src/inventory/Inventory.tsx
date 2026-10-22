@@ -152,7 +152,7 @@ function AddForm(p: FormProps): JSX.Element {
         <input aria-label="Quantity" className="tov-mono" type="number" min={0} step={1} value={p.quantity} onChange={(e) => p.setQuantity(e.target.value)} style={{ width: '5rem' }} />
         <button type="submit" className="tov-primary">Add item</button>
       </div>
-      {p.error && <p style={{ color: 'var(--claret)', margin: '0.5rem 0 0' }}>{p.error}</p>}
+      {p.error && <p style={{ color: 'var(--claret)', margin: 'var(--space-2) 0 0' }}>{p.error}</p>}
     </form>
   );
 }
@@ -192,7 +192,7 @@ function ItemCard({ item, clients, api, editing, onEditToggle, onSave, onShare, 
         {disabled && item.disabledReason && <span className="tov-stamp">{STATUS_TAG[item.disabledReason]}</span>}
         <span className="tov-mono tov-inv-item__qty" title="Quantity in stock">{item.quantity}</span>
       </div>
-      <p style={{ color: 'var(--text-secondary)', margin: '0.3rem 0 0.6rem' }}>{item.description}</p>
+      <p style={{ color: 'var(--text-secondary)', margin: 'var(--space-1) 0 var(--space-2)' }}>{item.description}</p>
 
       {editing ? (
         <div className="tov-inv-item__edit">

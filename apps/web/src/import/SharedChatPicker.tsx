@@ -58,11 +58,11 @@ export function SharedChatPicker({
   const others = clients.filter((c) => c.id !== suggested?.id);
 
   return (
-    <section aria-label="Choose the client" style={{ display: 'grid', gap: '0.75rem', maxWidth: 480 }}>
+    <section aria-label="Choose the client" style={{ display: 'grid', gap: 'var(--space-3)', maxWidth: 480 }}>
       <h2 style={{ margin: 0 }}>Who's this chat with?</h2>
       {reading && <p role="status" style={{ margin: 0, color: 'var(--text-secondary)' }}>Reading the chat…</p>}
       {suggested && (
-        <div data-testid="shared-suggested" style={{ display: 'grid', gap: '0.25rem' }}>
+        <div data-testid="shared-suggested" style={{ display: 'grid', gap: 'var(--space-1)' }}>
           <span id="shared-suggested-hint" className="tov-stamp">Suggested — the chat is with this client</span>
           <button type="button" className="tov-primary" aria-describedby="shared-suggested-hint" onClick={() => choose(suggested.id)} style={{ textAlign: 'left' }}>
             {suggested.name}
@@ -71,13 +71,13 @@ export function SharedChatPicker({
       )}
       <form
         onSubmit={(e) => { e.preventDefault(); if (newName.trim()) { drop(); onNewClient(newName.trim()); } }}
-        style={{ display: 'flex', gap: '0.5rem' }}
+        style={{ display: 'flex', gap: 'var(--space-2)' }}
       >
         <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Client name" aria-label="New client name" style={{ flex: 1 }} />
         <button type="submit" disabled={!newName.trim()}>New client</button>
       </form>
       {others.length > 0 && (
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
+        <div style={{ display: 'grid', gap: 'var(--space-2)' }}>
           <span className="tov-stamp">Or one of your clients</span>
           {others.map((c) => (
             <button key={c.id} type="button" onClick={() => choose(c.id)} style={{ textAlign: 'left' }}>{c.name}</button>

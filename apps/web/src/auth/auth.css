@@ -5,7 +5,7 @@
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: var(--space-5);
   background: var(--surface-base);
   color: var(--text-primary);
   position: relative;
@@ -32,31 +32,31 @@
   border: 1px solid var(--hairline);
   border-radius: 10px;
   box-shadow: var(--shadow-overlay);
-  padding: 2rem 1.9rem;
+  padding: var(--space-6) var(--space-6);
 }
 .auth__home {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 0.74rem;
+  font-size: var(--text-label-size);
   color: var(--text-tertiary);
   text-decoration: none;
-  margin-bottom: 1.1rem;
+  margin-bottom: var(--space-4);
 }
 .auth__home:hover { color: var(--brass); }
-.auth__wordmark { font-family: var(--font-display); font-weight: 600; font-size: 1.7rem; letter-spacing: -0.02em; margin: 0; }
-.auth__tagline { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.03em; color: var(--text-secondary); margin: 0.25rem 0 0; }
-.auth__subtitle { font-size: 1.02rem; color: var(--text-secondary); margin: 1.2rem 0 1rem; }
-.auth__status { color: var(--text-secondary); font-size: 0.92rem; margin: 0 0 1rem; }
+.auth__wordmark { font-family: var(--font-display); font-weight: 600; font-size: var(--text-title-size); letter-spacing: -0.02em; margin: 0; }
+.auth__tagline { font-family: var(--font-mono); font-size: var(--text-label-size); letter-spacing: 0.03em; color: var(--text-secondary); margin: var(--space-1) 0 0; }
+.auth__subtitle { font-size: var(--text-body-size); color: var(--text-secondary); margin: var(--space-4) 0 var(--space-4); }
+.auth__status { color: var(--text-secondary); font-size: var(--text-secondary-size); margin: 0 0 var(--space-4); }
 
-.auth__form { display: grid; gap: 0.9rem; }
-.auth__field { display: grid; gap: 0.35rem; }
-.auth__field > span { font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
+.auth__form { display: grid; gap: var(--space-4); }
+.auth__field { display: grid; gap: var(--space-1); }
+.auth__field > span { font-size: var(--text-secondary-size); font-weight: 500; color: var(--text-secondary); }
 .auth__field input {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.65rem 0.75rem;
+  padding: var(--space-3) var(--space-3);
   font: inherit;
-  font-size: 0.95rem;
+  font-size: var(--text-body-size);
   color: var(--text-primary);
   background: var(--surface-base);
   border: 1px solid var(--hairline);
@@ -65,24 +65,24 @@
 }
 .auth__field input:focus { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px var(--brass-surface); }
 
-.auth__consent { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.82rem; color: var(--text-secondary); }
+.auth__consent { display: flex; gap: var(--space-2); align-items: flex-start; font-size: var(--text-secondary-size); color: var(--text-secondary); }
 /* A radio/checkbox is NOT a touch-target text input — clear the global min-height:44px floor so the
  * control is its own glyph size and sits on the first text line, not centred in a 44px box. */
-.auth__consent input { min-height: 0; margin-top: 0.15rem; accent-color: var(--brass); }
+.auth__consent input { min-height: 0; margin-top: var(--space-1); accent-color: var(--brass); }
 .auth__consent a { color: var(--brass); }
-.auth__error { color: var(--claret); font-size: 0.88rem; margin: 0; }
+.auth__error { color: var(--claret); font-size: var(--text-secondary-size); margin: 0; }
 
 .auth__submit {
   width: 100%;
   border: none;
   cursor: pointer;
-  margin-top: 0.2rem;
+  margin-top: var(--space-1);
   background: var(--brass);
   color: var(--brass-ink);
   font: inherit;
   font-weight: 600;
-  font-size: 1rem;
-  padding: 0.7rem 1rem;
+  font-size: var(--text-body-size);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-card);
   min-height: 44px;
   transition: background 150ms ease, transform 120ms ease;
@@ -91,23 +91,23 @@
 .auth__submit:active:not(:disabled) { transform: translateY(1px); }
 .auth__submit:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.auth__alt { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; margin-top: 1.1rem; padding-top: 1.1rem; border-top: 1px solid var(--hairline); }
-.auth__link { background: none; border: none; cursor: pointer; font: inherit; font-size: 0.9rem; color: var(--brass); padding: 0.2rem 0.3rem; }
+.auth__alt { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--hairline); }
+.auth__link { background: none; border: none; cursor: pointer; font: inherit; font-size: var(--text-secondary-size); color: var(--brass); padding: var(--space-1) var(--space-1); }
 .auth__link:hover { text-decoration: underline; }
 .auth__link:active { transform: none; opacity: 0.6; }
-.auth__link--muted { color: var(--text-secondary); font-size: 0.85rem; }
-.auth__trust { font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-tertiary); text-align: center; margin: 0.85rem 0 0; }
+.auth__link--muted { color: var(--text-secondary); font-size: var(--text-secondary-size); }
+.auth__trust { font-family: var(--font-mono); font-size: var(--text-label-size); color: var(--text-tertiary); text-align: center; margin: var(--space-3) 0 0; }
 
 /* Longer pre-session forms (request access / invite): intro copy, radio-group fieldsets, hint text. */
-.auth__intro { font-size: 0.95rem; color: var(--text-secondary); margin: 0 0 0.2rem; line-height: 1.45; }
+.auth__intro { font-size: var(--text-body-size); color: var(--text-secondary); margin: 0 0 var(--space-1); line-height: 1.45; }
 .auth__intro a, .auth__hint a { color: var(--brass); }
-.auth__hint { font-size: 0.8rem; color: var(--text-tertiary); margin: 0; line-height: 1.4; }
-.auth__fieldset { margin: 0; padding: 0.7rem 0.85rem 0.8rem; border: 1px solid var(--hairline); border-radius: var(--radius-card); display: grid; gap: 0.5rem; }
-.auth__fieldset legend { padding: 0 0.3rem; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
+.auth__hint { font-size: var(--text-caption-size); color: var(--text-tertiary); margin: 0; line-height: 1.4; }
+.auth__fieldset { margin: 0; padding: var(--space-3) var(--space-3) var(--space-3); border: 1px solid var(--hairline); border-radius: var(--radius-card); display: grid; gap: var(--space-2); }
+.auth__fieldset legend { padding: 0 var(--space-1); font-size: var(--text-secondary-size); font-weight: 500; color: var(--text-secondary); }
 /* Radio on the FIRST line of a (possibly wrapping) label: a 2-column grid aligns the control to the
  * top of the text column, and the small em-relative nudge centres it on that first line. */
-.auth__option { display: grid; grid-template-columns: auto 1fr; column-gap: 0.55rem; align-items: start; font-size: 0.9rem; color: var(--text-primary); line-height: 1.4; }
-.auth__option > input { width: 1em; height: 1em; min-height: 0; margin: 0.22em 0 0; accent-color: var(--brass); }
+.auth__option { display: grid; grid-template-columns: auto 1fr; column-gap: var(--space-2); align-items: start; font-size: var(--text-secondary-size); color: var(--text-primary); line-height: 1.4; }
+.auth__option > input { width: 1em; height: 1em; min-height: 0; margin: var(--space-1) 0 0; accent-color: var(--brass); }
 
 .auth :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 

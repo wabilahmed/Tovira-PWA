@@ -20,7 +20,7 @@ export function RecordingTimer({ startedAt, maxMs }: { startedAt: number; maxMs?
   const elapsed = Math.max(0, now - startedAt);
   return (
     <div className="tov-rectimer" role="timer" aria-label="Recording time">
-      <span className="tov-mono" data-testid="rec-elapsed" style={{ fontSize: '1.6rem', color: 'var(--claret)' }}>{mmss(elapsed)}</span>
+      <span className="tov-mono" data-testid="rec-elapsed" style={{ fontSize: 'var(--text-section-size)', color: 'var(--claret)' }}>{mmss(elapsed)}</span>
       {maxMs !== undefined && <span className="tov-muted" data-testid="rec-remaining"> · {mmss(maxMs - elapsed)} left</span>}
     </div>
   );

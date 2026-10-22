@@ -146,7 +146,7 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
     <section aria-label="Meetings">
       <h2 style={{ marginTop: 0 }}>Meetings</h2>
 
-      <form onSubmit={doParse} style={{ display: 'flex', gap: '0.5rem' }}>
+      <form onSubmit={doParse} style={{ display: 'flex', gap: 'var(--space-2)' }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -160,13 +160,13 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
 
       {/* Direct entry (MEETING-CREATE): for anything not in a chat — a call just booked, a site
           visit agreed by phone. Confirmed by definition (the rep entered it), so no parse step. */}
-      <form onSubmit={directSave} aria-label="Add a meeting directly" style={{ ...box, display: 'grid', gap: '0.5rem' }}>
+      <form onSubmit={directSave} aria-label="Add a meeting directly" style={{ ...box, display: 'grid', gap: 'var(--space-2)' }}>
         <span className="tov-stamp">Or add one directly</span>
         <select className="tov-client-select" value={dClient} onChange={(e) => setDClient(e.target.value)} aria-label="Client">
           <option value="">Choose a client…</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
           <input type="date" value={dDate} onChange={(e) => setDDate(e.target.value)} aria-label="Meeting date" />
           <input type="time" value={dTime} onChange={(e) => setDTime(e.target.value)} aria-label="Meeting time" />
         </div>
@@ -190,7 +190,7 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
               ))}
             </select>
           </label>
-          <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+          <div style={{ marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)' }}>
             <button onClick={() => void confirm()} disabled={!clientId}>Save meeting</button>
             <button onClick={reset}>Cancel</button>
           </div>
@@ -200,8 +200,8 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
       {/* Ambiguous name → ASK which client (never silently pick one). */}
       {result?.kind === 'ambiguous_client' && !proposal && (
         <div style={box}>
-          <p style={{ margin: '0 0 0.5rem' }}>Which client did you mean for <strong>{result.datetimeRaw}</strong>?</p>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <p style={{ margin: '0 0 var(--space-2)' }}>Which client did you mean for <strong>{result.datetimeRaw}</strong>?</p>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
             {result.candidates.map((c) => (
               <button key={c.id} onClick={() => chooseCandidate(c.id)}>{c.name}</button>
             ))}
@@ -213,8 +213,8 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
       {/* No match → offer to create that client (don't invent one silently). */}
       {result?.kind === 'no_client' && (
         <div style={box}>
-          <p style={{ margin: '0 0 0.5rem' }}>No client matches “{result.name}”.</p>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <p style={{ margin: '0 0 var(--space-2)' }}>No client matches “{result.name}”.</p>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             {onCreateClient && <button onClick={() => void createClient(result.name)}>Create “{result.name}”</button>}
             <button onClick={reset}>Cancel</button>
           </div>
@@ -228,14 +228,14 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {meetings.map((m) => (
-            <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
+            <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: 'var(--space-2)' }}>
               <span style={{ minWidth: 0, flex: '1 1 12rem' }}>
                 {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small className="tov-stamp">{m.datetime ? formatDateTime(m.datetime, timeZone) : m.datetimeRaw}</small>
                 {m.confirmed === false && (
-                  <span style={{ color: 'var(--amber)', marginLeft: '0.5rem' }}> · unconfirmed — is this right?</span>
+                  <span style={{ color: 'var(--amber)', marginLeft: 'var(--space-2)' }}> · unconfirmed — is this right?</span>
                 )}
               </span>
-              <span style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', alignItems: 'center' }}>
                 <input
                   type="datetime-local"
                   aria-label={`Reschedule ${m.title ?? 'meeting'}`}
@@ -254,4 +254,4 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
   );
 }
 
-const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: '0.75rem 1rem', margin: '0.75rem 0' };
+const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 8, padding: 'var(--space-3) var(--space-4)', margin: 'var(--space-3) 0' };

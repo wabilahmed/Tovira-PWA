@@ -46,18 +46,18 @@ export function ShareCard({
   // under a brass rule — never a social badge. (Counts-only per the P5-6 tests.)
   return (
     <section aria-label="Share card" className="tov-statement" style={box}>
-      <div className="tov-stamp" style={{ marginBottom: 10 }}>Book Scan · statement excerpt</div>
-      <ul data-testid="share-stats" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.4rem' }}>
+      <div className="tov-stamp" style={{ marginBottom: 'var(--space-3)' }}>Book Scan · statement excerpt</div>
+      <ul data-testid="share-stats" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 'var(--space-2)' }}>
         {rows.filter(([, n]) => n > 0).map(([label, n]) => (
-          <li key={label} style={{ display: 'flex', gap: '0.75rem', alignItems: 'baseline', borderBottom: '1px solid var(--hairline)', paddingBottom: '0.35rem' }}>
+          <li key={label} style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'baseline', borderBottom: '1px solid var(--hairline)', paddingBottom: 'var(--space-1)' }}>
             <span className="tov-mono" style={{ color: 'var(--brass)', minWidth: '2ch', textAlign: 'end' }}>{n}</span> {label}
           </li>
         ))}
       </ul>
       {referralCode && (
-        <div style={{ marginTop: '0.75rem' }}>
-          <p style={{ margin: '0 0 0.35rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Share Tovira — you both get a free month.</p>
-          <code data-testid="referral-link" className="tov-mono" style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{referralUrl}</code>{' '}
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          <p style={{ margin: '0 0 var(--space-1)', color: 'var(--text-secondary)', fontSize: 'var(--text-secondary-size)' }}>Share Tovira — you both get a free month.</p>
+          <code data-testid="referral-link" className="tov-mono" style={{ fontSize: 'var(--text-caption-size)', color: 'var(--text-secondary)' }}>{referralUrl}</code>{' '}
           <button onClick={() => { onShare(referralUrl); setShared(true); }}>{shared ? 'Copied' : 'Copy link'}</button>
         </div>
       )}
@@ -65,4 +65,4 @@ export function ShareCard({
   );
 }
 
-const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: '1rem 1.25rem', background: 'var(--surface-raised)', margin: '1rem 0' };
+const box: React.CSSProperties = { border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', padding: 'var(--space-4) var(--space-5)', background: 'var(--surface-raised)', margin: 'var(--space-4) 0' };

@@ -252,8 +252,8 @@ function buildSteps(c: {
           <p>When Tovira isn&apos;t sure, it asks. Nothing changes until you tap Confirm.</p>
           <Example>
             <div className="tov-confirm-chit">
-              <p style={{ margin: '0 0 0.4rem' }}><strong>Sara Khan</strong> — send the floor plans by Saturday?</p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}><span className="tov-tour__fake-btn">Confirm</span><span className="tov-tour__fake-btn">Not right</span></div>
+              <p style={{ margin: '0 0 var(--space-2)' }}><strong>Sara Khan</strong> — send the floor plans by Saturday?</p>
+              <div style={{ display: 'flex', gap: 'var(--space-2)' }}><span className="tov-tour__fake-btn">Confirm</span><span className="tov-tour__fake-btn">Not right</span></div>
             </div>
           </Example>
         </>
@@ -310,7 +310,7 @@ function buildSteps(c: {
             {c.notif === 'on' ? <p>Done.</p> : c.notif === 'later' ? <p className="tov-muted">You can turn them on in Settings.</p> : (
               <>
                 <p>For reminders before meetings and when things are due.</p>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
                   <button type="button" onClick={() => { void c.enable().catch(() => undefined).finally(() => c.setNotif('on')); }}>Turn on notifications</button>
                   <button type="button" className="tov-link" onClick={() => c.setNotif('later')}>Not now</button>
                 </div>

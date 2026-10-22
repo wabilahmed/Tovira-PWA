@@ -167,7 +167,7 @@ export function ImportReview({ result, onImport, upsell, onOpenSubscription, onS
   }
 
   return (
-    <section aria-label="Review chats to import" data-testid="import-review" style={{ display: 'grid', gap: '0.75rem' }}>
+    <section aria-label="Review chats to import" data-testid="import-review" style={{ display: 'grid', gap: 'var(--space-3)' }}>
       <header className="tov-screenhead">
         <div className="tov-stamp">Before anything is analysed</div>
         <h2>Confirm who each chat is</h2>
@@ -177,11 +177,11 @@ export function ImportReview({ result, onImport, upsell, onOpenSubscription, onS
         <RepIdentification legend="Which of these is you?" candidates={repCandidates} value={repChoice} onChange={setRepChoice} />
       )}
 
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.75rem' }}>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 'var(--space-3)' }}>
         {result.rows.map((r) => (
-          <li key={r.fileName} data-testid={`review-row-${r.fileName}`} style={{ border: '1px solid var(--border, #ddd)', borderRadius: '0.5rem', padding: '0.75rem' }}>
+          <li key={r.fileName} data-testid={`review-row-${r.fileName}`} style={{ border: '1px solid var(--border)', borderRadius: '0.5rem', padding: 'var(--space-3)' }}>
             <Row row={r} choice={choices[r.fileName]} onChoice={(patch) => setChoice(r.fileName, patch)} repResolved={repResolved} repChoice={repChoice} />
-            {r.truncated && <p style={{ margin: '0.25rem 0 0', fontSize: '0.85em', color: 'var(--text-secondary)' }}>Very long chat: only the most recent part was imported.</p>}
+            {r.truncated && <p style={{ margin: 'var(--space-1) 0 0', fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>Very long chat: only the most recent part was imported.</p>}
           </li>
         ))}
       </ul>
@@ -223,7 +223,7 @@ export function UpsellBanner({ upsell, lead, onOpenSubscription, onSubscribe }: 
   onSubscribe?: (plan: Plan) => void;
 }): JSX.Element {
   return (
-    <div role="status" data-testid="bulk-upsell" style={{ border: '1px solid var(--border, #ddd)', borderRadius: '0.5rem', padding: '0.75rem', display: 'grid', gap: '0.5rem' }}>
+    <div role="status" data-testid="bulk-upsell" style={{ border: '1px solid var(--border)', borderRadius: '0.5rem', padding: 'var(--space-3)', display: 'grid', gap: 'var(--space-2)' }}>
       <p style={{ margin: 0 }}>{lead}</p>
       {upsell.canTopUp ? (
         <button type="button" className="tov-primary" data-testid="topup-recommended" onClick={() => onOpenSubscription?.()} style={{ justifySelf: 'start' }}>
@@ -256,8 +256,8 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
       return (
         <div>
           <strong>{label}</strong> <span style={{ color: 'var(--text-secondary)' }}>— new client</span>
-          <label style={{ display: 'block', marginTop: '0.25rem' }}>
-            <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)' }}>Name</span>
+          <label style={{ display: 'block', marginTop: 'var(--space-1)' }}>
+            <span style={{ fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>Name</span>
             <input aria-label={`Name for ${row.fileName}`} value={choice?.name ?? label} onChange={(e) => onChoice({ name: e.target.value })} style={{ width: '100%' }} />
           </label>
         </div>
@@ -279,11 +279,11 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
       return (
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
           <legend><strong>{label}</strong> — matches your existing client {row.matchClientName}. Same person?</legend>
-          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
             <input type="radio" name={`match-${row.fileName}`} checked={choice?.answer === 'yes'} onChange={() => onChoice({ answer: 'yes' })} />
             <span>Yes, same person as {row.matchClientName}</span>
           </label>
-          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
             <input type="radio" name={`match-${row.fileName}`} checked={choice?.answer === 'no'} onChange={() => onChoice({ answer: 'no' })} />
             <span>No, a different client</span>
           </label>
@@ -294,11 +294,11 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
       return (
         <div>
           <strong>{label}</strong> <span style={{ color: 'var(--text-secondary)' }}>— unsaved number. Looks like “{row.suggestedName}”. Use this name?</span>
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)', flexWrap: 'wrap' }}>
             <button type="button" onClick={() => onChoice({ name: row.suggestedName })}>Use “{row.suggestedName}”</button>
           </div>
-          <label style={{ display: 'block', marginTop: '0.25rem' }}>
-            <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)' }}>…or type a different name</span>
+          <label style={{ display: 'block', marginTop: 'var(--space-1)' }}>
+            <span style={{ fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>…or type a different name</span>
             <input aria-label={`Name for ${row.fileName}`} value={choice?.name ?? ''} onChange={(e) => onChoice({ name: e.target.value })} style={{ width: '100%' }} />
           </label>
         </div>
@@ -308,8 +308,8 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
       return (
         <div>
           <strong>{label}</strong> <span style={{ color: 'var(--text-secondary)' }}>— unsaved number. Who is this? (optional — keep the number if you’re not sure)</span>
-          <label style={{ display: 'block', marginTop: '0.25rem' }}>
-            <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)' }}>Name</span>
+          <label style={{ display: 'block', marginTop: 'var(--space-1)' }}>
+            <span style={{ fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>Name</span>
             <input aria-label={`Name for ${row.fileName}`} value={choice?.name ?? ''} placeholder={label} onChange={(e) => onChoice({ name: e.target.value })} style={{ width: '100%' }} />
           </label>
         </div>
@@ -329,8 +329,8 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
       return (
         <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
           <legend><strong>{row.fileName}</strong> — Group chat. Skipped.</legend>
-          <label style={{ display: 'block', marginTop: '0.25rem' }}>
-            <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)' }}>Import anyway for one participant?</span>
+          <label style={{ display: 'block', marginTop: 'var(--space-1)' }}>
+            <span style={{ fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>Import anyway for one participant?</span>
             <select className="tov-client-select" aria-label={`Client participant for ${row.fileName}`} value={choice?.name ?? ''} onChange={(e) => onChoice({ name: e.target.value })}>
               <option value="">Keep skipped</option>
               {/* [P21-D] the rep is never a client candidate */}

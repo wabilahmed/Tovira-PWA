@@ -45,7 +45,7 @@ export function InviteAccept({ auth, token, onDone }: { auth: AuthClient; token:
     }
     return (
       <AuthShell subtitle="This link has expired">
-        <div aria-live="polite" style={{ display: 'grid', gap: '0.8rem', marginTop: '0.3rem' }}>
+        <div aria-live="polite" style={{ display: 'grid', gap: 'var(--space-3)', marginTop: 'var(--space-1)' }}>
           {resendResult === 'sent' ? (
             <p className="auth__intro">If this invitation is still open, we’ve sent a new link to the email address this invite was sent to. Check your inbox and spam folder.</p>
           ) : resendResult === 'rate_limited' ? (
@@ -65,7 +65,7 @@ export function InviteAccept({ auth, token, onDone }: { auth: AuthClient; token:
   if (done) {
     return (
       <AuthShell subtitle="Your account is ready">
-        <div aria-live="polite" style={{ display: 'grid', gap: '0.8rem', marginTop: '0.3rem' }}>
+        <div aria-live="polite" style={{ display: 'grid', gap: 'var(--space-3)', marginTop: 'var(--space-1)' }}>
           <p className="auth__intro">Your password is set and your account is active. You can now log in.</p>
           <button className="auth__submit" type="button" onClick={onDone}>Go to Tovira</button>
         </div>

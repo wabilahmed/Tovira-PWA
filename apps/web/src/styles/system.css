@@ -43,6 +43,9 @@
   --elev-0: none;
   --elev-1: 0 1px 2px rgb(0 0 0 / 0.06);
   --elev-2: var(--shadow-overlay);
+  --elev-3: 0 12px 40px rgb(0 0 0 / 0.35);              /* floating cards (the tour) */
+  --elev-side: -14px 0 44px -14px rgb(0 0 0 / 0.5);     /* a panel pushed in from the side */
+  --elev-sheet: 0 -14px 44px -14px rgb(0 0 0 / 0.5);    /* a bottom sheet */
 
   /* Semantic colours — the only colours components use. The palette (light + dark) lives in brand tokens. */
   --color-surface: var(--surface-base);
@@ -66,6 +69,7 @@
   --color-success-soft: var(--green-surface);
   --color-success-line: var(--green-line);
   --color-scrim: rgb(0 0 0 / 0.42);
+  --color-scrim-strong: rgb(0 0 0 / 0.55);
 }
 @media (min-width: 600px) { :root { --gutter: var(--space-5); } }
 @media (min-width: 1024px) { :root { --gutter: var(--space-6); } }

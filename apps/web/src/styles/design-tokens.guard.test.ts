@@ -1,16 +1,16 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 
 /**
  * [P39] The design system holds: in app CSS, spacing comes only from the spacing scale, font sizes only from
  * the type scale, and colours only from semantic tokens. Token DEFINITIONS (custom properties in system.css)
  * are where raw values live; everything else must reference them.
  */
-const STYLES = resolve(process.cwd(), 'apps/web/src/styles');
-/** The stylesheets under the guard. [P39] Every app stylesheet by the end of the batch. */
-export const GUARDED = ['system.css', 'components.css'];
+const STYLES = resolve(process.cwd(), 'apps/web/src');
+/** The stylesheets under the guard: every app stylesheet. (marketing/ is the landing page, which keeps its own look.) */
+export const GUARDED = ['styles/system.css', 'styles/components.css', 'styles/theme.css', 'auth/auth.css'];
 
 const SPACING_PROPS = /^(margin|margin-(top|right|bottom|left|inline|block|inline-start|inline-end|block-start|block-end)|padding|padding-(top|right|bottom|left|inline|block|inline-start|inline-end|block-start|block-end)|gap|row-gap|column-gap|scroll-padding-inline)$/;
 const COLOR_PROPS = /^(color|background|background-color|border|border-(top|right|bottom|left)|border-color|outline|outline-color|fill|stroke|box-shadow|text-decoration-color|caret-color)$/;
@@ -50,6 +50,23 @@ describe('[P39] app CSS uses the design tokens only', () => {
       expect(offenders).toEqual([]);
     });
   }
+
+  // [P39-8] Inline styles in the app's components follow the same rules (the landing page keeps its own look).
+  it('inline styles in app components: spacing, font sizes and colours come from tokens', () => {
+    const tsx = (dir: string): string[] => readdirSync(dir).flatMap((f) => {
+      const p = join(dir, f);
+      return statSync(p).isDirectory() ? (f === 'marketing' ? [] : tsx(p)) : /\.tsx$/.test(f) && !/\.test\./.test(f) ? [p] : [];
+    });
+    const offenders: string[] = [];
+    for (const f of tsx(STYLES)) {
+      const src = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      for (const m of src.matchAll(/\b(margin\w*|padding\w*|gap|rowGap|columnGap)\s*:\s*(['"])([^'"]*)\2/g)) if (badSpacing(m[3]!)) offenders.push(`${relative(STYLES, f)} ${m[1]}: ${m[3]}`);
+      for (const m of src.matchAll(/\b(margin\w*|padding\w*|gap|rowGap|columnGap)\s*:\s*(-?[1-9]\d*(?:\.\d+)?)\s*[,}]/g)) offenders.push(`${relative(STYLES, f)} ${m[1]}: ${m[2]}`);
+      for (const m of src.matchAll(/\bfontSize\s*:\s*(['"]?)([^'",}]*)\1/g)) if (badFontSize(m[2]!.trim())) offenders.push(`${relative(STYLES, f)} fontSize: ${m[2]}`);
+      for (const m of src.matchAll(/\b(color|background|backgroundColor|border\w*|boxShadow|outline)\s*:\s*(['"])([^'"]*)\2/g)) if (badColor(m[3]!)) offenders.push(`${relative(STYLES, f)} ${m[1]}: ${m[3]}`);
+    }
+    expect(offenders).toEqual([]);
+  });
 
   it('the guard catches off-scale values', () => {
     expect(badSpacing('10px')).toBe(true);

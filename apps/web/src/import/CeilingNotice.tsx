@@ -9,7 +9,7 @@ export function CeilingNotice({ imported }: { imported?: number }): JSX.Element 
   return (
     <div data-testid="ceiling-notice" role="status" style={box}>
       <strong>Your chats are saved.</strong>
-      <p style={{ margin: '0.25rem 0 0' }}>
+      <p style={{ margin: 'var(--space-1) 0 0' }}>
         {typeof imported === 'number' && imported > 0
           ? `We scanned ${imported} message${imported === 1 ? '' : 's'} and reached your free-trial scanning limit. `
           : 'You’ve reached your free-trial scanning limit. '}
@@ -24,6 +24,6 @@ const box: React.CSSProperties = {
   background: 'var(--amber-surface)',
   color: 'var(--amber)',
   borderRadius: 8,
-  padding: '0.75rem 1rem',
-  margin: '0.5rem 0',
+  padding: 'var(--space-3) var(--space-4)',
+  margin: 'var(--space-2) 0',
 };

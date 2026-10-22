@@ -163,7 +163,7 @@ export function OutcomeSheet({ client, onPick, onClose }: { client: ClientSummar
       {client && (
         <div className="lead-sheet" data-testid="outcome-sheet">
           <p className="lead-sheet__title">Won or lost?</p>
-          <p className="lead-sheet__hint" style={{ margin: '0 0 0.5rem' }}>{client.name} is done. How did it end?</p>
+          <p className="lead-sheet__hint" style={{ margin: '0 0 var(--space-2)' }}>{client.name} is done. How did it end?</p>
           <button type="button" className="lead-sheet__option" data-tone="done" onClick={() => onPick('won')}><span className="lead-sheet__label">Won</span></button>
           <button type="button" className="lead-sheet__option" data-tone="cold" onClick={() => onPick('lost')}><span className="lead-sheet__label">Lost</span></button>
           <button type="button" className="tov-link" onClick={onClose}>Not sure yet</button>

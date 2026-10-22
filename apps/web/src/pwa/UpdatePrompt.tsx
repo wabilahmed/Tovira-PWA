@@ -25,7 +25,7 @@ export function UpdatePrompt(): JSX.Element | null {
     <div
       role="status"
       data-testid="sw-update-prompt"
-      style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', justifyContent: 'center', background: 'var(--brass, #8a6d3b)', color: 'var(--brass-ink, #fff)', padding: '0.6rem 1rem', fontSize: '0.9rem' }}
+      style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', justifyContent: 'center', background: 'var(--brass)', color: 'var(--brass-ink)', padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-secondary-size)' }}
     >
       <span>New version available.</span>
       <button type="button" className="tov-primary" onClick={() => apply()}>Reload</button>

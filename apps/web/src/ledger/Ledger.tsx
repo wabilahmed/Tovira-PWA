@@ -50,18 +50,18 @@ export function Ledger({ api, clients }: { api: LedgerApi; clients: Array<{ id: 
         <p style={{ color: 'var(--text-secondary)' }}>Nothing yet — as you act on flags and keep promises, they’ll show here.</p>
       ) : (
         <>
-          <p data-testid="headline" className="tov-statement" style={{ paddingTop: 8 }}>
+          <p data-testid="headline" className="tov-statement" style={{ paddingTop: 'var(--space-2)' }}>
             Tovira touched <strong className="tov-mono">{summary.totalTouched}</strong> opportunit{summary.totalTouched === 1 ? 'y' : 'ies'}
             {summary.aed !== null && <> · <strong className="tov-mono">AED {summary.aed.toLocaleString()}</strong> of your pipeline</>}.
           </p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: '0.75rem 0' }}>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0' }}>
             {(Object.keys(summary.byType) as LedgerEventType[])
               .filter((t) => summary.byType[t] > 0)
               .map((t) => (
                 <li
                   key={t}
                   data-testid={`type-${t}`}
-                  style={{ display: 'flex', gap: '0.75rem', alignItems: 'baseline', padding: '8px 0', borderBottom: '1px solid var(--hairline)' }}
+                  style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'baseline', padding: 'var(--space-2) 0', borderBottom: '1px solid var(--hairline)' }}
                 >
                   <span className="tov-mono" style={{ color: 'var(--brass)' }}>{summary.byType[t]} ×</span>{' '}
                   <span>{LABEL[t]}</span>
@@ -72,7 +72,7 @@ export function Ledger({ api, clients }: { api: LedgerApi; clients: Array<{ id: 
       )}
 
       {clients.length > 0 && (
-        <form onSubmit={saveDealValue} style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+        <form onSubmit={saveDealValue} style={{ marginTop: 'var(--space-4)', display: 'flex', gap: 'var(--space-2)', alignItems: 'baseline', flexWrap: 'wrap' }}>
           <label>
             Deal value for{' '}
             <select className="tov-client-select" value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Deal value client">

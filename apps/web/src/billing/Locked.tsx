@@ -22,7 +22,7 @@ export function Locked({ onSubscribe, status }: { onSubscribe: (plan: Plan) => v
     <section
       aria-label="Subscribe to continue"
       role="status"
-      style={{ border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', background: 'var(--surface-raised)', padding: '1.5rem', display: 'grid', gap: '0.75rem', justifyItems: 'center' }}
+      style={{ border: '1px solid var(--hairline)', borderRadius: 'var(--radius-card)', background: 'var(--surface-raised)', padding: 'var(--space-5)', display: 'grid', gap: 'var(--space-3)', justifyItems: 'center' }}
     >
       <p style={{ margin: 0, color: 'var(--text-secondary)' }}>{lockCopy(status)}</p>
       {/* [P11-1] Subscribe now + the allowance-reset reassurance — the same treatment as every exhausted upsell. */}

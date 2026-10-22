@@ -1103,7 +1103,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
   const recording = active !== null;
 
   return (
-    <main className="tov-clientpage" style={{ fontFamily: 'var(--font-sans)', padding: '1rem', maxWidth: 640, margin: '0 auto' }}>
+    <main className="tov-clientpage" style={{ fontFamily: 'var(--font-sans)', padding: 'var(--space-4)', maxWidth: 640, margin: '0 auto' }}>
       <button onClick={onBack} style={linkButton}>← Clients</button>
       <ClientHeader
         name={client.name}
@@ -1185,7 +1185,7 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
 
       <Accordion id="meeting" title="Before your next meeting" summary={thingsToKeep > 0 ? `${thingsToKeep} thing${thingsToKeep === 1 ? '' : 's'} to keep in mind` : null} open={sections.meeting} onToggle={() => toggle('meeting')}>
         {pointers.pointers.length > 0 && <PointersCard clientName={client.name} clientId={client.id} pointers={pointers.pointers} disclosure={pointers.disclosure} />}
-        <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)} style={{ marginTop: '0.75rem' }}>Pre-meeting brief</button>
+        <button onClick={() => void clientsApi.getBrief(client.id).then(setBrief)} style={{ marginTop: 'var(--space-3)' }}>Pre-meeting brief</button>
         {brief === LOCKED ? (
           <Locked onSubscribe={onSubscribe} status={billingStatus} />
         ) : (
@@ -1253,8 +1253,8 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
   return (
     // A prepared memo (§6): the client name in Fraunces, sections ruled by hairlines.
     <section style={briefBox}>
-      <h2 style={{ marginTop: 0, marginBottom: '0.25rem' }}>{brief.clientName}</h2>
-      <p className="tov-stamp" style={{ margin: '0 0 0.5rem' }}>Pre-meeting brief</p>
+      <h2 style={{ marginTop: 0, marginBottom: 'var(--space-1)' }}>{brief.clientName}</h2>
+      <p className="tov-stamp" style={{ margin: '0 0 var(--space-2)' }}>Pre-meeting brief</p>
       {brief.pointers && brief.pointers.length > 0 && (
         <div style={briefSection}>
           <PointersCard clientName={brief.clientName} clientId={clientId} pointers={brief.pointers} disclosure={brief.pointersDisclosure ?? null} />
@@ -1273,7 +1273,7 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
             {brief.needsConfirmation.map((p) => (
               <li key={p.id}>
                 {p.text}{' '}
-                <button onClick={() => void clientsApi.confirmPromise(p.id).then(onChange)} style={{ marginLeft: 4 }}>Confirm</button>{' '}
+                <button onClick={() => void clientsApi.confirmPromise(p.id).then(onChange)} style={{ marginLeft: 'var(--space-1)' }}>Confirm</button>{' '}
                 <button onClick={() => void clientsApi.rejectPromise(p.id).then(onChange)}>Reject</button>
               </li>
             ))}
@@ -1290,7 +1290,7 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
               const word = ROLE_WORD[p.decision_role] ?? '';
               const blocks = p.decision_role === 'blocker';
               return (
-                <li key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', padding: '4px 0' }}>
+                <li key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', padding: 'var(--space-1) 0' }}>
                   <span>{p.name ?? 'Unknown'}{p.role ? `, ${p.role}` : ''}</span>
                   {word && <span className="tov-stamp" style={blocks ? { color: 'var(--claret)' } : undefined}>{word}</span>}
                 </li>
@@ -1308,7 +1308,7 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
       {brief.relatedNotes.length > 0 && (
         <div style={briefSection}>
           <div className="tov-stamp">Recent context</div>
-          <div style={{ display: 'grid', gap: '0.5rem', marginTop: 6 }}>
+          <div style={{ display: 'grid', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
             {brief.relatedNotes.map((n) => <ReceiptThread key={n.noteId} compact={false} refInfo={{ noteId: n.noteId, span: n.snippet, quote: n.snippet }} />)}
           </div>
         </div>
@@ -1328,11 +1328,11 @@ const ROLE_WORD: Record<string, string> = {
 const briefBox: React.CSSProperties = {
   border: '1px solid var(--hairline)',
   borderRadius: 'var(--radius-card)',
-  padding: '1rem 1.25rem',
-  margin: '1rem 0',
+  padding: 'var(--space-4) var(--space-5)',
+  margin: 'var(--space-4) 0',
   background: 'var(--surface-raised)',
 };
-const briefSection: React.CSSProperties = { borderTop: '1px solid var(--hairline)', paddingTop: '0.6rem', marginTop: '0.6rem' };
+const briefSection: React.CSSProperties = { borderTop: '1px solid var(--hairline)', paddingTop: 'var(--space-2)', marginTop: 'var(--space-2)' };
 
 /**
  * Dev-only crash trigger. In a production build `import.meta.env.DEV` is false, so this is a no-op that

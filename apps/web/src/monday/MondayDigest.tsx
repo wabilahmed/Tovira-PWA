@@ -77,7 +77,7 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
       </Section>
 
       <Section testid="questions" label="Unanswered questions" count={digest.unansweredQuestions.length}>
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
+        <div style={{ display: 'grid', gap: 'var(--space-2)' }}>
           {digest.unansweredQuestions.map((q, i) => (
             <ReceiptThread key={i} compact={false} refInfo={{ clientId: q.clientId, span: q.question, at: q.date, quote: q.question }} />
           ))}
@@ -92,7 +92,7 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
 
       {/* [INV-MATCH] Surfaced this week, not yet acted on — item to offer + the client's own words. */}
       <Section testid="surfaced" label="Surfaced, not yet acted" count={surfaced.length}>
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
+        <div style={{ display: 'grid', gap: 'var(--space-2)' }}>
           {surfaced.map((s, i) => (
             <div key={i}>
               <div>{s.itemTitle}</div>
@@ -108,8 +108,8 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
 function Section({ testid, label, count, children }: { testid: string; label: string; count: number; children: ReactNode }): JSX.Element | null {
   if (count === 0) return null;
   return (
-    <div data-testid={testid} style={{ margin: '1.25rem 0', paddingBottom: '0.75rem', borderBottom: '1px solid var(--hairline)' }}>
-      <div className="tov-stamp" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
+    <div data-testid={testid} style={{ margin: 'var(--space-5) 0', paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--hairline)' }}>
+      <div className="tov-stamp" style={{ marginBottom: 'var(--space-2)', display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)' }}>
         <span>{label}</span>
         <span>{String(count).padStart(2, '0')}</span>
       </div>
@@ -120,9 +120,9 @@ function Section({ testid, label, count, children }: { testid: string; label: st
 
 function Row({ left, right, claretRight }: { left: string; right: string; claretRight?: boolean }): JSX.Element {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'baseline', padding: '3px 0' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', alignItems: 'baseline', padding: 'var(--space-1) 0' }}>
       <span>{left}</span>
-      {right && <span className="tov-mono" style={{ color: claretRight ? 'var(--claret)' : 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{right}</span>}
+      {right && <span className="tov-mono" style={{ color: claretRight ? 'var(--claret)' : 'var(--text-secondary)', fontSize: 'var(--text-secondary-size)', whiteSpace: 'nowrap' }}>{right}</span>}
     </div>
   );
 }

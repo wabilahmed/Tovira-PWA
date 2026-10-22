@@ -16,7 +16,7 @@ export const ALLOWANCE_RESET_LINE = "Subscribing gives you a full month's allowa
 
 export function SubscribeNow({ onSubscribe }: { onSubscribe?: (plan: Plan) => void }): JSX.Element {
   return (
-    <div data-testid="subscribe-upsell" style={{ display: 'grid', gap: '0.5rem', justifyItems: 'start' }}>
+    <div data-testid="subscribe-upsell" style={{ display: 'grid', gap: 'var(--space-2)', justifyItems: 'start' }}>
       {/* Yearly is the primary action (the better deal); monthly is the secondary. */}
       <button
         type="button"

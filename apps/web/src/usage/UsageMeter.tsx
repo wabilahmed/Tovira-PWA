@@ -182,7 +182,7 @@ export function UsageMeter({
 
 function TopUp({ options, busy, onBuy }: { options: AllowanceStatus['options']; busy: string | null; onBuy: (id: string) => void }): JSX.Element {
   return (
-    <div data-testid="topup-sheet" style={{ display: 'grid', gap: '0.4rem', marginTop: '0.5rem' }}>
+    <div data-testid="topup-sheet" style={{ display: 'grid', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
       {options.map((o) => (
         <button key={o.id} type="button" data-testid={`topup-${o.id}`} disabled={busy !== null} onClick={() => onBuy(o.id)}>
           {packLabel(o)}

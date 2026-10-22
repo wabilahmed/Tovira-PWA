@@ -66,7 +66,7 @@ export function GetStarted({
       <>
         <SeedingBanner status={seeding} onStartImport={onStartImport ?? (() => setStep('import'))} onFallback={onFallback} />
         {onAddInventory && (
-          <p className="tov-seed-inv" style={{ color: 'var(--text-secondary)', marginTop: '1rem' }}>
+          <p className="tov-seed-inv" style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-4)' }}>
             Or tell Tovira what you have to sell — a few items, no export needed.{' '}
             <button className="tov-link" onClick={onAddInventory}>Add inventory</button>
           </p>
@@ -107,7 +107,7 @@ export function GetStarted({
       <section aria-label="Choose the client">
         <h2>Who's this chat with?</h2>
         {clients.length > 0 && (
-          <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <div style={{ display: 'grid', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
             {clients.map((c) => (
               <button key={c.id} type="button" onClick={() => setTarget(c)} style={{ textAlign: 'left' }}>
                 {c.name}
@@ -115,7 +115,7 @@ export function GetStarted({
             ))}
           </div>
         )}
-        <form onSubmit={createAndSelect} style={{ display: 'flex', gap: '0.5rem' }}>
+        <form onSubmit={createAndSelect} style={{ display: 'flex', gap: 'var(--space-2)' }}>
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}

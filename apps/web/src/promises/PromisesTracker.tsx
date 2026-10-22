@@ -130,13 +130,13 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {active.map((p) => (
             <li key={p.id} data-testid="open-promise" style={row}>
-              <span style={{ display: 'flex', gap: '0.6rem', alignItems: 'baseline' }}>
+              <span style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'baseline' }}>
                 {overdue(p, now) && <span className="tov-dot tov-dot--claret" aria-hidden="true" />}
                 <span>
                   {p.text} <small className="tov-stamp" style={overdue(p, now) ? { color: 'var(--claret)' } : undefined}>{due(p)}</small>
                 </span>
               </span>
-              <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <span style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                 <input
                   type="date"
                   aria-label={`Due date for: ${p.text}`}
@@ -151,7 +151,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
         </ul>
       )}
       {stale.length > 0 && (
-        <div style={{ marginTop: '0.75rem' }}>
+        <div style={{ marginTop: 'var(--space-3)' }}>
           <button onClick={() => setShowStale((s) => !s)} aria-expanded={showStale} style={{ color: 'var(--text-secondary)' }}>
             {showStale ? 'Hide' : 'Show'} {stale.length} older promise{stale.length > 1 ? 's' : ''}
           </button>
@@ -161,7 +161,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
                 <li key={p.id} data-testid="stale-promise" style={{ ...row, color: 'var(--text-secondary)' }}>
                   {/* stale: no claret, muted — still stored/searchable, still actionable */}
                   <span>{p.text} <small className="tov-stamp">{due(p)}</small></span>
-                  <span style={{ display: 'flex', gap: '0.5rem' }}>
+                  <span style={{ display: 'flex', gap: 'var(--space-2)' }}>
                     <button onClick={() => void done(p.id)}>Done</button>
                     <button aria-label={`Delete promise: ${p.text}`} onClick={() => void del(p, 'open')}>Delete</button>
                   </span>
@@ -178,11 +178,11 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {pending.map((p) => (
               <li key={p.id} data-testid="pending-promise" style={row}>
-                <span style={{ display: 'flex', gap: '0.6rem', alignItems: 'baseline' }}>
+                <span style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'baseline' }}>
                   <span className="tov-dot tov-dot--amber" aria-hidden="true" />
                   {p.text}
                 </span>
-                <span style={{ display: 'flex', gap: '0.5rem' }}>
+                <span style={{ display: 'flex', gap: 'var(--space-2)' }}>
                   <button onClick={() => void confirm(p.id)}>Confirm</button>
                   <button onClick={() => void reject(p.id)}>Reject</button>
                   <button aria-label={`Delete promise: ${p.text}`} onClick={() => void del(p, 'pending')}>Delete</button>
@@ -219,7 +219,7 @@ const row: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  gap: '0.5rem',
-  padding: '0.5rem 0',
+  gap: 'var(--space-2)',
+  padding: 'var(--space-2) 0',
   borderBottom: '1px solid var(--hairline)',
 };
