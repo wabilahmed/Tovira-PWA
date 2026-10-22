@@ -200,15 +200,17 @@ describe('ExtractionService', () => {
     const facts = new InMemoryFactsRepository();
     const meetings = new InMemoryMeetingRepository();
     const client = await clients.create('user-A', 'Meridian Corp');
-    const note = await notes.create('user-A', { clientId: client.id, source: 'paste', rawText: 'meeting next Tuesday 3pm', audioKey: null, status: 'pending_extraction' });
+    const note = await notes.create('user-A', { clientId: client.id, source: 'paste', rawText: 'meeting Tuesday 3pm', audioKey: null, status: 'pending_extraction' });
     const logs = new InMemoryExtractionLogRepository();
-    const svc = new ExtractionService(model(WITH_MEETING), clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined, undefined, undefined, meetings, async () => 'Asia/Dubai');
+    const svc = new ExtractionService(model(WITH_MEETING.replace('next Tuesday 3pm', 'Tuesday 3pm')), clients, notes, facts, new StubEmbedder(8), logs, 'stub', undefined, undefined, undefined, undefined, meetings, async () => 'Asia/Dubai');
 
     await svc.extractNote('user-A', note.id, '2026-07-09');
     const persisted = await meetings.findByNoteId('user-A', note.id);
     expect(persisted?.confirmed).toBe(false); // waits for the rep — never booked silently
+    // [P40-1 · owner] the time comes from the resolver reading "Tuesday 3pm" against the note's date (Thu 9 Jul →
+    // Tue 14 Jul), not from the model (was "next Tuesday 3pm", which the resolver refuses; see no-guessed-dates).
     expect(persisted?.datetime).toBe('2026-07-14T11:00:00.000Z'); // 15:00 Dubai → 11:00Z
-    expect(persisted?.datetimeRaw).toBe('next Tuesday 3pm');
+    expect(persisted?.datetimeRaw).toBe('Tuesday 3pm');
     expect(persisted?.noteId).toBe(note.id);
     // an unconfirmed meeting is NOT nudge-eligible
     expect(await meetings.dueForNudge('user-A', '2026-07-14T00:00:00.000Z', '2026-07-14T23:59:59.000Z')).toHaveLength(0);
@@ -376,7 +378,9 @@ describe('ExtractionService', () => {
   });
 
   it('[DATE-INVARIANT] nulls a promise dated before the note reference (fresh note cannot be past-due)', async () => {
-    const past = JSON.stringify({ ...JSON.parse(VALID), promises: [{ text: 'Send the quote', owner: 'rep', due_date: '2026-07-01', due_raw: 'Monday', confidence: 'high' }] });
+    // [P40-1 · owner] due_raw "soon" (was "Monday"): a voice/paste note now resolves a weekday against its own date,
+    // so the invariant is exercised with a phrase the resolver can't read and a model date before the note.
+    const past = JSON.stringify({ ...JSON.parse(VALID), promises: [{ text: 'Send the quote', owner: 'rep', due_date: '2026-07-01', due_raw: 'soon', confidence: 'high' }] });
     const { service, notes, facts, note } = await setup(model(past)); // note today = 2026-07-09 (reference), due 2026-07-01 is BEFORE it
     await service.extractNote('user-A', note.id, '2026-07-09');
     const stored = (await notes.findByIdForUser('user-A', note.id))!.extracted as { promises: { due_date: string | null; confidence: string }[] };

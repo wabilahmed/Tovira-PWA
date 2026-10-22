@@ -17,7 +17,8 @@ import { dropNonVerbatimSpans } from './receipt-postcheck.js';
 import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from './pointer-prompt.js';
 import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
-import { resolveExtractionDates, effectiveDueDate } from './resolve-date.js';
+import { resolveExtractionDates } from './resolve-date.js';
+import { factsProjection, trustedMeetingDatetime } from './date-policy.js';
 import type { ModelRouter } from './model-router.js';
 import type { ExtractionLimiter } from './limiter.js';
 import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, EXTRACTION_MAX_TOKENS, buildUserMessage } from './prompt.js';
@@ -284,7 +285,8 @@ export class ExtractionService {
     if (await this.meetings.findByNoteId(userId, noteId)) return; // already persisted — idempotent
     // [P18-3] Prefer the deterministically-resolved wall clock (message-anchored) over the model's own,
     // then convert it to a UTC instant in the rep's timezone (stored UTC, shown in their zone).
-    let datetime = meeting.resolved_datetime ?? meeting.datetime;
+    // [P40-1] Never the model's own datetime: the resolver's, or null (the meeting stays unconfirmed, phrase kept).
+    let datetime = trustedMeetingDatetime(meeting);
     if (datetime) {
       const tz = this.meetingTimezone ? await this.meetingTimezone(userId) : 'Asia/Dubai';
       try { datetime = zonedWallClockToInstant(datetime, tz).toISOString(); } catch { /* keep raw */ }
@@ -534,12 +536,11 @@ export class ExtractionService {
         await this.facts.saveExtraction(userId, {
           noteId,
           clientId: note.clientId,
-          // [P14-3] Surface the deterministically-resolved date (message-anchored) when we have one, else
-          // the model's own; the raw phrase is preserved. The stored extraction JSON (above) keeps the
-          // model's due_date + resolved_due_date + resolution for provenance; this projection is what the
-          // facts table (nudges, Monday, scan, lists) reads.
-          promises: extraction.promises.map((p) => ({ ...p, due_date: effectiveDueDate(p) })),
-          keyDates: extraction.key_dates.map((k) => ({ ...k, date: k.resolved_date ?? k.date })),
+          // [P40-1] The stored date is the deterministic resolver's — NEVER the model's guess (the P39 "Sunday
+          // morning" → 20 Oct bug was the old `resolved ?? model` fallback). No resolver date → null, the phrase
+          // kept, and date_status 'to_confirm' for the rep to answer. The stored extraction JSON (above) keeps
+          // the model's due_date + resolved_due_date + resolution for provenance only.
+          ...factsProjection(extraction, { dayFirst: note.source === 'whatsapp_export' }),
           captureAt: referenceDate, // the note's conversation date, not the fact-row/import time
         });
         // [P24-2] A promise its owner later says was delivered → a To Confirm suggestion; the promise stays

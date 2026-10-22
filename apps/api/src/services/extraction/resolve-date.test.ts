@@ -129,9 +129,10 @@ describe('[P14-3] resolveExtractionDates — the import bug', () => {
   it('a voice/paste promise (no source_message_at) falls back to the note reference date and still resolves', () => {
     const ex = emptyExtraction({ promises: [promise({ due_raw: 'in 3 days', source_message_at: null, due_date: '2026-10-08' })] });
     resolveExtractionDates(ex, '2026-10-05', 'n1');
-    // No anchor → the relative phrase cannot be resolved deterministically; the model's value is kept for surfacing.
-    expect(ex.promises[0]!.resolved_due_date).toBeNull();
-    expect(ex.promises[0]!.due_date).toBe('2026-10-08');
+    // [P40-1 · owner] The note's own date IS the anchor for a voice/paste note: "in 3 days" resolves
+    // deterministically (was: unresolved, the model's value kept — the fallback P40 removes).
+    expect(ex.promises[0]!.resolved_due_date).toBe('2026-10-08');
+    expect(ex.promises[0]!.due_date).toBe('2026-10-08'); // the model's own field is left untouched (provenance)
   });
 
   it('INVARIANT: a promise due BEFORE the message that made it is impossible — nulled everywhere, dropped to low', () => {

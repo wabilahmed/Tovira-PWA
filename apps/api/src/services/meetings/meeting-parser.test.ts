@@ -38,14 +38,33 @@ describe('MeetingParser', () => {
   });
 
   // NEGATIVE: two clients match → prompt which one, don't silently pick.
+  // [P40-1 · owner] the time must come from the resolver now, so the rep's words say "Tuesday 3pm" (not "next …").
   it('asks which client when the name is ambiguous', async () => {
     const clients = new InMemoryClientRepository();
     await clients.create('user-A', 'Sarah Corp');
     await clients.create('user-A', 'Sarah Ltd');
-    const parser = new MeetingParser(model('{"clientName":"Sarah","datetime":"2026-07-14T15:00","datetimeRaw":"next Tuesday 3pm"}'), clients);
-    const r = await parser.parse('user-A', 'meeting with Sarah next Tuesday 3pm', '2026-07-09');
+    const parser = new MeetingParser(model('{"clientName":"Sarah","datetime":"2026-07-14T15:00","datetimeRaw":"Tuesday 3pm"}'), clients);
+    const r = await parser.parse('user-A', 'meeting with Sarah Tuesday 3pm', '2026-07-09');
     expect(r.kind).toBe('ambiguous_client');
     if (r.kind === 'ambiguous_client') expect(r.candidates).toHaveLength(2);
+  });
+
+  // [P40-1] The model's time is never used: "next Tuesday" is ambiguous to the resolver, so the rep picks it,
+  // even though the model offered 2026-07-14T15:00.
+  it('negative: a time only the model resolved → the picker (ambiguous_time), never the model\'s datetime', async () => {
+    const clients = new InMemoryClientRepository();
+    await clients.create('user-A', 'Meridian Corp');
+    const parser = new MeetingParser(model('{"clientName":"Meridian","datetime":"2026-07-14T15:00","datetimeRaw":"next Tuesday 3pm"}'), clients);
+    const r = await parser.parse('user-A', 'meeting with Meridian next Tuesday 3pm', '2026-07-09');
+    expect(r.kind).toBe('ambiguous_time');
+  });
+
+  it('negative: the model\'s datetime that disagrees with the rep\'s own words is replaced by the resolver\'s', async () => {
+    const clients = new InMemoryClientRepository();
+    await clients.create('user-A', 'Meridian Corp');
+    const parser = new MeetingParser(model('{"clientName":"Meridian","datetime":"2026-07-17T10:00","datetimeRaw":"Fri 10am"}'), clients);
+    const r = await parser.parse('user-A', 'meeting with Meridian Fri 10am', '2026-07-09');
+    expect(r.kind === 'proposal' && r.datetime).toBe('2026-07-10T10:00');
   });
 
   it('reports no matching client', async () => {

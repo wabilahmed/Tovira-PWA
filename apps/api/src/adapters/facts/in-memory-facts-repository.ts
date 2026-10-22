@@ -71,6 +71,7 @@ export class InMemoryFactsRepository implements FactsRepository {
         sourceMessageAt: promise.source_message_at ?? null,
         captureAt: input.captureAt ?? null,
         deletedAt: null,
+        dateStatus: promise.date_status ?? null,
         createdAt: Date.now(),
       });
       // Specific date wins: a duplicate that carries a resolved date fills the
@@ -78,6 +79,7 @@ export class InMemoryFactsRepository implements FactsRepository {
       if (canonical && canonical.dueDate === null && promise.due_date !== null) {
         canonical.dueDate = promise.due_date;
         canonical.dueRaw = promise.due_raw;
+        canonical.dateStatus = null; // [P40-1] a resolved date answers it
       }
     }
   }
@@ -102,6 +104,7 @@ export class InMemoryFactsRepository implements FactsRepository {
     if (patch.dueRaw !== undefined) p.dueRaw = patch.dueRaw;
     if (patch.confidence !== undefined) p.confidence = patch.confidence;
     if (patch.done !== undefined) p.done = patch.done;
+    if (patch.dateStatus !== undefined) p.dateStatus = patch.dateStatus;
     return true;
   }
 

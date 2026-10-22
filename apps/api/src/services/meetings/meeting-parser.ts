@@ -1,6 +1,7 @@
 import type { ModelClient } from '../../ports/model.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
-import { resolveDueDate, extractClockTime, extractDatePhrase } from '../extraction/resolve-date.js';
+import { resolveDueDate, resolveDateTime, extractClockTime, extractDatePhrase } from '../extraction/resolve-date.js';
+import { trustedMeetingDatetime } from '../extraction/date-policy.js';
 import { nameMentionedIn } from '../text/normalize-name.js';
 import { AUX_MAX_TOKENS } from '../ai/aux-budgets.js';
 
@@ -68,8 +69,13 @@ export class MeetingParser {
     const parsed = await this.callModel(text, today, userId);
     if (!parsed || !parsed.clientName) return { kind: 'ambiguous_time', datetimeRaw: text };
 
-    // Vague/missing time → ask for specifics rather than inventing one.
-    if (!parsed.datetime) return { kind: 'ambiguous_time', datetimeRaw: parsed.datetimeRaw || text };
+    // [P40-1] The model names the client; the TIME comes from the resolver reading the rep's own words — never
+    // the model's datetime (only when those words carry that exact explicit date and time, which the resolver
+    // then reads the same way). Vague/missing/only-the-model-knows → ask for specifics, never invent one.
+    const own = resolveDateTime(text, today).datetime;
+    const datetime = trustedMeetingDatetime({ datetime: parsed.datetime, datetime_raw: parsed.datetimeRaw || text, confirmed: false, resolved_datetime: own, source_span: text });
+    if (!datetime) return { kind: 'ambiguous_time', datetimeRaw: parsed.datetimeRaw || text };
+    parsed.datetime = datetime;
 
     const matches = await this.clients.search(userId, parsed.clientName);
     if (matches.length === 0) return { kind: 'no_client', name: parsed.clientName };

@@ -2,7 +2,8 @@ import type { NoteRepository } from '../../ports/note-repository.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
-import type { ExtractedPromise } from '../extraction/types.js';
+import type { ExtractedPromise, KeyDate } from '../extraction/types.js';
+import { factsProjection } from '../extraction/date-policy.js';
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
 import { recordVerdict } from '../facts/verdict.js';
@@ -95,15 +96,15 @@ export class AskCaptureService {
   async confirm(userId: string, noteId: string): Promise<boolean> {
     const note = await this.deps.notes.findByIdForUser(userId, noteId);
     if (!note || note.status !== PENDING) return false;
-    const ex = (note.extracted ?? {}) as { promises?: ExtractedPromise[]; key_dates?: unknown[] };
+    const ex = (note.extracted ?? {}) as { promises?: ExtractedPromise[]; key_dates?: KeyDate[] };
     let embedding: number[] | null = null;
     try { embedding = await this.deps.embedder.embed(userId, note.rawText ?? ''); } catch { /* degraded search, still committed */ }
     await this.deps.notes.update(userId, noteId, { status: 'extracted', embedding });
     await this.deps.facts.saveExtraction(userId, {
       noteId,
       clientId: note.clientId,
-      promises: ex.promises ?? [],
-      keyDates: (ex.key_dates ?? []) as never,
+      // [P40-1] The same rule as extraction: the resolver's date or null + to confirm — never the model's due_date.
+      ...factsProjection({ promises: ex.promises ?? [], key_dates: ex.key_dates ?? [] }),
     });
     await this.deps.clients.touch(userId, note.clientId);
     return true;

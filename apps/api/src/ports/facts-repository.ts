@@ -34,8 +34,13 @@ export interface PromiseRecord {
   /** [P20-2 / BOOK-09] Soft-delete timestamp (ms). Non-null = the rep deleted it (undoable for 10s, then
    *  hard-deleted after 30 days). Filtered from every surface; still carried in the export. */
   deletedAt: number | null;
+  /** [P40-1] 'to_confirm' — the resolver had no date and the rep hasn't answered; 'not_sure' / 'no_due_date' —
+   *  the rep's answer; null — nothing to confirm. Absent on older in-memory fixtures → treated as null. */
+  dateStatus?: DateStatus | null;
   createdAt: number;
 }
+
+export type DateStatus = 'to_confirm' | 'not_sure' | 'no_due_date';
 
 export interface KeyDateRecord {
   id: string;
@@ -57,7 +62,8 @@ export interface KeyDateRecord {
 export interface SaveExtractionInput {
   noteId: string;
   clientId: string;
-  promises: ExtractedPromise[];
+  /** [P40-1] date_status rides along: 'to_confirm' when the resolver had no date for a phrase. */
+  promises: Array<ExtractedPromise & { date_status?: DateStatus | null }>;
   keyDates?: KeyDate[];
   /** [RECEIPTS-capture-date] the note's conversation date (referenceDate, YYYY-MM-DD) stamped onto
    *  every fact from this note for the receipt capture-date fallback. Omitted/undefined → null. */
@@ -104,4 +110,6 @@ export interface PromisePatch {
   dueRaw?: string | null;
   confidence?: string;
   done?: boolean;
+  /** [P40-1] The rep's answer to "When is it due?" (a dated answer sets dueDate and clears this to null). */
+  dateStatus?: DateStatus | null;
 }

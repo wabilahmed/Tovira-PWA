@@ -30,6 +30,8 @@ export interface ResolvedDate {
 const NONE: ResolvedDate = { date: null, resolution: null };
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+/** [P40-1] The short forms reps type ("Fri 10am", "Tues"). Whole words only — "Sunset" is not Sunday. */
+const WEEKDAY_ABBR: Record<string, number> = { sun: 0, mon: 1, tue: 2, tues: 2, wed: 3, thu: 4, thur: 4, thurs: 4, fri: 5, sat: 6 };
 const NUMBER_WORDS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
 };
@@ -125,7 +127,7 @@ export function extractDatePhrase(text: string): string | null {
   // is then left to the resolver, which returns null without a day-order proof — never a weekday guess.)
   const explicit = /\b\d{1,2}[./-]\d{1,2}[./-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/.exec(text);
   if (explicit) return explicit[0];
-  const re = /\b((?:this|next)\s+)?(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\bin\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:days?|weeks?)\b|\bend\s+of\s+(?:the\s+)?month\b/i;
+  const re = /\b((?:this|next)\s+)?(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu(?:rs?)?|fri|sat|sun)\b|\bin\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:days?|weeks?)\b|\bend\s+of\s+(?:the\s+)?month\b/i;
   const m = re.exec(text);
   return m ? m[0] : null;
 }
@@ -177,7 +179,7 @@ function tryRelative(phrase: string, anchor: Date | null): string | null {
   // A bare weekday, optionally "this <weekday>" → the next occurrence STRICTLY AFTER the anchor.
   m = /^(this\s+)?([a-z]+)$/.exec(phrase);
   if (m) {
-    const dow = WEEKDAYS.indexOf(m[2]!);
+    const dow = WEEKDAYS.includes(m[2]!) ? WEEKDAYS.indexOf(m[2]!) : WEEKDAY_ABBR[m[2]!] ?? -1;
     if (dow === -1) return null;
     return nextWeekdayAfter(anchor, dow);
   }
@@ -236,8 +238,10 @@ export function resolveExtractionDates(
 ): void {
   const dayFirst = opts.dayFirst === true;
   const log = opts.log ?? ((m: string) => console.warn(m));
+  // [P40-1] A voice/paste note has no per-message timestamp: the whole note shares one date, so its phrases are
+  // resolved against that date (fallbackAnchor) — deterministically, instead of leaving them to the model.
   for (const p of extraction.promises) {
-    const r = resolveDueDate(p.due_raw ?? null, p.source_message_at ?? null, { dayFirst });
+    const r = resolveDueDate(p.due_raw ?? null, p.source_message_at ?? fallbackAnchor, { dayFirst });
     p.resolved_due_date = r.date;
     p.resolution = r.resolution;
     const anchor = messageDay(p.source_message_at ?? null) ?? fallbackAnchor;
@@ -250,7 +254,7 @@ export function resolveExtractionDates(
     }
   }
   for (const k of extraction.key_dates) {
-    const r = resolveDueDate(k.date_raw ?? null, k.source_message_at ?? null, { dayFirst });
+    const r = resolveDueDate(k.date_raw ?? null, k.source_message_at ?? fallbackAnchor, { dayFirst });
     k.resolved_date = r.date;
     k.resolution = r.resolution;
   }
@@ -258,7 +262,7 @@ export function resolveExtractionDates(
   // time), stored separately in resolved_datetime; the model's datetime/datetime_raw are left untouched.
   const mtg = extraction.meeting;
   if (mtg) {
-    const r = resolveDateTime(mtg.datetime_raw ?? null, mtg.source_message_at ?? null, { dayFirst });
+    const r = resolveDateTime(mtg.datetime_raw ?? null, mtg.source_message_at ?? fallbackAnchor, { dayFirst });
     mtg.resolved_datetime = r.datetime;
     mtg.resolution = r.resolution;
   }

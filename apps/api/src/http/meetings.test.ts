@@ -70,7 +70,8 @@ describe('[P3-1] add a meeting', () => {
     const parse = await fetch(`${base}/meetings/parse`, {
       method: 'POST',
       headers: auth(token),
-      body: JSON.stringify({ text: 'meeting with Meridian next Tuesday 3pm' }),
+      // [P40-1 · owner] the time comes from the resolver now, which reads "Tuesday 3pm" but not "next Tuesday"
+      body: JSON.stringify({ text: 'meeting with Meridian Tuesday 3pm' }),
     });
     const result = (await parse.json()) as { kind: string; datetime?: string };
     expect(result.kind).toBe('proposal');

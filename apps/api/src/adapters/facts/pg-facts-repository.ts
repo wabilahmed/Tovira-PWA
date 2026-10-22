@@ -43,6 +43,7 @@ interface PromiseRow {
   source_message_at: Date | null;
   capture_at: string | null;
   deleted_at: Date | null;
+  date_status: string | null;
   created_at: Date;
 }
 
@@ -65,12 +66,13 @@ function toRecord(row: PromiseRow): PromiseRecord {
     sourceMessageAt: row.source_message_at ? row.source_message_at.toISOString() : null,
     captureAt: row.capture_at ?? null,
     deletedAt: row.deleted_at ? row.deleted_at.getTime() : null,
+    dateStatus: (row.date_status ?? null) as PromiseRecord['dateStatus'],
     createdAt: row.created_at.getTime(),
   };
 }
 
 const COLUMNS =
-  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, done_at, confirmed, merged_into, source_span, source_message_at, capture_at, deleted_at, created_at';
+  'id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, done, done_at, confirmed, merged_into, source_span, source_message_at, capture_at, deleted_at, date_status, created_at';
 
 /** Postgres-backed spine store; every method runs in a tenant tx (RLS enforced). */
 export class PgFactsRepository implements FactsRepository {
@@ -99,14 +101,14 @@ export class PgFactsRepository implements FactsRepository {
         const canonical = canonicalByKey.get(key);
         // [P24-2] A promise is always inserted OPEN — only the rep closes one.
         const { rows: ins } = await c.query(
-          `INSERT INTO promises (user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, merged_into, source_span, source_message_at, capture_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-          [userId, input.noteId, input.clientId, p.text, p.owner, p.due_date, p.due_raw, p.confidence, canonical ? canonical.id : null, p.source_span ?? null, p.source_message_at ?? null, input.captureAt ?? null],
+          `INSERT INTO promises (user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, merged_into, source_span, source_message_at, capture_at, date_status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+          [userId, input.noteId, input.clientId, p.text, p.owner, p.due_date, p.due_raw, p.confidence, canonical ? canonical.id : null, p.source_span ?? null, p.source_message_at ?? null, input.captureAt ?? null, p.date_status ?? null],
         );
         if (canonical) {
           // Specific date wins: fill the canonical's null date from this duplicate.
           if (canonical.dueDate === null && p.due_date !== null) {
-            await c.query('UPDATE promises SET due_date = $1, due_raw = $2 WHERE id = $3', [p.due_date, p.due_raw, canonical.id]);
+            await c.query('UPDATE promises SET due_date = $1, due_raw = $2, date_status = NULL WHERE id = $3', [p.due_date, p.due_raw, canonical.id]); // [P40-1] a date answers it
             canonical.dueDate = new Date(p.due_date);
           }
         } else {
@@ -280,6 +282,7 @@ export class PgFactsRepository implements FactsRepository {
         due_raw: patch.dueRaw,
         confidence: patch.confidence,
         done: patch.done,
+        date_status: patch.dateStatus,
       };
       const sets: string[] = [];
       const params: unknown[] = [];
