@@ -1,8 +1,8 @@
 import { hapticTick } from '../haptics.js';
 import { useEffect, useRef, useState } from 'react';
 import type { OpenPromise } from '../promises/promisesClient.js';
-import { AnswerCard } from './ConfirmChit.js';
-import { clientPromiseCopy, fieldCopy, keptCopy, noteCopy, repPromiseCopy, statusCopy } from './cardCopy.js';
+import { AnswerCard, DateCard } from './ConfirmChit.js';
+import { clientPromiseCopy, dateCopy, fieldCopy, keptCopy, noteCopy, repPromiseCopy, shortDay, statusCopy } from './cardCopy.js';
 import type { PendingCapture } from '../recall/recallClient.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { Button } from '../ui/Button.js';
@@ -52,13 +52,21 @@ export interface StatusSuggestionsApi {
   keep(s: StatusSuggestionCard): Promise<boolean>;
 }
 
-export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures, kept, statusSuggestions, limit, onSeeAll, standalone = false, back }: {
+/** [P40-1] Promises whose date the rep gives (the resolver couldn't read the phrase). */
+export interface DateConfirmApi {
+  listDatesToConfirm(): Promise<OpenPromise[]>;
+  answerDate(id: string, answer: { dueDate: string } | { dateStatus: 'not_sure' | 'no_due_date' }): Promise<boolean>;
+}
+
+export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures, kept, statusSuggestions, dates, limit, onSeeAll, standalone = false, back }: {
   api: ConfirmQueueApi;
   heading?: string;
   captures?: CaptureQueueApi;
   kept?: KeptQueueApi;
   /** [P36-7] status suggestions from the existing inference — "Mark … as Cold?" */
   statusSuggestions?: StatusSuggestionsApi;
+  /** [P40-1] dates to confirm — "When is the floor plans promise due?" */
+  dates?: DateConfirmApi;
   /** [P34-3] Show at most this many cards (newest first) and a "See all N" link — Today uses 3. */
   limit?: number;
   /** [P34-3] Opens the full To Confirm screen. */
@@ -73,6 +81,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
   const [looksSent, setLooksSent] = useState<KeptSuggestion[]>([]);
   const [undoKept, setUndoKept] = useState<KeptSuggestion | null>(null);
   const [statusCards, setStatusCards] = useState<StatusSuggestionCard[]>([]);
+  const [dateCards, setDateCards] = useState<OpenPromise[]>([]);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
@@ -84,10 +93,18 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
     if (captures) void captures.listCaptures().then((x) => { if (live) setHeld(x); });
     if (kept) void kept.listKept().then((x) => { if (live) setLooksSent(x); });
     if (statusSuggestions) void statusSuggestions.list().then((x) => { if (live) setStatusCards(x); });
+    if (dates) void dates.listDatesToConfirm().then((x) => { if (live) setDateCards(x); });
     return () => {
       live = false;
     };
-  }, [api, captures, kept, statusSuggestions]);
+  }, [api, captures, kept, statusSuggestions, dates]);
+
+  async function answerDate(p: OpenPromise, a: { dueDate: string } | { dateStatus: 'not_sure' | 'no_due_date' }): Promise<void> {
+    if (dates && (await dates.answerDate(p.id, a))) {
+      if ('dueDate' in a) hapticTick();
+      setDateCards((prev) => prev.filter((x) => x.id !== p.id));
+    }
+  }
 
   async function answerStatus(s: StatusSuggestionCard, take: boolean): Promise<void> {
     if (!statusSuggestions) return;
@@ -117,7 +134,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
     if (kept && (await kept.notYetKept(s.id))) setLooksSent((prev) => prev.filter((x) => x.id !== s.id));
   }
 
-  const total = items.length + held.length + looksSent.length + statusCards.length;
+  const total = items.length + held.length + looksSent.length + statusCards.length + dateCards.length;
   const header = standalone ? (
     <PageHeader title="Needs your answer" subtitle={total === 0 ? 'Nothing to answer' : `${total} to answer`} back={back} />
   ) : null;
@@ -198,6 +215,27 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
         />
       ),
     })),
+    ...dateCards.map((p) => {
+      const copy = dateCopy(p);
+      const label = shortDay(p.suggestedDate);
+      return {
+        key: `date:${p.id}`,
+        at: p.createdAt ?? 0,
+        node: (
+          <DateCard
+            key={`date:${p.id}`}
+            question={copy.question}
+            said={copy.said}
+            suggested={p.suggestedDate && label ? { iso: p.suggestedDate, label } : null}
+            source={<ReceiptThread
+              refInfo={p.receipt?.quote ? { noteId: p.noteId ?? null, clientId: p.clientId, span: p.sourceSpan ?? p.receipt.quote, at: p.sourceMessageAt ?? p.receipt.at, quote: p.receipt.quote, sender: p.owner === 'client' ? p.clientName ?? null : null } : {}}
+              emptyText="No source quote was saved for this fact"
+            />}
+            onAnswer={(a) => void answerDate(p, a)}
+          />
+        ),
+      };
+    }),
     ...statusCards.map((c) => ({
       key: `status:${c.clientId}`,
       at: 0,

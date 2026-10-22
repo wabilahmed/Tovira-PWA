@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { Button, ActionRow } from '../ui/Button.js';
 import { Card } from '../ui/Card.js';
 import type { CardCopy } from './cardCopy.js';
@@ -28,6 +28,39 @@ export function AnswerCard({ copy, source, onYes, onNo, label = 'Needs your answ
         <Button variant="primary" size="sm" onClick={onYes}>{copy.yes}</Button>
         <Button size="sm" onClick={onNo}>{copy.no}</Button>
       </ActionRow>
+    </Card>
+  );
+}
+
+/**
+ * [P40-1] A promise whose date the resolver couldn't read: the question, what was said and when, the receipt, then
+ * the answers — the resolver's suggested date (only when it has one), a date picker, Not sure, No due date.
+ */
+export function DateCard({ question, said, suggested, source, onAnswer }: {
+  question: string;
+  said: string;
+  /** YYYY-MM-DD from the resolver, or null. */
+  suggested: { iso: string; label: string } | null;
+  source?: ReactNode;
+  onAnswer: (a: { dueDate: string } | { dateStatus: 'not_sure' | 'no_due_date' }) => void;
+}): JSX.Element {
+  const [picked, setPicked] = useState('');
+  const id = useId();
+  return (
+    <Card role="group" aria-label="Date to confirm" data-testid="date-card">
+      <p className="ui-body ui-strong" dir="auto">{question}</p>
+      <p className="ui-secondary" dir="auto">{said}</p>
+      {source}
+      <ActionRow>
+        {suggested && <Button variant="primary" size="sm" onClick={() => onAnswer({ dueDate: suggested.iso })}>Yes, {suggested.label}</Button>}
+        <Button size="sm" onClick={() => onAnswer({ dateStatus: 'not_sure' })}>Not sure</Button>
+        <Button size="sm" onClick={() => onAnswer({ dateStatus: 'no_due_date' })}>No due date</Button>
+      </ActionRow>
+      <div className="ui-cluster ui-gap-2">
+        <label htmlFor={id} className="sr-only">Pick a date</label>
+        <input id={id} type="date" className="ui-input ui-native-select" value={picked} onChange={(e) => setPicked(e.target.value)} />
+        <Button size="sm" disabled={!picked} onClick={() => onAnswer({ dueDate: picked })}>Save the date</Button>
+      </div>
     </Card>
   );
 }

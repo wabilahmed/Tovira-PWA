@@ -10,6 +10,7 @@ import type { MeetingRepository } from '../ports/meeting-repository.js';
 import { pendingConfirmations } from '../services/facts/confirmation.js';
 import { isStalePromise } from '../services/facts/promise-lifecycle.js';
 import { recordVerdict } from '../services/facts/verdict.js';
+import { resolveDueDate } from '../services/extraction/resolve-date.js';
 import { withReceipt } from '../services/receipts/receipt.js';
 import { isValidDateOnly } from './validate-date.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
@@ -89,7 +90,12 @@ export async function handleFactsRoute(
     // [P34-2] Every To Confirm card names its client.
     const names = deps.clients ? new Map((await deps.clients.listByUser(userId)).map((c) => [c.id, c.name])) : null;
     const named = <T extends { clientId: string | null }>(r: T) => (names ? { ...r, clientName: r.clientId ? names.get(r.clientId) ?? null : null } : r);
-    sendJson(res, 200, { promises: pendingConfirmations(promises).map(withReceipt).map(named), meetings: meetings.map(withReceipt), moveSuggestions });
+    // [P40-1] Promises whose date the resolver couldn't read, for the rep to answer — with a suggested date only
+    // when the resolver (re-reading the phrase against its own message) now has one. Never the model's date.
+    const datesToConfirm = promises
+      .filter((p) => p.dateStatus === 'to_confirm' && !p.done && p.dueDate === null)
+      .map((p) => ({ ...named(withReceipt(p)), suggestedDate: resolveDueDate(p.dueRaw, p.sourceMessageAt ?? p.captureAt).date }));
+    sendJson(res, 200, { promises: pendingConfirmations(promises).map(withReceipt).map(named), meetings: meetings.map(withReceipt), moveSuggestions, datesToConfirm });
     return true;
   }
 
@@ -191,7 +197,14 @@ export async function handleFactsRoute(
         return true;
       }
     }
+    // [P40-1] The answer to "When is it due?": a date (dueDate, above), or "Not sure" / "No due date".
+    if ('dateStatus' in body && body.dateStatus !== 'not_sure' && body.dateStatus !== 'no_due_date') {
+      sendJson(res, 400, { error: 'bad_request', message: 'Invalid date answer.' });
+      return true;
+    }
     const patch: PromisePatch = {};
+    if (body.dateStatus === 'not_sure' || body.dateStatus === 'no_due_date') patch.dateStatus = body.dateStatus;
+    else if (typeof body.dueDate === 'string') patch.dateStatus = null; // a date answers it
     const fields: Array<[keyof PromisePatch, string, string | null]> = [
       ['text', 'text', before.text],
       ['owner', 'owner', before.owner],

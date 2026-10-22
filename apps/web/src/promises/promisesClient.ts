@@ -20,6 +20,10 @@ export interface OpenPromise {
   createdAt?: number;
   /** [P34-2] The client's name, for To Confirm cards (/confirmations); null = no client; absent elsewhere. */
   clientName?: string | null;
+  /** [P40-1] 'to_confirm' — the resolver had no date and the rep hasn't answered; else the rep's answer. */
+  dateStatus?: 'to_confirm' | 'not_sure' | 'no_due_date' | null;
+  /** [P40-1] On a date to confirm: the resolver's reading of the phrase, when it has one (never the model's). */
+  suggestedDate?: string | null;
   /** [PROMISE-STALE] overdue past the window → shown behind a filter, out of the active count/claret.
    *  Server-computed by the /promises endpoint; absent (treated false) on older payloads. */
   stale?: boolean;
@@ -63,6 +67,30 @@ export class PromisesClient {
   /** Uncertain items awaiting the rep's confirm/reject (P1-7). */
   listConfirmations(): Promise<OpenPromise[]> {
     return this.listFrom('/confirmations');
+  }
+
+  /** [P40-1] Promises whose date the rep needs to give (GET /confirmations → datesToConfirm). */
+  async listDatesToConfirm(): Promise<OpenPromise[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/confirmations`, { credentials: 'include' });
+      if (res.status !== 200) return [];
+      const list = ((await res.json()) as { datesToConfirm?: unknown }).datesToConfirm;
+      return Array.isArray(list) ? (list as OpenPromise[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** [P40-1] The answer: a date, or "Not sure" / "No due date". */
+  async answerDate(id: string, answer: { dueDate: string } | { dateStatus: 'not_sure' | 'no_due_date' }): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/promises/${encodeURIComponent(id)}`, {
+        method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(answer),
+      });
+      return res.status === 200;
+    } catch {
+      return false;
+    }
   }
 
   private async post(path: string): Promise<boolean> {

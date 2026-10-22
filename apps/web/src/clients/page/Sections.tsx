@@ -50,6 +50,8 @@ function PromiseItem({ p, clientName, clientId }: { p: OverviewPromise; clientNa
         <span className="tov-stamp" data-owner={p.owner === 'client' ? 'client' : 'rep'}>{whose(p, clientName)}</span>{' '}
         <span dir="auto">{p.text}</span>
         {p.dueDate && <span className={p.overdue ? 'tov-overdue' : 'tov-muted'}> · {p.overdue ? 'overdue since' : 'due'} {formatBody(p.dueDate)}</span>}
+        {/* [P40-1] the resolver couldn't read the phrase: no date (never Overdue) until the rep answers */}
+        {!p.dueDate && p.dateStatus === 'to_confirm' && <span className="tov-muted" data-testid="date-to-confirm"> · Date to confirm</span>}
       </div>
       {p.receipt?.quote && (
         <ReceiptThread refInfo={{ noteId: p.noteId, clientId, span: p.sourceSpan ?? p.receipt.quote, at: p.sourceMessageAt ?? p.receipt.at, quote: p.receipt.quote, sender: p.receipt.source === 'capture' ? 'Your note' : null }} />

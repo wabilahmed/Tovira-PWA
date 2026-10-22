@@ -87,3 +87,28 @@ export function statusCopy(reason: string, clientName: string, status: 'cold' | 
     ? { question: `${lead}. Mark ${clientName} as Cold?`, consequence: 'Yes sets their status to Cold.', yes: 'Mark cold', no: 'Keep warm' }
     : { question: `${lead}. Mark ${clientName} as Done (lost)?`, consequence: 'Yes sets their status to Done.', yes: 'Mark lost', no: 'Keep open' };
 }
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "2026-10-10…" → "Sat 10 Oct" (read positionally: the date as said, no timezone drift). */
+export function shortDay(iso: string | null | undefined): string | null {
+  const m = iso ? /^(\d{4})-(\d{2})-(\d{2})/.exec(iso) : null;
+  if (!m) return null;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return `${DAYS[d.getUTCDay()]} ${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`;
+}
+
+const VERB = /^(send|share|get|give|bring|forward|email|pay|book|arrange|prepare|deliver|confirm|call|check)\s+(.+)$/i;
+/** [P40-1] A promise whose date the resolver couldn't read: "When is the floor plans promise due?" and what was said,
+ *  "You said 'Sunday morning' on Sat 10 Oct." (the client's name for a client's promise). */
+export function dateCopy(p: { text: string; owner: string; clientName?: string | null; dueRaw: string | null; sourceMessageAt?: string | null; receipt?: { at: string | null } }): { question: string; said: string } {
+  const t = p.text.trim().replace(/[.!]+$/, '');
+  const m = VERB.exec(t);
+  const object = m ? m[2]! : null;
+  const question = object && /^(the|a|an|her|his|their|your|my)\b/i.test(object) && !/^call$/i.test(m![1]!)
+    ? `When is the ${object.replace(/^(the|a|an)\s+/i, '')} promise due?`
+    : `When is '${t}' due?`;
+  const who = p.owner === 'client' && p.clientName ? p.clientName : 'You';
+  const when = shortDay(p.sourceMessageAt ?? p.receipt?.at ?? null);
+  return { question, said: `${who} said '${(p.dueRaw ?? '').trim()}'${when ? ` on ${when}` : ''}.` };
+}

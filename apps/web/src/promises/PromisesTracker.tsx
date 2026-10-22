@@ -204,6 +204,7 @@ function due(p: OpenPromise): string {
     const base = `· due ${formatBody(p.dueDate)}`;
     return p.dueRaw ? `${base} · from “${p.dueRaw}”` : base;
   }
+  if (p.dateStatus === 'to_confirm') return `· Date to confirm${p.dueRaw ? ` (“${p.dueRaw}”)` : ''}`; // [P40-1]
   if (p.dueRaw) return `· ${p.dueRaw}`;
   return '· no date';
 }

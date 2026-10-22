@@ -15,6 +15,8 @@ export interface OverviewPromise {
   text: string;
   owner: string;
   dueDate: string | null;
+  /** [P40-1] 'to_confirm' → shown as "Date to confirm" until the rep answers. */
+  dateStatus?: 'to_confirm' | 'not_sure' | 'no_due_date' | null;
   done: boolean;
   overdue: boolean;
   stale: boolean;
