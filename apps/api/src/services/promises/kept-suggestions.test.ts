@@ -133,7 +133,7 @@ describe('[P24-2] delivery → suggestion, promise stays open', () => {
     await h.svc.extractNote(U, h.note.id, '2026-03-06');
     const scan = new BookScanService({ clients: h.clients, notes: h.notes, facts: h.facts }, { coldThresholdDays: 30, upcomingWindowDays: 30, promiseStaleThresholdDays: 400 }, h.kept);
     const item = (await scan.scan(U, Date.parse('2026-03-06T00:00:00Z'))).items.find((i) => i.kind === 'open_promise')!;
-    expect(item.headline).toBe('Worth checking: did you send the options? (looks sent — confirm)');
+    expect(item.headline).toBe('Did you send the options? (looks sent, confirm it)' /* [P39-9 · owner] */);
   });
 });
 

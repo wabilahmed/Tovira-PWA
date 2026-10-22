@@ -79,7 +79,7 @@ export function unzipTextEntries(buf: Buffer, caps: ZipCaps = DEFAULT_ZIP_CAPS):
 
   const total = buf.readUInt16LE(eocd + 10); // records on this disk
   const cdOffset = buf.readUInt32LE(eocd + 16);
-  if (total > caps.maxEntries) return { ok: false, reason: `The zip has too many entries (${total} > ${caps.maxEntries}).` };
+  if (total > caps.maxEntries) return { ok: false, reason: `The zip has too many files (${total} > ${caps.maxEntries}).` };
   if (cdOffset >= buf.length) return { ok: false, reason: 'The zip is malformed (bad central-directory offset).' };
 
   // Walk the central directory.
@@ -108,7 +108,7 @@ export function unzipTextEntries(buf: Buffer, caps: ZipCaps = DEFAULT_ZIP_CAPS):
     // Reject nested archives outright (a classic bomb vector) — by name or by declared size.
     if (e.name.toLowerCase().endsWith('.zip')) return { ok: false, reason: 'The zip contains a nested archive, which is not allowed.' };
     // Per-entry cap on the DECLARED size (cheap pre-check; the real guard is maxOutputLength below).
-    if (e.uncompSize > caps.maxEntryBytes) return { ok: false, reason: `A zip entry is too large (${e.uncompSize} bytes > ${caps.maxEntryBytes}).` };
+    if (e.uncompSize > caps.maxEntryBytes) return { ok: false, reason: `A file in the zip is too large (${e.uncompSize} bytes > ${caps.maxEntryBytes}).` };
 
     // Locate the entry data via its local file header.
     const lo = e.localOffset;
@@ -119,14 +119,14 @@ export function unzipTextEntries(buf: Buffer, caps: ZipCaps = DEFAULT_ZIP_CAPS):
     const lfhExtraLen = buf.readUInt16LE(lo + 28);
     const dataStart = lo + 30 + lfhNameLen + lfhExtraLen;
     const dataEnd = dataStart + e.compSize;
-    if (dataEnd > buf.length) return { ok: false, reason: 'The zip is malformed (entry data out of range).' };
+    if (dataEnd > buf.length) return { ok: false, reason: 'The zip is malformed (file data out of range).' };
     const compressed = buf.subarray(dataStart, dataEnd);
 
     let raw: Buffer;
     try {
       if (e.method === 0) {
         raw = Buffer.from(compressed); // STORED
-        if (raw.length > caps.maxEntryBytes) return { ok: false, reason: 'A zip entry is too large.' };
+        if (raw.length > caps.maxEntryBytes) return { ok: false, reason: 'A file in the zip is too large.' };
       } else if (e.method === 8) {
         // DEFLATE. maxOutputLength makes a lying uncompressed size (a bomb) throw, not balloon.
         raw = inflateRawSync(compressed, { maxOutputLength: caps.maxEntryBytes });
@@ -134,7 +134,7 @@ export function unzipTextEntries(buf: Buffer, caps: ZipCaps = DEFAULT_ZIP_CAPS):
         continue; // unsupported compression method — skip, don't fail the whole import
       }
     } catch {
-      return { ok: false, reason: 'A zip entry could not be decompressed (it may be corrupt or a decompression bomb).' };
+      return { ok: false, reason: 'A file in the zip could not be decompressed (it may be corrupt or a decompression bomb).' };
     }
 
     // Reject a nested archive smuggled under a non-.zip name (magic check on the decompressed

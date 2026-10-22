@@ -57,7 +57,7 @@ describe('BookScanService (P5-3b)', () => {
     });
     const report = await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'));
     const promise = report.items.find((i) => i.kind === 'open_promise')!;
-    expect(promise.headline).toBe('Worth checking: did you check the final numbers?');
+    expect(promise.headline).toBe('Did you check the final numbers?' /* [P39-9 · owner] was "Worth checking: did you …" */);
   });
 
   // [P18-10h] An all-caps lead (an acronym) is left alone — "did you DHL the parcel?" stays correct.
@@ -70,7 +70,7 @@ describe('BookScanService (P5-3b)', () => {
     });
     const report = await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'));
     const promise = report.items.find((i) => i.kind === 'open_promise')!;
-    expect(promise.headline).toBe('Worth checking: did you DHL the parcel?');
+    expect(promise.headline).toBe('Did you DHL the parcel?');
   });
 
   it('[PROMISE-STALE] lists recoverable promises but only COUNTS stale ones — the import flood stays a curated reveal', async () => {

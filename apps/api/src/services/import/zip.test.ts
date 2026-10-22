@@ -87,7 +87,7 @@ describe('[IMPORT-ZIP] unzipTextEntries', () => {
     const r = unzipTextEntries(makeZip(many), { ...DEFAULT_ZIP_CAPS, maxEntries: 4 });
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.reason).toMatch(/too many entries/i);
+    expect(r.reason).toMatch(/too many files/i); // [P39-9 · owner] no "entries" in rep-facing copy
   });
 
   it('rejects an entry that exceeds the per-entry cap, extracting nothing', () => {
@@ -156,6 +156,6 @@ describe('[IMPORT-ZIP · BOMB] fails closed on a decompression bomb and an entry
     const r = unzipTextEntries(makeZip(many)); // DEFAULT caps — no lowered test cap
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.reason).toMatch(/too many entries/i);
+    expect(r.reason).toMatch(/too many files/i); // [P39-9 · owner] no "entries" in rep-facing copy
   });
 });

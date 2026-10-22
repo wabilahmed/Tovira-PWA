@@ -157,7 +157,7 @@ export class BookScanService {
         id: p.id, // the promise row id — unique per promise, independent of quote/date
         clientId: p.clientId,
         clientName: nameOf.get(p.clientId) ?? 'Unknown',
-        headline: `Worth checking: did you ${lowerLead(p.text)}?${looksSent.has(`${p.clientId}|${promiseDedupeKey(p.owner, p.text)}`) ? ' (looks sent — confirm)' : ''}`,
+        headline: `Did you ${lowerLead(p.text)}?${looksSent.has(`${p.clientId}|${promiseDedupeKey(p.owner, p.text)}`) ? ' (looks sent, confirm it)' : ''}`, // [P39-9 · owner] no "Worth checking"; a question carries the doubt
         // [P21-B] Dated by the message it was said in (then the conversation date) — never the due day or
         // the import day. The due date is only a last resort for a pre-receipt fact with neither.
         receipt: { quote: p.text, date: dayOf(p.sourceMessageAt) ?? p.captureAt ?? p.dueDate ?? isoDate(p.createdAt), ref: { noteId: p.noteId, span: p.sourceSpan, at: p.sourceMessageAt } },

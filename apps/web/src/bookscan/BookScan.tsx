@@ -115,7 +115,6 @@ function Finding({ item, index, now }: { item: BookScanItem; index: number; now:
     <div data-testid="scan-item" className="tov-deal" style={{ animationDelay: `${index * 60}ms`, margin: '0 0 var(--space-3)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-2)', alignItems: 'baseline' }}>
         <strong>{item.headline}</strong>
-        {item.framing === 'worth_checking' && <span style={chip}>worth checking</span>}
       </div>
       {silent !== null && (
         <div className="tov-stamp" style={{ color: 'var(--claret)', marginTop: 'var(--space-1)' }}>silent {silent} day{silent === 1 ? '' : 's'}</div>
@@ -126,12 +125,4 @@ function Finding({ item, index, now }: { item: BookScanItem; index: number; now:
   );
 }
 
-const chip: React.CSSProperties = {
-  fontSize: 'var(--text-caption-size)',
-  background: 'var(--amber-surface)',
-  color: 'var(--amber)',
-  borderRadius: 999,
-  padding: '0 var(--space-2)',
-  whiteSpace: 'nowrap',
-  alignSelf: 'center',
-};
+

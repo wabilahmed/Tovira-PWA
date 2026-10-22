@@ -15,7 +15,7 @@ const FULL: BookScanReport = {
       id: 'p1',
       clientId: 'c1',
       clientName: 'Acme',
-      headline: 'Worth checking: did you send the revised quote?',
+      headline: 'Did you send the revised quote?', // [P39-9 · owner] was "Worth checking: did you …"
       receipt: { quote: 'send the revised quote', date: '2026-08-01' },
       framing: 'worth_checking',
     },
@@ -67,7 +67,7 @@ describe('<BookScan>', () => {
   it('renders each finding with its headline, kind, and invitation', async () => {
     render(<BookScan api={api(FULL)} />);
     expect(await screen.findByText(/thread went quiet/i)).toBeInTheDocument();
-    expect(screen.getByText('Worth checking: did you send the revised quote?')).toBeInTheDocument();
+    expect(screen.getByText('Did you send the revised quote?')).toBeInTheDocument();
     expect(screen.getByText(/export your next chat/i)).toBeInTheDocument();
     expect(screen.getAllByTestId('scan-item')).toHaveLength(2);
   });
@@ -81,10 +81,12 @@ describe('<BookScan>', () => {
     for (const r of receipts) expect(r.textContent?.trim().length).toBeGreaterThan(1);
   });
 
-  it('marks promises as "worth checking" (never accusatory)', async () => {
-    render(<BookScan api={api(FULL)} />);
+  // [P39-9 · owner] "Worth checking" is gone from every screen; a promise is still never accusatory — it is asked.
+  it('asks about a promise as a question (never accusatory); no "worth checking" label', async () => {
+    const { container } = render(<BookScan api={api(FULL)} />);
     await screen.findByText(/thread went quiet/i);
-    expect(screen.getAllByText(/worth checking/i).length).toBeGreaterThan(0);
+    expect(screen.getByText('Did you send the revised quote?')).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/worth checking/i);
   });
 
   it('shows the honest empty state when there is nothing to reveal', async () => {
