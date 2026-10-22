@@ -30,6 +30,9 @@ export function restrictNote(note: NoteRecord, r: Restriction): NoteRecord {
     // A message note's rendered text is derived from its messages; when none survive, there is nothing
     // left to surface, so drop the stale raw concatenation too.
     if ((messages?.length ?? 0) === 0) rawText = null;
+    // [P40-2] Some were removed: the stored concatenation still holds their lines, so the surfacing text is
+    // rebuilt from the surviving messages only.
+    else if (messages!.length < note.messages!.length) rawText = messages!.map((m) => `${m.sender}: ${m.body}`).join('\n');
   } else if (noteIsAboutRestricted(note, r)) {
     // A message-free note (voice/paste) that is about the restricted party is withheld whole.
     rawText = null;

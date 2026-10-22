@@ -63,6 +63,7 @@ import type { KeptSuggestionService } from './services/promises/kept-suggestion-
 import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
 import { handleInsightsRoute } from './http/insights-routes.js';
+import { restrictingFacts, restrictingMeetings, restrictingNotes } from './services/erasure/surface-filter.js';
 import { handleImageRoute } from './http/images-routes.js';
 import { handleHeroRoute } from './http/hero-routes.js';
 import { handleBookScanRoute } from './http/book-scan-routes.js';
@@ -238,6 +239,11 @@ export interface ApiDeps {
 export function createApiServer(deps: ApiDeps): Server {
   const cookieSecure = deps.cookieSecure ?? false;
   const receiptSources = deps.receiptSources ?? new ReceiptSourceService({ notes: deps.notes, restriction: deps.restriction });
+  // [P40-2] Read surfaces see the restricted views (the restricted person's messages, who-fields and the facts read
+  // from them withheld); writes go through the same object to the one real store. The export keeps everything.
+  const readNotes = restrictingNotes(deps.notes, deps.restriction);
+  const readFacts = restrictingFacts(deps.facts, deps.restriction, deps.notes, deps.clients);
+  const readMeetings = restrictingMeetings(deps.meetings, deps.restriction, deps.notes, deps.clients);
 
   return createServer((req, res) => {
     void dispatch(req, res).catch((err: unknown) => {
@@ -435,24 +441,24 @@ export function createApiServer(deps: ApiDeps): Server {
       if (
         await handleFactsRoute(request, response, {
           auth: deps.auth,
-          facts: deps.facts,
+          facts: readFacts, // [P40-2]
           clients: deps.clients, // [P34-2] To Confirm cards name their client
           corrections: deps.corrections,
           extractionLog: deps.extractionLog,
           glossary: deps.repGlossary,
           ledger: deps.ledger,
-          meetings: deps.meetings,
+          meetings: readMeetings, // [P40-2]
           notes: deps.notes,
         })
       )
         return;
       if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing, activation: deps.activation, meetings: deps.meetings, ledger: deps.ledger })) return;
-      if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: deps.notes, clients: deps.clients, aliases: deps.aliases })) return;
+      if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: readNotes, clients: deps.clients, aliases: deps.aliases })) return; // [P40-2]
       if (
         await handleMeetingRoute(request, response, {
           auth: deps.auth,
           clients: deps.clients,
-          meetings: deps.meetings,
+          meetings: readMeetings, // [P40-2]
           parser: deps.meetingParser,
           billing: deps.billing, // [P16-1] capture-friendly gate: model when entitled, deterministic when not
           corrections: deps.corrections,
@@ -463,6 +469,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (
         await handleProactiveRoute(request, response, {
           auth: deps.auth,
+          restriction: deps.restriction, // [P40-2]
           clients: deps.clients,
           notifications: deps.notifications,
           scan: deps.scan,

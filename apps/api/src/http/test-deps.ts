@@ -100,6 +100,7 @@ import { InMemoryAccessRequestRepository } from '../adapters/access/in-memory-ac
 import { InMemoryInviteRepository } from '../adapters/access/in-memory-invite-repository.js';
 import { InMemoryErasureRequestRepository } from '../adapters/erasure/in-memory-erasure-request-repository.js';
 import { RestrictionService } from '../services/erasure/restriction.js';
+import { surfacingRepos } from '../services/erasure/surface-filter.js';
 import { InMemoryAccessApprovalTx } from '../adapters/access/in-memory-access-approval-tx.js';
 import { InMemoryInviteActivationTx } from '../adapters/access/in-memory-invite-activation-tx.js';
 import { AccessRequestService } from '../services/access/access-request-service.js';
@@ -240,13 +241,15 @@ export function buildInMemoryDeps(
     undefined, // windowing (EXTRACT_WINDOWED off, as in prod)
     keptSuggestions, // [P24-2]
   );
-  const brief = new BriefService(clients, notes, facts, embedder, clientPointers, restriction, contactAliases);
-  const followUp = new FollowUpService(new StubModelClient(), notes, restriction);
   const meetings = new InMemoryMeetingRepository();
+  // [P40-2] read-only surfaces see the restricted views; the export and the erasure read the real repos.
+  const surfacing = surfacingRepos({ notes, facts, meetings, requirements, clients }, restriction);
+  const brief = new BriefService(clients, notes, surfacing.facts, embedder, clientPointers, restriction, contactAliases);
+  const followUp = new FollowUpService(new StubModelClient(), notes, restriction);
   const noteMove = new NoteMoveService(notes, facts, meetings, new InMemoryNoteMoveTx(notes, facts, meetings, clients, new InMemoryNoteMoveAuditRepository(), requirements, inventoryMatches));
   const meetingParser = new MeetingParser(new StubModelClient(), clients);
   const notifications = new InMemoryNotificationRepository();
-  const scan = new ScanService(clients, meetings, facts, notifications, notes);
+  const scan = new ScanService(clients, surfacing.meetings, surfacing.facts, notifications, surfacing.notes); // [P40-2]
   const pushSubscriptions = new InMemoryPushSubscriptionRepository();
   const pushSender = new StubPushSender();
   const pushDispatch = new PushDispatchService(pushSender, pushSubscriptions, notifications);
@@ -364,7 +367,7 @@ export function buildInMemoryDeps(
   const tourFunnel = new InMemoryTourFunnelRepository();
   const tour = new TourService({ users: authUsers, funnel: tourFunnel });
   return {
-    clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, aliases: contactAliases, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
+    clientOverview: new ClientOverviewService({ clients, ...surfacing, aliases: contactAliases, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
     pool: stubPool,
     auth,
     clients,
@@ -432,13 +435,13 @@ export function buildInMemoryDeps(
     modelCallEvents,
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
-    bookScan: new BookScanService({ clients, notes, facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }, keptSuggestions),
+    bookScan: new BookScanService({ clients, notes: surfacing.notes, facts: surfacing.facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }, keptSuggestions),
     keptSuggestions,
     // [P39-7] Find replaces the free-text Ask: fixed questions over stored data, no model.
     find: new FindService({ clients, facts, notes, requirements, hero, restriction, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
     askCapture,
     corpus: new CorpusStatsService(clients, notes),
-    monday: new MondayDigestService(clients, notes, facts, notifications, 30, pushDispatch),
+    monday: new MondayDigestService(clients, surfacing.notes, surfacing.facts, notifications, 30, pushDispatch),
     ledger,
     referral,
     accountEmail,

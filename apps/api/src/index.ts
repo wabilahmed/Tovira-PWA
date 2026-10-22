@@ -114,6 +114,7 @@ import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
 import { RecallMetrics } from './services/metrics/recall-metrics.js';
 import { FindService } from './services/find/find-service.js';
+import { surfacingRepos } from './services/erasure/surface-filter.js';
 import { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import { ExtractionHealthRegistry } from './services/metrics/extraction-health.js';
 import { ExtractionCanaryService } from './services/extraction/extraction-canary.js';
@@ -325,10 +326,13 @@ async function main(): Promise<void> {
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));
   const followUp = createFollowUpService(config, notes, restriction);
-  const brief = createBriefService(config, clients, notes, facts, clientPointers, restriction, contactAliases);
+  // [P40-2] read-only surfaces see the restricted views; the export and the erasure read the real repos.
+  const surfacing = surfacingRepos({ notes, facts, meetings, requirements, clients }, restriction);
+  const brief = createBriefService(config, clients, notes, surfacing.facts, clientPointers, restriction, contactAliases);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
-  const scan = createScanService(clients, meetings, facts, notifications, notes, (userId) => auth.timezoneFor(userId));
+  // [P40-2] alerts, nudges and their push/email are built from the restricted views
+  const scan = createScanService(clients, surfacing.meetings, surfacing.facts, notifications, surfacing.notes, (userId) => auth.timezoneFor(userId));
   const pushSubscriptions = createPushSubscriptionRepository(config, appPool);
   const pushSender = createPushSender(config);
   const pushDispatch = createPushDispatchService(pushSender, pushSubscriptions, notifications);
@@ -406,7 +410,7 @@ async function main(): Promise<void> {
   // idempotent per meeting (nudged_at on the row), delivered through the silence budget.
   const nudgeSignals = new NudgeSignalsProvider({
     clients,
-    facts,
+    facts: surfacing.facts, // [P40-2] no nudge built from a promise the restricted person made
     notes,
     timezoneFor: (userId) => auth.timezoneFor(userId),
     coldThresholdDays: config.coldThresholdDays,
@@ -533,7 +537,7 @@ async function main(): Promise<void> {
   // [P39-7] Find replaces the free-text Ask (POST /recall is gone): fixed questions over stored data, no model.
   const find = new FindService({ clients, facts, notes, requirements, hero, restriction, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays });
   const corpus = new CorpusStatsService(clients, notes);
-  const monday = new MondayDigestService(clients, notes, facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId), matching);
+  const monday = new MondayDigestService(clients, surfacing.notes, surfacing.facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId), matching);
   const ledger = createLedgerService(config, appPool);
   const inventory = createInventoryService(inventoryRepo, ledger, config, matching);
   const referral = new ReferralService(
@@ -542,7 +546,7 @@ async function main(): Promise<void> {
     (code) => auth.findUserIdByReferralCode(code),
   );
   const bookScan = new BookScanService(
-    { clients, notes, facts },
+    { clients, notes: surfacing.notes, facts: surfacing.facts },
     { coldThresholdDays: scanConfigFrom(config).coldThresholdDays, upcomingWindowDays: 30, promiseStaleThresholdDays: config.promiseStaleThresholdDays },
     keptSuggestions, // [P24-2] "(looks sent — confirm)" on a delivered, still-open promise
   );
@@ -593,7 +597,7 @@ async function main(): Promise<void> {
   const server = createApiServer({
     tour,
     // [P36-5] the client page's summaries — deterministic, no model call.
-    clientOverview: new ClientOverviewService({ clients, notes, requirements, facts, meetings, aliases: contactAliases, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays }),
+    clientOverview: new ClientOverviewService({ clients, ...surfacing, aliases: contactAliases, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays }),
     pool: appPool,
     auth,
     clients,

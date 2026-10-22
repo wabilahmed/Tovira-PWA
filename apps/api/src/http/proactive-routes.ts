@@ -9,6 +9,8 @@ import { extractToken, sendJson } from './helpers.js';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface ProactiveRouteDeps {
+  /** [P40-2] erasure-window restriction (optional: older wiring → none). */
+  restriction?: { forUser(userId: string): Promise<import('../services/erasure/restriction.js').Restriction> };
   auth: AuthService;
   clients: ClientRepository;
   notifications: NotificationRepository;
@@ -50,7 +52,12 @@ export async function handleProactiveRoute(
   }
 
   if (isNotifications) {
-    sendJson(res, 200, { notifications: await deps.notifications.listByUser(userId) });
+    // [P40-2] An alert written before the window opened may quote the restricted person: withheld while it's open
+    // (still stored). An alert ABOUT the erasure itself is always shown.
+    const r = deps.restriction ? await deps.restriction.forUser(userId) : null;
+    const all = await deps.notifications.listByUser(userId);
+    const shown = r?.active ? all.filter((n) => n.type.startsWith('erasure_') || !(r.restrictsText(n.title) || r.restrictsText(n.body))) : all;
+    sendJson(res, 200, { notifications: shown });
     return true;
   }
 
