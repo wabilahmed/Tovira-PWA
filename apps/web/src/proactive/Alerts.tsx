@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { ColdClient, Notification } from './proactiveClient.js';
 import { daysSince } from '../format/dates.js';
 import { OutcomeControl, type OutcomeChoice } from '../outcomes/OutcomeControl.js';
+import { Page, PageHeader } from '../ui/PageHeader.js';
+import { Button } from '../ui/Button.js';
 
 export interface ProactiveApi {
   listCold(): Promise<ColdClient[]>;
@@ -55,17 +57,15 @@ export function Alerts({ api, now = Date.now(), onSetOutcome }: { api: Proactive
     setScanning(false);
   }
 
-  if (loading) return <p>Loading alerts…</p>;
+  if (loading) return <Page testId="alerts-page" label="Alerts"><PageHeader title="Alerts" /><p className="ui-secondary">Loading alerts…</p></Page>;
 
   return (
-    <section aria-label="Alerts">
-      <header className="tov-screenhead" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 'var(--space-4)' }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Alerts</h2>
-          <div className="tov-screenmeta">{notifications.length} alert{notifications.length === 1 ? '' : 's'}</div>
-        </div>
-        <button onClick={() => void refresh()} disabled={scanning}>{scanning ? 'Rescanning…' : 'Rescan'}</button>
-      </header>
+    <Page testId="alerts-page" label="Alerts">
+      <PageHeader
+        title="Alerts"
+        subtitle={`${notifications.length} alert${notifications.length === 1 ? '' : 's'}`}
+        action={<Button size="sm" onClick={() => void refresh()} loading={scanning}>{scanning ? 'Rescanning…' : 'Rescan'}</Button>}
+      />
 
       {notifications.length === 0 && cold.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>Nothing needs you and no one has gone quiet. Tovira speaks rarely — this is what quiet looks like.</p>
@@ -106,7 +106,7 @@ export function Alerts({ api, now = Date.now(), onSetOutcome }: { api: Proactive
           })}
         </ul>
       )}
-    </section>
+    </Page>
   );
 }
 

@@ -515,14 +515,14 @@
 .tov-thread { margin-top: var(--space-2); }
 .tov-thread__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
 .tov-thread__item { display: grid; }
-.tov-thread__more { justify-self: start; margin-top: var(--space-1); font-size: var(--text-secondary-size); }
+.tov-thread__more { display: block; width: fit-content; min-height: var(--touch); margin-top: var(--space-1); font-size: var(--text-secondary-size); } /* [P39-8] its own line */
 .tov-thread__empty { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-secondary-size); }
 .tov-datechip {
   justify-self: center; margin: var(--space-2) 0 var(--space-1); padding: var(--space-1) var(--space-3); border-radius: 999px;
   background: var(--surface-elevated); color: var(--text-secondary); font-size: var(--text-caption-size);
 }
 .tov-bubble {
-  position: relative; max-width: 82%; padding: var(--space-1) var(--space-2) var(--space-4); border-radius: 10px;
+  position: relative; max-width: 82%; padding: var(--space-1) var(--space-2); border-radius: var(--radius-2);
   color: var(--text-primary); font-size: var(--text-secondary-size); line-height: 1.35; overflow-wrap: anywhere;
 }
 .tov-bubble--right { justify-self: end; }
@@ -538,7 +538,7 @@
 .tov-bubble__text { white-space: pre-wrap; }
 .tov-bubble__text--clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .tov-bubble__readmore { all: unset; cursor: pointer; color: var(--brass-strong); font-size: var(--text-caption-size); }
-.tov-bubble__time { position: absolute; right: 8px; bottom: 3px; font-size: var(--text-label-size); color: var(--text-secondary); font-family: var(--font-mono); }
+.tov-bubble__time { display: block; text-align: end; margin-top: var(--space-1); font-size: var(--text-label-size); color: var(--text-secondary); font-family: var(--font-mono); } /* [P39-8] in the flow: never over the text */
 
 /* [P36-5] The client page: a fixed header + accordion sections. Token-only colours (both themes), works at 390px. */
 .tov-clientpage { overflow-wrap: anywhere; }

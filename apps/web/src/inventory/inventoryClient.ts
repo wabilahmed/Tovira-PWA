@@ -96,9 +96,14 @@ export class InventoryClient {
 
   /** Items shared with a client (client-detail section), enriched with the item's title/status. */
   async sharesForClient(clientId: string): Promise<SharedWithClient[]> {
-    const res = await fetch(this.url(`/inventory/by-client/${clientId}`), { credentials: 'include' });
-    if (res.status !== 200) return [];
-    return ((await res.json()) as { shares: SharedWithClient[] }).shares;
+    try {
+      const res = await fetch(this.url(`/inventory/by-client/${clientId}`), { credentials: 'include' });
+      if (res.status !== 200) return [];
+      const shares = ((await res.json()) as { shares?: unknown }).shares;
+      return Array.isArray(shares) ? (shares as SharedWithClient[]) : []; // [P39-8] a malformed body never crashes the page
+    } catch {
+      return [];
+    }
   }
 
   async setOutcome(shareId: string, outcome: 'bought' | 'declined' | 'no_response', quantityBought?: number): Promise<InventoryShare | null> {

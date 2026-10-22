@@ -2,6 +2,7 @@ import { hapticTick } from '../haptics.js';
 import { useEffect, useState } from 'react';
 import type { Meeting, ParseResult } from './meetingsClient.js';
 import { formatDateTime } from '../format/dates.js';
+import { Page, PageHeader } from '../ui/PageHeader.js';
 
 export interface MeetingsApi {
   list(): Promise<Meeting[]>;
@@ -143,8 +144,8 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
   }
 
   return (
-    <section aria-label="Meetings">
-      <h2 style={{ marginTop: 0 }}>Meetings</h2>
+    <Page testId="meetings-page" label="Meetings">
+      <PageHeader title="Meetings" />
 
       <form onSubmit={doParse} style={{ display: 'flex', gap: 'var(--space-2)' }}>
         <input
@@ -250,7 +251,7 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
           ))}
         </ul>
       )}
-    </section>
+    </Page>
   );
 }
 

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { LeadStatus } from '../clientsClient.js';
 import { leadStatusLabel } from '../LeadStatus.js';
 import { ago, type ClientOverview } from './clientPageClient.js';
+import { Button } from '../../ui/Button.js';
 
 /**
  * [P36-5] The client page's fixed header: the name, the status as a tappable control ("Warm ▾", or "Set status ▾"
@@ -49,8 +50,8 @@ export function ClientHeader({ name, status, line, phone, phoneEditor, onStatus,
   const wa = phone ? whatsAppLink(phone) : null;
   return (
     <header className="tov-clienthead" data-testid="client-header">
-      <div className="tov-clienthead__row">
-        <h1 className="tov-clienthead__name" dir="auto">{name}</h1>
+      {/* [P39-8] The name is the page title (PageHeader); the status sits first in the header block. */}
+      <div className="tov-clienthead__row" aria-label={`${name}: status`}>
         <StatusButton status={status} onClick={onStatus} />
       </div>
       {line && <p className="tov-clienthead__line" data-testid="client-line">{line}</p>}
@@ -59,7 +60,7 @@ export function ClientHeader({ name, status, line, phone, phoneEditor, onStatus,
         {wa && <a className="tov-chip-link" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
         {phoneEditor}
       </div>
-      <button type="button" className="tov-primary tov-clienthead__add" aria-expanded={addOpen} onClick={onAdd}>+ Add</button>
+      <div><Button variant="primary" className="tov-clienthead__add" aria-haspopup="dialog" aria-expanded={addOpen} onClick={onAdd}>+ Add</Button></div>
       {children}
     </header>
   );

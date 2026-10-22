@@ -5,6 +5,7 @@ import type { Plan } from '../billing/plans.js';
 import { whatsappLink } from '../whatsapp/waLink.js';
 import { shareDraft, type InventoryItem, type InventoryFilter, type ShareResult, type InventoryShare, type MatchSuggestion as Match } from './inventoryClient.js';
 import { ItemMatches } from './ItemMatches.js';
+import { Page, PageHeader } from '../ui/PageHeader.js';
 
 export interface InventoryClientRef { id: string; name: string; phone: string | null }
 
@@ -85,16 +86,16 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
 
   if (locked) {
     return (
-      <section>
+      <Page testId="inventory-page" label="Inventory">
         <ScreenHead />
         <LockedCard onSubscribe={onSubscribe} />
         <AddForm {...{ title, setTitle, description, setDescription, quantity, setQuantity, error, add }} />
-      </section>
+      </Page>
     );
   }
 
   return (
-    <section>
+    <Page testId="inventory-page" label="Inventory">
       <ScreenHead />
       <AddForm {...{ title, setTitle, description, setDescription, quantity, setQuantity, error, add }} />
 
@@ -123,17 +124,16 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
           ))}
         </ul>
       )}
-    </section>
+    </Page>
   );
 }
 
 function ScreenHead(): JSX.Element {
   return (
-    <header className="tov-screenhead">
-      <div className="tov-stamp">Inventory</div>
-      <h2>What you have to sell</h2>
-      <p style={{ color: 'var(--text-secondary)' }}>Your list — title, a description, and how many. Tovira keeps it ready to match what clients ask for.</p>
-    </header>
+    <>
+      <PageHeader title="Inventory" subtitle="What you have to sell" />
+      <p className="ui-secondary">Your list: title, a description, and how many. Tovira keeps it ready to match what clients ask for.</p>
+    </>
   );
 }
 

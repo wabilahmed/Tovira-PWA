@@ -3,6 +3,7 @@ import type { BookScanReport, BookScanItem } from './bookScanClient.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { daysSince } from '../format/dates.js';
 import { findingId, appendFindings } from './streaming.js';
+import { Page, PageHeader } from '../ui/PageHeader.js';
 
 export interface BookScanApi {
   scan(): Promise<BookScanReport | null>;
@@ -49,8 +50,8 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
     if (report) setShown((prev) => appendFindings(prev, report.items));
   }, [report]);
 
-  if (state === 'loading') return <p>Scanning your history…</p>;
-  if (state === 'error' || !report) return <p role="alert">Couldn’t run the scan. Please try again.</p>;
+  if (state === 'loading') return <Page testId="bookscan-page" label="Book Scan"><PageHeader title="Book Scan" /><p className="ui-secondary">Scanning your history…</p></Page>;
+  if (state === 'error' || !report) return <Page testId="bookscan-page" label="Book Scan"><PageHeader title="Book Scan" /><p role="alert" className="ui-secondary">Couldn’t run the scan. Please try again.</p></Page>;
 
   // [BOOKSCAN-STREAM] Still working iff a chat is queued/processing. The empty state is shown ONLY when
   // the scan is FINISHED with nothing found — mid-scan-zero must read as "still scanning", never "empty".
@@ -59,23 +60,19 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
 
   if (!scanning && shown.length === 0) {
     return (
-      <section aria-label="Book Scan">
-        <header className="tov-screenhead">
-          <div className="tov-stamp">The Book Scan</div>
-          <h2>What your book has been hiding</h2>
-        </header>
-        <p style={{ color: 'var(--text-secondary)' }}>{report.message}</p>
-      </section>
+      <Page testId="bookscan-page" label="Book Scan">
+        <PageHeader title="Book Scan" subtitle="What your book has been hiding" />
+        <p className="ui-secondary">{report.message}</p>
+      </Page>
     );
   }
 
   const clients = new Set(shown.map((i) => i.clientId)).size;
 
   return (
-    <section aria-label="Book Scan">
+    <Page testId="bookscan-page" label="Book Scan">
+      <PageHeader title="Book Scan" subtitle="What your book has been hiding" />
       <header className="tov-screenhead">
-        <div className="tov-stamp">The Book Scan</div>
-        <h2>What your book has been hiding</h2>
         <div className="tov-screenmeta">
           {shown.length} finding{shown.length === 1 ? '' : 's'} · {clients} client{clients === 1 ? '' : 's'}
           {typeof report.chatsRead === 'number' && <> · {report.chatsRead} chat{report.chatsRead === 1 ? '' : 's'} read</>}
@@ -108,7 +105,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
       </div>
 
       <p style={{ marginTop: 'var(--space-5)', color: 'var(--brass)' }}>{report.invitation}</p>
-    </section>
+    </Page>
   );
 }
 

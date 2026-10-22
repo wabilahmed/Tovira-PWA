@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { LedgerSummary, LedgerEventType } from './ledgerClient.js';
+import { Page, PageHeader } from '../ui/PageHeader.js';
 
 export interface LedgerApi {
   summary(): Promise<LedgerSummary | null>;
@@ -39,12 +40,13 @@ export function Ledger({ api, clients }: { api: LedgerApi; clients: Array<{ id: 
     }
   }
 
-  if (state === 'loading') return <p>Loading your ledger…</p>;
-  if (state === 'error' || !summary) return <p role="alert">Couldn’t load your ledger.</p>;
+  // [P39-8] Loading and error states sit in the page template too.
+  if (state === 'loading') return <Page testId="ledger-page" label="The Ledger"><PageHeader title="The Ledger" /><p className="ui-secondary">Loading your ledger…</p></Page>;
+  if (state === 'error' || !summary) return <Page testId="ledger-page" label="The Ledger"><PageHeader title="The Ledger" /><p role="alert" className="ui-secondary">Couldn’t load your ledger.</p></Page>;
 
   return (
-    <section aria-label="The Ledger">
-      <h2 style={{ marginTop: 0 }}>The Ledger</h2>
+    <Page testId="ledger-page" label="The Ledger">
+      <PageHeader title="The Ledger" />
 
       {summary.totalTouched === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>Nothing yet — as you act on flags and keep promises, they’ll show here.</p>
@@ -83,6 +85,6 @@ export function Ledger({ api, clients }: { api: LedgerApi; clients: Array<{ id: 
           <button type="submit" disabled={!aed.trim()}>Save</button>
         </form>
       )}
-    </section>
+    </Page>
   );
 }

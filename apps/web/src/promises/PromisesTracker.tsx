@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import type { OpenPromise } from './promisesClient.js';
 import { formatBody } from '../format/dates.js';
 import { hapticTick } from '../haptics.js';
+import { Page, PageHeader } from '../ui/PageHeader.js';
 
 export interface PromisesApi {
   listOpen(): Promise<OpenPromise[]>;
@@ -97,7 +98,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
     } else setError('Could not undo — please reload.');
   }
 
-  if (loading) return <p>Loading your promises…</p>;
+  if (loading) return <Page testId="promises-page" label="Promises"><PageHeader title="Promises" /><p className="ui-secondary">Loading your promises…</p></Page>;
 
   // [PROMISE-STALE] Active = not stale (the foreground: count, claret, overdue). Stale (overdue past
   // the window) sits behind a filter — still listed and actionable, but never claret and never in the
@@ -107,16 +108,16 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
   const overdueCount = active.filter((p) => overdue(p, now)).length;
 
   return (
-    <section aria-label="Promises">
-      <header className="tov-screenhead">
-        <h2 style={{ marginTop: 0 }}>Promises</h2>
-        <div className="tov-screenmeta">
+    <Page testId="promises-page" label="Promises">
+      <PageHeader
+        title="Promises"
+        subtitle={<>
           {active.length} open
           {overdueCount > 0 && <> · {overdueCount} overdue</>}
           {pending.length > 0 && <> · {pending.length} to confirm</>}
           {stale.length > 0 && <> · {stale.length} older</>}
-        </div>
-      </header>
+        </>}
+      />
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
       {undo && (
         <div role="status" data-testid="promise-undo" className="lead-toast">
@@ -192,7 +193,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
           </ul>
         </>
       )}
-    </section>
+    </Page>
   );
 }
 

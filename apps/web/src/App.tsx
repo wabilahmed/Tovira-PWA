@@ -443,7 +443,13 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   useEffect(() => {
     void usageApi.status().then((s) => setAiPaused(s?.aiPaused ?? false));
   }, []);
-  const gated = (node: JSX.Element): JSX.Element => (entitled ? node : <Locked onSubscribe={startCheckout} status={billing?.status} />);
+  // [P39-8] A locked screen still sits in the page template under its own title.
+  const gated = (node: JSX.Element): JSX.Element => (entitled ? node : (
+    <Page testId="locked-page" label={VIEW_LABEL[view] ?? 'Tovira'}>
+      <PageHeader title={VIEW_LABEL[view] ?? 'Tovira'} />
+      <Locked onSubscribe={startCheckout} status={billing?.status} />
+    </Page>
+  ));
 
   // INV-MATCH badge: load the strong-unseen count, and clear it (marking seen) when Inventory opens.
   useEffect(() => {
@@ -562,6 +568,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
               client={open}
               clients={clients.map((c) => ({ id: c.id, name: c.name }))}
               onBack={() => dismiss()}
+              backLabel={VIEW_LABEL[view] ?? 'Clients'}
               onSubscribe={startCheckout}
               onOpenLeadSheet={() => setStatusSheetFor(open)}
               timeZone={session.user.timezone}
@@ -665,6 +672,8 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       <PaymentBanner ent={billing} />{/* [BILLING-DUNNING] shown on every visit while a payment has failed */}
 
       {view === 'getstarted' && seeding && (
+        <Page testId="getstarted-page" label="Get started">
+        <PageHeader title="Get started" />
         <GetStarted
           seeding={seeding}
           clients={clients}
@@ -688,6 +697,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
           onFallback={() => setView('clients')}
           onStartImport={() => { setOnboardingImport(true); setClientsAction('newFromChat'); setView('clients'); }}
         />
+        </Page>
       )}
 
       {view === 'today' && gated(
@@ -983,7 +993,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport, onOpenSubscription }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string }; /** [P37] */ onOpenSubscription?: () => void }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport, onOpenSubscription }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; /** [P39-8] where back goes ("Clients", "Find", "Today") */ backLabel?: string; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string }; /** [P37] */ onOpenSubscription?: () => void }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
@@ -1103,8 +1113,10 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
   const recording = active !== null;
 
   return (
-    <main className="tov-clientpage" style={{ fontFamily: 'var(--font-sans)', padding: 'var(--space-4)', maxWidth: 640, margin: '0 auto' }}>
-      <button onClick={onBack} style={linkButton}>← Clients</button>
+    <main className="tov-clientpage">
+      <Page testId="client-page" label={client.name}>
+      {/* [P39-8] PageHeader: the client's name, and a back to wherever the rep came from. */}
+      <PageHeader title={client.name} back={{ label: backLabel, onBack }} />
       <ClientHeader
         name={client.name}
         status={client.leadStatus}
@@ -1124,14 +1136,15 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
         onAdd={() => { setAddOpen((o) => !o); setCapture(null); }}
       >
         {/* [P36-5] Add: every capture for this client starts here — voice note, a pasted message, a WhatsApp chat. */}
-        {addOpen && !capture && (
-          <div className="tov-addmenu" role="group" aria-label="Add to this client">
-            <button type="button" onClick={() => { setCapture('voice'); void startRec(); }}>● Record voice note</button>
-            <button type="button" onClick={() => setCapture('paste')}>Paste a message</button>
-            <button type="button" onClick={() => setCapture('import')}>Import a WhatsApp chat</button>
-            <button type="button" onClick={() => setCapture('note')}>Add a note</button>
+        {/* [P39-8] The Add menu is a sheet; the chosen capture opens under the header. */}
+        <Sheet open={addOpen && !capture} onClose={() => setAddOpen(false)} title={`Add to ${client.name}`}>
+          <div className="ui-stack ui-gap-1" role="group" aria-label="Add to this client">
+            <button type="button" className="ui-sheet__option" onClick={() => { setCapture('voice'); void startRec(); }}>Record voice note</button>
+            <button type="button" className="ui-sheet__option" onClick={() => setCapture('paste')}>Paste a message</button>
+            <button type="button" className="ui-sheet__option" onClick={() => setCapture('import')}>Import a WhatsApp chat</button>
+            <button type="button" className="ui-sheet__option" onClick={() => setCapture('note')}>Add a note</button>
           </div>
-        )}
+        </Sheet>
         {capture === 'note' && <AddNote clientId={client.id} clientName={client.name} api={recallApi} onOpenSubscription={onOpenSubscription} />}
         {(capture === 'voice' || recording) && (
           <div className="tov-capture">
@@ -1226,20 +1239,10 @@ function ClientDetail({ client, clients = [], onBack, onSubscribe, onOpenLeadShe
           }}
         />
       </Accordion>
+      </Page>
     </main>
   );
 }
-
-const linkButton: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  color: 'var(--brass)',
-  cursor: 'pointer',
-  minHeight: 'auto',
-  padding: 0,
-  fontFamily: 'inherit',
-  fontSize: 'inherit',
-};
 
 
 function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: string; onChange: () => void }): JSX.Element {

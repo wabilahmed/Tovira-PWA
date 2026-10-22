@@ -3,6 +3,7 @@ import type { MondayDigest as Digest } from './mondayClient.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody, formatRange, daysSince } from '../format/dates.js';
 import { OutcomeControl, type OutcomeChoice } from '../outcomes/OutcomeControl.js';
+import { Page, PageHeader } from '../ui/PageHeader.js';
 
 export interface MondayApi {
   get(): Promise<Digest | null>;
@@ -28,8 +29,9 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
     return () => { live = false; };
   }, [api]);
 
-  if (state === 'loading') return <p>Building the Monday Statement…</p>;
-  if (state === 'error' || !digest) return <p role="alert">The Monday Statement could not be loaded. Try again in a moment.</p>;
+  // [P39-8] Loading and error states sit in the page template too.
+  if (state === 'loading') return <Page testId="week-page" label="The Monday Statement"><PageHeader title="The Monday Statement" /><p className="ui-secondary">Building the Monday Statement…</p></Page>;
+  if (state === 'error' || !digest) return <Page testId="week-page" label="The Monday Statement"><PageHeader title="The Monday Statement" /><p role="alert" className="ui-secondary">The Monday Statement could not be loaded. Try again in a moment.</p></Page>;
 
   // The server's Monday is authoritative; fall back to computing from `now`.
   const mondayMs = digest.weekOf ? Date.parse(digest.weekOf) : now - (((new Date(now).getDay() + 6) % 7) * 86_400_000);
@@ -41,25 +43,17 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
   // is still light — but we show that section rather than claim there is nothing at all.
   if (digest.isLight && surfaced.length === 0) {
     return (
-      <section aria-label="The Monday Statement">
-        <header className="tov-screenhead">
-          <h2>The Monday Statement</h2>
-          <div className="tov-screenmeta">Week of {week} · 0 entries</div>
-        </header>
-        <p data-testid="clear-week" style={{ color: 'var(--text-secondary)' }}>A clear week — nothing due, no one cooling.</p>
-      </section>
+      <Page testId="week-page" label="The Monday Statement">
+        <PageHeader title="The Monday Statement" subtitle={`Week of ${week}`} />
+        <p data-testid="clear-week" className="ui-secondary">A clear week — nothing due, no one cooling.</p>
+      </Page>
     );
   }
 
-  const entries =
-    digest.promisesDue.length + digest.coolingClients.length + digest.unansweredQuestions.length + digest.upcomingDates.length + surfaced.length;
-
   return (
-    <section aria-label="The Monday Statement">
-      <header className="tov-screenhead">
-        <h2>The Monday Statement</h2>
-        <div className="tov-screenmeta">Week of {week} · {entries} entr{entries === 1 ? 'y' : 'ies'}</div>
-      </header>
+    <Page testId="week-page" label="The Monday Statement">
+      {/* [P39 · owner] no "N entries" count on a screen. */}
+      <PageHeader title="The Monday Statement" subtitle={`Week of ${week}`} />
 
       <Section testid="due" label="Promises due" count={digest.promisesDue.length}>
         {digest.promisesDue.map((p) => (
@@ -101,7 +95,7 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
           ))}
         </div>
       </Section>
-    </section>
+    </Page>
   );
 }
 
