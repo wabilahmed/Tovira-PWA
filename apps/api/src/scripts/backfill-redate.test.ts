@@ -37,10 +37,13 @@ describe('[P21-C] planPromiseRedate', () => {
     expect(planPromiseRedate([p({ dueDate: '2026-04-27' })]).changes).toHaveLength(0);
   });
 
-  it('NEGATIVE: never guesses — an unresolvable phrase leaves the stored date alone', () => {
+  // [P40-1 · owner] An unresolvable phrase still never gets a guessed date — but a stored date it carries came from the
+  // model, so it now goes to "null + date to confirm" (was: left alone as stored). An undated row stays untouched.
+  it('NEGATIVE: never guesses — an unresolvable phrase gets no new date; a stored model date goes to confirm', () => {
     const plan = planPromiseRedate([p({ id: 'vague', dueRaw: 'next week', dueDate: '2026-04-24' }), p({ id: 'ambig', dueRaw: '12/04/2026', dueDate: null, dayFirst: false })]);
     expect(plan.changes).toHaveLength(0);
-    expect(plan.unresolved.map((u) => u.id)).toEqual(['vague', 'ambig']);
+    expect(plan.toConfirm.map((t) => t.id)).toEqual(['vague']);
+    expect(plan.unresolved.map((u) => u.id)).toEqual(['ambig']);
   });
 
   it('NEGATIVE: never sets a promise due BEFORE the message that made it', () => {

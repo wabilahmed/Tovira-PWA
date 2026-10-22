@@ -38,6 +38,7 @@
 import { pathToFileURL } from 'node:url';
 import { createPool } from '../db/pool.js';
 import { resolveDueDate, messageDay } from '../services/extraction/resolve-date.js';
+import { trustedPromiseDate } from '../services/extraction/date-policy.js';
 
 /** A promise row reduced to what the backfill needs: the phrase + the anchor day to resolve against. */
 export interface PromiseRow {
@@ -97,25 +98,43 @@ export interface PromiseRedateRow {
   anchor: string;
   dayFirst: boolean;
   repEdited: boolean;
+  /** [P40-1] for the to-confirm list: the client's name and the stored receipt quote. */
+  clientName?: string | null;
+  sourceSpan?: string | null;
 }
+
+/** [P40-1] A stored date that came from the model with no resolver match → null + date to confirm. */
+export interface PromiseToConfirm { id: string; userId: string; client: string; dueRaw: string; from: string; receiptDate: string | null }
 
 export interface PromiseChange { id: string; userId: string; dueRaw: string; from: string | null; to: string }
 
 export interface PromiseRedatePlan {
   changes: PromiseChange[];
+  /** [P40-1] stored model dates the resolver can't reproduce (and the receipt doesn't state) → null + to confirm. */
+  toConfirm: PromiseToConfirm[];
   unresolved: Array<{ id: string; dueRaw: string }>;
   skippedRepEdited: Array<{ id: string; dueRaw: string }>;
 }
 
 /** PURE re-date decision (unit-tested with the real resolver). */
 export function planPromiseRedate(rows: PromiseRedateRow[]): PromiseRedatePlan {
-  const plan: PromiseRedatePlan = { changes: [], unresolved: [], skippedRepEdited: [] };
+  const plan: PromiseRedatePlan = { changes: [], toConfirm: [], unresolved: [], skippedRepEdited: [] };
   for (const r of rows) {
     if (r.repEdited) { plan.skippedRepEdited.push({ id: r.id, dueRaw: r.dueRaw }); continue; }
     const to = resolveDueDate(r.dueRaw, r.anchor, { dayFirst: r.dayFirst }).date;
     const said = messageDay(r.anchor);
-    // Unresolvable, or impossible (due before the message that made it — the DATE-INVARIANT) → leave it.
-    if (!to || (said !== null && to < said)) { plan.unresolved.push({ id: r.id, dueRaw: r.dueRaw }); continue; }
+    // Unresolvable, or impossible (due before the message that made it — the DATE-INVARIANT).
+    if (!to || (said !== null && to < said)) {
+      // [P40-1] A stored date here came from the model, not the resolver: unless the receipt itself states that exact
+      // date (and the resolver reads it the same), it becomes null + date to confirm. An undated row is left alone.
+      const stated = r.dueDate !== null && trustedPromiseDate(
+        { text: '', owner: 'rep', confidence: 'high', due_raw: r.dueRaw, due_date: r.dueDate, resolved_due_date: null, source_span: r.sourceSpan ?? null },
+        { dayFirst: r.dayFirst },
+      ).date === r.dueDate;
+      if (r.dueDate !== null && !stated) plan.toConfirm.push({ id: r.id, userId: r.userId, client: r.clientName ?? '', dueRaw: r.dueRaw, from: r.dueDate, receiptDate: said });
+      else plan.unresolved.push({ id: r.id, dueRaw: r.dueRaw });
+      continue;
+    }
     if (to === r.dueDate) continue; // already right — idempotent
     plan.changes.push({ id: r.id, userId: r.userId, dueRaw: r.dueRaw, from: r.dueDate, to });
   }
@@ -127,16 +146,23 @@ export function formatPromiseChange(c: PromiseChange): string {
   return `~ ${c.id}  "${c.dueRaw}"  ${c.from ?? '(none)'} → ${c.to}`;
 }
 
+/** [P40-1] The dry-run line for one to-confirm row: id, client, phrase, stored date, receipt date, the action. */
+export function formatToConfirm(t: PromiseToConfirm): string {
+  return `? ${t.id}  ${t.client}  "${t.dueRaw}"  stored ${t.from}  said ${t.receiptDate ?? '(unknown)'}  → null + date to confirm`;
+}
+
 /** [P21-C] Read-only candidates: open, live, canonical promises with a phrase; flags a rep edit of the
  *  date/phrase; $1 = --only-user (NULL = every rep). */
 export const PROMISE_CANDIDATES_SQL = `
 SELECT p.id, p.user_id, p.due_raw, p.due_date::text AS due_date, p.source_message_at, p.capture_at, p.created_at,
+       p.source_span, cl.name AS client_name,
        (n.source = 'whatsapp_export') AS day_first,
        EXISTS (SELECT 1 FROM corrections c
                 WHERE c.entity_type = 'promise' AND c.entity_id = p.id
                   AND c.field IN ('due_date', 'due_raw')) AS rep_edited
   FROM promises p
   LEFT JOIN notes n ON n.id = p.note_id
+  LEFT JOIN clients cl ON cl.id = p.client_id
  WHERE p.done = false
    AND p.deleted_at IS NULL
    AND p.merged_into IS NULL
@@ -148,6 +174,8 @@ SELECT p.id, p.user_id, p.due_raw, p.due_date::text AS due_date, p.source_messag
 /** The only write: the surfaced due date, guarded on the value the dry run read (never clobbers a
  *  concurrent rep edit; a re-run is a no-op). */
 export const PROMISE_UPDATE_SQL = 'UPDATE promises SET due_date = $2 WHERE id = $1 AND due_date IS NOT DISTINCT FROM $3::date';
+/** [P40-1] A model date with no resolver match: null + date to confirm, guarded on the value the dry run read. */
+export const PROMISE_TO_CONFIRM_SQL = "UPDATE promises SET due_date = NULL, date_status = 'to_confirm' WHERE id = $1 AND due_date IS NOT DISTINCT FROM $2::date";
 
 function anchorOf(sourceMessageAt: Date | null, captureAt: string | null, createdAt: Date): string {
   return sourceMessageAt ? sourceMessageAt.toISOString() : captureAt ?? createdAt.toISOString();
@@ -161,7 +189,7 @@ async function main(): Promise<void> {
   // [P17-SSL] Same pool factory the API uses (TLS for RDS, plain locally) — never a raw new pg.Pool.
   const pool = createPool(url);
   try {
-    const { rows } = await pool.query<{ id: string; user_id: string; due_raw: string; due_date: string | null; source_message_at: Date | null; capture_at: string | null; created_at: Date; day_first: boolean | null; rep_edited: boolean }>(PROMISE_CANDIDATES_SQL, [onlyUser]);
+    const { rows } = await pool.query<{ id: string; user_id: string; due_raw: string; due_date: string | null; source_message_at: Date | null; capture_at: string | null; created_at: Date; day_first: boolean | null; rep_edited: boolean; source_span: string | null; client_name: string | null }>(PROMISE_CANDIDATES_SQL, [onlyUser]);
     const plan = planPromiseRedate(rows.map((r) => ({
       id: r.id,
       userId: r.user_id,
@@ -170,19 +198,23 @@ async function main(): Promise<void> {
       anchor: anchorOf(r.source_message_at, r.capture_at, r.created_at),
       dayFirst: r.day_first === true,
       repEdited: r.rep_edited,
+      clientName: r.client_name,
+      sourceSpan: r.source_span,
     })));
 
     const scope = onlyUser ? `user ${onlyUser}` : 'all users';
     console.log(`[backfill-promise-dates] ${rows.length} open promise(s) with a phrase (${scope}).`);
     console.log(`[backfill-promise-dates] CHANGES (${plan.changes.length}):`);
     for (const c of plan.changes) console.log(`  ${formatPromiseChange(c)}`);
+    console.log(`[backfill-promise-dates] MODEL DATE, NO RESOLVER MATCH → null + date to confirm (${plan.toConfirm.length}):`);
+    for (const t of plan.toConfirm) console.log(`  ${formatToConfirm(t)}`);
     console.log(`[backfill-promise-dates] SKIPPED — rep-edited (${plan.skippedRepEdited.length}):`);
     for (const r of plan.skippedRepEdited) console.log(`  = ${r.id}  "${r.dueRaw}"`);
     console.log(`[backfill-promise-dates] UNRESOLVED — left as stored, never guessed (${plan.unresolved.length}):`);
     for (const r of plan.unresolved) console.log(`  - ${r.id}  "${r.dueRaw}"`);
 
     if (!apply) {
-      console.log('[backfill-promise-dates] DRY RUN — no writes. Re-run with --apply to write the changes above.');
+      console.log('[backfill-promise-dates] DRY RUN — no writes. Re-run with --apply to write the changes and to-confirms above.');
       return;
     }
 
@@ -194,6 +226,10 @@ async function main(): Promise<void> {
         const res = await client.query(PROMISE_UPDATE_SQL, [c.id, c.to, c.from]);
         updated += (res as { rowCount: number }).rowCount ?? 0;
       }
+      for (const t of plan.toConfirm) {
+        const res = await client.query(PROMISE_TO_CONFIRM_SQL, [t.id, t.from]);
+        updated += (res as { rowCount: number }).rowCount ?? 0;
+      }
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK').catch(() => undefined);
@@ -201,7 +237,7 @@ async function main(): Promise<void> {
     } finally {
       client.release();
     }
-    console.log(`[backfill-promise-dates] updated ${updated} of ${plan.changes.length} planned change(s).`);
+    console.log(`[backfill-promise-dates] updated ${updated} of ${plan.changes.length + plan.toConfirm.length} planned change(s).`);
   } finally {
     await pool.end();
   }
