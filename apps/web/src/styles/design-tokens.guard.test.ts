@@ -68,6 +68,16 @@ describe('[P39] app CSS uses the design tokens only', () => {
     expect(offenders).toEqual([]);
   });
 
+  // [P39-11] A select is never the browser's default look: every <select> carries .ui-native-select.
+  it('every native <select> is styled', () => {
+    const tsx = (dir: string): string[] => readdirSync(dir).flatMap((f) => {
+      const p = join(dir, f);
+      return statSync(p).isDirectory() ? (f === 'marketing' ? [] : tsx(p)) : /\.tsx$/.test(f) && !/\.test\./.test(f) ? [p] : [];
+    });
+    const bare = tsx(STYLES).flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/<select\b[^>]*>/g)].filter((m) => !/ui-native-select/.test(m[0])).map(() => relative(STYLES, f)));
+    expect(bare).toEqual([]);
+  });
+
   it('the guard catches off-scale values', () => {
     expect(badSpacing('10px')).toBe(true);
     expect(badSpacing('0.6rem 1rem')).toBe(true);

@@ -36,8 +36,8 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
   }
 
   return (
+    // [P39-11] The Account page's section carries the title; no second heading here.
     <section aria-label="Your data">
-      <h2 style={{ marginTop: 0 }}>Your data</h2>
 
       {/* [DELETE-EXPORT-FIRST] Deletion is immediate + permanent (AccountService.deleteAccount purges at
           once, no grace window), so steer the rep to export BEFORE they delete, with the export action

@@ -41,7 +41,7 @@ export function TimezoneSetting({ current, api }: { current: string; api: Timezo
   return (
     <section className="tov-setting-line">
       <label htmlFor="tz-select">Timezone</label>{' '}
-      <select id="tz-select" value={zone} onChange={(e) => void save(e.target.value)}>
+      <select id="tz-select" className="ui-native-select" value={zone} onChange={(e) => void save(e.target.value)}>
         {options.map((z) => <option key={z} value={z}>{z}</option>)}
       </select>
       {device && device !== zone && (

@@ -132,3 +132,16 @@ textarea.ui-input { padding: var(--space-3); min-height: var(--space-7); resize:
 .ui-sheet__option:hover:not(:disabled) { background: var(--color-sunken); border-color: transparent; }
 .ui-sheet__option[aria-checked='true'], .ui-sheet__option[aria-current='true'] { color: var(--color-accent); font-weight: 600; }
 .ui-sheet__hint { font-size: var(--text-secondary-size); color: var(--color-muted); font-weight: 400; }
+
+/* [P39-11] A native <select> keeps the phone's own picker, but never the browser's default look: no system
+   chrome, the token border/radius/type, a drawn chevron, a 44px target. */
+.ui-native-select {
+  appearance: none; -webkit-appearance: none;
+  min-height: var(--touch); max-width: 100%; padding: 0 var(--space-6) 0 var(--space-3);
+  border: var(--border-1); border-radius: var(--radius-2); background-color: var(--color-raised); color: var(--color-text);
+  font: inherit; font-size: var(--text-body-size);
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-muted) 50%), linear-gradient(135deg, var(--color-muted) 50%, transparent 50%);
+  background-position: calc(100% - var(--space-4)) 50%, calc(100% - var(--space-3)) 50%;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+.ui-native-select:focus-visible { outline: var(--border-2); outline-offset: 2px; }

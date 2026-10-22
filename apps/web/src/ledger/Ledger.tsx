@@ -77,7 +77,7 @@ export function Ledger({ api, clients }: { api: LedgerApi; clients: Array<{ id: 
         <form onSubmit={saveDealValue} style={{ marginTop: 'var(--space-4)', display: 'flex', gap: 'var(--space-2)', alignItems: 'baseline', flexWrap: 'wrap' }}>
           <label>
             Deal value for{' '}
-            <select className="tov-client-select" value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Deal value client">
+            <select className="tov-client-select ui-native-select" value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Deal value client">
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>

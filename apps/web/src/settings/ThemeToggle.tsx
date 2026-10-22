@@ -87,8 +87,8 @@ export function ThemeToggle(): JSX.Element {
   }
 
   return (
-    <section aria-label="Appearance" style={{ margin: 'var(--space-5) 0' }}>
-      <h2 style={{ fontSize: 'var(--text-body-size)', marginTop: 0 }}>Appearance</h2>
+    // [P39-11] The Settings section carries the title; no second heading here.
+    <section aria-label="Appearance">
       <div
         ref={groupRef}
         role="group"

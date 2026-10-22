@@ -41,6 +41,10 @@ describe('[P39-8] every screen is in the page template with a PageHeader', () =>
       expect(within(header).getByRole('heading', { level: 1 })).toBeInTheDocument();
       // no screen keeps its own old-style title next to the PageHeader
       expect(container.querySelector('.tov-screenhead h2')).toBeNull();
+      // [P39-11] no heading repeated on one screen ("Notifications" / "Notifications")
+      await new Promise((r) => setTimeout(r, 300));
+      const titles = [...container.querySelectorAll('h1, h2, h3')].map((h) => h.textContent?.trim() ?? '').filter(Boolean);
+      expect(titles.filter((t, i) => titles.indexOf(t) !== i)).toEqual([]);
       void VIEW_LABEL;
     });
   }

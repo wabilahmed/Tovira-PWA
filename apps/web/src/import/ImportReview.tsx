@@ -331,7 +331,7 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
           <legend><strong>{row.fileName}</strong> — Group chat. Skipped.</legend>
           <label style={{ display: 'block', marginTop: 'var(--space-1)' }}>
             <span style={{ fontSize: 'var(--text-secondary-size)', color: 'var(--text-secondary)' }}>Import anyway for one participant?</span>
-            <select className="tov-client-select" aria-label={`Client participant for ${row.fileName}`} value={choice?.name ?? ''} onChange={(e) => onChoice({ name: e.target.value })}>
+            <select className="tov-client-select ui-native-select" aria-label={`Client participant for ${row.fileName}`} value={choice?.name ?? ''} onChange={(e) => onChoice({ name: e.target.value })}>
               <option value="">Keep skipped</option>
               {/* [P21-D] the rep is never a client candidate */}
               {(row.participants ?? []).filter((p) => !isRep(p, repChoice)).map((p) => (<option key={p} value={p}>{p}</option>))}

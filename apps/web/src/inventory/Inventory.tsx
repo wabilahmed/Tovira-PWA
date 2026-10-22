@@ -206,7 +206,7 @@ function ItemCard({ item, clients, api, editing, onEditToggle, onSave, onShare, 
         </div>
       ) : picking ? (
         <div className="tov-inv-add__row">
-          <select className="tov-client-select" aria-label="Share with client" value={pick} onChange={(e) => setPick(e.target.value)}>
+          <select className="tov-client-select ui-native-select" aria-label="Share with client" value={pick} onChange={(e) => setPick(e.target.value)}>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <button className="tov-primary" disabled={!pick} onClick={() => { onShare(pick); setPicking(false); }}>Send via WhatsApp</button>

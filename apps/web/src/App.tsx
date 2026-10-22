@@ -868,7 +868,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
                 icon button on the same row, opening a sheet. */}
             <SearchInput
               label="Search clients by name, alias, phone or email"
-              placeholder="Search name, alias, phone or email"
+              placeholder="Search clients"
               value={query}
               onChange={setQuery}
               trailing={<IconButton label="Sort clients" aria-haspopup="dialog" onClick={() => setSortSheet(true)}>⇅</IconButton>}

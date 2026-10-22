@@ -38,8 +38,8 @@ export function NotificationSetup({ state, api }: { state: OnboardingState; api:
   const isOn = result === 'enabled' || step.stage === 'ready';
 
   return (
+    // [P39-11] The Settings section carries the title; no second heading here.
     <section aria-label="Notifications">
-      <h2 style={{ marginTop: 0 }}>Notifications</h2>
       <p style={{ color: 'var(--text-secondary)' }}>{step.message}</p>
 
       {step.stage === 'enable' && !isOn && (

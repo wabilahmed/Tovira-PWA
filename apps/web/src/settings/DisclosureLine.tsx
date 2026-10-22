@@ -24,8 +24,8 @@ export function DisclosureLine(): JSX.Element {
   }
 
   return (
-    <section aria-labelledby="disclosure-h" style={{ marginTop: 'var(--space-5)' }}>
-      <h3 id="disclosure-h" style={{ margin: '0 0 var(--space-1)' }}>Tell clients you keep notes</h3>
+    // [P39-11] The Settings section carries the title; no second heading here.
+    <section aria-label="Tell clients you keep notes">
       <p style={{ color: 'var(--text-secondary)', margin: '0 0 var(--space-2)' }}>
         A one-line disclosure to paste into your WhatsApp Business profile or a first message.
       </p>
