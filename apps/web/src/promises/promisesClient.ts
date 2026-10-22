@@ -46,6 +46,22 @@ export interface KeptSuggestion {
   deliveryAt?: string;
 }
 
+/** [P40-1] A meeting the resolver couldn't time ("Saturday afternoon"), waiting for the rep's answer. */
+export interface MeetingToConfirm {
+  id: string;
+  clientId: string;
+  clientName?: string | null;
+  title: string | null;
+  datetimeRaw: string;
+  noteId: string | null;
+  sourceSpan: string | null;
+  sourceMessageAt: string | null;
+  captureAt: string | null;
+  /** The resolver's reading ("YYYY-MM-DDTHH:MM"), only when it has one. */
+  suggestedDatetime: string | null;
+  createdAt?: number;
+}
+
 export class PromisesClient {
   constructor(private readonly baseUrl: string = '') {}
 
@@ -78,6 +94,30 @@ export class PromisesClient {
       return Array.isArray(list) ? (list as OpenPromise[]) : [];
     } catch {
       return [];
+    }
+  }
+
+  /** [P40-1] Meetings whose time the rep needs to give (GET /confirmations → meetingDatesToConfirm). */
+  async listMeetingDatesToConfirm(): Promise<MeetingToConfirm[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/confirmations`, { credentials: 'include' });
+      if (res.status !== 200) return [];
+      const list = ((await res.json()) as { meetingDatesToConfirm?: unknown }).meetingDatesToConfirm;
+      return Array.isArray(list) ? (list as MeetingToConfirm[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** [P40-1] The meeting answer: a time (the rep's wall clock), or "Not sure" / "No date yet". */
+  async answerMeetingDate(id: string, answer: { datetime: string } | { dateStatus: 'not_sure' | 'no_date' }): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/meetings/${encodeURIComponent(id)}`, {
+        method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(answer),
+      });
+      return res.status === 200;
+    } catch {
+      return false;
     }
   }
 

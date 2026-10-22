@@ -64,3 +64,32 @@ export function DateCard({ question, said, suggested, source, onAnswer }: {
     </Card>
   );
 }
+
+/** [P40-1 · owner] The same question card for a meeting the resolver couldn't time. */
+export function MeetingDateCard({ question, said, suggested, source, onAnswer }: {
+  question: string;
+  said: string;
+  suggested: { iso: string; label: string } | null;
+  source?: ReactNode;
+  onAnswer: (a: { datetime: string } | { dateStatus: 'not_sure' | 'no_date' }) => void;
+}): JSX.Element {
+  const [picked, setPicked] = useState('');
+  const id = useId();
+  return (
+    <Card role="group" aria-label="Meeting time to confirm" data-testid="meeting-date-card">
+      <p className="ui-body ui-strong" dir="auto">{question}</p>
+      <p className="ui-secondary" dir="auto">{said}</p>
+      {source}
+      <ActionRow>
+        {suggested && <Button variant="primary" size="sm" onClick={() => onAnswer({ datetime: suggested.iso })}>Yes, {suggested.label}</Button>}
+        <Button size="sm" onClick={() => onAnswer({ dateStatus: 'not_sure' })}>Not sure</Button>
+        <Button size="sm" onClick={() => onAnswer({ dateStatus: 'no_date' })}>No date yet</Button>
+      </ActionRow>
+      <div className="ui-cluster ui-gap-2">
+        <label htmlFor={id} className="sr-only">Pick a date and time</label>
+        <input id={id} type="datetime-local" className="ui-input ui-native-select" value={picked} onChange={(e) => setPicked(e.target.value)} />
+        <Button size="sm" disabled={!picked} onClick={() => onAnswer({ datetime: picked })}>Save the time</Button>
+      </div>
+    </Card>
+  );
+}

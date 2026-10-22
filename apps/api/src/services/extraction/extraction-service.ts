@@ -301,6 +301,8 @@ export class ExtractionService {
       sourceSpan: meeting.source_span ?? null,
       sourceMessageAt: meeting.source_message_at ?? null,
       captureAt, // the note's conversation date (referenceDate), not the import/write time
+      // [P40-1] no time the resolver could read → the rep is asked "When is the meeting with …?"
+      dateStatus: datetime === null && meeting.datetime_raw?.trim() ? 'to_confirm' : null,
     });
   }
 

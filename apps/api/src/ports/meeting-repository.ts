@@ -18,8 +18,12 @@ export interface MeetingRecord {
   sourceMessageAt: string | null;
   /** [RECEIPTS-capture-date] the note's conversation date (YYYY-MM-DD) — capture-date fallback source. */
   captureAt: string | null;
+  /** [P40-1] 'to_confirm' — the resolver had no time and the rep hasn't answered; else the rep's answer; null — nothing to confirm. */
+  dateStatus?: MeetingDateStatus | null;
   createdAt: number;
 }
+
+export type MeetingDateStatus = 'to_confirm' | 'not_sure' | 'no_date';
 
 export interface NewMeeting {
   clientId: string;
@@ -34,6 +38,8 @@ export interface NewMeeting {
   sourceMessageAt?: string | null;
   /** [RECEIPTS-capture-date] the note's conversation date (YYYY-MM-DD); null/omitted for rep-created. */
   captureAt?: string | null;
+  /** [P40-1] 'to_confirm' when extraction proposed a meeting the resolver couldn't time. */
+  dateStatus?: MeetingDateStatus | null;
 }
 
 /** Reschedule/edit. Only provided fields change; nudgedAt and confirmed are left as-is, so a
@@ -43,6 +49,8 @@ export interface MeetingPatch {
   datetime?: string | null;
   datetimeRaw?: string;
   title?: string | null;
+  /** [P40-1] the rep's answer to "When is it?" (a time clears it to null). */
+  dateStatus?: MeetingDateStatus | null;
 }
 
 export interface MeetingRepository {

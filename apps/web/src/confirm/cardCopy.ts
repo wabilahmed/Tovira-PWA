@@ -115,3 +115,19 @@ export function dateCopy(p: { text: string; owner: string; clientName?: string |
   const when = shortDay(p.sourceMessageAt ?? p.receipt?.at ?? null);
   return { question, said: `${who} said '${(p.dueRaw ?? '').trim()}'${when ? ` on ${when}` : ''}.` };
 }
+
+/** "2026-10-10T15:00" → "Sat 10 Oct, 15:00" (the wall clock as given). */
+export function shortDayTime(iso: string | null | undefined): string | null {
+  const day = shortDay(iso);
+  const t = iso ? /T(\d{2}:\d{2})/.exec(iso)?.[1] : null;
+  return day && t ? `${day}, ${t}` : day;
+}
+
+/** [P40-1 · owner] A meeting the resolver couldn't time: "When is the meeting with Sara Khan?" and what was said,
+ *  when. The record doesn't keep who said it, so the line names the chat, not "you". */
+export function meetingDateCopy(m: { clientName?: string | null; title: string | null; datetimeRaw: string; sourceMessageAt?: string | null; captureAt?: string | null }): { question: string; said: string } {
+  const what = m.title?.trim() || 'meeting';
+  const who = m.clientName ? ` with ${m.clientName}` : '';
+  const when = shortDay(m.sourceMessageAt ?? m.captureAt ?? null);
+  return { question: `When is the ${what}${who}?`, said: `The chat said '${m.datetimeRaw.trim()}'${when ? ` on ${when}` : ''}.` };
+}

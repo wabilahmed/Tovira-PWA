@@ -24,7 +24,7 @@ function repFacingStrings(src: string): string[] {
   // JSX text beside an {expression}: "Tovira suggests {x}. {y}" — only runs that read as text, not code
   for (const m of code.matchAll(/[>}]([^<>{}\n]+)[<{]/g)) if (!/[=();?&|]/.test(m[1]!)) out.push(m[1]!.trim());
   // identifiers / values like 'unsorted' (the filter's id) and 'worth_checking' (an enum) are not copy
-  return out.filter((t) => t.includes(' ') || /^[A-Z]/.test(t));
+  return out.filter((t) => t.includes(' ') || /^[A-Z]/.test(t) || t.includes('—'));
 }
 
 /** [P40-4 · owner] No em-dash (" — ") in rep-facing copy. The server files whose strings reach a rep (Today, alerts,
@@ -43,7 +43,7 @@ const DASH_EXEMPT: Array<[RegExp, string]> = [
   [/^Beta access request/, 'ops email subject'],
 ];
 const dashHits = (file: string, rel: string) => repFacingStrings(readFileSync(file, 'utf8'))
-  .filter((t) => t.includes(' — ') || t.startsWith('— ') || t.endsWith(' —'))
+  .filter((t) => t.includes(' — ') || t.startsWith('— ') || t.endsWith(' —') || t === '—')
   .filter((t) => !DASH_EXEMPT.some(([re]) => re.test(t)))
   .map((t) => `${rel}: ${t.slice(0, 90)}`);
 

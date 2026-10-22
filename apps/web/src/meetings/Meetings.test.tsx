@@ -183,4 +183,11 @@ describe('[AUDIT item 2] inline meeting reschedule', () => {
     expect(block).toMatch(/max-width:\s*100%/);
     expect(block).toMatch(/min-width:\s*0/);
   });
+
+  // [P40-1 · owner] a meeting the resolver couldn't time reads "Time to confirm" until it's answered
+  it('an untimed meeting shows "Time to confirm" with its phrase', async () => {
+    const m = { ...meeting, id: 'm9', datetime: null, datetimeRaw: 'Saturday afternoon', dateStatus: 'to_confirm' as const };
+    render(<Meetings api={makeApi({ list: vi.fn().mockResolvedValue([m]) })} clients={clients} />);
+    expect(await screen.findByTestId('meeting-when')).toHaveTextContent('Time to confirm (“Saturday afternoon”)');
+  });
 });

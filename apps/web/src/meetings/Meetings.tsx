@@ -180,7 +180,7 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
       {proposal && (
         <div data-testid="meeting-preview" className="tov-deal" style={box}>
           <p style={{ margin: 0 }}>
-            <strong>Meeting</strong> — {proposal.datetimeRaw}
+            <strong>Meeting:</strong> {proposal.datetimeRaw}
             {proposal.datetime ? ` (${formatDateTime(proposal.datetime, timeZone)})` : ' (time unconfirmed)'}
           </p>
           <label>
@@ -231,7 +231,7 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
           {meetings.map((m) => (
             <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: 'var(--space-2)' }}>
               <span style={{ minWidth: 0, flex: '1 1 12rem' }}>
-                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} — <small className="tov-stamp">{m.datetime ? formatDateTime(m.datetime, timeZone) : m.datetimeRaw}</small>
+                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} · <small className="tov-stamp" data-testid="meeting-when">{m.datetime ? formatDateTime(m.datetime, timeZone) : m.dateStatus === 'to_confirm' ? `Time to confirm (“${m.datetimeRaw}”)` : m.datetimeRaw}</small>
                 {m.confirmed === false && (
                   <span style={{ color: 'var(--amber)', marginLeft: 'var(--space-2)' }}> · unconfirmed. Is this right?</span>
                 )}

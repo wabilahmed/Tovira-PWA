@@ -154,8 +154,16 @@ export async function handleMeetingRoute(
     if (editMatch) {
       const meetingId = decodeURIComponent(editMatch[1]!);
       const before = await deps.meetings.findByIdForUser(userId, meetingId);
-      const body = (await readJsonBody(req)) as { datetime?: unknown; datetimeRaw?: unknown; title?: unknown };
-      const patch: { datetime?: string | null; datetimeRaw?: string; title?: string | null } = {};
+      const body = (await readJsonBody(req)) as { datetime?: unknown; datetimeRaw?: unknown; title?: unknown; dateStatus?: unknown };
+      const patch: { datetime?: string | null; datetimeRaw?: string; title?: string | null; dateStatus?: 'not_sure' | 'no_date' | null } = {};
+      // [P40-1] the answer to "When is the meeting with …?": a time (below), or "Not sure" / "No date yet"
+      if ('dateStatus' in body) {
+        if (body.dateStatus !== 'not_sure' && body.dateStatus !== 'no_date') {
+          sendJson(res, 400, { error: 'bad_request', message: 'Invalid date answer.' });
+          return true;
+        }
+        patch.dateStatus = body.dateStatus;
+      }
       if (typeof body.datetime === 'string') {
         // [P18-6] Reject an invalid reschedule time BEFORE writing — never let garbage overwrite a real
         // stored time (data loss) or reach the DB (500).
@@ -165,6 +173,7 @@ export async function handleMeetingRoute(
           return true;
         }
         patch.datetime = tryResolve(body.datetime, tz);
+        patch.dateStatus = null; // a time answers it
       } else if (body.datetime === null) {
         patch.datetime = null;
       }

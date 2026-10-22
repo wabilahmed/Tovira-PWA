@@ -15,6 +15,7 @@ interface Row {
   source_span: string | null;
   source_message_at: Date | null;
   capture_at: string | null;
+  date_status: string | null;
   created_at: Date;
 }
 
@@ -32,11 +33,12 @@ function toRecord(row: Row): MeetingRecord {
     sourceSpan: row.source_span,
     sourceMessageAt: row.source_message_at ? row.source_message_at.toISOString() : null,
     captureAt: row.capture_at ?? null,
+    dateStatus: (row.date_status ?? null) as MeetingRecord['dateStatus'],
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, datetime, datetime_raw, title, confirmed, note_id, nudged_at, source_span, source_message_at, capture_at, created_at';
+const COLUMNS = 'id, user_id, client_id, datetime, datetime_raw, title, confirmed, note_id, nudged_at, source_span, source_message_at, capture_at, date_status, created_at';
 
 export class PgMeetingRepository implements MeetingRepository {
   constructor(private readonly pool: Pool) {}
@@ -44,9 +46,9 @@ export class PgMeetingRepository implements MeetingRepository {
   async create(userId: string, meeting: NewMeeting): Promise<MeetingRecord> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO meetings (user_id, client_id, datetime, datetime_raw, title, confirmed, note_id, source_span, source_message_at, capture_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING ${COLUMNS}`,
-        [userId, meeting.clientId, meeting.datetime, meeting.datetimeRaw, meeting.title, meeting.confirmed, meeting.noteId ?? null, meeting.sourceSpan ?? null, meeting.sourceMessageAt ?? null, meeting.captureAt ?? null],
+        `INSERT INTO meetings (user_id, client_id, datetime, datetime_raw, title, confirmed, note_id, source_span, source_message_at, capture_at, date_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING ${COLUMNS}`,
+        [userId, meeting.clientId, meeting.datetime, meeting.datetimeRaw, meeting.title, meeting.confirmed, meeting.noteId ?? null, meeting.sourceSpan ?? null, meeting.sourceMessageAt ?? null, meeting.captureAt ?? null, meeting.dateStatus ?? null],
       );
       return toRecord(rows[0] as unknown as Row);
     });
@@ -60,13 +62,15 @@ export class PgMeetingRepository implements MeetingRepository {
         `UPDATE meetings SET
            datetime = CASE WHEN $2::boolean THEN $3::timestamptz ELSE datetime END,
            datetime_raw = COALESCE($4, datetime_raw),
-           title = CASE WHEN $5::boolean THEN $6::text ELSE title END
+           title = CASE WHEN $5::boolean THEN $6::text ELSE title END,
+           date_status = CASE WHEN $7::boolean THEN $8::text ELSE date_status END
          WHERE id = $1 RETURNING ${COLUMNS}`,
         [
           id,
           patch.datetime !== undefined, patch.datetime ?? null,
           patch.datetimeRaw ?? null,
           patch.title !== undefined, patch.title ?? null,
+          patch.dateStatus !== undefined, patch.dateStatus ?? null,
         ],
       );
       return rows[0] ? toRecord(rows[0] as unknown as Row) : null;

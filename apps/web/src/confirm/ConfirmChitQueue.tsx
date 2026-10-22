@@ -1,10 +1,10 @@
 import { hapticTick } from '../haptics.js';
 import { useEffect, useRef, useState } from 'react';
-import type { OpenPromise } from '../promises/promisesClient.js';
-import { AnswerCard, DateCard } from './ConfirmChit.js';
+import type { MeetingToConfirm, OpenPromise } from '../promises/promisesClient.js';
+import { AnswerCard, DateCard, MeetingDateCard } from './ConfirmChit.js';
 import { ActionRow } from '../ui/Button.js';
 import { Card } from '../ui/Card.js';
-import { clientPromiseCopy, dateCopy, fieldCopy, keptCopy, noteCopy, repPromiseCopy, shortDay, statusCopy } from './cardCopy.js';
+import { clientPromiseCopy, dateCopy, fieldCopy, keptCopy, meetingDateCopy, noteCopy, repPromiseCopy, shortDay, shortDayTime, statusCopy } from './cardCopy.js';
 import type { PendingCapture } from '../recall/recallClient.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { Button } from '../ui/Button.js';
@@ -67,6 +67,9 @@ function groupedByImport<T extends { id: string; noteId?: string | null }>(items
 export interface DateConfirmApi {
   listDatesToConfirm(): Promise<OpenPromise[]>;
   answerDate(id: string, answer: { dueDate: string } | { dateStatus: 'not_sure' | 'no_due_date' }): Promise<boolean>;
+  /** [P40-1 · owner] meetings get the same card */
+  listMeetingDatesToConfirm?(): Promise<MeetingToConfirm[]>;
+  answerMeetingDate?(id: string, answer: { datetime: string } | { dateStatus: 'not_sure' | 'no_date' }): Promise<boolean>;
 }
 
 export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures, kept, statusSuggestions, dates, limit, onSeeAll, standalone = false, back }: {
@@ -93,6 +96,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
   const [undoKept, setUndoKept] = useState<KeptSuggestion | null>(null);
   const [statusCards, setStatusCards] = useState<StatusSuggestionCard[]>([]);
   const [dateCards, setDateCards] = useState<OpenPromise[]>([]);
+  const [meetingCards, setMeetingCards] = useState<MeetingToConfirm[]>([]);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set()); // [P40-1] opened "N promises need a due date" cards
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
@@ -106,6 +110,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
     if (kept) void kept.listKept().then((x) => { if (live) setLooksSent(x); });
     if (statusSuggestions) void statusSuggestions.list().then((x) => { if (live) setStatusCards(x); });
     if (dates) void dates.listDatesToConfirm().then((x) => { if (live) setDateCards(x); });
+    if (dates?.listMeetingDatesToConfirm) void dates.listMeetingDatesToConfirm().then((x) => { if (live) setMeetingCards(x); });
     return () => {
       live = false;
     };
@@ -146,7 +151,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
     if (kept && (await kept.notYetKept(s.id))) setLooksSent((prev) => prev.filter((x) => x.id !== s.id));
   }
 
-  const total = items.length + held.length + looksSent.length + statusCards.length + dateCards.length;
+  const total = items.length + held.length + looksSent.length + statusCards.length + dateCards.length + meetingCards.length;
   const header = standalone ? (
     <PageHeader title="Needs your answer" subtitle={total === 0 ? 'Nothing to answer' : `${total} to answer`} back={back} />
   ) : null;
@@ -175,6 +180,26 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
     if (await api.reject(id)) drop(id);
   }
 
+  async function answerMeeting(m: MeetingToConfirm, a: { datetime: string } | { dateStatus: 'not_sure' | 'no_date' }): Promise<void> {
+    if (dates?.answerMeetingDate && (await dates.answerMeetingDate(m.id, a))) {
+      if ('datetime' in a) hapticTick();
+      setMeetingCards((prev) => prev.filter((x) => x.id !== m.id));
+    }
+  }
+  const meetingNode = (m: MeetingToConfirm): JSX.Element => {
+    const copy = meetingDateCopy(m);
+    const label = shortDayTime(m.suggestedDatetime);
+    return (
+      <MeetingDateCard
+        key={`meeting:${m.id}`}
+        question={copy.question}
+        said={copy.said}
+        suggested={m.suggestedDatetime && label ? { iso: m.suggestedDatetime, label } : null}
+        source={m.sourceSpan ? <ReceiptThread refInfo={{ noteId: m.noteId, clientId: m.clientId, span: m.sourceSpan, at: m.sourceMessageAt, quote: m.sourceSpan }} /> : undefined}
+        onAnswer={(a) => void answerMeeting(m, a)}
+      />
+    );
+  };
   const toggleGroup = (k: string): void => setOpenGroups((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const dateNode = (p: OpenPromise): JSX.Element => {
     const copy = dateCopy(p);
@@ -264,6 +289,25 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
         }];
       }
       return items.map((p) => ({ key: `date:${p.id}`, at: p.createdAt ?? 0, node: dateNode(p) }));
+    }),
+    ...groupedByImport(meetingCards).flatMap((ms) => {
+      // [P40-1 · owner] the same grouping as promises: more than 3 from one import → one card that opens the list
+      if (ms.length > GROUP_OVER) {
+        const key = `meetings:${ms[0]!.noteId ?? ms[0]!.id}`;
+        return [{
+          key,
+          at: Math.max(...ms.map((m) => m.createdAt ?? 0)),
+          node: (
+            <Card key={key} role="group" aria-label="Meeting times to confirm" data-testid="meeting-date-group">
+              <p className="ui-body ui-strong">{ms.length} meetings need a date</p>
+              <p className="ui-secondary" dir="auto">From one chat{ms[0]!.clientName ? ` with ${ms[0]!.clientName}` : ''}.</p>
+              <ActionRow><Button size="sm" aria-expanded={openGroups.has(key)} onClick={() => toggleGroup(key)}>{openGroups.has(key) ? 'Hide' : 'Answer them'}</Button></ActionRow>
+              {openGroups.has(key) && <div className="ui-stack ui-gap-3">{ms.map((m) => meetingNode(m))}</div>}
+            </Card>
+          ),
+        }];
+      }
+      return ms.map((m) => ({ key: `meeting:${m.id}`, at: m.createdAt ?? 0, node: meetingNode(m) }));
     }),
     ...statusCards.map((c) => ({
       key: `status:${c.clientId}`,

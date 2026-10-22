@@ -20,6 +20,7 @@ export class InMemoryMeetingRepository implements MeetingRepository {
       sourceSpan: meeting.sourceSpan ?? null,
       sourceMessageAt: meeting.sourceMessageAt ?? null,
       captureAt: meeting.captureAt ?? null,
+      dateStatus: meeting.dateStatus ?? null,
       createdAt: Date.now() + this.seq++,
     };
     this.byId.set(record.id, record);
@@ -32,6 +33,7 @@ export class InMemoryMeetingRepository implements MeetingRepository {
     if (patch.datetime !== undefined) m.datetime = patch.datetime;
     if (patch.datetimeRaw !== undefined) m.datetimeRaw = patch.datetimeRaw;
     if (patch.title !== undefined) m.title = patch.title;
+    if (patch.dateStatus !== undefined) m.dateStatus = patch.dateStatus;
     return m; // nudgedAt + confirmed intentionally untouched
   }
 

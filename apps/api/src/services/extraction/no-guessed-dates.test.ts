@@ -105,3 +105,16 @@ describe('[P40-1] the write path never stores the model\'s guessed date', () => 
     } finally { resolverOff.on = false; }
   });
 });
+
+describe('[P40-1 · owner] a meeting with no time from the resolver is marked to confirm', () => {
+  it('extraction stores it with dateStatus "to_confirm"', async () => {
+    resolverOff.on = true;
+    try {
+      const { service, meetings, n } = await setup(json({ meeting: { datetime: '2026-10-14T15:00', datetime_raw: 'Saturday afternoon', confirmed: false } }), CHAT);
+      await service.extractNote('u', n.id, '2026-10-10');
+      const [m] = await meetings.listByUser('u');
+      expect(m!.datetime).toBeNull();
+      expect(m!.dateStatus).toBe('to_confirm');
+    } finally { resolverOff.on = false; }
+  });
+});
