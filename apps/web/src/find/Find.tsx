@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Badge, Banner, Chip, ChipGroup, EmptyState, ListRow, Page, PageHeader, Section } from '../ui/index.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
+import { leadStatusLabel } from '../clients/LeadStatus.js';
 import type { FindApi, FindItem, FindQuery, FindResult, WantingBy, WantingOptions } from './findClient.js';
 
 /**
@@ -144,7 +145,9 @@ function FindRow({ item: i, onOpen }: { item: FindItem; onOpen: () => void }): J
       onOpen={onOpen}
       secondary={whose ? <><span className="ui-strong">{whose}:</span> {i.line}</> : i.line}
       meta={i.meta ?? undefined}
-      trailing={i.overdue ? <Badge tone="danger" data-testid="due-badge">Overdue</Badge> : undefined}
+      trailing={i.overdue
+        ? <Badge tone="danger" data-testid="due-badge">Overdue</Badge>
+        : i.leadStatus ? <Badge data-testid="status-pill">{leadStatusLabel(i.leadStatus)}</Badge> : undefined}
       below={i.receipt
         ? <ReceiptThread refInfo={{ noteId: i.receipt.noteId, clientId: i.receipt.clientId, span: i.receipt.quote, at: i.receipt.at, quote: i.receipt.quote, sender: i.receipt.sender }} />
         : <p className="ui-caption" data-testid="receipt-empty">No source quote was saved for this.</p>}

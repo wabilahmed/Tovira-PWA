@@ -11,6 +11,8 @@ export interface FindItem {
   overdue: boolean;
   owner: 'rep' | 'client' | null;
   tags: string[];
+  /** [P40-3] The client's status — its pill on client lists (a Warm client in Cold shows "Warm"). */
+  leadStatus?: 'warm' | 'cold' | 'done' | null;
   receipt: FindReceipt | null;
 }
 export interface FindResult { query: FindQuery; count: number; items: FindItem[]; footnote: string | null }

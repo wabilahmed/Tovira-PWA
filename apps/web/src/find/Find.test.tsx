@@ -93,4 +93,13 @@ describe('[P39-7] Find', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Deals at risk' }));
     expect(await screen.findByRole('status')).toHaveTextContent(/paused/);
   });
+
+  // [P40-3 · owner] the Active/Cold overlap is visible: a Warm client in Cold carries its Warm pill
+  it('a Cold row shows the client\'s status pill (Warm) next to "Gone quiet, 40 days"', async () => {
+    render(<Find api={api(result({ query: 'cold-clients', count: 1, footnote: null, items: [{ clientId: 'c1', clientName: 'Sara Khan', line: 'Last message 12 Sep', meta: 'Gone quiet, 40 days', overdue: false, owner: null, tags: ['Gone quiet'], leadStatus: 'warm', receipt: null }] }))} onOpenClient={vi.fn()} onOpenClients={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cold clients' }));
+    const row = await screen.findByTestId('find-row');
+    expect(within(row).getByTestId('status-pill')).toHaveTextContent('Warm');
+    expect(row).toHaveTextContent('Gone quiet, 40 days');
+  });
 });

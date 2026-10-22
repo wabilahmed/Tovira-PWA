@@ -55,6 +55,8 @@ export interface FindItem {
   owner: 'rep' | 'client' | null;
   /** The narrowing chips this item belongs to (built from the result set). */
   tags: string[];
+  /** [P40-3] The client's status, shown as its pill on client lists (a Warm client in Cold shows "Warm"). */
+  leadStatus?: 'warm' | 'cold' | 'done' | null;
   receipt: FindReceipt | null;
 }
 
@@ -329,6 +331,7 @@ export class FindService {
         meta: kind === 'cold' ? (quiet ? `Gone quiet, ${silentDays} days` : 'Marked Cold') : null,
         overdue: false,
         owner: null,
+        leadStatus: c.leadStatus, // [P40-3] the overlap with Active is visible on the Cold row
         tags: kind === 'cold' ? [quiet ? 'Gone quiet' : 'Marked Cold'] : [statusTag(c)],
         receipt: m?.theirs ?? null,
       });
