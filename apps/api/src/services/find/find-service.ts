@@ -90,9 +90,10 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 /** Budget bands for "Clients wanting… → Budget" — only bands holding at least one stored budget are offered. */
 export const BUDGET_BANDS: Array<{ value: string; label: string; min: number; max: number }> = [
   { value: 'under-1m', label: 'Under AED 1M', min: 0, max: 1_000_000 },
-  { value: '1m-2m', label: 'AED 1M to 2M', min: 1_000_000, max: 2_000_000 },
-  { value: '2m-5m', label: 'AED 2M to 5M', min: 2_000_000, max: 5_000_000 },
-  { value: 'over-5m', label: 'Over AED 5M', min: 5_000_000, max: Infinity },
+  { value: '1m-2m', label: 'AED 1–2M', min: 1_000_000, max: 2_000_000 },
+  { value: '2m-5m', label: 'AED 2–5M', min: 2_000_000, max: 5_000_000 },
+  { value: '5m-10m', label: 'AED 5–10M', min: 5_000_000, max: 10_000_000 }, // [P40-3 · owner]
+  { value: 'over-10m', label: 'Over AED 10M', min: 10_000_000, max: Infinity }, // [P40-3 · owner]
 ];
 
 /** "2026-09-01…" → "1 Sep" this year, "1 Sep 2025" otherwise (read positionally — no timezone drift). */
