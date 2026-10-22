@@ -36,6 +36,9 @@ describe('[ERASURE Task 4] telling the rep + the retention window', () => {
     const [n] = await notifications.listByUser('u');
     expect(n!.type).toBe('erasure_pending');
     expect(n!.body).toMatch(/cannot decline/i);
+    // [P40-4 · owner] not the lawyer's wording (written in ERASURE task 4), so no em-dash: a full stop
+    expect(n!.body).toContain('A third party asked us to erase their data from your account. A legal request you cannot decline.');
+    expect(n!.body).not.toContain(' — ');
     expect(n!.body).toMatch(/people|personal_facts/); // categories named
     expect(n!.body).toContain('2026-10-04'); // NOW + 14 days
     expect(pushed.some((a) => a.type === 'erasure_pending')).toBe(true); // pushed, not silent

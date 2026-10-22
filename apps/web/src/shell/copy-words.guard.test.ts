@@ -29,19 +29,18 @@ function repFacingStrings(src: string): string[] {
 
 /** [P40-4 · owner] No em-dash (" — ") in rep-facing copy. The server files whose strings reach a rep (Today, alerts,
  *  nudges, Book Scan, the Monday Statement, import notices, emails, API error messages). Exempt, with the reason:
- *  ops-only text, and the erasure notice (legal wording, left for the owner). */
+ *  ops-only text. (The erasure notice was checked: not the lawyer's wording, so it follows the rule too.) */
 const SERVER_COPY = [
   'apps/api/src/services/hero/hero-service.ts', 'apps/api/src/services/scan/scan-service.ts', 'apps/api/src/services/scheduler/nudge-content.ts',
   'apps/api/src/services/notes/import-completion-service.ts', 'apps/api/src/services/import/bulk-batch-notifier.ts', 'apps/api/src/services/book-scan/book-scan-service.ts',
   'apps/api/src/services/monday/monday-service.ts', 'apps/api/src/services/clients/client-overview.ts', 'apps/api/src/services/email/account-email-service.ts',
   'apps/api/src/services/email/templates.ts', 'apps/api/src/services/find/find-service.ts', 'apps/api/src/services/promises/kept-suggestion-service.ts',
   'apps/api/src/http/hero-routes.ts', 'apps/api/src/http/notes-routes.ts', 'apps/api/src/http/onboarding-routes.ts', 'apps/api/src/http/auth-routes.ts',
-  'apps/api/src/http/inventory-routes.ts', 'apps/api/src/http/access-request-routes.ts', 'apps/api/src/http/find-routes.ts', 'apps/api/src/http/recall-routes.ts',
+  'apps/api/src/services/erasure/erasure-request-service.ts', 'apps/api/src/http/inventory-routes.ts', 'apps/api/src/http/access-request-routes.ts', 'apps/api/src/http/find-routes.ts', 'apps/api/src/http/recall-routes.ts',
 ];
 const DASH_EXEMPT: Array<[RegExp, string]> = [
   [/^This applicant is EMPLOYED/, 'ops email (the operator, not a rep)'],
   [/^Beta access request/, 'ops email subject'],
-  [/^A third party asked us to erase their data/, 'the erasure notice: legal wording, left for the owner'],
 ];
 const dashHits = (file: string, rel: string) => repFacingStrings(readFileSync(file, 'utf8'))
   .filter((t) => t.includes(' — ') || t.startsWith('— ') || t.endsWith(' —'))

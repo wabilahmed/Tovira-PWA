@@ -52,7 +52,7 @@ export class ErasureRequestService {
       dedupeKey: `erasure_pending:${req.id}`,
       clientId: null,
       title: 'A data-erasure request has been received',
-      body: `A third party asked us to erase their data from your account — a legal request you cannot decline. ${summary ? `To be removed: ${summary}. ` : ''}You have until ${until} to tell us if you have a legal basis to retain it.`,
+      body: `A third party asked us to erase their data from your account. A legal request you cannot decline. ${summary ? `To be removed: ${summary}. ` : ''}You have until ${until} to tell us if you have a legal basis to retain it.`,
     });
     return req;
   }
