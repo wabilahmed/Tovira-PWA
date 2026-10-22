@@ -16,9 +16,10 @@
 #   stripe-mode-audit   apps/api/src/scripts/stripe-mode-audit.ts   [P30-3] READ-ONLY: active accounts whose
 #                  Stripe customer/subscription is test-mode (or none); no args, refuses --apply.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script stripe-mode-audit
-#   qa-data-audit       apps/api/src/scripts/qa-data-audit.ts       [P39-10] READ-ONLY: QA/test clients, access
-#                  requests and sold-out items (id, name, created, why) + contradictory requirement summaries,
-#                  then the DRY-RUN DELETE it would run (never executed); no args, refuses --apply.
+#   qa-data-audit       apps/api/src/scripts/qa-data-audit.ts       [P39-10] QA/test clients, access requests and
+#                  sold-out items (id, name, created, why) + contradictory requirement summaries, and the DELETE it
+#                  would run. [P40-5] --ids <id,…> dry-runs deleting exactly those; --ids … --apply deletes them
+#                  (one transaction; refuses activated access requests / ones with an account).
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script qa-data-audit
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script promise-dates --only-user <userId>   # dry run
 #
@@ -67,12 +68,16 @@ while [ "$#" -gt 0 ]; do
     --only-user)
       [ "$#" -ge 2 ] || die "--only-user needs a userId"
       PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); shift 2 ;;
+    --ids)
+      # [P40-5] qa-data-audit: delete (or dry-run) exactly these ids
+      [ "$#" -ge 2 ] || die "--ids needs a comma-separated list of ids"
+      PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); shift 2 ;;
     --script)
       # consumed here (never sent to the container) but part of the guard key, so a dry run of one
       # backfill never authorises --apply of another
       [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | kept-promise-check | stripe-mode-audit | qa-data-audit)"
       SCRIPT_NAME="$2"; KEYARGS+=("$1" "$2"); shift 2 ;;
-    *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --apply, --i-checked-the-dry-run)" ;;
+    *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --ids <id,…>, --apply, --i-checked-the-dry-run)" ;;
   esac
 done
 
@@ -88,10 +93,18 @@ esac
 
 # [P26-2/P30-3] Read-only checks: nothing to apply, no args — refused here, before any AWS call.
 READ_ONLY=0
-if [ "$SCRIPT_NAME" = "kept-promise-check" ] || [ "$SCRIPT_NAME" = "stripe-mode-audit" ] || [ "$SCRIPT_NAME" = "qa-data-audit" ]; then
+if [ "$SCRIPT_NAME" = "kept-promise-check" ] || [ "$SCRIPT_NAME" = "stripe-mode-audit" ]; then
   READ_ONLY=1
   [ "$APPLY" -eq 0 ] || die "$SCRIPT_NAME is read-only — --apply is refused"
   [ "${#PASSTHROUGH[@]}" -eq 0 ] || die "$SCRIPT_NAME is read-only and takes no arguments"
+fi
+
+# [P40-5] qa-data-audit: the list is read-only; deleting needs explicit --ids (and the dry-run guard below).
+if [ "$SCRIPT_NAME" = "qa-data-audit" ]; then
+  if printf '%s\n' "${PASSTHROUGH[@]-}" | grep -qx -- '--ids'; then :; else
+    [ "$APPLY" -eq 0 ] || die "qa-data-audit --apply deletes only the ids you pass: add --ids <id,id,…>"
+    READ_ONLY=1 # the list itself never writes
+  fi
 fi
 
 # Stable key for "same args" = the non---apply args (so a dry run for --only X authorises --apply --only X).

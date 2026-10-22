@@ -73,7 +73,8 @@ describe('[P39-10] QA data audit', () => {
     expect(sent[0]).toBe('BEGIN TRANSACTION READ ONLY');
     expect(sent[sent.length - 1]).toBe('ROLLBACK');
     expect(sent.some((q) => /\b(DELETE|UPDATE|INSERT)\b/i.test(q))).toBe(false);
-    expect(() => parseQaAuditArgs(['--apply'])).toThrow(/read-only/);
+    // [P40-5 · owner] --apply now exists, but only with explicit --ids (was: refused outright)
+    expect(() => parseQaAuditArgs(['--apply'])).toThrow(/--ids/);
   });
 });
 
@@ -101,11 +102,29 @@ esac
     expect(readFileSync(f.log, 'utf8')).toContain('apps/api/src/scripts/qa-data-audit.ts');
     expect(out).toMatch(/mode=READ-ONLY/);
   });
-  it('NEGATIVE: --apply is refused before any AWS call', () => {
+  // [P40-5 · owner] --apply exists now, but only with --ids, and only after a dry run of the same ids.
+  it('NEGATIVE: --apply without --ids is refused before any AWS call', () => {
     const f = withFakeAws();
     const r = spawnSync('bash', [script, '--script', 'qa-data-audit', '--apply', '--i-checked-the-dry-run'], { env: f.env, encoding: 'utf8' });
     expect(r.status).not.toBe(0);
-    expect(r.stderr).toMatch(/read-only/);
+    expect(r.stderr).toMatch(/--ids/);
     expect(existsSync(f.log)).toBe(false);
+  });
+
+  it('NEGATIVE: --apply --ids with no dry run of those ids is refused before any AWS call', () => {
+    const f = withFakeAws();
+    const r = spawnSync('bash', [script, '--script', 'qa-data-audit', '--ids', '00000000-0000-4000-8000-000000000001', '--apply'], { env: f.env, encoding: 'utf8' });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/dry run/);
+    expect(existsSync(f.log)).toBe(false);
+  });
+
+  it('a dry run of --ids passes them to the container (and not --apply)', () => {
+    const f = withFakeAws();
+    execFileSync('bash', [script, '--script', 'qa-data-audit', '--ids', '00000000-0000-4000-8000-000000000001'], { env: f.env, encoding: 'utf8' });
+    const run = readFileSync(f.log, 'utf8').split('\n').filter((l) => l.startsWith('ecs run-task')).at(-1) ?? '';
+    expect(run).toContain('--ids');
+    expect(run).toContain('00000000-0000-4000-8000-000000000001');
+    expect(run).not.toContain('--apply');
   });
 });
