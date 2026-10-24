@@ -47,12 +47,15 @@ export class ErasureRequestService {
     const summary = summariseCategories(cats);
     const req = await this.deps.requests.create(userId, { requesterNames, requestedAt: now, windowEndsAt });
     const until = new Date(windowEndsAt).toISOString().slice(0, 10);
+    const days = this.windowDays();
     await this.notify(userId, {
       type: 'erasure_pending',
       dedupeKey: `erasure_pending:${req.id}`,
       clientId: null,
       title: 'A data-erasure request has been received',
-      body: `A third party asked us to erase their data from your account. A legal request you cannot decline. ${summary ? `To be removed: ${summary}. ` : ''}You have until ${until} to tell us if you have a legal basis to retain it.`,
+      // [P40-4 · owner] In Terms clause 4.9's own terms: what was asked, what happens, the window, and that telling
+      // us is not a veto. ("A legal request you cannot decline" was not in the Terms, so it is not claimed.)
+      body: `A person whose messages you uploaded has asked us to erase their data. ${summary ? `To be removed: ${summary}. ` : ''}You have ${days} days, until ${until}, to tell us of any legal basis for keeping it. During that period we restrict processing of the disputed data. Telling us is not a veto: we assess whether an exception genuinely applies, and if it does not, we proceed.`,
     });
     return req;
   }

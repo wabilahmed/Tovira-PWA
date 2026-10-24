@@ -28,16 +28,19 @@ async function make(nowRef: { t: number }) {
 }
 
 describe('[ERASURE Task 4] telling the rep + the retention window', () => {
-  it('opening a request notifies the rep: legal, cannot decline, categories, and a window date', async () => {
+  // [P40-4 · owner] the notice follows Terms clause 4.9, in 4.9's own terms; "cannot decline" is not in the Terms.
+  it('opening a request notifies the rep in clause 4.9\'s terms: who asked, what happens, the 14 days, categories, the date', async () => {
     const ref = { t: NOW };
     const { svc, notifications, pushed, requests } = await make(ref);
     const req = await svc.open('u', ['Khalid']);
     expect(req.windowEndsAt).toBe(NOW + DEFAULT_ERASURE_WINDOW_DAYS * DAY); // default 14 days
     const [n] = await notifications.listByUser('u');
     expect(n!.type).toBe('erasure_pending');
-    expect(n!.body).toMatch(/cannot decline/i);
-    // [P40-4 · owner] not the lawyer's wording (written in ERASURE task 4), so no em-dash: a full stop
-    expect(n!.body).toContain('A third party asked us to erase their data from your account. A legal request you cannot decline.');
+    expect(n!.body).toMatch(/^A person whose messages you uploaded has asked us to erase their data\. /);
+    expect(n!.body).toContain('You have 14 days, until 2026-10-04, to tell us of any legal basis for keeping it.');
+    expect(n!.body).toContain('During that period we restrict processing of the disputed data.');
+    expect(n!.body).toContain('Telling us is not a veto: we assess whether an exception genuinely applies, and if it does not, we proceed.');
+    expect(n!.body).not.toMatch(/cannot decline/i); // not in the Terms, so not claimed
     expect(n!.body).not.toContain(' — ');
     expect(n!.body).toMatch(/people|personal_facts/); // categories named
     expect(n!.body).toContain('2026-10-04'); // NOW + 14 days
