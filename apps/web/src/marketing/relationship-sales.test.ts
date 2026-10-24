@@ -74,3 +74,22 @@ describe('[P41-2] use cases: relationship sales, property one of six', () => {
     expect(section.textContent).not.toContain('—');
   });
 });
+
+describe('[P41-3] FAQ speaks to relationship sales', () => {
+  const answer = (q: string) => text([...d.querySelectorAll('details.faq__item')].find((x) => text(x.querySelector('summary')) === q)?.querySelector('p'));
+
+  it('"Who is it not for?" is framed by clients who stay for years, and keeps the recorded-calls exclusion', () => {
+    expect(answer('Who is it not for?')).toBe('It is for relationship sales: people whose clients stay with them for years, where one client is worth more than a year of the price. If you sell on recorded video calls where every word is already transcribed, your conversations are already captured. Tovira is built for the ones that are not.');
+  });
+
+  it('"Is it a CRM?" and "Why not just use ChatGPT?" are kept as they are', () => {
+    expect(answer('Is it a CRM?')).toBe('No. A CRM is a form you fill in for your manager. Tovira is a memory that fills itself in for you. If you have a CRM, keep it.');
+    expect(answer('Why not just use ChatGPT?')).toBe('You can paste a thread into a chat window and get a decent answer. You cannot paste forty clients into it every morning, and it will never tell you on a Tuesday that a client has gone quiet.');
+  });
+
+  it('NEGATIVE: no FAQ answer assumes in-person selling or commission, and none has an em-dash', () => {
+    const faq = text(d.querySelector('.faq'));
+    expect(faq).not.toMatch(/sell in person|commission/i);
+    expect(faq).not.toContain('—');
+  });
+});
