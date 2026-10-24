@@ -93,3 +93,20 @@ describe('[P41-3] FAQ speaks to relationship sales', () => {
     expect(faq).not.toContain('—');
   });
 });
+
+describe('[P41-4] meta, OG and share descriptions name long-term client relationships', () => {
+  const metas = {
+    description: d.querySelector('meta[name="description"]')?.getAttribute('content') ?? '',
+    'og:description': d.querySelector('meta[property="og:description"]')?.getAttribute('content') ?? '',
+    'twitter:description': d.querySelector('meta[name="twitter:description"]')?.getAttribute('content') ?? '',
+  };
+  it.each(Object.entries(metas))('%s says the clients stay for years', (_name, content) => {
+    expect(content).toContain('sales people whose clients stay with them for years');
+  });
+  it('NEGATIVE: no share text says field sales, property or real estate, and none has an em-dash', () => {
+    for (const content of Object.values(metas)) {
+      expect(content).not.toMatch(/field sales|property|real estate/i);
+      expect(content).not.toContain('—');
+    }
+  });
+});
