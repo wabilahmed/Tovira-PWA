@@ -23,3 +23,54 @@ describe('[P41-1] hero', () => {
     expect(html).not.toMatch(/\bmoments\b/i);
   });
 });
+
+const CARDS = [
+  { label: 'INSURANCE AND BROKERAGE',
+    body: 'Renewal dates are the business. Tovira tracks every one, along with the objection they raised last year and the claim that made them cautious.',
+    quote: '“renewal is in June, last year the excess was too high”', stamp: 'WHATSAPP · 20 JAN 2026' },
+  { label: 'WEALTH AND PRIVATE BANKING',
+    body: 'Relationships measured in years, not quarters. The graduation, the new business, the football club. Those details are the relationship, and Tovira never loses one.',
+    quote: '“daughter graduates from LSE in July, he\'s flying over”', stamp: 'WHATSAPP · 03 MAR 2026' },
+  { label: 'B2B AND KEY ACCOUNTS',
+    body: 'Ten people on every account, a buying cycle that runs for months, and a champion who might move on. Tovira remembers who signs off, what they pushed back on, and what you promised.',
+    quote: '“procurement wants the revised SLA before the board meets on the 14th”', stamp: 'WHATSAPP · 08 APR 2026' },
+  { label: 'LUXURY AND CLIENT ADVISORS',
+    body: 'Sizes, tastes, anniversaries and the piece they asked you to hold. The details that make a client feel known, kept for every one of them.',
+    quote: '“her anniversary is in May, she loved the emerald set”', stamp: 'WHATSAPP · 17 FEB 2026' },
+  { label: 'RECRUITMENT AND EXECUTIVE SEARCH',
+    body: 'Candidates and clients you will place again in three years. What they want next, what they won\'t move for, and when to call.',
+    quote: '“not moving before my bonus in March, but call me after”', stamp: 'WHATSAPP · 12 JAN 2026' },
+  { label: 'PROPERTY',
+    body: 'Every buyer\'s budget, community, school run, and the spouse with the real veto. Tovira holds each preference and remembers which listing belongs to whom.',
+    quote: '“somewhere in Arabian Ranches, budget 3.2M, near the school”', stamp: 'WHATSAPP · 11 FEB 2026' },
+];
+
+describe('[P41-2] use cases: relationship sales, property one of six', () => {
+  const section = d.querySelector('section[aria-labelledby="use-h"]')!;
+  const cards = [...section.querySelectorAll('.usecases > .usecase')];
+
+  it('keeps the title and adds the subtitle under it', () => {
+    expect(text(section.querySelector('#use-h'))).toBe('Built for people whose deals are relationships.');
+    const sub = section.querySelector('#use-h + p');
+    expect(text(sub)).toBe('If your clients stay with you for years, Tovira was made for them.');
+  });
+
+  it('six cards, in the owner\'s order, each label + body + one dated WhatsApp quote', () => {
+    expect(cards).toHaveLength(6);
+    cards.forEach((card, i) => {
+      const want = CARDS[i]!;
+      expect(text(card.querySelector('.usecase__label')).toUpperCase()).toBe(want.label);
+      expect(text(card.querySelector('.usecase__label + p'))).toBe(want.body);
+      const receipts = card.querySelectorAll('.tov-receipt');
+      expect(receipts).toHaveLength(1);
+      expect(text(receipts[0]!.querySelector('.tov-receipt__q'))).toBe(want.quote);
+      expect(text(receipts[0]!.querySelector('.tov-stamp'))).toBe(want.stamp);
+    });
+  });
+
+  it('NEGATIVE: property is not the lead, "Real estate" is gone, and the new copy has no em-dash', () => {
+    expect(text(cards[0]?.querySelector('.usecase__label')).toUpperCase()).not.toBe('PROPERTY');
+    expect(text(section)).not.toMatch(/real estate/i);
+    expect(section.textContent).not.toContain('—');
+  });
+});
