@@ -60,4 +60,29 @@ describe('[P40-1] meetings to confirm', () => {
     expect(after.datetime).not.toBeNull();
     expect(after.dateStatus).toBeNull();
   });
+
+  // [P40-1 · owner] giving the time confirms the meeting; "Not sure" leaves it unconfirmed
+  it('answering with a time also confirms the meeting', async () => {
+    const { token, userId } = await signup('a@example.com');
+    const m = await seed(userId, 'Saturday afternoon', ago(2));
+    await fetch(`${base}/meetings/${m.id}`, { method: 'PATCH', headers: H(token), body: JSON.stringify({ datetime: '2026-10-24T15:00' }) });
+    const after = (await deps.meetings.listByUser(userId))[0]!;
+    expect(after.confirmed).toBe(true);
+    expect(after.dateStatus).toBeNull();
+  });
+
+  it('negative: "Not sure" leaves it unconfirmed', async () => {
+    const { token, userId } = await signup('a@example.com');
+    const m = await seed(userId, 'Saturday afternoon', ago(2));
+    await fetch(`${base}/meetings/${m.id}`, { method: 'PATCH', headers: H(token), body: JSON.stringify({ dateStatus: 'not_sure' }) });
+    expect((await deps.meetings.listByUser(userId))[0]!.confirmed).toBe(false);
+  });
+
+  it('negative: rescheduling a meeting that was not waiting on the question does not confirm it', async () => {
+    const { token, userId } = await signup('a@example.com');
+    const c = await deps.clients.create(userId, 'Omar Ali');
+    const m = await deps.meetings.create(userId, { clientId: c.id, datetime: '2026-10-25T11:00:00.000Z', datetimeRaw: 'Sunday 3pm', title: null, confirmed: false, noteId: 'n2' });
+    await fetch(`${base}/meetings/${m.id}`, { method: 'PATCH', headers: H(token), body: JSON.stringify({ datetime: '2026-10-26T15:00' }) });
+    expect((await deps.meetings.listByUser(userId)).find((x) => x.id === m.id)!.confirmed).toBe(false);
+  });
 });

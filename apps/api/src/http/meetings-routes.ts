@@ -179,7 +179,14 @@ export async function handleMeetingRoute(
       }
       if (typeof body.datetimeRaw === 'string') patch.datetimeRaw = body.datetimeRaw;
       if (typeof body.title === 'string' || body.title === null) patch.title = body.title;
-      const meeting = await deps.meetings.update(userId, meetingId, patch);
+      const wasWaiting = before?.dateStatus === 'to_confirm'; // read before the update (a repo may return the same object)
+      let meeting = await deps.meetings.update(userId, meetingId, patch);
+      // [P40-1 · owner] Answering "When is the meeting with …?" with a time also confirms it (the rep has said when
+      // it is). "Not sure" / "No date yet" leave it unconfirmed; an ordinary reschedule doesn't change confirmation.
+      if (meeting && wasWaiting && typeof patch.datetime === 'string' && !meeting.confirmed) {
+        meeting = (await deps.meetings.confirm(userId, meetingId)) ?? meeting;
+        if (before?.noteId) await recordMeetingVerdict(deps, userId, before.noteId, meetingId, 'confirm');
+      }
       // Editing a MODEL-PROPOSED meeting's time/title is a correction of the model's proposal.
       if (meeting && before?.noteId) {
         if ('datetime' in patch && (patch.datetime ?? null) !== before.datetime) {
