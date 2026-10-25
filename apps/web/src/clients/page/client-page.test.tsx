@@ -86,7 +86,8 @@ describe('[P36-5] the client page', () => {
     await openClient();
     await waitFor(() => expect(screen.getByTestId('section-wants-summary')).toHaveTextContent('4BR villa · Mirdif · budget 3.4M'));
     const titles = screen.getAllByTestId(/^section-[a-z]+$/).map((s) => s.querySelector('.tov-acc__title')?.textContent);
-    expect(titles).toEqual(['Before your next meeting', 'What they want', 'Promises', 'Meetings and viewings', 'People involved', 'Conversations']);
+    // [P42 · owner] "Meetings and viewings" → "Meetings": not every rep shows property.
+    expect(titles).toEqual(['Before your next meeting', 'What they want', 'Promises', 'Meetings', 'People involved', 'Conversations']);
     expect(screen.getByTestId('section-meeting-summary')).toHaveTextContent('3 things to keep in mind');
     expect(screen.getByTestId('section-promises-summary')).toHaveTextContent('2 open · 1 overdue');
     expect(screen.getByTestId('section-meetings-summary')).toHaveTextContent('Nothing yet'); // empty → shown, not hidden
@@ -98,7 +99,7 @@ describe('[P36-5] the client page', () => {
     stub();
     await openClient();
     for (const t of ['Before your next meeting', 'What they want', 'Promises']) expect(sectionButton(t)).toHaveAttribute('aria-expanded', 'true');
-    for (const t of ['Meetings and viewings', 'People involved', 'Conversations']) expect(sectionButton(t)).toHaveAttribute('aria-expanded', 'false');
+    for (const t of ['Meetings', 'People involved', 'Conversations']) expect(sectionButton(t)).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('the rep\'s choice is saved with their account, and restored in another session', async () => {

@@ -1215,7 +1215,7 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
         {overview ? <PromisesSection overview={overview} clientName={client.name} clientId={client.id} /> : <p className="tov-muted">Loading…</p>}
       </Accordion>
 
-      <Accordion id="meetings" title="Meetings and viewings" summary={meetingsSummary(overview, timeZone)} open={sections.meetings} onToggle={() => toggle('meetings')}>
+      <Accordion id="meetings" title="Meetings" summary={meetingsSummary(overview, timeZone)} open={sections.meetings} onToggle={() => toggle('meetings')}>
         {overview ? <MeetingsSection overview={overview} timeZone={timeZone} /> : <p className="tov-muted">Loading…</p>}
       </Accordion>
 

@@ -100,7 +100,7 @@ export function meetingsSummary(o: ClientOverview | null, timeZone?: string): st
 
 export function MeetingsSection({ overview, timeZone }: { overview: ClientOverview; timeZone?: string }): JSX.Element {
   const m = overview.nextMeeting;
-  if (!m) return <p className="tov-muted">{overview.meetingsCount === 0 ? 'No meetings or viewings yet.' : 'Nothing booked ahead.'}</p>;
+  if (!m) return <p className="tov-muted">{overview.meetingsCount === 0 ? 'No meetings yet.' : 'Nothing booked ahead.'}</p>;
   return (
     <p style={{ margin: 0 }}>
       <strong>{formatDateTime(m.datetime, timeZone)}</strong>{m.title ? ` · ${m.title}` : ''}{!m.confirmed ? <span className="tov-muted"> · not confirmed yet</span> : null}
