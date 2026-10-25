@@ -12,6 +12,7 @@ import { isStalePromise } from '../services/facts/promise-lifecycle.js';
 import { recordVerdict } from '../services/facts/verdict.js';
 import { resolveDueDate, resolveDateTime } from '../services/extraction/resolve-date.js';
 import { withinDateCardWindow } from '../services/facts/date-confirm-window.js';
+import { meetingDay } from '../services/facts/meeting-day.js';
 import { withReceipt } from '../services/receipts/receipt.js';
 import { isValidDateOnly } from './validate-date.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
@@ -100,7 +101,7 @@ export async function handleFactsRoute(
     const meetingDatesToConfirm = deps.meetings
       ? (await deps.meetings.listByUser(userId))
           .filter((m) => m.dateStatus === 'to_confirm' && m.datetime === null && withinDateCardWindow(m.sourceMessageAt ?? m.captureAt ?? m.createdAt, Date.now()))
-          .map((m) => ({ ...named(withReceipt(m)), suggestedDatetime: resolveDateTime(m.datetimeRaw, m.sourceMessageAt ?? m.captureAt).datetime }))
+          .map((m) => ({ ...named(withReceipt(m)), suggestedDatetime: resolveDateTime(m.datetimeRaw, m.sourceMessageAt ?? m.captureAt).datetime, day: meetingDay(m) }))
       : [];
     sendJson(res, 200, { promises: pendingConfirmations(promises).map(withReceipt).map(named), meetings: meetings.map(withReceipt), moveSuggestions, datesToConfirm, meetingDatesToConfirm });
     return true;

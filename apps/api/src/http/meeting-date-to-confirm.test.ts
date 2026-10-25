@@ -86,3 +86,44 @@ describe('[P40-1] meetings to confirm', () => {
     expect((await deps.meetings.listByUser(userId)).find((x) => x.id === m.id)!.confirmed).toBe(false);
   });
 });
+
+// [P43-7 · owner] A meeting said as "Saturday" keeps its day and asks only for the time. The day is the one the
+// shared resolver reads for a promise, anchored to the meeting's own message; nothing new is stored.
+describe('[P43-7] date-only meetings keep their day', () => {
+  it('"Saturday" said on Wed 21 Oct → day 2026-10-24 on the card and in the meetings list', async () => {
+    const { token, userId } = await signup('a@example.com');
+    const m = await seed(userId, 'Saturday', '2026-10-21T10:00');
+    expect((await cards(token))[0]).toMatchObject({ id: m.id, datetime: null, day: '2026-10-24', suggestedDatetime: null });
+    const list = ((await (await fetch(`${base}/meetings`, { headers: H(token) })).json()) as { meetings: Array<{ id: string; day: string | null }> }).meetings;
+    expect(list.find((x) => x.id === m.id)?.day).toBe('2026-10-24');
+  });
+
+  it('answering with a time on that day sets it and confirms the meeting', async () => {
+    const { token, userId } = await signup('a@example.com');
+    const m = await seed(userId, 'Saturday', '2026-10-21T10:00');
+    expect((await fetch(`${base}/meetings/${m.id}`, { method: 'PATCH', headers: H(token), body: JSON.stringify({ datetime: '2026-10-24T15:00' }) })).status).toBe(200);
+    const after = (await deps.meetings.findByIdForUser(userId, m.id))!;
+    expect(after).toMatchObject({ confirmed: true, dateStatus: null });
+    expect(after.datetime).not.toBeNull();
+    expect(await cards(token)).toEqual([]);
+  });
+
+  it('NEGATIVE: "next Tuesday" and "the 5th" stay without a day, as now', async () => {
+    const { token, userId } = await signup('a@example.com');
+    await seed(userId, 'next Tuesday', '2026-10-21T10:00');
+    await seed(userId, 'the 5th', '2026-10-21T10:00');
+    expect((await cards(token)).map((c) => (c as Card & { day: string | null }).day)).toEqual([null, null]);
+  });
+
+  it('NEGATIVE: the day is never stored, and a meeting with no anchor gets no day', async () => {
+    const { token, userId } = await signup('a@example.com');
+    const c = await deps.clients.create(userId, 'Omar Ali');
+    const m = await deps.meetings.create(userId, { clientId: c.id, datetime: null, datetimeRaw: 'Saturday', title: null, confirmed: false, noteId: 'n2', sourceSpan: null, sourceMessageAt: null, captureAt: null, dateStatus: 'to_confirm' });
+    await cards(token);
+    const stored = (await deps.meetings.findByIdForUser(userId, m.id))!;
+    expect(stored.datetime).toBeNull();
+    expect('day' in stored).toBe(false);
+    const list = ((await (await fetch(`${base}/meetings`, { headers: H(token) })).json()) as { meetings: Array<{ id: string; day: string | null }> }).meetings;
+    expect(list.find((x) => x.id === m.id)?.day).toBeNull();
+  });
+});

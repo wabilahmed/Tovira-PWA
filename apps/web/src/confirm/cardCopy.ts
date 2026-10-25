@@ -125,9 +125,11 @@ export function shortDayTime(iso: string | null | undefined): string | null {
 
 /** [P40-1 · owner] A meeting the resolver couldn't time: "When is the meeting with Sara Khan?" and what was said,
  *  when. The record doesn't keep who said it, so the line names the chat, not "you". */
-export function meetingDateCopy(m: { clientName?: string | null; title: string | null; datetimeRaw: string; sourceMessageAt?: string | null; captureAt?: string | null }): { question: string; said: string } {
+export function meetingDateCopy(m: { clientName?: string | null; title: string | null; datetimeRaw: string; sourceMessageAt?: string | null; captureAt?: string | null; day?: string | null }): { question: string; said: string } {
   const what = m.title?.trim() || 'meeting';
   const who = m.clientName ? ` with ${m.clientName}` : '';
   const when = shortDay(m.sourceMessageAt ?? m.captureAt ?? null);
-  return { question: `When is the ${what}${who}?`, said: `The chat said '${m.datetimeRaw.trim()}'${when ? ` on ${when}` : ''}.` };
+  // [P43-7 · owner] the day is known ("Saturday"): ask only for the time
+  const onDay = shortDay(m.day ?? null);
+  return { question: onDay ? `What time is the ${what}${who} on ${onDay}?` : `When is the ${what}${who}?`, said: `The chat said '${m.datetimeRaw.trim()}'${when ? ` on ${when}` : ''}.` };
 }

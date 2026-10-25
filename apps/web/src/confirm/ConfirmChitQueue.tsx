@@ -195,6 +195,8 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
         question={copy.question}
         said={copy.said}
         suggested={m.suggestedDatetime && label ? { iso: m.suggestedDatetime, label } : null}
+        day={m.day ?? null}
+        dayLabel={shortDay(m.day ?? null)}
         source={m.sourceSpan ? <ReceiptThread refInfo={{ noteId: m.noteId, clientId: m.clientId, span: m.sourceSpan, at: m.sourceMessageAt, quote: m.sourceSpan }} /> : undefined}
         onAnswer={(a) => void answerMeeting(m, a)}
       />

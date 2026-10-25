@@ -66,9 +66,12 @@ export function DateCard({ question, said, suggested, source, onAnswer }: {
 }
 
 /** [P40-1 · owner] The same question card for a meeting the resolver couldn't time. */
-export function MeetingDateCard({ question, said, suggested, source, onAnswer }: {
+export function MeetingDateCard({ question, said, suggested, source, onAnswer, day, dayLabel }: {
   question: string;
   said: string;
+  /** [P43-7] the day already known ("2026-10-24"): the picker asks only for the time on it. */
+  day?: string | null;
+  dayLabel?: string | null;
   suggested: { iso: string; label: string } | null;
   source?: ReactNode;
   onAnswer: (a: { datetime: string } | { dateStatus: 'not_sure' | 'no_date' }) => void;
@@ -86,9 +89,19 @@ export function MeetingDateCard({ question, said, suggested, source, onAnswer }:
         <Button size="sm" onClick={() => onAnswer({ dateStatus: 'no_date' })}>No date yet</Button>
       </ActionRow>
       <div className="ui-cluster ui-gap-2">
-        <label htmlFor={id} className="sr-only">Pick a date and time</label>
-        <input id={id} type="datetime-local" className="ui-input ui-native-select" value={picked} onChange={(e) => setPicked(e.target.value)} />
-        <Button size="sm" disabled={!picked} onClick={() => onAnswer({ datetime: picked })}>Save the time</Button>
+        {day ? (
+          <>
+            <label htmlFor={id} className="sr-only">Pick a time on {dayLabel ?? day}</label>
+            <input id={id} type="time" className="ui-input ui-native-select" value={picked} onChange={(e) => setPicked(e.target.value)} />
+            <Button size="sm" disabled={!picked} onClick={() => onAnswer({ datetime: `${day}T${picked}` })}>Save the time</Button>
+          </>
+        ) : (
+          <>
+            <label htmlFor={id} className="sr-only">Pick a date and time</label>
+            <input id={id} type="datetime-local" className="ui-input ui-native-select" value={picked} onChange={(e) => setPicked(e.target.value)} />
+            <Button size="sm" disabled={!picked} onClick={() => onAnswer({ datetime: picked })}>Save the time</Button>
+          </>
+        )}
       </div>
     </Card>
   );

@@ -2,6 +2,7 @@ import { hapticTick } from '../haptics.js';
 import { useEffect, useState } from 'react';
 import type { Meeting, ParseResult } from './meetingsClient.js';
 import { formatDateTime } from '../format/dates.js';
+import { shortDay } from '../confirm/cardCopy.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
 
 export interface MeetingsApi {
@@ -231,7 +232,7 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
           {meetings.map((m) => (
             <li key={m.id} data-testid="meeting" style={{ ...box, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: 'var(--space-2)' }}>
               <span style={{ minWidth: 0, flex: '1 1 12rem' }}>
-                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} · <small className="tov-stamp" data-testid="meeting-when">{m.datetime ? formatDateTime(m.datetime, timeZone) : m.dateStatus === 'to_confirm' ? `Time to confirm (“${m.datetimeRaw}”)` : m.datetimeRaw}</small>
+                {m.title ?? 'Meeting'} with {nameOf(m.clientId)} · <small className="tov-stamp" data-testid="meeting-when">{m.datetime ? formatDateTime(m.datetime, timeZone) : m.dateStatus === 'to_confirm' ? (m.day ? `${shortDay(m.day)} · time to confirm (“${m.datetimeRaw}”)` : `Time to confirm (“${m.datetimeRaw}”)`) : m.datetimeRaw}</small>
                 {m.confirmed === false && (
                   <span style={{ color: 'var(--amber)', marginLeft: 'var(--space-2)' }}> · unconfirmed. Is this right?</span>
                 )}

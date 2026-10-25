@@ -59,6 +59,8 @@ export interface MeetingToConfirm {
   captureAt: string | null;
   /** The resolver's reading ("YYYY-MM-DDTHH:MM"), only when it has one. */
   suggestedDatetime: string | null;
+  /** [P43-7] the day said, when there is no time ("Saturday" → "2026-10-24"); null otherwise. */
+  day?: string | null;
   createdAt?: number;
 }
 

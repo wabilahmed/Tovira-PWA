@@ -9,6 +9,8 @@ export interface Meeting {
   confirmed?: boolean;
   /** [P40-1] 'to_confirm' → "Time to confirm" until the rep answers in Needs your answer. */
   dateStatus?: 'to_confirm' | 'not_sure' | 'no_date' | null;
+  /** [P43-7] the day said, when there is no time yet (derived by the server). */
+  day?: string | null;
   createdAt: number;
 }
 

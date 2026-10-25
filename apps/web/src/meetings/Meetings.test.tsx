@@ -190,4 +190,11 @@ describe('[AUDIT item 2] inline meeting reschedule', () => {
     render(<Meetings api={makeApi({ list: vi.fn().mockResolvedValue([m]) })} clients={clients} />);
     expect(await screen.findByTestId('meeting-when')).toHaveTextContent('Time to confirm (“Saturday afternoon”)');
   });
+
+  // [P43-7 · owner] a date-only meeting keeps its day: "Sat 24 Oct · time to confirm"
+  it('a date-only meeting shows its day and that the time is to confirm', async () => {
+    const m = { ...meeting, id: 'm8', datetime: null, datetimeRaw: 'Saturday', dateStatus: 'to_confirm' as const, day: '2026-10-24' };
+    render(<Meetings api={makeApi({ list: vi.fn().mockResolvedValue([m]) })} clients={clients} />);
+    expect(await screen.findByTestId('meeting-when')).toHaveTextContent('Sat 24 Oct · time to confirm (“Saturday”)');
+  });
 });

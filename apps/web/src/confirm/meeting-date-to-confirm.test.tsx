@@ -58,3 +58,32 @@ describe('[P40-1] the meeting date card', () => {
     expect(await screen.findAllByRole('group', { name: 'Meeting time to confirm' })).toHaveLength(3);
   });
 });
+
+// [P43-7 · owner] A meeting said as "Saturday" keeps its day and asks only for the time.
+describe('[P43-7] a date-only meeting asks only for the time', () => {
+  const SAT: MeetingToConfirm = { ...M, clientName: 'Omar Ali', datetimeRaw: 'Saturday', sourceSpan: 'see you Saturday', sourceMessageAt: '2026-10-21T10:00', captureAt: '2026-10-21', day: '2026-10-24' };
+
+  it('"What time is the meeting with Omar Ali on Sat 24 Oct?"', () => {
+    expect(meetingDateCopy(SAT).question).toBe('What time is the meeting with Omar Ali on Sat 24 Oct?');
+  });
+
+  it('the card offers a time only, and the answer is that day at that time', async () => {
+    const a = api([SAT]);
+    render(<ConfirmChitQueue api={none} dates={a} />);
+    const card = await screen.findByRole('group', { name: 'Meeting time to confirm' });
+    expect(within(card).getByText('What time is the meeting with Omar Ali on Sat 24 Oct?')).toBeInTheDocument();
+    expect(within(card).queryByLabelText('Pick a date and time')).toBeNull();
+    const time = within(card).getByLabelText('Pick a time on Sat 24 Oct');
+    expect(time).toHaveAttribute('type', 'time');
+    await userEvent.type(time, '15:00');
+    await userEvent.click(within(card).getByRole('button', { name: 'Save the time' }));
+    expect(a.answerMeetingDate).toHaveBeenCalledWith('m1', { datetime: '2026-10-24T15:00' });
+  });
+
+  it('NEGATIVE: with no day ("next Tuesday") the card still asks "When is…?" with a date and time picker', async () => {
+    render(<ConfirmChitQueue api={none} dates={api([{ ...SAT, datetimeRaw: 'next Tuesday', day: null }])} />);
+    const card = await screen.findByRole('group', { name: 'Meeting time to confirm' });
+    expect(within(card).getByText('When is the meeting with Omar Ali?')).toBeInTheDocument();
+    expect(within(card).getByLabelText('Pick a date and time')).toHaveAttribute('type', 'datetime-local');
+  });
+});

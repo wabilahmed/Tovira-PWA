@@ -13,6 +13,7 @@ import { isValidMeetingDatetime } from './validate-date.js';
 import { recordVerdict } from '../services/facts/verdict.js';
 import type { Verdict } from '../ports/correction-repository.js';
 import { withReceipt } from '../services/receipts/receipt.js';
+import { meetingDay } from '../services/facts/meeting-day.js';
 
 export interface MeetingRouteDeps {
   auth: AuthService;
@@ -144,7 +145,8 @@ export async function handleMeetingRoute(
     }
 
     if (isList) {
-      sendJson(res, 200, { meetings: (await deps.meetings.listByUser(userId)).map(withReceipt) });
+      // [P43-7] a date-only meeting carries its day (derived, never stored)
+      sendJson(res, 200, { meetings: (await deps.meetings.listByUser(userId)).map((m) => ({ ...withReceipt(m), day: meetingDay(m) })) });
       return true;
     }
 
