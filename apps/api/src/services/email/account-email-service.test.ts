@@ -95,3 +95,22 @@ describe('[P33] access-request notification links the review page', () => {
     expect(text).toContain('https://tovira.io/api/ops/access-requests/r1/approve'); // fallback kept
   });
 });
+
+// [P42-A6] The owner's new-request email names the industry (or "Not given" for a pre-P42 request).
+describe('[P42-A6] access-request notification names the industry', () => {
+  const base = { id: 'r1', fullName: 'Sara Khan', workEmail: 'sara@khanrealty.ae', phone: '+971501234567', companyName: 'Khan Realty', roleTitle: 'Broker', ownership: 'owns_or_manages', tradeLicenceNumber: null, conversationOwnership: 'own_clients', conversationOwnershipOther: null, expectedVolume: '50_200' };
+  async function send(o: Record<string, unknown>): Promise<string> {
+    const { email, svc } = make();
+    await svc.sendAccessRequestNotification('owner@tovira.io', { ...base, ...o } as unknown as Parameters<typeof svc.sendAccessRequestNotification>[1], 'https://tovira.io/api/ops/access-requests/r1/approve');
+    return email.to('owner@tovira.io')[0]!.text;
+  }
+  it('labels the chosen industry, with the free text for Other', async () => {
+    expect(await send({ industry: 'wealth_private_banking', industryOther: null })).toContain('Industry:    Wealth / private banking');
+    const other = await send({ industry: 'other', industryOther: 'Yacht brokerage' });
+    expect(other).toContain('Industry:    Other');
+    expect(other).toContain('  Note: Yacht brokerage');
+  });
+  it('NEGATIVE: a request made before the field existed says "Not given", never a guess', async () => {
+    expect(await send({ industry: null, industryOther: null })).toContain('Industry:    Not given');
+  });
+});

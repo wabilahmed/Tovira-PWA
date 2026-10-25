@@ -19,6 +19,11 @@ const CONVERSATIONS: Record<string, string> = {
   own_clients: 'Their own clients', brokerage_i_manage: 'Clients of a company they own or manage',
   brokerage_employs_me: 'Clients of the company that employs them', mix: 'A mix', other: 'Other',
 };
+/** [P42-A6] The labels the form shows; a request from before the field existed reads "Not given". */
+const INDUSTRY: Record<string, string> = {
+  insurance: 'Insurance', wealth_private_banking: 'Wealth / private banking', b2b_key_accounts: 'B2B / key accounts',
+  luxury_client_advisory: 'Luxury / client advisory', recruitment: 'Recruitment', property: 'Property', other: 'Other',
+};
 const VOLUME: Record<string, string> = { under_50: 'Under 50', '50_200': '50–200', '200_500': '200–500', '500_plus': '500+' };
 const STATUS_LABEL: Record<OpsAccessStatus, string> = { pending: 'Pending', approved: 'Approved', invited: 'Invited', activated: 'Activated', rejected: 'Rejected' };
 
@@ -113,6 +118,7 @@ export function AccessRequestsAdmin({ api }: { api: OpsAccessApi }): JSX.Element
                     <span className="tov-mono" style={{ fontSize: 'var(--text-caption-size)', color: 'var(--text-secondary)' }}>{STATUS_LABEL[r.status]} · {fmt(r.createdAt)}</span>
                   </div>
                   <p style={{ margin: 'var(--space-2) 0' }}>{r.roleTitle}, {r.companyName}</p>
+                  <p data-testid="industry" style={{ margin: 'var(--space-1) 0' }}>Industry: {r.industry ? (INDUSTRY[r.industry] ?? r.industry) : 'Not given'}{r.industryOther ? ` (${r.industryOther})` : ''}</p>
                   <p style={{ margin: 'var(--space-1) 0' }}><a href={`mailto:${r.workEmail}`}>{r.workEmail}</a> · <a href={`tel:${r.phone}`}>{r.phone}</a></p>
                   <p style={{ margin: 'var(--space-1) 0', color: 'var(--text-secondary)', fontSize: 'var(--text-secondary-size)' }}>
                     {OWNERSHIP[r.ownership] ?? r.ownership}{r.tradeLicenceNumber ? ` · trade licence ${r.tradeLicenceNumber}` : ''} · conversations: {CONVERSATIONS[r.conversationOwnership] ?? r.conversationOwnership}

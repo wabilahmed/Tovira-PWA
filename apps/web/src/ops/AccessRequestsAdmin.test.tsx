@@ -13,7 +13,7 @@ import { OpsUnauthorizedError, type OpsAccessApi, type OpsAccessRequest } from '
 const req = (o: Partial<OpsAccessRequest> = {}): OpsAccessRequest => ({
   id: 'r1', fullName: 'Sara Khan', workEmail: 'sara@khanrealty.ae', phone: '+971501234567', companyName: 'Khan Realty', roleTitle: 'Broker',
   ownership: 'owns_or_manages', tradeLicenceNumber: 'TL-123', conversationOwnership: 'own_clients', conversationOwnershipOther: null,
-  expectedVolume: '50_200', createdAt: Date.parse('2026-10-19T08:00:00Z'), status: 'pending', reviewedAt: null, reviewedNote: null, linkedUserId: null, ...o,
+  expectedVolume: '50_200', industry: null, industryOther: null, createdAt: Date.parse('2026-10-19T08:00:00Z'), status: 'pending', reviewedAt: null, reviewedNote: null, linkedUserId: null, ...o,
 });
 function api(requests: OpsAccessRequest[], over: Partial<OpsAccessApi> = {}): OpsAccessApi & { calls: string[] } {
   const calls: string[] = [];
@@ -111,5 +111,22 @@ describe('[P33] /ops/access — beta access requests', () => {
     sessionStorage.setItem('tovira.opsToken', 'tok123');
     render(<AccessRequestsAdmin api={api([])} />);
     expect(await screen.findByText(/no pending requests/i)).toBeInTheDocument();
+  });
+});
+
+// [P42-A6] Each request shows its industry, so the owner can see which segments sign up.
+describe('[P42-A6] /ops/access shows the industry', () => {
+  it('labels each request\'s industry; Other shows its text; a pre-P42 request says "Not given"', async () => {
+    const a = api([
+      req({ id: 'r1', industry: 'insurance' }),
+      req({ id: 'r2', fullName: 'Omar Ali', industry: 'other', industryOther: 'Yacht brokerage' }),
+      req({ id: 'r3', fullName: 'Old Request', industry: null }),
+    ]);
+    render(<AccessRequestsAdmin api={a} />);
+    await userEvent.type(screen.getByLabelText(/ops token/i), 'tok123');
+    await userEvent.click(screen.getByRole('button', { name: /open/i }));
+    expect(within(await screen.findByTestId('request-r1')).getByTestId('industry')).toHaveTextContent('Industry: Insurance');
+    expect(within(screen.getByTestId('request-r2')).getByTestId('industry')).toHaveTextContent('Industry: Other (Yacht brokerage)');
+    expect(within(screen.getByTestId('request-r3')).getByTestId('industry')).toHaveTextContent('Industry: Not given');
   });
 });

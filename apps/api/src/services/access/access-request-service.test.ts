@@ -14,6 +14,8 @@ const VALID: RawAccessRequest = {
   conversationOwnership: 'brokerage_i_manage',
   conversationOwnershipOther: null,
   expectedVolume: '50_200',
+  // [P42 · owner] Industry is required on new requests.
+  industry: 'property',
   confirmationAccepted: true,
 };
 
@@ -100,5 +102,36 @@ describe('[BETA-3] AccessRequestService.submit validation', () => {
 
   it('is a typed validation error (field + message), never a silent pass', async () => {
     await expect(service.submit({ ...VALID, workEmail: 'x' }, meta)).rejects.toBeInstanceOf(AccessRequestValidationError);
+  });
+});
+
+describe('[P42-A6] industry is required and validated', () => {
+  const meta = { sourceIp: null, userAgent: null };
+  const svc = () => { const repo = new InMemoryAccessRequestRepository(); return { repo, service: new AccessRequestService(repo, () => 1) }; };
+  const err = async (raw: RawAccessRequest) => { try { await svc().service.submit(raw, meta); } catch (e) { return e as AccessRequestValidationError; } throw new Error('accepted'); };
+
+  it('stores each of the seven choices', async () => {
+    for (const industry of ['insurance', 'wealth_private_banking', 'b2b_key_accounts', 'luxury_client_advisory', 'recruitment', 'property']) {
+      const rec = await svc().service.submit({ ...VALID, industry }, meta);
+      expect(rec.industry).toBe(industry);
+      expect(rec.industryOther).toBeNull();
+    }
+    const other = await svc().service.submit({ ...VALID, industry: 'other', industryOther: 'Yacht brokerage' }, meta);
+    expect(other).toMatchObject({ industry: 'other', industryOther: 'Yacht brokerage' });
+  });
+
+  it('NEGATIVE: missing or unknown industry is refused on the industry field, and nothing is written', async () => {
+    const withoutIndustry: RawAccessRequest = { ...VALID };
+    delete withoutIndustry.industry;
+    expect((await err(withoutIndustry)).field).toBe('industry');
+    expect((await err({ ...VALID, industry: 'real_estate' })).field).toBe('industry');
+    const { repo, service } = svc();
+    await expect(service.submit(withoutIndustry, meta)).rejects.toThrow();
+    expect(await repo.count()).toBe(0);
+  });
+
+  it('NEGATIVE: "other" needs its text; the text is refused for any other choice', async () => {
+    expect((await err({ ...VALID, industry: 'other' })).field).toBe('industryOther');
+    expect((await err({ ...VALID, industry: 'insurance', industryOther: 'x' })).field).toBe('industryOther');
   });
 });

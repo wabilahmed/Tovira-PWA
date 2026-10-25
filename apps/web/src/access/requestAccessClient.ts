@@ -11,6 +11,10 @@ export interface AccessRequestPayload {
   conversationOwnership: 'own_clients' | 'brokerage_i_manage' | 'brokerage_employs_me' | 'mix' | 'other';
   conversationOwnershipOther: string | null;
   expectedVolume: 'under_50' | '50_200' | '200_500' | '500_plus';
+  /** [P42-A6] Required. */
+  industry: 'insurance' | 'wealth_private_banking' | 'b2b_key_accounts' | 'luxury_client_advisory' | 'recruitment' | 'property' | 'other';
+  /** Free text, only when industry === 'other'. */
+  industryOther: string | null;
   confirmationAccepted: boolean;
   /** [BETA-3b] Referral code captured from the landing URL (?ref=), persisted for application at approval. */
   referralCode?: string | null;

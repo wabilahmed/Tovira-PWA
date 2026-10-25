@@ -9,6 +9,8 @@ export type AccessRequestStatus = 'pending' | 'approved' | 'rejected' | 'invited
 export type Ownership = 'owns_or_manages' | 'employed';
 export type ConversationOwnership = 'own_clients' | 'brokerage_i_manage' | 'brokerage_employs_me' | 'mix' | 'other';
 export type ExpectedVolume = 'under_50' | '50_200' | '200_500' | '500_plus';
+/** [P42-A6] The segment the rep sells in (migration 0095). */
+export type Industry = 'insurance' | 'wealth_private_banking' | 'b2b_key_accounts' | 'luxury_client_advisory' | 'recruitment' | 'property' | 'other';
 
 /** The validated, submitted fields (no provenance/review fields — those are set by the store/reviewer). */
 export interface AccessRequestInput {
@@ -32,6 +34,10 @@ export interface AccessRequestInput {
   userAgent: string | null;
   /** [BETA-3b] Referral code captured from the landing URL, applied at approval (BETA-5), or null. */
   referralCode: string | null;
+  /** [P42-A6] Required on new requests (the service validates it); null on requests made before migration 0095. */
+  industry?: Industry | null;
+  /** Free text, only when industry === 'other'. */
+  industryOther?: string | null;
 }
 
 export interface AccessRequestRecord extends AccessRequestInput {
@@ -41,6 +47,9 @@ export interface AccessRequestRecord extends AccessRequestInput {
   reviewedAt: number | null;
   reviewedNote: string | null;
   linkedUserId: string | null;
+  /** null = a request made before the field existed ("Not given"). */
+  industry: Industry | null;
+  industryOther: string | null;
 }
 
 /** A review-outcome patch applied to a request (BETA-5). */

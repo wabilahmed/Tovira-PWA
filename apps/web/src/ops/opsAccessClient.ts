@@ -17,6 +17,9 @@ export interface OpsAccessRequest {
   conversationOwnership: string;
   conversationOwnershipOther: string | null;
   expectedVolume: string;
+  /** [P42-A6] null = a request made before the field existed ("Not given"). */
+  industry: string | null;
+  industryOther: string | null;
   createdAt: number;
   status: OpsAccessStatus;
   reviewedAt: number | null;

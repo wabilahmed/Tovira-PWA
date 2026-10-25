@@ -14,6 +14,16 @@ const CONVERSATION_OPTIONS: Array<{ value: AccessRequestPayload['conversationOwn
   { value: 'mix', label: 'A mix of the above.' },
   { value: 'other', label: 'Other' },
 ];
+/** [P42-A6] Owner: seven choices, in this order. The stored values are the API's. */
+const INDUSTRY_OPTIONS: Array<{ value: AccessRequestPayload['industry']; label: string }> = [
+  { value: 'insurance', label: 'Insurance' },
+  { value: 'wealth_private_banking', label: 'Wealth / private banking' },
+  { value: 'b2b_key_accounts', label: 'B2B / key accounts' },
+  { value: 'luxury_client_advisory', label: 'Luxury / client advisory' },
+  { value: 'recruitment', label: 'Recruitment' },
+  { value: 'property', label: 'Property' },
+  { value: 'other', label: 'Other' },
+];
 const VOLUME_OPTIONS: Array<{ value: AccessRequestPayload['expectedVolume']; label: string }> = [
   { value: 'under_50', label: 'Under 50' },
   { value: '50_200', label: '50–200' },
@@ -31,6 +41,8 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
   const [phone, setPhone] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [roleTitle, setRoleTitle] = useState('');
+  const [industry, setIndustry] = useState<'' | AccessRequestPayload['industry']>('');
+  const [industryOther, setIndustryOther] = useState('');
   const [ownership, setOwnership] = useState<'' | 'owns_or_manages' | 'employed'>('');
   const [tradeLicenceNumber, setTradeLicenceNumber] = useState('');
   const [conversationOwnership, setConversationOwnership] = useState<'' | AccessRequestPayload['conversationOwnership']>('');
@@ -63,7 +75,7 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
   async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
     setError(null);
-    if (ownership === '' || conversationOwnership === '' || expectedVolume === '') {
+    if (ownership === '' || industry === '' || conversationOwnership === '' || expectedVolume === '') {
       setError('Please complete every question.');
       return;
     }
@@ -80,6 +92,8 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
         conversationOwnership,
         conversationOwnershipOther: conversationOwnership === 'other' ? conversationOwnershipOther : null,
         expectedVolume,
+        industry,
+        industryOther: industry === 'other' ? industryOther : null,
         confirmationAccepted: confirmed,
         referralCode,
         company_url: honeypot,
@@ -109,6 +123,19 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
         <label className="auth__field"><span>Company name</span><input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required /></label>
         {/* 3. Role */}
         <label className="auth__field"><span>Role / job title</span><input value={roleTitle} onChange={(e) => setRoleTitle(e.target.value)} required /></label>
+
+        {/* [P42-A6] Industry */}
+        <fieldset className="auth__fieldset">
+          <legend>Which industry do you sell in?</legend>
+          {INDUSTRY_OPTIONS.map((o) => (
+            <label key={o.value} className="auth__option">
+              <input type="radio" name="industry" checked={industry === o.value} onChange={() => setIndustry(o.value)} /><span>{o.label}</span>
+            </label>
+          ))}
+        </fieldset>
+        {industry === 'other' && (
+          <label className="auth__field"><span>Your industry</span><input value={industryOther} onChange={(e) => setIndustryOther(e.target.value)} required /></label>
+        )}
 
         {/* 4. Ownership */}
         <fieldset className="auth__fieldset">

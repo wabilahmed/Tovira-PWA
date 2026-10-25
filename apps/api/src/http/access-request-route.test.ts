@@ -16,6 +16,8 @@ const VALID = {
   tradeLicenceNumber: 'TL-998877',
   conversationOwnership: 'brokerage_i_manage',
   expectedVolume: '50_200',
+  // [P42 · owner] Industry is required on new requests.
+  industry: 'property',
   confirmationAccepted: true,
 };
 
@@ -51,6 +53,16 @@ describe('[BETA-3] POST /access-request', () => {
     const res = await post(base, VALID);
     expect(res.status).toBe(201); // the write does not depend on the email
     expect(await deps.accessRequests.count()).toBe(1); // row persisted despite the mail failure
+  });
+
+  it('[P42-A6] NEGATIVE: a submission without an industry is 400 on the industry field, and writes nothing', async () => {
+    const { base, deps } = await start();
+    const rest: Record<string, unknown> = { ...VALID };
+    delete rest.industry;
+    const res = await post(base, rest);
+    expect(res.status).toBe(400);
+    expect((await res.json() as { field: string }).field).toBe('industry');
+    expect(await deps.accessRequests.count()).toBe(0);
   });
 
   it('rejects an invalid submission with 400 + the offending field, and writes nothing', async () => {

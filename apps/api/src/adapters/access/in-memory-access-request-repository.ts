@@ -9,6 +9,8 @@ export class InMemoryAccessRequestRepository implements AccessRequestRepository 
   async create(input: AccessRequestInput): Promise<AccessRequestRecord> {
     const record: AccessRequestRecord = {
       ...input,
+      industry: input.industry ?? null,
+      industryOther: input.industryOther ?? null,
       id: randomUUID(),
       createdAt: Date.now() + this.seq++, // strictly increasing so list() ordering is deterministic in tests
       status: 'pending',

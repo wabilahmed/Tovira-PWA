@@ -18,6 +18,11 @@ const CONVO_LABEL: Record<string, string> = {
   mix: 'A mix of the above',
   other: 'Other (see note)',
 };
+/** [P42-A6] The same labels the form shows. null = a request made before the field existed. */
+const INDUSTRY_LABEL: Record<string, string> = {
+  insurance: 'Insurance', wealth_private_banking: 'Wealth / private banking', b2b_key_accounts: 'B2B / key accounts',
+  luxury_client_advisory: 'Luxury / client advisory', recruitment: 'Recruitment', property: 'Property', other: 'Other',
+};
 const VOLUME_LABEL: Record<string, string> = {
   under_50: 'Under 50', '50_200': '50–200', '200_500': '200–500', '500_plus': '500+',
 };
@@ -95,6 +100,8 @@ export class AccountEmailService {
       `Phone:       ${r.phone}`,
       `Company:     ${r.companyName}`,
       `Role:        ${r.roleTitle}`,
+      `Industry:    ${r.industry ? (INDUSTRY_LABEL[r.industry] ?? r.industry) : 'Not given'}`,
+      ...(r.industryOther ? [`  Note: ${r.industryOther}`] : []),
       `Ownership:   ${OWNERSHIP_LABEL[r.ownership] ?? r.ownership}`,
       ...(r.tradeLicenceNumber ? [`Trade licence: ${r.tradeLicenceNumber}`] : []),
       `Conversations to upload: ${CONVO_LABEL[r.conversationOwnership] ?? r.conversationOwnership}`,

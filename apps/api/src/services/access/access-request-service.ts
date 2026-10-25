@@ -3,6 +3,7 @@ import type {
   AccessRequestRepository,
   ConversationOwnership,
   ExpectedVolume,
+  Industry,
   Ownership,
 } from '../../ports/access-request-repository.js';
 import { CONFIRMATION_TEXT_VERSION } from '../legal/versions.js';
@@ -30,6 +31,9 @@ export interface RawAccessRequest {
   conversationOwnership?: unknown;
   conversationOwnershipOther?: unknown;
   expectedVolume?: unknown;
+  /** [P42-A6] */
+  industry?: unknown;
+  industryOther?: unknown;
   confirmationAccepted?: unknown;
   /** [BETA-3b] Referral code captured from the landing URL (?ref=). Optional, opaque, persisted for
    *  application at approval. Never blocks submission. */
@@ -40,6 +44,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const OWNERSHIP: ReadonlySet<string> = new Set<Ownership>(['owns_or_manages', 'employed']);
 const CONVO: ReadonlySet<string> = new Set<ConversationOwnership>(['own_clients', 'brokerage_i_manage', 'brokerage_employs_me', 'mix', 'other']);
 const VOLUME: ReadonlySet<string> = new Set<ExpectedVolume>(['under_50', '50_200', '200_500', '500_plus']);
+const INDUSTRY: ReadonlySet<string> = new Set<Industry>(['insurance', 'wealth_private_banking', 'b2b_key_accounts', 'luxury_client_advisory', 'recruitment', 'property', 'other']);
 
 /** Max lengths — generous, but bound the row so a paste bomb can't be stored. Derivation: a name/company/
  *  role/phone is comfortably under 200 chars; free text and licence numbers under 2000. */
@@ -105,6 +110,19 @@ export class AccessRequestService {
     const expectedVolume = raw.expectedVolume;
     if (typeof expectedVolume !== 'string' || !VOLUME.has(expectedVolume)) throw new AccessRequestValidationError('expectedVolume', 'Choose roughly how many conversations you expect to upload.');
 
+    // [P42-A6] Industry is required on every new request; 'other' carries its own text (and only 'other' does).
+    const industry = raw.industry;
+    if (typeof industry !== 'string' || !INDUSTRY.has(industry)) throw new AccessRequestValidationError('industry', 'Choose the industry you sell in.');
+    const industryOtherRaw = optStr(raw.industryOther, 'industryOther', MAX_SHORT);
+    let industryOther: string | null;
+    if (industry === 'other') {
+      if (!industryOtherRaw) throw new AccessRequestValidationError('industryOther', 'Please say which industry you sell in.');
+      industryOther = industryOtherRaw;
+    } else {
+      if (industryOtherRaw) throw new AccessRequestValidationError('industryOther', 'Free text only applies to the "Other" industry.');
+      industryOther = null;
+    }
+
     // The confirmation checkbox is mandatory. Its exact wording lives in the form; we store the VERSION
     // (not the sentence) so we can prove later which wording was shown. This is NOT terms acceptance.
     if (raw.confirmationAccepted !== true) throw new AccessRequestValidationError('confirmation', 'Please confirm the information is accurate and that you have authority to share these conversations.');
@@ -129,6 +147,8 @@ export class AccessRequestService {
       sourceIp: meta.sourceIp,
       userAgent: meta.userAgent,
       referralCode,
+      industry: industry as Industry,
+      industryOther,
     });
   }
 }

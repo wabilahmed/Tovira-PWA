@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RequestAccess, CONFIRMATION_TEXT } from './RequestAccess.js';
 import type { AccessRequestClient } from './requestAccessClient.js';
@@ -39,7 +39,8 @@ describe('<RequestAccess>', () => {
     const user = userEvent.setup();
     render(<RequestAccess client={makeClient()} />);
     expect(screen.queryByLabelText('Please describe')).toBeNull();
-    await user.click(screen.getByLabelText('Other'));
+    // [P42 · owner] Industry has its own "Other" now; this is the conversations one.
+    await user.click(screen.getByLabelText('Other', { selector: 'input[name="conversationOwnership"]' }));
     expect(screen.getByLabelText('Please describe')).toBeTruthy();
   });
 
@@ -63,6 +64,8 @@ describe('<RequestAccess>', () => {
     // [P42 · owner] "brokerage" became "company" in the label; the stored value is unchanged.
     await user.click(screen.getByLabelText('Clients of the company I own or manage.'));
     await user.click(screen.getByLabelText('50–200'));
+    // [P42 · owner] Industry is a required question.
+    await user.click(screen.getByLabelText('Insurance'));
     await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: /request access/i }));
 
@@ -70,7 +73,7 @@ describe('<RequestAccess>', () => {
     expect(client.submit).toHaveBeenCalledWith(expect.objectContaining({
       fullName: 'Dana Rep', workEmail: 'dana@brokerage.ae', ownership: 'owns_or_manages',
       tradeLicenceNumber: 'TL-123', conversationOwnership: 'brokerage_i_manage',
-      conversationOwnershipOther: null, expectedVolume: '50_200', confirmationAccepted: true,
+      conversationOwnershipOther: null, expectedVolume: '50_200', industry: 'insurance', industryOther: null, confirmationAccepted: true,
       company_url: '',
     }));
     expect(await screen.findByText(/request has been recorded/i)).toBeTruthy();
@@ -88,6 +91,43 @@ describe('<RequestAccess>', () => {
   it('NEGATIVE: no "brokerage" and no "field sales" anywhere on the form', () => {
     const { container } = render(<RequestAccess client={makeClient()} />);
     expect(container.textContent).not.toMatch(/brokerage|field sales/i);
+  });
+
+  // [P42-A6] Owner: a required Industry question, seven choices in this order, Other with free text.
+  it('asks "Which industry do you sell in?" with the seven choices in order', () => {
+    render(<RequestAccess client={makeClient()} />);
+    const group = screen.getByRole('group', { name: 'Which industry do you sell in?' });
+    expect(within(group).getAllByRole('radio').map((r) => r.closest('label')?.textContent)).toEqual(['Insurance', 'Wealth / private banking', 'B2B / key accounts', 'Luxury / client advisory', 'Recruitment', 'Property', 'Other']);
+  });
+
+  it('"Other" reveals its own free-text box and sends it', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    render(<RequestAccess client={client} />);
+    expect(screen.queryByLabelText('Your industry')).toBeNull();
+    await user.click(screen.getByLabelText('Other', { selector: 'input[name="industry"]' }));
+    await user.type(screen.getByLabelText('Your industry'), 'Yacht brokerage');
+    await fillBase(user);
+    await user.click(screen.getByLabelText('I am employed by it'));
+    await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
+    await user.click(screen.getByLabelText('Under 50'));
+    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: /request access/i }));
+    await waitFor(() => expect(client.submit).toHaveBeenCalledWith(expect.objectContaining({ industry: 'other', industryOther: 'Yacht brokerage' })));
+  });
+
+  it('NEGATIVE: without an industry nothing is sent and every-question error shows', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    render(<RequestAccess client={client} />);
+    await fillBase(user);
+    await user.click(screen.getByLabelText('I am employed by it'));
+    await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
+    await user.click(screen.getByLabelText('Under 50'));
+    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: /request access/i }));
+    expect(await screen.findByText('Please complete every question.')).toBeTruthy();
+    expect(client.submit).not.toHaveBeenCalled();
   });
 
   it('carries a hidden honeypot field a human never sees', () => {
@@ -110,6 +150,7 @@ describe('<RequestAccess>', () => {
       await user.type(screen.getByLabelText('Trade licence number'), 'TL-1');
       await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
       await user.click(screen.getByLabelText('Under 50'));
+      await user.click(screen.getByLabelText('Recruitment')); // [P42 · owner] Industry is required
       await user.click(screen.getByText(CONFIRMATION_TEXT));
       await user.click(screen.getByRole('button', { name: /request access/i }));
       await waitFor(() => expect(client.submit).toHaveBeenCalled());

@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { AccessRequestInput, AccessRequestRecord, AccessRequestRepository, AccessRequestReview, AccessRequestStatus, ConversationOwnership, ExpectedVolume, Ownership } from '../../ports/access-request-repository.js';
+import type { AccessRequestInput, AccessRequestRecord, AccessRequestRepository, AccessRequestReview, AccessRequestStatus, ConversationOwnership, ExpectedVolume, Industry, Ownership } from '../../ports/access-request-repository.js';
 
 export interface Row {
   id: string;
@@ -23,6 +23,9 @@ export interface Row {
   reviewed_note: string | null;
   linked_user_id: string | null;
   referral_code: string | null;
+  /** [P42-A6] migration 0095; null before it. */
+  industry: Industry | null;
+  industry_other: string | null;
 }
 
 export function rowToAccessRequest(r: Row): AccessRequestRecord {
@@ -52,11 +55,13 @@ function toRecord(r: Row): AccessRequestRecord {
     reviewedNote: r.reviewed_note,
     linkedUserId: r.linked_user_id,
     referralCode: r.referral_code,
+    industry: r.industry ?? null,
+    industryOther: r.industry_other ?? null,
   };
 }
 
 const COLS =
-  'id, created_at, status, full_name, work_email, phone, company_name, role_title, ownership, trade_licence_number, conversation_ownership, conversation_ownership_other, expected_volume, confirmation_accepted_at, confirmation_text_version, source_ip, user_agent, reviewed_at, reviewed_note, linked_user_id, referral_code';
+  'id, created_at, status, full_name, work_email, phone, company_name, role_title, ownership, trade_licence_number, conversation_ownership, conversation_ownership_other, expected_volume, confirmation_accepted_at, confirmation_text_version, source_ip, user_agent, reviewed_at, reviewed_note, linked_user_id, referral_code, industry, industry_other';
 
 /** Postgres-backed access-request store (pre-tenant; no RLS, granted to tovira_app — see 0073). */
 export class PgAccessRequestRepository implements AccessRequestRepository {
@@ -67,13 +72,14 @@ export class PgAccessRequestRepository implements AccessRequestRepository {
       `INSERT INTO access_requests
          (full_name, work_email, phone, company_name, role_title, ownership, trade_licence_number,
           conversation_ownership, conversation_ownership_other, expected_volume,
-          confirmation_accepted_at, confirmation_text_version, source_ip, user_agent, referral_code)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, to_timestamp($11 / 1000.0), $12, $13, $14, $15)
+          confirmation_accepted_at, confirmation_text_version, source_ip, user_agent, referral_code, industry, industry_other)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, to_timestamp($11 / 1000.0), $12, $13, $14, $15, $16, $17)
        RETURNING ${COLS}`,
       [
         input.fullName, input.workEmail, input.phone, input.companyName, input.roleTitle,
         input.ownership, input.tradeLicenceNumber, input.conversationOwnership, input.conversationOwnershipOther,
         input.expectedVolume, input.confirmationAcceptedAt, input.confirmationTextVersion, input.sourceIp, input.userAgent, input.referralCode,
+        input.industry ?? null, input.industryOther ?? null,
       ],
     );
     return toRecord(rows[0]!);
