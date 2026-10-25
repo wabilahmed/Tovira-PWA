@@ -132,3 +132,12 @@ describe('[P42-A2] the language FAQ claims only what the eval covers', () => {
     expect(text(d.querySelector('.faq'))).not.toMatch(/English, Hindi, and Urdu in the same sentence/i);
   });
 });
+
+describe('[P42-A3] the verification line says realistic, not real, conversations', () => {
+  it('the standard names realistic sales conversations', () => {
+    expect(text(d.querySelector('.standard'))).toBe('The standard it had to pass: zero invented commitments. Zero guessed dates. Verified across repeated runs on realistic sales conversations, in four languages.');
+  });
+  it('NEGATIVE: no claim of "real conversations"', () => {
+    expect(html).not.toMatch(/real conversations/i);
+  });
+});
