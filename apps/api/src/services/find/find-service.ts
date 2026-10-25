@@ -6,7 +6,7 @@ import type { HeroService } from '../hero/hero-service.js';
 import { isActivePromise } from '../facts/promise-lifecycle.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
-import { budgetAmount, primaryRequirement, requirementDue, requirementFacets, requirementTopic, summarizeRequirements } from '../clients/requirement-summary.js';
+import { budgetAmount, primaryRequirement, requirementDue, requirementFacets, requirementMonthMention, requirementTopic, summarizeRequirements } from '../clients/requirement-summary.js';
 
 /**
  * [P39-7] Find: fixed questions with fixed answers, read from what is STORED — clients, promises, requirements,
@@ -84,6 +84,8 @@ export const TIMING_WINDOWS: Array<{ value: string; label: string; end: (now: Da
   { value: 'this-month', label: 'Due this month', end: (n) => new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth() + 1, 0)) },
   { value: 'this-quarter', label: 'Due this quarter', end: (n) => new Date(Date.UTC(n.getUTCFullYear(), Math.floor(n.getUTCMonth() / 3) * 3 + 3, 0)) },
 ];
+/** [P43-6] "Mentions June": a month said with no day or year. A display grouping only, never a date. */
+const MENTIONS = /^mentions-(\d{1,2})$/;
 function dueWithin(due: string | null, window: string, nowMs: number): boolean {
   const w = TIMING_WINDOWS.find((x) => x.value === window);
   if (!w || !due) return false;
@@ -152,6 +154,7 @@ export class FindService {
     const bands = new Set<string>();
     const topics = new Map<string, string>(); // lower-case → first spelling
     const timings = new Set<string>();
+    const mentions = new Map<number, string>(); // month → the word as first said
     // [P40-5] each requirement's own values — never a type from one and an area from another
     for (const reqs of perClient.values()) for (const r of reqs) {
       const f = requirementFacets([r]);
@@ -162,6 +165,8 @@ export class FindService {
       if (topic && !topics.has(topic.toLowerCase())) topics.set(topic.toLowerCase(), topic);
       const due = requirementDue(r);
       for (const w of TIMING_WINDOWS) if (dueWithin(due, w.value, nowMs)) timings.add(w.value);
+      const mention = requirementMonthMention(r);
+      if (mention && !mentions.has(mention.month)) mentions.set(mention.month, mention.said);
       const b = f.budgets[f.budgets.length - 1];
       if (b) { const v = budgetAmount(b); const band = BUDGET_BANDS.find((x) => v >= x.min && v < x.max); if (band) bands.add(band.value); }
     }
@@ -170,7 +175,10 @@ export class FindService {
       area: [...areas].sort(),
       budget: BUDGET_BANDS.filter((b) => bands.has(b.value)).map(({ value, label }) => ({ value, label })),
       topic: [...topics.values()].sort((a, b) => a.localeCompare(b)),
-      timing: TIMING_WINDOWS.filter((w) => timings.has(w.value)).map(({ value, label }) => ({ value, label })),
+      timing: [
+        ...TIMING_WINDOWS.filter((w) => timings.has(w.value)).map(({ value, label }) => ({ value, label })),
+        ...[...mentions.entries()].sort((a, b) => a[0] - b[0]).map(([month, said]) => ({ value: `mentions-${month}`, label: `Mentions ${said}` })),
+      ],
     };
   }
 
@@ -295,7 +303,9 @@ export class FindService {
       if (filter && !reqs.some((r) => matchesAll(r, filter, nowMs))) continue;
       const primary = primaryRequirement(reqs);
       const f = primary ? requirementFacets([primary]) : requirementFacets(reqs);
-      const latest = reqs.slice().sort((a, b) => reqDay(b).localeCompare(reqDay(a)))[0]!;
+      // [P43-6] With a filter, the receipt is the need that matched it (e.g. the message that mentions June).
+      const pool = filter ? reqs.filter((r) => matchesAll(r, filter, nowMs)) : reqs;
+      const latest = pool.slice().sort((a, b) => reqDay(b).localeCompare(reqDay(a)))[0]!;
       const quote = (latest.requirementRaw || latest.text).trim();
       // A restricted counterparty's wants are withheld whole (the line is read from their words).
       if (await withheld(c.id, latest.noteId, quote)) continue;
@@ -372,7 +382,10 @@ function matchesAll(r: RequirementRecord, filters: WantingFilter[], nowMs: numbe
   const f = requirementFacets([r]);
   return filters.every((x) => {
     if (x.by === 'topic') return (requirementTopic(r) ?? '').toLowerCase() === x.value.toLowerCase();
-    if (x.by === 'timing') return dueWithin(requirementDue(r), x.value, nowMs);
+    if (x.by === 'timing') {
+      const m = MENTIONS.exec(x.value);
+      return m ? requirementMonthMention(r)?.month === Number(m[1]) : dueWithin(requirementDue(r), x.value, nowMs);
+    }
     if (x.by === 'type') return f.type === x.value;
     if (x.by === 'area') return f.area === x.value;
     if (x.by === 'beds') return f.beds === x.value;

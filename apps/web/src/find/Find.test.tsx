@@ -149,3 +149,16 @@ describe('[P42-B5] What clients need…: only the filters this rep has', () => {
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
   });
 });
+
+// [P43-6 · owner] a month said with no day or year is a "Mentions June" chip under Timing (display only).
+describe('[P43-6] Timing: Mentions June', () => {
+  it('shows under Timing and filters by that mention', async () => {
+    const a: FindApi & { run: ReturnType<typeof vi.fn> } = { run: vi.fn(async () => result()), wantingOptions: vi.fn(async () => ({ type: [], area: [], budget: [], topic: ['Motor cover'], timing: [{ value: 'mentions-6', label: 'Mentions June' }] })) };
+    render(<Find api={a} onOpenClient={vi.fn()} onOpenClients={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'What clients need…' }));
+    const timing = await screen.findByRole('group', { name: 'Timing' });
+    await userEvent.click(within(timing).getByRole('button', { name: 'Mentions June' }));
+    expect(a.run).toHaveBeenCalledWith('wanting', { by: 'timing', value: 'mentions-6' });
+    expect(await screen.findByRole('heading', { level: 1, name: 'What clients need: Mentions June' })).toBeInTheDocument();
+  });
+});

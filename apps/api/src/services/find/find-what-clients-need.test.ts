@@ -66,7 +66,9 @@ describe('[P42-B5] What clients need…: the options fit the rep', () => {
 
   it('NEGATIVE: a year-less month is never a timing (no guessed year), and a past date is not "due"', async () => {
     const o = await (await rep({ 'Sara Khan': [{ text: 'Motor cover renewing in June', statedOn: '2026-10-01' }], 'Ali Raza': [{ text: 'Life cover renewal on 01/09/2026', statedOn: '2026-08-01' }] })).wantingOptions('u', NOW);
-    expect(o.timing).toEqual([]);
+    // [P43 · owner] a year-less month is still never a dated timing (no "Due this month/quarter": no year guessed);
+    // it is now the "Mentions June" display chip.
+    expect(o.timing).toEqual([{ value: 'mentions-6', label: 'Mentions June' }]);
     expect(o.topic).toEqual(['Life cover', 'Motor cover']);
   });
 

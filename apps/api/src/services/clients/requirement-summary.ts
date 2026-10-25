@@ -171,6 +171,20 @@ export function requirementDue(r: RequirementLike): string | null {
   return null;
 }
 
+// A month word with no day before it and no day or year after it: "in June", "Sept review", never "12 June" / "June 2026".
+const MONTH_ONLY = new RegExp(`(?<![\\d/.-]\\s?)(?<!\\d(?:st|nd|rd|th)\\s)(?<!\\d\\s)\\b(${MONTH})\\b(?!\\s*\\d)`, 'i');
+
+/** [P43-6 · owner] A month said with no day and no year ("renewal in June"): the month number and the word exactly as
+ *  said, capitalised. NEVER a date: no year is inferred and nothing is stored. Null when the need has a readable date. */
+export function requirementMonthMention(r: RequirementLike): { month: number; said: string } | null {
+  if (requirementDue(r)) return null;
+  for (const t of [r.text, r.requirementRaw]) {
+    const m = MONTH_ONLY.exec(t);
+    if (m) return { month: MONTH_NUM[m[1]!.slice(0, 3).toLowerCase()]!, said: m[1]![0]!.toUpperCase() + m[1]!.slice(1) };
+  }
+  return null;
+}
+
 export function summarizeRequirements(reqs: RequirementLike[]): RequirementSummary {
   const primary = primaryRequirement(reqs);
   // The labelled budget history ("3M → 3.4M") still lists every budget stated, oldest first.
