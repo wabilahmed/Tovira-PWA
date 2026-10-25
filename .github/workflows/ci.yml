@@ -21,6 +21,22 @@ jobs:
       # One build: the marketing routes are prerendered inside the PWA build.
       - run: npm run build -w apps/web
 
+  # [P43-5] The landing page in a real browser at 390px: six use-case cards, no horizontal overflow, 1/2/3 columns
+  # (phone/tablet/desktop). The unit suite reads the HTML but cannot lay it out. Runs in parallel with `verify`;
+  # deploy waits for the whole CI workflow, so a broken landing layout never ships. No secrets, no cloud.
+  landing-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # playwright.config.ts builds the web app and serves it with `vite preview` (webServer).
+      - run: npx playwright test apps/web/e2e/landing-usecases.spec.ts
+
   # The unit suite runs migrations against a FAKE client that never executes SQL, so anything real
   # Postgres rejects at apply time — an FK whose column type doesn't match its referent, a grant to a
   # missing role, an RLS predicate that won't type-check — slips through and only dies on the prod boot
