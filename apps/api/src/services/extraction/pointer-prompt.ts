@@ -25,7 +25,7 @@ Two groups of pointers:
 - "relationship" — how to build the relationship with this client: what irritated them (so avoid it), what pleased them (so do more of it), what they keep returning to, what they have hesitated on, what they have committed to.
 - the second group depends on DEAL STATE, which is given in the message below:
   - DEAL STATE open or going_cold -> section "close": specific ways to close; for going_cold, specifically how to REOPEN the conversation.
-  - DEAL STATE won -> section "next_opportunity": a referral, a further property, or a renewal — only if the messages support one.
+  - DEAL STATE won -> section "next_opportunity": a referral, a further purchase, or a renewal — only if the messages support one.
   - DEAL STATE lost -> section "retrospective": a short, honest reading of what went wrong. Produce a retrospective ONLY when DEAL STATE is lost. Never append a disclaimer — the app adds the exact wording.
 
 Rules, as strict as fact extraction:
