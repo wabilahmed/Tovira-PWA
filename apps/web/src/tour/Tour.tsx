@@ -175,8 +175,8 @@ function Example({ children }: { children: ReactNode }): JSX.Element {
 const EXAMPLE_RECEIPT: ReceiptSource = {
   kind: 'chat', noteId: null, repKnown: true, hasMore: false,
   bubbles: [
-    { sender: 'Sara Khan', side: 'other', at: '2026-05-07T11:10', text: 'Can you send the floor plans?', source: false },
-    { sender: 'You', side: 'rep', at: '2026-05-07T11:15', text: "Sure, I'll send them tomorrow.", source: true },
+    { sender: 'Sara Khan', side: 'other', at: '2026-05-07T11:10', text: 'Can you send the revised proposal?', source: false },
+    { sender: 'You', side: 'rep', at: '2026-05-07T11:15', text: "Sure, I'll send it tomorrow.", source: true },
   ],
 };
 const exampleReceipts: ReceiptsApi = { source: async () => EXAMPLE_RECEIPT, thread: async () => EXAMPLE_RECEIPT };
@@ -225,7 +225,7 @@ function buildSteps(c: {
           <Example>
             <div className="tov-tour__mock">
               <div className="tov-tour__mock-head"><strong>Sara Khan</strong> <span className="lead-pill lead-pill--warm">Warm ▾</span> <span className="tov-tour__mock-add">+ Add</span></div>
-              <div className="tov-tour__mock-row"><span>What they want</span><small>3BR villa · Mirdif · budget 3.4M</small></div>
+              <div className="tov-tour__mock-row"><span>What they want</span><small>Renewal in June · wants a lower excess · decides with her partner</small></div>
               <div className="tov-tour__mock-row"><span>Promises</span><small>1 open</small></div>
               <div className="tov-tour__mock-row"><span>Conversations</span><small>1 WhatsApp chat</small></div>
             </div>
@@ -239,8 +239,8 @@ function buildSteps(c: {
         <>
           <p>Tap any fact to see the exact message.</p>
           <Example>
-            <p className="tov-tour__fact"><span className="tov-stamp">You promised</span> send the floor plans</p>
-            <ReceiptsProvider api={exampleReceipts}><ReceiptThread compact={false} refInfo={{ quote: "Sure, I'll send them tomorrow." }} /></ReceiptsProvider>
+            <p className="tov-tour__fact"><span className="tov-stamp">You promised</span> send the revised proposal</p>
+            <ReceiptsProvider api={exampleReceipts}><ReceiptThread compact={false} refInfo={{ quote: "Sure, I'll send it tomorrow." }} /></ReceiptsProvider>
           </Example>
         </>
       ),
@@ -252,7 +252,7 @@ function buildSteps(c: {
           <p>When Tovira isn&apos;t sure, it asks. Nothing changes until you tap Confirm.</p>
           <Example>
             <div className="tov-confirm-chit">
-              <p style={{ margin: '0 0 var(--space-2)' }}><strong>Sara Khan</strong> : send the floor plans by Saturday?</p>
+              <p style={{ margin: '0 0 var(--space-2)' }}><strong>Sara Khan</strong> : send the revised proposal by Thursday?</p>
               <div style={{ display: 'flex', gap: 'var(--space-2)' }}><span className="tov-tour__fake-btn">Confirm</span><span className="tov-tour__fake-btn">Not right</span></div>
             </div>
           </Example>

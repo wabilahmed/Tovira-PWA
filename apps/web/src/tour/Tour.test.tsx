@@ -181,3 +181,30 @@ describe('[P37] the tour', () => {
     expect(words).toBeLessThanOrEqual(250); // ≈ 75 s at ~200 words a minute
   });
 });
+
+// [P42-B1] Owner: the examples fit any relationship-sales rep (insurance, wealth, B2B, luxury, recruitment,
+// property), so no rep lands in what looks like a real-estate tool.
+describe('[P42-B1] the tour examples are neutral', () => {
+  const exampleOf = (): string => (screen.getByRole('dialog').querySelector('figure')?.textContent ?? '').replace(/\s+/g, ' ');
+
+  it('step 3 wants a renewal, step 4 promises the revised proposal, step 5 asks about Thursday', async () => {
+    render(<Tour {...props()} />);
+    await goTo(3);
+    expect(exampleOf()).toContain('Renewal in June · wants a lower excess · decides with her partner');
+    await next();
+    await waitFor(() => expect(exampleOf()).toContain('Can you send the revised proposal?'));
+    expect(exampleOf()).toContain('You promised send the revised proposal');
+    expect(exampleOf()).toContain("Sure, I'll send it tomorrow.");
+    await next();
+    expect(exampleOf()).toContain('Sara Khan : send the revised proposal by Thursday?');
+  });
+
+  it('NEGATIVE: no property words in any of the nine steps', async () => {
+    render(<Tour {...props()} />);
+    for (let s = 1; s <= 9; s += 1) {
+      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 9`));
+      expect(screen.getByRole('dialog').textContent).not.toMatch(/floor plans?|villa|Mirdif|\b\d+\s?BR\b|apartment|viewing|listing|bedroom/i);
+      if (s < 9) await next();
+    }
+  });
+});
