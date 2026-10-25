@@ -55,6 +55,7 @@ die() { echo "run-backfill: $*" >&2; exit 2; }
 # --- Parse args: --apply and --i-checked-the-dry-run are OURS; everything else passes to the backfill ---
 APPLY=0
 I_CHECKED=0
+HAS_IDS=0
 PASSTHROUGH=()   # args handed to the backfill script (includes --only <id> and --apply)
 KEYARGS=()       # the args that define "the same run" for the guard (passthrough minus --apply)
 while [ "$#" -gt 0 ]; do
@@ -71,7 +72,7 @@ while [ "$#" -gt 0 ]; do
     --ids)
       # [P40-5] qa-data-audit: delete (or dry-run) exactly these ids
       [ "$#" -ge 2 ] || die "--ids needs a comma-separated list of ids"
-      PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); shift 2 ;;
+      PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); HAS_IDS=1; shift 2 ;;
     --script)
       # consumed here (never sent to the container) but part of the guard key, so a dry run of one
       # backfill never authorises --apply of another
@@ -101,7 +102,9 @@ fi
 
 # [P40-5] qa-data-audit: the list is read-only; deleting needs explicit --ids (and the dry-run guard below).
 if [ "$SCRIPT_NAME" = "qa-data-audit" ]; then
-  if printf '%s\n' "${PASSTHROUGH[@]-}" | grep -qx -- '--ids'; then :; else
+  # A flag set while parsing, not `printf | grep -q`: under pipefail grep's early exit can SIGPIPE printf and
+  # read as "no --ids" (P42).
+  if [ "$HAS_IDS" -eq 1 ]; then :; else
     [ "$APPLY" -eq 0 ] || die "qa-data-audit --apply deletes only the ids you pass: add --ids <id,id,…>"
     READ_ONLY=1 # the list itself never writes
   fi

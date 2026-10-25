@@ -165,3 +165,18 @@ describe('[P21-C] run-backfill.sh — choosing the backfill', () => {
     expect(r.stderr).toMatch(/no successful dry run/i);
   });
 });
+
+// [P42 · fix(P40-5)] Under `set -o pipefail`, `printf … | grep -q` can fail when grep exits on its first match
+// and printf takes SIGPIPE: the pipeline then reads as "no match". That made qa-data-audit --ids --apply refuse
+// with "add --ids" intermittently under load. No ops script may pipe into `grep -q` while pipefail is on.
+describe('[P42] ops scripts never pipe into grep -q under pipefail', () => {
+  it('scripts/ops/*.sh with pipefail have no "| grep -q"', () => {
+    const opsDir = join(__dirname, '..', 'scripts', 'ops');
+    for (const f of readdirSync(opsDir).filter((n) => n.endsWith('.sh'))) {
+      const src = readFileSync(join(opsDir, f), 'utf8');
+      if (!/pipefail/.test(src)) continue;
+      const offenders = src.split('\n').filter((l) => !l.trim().startsWith('#') && /\|\s*grep\s+-[a-zA-Z]*q/.test(l));
+      expect(offenders, f).toEqual([]);
+    }
+  });
+});
