@@ -110,3 +110,15 @@ describe('[P41-4] meta, OG and share descriptions name long-term client relation
     }
   });
 });
+
+// [P42-A] Owner approvals of the P41 claim check: every line states only what the product has been shown to do.
+describe('[P42-A1] the language line claims only what the eval covers', () => {
+  const step2 = text(d.querySelector('.step[data-step="1"] p:not(.step__n)'));
+  it('step 02 names the four languages and English mixed with any of them', () => {
+    expect(step2).toBe('Promises, people, dates, concerns, personal details, pulled out and filed against the right client, even when that client is saved under one name in your phone and goes by another in the chat. Arabic, English, Hindi and Urdu, and English mixed with any of them in the same sentence.');
+  });
+  it('NEGATIVE: no "all four in one sentence" claim, and no em-dash anywhere on the page', () => {
+    expect(html).not.toMatch(/all four/i);
+    expect(html).not.toContain('—');
+  });
+});
