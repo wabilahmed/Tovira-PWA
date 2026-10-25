@@ -122,3 +122,13 @@ describe('[P42-A1] the language line claims only what the eval covers', () => {
     expect(html).not.toContain('—');
   });
 });
+
+describe('[P42-A2] the language FAQ claims only what the eval covers', () => {
+  it('"Does it work in Arabic?" names Arabic, Hindi or Urdu mixed with English', () => {
+    const item = [...d.querySelectorAll('details.faq__item')].find((x) => text(x.querySelector('summary')) === 'Does it work in Arabic?');
+    expect(text(item?.querySelector('p'))).toBe('Yes, including Arabic mixed with English in the same sentence, and Hindi or Urdu mixed with English too. That is what it was built for.');
+  });
+  it('NEGATIVE: the FAQ no longer implies all four languages in one sentence', () => {
+    expect(text(d.querySelector('.faq'))).not.toMatch(/English, Hindi, and Urdu in the same sentence/i);
+  });
+});
