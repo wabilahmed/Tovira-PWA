@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planPromiseRedate, formatToConfirm, PROMISE_CANDIDATES_SQL, PROMISE_TO_CONFIRM_SQL } from './backfill-promise-dates.js';
+import { planPromiseRedate, formatToConfirm, formatRepEdited, PROMISE_CANDIDATES_SQL, PROMISE_TO_CONFIRM_SQL } from './backfill-promise-dates.js';
 
 /**
  * [P40-1] The dry run also lists stored rows whose date came from the model with no resolver match: id, client, raw
@@ -43,5 +43,20 @@ describe('[P40-1] promise-dates dry run: model dates with no resolver match', ()
     expect(PROMISE_CANDIDATES_SQL).toMatch(/client_name/);
     expect(PROMISE_CANDIDATES_SQL).toMatch(/source_span/);
     expect(PROMISE_TO_CONFIRM_SQL).toBe("UPDATE promises SET due_date = NULL, date_status = 'to_confirm' WHERE id = $1 AND due_date IS NOT DISTINCT FROM $2::date");
+  });
+});
+
+// [P43-1] "Why is f700fab8 rep-edited?" — the dry run shows the edit behind every rep-edited skip (metadata only:
+// which field, the verdict, the kind, the day shift and when; the corrections table holds no before/after values).
+describe('[P43-1] the dry run shows why a row counts as rep-edited', () => {
+  it('lists each edit: field, verdict, kind, day shift and when', () => {
+    const plan = planPromiseRedate([row({ id: 'f700fab8', dueRaw: 'Sunday morning', repEdited: true, edits: [{ field: 'due_date', verdict: 'edit', kind: 'date_wrong', deltaDays: -9, at: '2026-10-21T14:03:00.000Z' }] })]);
+    expect(plan.skippedRepEdited).toEqual([{ id: 'f700fab8', dueRaw: 'Sunday morning', edits: [{ field: 'due_date', verdict: 'edit', kind: 'date_wrong', deltaDays: -9, at: '2026-10-21T14:03:00.000Z' }] }]);
+    expect(formatRepEdited(plan.skippedRepEdited[0]!)).toBe('= f700fab8  "Sunday morning"  rep edit: due_date edit (date_wrong, -9 days) on 2026-10-21 14:03 UTC');
+  });
+  it('the candidates read the edits (metadata only) alongside the flag', () => {
+    expect(PROMISE_CANDIDATES_SQL).toMatch(/json_agg/);
+    expect(PROMISE_CANDIDATES_SQL).toMatch(/date_delta_days/);
+    expect(PROMISE_CANDIDATES_SQL).not.toMatch(/before_value|after_value/);
   });
 });

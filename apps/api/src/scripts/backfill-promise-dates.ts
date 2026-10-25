@@ -101,7 +101,12 @@ export interface PromiseRedateRow {
   /** [P40-1] for the to-confirm list: the client's name and the stored receipt quote. */
   clientName?: string | null;
   sourceSpan?: string | null;
+  /** [P43-1] the corrections behind a rep-edited flag (metadata only: no before/after values exist). */
+  edits?: RepEdit[];
 }
+
+/** [P43-1] One recorded edit of the date or phrase: which field, the verdict, its kind, the day shift and when. */
+export interface RepEdit { field: string; verdict: string | null; kind: string | null; deltaDays: number | null; at: string }
 
 /** [P40-1] A stored date that came from the model with no resolver match → null + date to confirm. */
 export interface PromiseToConfirm { id: string; userId: string; client: string; dueRaw: string; from: string; receiptDate: string | null }
@@ -113,14 +118,14 @@ export interface PromiseRedatePlan {
   /** [P40-1] stored model dates the resolver can't reproduce (and the receipt doesn't state) → null + to confirm. */
   toConfirm: PromiseToConfirm[];
   unresolved: Array<{ id: string; dueRaw: string }>;
-  skippedRepEdited: Array<{ id: string; dueRaw: string }>;
+  skippedRepEdited: Array<{ id: string; dueRaw: string; edits?: RepEdit[] }>;
 }
 
 /** PURE re-date decision (unit-tested with the real resolver). */
 export function planPromiseRedate(rows: PromiseRedateRow[]): PromiseRedatePlan {
   const plan: PromiseRedatePlan = { changes: [], toConfirm: [], unresolved: [], skippedRepEdited: [] };
   for (const r of rows) {
-    if (r.repEdited) { plan.skippedRepEdited.push({ id: r.id, dueRaw: r.dueRaw }); continue; }
+    if (r.repEdited) { plan.skippedRepEdited.push({ id: r.id, dueRaw: r.dueRaw, ...(r.edits ? { edits: r.edits } : {}) }); continue; }
     const to = resolveDueDate(r.dueRaw, r.anchor, { dayFirst: r.dayFirst }).date;
     const said = messageDay(r.anchor);
     // Unresolvable, or impossible (due before the message that made it — the DATE-INVARIANT).
@@ -141,6 +146,12 @@ export function planPromiseRedate(rows: PromiseRedateRow[]): PromiseRedatePlan {
   return plan;
 }
 
+/** [P43-1] The dry-run line for a rep-edited skip, with the edit(s) that make it one. */
+export function formatRepEdited(r: { id: string; dueRaw: string; edits?: RepEdit[] }): string {
+  const why = (r.edits ?? []).map((e) => `${e.field} ${e.verdict ?? 'edit'} (${[e.kind, e.deltaDays !== null ? `${e.deltaDays > 0 ? '+' : ''}${e.deltaDays} days` : null].filter(Boolean).join(', ') || 'no detail'}) on ${e.at.slice(0, 10)} ${e.at.slice(11, 16)} UTC`);
+  return `= ${r.id}  "${r.dueRaw}"${why.length ? `  rep edit: ${why.join('; ')}` : ''}`;
+}
+
 /** The dry-run line for one change: id, raw phrase, old → new. */
 export function formatPromiseChange(c: PromiseChange): string {
   return `~ ${c.id}  "${c.dueRaw}"  ${c.from ?? '(none)'} → ${c.to}`;
@@ -159,7 +170,12 @@ SELECT p.id, p.user_id, p.due_raw, p.due_date::text AS due_date, p.source_messag
        (n.source = 'whatsapp_export') AS day_first,
        EXISTS (SELECT 1 FROM corrections c
                 WHERE c.entity_type = 'promise' AND c.entity_id = p.id
-                  AND c.field IN ('due_date', 'due_raw')) AS rep_edited
+                  AND c.field IN ('due_date', 'due_raw')) AS rep_edited,
+       (SELECT json_agg(json_build_object('field', c.field, 'verdict', c.verdict, 'kind', c.correction_kind,
+                                          'deltaDays', c.date_delta_days, 'at', c.created_at) ORDER BY c.created_at)
+          FROM corrections c
+         WHERE c.entity_type = 'promise' AND c.entity_id = p.id
+           AND c.field IN ('due_date', 'due_raw')) AS edits
   FROM promises p
   LEFT JOIN notes n ON n.id = p.note_id
   LEFT JOIN clients cl ON cl.id = p.client_id
@@ -189,7 +205,7 @@ async function main(): Promise<void> {
   // [P17-SSL] Same pool factory the API uses (TLS for RDS, plain locally) — never a raw new pg.Pool.
   const pool = createPool(url);
   try {
-    const { rows } = await pool.query<{ id: string; user_id: string; due_raw: string; due_date: string | null; source_message_at: Date | null; capture_at: string | null; created_at: Date; day_first: boolean | null; rep_edited: boolean; source_span: string | null; client_name: string | null }>(PROMISE_CANDIDATES_SQL, [onlyUser]);
+    const { rows } = await pool.query<{ id: string; user_id: string; due_raw: string; due_date: string | null; source_message_at: Date | null; capture_at: string | null; created_at: Date; day_first: boolean | null; rep_edited: boolean; source_span: string | null; client_name: string | null; edits: Array<{ field: string; verdict: string | null; kind: string | null; deltaDays: number | null; at: string }> | null }>(PROMISE_CANDIDATES_SQL, [onlyUser]);
     const plan = planPromiseRedate(rows.map((r) => ({
       id: r.id,
       userId: r.user_id,
@@ -200,6 +216,7 @@ async function main(): Promise<void> {
       repEdited: r.rep_edited,
       clientName: r.client_name,
       sourceSpan: r.source_span,
+      ...(r.edits ? { edits: r.edits.map((e) => ({ ...e, at: new Date(e.at).toISOString() })) } : {}),
     })));
 
     const scope = onlyUser ? `user ${onlyUser}` : 'all users';
@@ -209,7 +226,7 @@ async function main(): Promise<void> {
     console.log(`[backfill-promise-dates] MODEL DATE, NO RESOLVER MATCH → null + date to confirm (${plan.toConfirm.length}):`);
     for (const t of plan.toConfirm) console.log(`  ${formatToConfirm(t)}`);
     console.log(`[backfill-promise-dates] SKIPPED — rep-edited (${plan.skippedRepEdited.length}):`);
-    for (const r of plan.skippedRepEdited) console.log(`  = ${r.id}  "${r.dueRaw}"`);
+    for (const r of plan.skippedRepEdited) console.log(`  ${formatRepEdited(r)}`);
     console.log(`[backfill-promise-dates] UNRESOLVED — left as stored, never guessed (${plan.unresolved.length}):`);
     for (const r of plan.unresolved) console.log(`  - ${r.id}  "${r.dueRaw}"`);
 
