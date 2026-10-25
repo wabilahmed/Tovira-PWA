@@ -141,3 +141,12 @@ describe('[P42-A3] the verification line says realistic, not real, conversations
     expect(html).not.toMatch(/real conversations/i);
   });
 });
+
+describe('[P42-A4] the ranking line says what Today actually ranks', () => {
+  it('step 03 says follow-ups in order and the clients who may be slipping, with the reason', () => {
+    expect(text(d.querySelector('.step[data-step="2"] p:not(.step__n)'))).toBe("A brief before the meeting. The day's follow-ups in order, and the clients who may be slipping, with the reason. A statement on Monday morning. A quiet word when a client goes quiet. Tovira speaks rarely. When it speaks, act.");
+  });
+  it('NEGATIVE: no claim that clients are ranked by who needs you', () => {
+    expect(html).not.toMatch(/clients ranked by who needs you/i);
+  });
+});

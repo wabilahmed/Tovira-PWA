@@ -44,7 +44,9 @@ describe('[SITE2] the funnel is present, in order', () => {
   // capability that was nowhere on the page. Both are approved source copy for shipped features.
   it('the "how" section names the daily ranked priorities surface and alias resolution', () => {
     const how = d.querySelector('#how')?.textContent ?? '';
-    expect(how, 'daily ranked priorities surface').toMatch(/who needs you|ranked/i);
+    // [P42 · owner] the approved line is "The day's follow-ups in order…" (the list ranks follow-ups, not clients),
+    // so "in order" names the same surface.
+    expect(how, 'daily ranked priorities surface').toMatch(/who needs you|ranked|follow-ups in order/i);
     expect(how, 'one client under several names (alias resolution)').toMatch(/name/i);
   });
 
