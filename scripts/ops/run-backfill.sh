@@ -10,6 +10,7 @@
 #   trials         apps/api/src/scripts/backfill-trials.ts          (--only <userId>)
 #   promise-dates  apps/api/src/scripts/backfill-promise-dates.ts   (--only-user <userId>)
 #   meeting-dates  apps/api/src/scripts/backfill-meeting-dates.ts   (--only-user <userId>)
+#   undated-to-confirm  apps/api/src/scripts/backfill-undated-to-confirm.ts   (--only-user <userId>) [P43] mark undated, never-asked promises/meetings
 #   kept-promise-check  apps/api/src/scripts/kept-promise-check.ts  [P26-2] READ-ONLY: prints two counts
 #                  (auto-closed promises, notes with a model kept_at); takes no args and refuses --apply.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script kept-promise-check
@@ -76,7 +77,7 @@ while [ "$#" -gt 0 ]; do
     --script)
       # consumed here (never sent to the container) but part of the guard key, so a dry run of one
       # backfill never authorises --apply of another
-      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | kept-promise-check | stripe-mode-audit | qa-data-audit)"
+      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | undated-to-confirm | kept-promise-check | stripe-mode-audit | qa-data-audit)"
       SCRIPT_NAME="$2"; KEYARGS+=("$1" "$2"); shift 2 ;;
     *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --ids <id,…>, --apply, --i-checked-the-dry-run)" ;;
   esac
@@ -86,10 +87,11 @@ case "$SCRIPT_NAME" in
   trials)        SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-trials.ts" ;;
   promise-dates) SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-promise-dates.ts" ;;
   meeting-dates) SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-meeting-dates.ts" ;;
+  undated-to-confirm) SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-undated-to-confirm.ts" ;;
   kept-promise-check) SCRIPT_IN_IMAGE="apps/api/src/scripts/kept-promise-check.ts" ;;
   stripe-mode-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/stripe-mode-audit.ts" ;;
   qa-data-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/qa-data-audit.ts" ;;
-  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | kept-promise-check | stripe-mode-audit | qa-data-audit)" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | kept-promise-check | stripe-mode-audit | qa-data-audit)" ;;
 esac
 
 # [P26-2/P30-3] Read-only checks: nothing to apply, no args — refused here, before any AWS call.

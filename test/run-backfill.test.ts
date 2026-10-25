@@ -144,6 +144,13 @@ describe('[P21-C] run-backfill.sh — choosing the backfill', () => {
     expect(line).not.toContain('--apply');
   });
 
+  // [P43] the undated-to-confirm backfill, dry-run first like the others
+  it('--script undated-to-confirm runs backfill-undated-to-confirm.ts (dry run by default)', () => {
+    const r = run(['--script', 'undated-to-confirm']);
+    expect(runTaskLine(r.calls)).toContain('backfill-undated-to-confirm.ts');
+    expect(runTaskLine(r.calls)).not.toContain('--apply');
+  });
+
   it('--script meeting-dates runs backfill-meeting-dates.ts', () => {
     expect(runTaskLine(run(['--script', 'meeting-dates', '--only-user', 'U1']).calls)).toContain('backfill-meeting-dates.ts');
   });
