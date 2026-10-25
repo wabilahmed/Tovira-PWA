@@ -24,7 +24,8 @@ describe('<Inventory>', () => {
   it('lists active items with their quantity', async () => {
     render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue([item({})]) })} onSubscribe={vi.fn()} />);
     expect(await screen.findByText('Marina 402')).toBeInTheDocument();
-    expect(screen.getByLabelText('Quantity')).toBeTruthy();
+    // [P43 · owner] the field is labelled "Quantity (optional)" now
+    expect(screen.getByLabelText('Quantity (optional)')).toBeTruthy();
   });
 
   it('a disabled item shows its status stamp and a "Set quantity" action', async () => {
@@ -42,8 +43,9 @@ describe('<Inventory>', () => {
     render(<Inventory api={api} onSubscribe={vi.fn()} />);
     await user.type(screen.getByLabelText('Item title'), 'New listing');
     await user.type(screen.getByLabelText('Item description'), 'a description');
-    await user.clear(screen.getByLabelText('Quantity'));
-    await user.type(screen.getByLabelText('Quantity'), '5');
+    // [P43 · owner] labelled "Quantity (optional)"; a typed quantity is still sent
+    await user.clear(screen.getByLabelText('Quantity (optional)'));
+    await user.type(screen.getByLabelText('Quantity (optional)'), '5');
     await user.click(screen.getByRole('button', { name: 'Add item' }));
     await waitFor(() => expect(api.create).toHaveBeenCalledWith('New listing', 'a description', 5));
   });
@@ -98,5 +100,37 @@ describe('[P42-B3] the add-item placeholder is neutral', () => {
   it('NEGATIVE: no building name in the example', async () => {
     render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue([]) })} onSubscribe={vi.fn()} />);
     expect((await screen.findByLabelText('Item title')).getAttribute('placeholder')).not.toMatch(/Marina|Heights/);
+  });
+});
+
+// [P43-4] Owner: quantity is optional and hidden when blank; "Out of stock" only when a quantity is set and it is 0.
+describe('[P43-4] optional quantity', () => {
+  it('an item with no quantity shows no number and no stock label', async () => {
+    render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue([item({ id: 'p', title: 'Premium plan', quantity: null })]) })} onSubscribe={vi.fn()} />);
+    const card = (await screen.findByText('Premium plan')).closest('li')!;
+    expect(card.querySelector('.tov-inv-item__qty')).toBeNull();
+    expect(card.textContent).not.toMatch(/out of stock/i);
+  });
+
+  it('"Out of stock" shows when a quantity is set and it is 0', async () => {
+    render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue([item({ title: 'Unit 402', quantity: 0, status: 'disabled', disabledReason: 'sold_out' })]) })} onSubscribe={vi.fn()} />);
+    const card = (await screen.findByText('Unit 402')).closest('li')!;
+    expect(card.textContent).toMatch(/OUT OF STOCK/);
+  });
+
+  it('NEGATIVE: never "Out of stock" without a quantity of 0', async () => {
+    render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue([item({ title: 'Q3 proposal', quantity: null, status: 'disabled', disabledReason: 'sold_out' })]) })} onSubscribe={vi.fn()} />);
+    const card = (await screen.findByText('Q3 proposal')).closest('li')!;
+    expect(card.textContent).not.toMatch(/out of stock/i);
+  });
+
+  it('the add form starts blank and sends no quantity when it is left blank', async () => {
+    const create = vi.fn().mockResolvedValue(item({ quantity: null }));
+    render(<Inventory api={makeApi({ create })} onSubscribe={vi.fn()} />);
+    expect(await screen.findByLabelText('Quantity (optional)')).toHaveValue(null);
+    await userEvent.type(screen.getByLabelText('Item title'), 'Premium plan');
+    await userEvent.type(screen.getByLabelText('Item description'), 'motor and medical');
+    await userEvent.click(screen.getByRole('button', { name: 'Add item' }));
+    await waitFor(() => expect(create).toHaveBeenCalledWith('Premium plan', 'motor and medical', null));
   });
 });

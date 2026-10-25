@@ -32,7 +32,7 @@ interface InventoryRow {
   user_id: string;
   title: string;
   description: string;
-  quantity: number;
+  quantity: number | null;
   status: InventoryStatus;
   disabled_reason: InventoryItemRecord['disabledReason'];
   embedded: boolean;
@@ -46,7 +46,7 @@ function toRecord(row: InventoryRow): InventoryItemRecord {
     userId: row.user_id,
     title: row.title,
     description: row.description,
-    quantity: Number(row.quantity),
+    quantity: row.quantity === null ? null : Number(row.quantity),
     status: row.status,
     disabledReason: row.disabled_reason,
     embedded: row.embedded,

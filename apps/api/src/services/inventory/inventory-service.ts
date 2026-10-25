@@ -17,12 +17,14 @@ export type ShareResult =
 export interface CreateItemInput {
   title: string;
   description: string;
-  quantity: number;
+  /** [P43-4] null = not counted. */
+  quantity: number | null;
 }
 export interface EditItemInput {
   title?: string;
   description?: string;
-  quantity?: number;
+  /** [P43-4] null clears the count (the item is then not counted). */
+  quantity?: number | null;
 }
 
 /**
@@ -80,7 +82,11 @@ export class InventoryService {
     }
 
     // Arithmetic disable/reactivate — rep-initiated, never inferred.
-    if (patch.quantity !== undefined) {
+    // [P43-4] Clearing the count makes a disabled item available again: an uncounted item is never out of stock.
+    if (patch.quantity === null && existing.status === 'disabled') {
+      repoPatch.status = 'active';
+      repoPatch.disabledReason = null;
+    } else if (patch.quantity !== undefined && patch.quantity !== null) {
       if (patch.quantity <= 0 && existing.status === 'active') {
         repoPatch.status = 'disabled';
         repoPatch.disabledReason = 'unlisted';
@@ -136,7 +142,8 @@ export class InventoryService {
     const share = await this.repo.createShare(userId, { itemId, clientId, outcomeSetBy });
     // Warn only when re-sharing an already-committed item: there IS a prior pending share, and
     // this one takes the pending count to meet-or-exceed quantity. No warning on the first share.
-    const warning = priorPending.length >= 1 && priorPending.length + 1 >= item.quantity ? priorPending : null;
+    // [P43-4] An uncounted item (quantity null) is never over-shared.
+    const warning = item.quantity !== null && priorPending.length >= 1 && priorPending.length + 1 >= item.quantity ? priorPending : null;
     return { ok: true, share, warning };
   }
 
@@ -152,7 +159,8 @@ export class InventoryService {
     const updated = await this.repo.updateShareOutcome(userId, shareId, { outcome, quantityBought: bought ? quantityBought ?? 1 : null });
     if (bought) {
       const item = await this.repo.findByIdForUser(userId, share.itemId);
-      if (item) {
+      // [P43-4] An uncounted item is never decremented or sold out; the purchase is still recorded on the share.
+      if (item && item.quantity !== null) {
         const newQty = Math.max(0, item.quantity - (quantityBought ?? 1));
         const patch: Parameters<InventoryRepository['update']>[2] = { quantity: newQty };
         if (newQty === 0 && item.status === 'active') { patch.status = 'disabled'; patch.disabledReason = 'sold_out'; }

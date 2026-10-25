@@ -4,7 +4,8 @@ export interface InventoryItem {
   id: string;
   title: string;
   description: string;
-  quantity: number;
+  /** [P43-4] null = not counted. */
+  quantity: number | null;
   status: 'active' | 'disabled';
   disabledReason: 'sold_out' | 'unlisted' | null;
   createdAt: number;
@@ -59,7 +60,7 @@ export class InventoryClient {
     }
   }
 
-  async create(title: string, description: string, quantity: number): Promise<InventoryItem> {
+  async create(title: string, description: string, quantity: number | null): Promise<InventoryItem> {
     const res = await fetch(this.url('/inventory'), {
       method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
       body: JSON.stringify({ title, description, quantity }),
@@ -68,7 +69,7 @@ export class InventoryClient {
     return (await res.json()) as InventoryItem;
   }
 
-  async edit(id: string, patch: Partial<{ title: string; description: string; quantity: number }>): Promise<InventoryItem | null> {
+  async edit(id: string, patch: Partial<{ title: string; description: string; quantity: number | null }>): Promise<InventoryItem | null> {
     const res = await fetch(this.url(`/inventory/${id}`), {
       method: 'PATCH', headers: { 'content-type': 'application/json' }, credentials: 'include',
       body: JSON.stringify(patch),

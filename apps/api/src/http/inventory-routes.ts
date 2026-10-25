@@ -37,6 +37,8 @@ export function shareDto(s: InventoryShareRecord): Omit<InventoryShareRecord, 'u
 
 const isNonEmpty = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
 const isQuantity = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+/** [P43-4] an item's quantity: a whole number ≥ 0, or null (not counted). */
+const isItemQuantity = (v: unknown): v is number | null => v === null || isQuantity(v);
 
 /**
  * Inventory routes (feat(INV-CRUD), spec §Task 2). Reads (the tab) are a paid surface, gated
@@ -120,8 +122,9 @@ export async function handleInventoryRoute(
     }
     if (!isNonEmpty(body.title)) { sendJson(res, 400, { error: 'validation', message: 'A title is required.' }); return true; }
     if (!isNonEmpty(body.description)) { sendJson(res, 400, { error: 'validation', message: 'A description is required.' }); return true; }
-    if (body.quantity !== undefined && !isQuantity(body.quantity)) { sendJson(res, 400, { error: 'validation', message: 'Quantity must be a whole number, zero or more.' }); return true; }
-    const item = await deps.inventory.create(userId, { title: body.title.trim(), description: body.description.trim(), quantity: body.quantity ?? 1 });
+    if (body.quantity !== undefined && !isItemQuantity(body.quantity)) { sendJson(res, 400, { error: 'validation', message: 'Quantity must be a whole number, zero or more.' }); return true; }
+    // [P43-4] quantity is optional: none given → not counted (it used to default to 1)
+    const item = await deps.inventory.create(userId, { title: body.title.trim(), description: body.description.trim(), quantity: (body.quantity as number | null | undefined) ?? null });
     sendJson(res, 201, itemDto(item));
     return true;
   }
@@ -173,11 +176,11 @@ export async function handleInventoryRoute(
     }
     if (body.title !== undefined && !isNonEmpty(body.title)) { sendJson(res, 400, { error: 'validation', message: 'A title cannot be blank.' }); return true; }
     if (body.description !== undefined && !isNonEmpty(body.description)) { sendJson(res, 400, { error: 'validation', message: 'A description cannot be blank.' }); return true; }
-    if (body.quantity !== undefined && !isQuantity(body.quantity)) { sendJson(res, 400, { error: 'validation', message: 'Quantity must be a whole number, zero or more.' }); return true; }
-    const patch: { title?: string; description?: string; quantity?: number } = {};
+    if (body.quantity !== undefined && !isItemQuantity(body.quantity)) { sendJson(res, 400, { error: 'validation', message: 'Quantity must be a whole number, zero or more.' }); return true; }
+    const patch: { title?: string; description?: string; quantity?: number | null } = {};
     if (body.title !== undefined) patch.title = (body.title as string).trim();
     if (body.description !== undefined) patch.description = (body.description as string).trim();
-    if (body.quantity !== undefined) patch.quantity = body.quantity as number;
+    if (body.quantity !== undefined) patch.quantity = body.quantity as number | null;
     const updated = await deps.inventory.edit(userId, id, patch);
     if (!updated) { sendJson(res, 404, { error: 'not_found' }); return true; }
     sendJson(res, 200, itemDto(updated));

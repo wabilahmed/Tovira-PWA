@@ -15,7 +15,8 @@ export interface InventoryItemRecord {
   userId: string;
   title: string;
   description: string;
-  quantity: number;
+  /** [P43-4] null = not counted (no stock): never decremented, never auto-disabled. */
+  quantity: number | null;
   status: InventoryStatus;
   disabledReason: InventoryDisabledReason | null;
   /** Whether the item has an embedding stored (the vector itself never leaves the DB). */
@@ -27,7 +28,7 @@ export interface InventoryItemRecord {
 export interface InventoryItemInput {
   title: string;
   description: string;
-  quantity: number;
+  quantity: number | null;
   /** Embedding of title + description, computed by the service; null if embedding failed. */
   embedding: number[] | null;
 }
@@ -35,7 +36,7 @@ export interface InventoryItemInput {
 export interface InventoryItemPatch {
   title?: string;
   description?: string;
-  quantity?: number;
+  quantity?: number | null;
   status?: InventoryStatus;
   disabledReason?: InventoryDisabledReason | null;
   embedding?: number[] | null;

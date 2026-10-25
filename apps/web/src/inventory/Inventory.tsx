@@ -11,8 +11,8 @@ export interface InventoryClientRef { id: string; name: string; phone: string | 
 
 export interface InventoryApi {
   list(status?: InventoryFilter): Promise<InventoryItem[] | Locked>;
-  create(title: string, description: string, quantity: number): Promise<InventoryItem>;
-  edit(id: string, patch: Partial<{ title: string; description: string; quantity: number }>): Promise<InventoryItem | null>;
+  create(title: string, description: string, quantity: number | null): Promise<InventoryItem>;
+  edit(id: string, patch: Partial<{ title: string; description: string; quantity: number | null }>): Promise<InventoryItem | null>;
   share(itemId: string, clientId: string): Promise<ShareResult | null>;
   sharesForItem(itemId: string): Promise<InventoryShare[]>;
   setOutcome(shareId: string, outcome: 'bought' | 'declined' | 'no_response', quantityBought?: number): Promise<InventoryShare | null>;
@@ -41,7 +41,7 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
   const [locked, setLocked] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [quantity, setQuantity] = useState('1');
+  const [quantity, setQuantity] = useState(''); // [P43-4] optional: blank = not counted
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -71,12 +71,12 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
   async function add(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     setError(null);
-    const q = Number(quantity);
+    const q = quantity.trim() === '' ? null : Number(quantity);
     if (!title.trim() || !description.trim()) { setError('A title and description are both needed.'); return; }
-    if (!Number.isInteger(q) || q < 0) { setError('Quantity must be a whole number, zero or more.'); return; }
+    if (q !== null && (!Number.isInteger(q) || q < 0)) { setError('Quantity must be a whole number, zero or more.'); return; }
     try {
       await api.create(title.trim(), description.trim(), q);
-      setTitle(''); setDescription(''); setQuantity('1');
+      setTitle(''); setDescription(''); setQuantity('');
       await load('active');
       setFilter('active');
     } catch (err) {
@@ -149,7 +149,7 @@ function AddForm(p: FormProps): JSX.Element {
       <input aria-label="Item title" placeholder="Title (e.g. Premium plan, Unit 402, Q3 proposal)" value={p.title} onChange={(e) => p.setTitle(e.target.value)} />
       <textarea aria-label="Item description" placeholder="Description: what it is, so Tovira can match it" value={p.description} onChange={(e) => p.setDescription(e.target.value)} rows={2} />
       <div className="tov-inv-add__row">
-        <input aria-label="Quantity" className="tov-mono" type="number" min={0} step={1} value={p.quantity} onChange={(e) => p.setQuantity(e.target.value)} style={{ width: '5rem' }} />
+        <input aria-label="Quantity (optional)" placeholder="Qty" className="tov-mono" type="number" min={0} step={1} value={p.quantity} onChange={(e) => p.setQuantity(e.target.value)} style={{ width: '5rem' }} />
         <button type="submit" className="tov-primary">Add item</button>
       </div>
       {p.error && <p style={{ color: 'var(--claret)', margin: 'var(--space-2) 0 0' }}>{p.error}</p>}
@@ -163,14 +163,14 @@ function ItemCard({ item, clients, api, editing, onEditToggle, onSave, onShare, 
   api: InventoryApi;
   editing: boolean;
   onEditToggle: () => void;
-  onSave: (patch: Partial<{ title: string; description: string; quantity: number }>) => Promise<void>;
+  onSave: (patch: Partial<{ title: string; description: string; quantity: number | null }>) => Promise<void>;
   onShare: (clientId: string) => void;
   onChanged: () => void;
 }): JSX.Element {
   const disabled = item.status === 'disabled';
   const [t, setT] = useState(item.title);
   const [d, setD] = useState(item.description);
-  const [q, setQ] = useState(String(item.quantity));
+  const [q, setQ] = useState(item.quantity === null ? '' : String(item.quantity));
   const [picking, setPicking] = useState(false);
   const [pick, setPick] = useState(clients[0]?.id ?? '');
   const [history, setHistory] = useState<InventoryShare[] | null>(null);
@@ -189,8 +189,9 @@ function ItemCard({ item, clients, api, editing, onEditToggle, onSave, onShare, 
     <li className="tov-card tov-inv-item">
       <div className="tov-inv-item__head">
         <span className="tov-inv-item__title" style={{ color: disabled ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{item.title}</span>
-        {disabled && item.disabledReason && <span className="tov-stamp">{STATUS_TAG[item.disabledReason]}</span>}
-        <span className="tov-mono tov-inv-item__qty" title="Quantity in stock">{item.quantity}</span>
+        {/* [P43-4] "Out of stock" only when a quantity is set and it is 0; an uncounted item shows no number. */}
+        {disabled && item.disabledReason && (item.disabledReason !== 'sold_out' || item.quantity === 0) && <span className="tov-stamp">{STATUS_TAG[item.disabledReason]}</span>}
+        {item.quantity !== null && <span className="tov-mono tov-inv-item__qty" title="Quantity">{item.quantity}</span>}
       </div>
       <p style={{ color: 'var(--text-secondary)', margin: 'var(--space-1) 0 var(--space-2)' }}>{item.description}</p>
 
@@ -199,8 +200,8 @@ function ItemCard({ item, clients, api, editing, onEditToggle, onSave, onShare, 
           <input aria-label="Edit title" value={t} onChange={(e) => setT(e.target.value)} />
           <textarea aria-label="Edit description" value={d} onChange={(e) => setD(e.target.value)} rows={2} />
           <div className="tov-inv-add__row">
-            <input aria-label="Edit quantity" className="tov-mono" type="number" min={0} step={1} value={q} onChange={(e) => setQ(e.target.value)} style={{ width: '5rem' }} />
-            <button className="tov-primary" onClick={() => void onSave({ title: t.trim(), description: d.trim(), quantity: Number(q) })}>Save</button>
+            <input aria-label="Edit quantity" placeholder="Qty" className="tov-mono" type="number" min={0} step={1} value={q} onChange={(e) => setQ(e.target.value)} style={{ width: '5rem' }} />
+            <button className="tov-primary" onClick={() => void onSave({ title: t.trim(), description: d.trim(), quantity: q.trim() === '' ? null : Number(q) })}>Save</button>
             <button className="tov-link" onClick={onEditToggle}>Cancel</button>
           </div>
         </div>

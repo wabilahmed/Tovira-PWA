@@ -19,12 +19,13 @@ describe('[INV-CRUD] inventory CRUD', () => {
   }
   const H = (t: string) => ({ authorization: `Bearer ${t}`, 'content-type': 'application/json' });
 
-  it('creates an item (quantity defaults to 1, status active) and lists it', async () => {
+  // [P43 · owner] quantity is optional: no quantity given → none stored (it used to default to 1).
+  it('creates an item (no quantity given → none, status active) and lists it', async () => {
     const { base, token } = await boot();
     const res = await fetch(`${base}/inventory`, { method: 'POST', headers: H(token), body: JSON.stringify({ title: 'Marina 2-bed', description: 'sea view, 1200 sqft' }) });
     expect(res.status).toBe(201);
-    const item = await res.json() as { id: string; quantity: number; status: string; title: string };
-    expect(item.quantity).toBe(1);
+    const item = await res.json() as { id: string; quantity: number | null; status: string; title: string };
+    expect(item.quantity).toBeNull();
     expect(item.status).toBe('active');
     const list = await (await fetch(`${base}/inventory`, { headers: H(token) })).json() as { items: unknown[] };
     expect(list.items).toHaveLength(1);
