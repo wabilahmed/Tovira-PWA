@@ -9,8 +9,8 @@ export const CONFIRMATION_TEXT =
 
 const CONVERSATION_OPTIONS: Array<{ value: AccessRequestPayload['conversationOwnership']; label: string }> = [
   { value: 'own_clients', label: 'My own clients. I hold the relationship directly.' },
-  { value: 'brokerage_i_manage', label: 'Clients of the brokerage I own or manage.' },
-  { value: 'brokerage_employs_me', label: 'Clients of the brokerage that employs me.' },
+  { value: 'brokerage_i_manage', label: 'Clients of the company I own or manage.' },
+  { value: 'brokerage_employs_me', label: 'Clients of the company that employs me.' },
   { value: 'mix', label: 'A mix of the above.' },
   { value: 'other', label: 'Other' },
 ];
@@ -94,7 +94,7 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
 
   return (
     <AuthShell subtitle="Request beta access">
-      <p className="auth__intro">Tovira is in private beta for field salespeople. Tell us a little about you and we’ll be in touch.</p>
+      <p className="auth__intro">Tovira is in private beta for sales people whose clients stay with them for years. Tell us a little about you and we’ll be in touch.</p>
       {/* [INV-05] A referral code from the landing URL (?ref=) rides along with the request. Show it
           read-only so the rep can see it was captured; an invalid code is ignored server-side, never a block. */}
       {referralCode && (

@@ -60,7 +60,8 @@ describe('<RequestAccess>', () => {
     await fillBase(user);
     await user.click(screen.getByLabelText('I own or manage it'));
     await user.type(screen.getByLabelText('Trade licence number'), 'TL-123');
-    await user.click(screen.getByLabelText('Clients of the brokerage I own or manage.'));
+    // [P42 · owner] "brokerage" became "company" in the label; the stored value is unchanged.
+    await user.click(screen.getByLabelText('Clients of the company I own or manage.'));
     await user.click(screen.getByLabelText('50–200'));
     await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: /request access/i }));
@@ -74,6 +75,19 @@ describe('<RequestAccess>', () => {
     }));
     expect(await screen.findByText(/request has been recorded/i)).toBeTruthy();
     expect(screen.getByText(/within 2 business days/i)).toBeTruthy();
+  });
+
+  // [P42-A5] Owner: the form speaks to every relationship-sales rep, not brokerages or field sales.
+  it('the intro is for sales people whose clients stay with them for years; the options say company', () => {
+    render(<RequestAccess client={makeClient()} />);
+    expect(screen.getByText('Tovira is in private beta for sales people whose clients stay with them for years. Tell us a little about you and we’ll be in touch.')).toBeTruthy();
+    expect(screen.getByLabelText('Clients of the company I own or manage.')).toBeTruthy();
+    expect(screen.getByLabelText('Clients of the company that employs me.')).toBeTruthy();
+  });
+
+  it('NEGATIVE: no "brokerage" and no "field sales" anywhere on the form', () => {
+    const { container } = render(<RequestAccess client={makeClient()} />);
+    expect(container.textContent).not.toMatch(/brokerage|field sales/i);
   });
 
   it('carries a hidden honeypot field a human never sees', () => {

@@ -16,8 +16,8 @@ const writeToken = (t: string | null): void => {
 
 const OWNERSHIP: Record<string, string> = { owns_or_manages: 'Owns or manages the company', employed: 'Employed by the company' };
 const CONVERSATIONS: Record<string, string> = {
-  own_clients: 'Their own clients', brokerage_i_manage: 'Clients of a brokerage they own or manage',
-  brokerage_employs_me: 'Clients of the brokerage that employs them', mix: 'A mix', other: 'Other',
+  own_clients: 'Their own clients', brokerage_i_manage: 'Clients of a company they own or manage',
+  brokerage_employs_me: 'Clients of the company that employs them', mix: 'A mix', other: 'Other',
 };
 const VOLUME: Record<string, string> = { under_50: 'Under 50', '50_200': '50–200', '200_500': '200–500', '500_plus': '500+' };
 const STATUS_LABEL: Record<OpsAccessStatus, string> = { pending: 'Pending', approved: 'Approved', invited: 'Invited', activated: 'Activated', rejected: 'Rejected' };

@@ -9,6 +9,11 @@ describe('PWA manifest', () => {
     expect(manifest.short_name).toBeTruthy();
   });
 
+  // [P42-A5] The install description follows the P41 positioning.
+  it('describes memory for sales people whose clients stay with them for years, not field sales', () => {
+    expect(manifest.description).toBe('Memory for sales people whose clients stay with them for years.');
+  });
+
   it('has a start_url and an app-like display mode', () => {
     expect(manifest.start_url).toBeTruthy();
     expect(['standalone', 'fullscreen', 'minimal-ui']).toContain(manifest.display);

@@ -5,7 +5,7 @@
 export const manifest = {
   name: 'Tovira',
   short_name: 'Tovira',
-  description: 'A memory bank for field salespeople.',
+  description: 'Memory for sales people whose clients stay with them for years.',
   start_url: '/app',
   scope: '/',
   display: 'standalone',
