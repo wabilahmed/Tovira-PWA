@@ -88,3 +88,15 @@ describe('<Inventory>', () => {
     expect(screen.getByLabelText('Item title')).toBeInTheDocument();
   });
 });
+
+// [P42-B3] Owner: the example title fits any rep's offering, not a property unit.
+describe('[P42-B3] the add-item placeholder is neutral', () => {
+  it('reads "Title (e.g. Premium plan, Unit 402, Q3 proposal)"', async () => {
+    render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue([]) })} onSubscribe={vi.fn()} />);
+    expect(await screen.findByLabelText('Item title')).toHaveAttribute('placeholder', 'Title (e.g. Premium plan, Unit 402, Q3 proposal)');
+  });
+  it('NEGATIVE: no building name in the example', async () => {
+    render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue([]) })} onSubscribe={vi.fn()} />);
+    expect((await screen.findByLabelText('Item title')).getAttribute('placeholder')).not.toMatch(/Marina|Heights/);
+  });
+});
