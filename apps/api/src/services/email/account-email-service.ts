@@ -13,8 +13,8 @@ const OWNERSHIP_LABEL: Record<string, string> = {
 };
 const CONVO_LABEL: Record<string, string> = {
   own_clients: 'My own clients (holds the relationship directly)',
-  brokerage_i_manage: 'Clients of the brokerage they own or manage',
-  brokerage_employs_me: 'Clients of the brokerage that employs them',
+  brokerage_i_manage: 'Clients of the company they own or manage',
+  brokerage_employs_me: 'Clients of the company that employs them',
   mix: 'A mix of the above',
   other: 'Other (see note)',
 };

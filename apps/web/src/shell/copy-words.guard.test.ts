@@ -68,6 +68,15 @@ describe('[P39-9] rep-facing copy', () => {
     expect(SERVER_COPY.flatMap((f) => dashHits(join(ROOT, f), f))).toEqual([]);
   });
 
+  // [P42-B7] Owner: generic app copy fits every relationship-sales rep. Property words belong only to a property
+  // need's own data (a stored requirement, Find's Property type values), never to labels, examples or empty states.
+  it('[P42-B7] no property-only words in generic rep-facing copy (app and server)', () => {
+    const PROPERTY = /\b(viewings?|listings?|bedrooms?|BHK|villas?|apartments?|communit(?:y|ies)|RERA|developers?|handover|off-plan|floor plans?|Mirdif|Marina|brokerage)\b/i;
+    const app = files(join(ROOT, 'apps/web/src'), /\.tsx?$/).flatMap((f) => repFacingStrings(readFileSync(f, 'utf8')).filter((t) => PROPERTY.test(t)).map((t) => `${relative(ROOT, f)}: ${t}`));
+    const server = SERVER_COPY.flatMap((f) => repFacingStrings(readFileSync(join(ROOT, f), 'utf8')).filter((t) => PROPERTY.test(t)).map((t) => `${f}: ${t}`));
+    expect([...app, ...server]).toEqual([]);
+  });
+
   it('the landing page: "Cancel anytime from Settings → Subscription" and "One plan. No tiers, no seats to count."', () => {
     const html = readFileSync(join(ROOT, 'apps/web/index.html'), 'utf8');
     expect(html).toContain('Cancel anytime from Settings → Subscription.');
