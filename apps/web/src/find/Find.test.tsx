@@ -15,14 +15,15 @@ const result = (over: Partial<FindResult> = {}): FindResult => ({
 });
 const api = (r: FindResult | 'paused' = result()): FindApi & { run: ReturnType<typeof vi.fn> } => ({
   run: vi.fn(async () => r),
-  wantingOptions: vi.fn(async () => ({ type: ['Villa'], area: ['Mirdif'], budget: [{ value: '2m-5m', label: 'AED 2M to 5M' }] })),
+  wantingOptions: vi.fn(async () => ({ type: ['Villa'], area: ['Mirdif'], budget: [{ value: '2m-5m', label: 'AED 2M to 5M' }], topic: [], timing: [] })),
 });
 
 describe('[P39-7] Find', () => {
   it('the nine buttons, in order; no free-text box, no Voice button', () => {
     render(<Find api={api()} onOpenClient={vi.fn()} onOpenClients={vi.fn()} />);
     const labels = within(screen.getByTestId('find-buttons')).getAllByRole('button').map((b) => b.textContent);
-    expect(labels).toEqual(['Missed promises', 'Due this week', "Who hasn't replied in 2 weeks", 'Clients wanting…', 'Deals at risk', 'Open requirements', 'Active clients', 'Cold clients', 'Full client list']);
+    // [P42 · owner] "Clients wanting…" → "What clients need…"
+    expect(labels).toEqual(['Missed promises', 'Due this week', "Who hasn't replied in 2 weeks", 'What clients need…', 'Deals at risk', 'Open requirements', 'Active clients', 'Cold clients', 'Full client list']);
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('button', { name: /voice/i })).toBeNull();
     expect(FIND_BUTTONS).toHaveLength(9);
@@ -63,17 +64,18 @@ describe('[P39-7] Find', () => {
     expect(await screen.findByTestId('find-empty')).toHaveTextContent("No missed promises. You're all caught up.");
   });
 
-  it('"Clients wanting…" asks what first (options only from stored values), then shows the result', async () => {
+  // [P42 · owner] renamed "What clients need…"; the result is "What clients need: Villa".
+  it('"What clients need…" asks what first (options only from stored values), then shows the result', async () => {
     const a = api(result({ query: 'wanting', count: 1, footnote: null, items: [{ clientId: 'c1', clientName: 'Sara Khan', line: '4BR Villa · Mirdif · ~AED 3M', meta: null, overdue: false, owner: null, tags: ['Villa'], receipt: null }] }));
     render(<Find api={a} onOpenClient={vi.fn()} onOpenClients={vi.fn()} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Clients wanting…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'What clients need…' }));
     const step = await screen.findByTestId('find-wanting');
     for (const h of ['Property type', 'Area', 'Budget']) expect(within(step).getByRole('heading', { name: h })).toBeInTheDocument();
     expect(await within(step).findByRole('button', { name: 'AED 2M to 5M' })).toBeInTheDocument();
     await userEvent.click(within(step).getByRole('button', { name: 'Villa' }));
     expect(a.run).toHaveBeenCalledWith('wanting', { by: 'type', value: 'Villa' });
-    expect(await screen.findByRole('heading', { level: 1, name: 'Clients wanting Villa' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Back to Clients wanting…' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'What clients need: Villa' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Back to What clients need…' }));
     expect(await screen.findByTestId('find-wanting')).toBeInTheDocument();
   });
 
@@ -101,5 +103,49 @@ describe('[P39-7] Find', () => {
     const row = await screen.findByTestId('find-row');
     expect(within(row).getByTestId('status-pill')).toHaveTextContent('Warm');
     expect(row).toHaveTextContent('Gone quiet, 40 days');
+  });
+});
+
+// [P42-B5] Owner: the second step offers only the filters this rep's data has.
+describe('[P42-B5] What clients need…: only the filters this rep has', () => {
+  const withOptions = (o: Record<string, unknown>): FindApi => ({ run: vi.fn(async () => result()), wantingOptions: vi.fn(async () => ({ type: [], area: [], budget: [], topic: [], timing: [], ...o })) as FindApi['wantingOptions'] });
+  const headings = async (a: FindApi): Promise<string[]> => {
+    render(<Find api={a} onOpenClient={vi.fn()} onOpenClients={vi.fn()} screen={{ kind: 'wanting' }} />);
+    const step = await screen.findByTestId('find-wanting');
+    await within(step).findAllByRole('heading', { level: 2 });
+    return within(step).getAllByRole('heading', { level: 2 }).map((h) => h.textContent ?? '');
+  };
+  const PROPERTY = { type: ['Villa'], area: ['Mirdif'], budget: [{ value: '2m-5m', label: 'AED 2–5M' }] };
+  const INSURANCE = { topic: ['Group life cover', 'Motor and medical cover'], timing: [{ value: 'this-month', label: 'Due this month' }, { value: 'this-quarter', label: 'Due this quarter' }], budget: [{ value: 'under-1m', label: 'Under AED 1M' }] };
+
+  it('a property-only rep sees Property type, Area and Budget', async () => {
+    expect(await headings(withOptions(PROPERTY))).toEqual(['Property type', 'Area', 'Budget']);
+  });
+
+  it('an insurance-only rep sees Topic, Timing and Budget, and NO Property type or Area', async () => {
+    const h = await headings(withOptions(INSURANCE));
+    expect(h).toEqual(['Topic', 'Timing', 'Budget']);
+    expect(h).not.toContain('Property type');
+    expect(screen.getByRole('button', { name: 'Motor and medical cover' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Due this quarter' })).toBeInTheDocument();
+  });
+
+  it('a mixed rep sees both', async () => {
+    expect(await headings(withOptions({ ...PROPERTY, ...INSURANCE, budget: PROPERTY.budget }))).toEqual(['Topic', 'Timing', 'Property type', 'Area', 'Budget']);
+  });
+
+  it('picking a topic runs that filter and titles the result with it', async () => {
+    const a = withOptions(INSURANCE);
+    render(<Find api={a} onOpenClient={vi.fn()} onOpenClients={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'What clients need…' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Motor and medical cover' }));
+    expect(a.run).toHaveBeenCalledWith('wanting', { by: 'topic', value: 'Motor and medical cover' });
+    expect(await screen.findByRole('heading', { level: 1, name: 'What clients need: Motor and medical cover' })).toBeInTheDocument();
+  });
+
+  it('NEGATIVE: a rep with no needs on record sees one plain line, not five empty sections', async () => {
+    render(<Find api={withOptions({})} onOpenClient={vi.fn()} onOpenClients={vi.fn()} screen={{ kind: 'wanting' }} />);
+    expect(await screen.findByText('No needs on record yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
   });
 });

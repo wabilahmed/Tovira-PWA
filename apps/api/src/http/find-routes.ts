@@ -11,11 +11,11 @@ export interface FindRouteDeps {
 }
 
 const FIND_RE = /^\/find\/([a-z-]+)$/;
-const BY = new Set<WantingBy>(['type', 'area', 'budget', 'beds']);
+const BY = new Set<WantingBy>(['type', 'area', 'budget', 'beds', 'topic', 'timing']);
 
 /** [P39-7] GET /find/:query — a fixed question, answered from stored data (no model call, no allowance).
- *  GET /find/wanting/options — the stored property types, areas and budget bands "Clients wanting…" offers.
- *  "wanting" takes ?by=type|area|budget&value=… . Premium like Today: a lapsed trial gets a 402. */
+ *  GET /find/wanting/options — the stored values "What clients need…" offers (property type, area, budget band,
+ *  [P42-B5] topic, timing). "wanting" takes ?by=type|area|budget|topic|timing&value=… . Premium like Today: a lapsed trial gets a 402. */
 export async function handleFindRoute(req: IncomingMessage, res: ServerResponse, deps: FindRouteDeps): Promise<boolean> {
   if ((req.method ?? 'GET') !== 'GET') return false;
   const url = new URL(req.url ?? '/', 'http://local');
@@ -27,7 +27,7 @@ export async function handleFindRoute(req: IncomingMessage, res: ServerResponse,
   if (!identity) { sendJson(res, 401, { error: 'unauthorized' }); return true; }
   if (!(await requireEntitled(deps.billing, identity.userId, res))) return true;
 
-  if (options) { sendJson(res, 200, await deps.find.wantingOptions(identity.userId)); return true; }
+  if (options) { sendJson(res, 200, await deps.find.wantingOptions(identity.userId, Date.now())); return true; }
   const query = m![1]!;
   if (!isFindQuery(query)) { sendJson(res, 404, { error: 'not_found' }); return true; }
   let filter: { by: WantingBy; value: string } | undefined;

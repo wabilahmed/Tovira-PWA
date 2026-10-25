@@ -16,7 +16,8 @@ export const FIND_BUTTONS: FindButton[] = [
   { id: 'missed-promises', label: 'Missed promises', noun: ['missed promise', 'missed promises'], empty: "No missed promises. You're all caught up." },
   { id: 'due-this-week', label: 'Due this week', noun: ['promise due', 'promises due'], empty: 'Nothing is due this week.' },
   { id: 'no-reply', label: "Who hasn't replied in 2 weeks", noun: ['client', 'clients'], empty: 'Every client has replied in the last 2 weeks.' },
-  { id: 'wanting', label: 'Clients wanting…', noun: ['client', 'clients'], empty: 'No clients want that right now.' },
+  // [P42-B5] "Clients wanting…" → "What clients need…": it fits every rep's needs, not only property.
+  { id: 'wanting', label: 'What clients need…', noun: ['client', 'clients'], empty: 'No clients need that right now.' },
   { id: 'deals-at-risk', label: 'Deals at risk', noun: ['client', 'clients'], empty: 'No deals look at risk right now.' },
   { id: 'open-requirements', label: 'Open requirements', noun: ['client', 'clients'], empty: 'No open requirements right now.' },
   { id: 'active-clients', label: 'Active clients', noun: ['client', 'clients'], empty: 'No active clients right now.' },
@@ -24,7 +25,10 @@ export const FIND_BUTTONS: FindButton[] = [
   { id: 'clients', label: 'Full client list', noun: ['client', 'clients'], empty: '' },
 ];
 
+// [P42-B5] A section shows only when this rep has values for it (a rep with no property needs never sees Property type).
 const WANTING_TABS: Array<{ by: WantingBy; label: string }> = [
+  { by: 'topic', label: 'Topic' },
+  { by: 'timing', label: 'Timing' },
   { by: 'type', label: 'Property type' },
   { by: 'area', label: 'Area' },
   { by: 'budget', label: 'Budget' },
@@ -69,26 +73,24 @@ export function Find({ api, onOpenClient, onOpenClients, screen: held, onScreen 
   );
 }
 
-/** "Clients wanting…": choose what (Property type / Area / Budget), then one of the values on record. */
+/** "What clients need…": choose what (Topic / Timing / Property type / Area / Budget, only those on record), then a value. */
 function WantingStep({ api, onBack, onPick }: { api: FindApi; onBack: () => void; onPick: (f: { by: WantingBy; value: string; label: string }) => void }): JSX.Element {
   const [opts, setOpts] = useState<WantingOptions | 'paused' | null | undefined>(undefined);
   useEffect(() => { let live = true; void api.wantingOptions().then((o) => { if (live) setOpts(o); }); return () => { live = false; }; }, [api]);
   const values = (by: WantingBy): Array<{ value: string; label: string }> =>
-    !opts || opts === 'paused' ? [] : by === 'budget' ? opts.budget : opts[by].map((v) => ({ value: v, label: v }));
+    !opts || opts === 'paused' ? [] : by === 'budget' || by === 'timing' ? (opts[by] ?? []) : (opts[by] ?? []).map((v) => ({ value: v, label: v }));
+  const tabs = WANTING_TABS.filter((t) => values(t.by).length > 0);
   return (
-    <Page testId="find-wanting" label="Clients wanting…">
-      <PageHeader title="Clients wanting…" back={{ label: 'Find', onBack }} />
+    <Page testId="find-wanting" label="What clients need…">
+      <PageHeader title="What clients need…" back={{ label: 'Find', onBack }} />
       {opts === undefined && <p className="ui-secondary">Loading…</p>}
       {opts === 'paused' && <Banner tone="warning">Find is paused while your subscription is inactive.</Banner>}
-      {opts !== undefined && opts !== 'paused' && WANTING_TABS.map((t) => (
+      {opts !== undefined && opts !== 'paused' && opts !== null && tabs.length === 0 && <EmptyState title="No needs on record yet." />}
+      {opts !== undefined && opts !== 'paused' && tabs.map((t) => (
         <Section key={t.by} title={t.label}>
-          {values(t.by).length === 0
-            ? <p className="ui-secondary">None on record yet.</p>
-            : (
-              <ChipGroup label={t.label}>
-                {values(t.by).map((v) => <Chip key={v.value} onClick={() => onPick({ by: t.by, value: v.value, label: v.label })}>{v.label}</Chip>)}
-              </ChipGroup>
-            )}
+          <ChipGroup label={t.label}>
+            {values(t.by).map((v) => <Chip key={v.value} onClick={() => onPick({ by: t.by, value: v.value, label: v.label })}>{v.label}</Chip>)}
+          </ChipGroup>
         </Section>
       ))}
     </Page>
@@ -104,8 +106,8 @@ function FindResults({ api, button, filter, onBack, onOpenClient }: { api: FindA
     return () => { live = false; };
   }, [api, button.id, filter?.by, filter?.value]);
 
-  const title = filter ? `Clients wanting ${filter.label}` : button.label;
-  const header = <PageHeader title={title} back={{ label: filter ? 'Clients wanting…' : 'Find', onBack }} subtitle={result && result !== 'paused' ? countLine(result.count, button) : undefined} />;
+  const title = filter ? `What clients need: ${filter.label}` : button.label;
+  const header = <PageHeader title={title} back={{ label: filter ? 'What clients need…' : 'Find', onBack }} subtitle={result && result !== 'paused' ? countLine(result.count, button) : undefined} />;
   if (result === undefined) return <Page testId="find-result" label={title}>{header}<p className="ui-secondary">Loading…</p></Page>;
   if (result === 'paused') return <Page testId="find-result" label={title}>{header}<Banner tone="warning">Find is paused while your subscription is inactive.</Banner></Page>;
   if (result === null) return <Page testId="find-result" label={title}>{header}<Banner tone="danger">Couldn't load this. Try again.</Banner></Page>;

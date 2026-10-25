@@ -76,7 +76,8 @@ describe('[P39-7] Find answers', () => {
     await seed(userId);
     expect((await find(token, 'open-requirements')).body.items.map((i) => i.line)).toEqual(['4BR Villa · Mirdif · ~AED 3M']);
     const opts = (await (await fetch(`${base}/find/wanting/options`, { headers: H(token) })).json()) as { type: string[]; area: string[]; budget: Array<{ value: string; label: string }> };
-    expect(opts).toEqual({ type: ['Villa'], area: ['Mirdif'], budget: [{ value: '2m-5m', label: 'AED 2–5M' }] }); // [P40-3 · owner] was 'AED 2M to 5M'
+    // [P42 · owner] the options also carry topic and timing; a property-only rep has none of either.
+    expect(opts).toEqual({ type: ['Villa'], area: ['Mirdif'], budget: [{ value: '2m-5m', label: 'AED 2–5M' }], topic: [], timing: [] }); // [P40-3 · owner] was 'AED 2M to 5M'
     expect((await find(token, 'wanting', '?by=type&value=Villa')).body.count).toBe(1);
     expect((await find(token, 'wanting', '?by=type&value=Apartment')).body.count).toBe(0);
   });

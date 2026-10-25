@@ -1,6 +1,6 @@
 /** [P39-7] Find: fixed questions answered from stored data (GET /find/:query). No model, no allowance. */
 export type FindQuery = 'missed-promises' | 'due-this-week' | 'no-reply' | 'wanting' | 'deals-at-risk' | 'open-requirements' | 'active-clients' | 'cold-clients';
-export type WantingBy = 'type' | 'area' | 'budget';
+export type WantingBy = 'type' | 'area' | 'budget' | 'topic' | 'timing';
 
 export interface FindReceipt { quote: string; at: string | null; noteId: string | null; clientId: string; sender: string | null }
 export interface FindItem {
@@ -16,7 +16,8 @@ export interface FindItem {
   receipt: FindReceipt | null;
 }
 export interface FindResult { query: FindQuery; count: number; items: FindItem[]; footnote: string | null }
-export interface WantingOptions { type: string[]; area: string[]; budget: Array<{ value: string; label: string }> }
+/** [P42-B5] Only values on record: property type and area from property needs, topic and timing from any other. */
+export interface WantingOptions { type: string[]; area: string[]; budget: Array<{ value: string; label: string }>; topic: string[]; timing: Array<{ value: string; label: string }> }
 
 export interface FindApi {
   run(query: FindQuery, filter?: { by: WantingBy; value: string }): Promise<FindResult | 'paused' | null>;

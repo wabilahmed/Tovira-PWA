@@ -6,7 +6,7 @@ import type { HeroService } from '../hero/hero-service.js';
 import { isActivePromise } from '../facts/promise-lifecycle.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
-import { budgetAmount, primaryRequirement, requirementFacets, summarizeRequirements } from '../clients/requirement-summary.js';
+import { budgetAmount, primaryRequirement, requirementDue, requirementFacets, requirementTopic, summarizeRequirements } from '../clients/requirement-summary.js';
 
 /**
  * [P39-7] Find: fixed questions with fixed answers, read from what is STORED — clients, promises, requirements,
@@ -31,7 +31,7 @@ export const FIND_QUERIES = ['missed-promises', 'due-this-week', 'no-reply', 'wa
 export type FindQuery = (typeof FIND_QUERIES)[number];
 export const isFindQuery = (q: string): q is FindQuery => (FIND_QUERIES as readonly string[]).includes(q);
 
-export type WantingBy = 'type' | 'area' | 'budget' | 'beds';
+export type WantingBy = 'type' | 'area' | 'budget' | 'beds' | 'topic' | 'timing';
 export interface WantingFilter { by: WantingBy; value: string }
 
 export interface FindReceipt {
@@ -69,9 +69,26 @@ export interface FindResult {
 }
 
 export interface WantingOptions {
+  /** Property type and area: only from property needs (empty for a rep with none). */
   type: string[];
   area: string[];
   budget: Array<{ value: string; label: string }>;
+  /** [P42-B5] Each non-property need's own short label. */
+  topic: string[];
+  /** [P42-B5] Offered only when a need's own stated date falls in the window. */
+  timing: Array<{ value: string; label: string }>;
+}
+
+/** [P42-B5] "Due this month" / "Due this quarter": a need whose own stated date is from today to the window's end (UTC). */
+export const TIMING_WINDOWS: Array<{ value: string; label: string; end: (now: Date) => Date }> = [
+  { value: 'this-month', label: 'Due this month', end: (n) => new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth() + 1, 0)) },
+  { value: 'this-quarter', label: 'Due this quarter', end: (n) => new Date(Date.UTC(n.getUTCFullYear(), Math.floor(n.getUTCMonth() / 3) * 3 + 3, 0)) },
+];
+function dueWithin(due: string | null, window: string, nowMs: number): boolean {
+  const w = TIMING_WINDOWS.find((x) => x.value === window);
+  if (!w || !due) return false;
+  const today = new Date(nowMs).toISOString().slice(0, 10);
+  return due >= today && due <= w.end(new Date(nowMs)).toISOString().slice(0, 10);
 }
 
 export interface FindDeps {
@@ -89,7 +106,7 @@ const DAY_MS = 86_400_000;
 const NO_REPLY_DAYS = 14;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-/** Budget bands for "Clients wanting… → Budget" — only bands holding at least one stored budget are offered. */
+/** Budget bands for "What clients need… → Budget" — only bands holding at least one stored budget are offered. */
 export const BUDGET_BANDS: Array<{ value: string; label: string; min: number; max: number }> = [
   { value: 'under-1m', label: 'Under AED 1M', min: 0, max: 1_000_000 },
   { value: '1m-2m', label: 'AED 1–2M', min: 1_000_000, max: 2_000_000 },
@@ -126,17 +143,25 @@ export class FindService {
     }
   }
 
-  /** The "Clients wanting…" options: only property types, areas and budget bands stored for open requirements. */
-  async wantingOptions(userId: string): Promise<WantingOptions> {
+  /** "What clients need…" options: only values stored for open requirements. [P42-B5] Property type and area come
+   *  only from property needs; topic and timing from any other need. */
+  async wantingOptions(userId: string, nowMs: number = Date.now()): Promise<WantingOptions> {
     const { perClient } = await this.openRequirements(userId);
     const types = new Set<string>();
     const areas = new Set<string>();
     const bands = new Set<string>();
+    const topics = new Map<string, string>(); // lower-case → first spelling
+    const timings = new Set<string>();
     // [P40-5] each requirement's own values — never a type from one and an area from another
     for (const reqs of perClient.values()) for (const r of reqs) {
       const f = requirementFacets([r]);
+      const property = Boolean(f.beds || f.type);
       if (f.type) types.add(f.type);
-      if (f.area) areas.add(f.area);
+      if (f.area && property) areas.add(f.area);
+      const topic = requirementTopic(r);
+      if (topic && !topics.has(topic.toLowerCase())) topics.set(topic.toLowerCase(), topic);
+      const due = requirementDue(r);
+      for (const w of TIMING_WINDOWS) if (dueWithin(due, w.value, nowMs)) timings.add(w.value);
       const b = f.budgets[f.budgets.length - 1];
       if (b) { const v = budgetAmount(b); const band = BUDGET_BANDS.find((x) => v >= x.min && v < x.max); if (band) bands.add(band.value); }
     }
@@ -144,6 +169,8 @@ export class FindService {
       type: [...types].sort(),
       area: [...areas].sort(),
       budget: BUDGET_BANDS.filter((b) => bands.has(b.value)).map(({ value, label }) => ({ value, label })),
+      topic: [...topics.values()].sort((a, b) => a.localeCompare(b)),
+      timing: TIMING_WINDOWS.filter((w) => timings.has(w.value)).map(({ value, label }) => ({ value, label })),
     };
   }
 
@@ -265,7 +292,7 @@ export class FindService {
       const reqs = perClient.get(c.id);
       if (!reqs || reqs.length === 0) continue;
       // [P40-5] every filter must hold on the SAME requirement
-      if (filter && !reqs.some((r) => matchesAll(requirementFacets([r]), filter))) continue;
+      if (filter && !reqs.some((r) => matchesAll(r, filter, nowMs))) continue;
       const primary = primaryRequirement(reqs);
       const f = primary ? requirementFacets([primary]) : requirementFacets(reqs);
       const latest = reqs.slice().sort((a, b) => reqDay(b).localeCompare(reqDay(a)))[0]!;
@@ -279,7 +306,7 @@ export class FindService {
         meta: null,
         overdue: false,
         owner: null,
-        tags: [f.type ?? 'Other'],
+        tags: [f.type ?? (primary ? requirementTopic(primary) : null) ?? 'Other'],
         receipt: { quote, at: latest.statedOn, noteId: latest.noteId, clientId: c.id, sender: c.name },
       });
     }
@@ -340,9 +367,12 @@ export class FindService {
   }
 }
 
-/** [P40-5] One requirement's facets against every filter. */
-function matchesAll(f: ReturnType<typeof requirementFacets>, filters: WantingFilter[]): boolean {
+/** [P40-5] One requirement against every filter. */
+function matchesAll(r: RequirementRecord, filters: WantingFilter[], nowMs: number): boolean {
+  const f = requirementFacets([r]);
   return filters.every((x) => {
+    if (x.by === 'topic') return (requirementTopic(r) ?? '').toLowerCase() === x.value.toLowerCase();
+    if (x.by === 'timing') return dueWithin(requirementDue(r), x.value, nowMs);
     if (x.by === 'type') return f.type === x.value;
     if (x.by === 'area') return f.area === x.value;
     if (x.by === 'beds') return f.beds === x.value;

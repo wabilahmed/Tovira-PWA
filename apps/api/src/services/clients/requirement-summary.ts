@@ -1,3 +1,5 @@
+import { extractDatePhrase, resolveDueDate } from '../extraction/resolve-date.js';
+
 /**
  * [P36-5] A client's wants in one line, read deterministically from their STORED requirements (no model, no
  * guessing): the bedroom count + property type, the area ("in Mirdif"), the latest budget and its history, and a
@@ -48,7 +50,7 @@ function amountLabel(num: string, unit: string): string {
   return u.startsWith('k') || u === 'thousand' ? `${n}K` : `${n}M`;
 }
 
-/** [P39-7] The structured pieces of a client's wants, as stated: what Find's "Clients wanting…" filters on. */
+/** [P39-7] The structured pieces of a client's wants, as stated: what Find's "What clients need…" filters on. */
 export interface RequirementFacets {
   beds: string | null;
   /** Capitalised: "Villa". */
@@ -104,7 +106,7 @@ export function primaryRequirement<T extends RequirementLike>(reqs: T[]): T | nu
 }
 
 const MONTH = '(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)';
-const DATE_IN = new RegExp(`\\b(?:\\d{1,2}(?:st|nd|rd|th)?\\s+${MONTH}|${MONTH}(?:\\s+\\d{1,2})?|end of (?:the )?(?:month|year|quarter)|Q[1-4])\\b`, 'i');
+const DATE_IN = new RegExp(`\\b(?:\\d{1,2}[./-]\\d{1,2}[./-]\\d{4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}(?:st|nd|rd|th)?\\s+${MONTH}|${MONTH}(?:\\s+\\d{1,2})?|end of (?:the )?(?:month|year|quarter)|Q[1-4])\\b`, 'i');
 /** Where a timing clause starts: "renewing in June", "before the board meets on 14 Apr", "by 30 Jun", "due in Q3". */
 const TIMING_START = /\b(?:renew(?:s|ing|al)?(?:\s+is)?|before|by|ahead of|due)\b/gi;
 const TOPIC_MAX = 48;
@@ -140,6 +142,33 @@ function needFromText(text: string): { topic: string | null; timing: string | nu
     t = `${cut.slice(0, end > 0 ? end : TOPIC_MAX - 1).replace(/[\s,;:-]+$/, '').replace(/\s+(?:for|with|and|to|on|in|at|of|the|a|an|her|his|their)$/i, '').replace(/[\s,;:-]+$/, '')}…`;
   }
   return { topic: t ? t[0]!.toUpperCase() + t.slice(1) : null, timing };
+}
+
+/** [P42-B5] A non-property need's own short label (Find's "Topic"), or null for a property need. */
+export function requirementTopic(r: RequirementLike): string | null {
+  const f = requirementFacets([r]);
+  if (f.beds || f.type) return null;
+  return needFromText(r.text.trim() || r.requirementRaw.trim()).topic;
+}
+
+const MONTH_NUM: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+const NAMED_WITH_YEAR = new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH})\\s+(\\d{4})\\b`, 'i');
+
+/** [P42-B5] The date a need itself states, read WITHOUT guessing: the shared resolver (numeric/ISO dates, "end of
+ *  the month", weekdays… anchored to the day it was stated), or a named date that carries its year ("15 Nov 2026").
+ *  A year-less "June" is null, as everywhere else. */
+export function requirementDue(r: RequirementLike): string | null {
+  for (const t of [r.text, r.requirementRaw]) {
+    const phrase = extractDatePhrase(t);
+    if (phrase) { const d = resolveDueDate(phrase, r.statedOn).date; if (d) return d; }
+    const m = NAMED_WITH_YEAR.exec(t);
+    if (m) {
+      const day = Number(m[1]); const month = MONTH_NUM[m[2]!.slice(0, 3).toLowerCase()]!; const year = Number(m[3]);
+      const d = new Date(Date.UTC(year, month - 1, day));
+      if (d.getUTCMonth() === month - 1) return d.toISOString().slice(0, 10);
+    }
+  }
+  return null;
 }
 
 export function summarizeRequirements(reqs: RequirementLike[]): RequirementSummary {
