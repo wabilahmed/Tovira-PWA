@@ -4,9 +4,10 @@ import { Spring } from '../motion/spring.js';
 import { usePrefersReducedMotion } from '../motion/prefers.js';
 
 const OPTIONS: Array<{ value: ThemeChoice; label: string }> = [
-  { value: 'ledger', label: 'Ledger' },
-  { value: 'vault', label: 'Vault' },
-  { value: 'system', label: 'System' },
+  // [P46-2] Plain names; the stored ids (ledger / vault / system) are unchanged.
+  { value: 'ledger', label: 'Light' },
+  { value: 'vault', label: 'Dark' },
+  { value: 'system', label: 'Auto' },
 ];
 
 /** Calm segmented-control glide (near-critical, faint settle). */
@@ -130,7 +131,7 @@ export function ThemeToggle(): JSX.Element {
         })}
       </div>
       <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-caption-size)', marginBottom: 0 }}>
-        Ledger is the default. Vault suits low light; System follows your device.
+        Light is the default. Dark suits low light; Auto follows your device.
       </p>
     </section>
   );

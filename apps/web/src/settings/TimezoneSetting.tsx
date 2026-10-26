@@ -11,6 +11,20 @@ const COMMON_ZONES = [
   'Europe/London', 'Europe/Paris', 'America/New_York', 'America/Los_Angeles',
 ];
 
+/**
+ * [P46-2] How a zone reads: the city with its GMT offset ("Dubai (GMT+4)"), never "Asia/Dubai". The stored value is
+ * unchanged. Falls back to the raw id if the browser cannot name the offset.
+ */
+export function zoneLabel(tz: string, at: Date = new Date()): string {
+  const city = (tz.split('/').pop() ?? tz).replace(/_/g, ' ');
+  try {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(at).find((p) => p.type === 'timeZoneName');
+    return part ? `${city} (${part.value})` : city;
+  } catch {
+    return city;
+  }
+}
+
 function deviceZone(): string | null {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
 }
@@ -34,21 +48,22 @@ export function TimezoneSetting({ current, api }: { current: string; api: Timezo
       setZone(stored);
       setSaved(stored);
     } catch {
-      setError('Could not update the timezone.');
+      setError('Could not update the time zone.');
     }
   }
 
+  // [P46-2] The Settings section's "Time zone" is the one visible label; the select carries it for screen readers.
   return (
-    <section className="tov-setting-line">
-      <label htmlFor="tz-select">Timezone</label>{' '}
-      <select id="tz-select" className="ui-native-select" value={zone} onChange={(e) => void save(e.target.value)}>
-        {options.map((z) => <option key={z} value={z}>{z}</option>)}
+    <div className="ui-stack ui-gap-2">
+      <label htmlFor="tz-select" className="sr-only">Time zone</label>
+      <select id="tz-select" className="ui-input ui-native-select" value={zone} onChange={(e) => void save(e.target.value)}>
+        {options.map((z) => <option key={z} value={z}>{zoneLabel(z)}</option>)}
       </select>
       {device && device !== zone && (
-        <button type="button" className="tov-link" onClick={() => void save(device)}>Use this device ({device})</button>
+        <div><button type="button" className="ui-btn ui-btn--text ui-btn--sm" onClick={() => void save(device)}>Use this phone’s time zone ({zoneLabel(device)})</button></div>
       )}
-      {saved && <span className="tov-mono" role="status"> Saved · {saved}</span>}
-      {error && <span style={{ color: 'var(--claret)' }} role="alert"> {error}</span>}
-    </section>
+      {saved && <p className="ui-secondary" role="status">Saved: {zoneLabel(saved)}</p>}
+      {error && <p className="ui-danger" role="alert">{error}</p>}
+    </div>
   );
 }
