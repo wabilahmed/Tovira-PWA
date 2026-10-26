@@ -1,3 +1,6 @@
+import { PgAdminStore } from './adapters/admin/pg-admin-store.js';
+import { InMemoryAdminStore } from './adapters/admin/in-memory-admin-store.js';
+import type { AdminStore } from './ports/admin.js';
 import type { Pool } from 'pg';
 import type { AppConfig, AiTaskClass } from './config.js';
 import type { ModelClient } from './ports/model.js';
@@ -584,6 +587,15 @@ export function createExtractionCounter(config: AppConfig, appPool?: Pool): Extr
     return new PgExtractionCounter(appPool);
   }
   return new InMemoryExtractionCounter();
+}
+
+/** [P45] The admin plane (operator accounts, sessions, 2FA, audit). OWNER pool only: never the app role. */
+export function createAdminStore(config: AppConfig, rootPool?: Pool): AdminStore {
+  if (config.authStore === 'postgres') {
+    if (!rootPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgAdminStore(rootPool);
+  }
+  return new InMemoryAdminStore();
 }
 
 export function createSpendOverrideRepository(config: AppConfig, rootPool?: Pool): SpendOverrideRepository {

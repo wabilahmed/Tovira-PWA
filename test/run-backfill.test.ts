@@ -144,6 +144,17 @@ describe('[P21-C] run-backfill.sh — choosing the backfill', () => {
     expect(line).not.toContain('--apply');
   });
 
+  // [P45] create-admin: dry run first (the shared guard), --email passed through
+  it('--script create-admin --email runs create-admin.ts as a dry run, and --apply needs that dry run first', () => {
+    const refused = run(['--script', 'create-admin', '--email', 'wabil@tovira.io', '--apply']);
+    expect(refused.status).not.toBe(0);
+    expect(runTaskLine(refused.calls)).toBe('');
+    const line = runTaskLine(run(['--script', 'create-admin', '--email', 'wabil@tovira.io']).calls);
+    expect(line).toContain('create-admin.ts');
+    expect(line).toContain('wabil@tovira.io');
+    expect(line).not.toContain('--apply');
+  });
+
   // [P44-3] the subscription-periods audit is READ-ONLY: it runs without --apply, and --apply is refused
   it('--script subscription-periods runs the read-only audit and refuses --apply', () => {
     const r = run(['--script', 'subscription-periods', '--apply']); // refused before any AWS call

@@ -89,6 +89,9 @@ export const SURFACES: Record<string, Probe | string> = {
   '/inventory': 'the rep\'s own listings', '/inventory/': 'prefix', '/inventory/:id': 'a listing', '/inventory/:id/matches': 'matches for a listing — probed via /inventory/matches',
   '/inventory/:id/shares': 'share history (client ids + outcomes)', '/inventory/matches/:id/dismiss': 'write', '/inventory/matches/:id/share': 'write',
   '/inventory/matches/seen': 'write', '/inventory/shares/:id': 'write',
+  // [P45] the admin console: operator-only, its own session; can never read rep data (admin-isolation.guard.test.ts)
+  '/admin/': 'admin console (operator)', '/admin/audit': 'admin console', '/admin/auth/enrol/confirm': 'admin sign-in', '/admin/auth/enrol/start': 'admin sign-in',
+  '/admin/auth/login': 'admin sign-in', '/admin/auth/logout': 'admin sign-in', '/admin/auth/me': 'admin sign-in', '/admin/auth/mfa': 'admin sign-in', '/admin/auth/set-password': 'admin sign-in',
   '/ops/': 'ops (operator, token-gated)', '/ops/costs': 'ops — cost figures per account, no message text', '/ops/access-requests': 'ops', '/ops/access-requests/:id(/approve|/reject|/reinvite)?': 'ops', '/ops/ai-pause': 'ops',
   '/ops/erasure/': 'ops', '/ops/erasure/complete': 'ops', '/ops/erasure/open': 'ops', '/ops/erasure/preview': 'ops — the operator reviewing the request itself',
   '/ops/erasure/reject': 'ops', '/ops/erasure/withdraw': 'ops', '/ops/spend': 'ops', '/ops/spend-cap/audit': 'ops', '/ops/spend-cap/override': 'ops',

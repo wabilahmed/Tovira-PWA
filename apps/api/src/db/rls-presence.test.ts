@@ -34,6 +34,11 @@ const RLS_EXEMPT: Record<string, string> = {
   // Ops / owner plane (also in the GRANT-LINT OWNER_PLANE where built on the migration pool).
   ops_alerts: 'ops/admin plane; built on the owner pool, read cross-tenant by the operator',
   spend_overrides: 'ops/admin plane; built on the owner pool, written by the OPS_TOKEN cap-override route',
+  admin_users: '[P45] admin plane: operator accounts (not reps), owner pool only, never granted to the app role',
+  admin_invites: '[P45] admin plane: single-use set-password links for operator accounts, owner pool only',
+  admin_sessions: '[P45] admin plane: operator sessions (hashed), owner pool only; a rep route never reads them',
+  admin_recovery_codes: '[P45] admin plane: hashed one-time 2FA recovery codes for operator accounts, owner pool only',
+  admin_audit: '[P45] admin plane: the operator action log (who, what, when), owner pool only',
   model_call_events: 'spend instrumentation; user_id is nullable (NULL = system call), written system-side on every model call and read cross-tenant by ops cost reports — never a rep query path',
   transcription_events: '[P44-2] cost accounting: one row per completed transcription, written system-side and read cross-tenant by the ops cost report only — never a rep query path',
   revenue_events: '[P44-2] cost accounting: one row per paid Stripe object, written by the billing webhook (no tenant session) and read by the ops cost report only',

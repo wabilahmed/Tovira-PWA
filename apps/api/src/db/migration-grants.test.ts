@@ -31,6 +31,8 @@ const MIGRATIONS_DIR = fileURLToPath(new URL('../../migrations', import.meta.url
 const OWNER_PLANE = new Set<string>([
   'ops_alerts',      // index.ts: createOpsAlertRepository(config, migrationPool) — ops/admin plane
   'spend_overrides', // index.ts: createSpendOverrideRepository(config, migrationPool) — admin plane
+  // [P45] the admin console: index.ts createAdminStore(config, migrationPool) — operator accounts, never the app role
+  'admin_users', 'admin_invites', 'admin_sessions', 'admin_recovery_codes', 'admin_audit',
 ]);
 
 function createdTables(sql: string): string[] {

@@ -10,6 +10,7 @@
 #   trials         apps/api/src/scripts/backfill-trials.ts          (--only <userId>)
 #   promise-dates  apps/api/src/scripts/backfill-promise-dates.ts   (--only-user <userId>)
 #   meeting-dates  apps/api/src/scripts/backfill-meeting-dates.ts   (--only-user <userId>)
+#   create-admin  apps/api/src/scripts/create-admin.ts   (--email <address>) [P45] the admin console account; dry run first
 #   subscription-periods  apps/api/src/scripts/audit-subscription-periods.ts   [P44-3] READ-ONLY: stored billing period vs Stripe
 #   undated-to-confirm  apps/api/src/scripts/backfill-undated-to-confirm.ts   (--only-user <userId>) [P43] mark undated, never-asked promises/meetings
 #   kept-promise-check  apps/api/src/scripts/kept-promise-check.ts  [P26-2] READ-ONLY: prints two counts
@@ -71,6 +72,10 @@ while [ "$#" -gt 0 ]; do
     --only-user)
       [ "$#" -ge 2 ] || die "--only-user needs a userId"
       PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); shift 2 ;;
+    --email)
+      # [P45] create-admin: the admin address (must be listed in ADMIN_EMAILS in the app secret)
+      [ "$#" -ge 2 ] || die "--email needs an address"
+      PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); shift 2 ;;
     --ids)
       # [P40-5] qa-data-audit: delete (or dry-run) exactly these ids
       [ "$#" -ge 2 ] || die "--ids needs a comma-separated list of ids"
@@ -78,9 +83,9 @@ while [ "$#" -gt 0 ]; do
     --script)
       # consumed here (never sent to the container) but part of the guard key, so a dry run of one
       # backfill never authorises --apply of another
-      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | kept-promise-check | stripe-mode-audit | qa-data-audit)"
+      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit)"
       SCRIPT_NAME="$2"; KEYARGS+=("$1" "$2"); shift 2 ;;
-    *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --ids <id,…>, --apply, --i-checked-the-dry-run)" ;;
+    *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --ids <id,…>, --email <address>, --apply, --i-checked-the-dry-run)" ;;
   esac
 done
 
@@ -90,10 +95,11 @@ case "$SCRIPT_NAME" in
   meeting-dates) SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-meeting-dates.ts" ;;
   undated-to-confirm) SCRIPT_IN_IMAGE="apps/api/src/scripts/backfill-undated-to-confirm.ts" ;;
   subscription-periods) SCRIPT_IN_IMAGE="apps/api/src/scripts/audit-subscription-periods.ts" ;;
+  create-admin) SCRIPT_IN_IMAGE="apps/api/src/scripts/create-admin.ts" ;;
   kept-promise-check) SCRIPT_IN_IMAGE="apps/api/src/scripts/kept-promise-check.ts" ;;
   stripe-mode-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/stripe-mode-audit.ts" ;;
   qa-data-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/qa-data-audit.ts" ;;
-  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | kept-promise-check | stripe-mode-audit | qa-data-audit)" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit)" ;;
 esac
 
 # [P26-2/P30-3] Read-only checks: nothing to apply, no args — refused here, before any AWS call.

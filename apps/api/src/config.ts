@@ -252,6 +252,10 @@ export interface AppConfig {
   vatRegisteredFromMs: number | null;
   /** Ops token for the /ops/* endpoints (cap override). Unset → the ops routes are disabled (403). */
   opsToken: string | undefined;
+  /** [P45] ADMIN_EMAILS: who may have an admin (console) account, comma-separated, lower-cased. Empty → no admin. */
+  adminEmails: string[];
+  /** [P45] EXPLEE_API_KEY: the outreach platform key for the hot-leads job. Never logged or returned. Unset → off. */
+  expleeApiKey: string | undefined;
   /** [BETA-3] Owner address that receives new beta access-request notifications. Unset → no email is
    *  sent (the request is still recorded); set it to the operator's inbox in any env that takes signups. */
   accessRequestNotifyEmail: string | undefined;
@@ -359,6 +363,8 @@ export function loadConfig(env: Env = process.env): AppConfig {
     aiSpendAlertAed: parsePositive(env.AI_SPEND_ALERT_AED, 300, 'AI_SPEND_ALERT_AED'),
     aiPaused: env.AI_PAUSED?.trim() === 'true', // default false (undefined → not paused)
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),
+    adminEmails: (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')),
+    expleeApiKey: isBlank(env.EXPLEE_API_KEY) ? undefined : env.EXPLEE_API_KEY!.trim(),
     accessRequestNotifyEmail: isBlank(env.ACCESS_REQUEST_NOTIFY_TO) ? undefined : env.ACCESS_REQUEST_NOTIFY_TO!.trim(),
     vatRegistered: env.VAT_REGISTERED?.trim() === 'true',
     signupEnabled: env.SIGNUP_ENABLED?.trim() === 'true', // default false (undefined → off)

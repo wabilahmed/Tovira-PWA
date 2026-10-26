@@ -1,3 +1,6 @@
+import { InMemoryAdminStore } from '../adapters/admin/in-memory-admin-store.js';
+import { AdminAuthService } from '../services/admin/admin-auth-service.js';
+import { newAdminLimiter } from './admin-routes.js';
 import type { Pool } from 'pg';
 import type { ApiDeps } from '../server.js';
 import { AuthService } from '../services/auth/auth-service.js';
@@ -50,6 +53,8 @@ import { InMemorySpendOverrideRepository } from '../adapters/spend/in-memory-spe
 
 /** [HEALTH-LEAK] a known ops token so tests can exercise the authenticated /health + /ops surfaces. */
 export const TEST_OPS_TOKEN = 'test-ops-token';
+/** [P45] the admin email configured in tests (ADMIN_EMAILS). */
+export const TEST_ADMIN_EMAIL = 'wabil@tovira.io';
 import { StubEmbedder } from '../adapters/embedding/stub.js';
 import { ExtractionService } from '../services/extraction/extraction-service.js';
 import type { ExtractionLimiter } from '../services/extraction/limiter.js';
@@ -141,6 +146,9 @@ export interface TestDeps extends ApiDeps {
   emailSender: StubEmailSender;
   /** [TASK 2] the erasure-request store, exposed so tests can open/withdraw a processing restriction. */
   erasureRequests: InMemoryErasureRequestRepository;
+  /** [P45] the admin plane (wabil@tovira.io is the configured admin), exposed for admin tests. */
+  adminStore: InMemoryAdminStore;
+  adminAuth: AdminAuthService;
 }
 
 /**
@@ -366,7 +374,13 @@ export function buildInMemoryDeps(
   // [P37] the required tour + its anonymous funnel
   const tourFunnel = new InMemoryTourFunnelRepository();
   const tour = new TourService({ users: authUsers, funnel: tourFunnel });
+  // [P45] the admin plane: its own store and login, separate from reps
+  const adminStore = new InMemoryAdminStore();
+  const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: [TEST_ADMIN_EMAIL], serverSecret: TEST_OPS_TOKEN, appBaseUrl: 'https://tovira.io', email: emailSender });
   return {
+    adminStore,
+    adminAuth,
+    adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },
     clientOverview: new ClientOverviewService({ clients, ...surfacing, aliases: contactAliases, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
     pool: stubPool,
     auth,

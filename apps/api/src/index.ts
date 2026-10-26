@@ -64,6 +64,7 @@ import {
   createExtractionCounter,
   createModelCallEventStore,
   createCostReportStore,
+  createAdminStore,
   createSpendOverrideRepository,
   createBriefService,
   createCorrectionRepository,
@@ -128,6 +129,8 @@ import { allowanceWindow } from './services/spend/ai-period.js';
 import { ModelCallEventService } from './services/spend/model-call-event-service.js';
 import { setTranscriptionEventSink } from './adapters/spend/recording-transcriber.js';
 import { CostReportService } from './services/spend/cost-report-service.js';
+import { AdminAuthService } from './services/admin/admin-auth-service.js';
+import { newAdminLimiter } from './http/admin-routes.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 import { appLinks } from './services/email/email-links.js';
 
@@ -224,6 +227,10 @@ async function main(): Promise<void> {
   // further down once its stores exist.
   const spendLedger = createSpendLedgerRepository(config, appPool, migrationPool);
   const spendOverrides = createSpendOverrideRepository(config, migrationPool);
+  // [P45] The admin console: operator accounts on the owner pool, its own login + 2FA (TOTP secrets sealed with a key
+  // derived from OPS_TOKEN, which is never in the database). ADMIN_EMAILS decides who may have an account.
+  const adminStore = createAdminStore(config, migrationPool);
+  const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: config.adminEmails, serverSecret: config.opsToken ?? null, appBaseUrl: config.appBaseUrl, email: createEmailSender(config) });
   const spendPeriodFor = (uid: string, now: number) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key);
   // CAP-WARN: at 80% of the cap, alert OPS (not the rep — a rep on a generous cap is doing nothing
   // wrong). Idempotent per rep per period via the dedupe key.
@@ -665,6 +672,7 @@ async function main(): Promise<void> {
     trainingLog: trainingLogStats,
     spend,
     opsAlerts,
+    adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },
     opsRoute: { tourFunnel, opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause,
       // [P44-2] the ops cost report; emails per id via auth (users-table access stays in the user repository)
       costReport: new CostReportService(costReportStore, async (id) => (await auth.getPublicUser(id))?.email ?? null, (u, p) => spend.capForPeriod(u, p)) },

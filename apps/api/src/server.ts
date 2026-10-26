@@ -72,6 +72,7 @@ import { handleRecallRoute } from './http/recall-routes.js';
 import { handleFindRoute } from './http/find-routes.js';
 import type { FindService } from './services/find/find-service.js';
 import { handleOpsRoute, opsTokenOk, type OpsRouteDeps } from './http/ops-routes.js';
+import { handleAdminRoute, type AdminRouteDeps } from './http/admin-routes.js';
 import type { AskCaptureService } from './services/recall/ask-capture-service.js';
 import { handleCorpusRoute } from './http/corpus-routes.js';
 import type { CorpusStatsService } from './services/corpus/corpus-service.js';
@@ -215,6 +216,8 @@ export interface ApiDeps {
   opsAlerts?: { listRecent(limit: number): Promise<Array<{ kind: string; userId: string; detail: Record<string, unknown>; createdAt: number }>> };
   /** Ops-only cap-override endpoints (CAP-OVERRIDE). Absent → /ops/* is not served. */
   opsRoute?: OpsRouteDeps;
+  /** [P45] The admin console API (/admin/…): its own login, 2FA and sessions; never a rep session. */
+  adminRoute?: Omit<AdminRouteDeps, 'cookieSecure'>;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -330,6 +333,9 @@ export function createApiServer(deps: ApiDeps): Server {
         }
         return;
       }
+
+      // [P45] The admin console (its own cookie + store), before any rep routing.
+      if (deps.adminRoute && (await handleAdminRoute(request, response, { ...deps.adminRoute, cookieSecure }))) return;
 
       // [SPEND-CAP · CAP-OVERRIDE] Ops-only, token-gated (not a rep session), before auth routing.
       if (deps.opsRoute && (await handleOpsRoute(request, response, deps.opsRoute))) return;
