@@ -28,7 +28,10 @@ export function TabBar({ view, onNavigate, badges, moreRequest = 0 }: { view: Vi
   const navRef = useRef<HTMLElement>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const reduced = usePrefersReducedMotion();
-  useTabMarker(navRef, tabRefs, active === 'more' ? view : active, tabs.map((t) => t.view).join(), reduced);
+  // [P46-2] The marker sits under the highlighted tab: More on a More sub-page or while the More sheet is open (it was
+  // pointed at the sub-page's own view, which has no tab, so it stayed under the last tab, e.g. Today).
+  const highlighted: View | 'more' = moreOpen || active === 'more' ? 'more' : active;
+  useTabMarker(navRef, tabRefs, highlighted, tabs.map((t) => t.view).join(), reduced);
 
   function go(v: View): void {
     onNavigate(v);
@@ -63,7 +66,7 @@ export function TabBar({ view, onNavigate, badges, moreRequest = 0 }: { view: Vi
             className="tov-tab"
             data-tour={`nav-${i.view}`}
             aria-current={active === i.view ? 'page' : undefined}
-            data-active={active === i.view || undefined}
+            data-active={(!moreOpen && active === i.view) || undefined}
             onClick={() => go(i.view)}
           >
             {i.label}
@@ -71,6 +74,9 @@ export function TabBar({ view, onNavigate, badges, moreRequest = 0 }: { view: Vi
           </button>
         ))}
         <button
+          ref={(el) => {
+            tabRefs.current.more = el;
+          }}
           data-tour="nav-more"
           aria-current={active === 'more' && !moreOpen ? 'page' : undefined}
           type="button"
@@ -95,7 +101,7 @@ export function TabBar({ view, onNavigate, badges, moreRequest = 0 }: { view: Vi
 function useTabMarker(
   navRef: React.RefObject<HTMLElement>,
   tabRefs: React.MutableRefObject<Record<string, HTMLButtonElement | null>>,
-  activeView: View,
+  activeView: View | 'more',
   tabsKey: string,
   reduced: boolean,
 ): void {

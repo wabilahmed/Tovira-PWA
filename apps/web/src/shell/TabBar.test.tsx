@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TabBar } from './TabBar.js';
+import { activeTab } from './nav.js';
 
 describe('<TabBar>', () => {
   // [P39 · owner] Clients · Today · Find · Book Scan · More (Ask became Find).
@@ -55,5 +56,44 @@ describe('<TabBar>', () => {
     expect(screen.queryByRole('button', { name: /the monday statement/i })).toBeNull();
     rerender(<TabBar view="inventory" onNavigate={vi.fn()} moreRequest={1} />);
     expect(await screen.findByRole('button', { name: /the monday statement/i })).toBeInTheDocument();
+  });
+});
+
+// [P46-2] Owner (phone review): on a More sub-page the marker sat under Today while More was highlighted. The marker
+// and the highlighted label always match: on every primary screen, every More sub-page, and while the More sheet is open.
+describe('[P46-2] the marker follows the highlighted tab', () => {
+  // jsdom has no layout: give each tab a 78px slot so the marker can be measured.
+  function layout(): void {
+    const nav = document.querySelector('nav.tov-tabbar') as HTMLElement;
+    nav.getBoundingClientRect = () => ({ left: 0, top: 0, right: 390, bottom: 60, width: 390, height: 60, x: 0, y: 0, toJSON: () => ({}) });
+    [...nav.querySelectorAll<HTMLElement>('button.tov-tab')].forEach((b, i) => {
+      b.getBoundingClientRect = () => ({ left: i * 78, top: 0, right: i * 78 + 78, bottom: 60, width: 78, height: 60, x: i * 78, y: 0, toJSON: () => ({}) });
+    });
+  }
+  const markerX = (): number => Number(/translateX\((-?[\d.]+)px\)/.exec((document.querySelector('.tov-tab__marker') as HTMLElement).style.transform)?.[1] ?? NaN);
+  const highlightedX = (): number => {
+    const tabs = [...document.querySelectorAll<HTMLElement>('nav.tov-tabbar button.tov-tab')];
+    return tabs.findIndex((b) => b.dataset.active !== undefined) * 78;
+  };
+
+  for (const view of ['clients', 'today', 'find', 'bookscan', 'confirm', 'inventory', 'ledger', 'settings', 'subscription', 'account', 'promises', 'week'] as const) {
+    it(`${view}: the marker sits under the highlighted tab`, () => {
+      // start on a different tab, so the move to this one is measured after layout
+      const { rerender } = render(<TabBar view={activeTab(view) === 'find' ? 'clients' : 'find'} onNavigate={vi.fn()} />);
+      layout();
+      rerender(<TabBar view={view} onNavigate={vi.fn()} />);
+      expect(markerX()).toBe(highlightedX());
+    });
+  }
+
+  it('the open More sheet moves the marker to More, and closing it puts it back', async () => {
+    render(<TabBar view="today" onNavigate={vi.fn()} />);
+    layout();
+    await userEvent.click(screen.getByRole('button', { name: /^more$/i }));
+    expect(markerX()).toBe(4 * 78);
+    expect(markerX()).toBe(highlightedX());
+    await userEvent.keyboard('{Escape}'); // close the sheet
+    await waitFor(() => expect(markerX()).toBeCloseTo(1 * 78, 0), { timeout: 3000 }); // springs back under Today
+    expect(highlightedX()).toBe(1 * 78);
   });
 });
