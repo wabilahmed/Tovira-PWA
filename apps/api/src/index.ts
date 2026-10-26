@@ -139,6 +139,7 @@ import { appLinks } from './services/email/email-links.js';
 import { ledgerEntries } from './services/ledger/ledger-entries.js';
 import { reencryptAdminTotp } from './services/admin/reencrypt-totp.js';
 import { AccessAnswersService } from './services/access/access-answers-service.js';
+import { accessRequestNotifier, adminAlertSender } from './services/access/admin-notify.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -295,9 +296,9 @@ async function main(): Promise<void> {
     isPaused: () => pauseFlag.paused(),
     onAlert: async (ym, totalAed) => {
       console.error(`[ai-spend-alert] global AI spend for ${ym} crossed AED ${config.aiSpendAlertAed}: now AED ${totalAed.toFixed(2)}`);
-      if (config.accessRequestNotifyEmail) {
-        await aiAlertSender.send({
-          to: config.accessRequestNotifyEmail,
+      // [P46-6c.3] to every address in ADMIN_EMAILS
+      {
+        await adminAlertSender(aiAlertSender, config.adminEmails)({
           subject: `Tovira AI spend alert — ${ym} crossed AED ${config.aiSpendAlertAed}`,
           text: `Total AI spend across all accounts for ${ym} is now AED ${totalAed.toFixed(2)}, past the AED ${config.aiSpendAlertAed} alert threshold. This is an alert only — nothing was paused or blocked.`,
         });
@@ -723,9 +724,8 @@ async function main(): Promise<void> {
     accessRequest: new AccessRequestService(accessRequests),
     accessApproval, // [BETA-8] public /auth/invite/resend
     accessRequestLimiter: new FixedWindowRateLimiter(5, 60 * 60 * 1000),
-    accessRequestNotify: config.accessRequestNotifyEmail
-      ? (rec) => accountEmail.sendAccessRequestNotification(config.accessRequestNotifyEmail!, rec, appLinks(config.appBaseUrl).opsApprove(rec.id) /* [P22-4] via /api behind CloudFront */, appLinks(config.appBaseUrl).opsAccess /* [P33] review page */)
-      : undefined,
+    // [P46-6c.3] every address in ADMIN_EMAILS (one admin list): approve via /api, review on /admin/access
+    accessRequestNotify: accessRequestNotifier(accountEmail, config.adminEmails, config.appBaseUrl),
   });
   server.listen(config.port, () => {
     console.log(`[api] listening on http://0.0.0.0:${config.port} (${config.nodeEnv})`);

@@ -89,8 +89,11 @@ describe('[P30] tovira.io domain', () => {
 
 /** [P33] New beta access requests (and the monthly AI-spend alert) email the owner. */
 describe('[P33] owner notifications', () => {
+  // [P46-6c.3 · owner] one admin address list: new requests go to every address in ADMIN_EMAILS (mapped from the app
+  // secret); ACCESS_REQUEST_NOTIFY_TO is removed from the task.
   it('the API task sets ACCESS_REQUEST_NOTIFY_TO to the owner\'s address', () => {
-    expect(read('infra/terraform/ecs.tf')).toMatch(/\{ name = "ACCESS_REQUEST_NOTIFY_TO", value = "wabil@prospera-technologies\.com" \}/);
+    expect(read('infra/terraform/ecs.tf')).not.toMatch(/ACCESS_REQUEST_NOTIFY_TO/);
+    expect(read('infra/terraform/ecs.tf')).toContain('{ name = "ADMIN_EMAILS", valueFrom = "${aws_secretsmanager_secret.app.arn}:ADMIN_EMAILS::" }');
   });
 });
 
