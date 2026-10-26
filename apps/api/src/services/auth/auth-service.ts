@@ -101,6 +101,8 @@ export interface AuthServiceDeps {
   invites?: { hasOutstanding(userId: string, nowMs: number): Promise<boolean>; peek(tokenHash: string, nowMs: number): Promise<boolean> };
   /** [BETA-6] Atomic invite acceptance (consume + set password + record terms + activate). */
   inviteActivation?: { activate(input: { tokenHash: string; now: number; passwordHash: string; termsVersion: string; termsAcceptedIp: string | null }): Promise<{ userId: string } | null> };
+  /** [P45-3] An account became usable (invite accepted): e.g. a matching hot lead → Signed up. Best-effort. */
+  onAccountActivated?: (email: string) => Promise<void>;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -276,6 +278,14 @@ export class AuthService {
     const passwordHash = await this.deps.hasher.hash(newPassword);
     const result = await this.deps.inviteActivation.activate({ tokenHash: hashToken(rawToken), now: this.now(), passwordHash, termsVersion, termsAcceptedIp });
     if (!result) throw new InvalidInviteTokenError();
+    if (this.deps.onAccountActivated) {
+      try {
+        const u = await this.deps.users.findById(result.userId);
+        if (u) await this.deps.onAccountActivated(u.email);
+      } catch (err) {
+        console.warn(`[auth] activation hook failed (the account is active): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     return result;
   }
 

@@ -16,19 +16,20 @@ export type Industry = 'insurance' | 'wealth_private_banking' | 'b2b_key_account
 export interface AccessRequestInput {
   fullName: string;
   workEmail: string;
-  phone: string;
+  /** null only for a request made from a hot lead (source 'hot_lead'): the lead never answered the form. */
+  phone: string | null;
   companyName: string;
   roleTitle: string;
-  ownership: Ownership;
+  ownership: Ownership | null;
   /** Only meaningful for owns_or_manages; always null for employed (DB CHECK enforces it too). */
   tradeLicenceNumber: string | null;
-  conversationOwnership: ConversationOwnership;
+  conversationOwnership: ConversationOwnership | null;
   /** Free text, only when conversationOwnership === 'other'; null otherwise. */
   conversationOwnershipOther: string | null;
-  expectedVolume: ExpectedVolume;
+  expectedVolume: ExpectedVolume | null;
   /** The mandatory truth/authority confirmation (NOT terms acceptance). */
-  confirmationAcceptedAt: number;
-  confirmationTextVersion: string;
+  confirmationAcceptedAt: number | null;
+  confirmationTextVersion: string | null;
   /** Provenance of the submission (best-effort). */
   sourceIp: string | null;
   userAgent: string | null;
@@ -38,6 +39,8 @@ export interface AccessRequestInput {
   industry?: Industry | null;
   /** Free text, only when industry === 'other'. */
   industryOther?: string | null;
+  /** [P45-3] 'form' (the public form, every answer given) or 'hot_lead' (made by the admin from a hot lead). */
+  source?: 'form' | 'hot_lead';
 }
 
 export interface AccessRequestRecord extends AccessRequestInput {
@@ -50,6 +53,7 @@ export interface AccessRequestRecord extends AccessRequestInput {
   /** null = a request made before the field existed ("Not given"). */
   industry: Industry | null;
   industryOther: string | null;
+  source: 'form' | 'hot_lead';
 }
 
 /** A review-outcome patch applied to a request (BETA-5). */

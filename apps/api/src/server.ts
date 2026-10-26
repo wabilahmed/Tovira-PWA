@@ -74,6 +74,9 @@ import type { FindService } from './services/find/find-service.js';
 import { handleOpsRoute, opsTokenOk, type OpsRouteDeps } from './http/ops-routes.js';
 import { handleAdminRoute, type AdminRouteDeps } from './http/admin-routes.js';
 import { adminAccessRoute, adminCostsRoute } from './http/admin-console-routes.js';
+import { adminLeadsRoute } from './http/admin-leads-routes.js';
+import type { HotLeadsStore } from './ports/hot-leads.js';
+import type { AccessRequestRepository } from './ports/access-request-repository.js';
 import type { CostReportService } from './services/spend/cost-report-service.js';
 import type { AskCaptureService } from './services/recall/ask-capture-service.js';
 import { handleCorpusRoute } from './http/corpus-routes.js';
@@ -222,6 +225,10 @@ export interface ApiDeps {
   adminRoute?: Omit<AdminRouteDeps, 'cookieSecure'>;
   /** [P45-2] the console's cost report (falls back to the ops one). */
   adminCosts?: Pick<CostReportService, 'report'>;
+  /** [P45-3] hot leads (owner plane) for the console's Leads tab. */
+  hotLeads?: HotLeadsStore;
+  /** [P45-3] where Invite to beta writes the pending request. */
+  accessRequestsForLeads?: Pick<AccessRequestRepository, 'create'>;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -345,6 +352,7 @@ export function createApiServer(deps: ApiDeps): Server {
           ...(deps.adminRoute.extra ?? []),
           ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval)] : []),
           ...(costs ? [adminCostsRoute(costs)] : []),
+          ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, accessRequests: deps.accessRequestsForLeads })] : []),
         ];
         if (await handleAdminRoute(request, response, { ...deps.adminRoute, extra, cookieSecure })) return;
       }

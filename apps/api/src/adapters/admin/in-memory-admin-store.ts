@@ -46,5 +46,8 @@ export class InMemoryAdminStore implements AdminStore {
     return true;
   }
   async audit(e: AdminAuditEntry): Promise<void> { this.auditLog.push({ ...e }); }
-  async listAudit(limit: number): Promise<AdminAuditEntry[]> { return [...this.auditLog].sort((a, b) => b.at - a.at).slice(0, limit); }
+  /** Newest first; entries in the same millisecond by insertion (as the pg store's id DESC). */
+  async listAudit(limit: number): Promise<AdminAuditEntry[]> {
+    return this.auditLog.map((e, i) => ({ e, i })).sort((a, b) => b.e.at - a.e.at || b.i - a.i).slice(0, limit).map(({ e }) => ({ ...e }));
+  }
 }

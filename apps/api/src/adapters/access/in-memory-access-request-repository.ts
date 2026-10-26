@@ -11,6 +11,7 @@ export class InMemoryAccessRequestRepository implements AccessRequestRepository 
       ...input,
       industry: input.industry ?? null,
       industryOther: input.industryOther ?? null,
+      source: input.source ?? 'form',
       id: randomUUID(),
       createdAt: Date.now() + this.seq++, // strictly increasing so list() ordering is deterministic in tests
       status: 'pending',

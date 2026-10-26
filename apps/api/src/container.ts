@@ -1,3 +1,6 @@
+import { PgHotLeadsStore } from './adapters/leads/pg-hot-leads-store.js';
+import { InMemoryHotLeadsStore } from './adapters/leads/in-memory-hot-leads-store.js';
+import type { HotLeadsStore } from './ports/hot-leads.js';
 import { PgAdminStore } from './adapters/admin/pg-admin-store.js';
 import { InMemoryAdminStore } from './adapters/admin/in-memory-admin-store.js';
 import type { AdminStore } from './ports/admin.js';
@@ -324,7 +327,7 @@ export function createServices(config: AppConfig): Services {
 
 /** Build the auth service, selecting the user/session store from config. `invites`, when supplied,
  *  makes an invite-pending account unreachable by password reset (BETA-5). */
-export function createAuthService(config: AppConfig, pool?: Pool, invites?: InviteRepository, inviteActivation?: InviteActivationTx): AuthService {
+export function createAuthService(config: AppConfig, pool?: Pool, invites?: InviteRepository, inviteActivation?: InviteActivationTx, onAccountActivated?: (email: string) => Promise<void>): AuthService {
   let users: UserRepository;
   let sessions: SessionRepository;
   let passwordResets: PasswordResetRepository;
@@ -350,7 +353,17 @@ export function createAuthService(config: AppConfig, pool?: Pool, invites?: Invi
     sessionTtlMs: config.sessionTtlHours * 60 * 60 * 1000,
     invites,
     inviteActivation,
+    onAccountActivated, // [P45-3] a matching hot lead → Signed up
   });
+}
+
+/** [P45-3] Hot leads (owner plane: personal data about prospects, admin console only). */
+export function createHotLeadsStore(config: AppConfig, rootPool?: Pool): HotLeadsStore {
+  if (config.authStore === 'postgres') {
+    if (!rootPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgHotLeadsStore(rootPool);
+  }
+  return new InMemoryHotLeadsStore();
 }
 
 /** Build the client repository, selecting the store from config (RLS-backed on pg). */

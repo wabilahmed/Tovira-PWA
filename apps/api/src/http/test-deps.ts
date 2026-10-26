@@ -1,4 +1,5 @@
 import { InMemoryAdminStore } from '../adapters/admin/in-memory-admin-store.js';
+import { InMemoryHotLeadsStore } from '../adapters/leads/in-memory-hot-leads-store.js';
 import { AdminAuthService } from '../services/admin/admin-auth-service.js';
 import { newAdminLimiter } from './admin-routes.js';
 import type { Pool } from 'pg';
@@ -148,6 +149,7 @@ export interface TestDeps extends ApiDeps {
   erasureRequests: InMemoryErasureRequestRepository;
   /** [P45] the admin plane (wabil@tovira.io is the configured admin), exposed for admin tests. */
   adminStore: InMemoryAdminStore;
+  hotLeads: InMemoryHotLeadsStore;
   adminAuth: AdminAuthService;
 }
 
@@ -165,6 +167,7 @@ export function buildInMemoryDeps(
   const accessRequests = new InMemoryAccessRequestRepository();
   const hasher = new ScryptHasher();
   const inviteActivation = new InMemoryInviteActivationTx(invites, authUsers, accessRequests);
+  const hotLeads = new InMemoryHotLeadsStore(); // [P45-3]
   const auth = new AuthService({
     users: authUsers,
     sessions: new InMemorySessionRepository(),
@@ -174,6 +177,7 @@ export function buildInMemoryDeps(
     sessionTtlMs: 60 * 60 * 1000,
     invites, // [BETA-5] invite-pending accounts are unreachable by password reset
     inviteActivation, // [BETA-6] invite acceptance: consume + set password + accept terms, atomic
+    onAccountActivated: async (email) => { await hotLeads.markSignedUpByEmail(email, Date.now()); }, // [P45-3]
   });
   const notes = new InMemoryNoteRepository();
   const storage = new InMemoryStorage();
@@ -378,6 +382,8 @@ export function buildInMemoryDeps(
   const adminStore = new InMemoryAdminStore();
   const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: [TEST_ADMIN_EMAIL], serverSecret: TEST_OPS_TOKEN, appBaseUrl: 'https://tovira.io', email: emailSender });
   return {
+    hotLeads,
+    accessRequestsForLeads: accessRequests,
     adminStore,
     adminAuth,
     adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },

@@ -65,6 +65,7 @@ import {
   createModelCallEventStore,
   createCostReportStore,
   createAdminStore,
+  createHotLeadsStore,
   createSpendOverrideRepository,
   createBriefService,
   createCorrectionRepository,
@@ -130,6 +131,8 @@ import { ModelCallEventService } from './services/spend/model-call-event-service
 import { setTranscriptionEventSink } from './adapters/spend/recording-transcriber.js';
 import { CostReportService } from './services/spend/cost-report-service.js';
 import { AdminAuthService } from './services/admin/admin-auth-service.js';
+import { HotLeadSyncService } from './services/leads/hot-lead-sync.js';
+import { HttpExpleeClient } from './adapters/leads/explee-client.js';
 import { newAdminLimiter } from './http/admin-routes.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 import { appLinks } from './services/email/email-links.js';
@@ -184,7 +187,9 @@ async function main(): Promise<void> {
   const invites = new PgInviteRepository(appPool);
   const accessRequests = new PgAccessRequestRepository(appPool);
   const inviteActivation = new PgInviteActivationTx(appPool, new PgUserRepository(appPool));
-  const auth = createAuthService(config, appPool, invites, inviteActivation);
+  // [P45-3] hot leads (owner plane); an activated account with a lead's email marks that lead Signed up
+  const hotLeads = createHotLeadsStore(config, migrationPool);
+  const auth = createAuthService(config, appPool, invites, inviteActivation, async (email) => { await hotLeads.markSignedUpByEmail(email, Date.now()); });
   const accountEmail = createAccountEmailService(config, appPool);
   const emailFor = (userId: string): Promise<string | null> => auth.getPublicUser(userId).then((u) => u?.email ?? null);
   const clients = createClientRepository(config, appPool);
@@ -230,6 +235,11 @@ async function main(): Promise<void> {
   // [P45] The admin console: operator accounts on the owner pool, its own login + 2FA (TOTP secrets sealed with a key
   // derived from OPS_TOKEN, which is never in the database). ADMIN_EMAILS decides who may have an account.
   const adminStore = createAdminStore(config, migrationPool);
+  // [P45-3] the hot-leads job: the key lives only inside the Explee client (never logged or returned)
+  const hotLeadSync = new HotLeadSyncService({
+    api: new HttpExpleeClient(config.expleeApiKey ?? ''), store: hotLeads, apiKeyConfigured: Boolean(config.expleeApiKey),
+    adminEmails: config.adminEmails, appBaseUrl: config.appBaseUrl, email: createEmailSender(config),
+  });
   const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: config.adminEmails, serverSecret: config.opsToken ?? null, appBaseUrl: config.appBaseUrl, email: createEmailSender(config) });
   const spendPeriodFor = (uid: string, now: number) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key);
   // CAP-WARN: at 80% of the cap, alert OPS (not the rep — a rep on a generous cap is doing nothing
@@ -536,6 +546,10 @@ async function main(): Promise<void> {
       // lockKey 4711017: UNIQUE, next free (…015 and …016 taken). Cross-tenant sweep (superuser). Idempotent.
       { name: 'promise-soft-delete-retention', lockKey: 4711017, intervalMs: 24 * 60 * 60 * 1000,
         run: async () => { const n = await facts.hardDeletePromisesDeletedBefore(Date.now() - PROMISE_SOFT_DELETE_RETENTION_DAYS * 24 * 60 * 60 * 1000); if (n > 0) console.log(`[retention] hard-deleted ${n} promise(s) soft-deleted past ${PROMISE_SOFT_DELETE_RETENTION_DAYS}d`); } },
+      // [P45-3] Hot leads from Explee every 10 minutes (lockKey 4711018: UNIQUE, next free after …017). No model calls.
+      // Without EXPLEE_API_KEY it logs "Explee key not configured" and does nothing.
+      { name: 'hot-leads-sync', lockKey: 4711018, intervalMs: 10 * 60 * 1000,
+        run: async () => { await hotLeadSync.run(); } },
     ],
   }, 15_000); // [ASYNC-EXTRACT] tick every 15s (was 30s) so the notes-sweep (15s interval) fires on
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs
@@ -673,6 +687,8 @@ async function main(): Promise<void> {
     spend,
     opsAlerts,
     adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },
+    hotLeads,
+    accessRequestsForLeads: accessRequests,
     opsRoute: { tourFunnel, opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause,
       // [P44-2] the ops cost report; emails per id via auth (users-table access stays in the user repository)
       costReport: new CostReportService(costReportStore, async (id) => (await auth.getPublicUser(id))?.email ?? null, (u, p) => spend.capForPeriod(u, p)) },
