@@ -1,3 +1,4 @@
+import type { RevenueEvent } from '../../ports/cost-report.js';
 import type {
   BillingState,
   CustomerDetails,
@@ -78,6 +79,21 @@ export class BillingService {
    *  the allowance repo is built. MUST throw on a DB failure so the webhook returns non-2xx and Stripe
    *  retries (the credit is never lost); a replay after success is a no-op. */
   private onTopUp?: (eventId: string, userId: string, topUpOptionId: string) => Promise<void>;
+  /** [P44-2] Records paid revenue for the ops cost report; set at boot. */
+  private revenue?: { periodKeyFor(userId: string): Promise<string | null>; record(e: RevenueEvent): Promise<void> };
+  setRevenueRecorder(r: { periodKeyFor(userId: string): Promise<string | null>; record(e: RevenueEvent): Promise<void> }): void {
+    this.revenue = r;
+  }
+  /** [P44-2] Never fails the webhook: the payment itself is already processed; a lost accounting row is logged. */
+  private async recordRevenue(build: () => Promise<RevenueEvent | null>): Promise<void> {
+    if (!this.revenue) return;
+    try {
+      const e = await build();
+      if (e) await this.revenue.record(e);
+    } catch (err) {
+      console.warn(`[cost-report] revenue not recorded (payment unaffected): ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
   setTopUpHandler(fn: (eventId: string, userId: string, topUpOptionId: string) => Promise<void>): void {
     this.onTopUp = fn;
   }
@@ -250,6 +266,13 @@ export class BillingService {
     // returns non-2xx → Stripe retries and credits; a replay after success is a no-op.
     if (event.type === 'checkout.session.completed' && event.mode === 'payment' && event.userId && event.topUpOptionId) {
       if (this.onTopUp) await this.onTopUp(event.id, event.userId, event.topUpOptionId);
+      const uid = event.userId;
+      if (event.amountTotalFils !== undefined) {
+        await this.recordRevenue(async () => ({
+          stripeId: event.checkoutSessionId ?? event.id, userId: uid, kind: 'topup', amountFils: event.amountTotalFils!,
+          currency: event.checkoutCurrency ?? 'aed', paidAt: this.now(), periodKey: await this.revenue!.periodKeyFor(uid),
+        }));
+      }
       return 200;
     }
 
@@ -303,6 +326,14 @@ export class BillingService {
           ...(event.currentPeriodStart !== undefined ? { currentPeriodStart: event.currentPeriodStart } : {}),
         });
         await this.recordInvoiceTax(event, s.userId);
+        if (event.invoiceId && event.invoiceTotalFils !== undefined) {
+          const uid = s.userId;
+          await this.recordRevenue(async () => ({
+            stripeId: event.invoiceId!, userId: uid, kind: 'subscription', amountFils: event.invoiceTotalFils!,
+            currency: event.invoiceCurrency ?? 'aed', paidAt: event.invoiceIssuedAtMs ?? this.now(),
+            periodKey: event.invoiceLinePeriodStart !== undefined ? `p:${event.invoiceLinePeriodStart}` : await this.revenue!.periodKeyFor(uid),
+          }));
+        }
         // Email only on REACTIVATION (payment recovered) — never on an ordinary renewal (that would be noise).
         if (wasReactivation && this.emailHook) await this.notify(() => this.emailHook!.subscriptionConfirmed(s.userId, event.id, event.currentPeriodEnd ?? null));
       }

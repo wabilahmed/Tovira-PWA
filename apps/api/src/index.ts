@@ -63,6 +63,7 @@ import {
   createOpsAlertRepository,
   createExtractionCounter,
   createModelCallEventStore,
+  createCostReportStore,
   createSpendOverrideRepository,
   createBriefService,
   createCorrectionRepository,
@@ -125,6 +126,7 @@ import { AiGate, setAiGate, PauseFlagCache } from './services/spend/ai-gate.js';
 import { AllowanceStatusService } from './services/spend/allowance-status.js';
 import { allowanceWindow } from './services/spend/ai-period.js';
 import { ModelCallEventService } from './services/spend/model-call-event-service.js';
+import { setTranscriptionEventSink } from './adapters/spend/recording-transcriber.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 import { appLinks } from './services/email/email-links.js';
 
@@ -238,6 +240,10 @@ async function main(): Promise<void> {
   // (system calls recorded account-less). Cross-tenant ops accounting → the root pool.
   const modelCallEvents = createModelCallEventStore(config, migrationPool);
   setModelCallEventSink(new ModelCallEventService(modelCallEvents, (uid) => spendPeriodFor(uid, Date.now())));
+  // [P44-2] The ops cost report's sources: voice-note seconds per transcription, and paid revenue from the webhook.
+  const costReportStore = createCostReportStore(config, migrationPool);
+  setTranscriptionEventSink({ periodKeyFor: (uid) => spendPeriodFor(uid, Date.now()), record: (e) => costReportStore.recordTranscription(e) });
+  billing.setRevenueRecorder({ periodKeyFor: (uid) => spendPeriodFor(uid, Date.now()), record: (e) => costReportStore.recordRevenue(e) });
   // [USAGE-ALLOWANCE] THE GATE. Built here and armed with setAiGate so every gated provider wrapper
   // (model/embedder/transcriber) reserves against the rep's monthly allowance before each call and
   // settles the actual after. The global monthly total feeds a one-shot email alert; it never blocks.

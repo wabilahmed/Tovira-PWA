@@ -35,6 +35,8 @@ const RLS_EXEMPT: Record<string, string> = {
   ops_alerts: 'ops/admin plane; built on the owner pool, read cross-tenant by the operator',
   spend_overrides: 'ops/admin plane; built on the owner pool, written by the OPS_TOKEN cap-override route',
   model_call_events: 'spend instrumentation; user_id is nullable (NULL = system call), written system-side on every model call and read cross-tenant by ops cost reports — never a rep query path',
+  transcription_events: '[P44-2] cost accounting: one row per completed transcription, written system-side and read cross-tenant by the ops cost report only — never a rep query path',
+  revenue_events: '[P44-2] cost accounting: one row per paid Stripe object, written by the billing webhook (no tenant session) and read by the ops cost report only',
   // System / billing writers that carry NO tenant session.
   email_log: 'lifecycle-email idempotency log; written system-side by the mailer (no tenant context on sends)',
   referrals: 'spans TWO users (referrer + referred), keyed by referred_email; written at signup/approval — not single-tenant',

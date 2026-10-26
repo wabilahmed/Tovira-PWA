@@ -279,6 +279,11 @@ export class StripeGatewayImpl implements StripeGateway {
     // code. Stripe puts the decline code on the invoice's last_finalization_error, or on the attached
     // PaymentIntent's last_payment_error; 'authentication_required' means 3DS is needed.
     const hostedInvoiceUrl = typeof obj.hosted_invoice_url === 'string' ? obj.hosted_invoice_url : undefined;
+    // [P44-2] revenue: the invoice line's service period (the top-level period looks back one period on renewal),
+    // and a completed Checkout session's id + amount paid.
+    const firstLine = ((obj.lines as { data?: unknown[] } | undefined)?.data?.[0] ?? undefined) as { period?: { start?: unknown } } | undefined;
+    const linePeriodStartSec = typeof firstLine?.period?.start === 'number' ? firstLine.period.start : undefined;
+    const isCheckout = event.type === 'checkout.session.completed';
     const finErr = obj.last_finalization_error as { code?: unknown } | null | undefined;
     const payErr = (obj.last_payment_error ?? (obj.payment_intent as { last_payment_error?: unknown } | undefined)?.last_payment_error) as { code?: unknown } | null | undefined;
     const paymentFailureCode = typeof payErr?.code === 'string' ? payErr.code : typeof finErr?.code === 'string' ? finErr.code : undefined;
@@ -298,6 +303,11 @@ export class StripeGatewayImpl implements StripeGateway {
       ...(mode ? { mode } : {}),
       ...(topUpOptionId ? { topUpOptionId } : {}),
       ...(hostedInvoiceUrl ? { hostedInvoiceUrl } : {}),
+      ...(isInvoice && typeof obj.currency === 'string' ? { invoiceCurrency: obj.currency } : {}),
+      ...(isInvoice && linePeriodStartSec !== undefined ? { invoiceLinePeriodStart: linePeriodStartSec * 1000 } : {}),
+      ...(isCheckout && typeof obj.id === 'string' ? { checkoutSessionId: obj.id } : {}),
+      ...(isCheckout && typeof obj.amount_total === 'number' ? { amountTotalFils: obj.amount_total } : {}),
+      ...(isCheckout && typeof obj.currency === 'string' ? { checkoutCurrency: obj.currency } : {}),
       ...(paymentFailureCode ? { paymentFailureCode } : {}),
     };
   }

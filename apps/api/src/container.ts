@@ -113,6 +113,10 @@ import type { AiPauseRepository } from './ports/ai-pause-repository.js';
 import { InMemoryAiPauseRepository } from './adapters/spend/in-memory-ai-pause-repository.js';
 import { PgAiPauseRepository } from './adapters/spend/pg-ai-pause-repository.js';
 import { GatedModelClient, GatedEmbedder, GatedTranscriber } from './adapters/spend/gated-ai-clients.js';
+import { RecordingTranscriber } from './adapters/spend/recording-transcriber.js';
+import { PgCostReportStore } from './adapters/spend/pg-cost-report-store.js';
+import { InMemoryCostReportStore } from './adapters/spend/in-memory-cost-report-store.js';
+import type { CostReportStore } from './ports/cost-report.js';
 import type { OpsAlertRepository } from './ports/ops-alert-repository.js';
 import { InMemoryOpsAlertRepository } from './adapters/spend/in-memory-ops-alert-repository.js';
 import { PgOpsAlertRepository } from './adapters/spend/pg-ops-alert-repository.js';
@@ -454,7 +458,17 @@ export function createTranscriber(config: AppConfig): Transcriber {
     }
     return new StubTranscriber();
   })();
-  return new GatedTranscriber(inner, config.groqModel);
+  // [P44-2] completed transcriptions are recorded (audio seconds) for the ops cost report; gating stays outermost.
+  return new GatedTranscriber(new RecordingTranscriber(inner, config.groqModel), config.groqModel);
+}
+
+/** [P44-2] The ops cost report's store (transcription + revenue events, and the cost reads). Root pool, no RLS. */
+export function createCostReportStore(config: AppConfig, rootPool?: Pool): CostReportStore {
+  if (config.authStore === 'postgres') {
+    if (!rootPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgCostReportStore(rootPool);
+  }
+  return new InMemoryCostReportStore();
 }
 
 export function createTranscriptionService(

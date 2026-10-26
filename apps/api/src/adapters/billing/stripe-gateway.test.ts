@@ -118,6 +118,27 @@ describe('StripeGatewayImpl', () => {
     expect(event!.invoiceTotalFils).toBe(16744); // the discounted total, not 29900
   });
 
+  // [P44-2] revenue: a renewal invoice's top-level period looks back one period; the LINE period is the one paid for.
+  it('[P44-2] reads the invoice currency and the first line\'s service period start', async () => {
+    const stripe = {
+      checkout: { sessions: { create: async () => ({ url: '', id: '' }) } },
+      customers: { create: async () => ({ id: 'c' }), update: async () => ({ id: 'c' }) },
+      webhooks: { constructEvent: () => ({ id: 'evt_r', type: 'invoice.paid', data: { object: { id: 'in_r', customer: 'cus_1', total: 29900, currency: 'aed', created: 1_762_000_000, period_start: 1_759_000_000, lines: { data: [{ period: { start: 1_762_000_000, end: 1_764_600_000 } }] } } } }) },
+    } as unknown as StripeLike;
+    const event = new StripeGatewayImpl({ ...opts, stripe }).constructEvent('{}', 'sig');
+    expect(event).toMatchObject({ invoiceCurrency: 'aed', invoiceLinePeriodStart: 1_762_000_000_000 });
+  });
+
+  it('[P44-2] reads a completed Checkout session\'s id, amount paid and currency (top-up revenue)', async () => {
+    const stripe = {
+      checkout: { sessions: { create: async () => ({ url: '', id: '' }) } },
+      customers: { create: async () => ({ id: 'c' }), update: async () => ({ id: 'c' }) },
+      webhooks: { constructEvent: () => ({ id: 'evt_t', type: 'checkout.session.completed', data: { object: { id: 'cs_9', mode: 'payment', client_reference_id: 'u1', amount_total: 4900, currency: 'aed', metadata: { topup_option_id: 'pack_50' } } } }) },
+    } as unknown as StripeLike;
+    const event = new StripeGatewayImpl({ ...opts, stripe }).constructEvent('{}', 'sig');
+    expect(event).toMatchObject({ checkoutSessionId: 'cs_9', amountTotalFils: 4900, checkoutCurrency: 'aed', topUpOptionId: 'pack_50', mode: 'payment' });
+  });
+
   // [VAT] invoice.* events surface the id, total (fils), customer country, and supply date.
   it('extracts invoice fields (id, total, country, supply date) from an invoice event', async () => {
     const stripe = {

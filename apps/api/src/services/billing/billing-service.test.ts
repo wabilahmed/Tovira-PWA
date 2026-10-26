@@ -585,3 +585,40 @@ describe('[P29] portal with a replaced (test-mode) customer stores the new id', 
     expect((await subs.get('u1'))!.stripeCustomerId).toBe('cus_LIVE1');
   });
 });
+
+// [P44-2] Revenue for the ops cost report: each paid subscription invoice and each paid top-up is recorded once,
+// with the amount actually paid and the billing period it belongs to. A recorder failure never breaks the webhook.
+describe('[P44-2] revenue recording from the webhook', () => {
+  async function setup(fail = false) {
+    const { billing, subs } = make();
+    const recorded: Array<Record<string, unknown>> = [];
+    billing.setRevenueRecorder({
+      periodKeyFor: async () => 'p:1790000000000',
+      record: async (e) => { if (fail) throw new Error('db down'); recorded.push(e as unknown as Record<string, unknown>); },
+    });
+    billing.setTopUpHandler(async () => {});
+    await subs.create('u1', NOW);
+    await subs.update('u1', { stripeCustomerId: 'cus_1', status: 'active' });
+    return { billing, recorded };
+  }
+  const paid = (id: string, o: object = {}) => evt({ id, type: 'invoice.paid', customerId: 'cus_1', invoiceId: 'in_1', invoiceTotalFils: 29900, invoiceCurrency: 'aed', invoiceIssuedAtMs: NOW, invoiceLinePeriodStart: 1_791_000_000_000, ...o });
+
+  it('a paid subscription invoice → one subscription row, period from the invoice line', async () => {
+    const { billing, recorded } = await setup();
+    expect(await billing.handleWebhook(paid('evt_1'), 'whsec_test')).toBe(200);
+    expect(await billing.handleWebhook(paid('evt_2', { type: 'invoice.payment_succeeded' }), 'whsec_test')).toBe(200); // same invoice
+    expect(recorded).toEqual([{ stripeId: 'in_1', userId: 'u1', kind: 'subscription', amountFils: 29900, currency: 'aed', paidAt: NOW, periodKey: 'p:1791000000000' }]);
+  });
+
+  it('a paid top-up → one topup row with the amount paid and the rep\'s current period', async () => {
+    const { billing, recorded } = await setup();
+    const topup = (id: string) => evt({ id, type: 'checkout.session.completed', mode: 'payment', userId: 'u1', topUpOptionId: 'pack_50', checkoutSessionId: 'cs_1', amountTotalFils: 4900, checkoutCurrency: 'aed' });
+    expect(await billing.handleWebhook(topup('evt_3'), 'whsec_test')).toBe(200);
+    expect(recorded).toEqual([expect.objectContaining({ stripeId: 'cs_1', userId: 'u1', kind: 'topup', amountFils: 4900, currency: 'aed', periodKey: 'p:1790000000000' })]);
+  });
+
+  it('NEGATIVE: a recorder failure never fails the webhook (Stripe is not made to retry a processed payment)', async () => {
+    const { billing } = await setup(true);
+    expect(await billing.handleWebhook(paid('evt_4'), 'whsec_test')).toBe(200);
+  });
+});

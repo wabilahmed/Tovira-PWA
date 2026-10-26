@@ -137,6 +137,14 @@ export interface StripeWebhookEvent {
   /** [BILLING-DUNNING · ruling 2] The Stripe hosted invoice page — where the rep pays the open invoice
    *  and completes 3DS. Linked from every failed-payment email + banner. */
   hostedInvoiceUrl?: string;
+  /** [P44-2] revenue: the invoice's currency, and the period its (first) line pays for, epoch ms. Stripe's
+   *  top-level invoice period_start looks back one period on a renewal; the line period is the service period. */
+  invoiceCurrency?: string;
+  invoiceLinePeriodStart?: number;
+  /** [P44-2] revenue: a completed Checkout session's id, amount paid (smallest unit) and currency. */
+  checkoutSessionId?: string;
+  amountTotalFils?: number;
+  checkoutCurrency?: string;
 }
 
 /** [P14-2] What a retrieved Stripe Checkout Session tells us, for the server-side success confirmation
