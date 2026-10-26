@@ -48,4 +48,12 @@ describe('<TabBar>', () => {
     expect(screen.getByRole('button', { name: /book scan/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /today/i })).toHaveAttribute('aria-current', 'page');
   });
+
+  // [P46-1] "← More" on a More sub-page (Inventory, the Ledger) reopens the More sheet.
+  it('a More request from the page opens the More sheet', async () => {
+    const { rerender } = render(<TabBar view="inventory" onNavigate={vi.fn()} moreRequest={0} />);
+    expect(screen.queryByRole('button', { name: /the monday statement/i })).toBeNull();
+    rerender(<TabBar view="inventory" onNavigate={vi.fn()} moreRequest={1} />);
+    expect(await screen.findByRole('button', { name: /the monday statement/i })).toBeInTheDocument();
+  });
 });

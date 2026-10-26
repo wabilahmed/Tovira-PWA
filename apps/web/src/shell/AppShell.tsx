@@ -16,6 +16,7 @@ export function AppShell({
   needsSeeding,
   sidebarFooter,
   badges,
+  moreRequest,
   children,
 }: {
   view: View;
@@ -24,6 +25,8 @@ export function AppShell({
   sidebarFooter?: ReactNode;
   /** Per-view unseen counts (INV-MATCH: the strong-match badge on Inventory). */
   badges?: Partial<Record<View, number>>;
+  /** [P46-1] "← More" reopens the More sheet (mobile). */
+  moreRequest?: number;
   children: ReactNode;
 }): JSX.Element {
   const isDesktop = useIsDesktop();
@@ -49,7 +52,7 @@ export function AppShell({
           Get started
         </button>
       )}
-      <TabBar view={view} onNavigate={onNavigate} badges={badges} />
+      <TabBar view={view} onNavigate={onNavigate} badges={badges} moreRequest={moreRequest} />
     </div>
   );
 }

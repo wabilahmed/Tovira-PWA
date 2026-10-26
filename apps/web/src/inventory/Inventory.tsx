@@ -6,6 +6,7 @@ import { whatsappLink } from '../whatsapp/waLink.js';
 import { shareDraft, type InventoryItem, type InventoryFilter, type ShareResult, type InventoryShare, type MatchSuggestion as Match } from './inventoryClient.js';
 import { ItemMatches } from './ItemMatches.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
+import { Badge, Button, EmptyState, Sheet, TextArea, TextInput } from '../ui/index.js';
 
 export interface InventoryClientRef { id: string; name: string; phone: string | null }
 
@@ -23,18 +24,18 @@ export interface InventoryApi {
   dismissMatch?(matchId: string): Promise<boolean>;
 }
 
-const OUTCOME_LABEL: Record<InventoryShare['outcome'], string> = { pending: 'AWAITING', bought: 'BOUGHT', declined: 'DECLINED', no_response: 'NO REPLY' };
+const OUTCOME_LABEL: Record<InventoryShare['outcome'], string> = { pending: 'Waiting', bought: 'Bought', declined: 'Declined', no_response: 'No reply' };
 
-const STATUS_TAG: Record<NonNullable<InventoryItem['disabledReason']>, string> = {
-  sold_out: 'OUT OF STOCK',
-  unlisted: 'UNLISTED',
-};
+/** [P46-1] Tabs: Available (listed) and Paused (sold out or unlisted). The stored statuses stay active / disabled. */
+const TABS: Array<{ value: InventoryFilter; label: string }> = [{ value: 'active', label: 'Available' }, { value: 'disabled', label: 'Paused' }];
 
-export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => window.open(url, '_blank', 'noopener') }: {
+export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => window.open(url, '_blank', 'noopener'), back }: {
   api: InventoryApi;
   clients?: InventoryClientRef[];
   onSubscribe: (plan: Plan) => void;
   openLink?: (url: string) => void;
+  /** [P46-1] "← More" on a phone (reopens the More sheet). */
+  back?: { label: string; onBack: () => void };
 }): JSX.Element {
   const [filter, setFilter] = useState<InventoryFilter>('active');
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -43,6 +44,7 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(''); // [P43-4] optional: blank = not counted
   const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
@@ -76,7 +78,7 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
     if (q !== null && (!Number.isInteger(q) || q < 0)) { setError('Quantity must be a whole number, zero or more.'); return; }
     try {
       await api.create(title.trim(), description.trim(), q);
-      setTitle(''); setDescription(''); setQuantity('');
+      setTitle(''); setDescription(''); setQuantity(''); setAdding(false);
       await load('active');
       setFilter('active');
     } catch (err) {
@@ -84,37 +86,46 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
     }
   }
 
+  const form = { title, setTitle, description, setDescription, quantity, setQuantity, error, add };
+  const addSheet = (
+    <Sheet open={adding} onClose={() => { setAdding(false); setError(null); }} title="Add an item">
+      <ItemForm {...form} submitLabel="Add item" />
+    </Sheet>
+  );
+  const head = <ScreenHead back={back} onAdd={() => setAdding(true)} />;
+
   if (locked) {
     return (
       <Page testId="inventory-page" label="Inventory">
-        <ScreenHead />
+        {head}
         <LockedCard onSubscribe={onSubscribe} />
-        <AddForm {...{ title, setTitle, description, setDescription, quantity, setQuantity, error, add }} />
+        {addSheet}
       </Page>
     );
   }
 
   return (
     <Page testId="inventory-page" label="Inventory">
-      <ScreenHead />
-      <AddForm {...{ title, setTitle, description, setDescription, quantity, setQuantity, error, add }} />
+      {head}
+      {addSheet}
 
-      <div className="tov-filter" role="tablist" aria-label="Inventory filter">
-        {(['active', 'disabled'] as const).map((f) => (
-          <button key={f} role="tab" aria-selected={filter === f} className={`tov-link${filter === f ? ' tov-link--on' : ''}`} onClick={() => setFilter(f)}>
-            {f === 'active' ? 'Active' : 'Disabled'}
-          </button>
+      <div className="ui-tabs" role="tablist" aria-label="Inventory filter">
+        {TABS.map((t) => (
+          <button key={t.value} type="button" role="tab" className="ui-tab" aria-selected={filter === t.value} onClick={() => setFilter(t.value)}>{t.label}</button>
         ))}
       </div>
 
-      {warning && <p role="status" className="tov-inv-warn" style={{ color: 'var(--text-secondary)' }}>{warning}</p>}
+      {warning && <p role="status" className="ui-secondary">{warning}</p>}
 
       {items.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>
-          {filter === 'active' ? 'Nothing listed yet. Add your first item above.' : 'Nothing disabled.'}
-        </p>
+        filter === 'active' ? (
+          <EmptyState data-testid="inventory-empty" title="Nothing listed yet.">
+            <span className="ui-block">When a client asks for something like an item here, Tovira suggests it on their page.</span>
+            <span className="ui-block">Share an item with a client and Tovira opens a WhatsApp message for you to send.</span>
+          </EmptyState>
+        ) : <EmptyState data-testid="inventory-empty" title="Nothing paused." />
       ) : (
-        <ul className="tov-list-plain">
+        <ul className="ui-plainlist ui-stack ui-gap-3">
           {items.map((item) => (
             <ItemCard key={item.id} item={item} clients={clients} api={api} editing={editing === item.id}
               onEditToggle={() => setEditing(editing === item.id ? null : item.id)}
@@ -128,11 +139,11 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
   );
 }
 
-function ScreenHead(): JSX.Element {
+function ScreenHead({ back, onAdd }: { back?: { label: string; onBack: () => void }; onAdd: () => void }): JSX.Element {
   return (
     <>
-      <PageHeader title="Inventory" subtitle="What you have to sell" />
-      <p className="ui-secondary">Your list: title, a description, and how many. Tovira keeps it ready to match what clients ask for.</p>
+      <PageHeader title="Inventory" subtitle="What you have to sell" {...(back ? { back } : {})} action={<Button variant="primary" size="sm" onClick={onAdd}>+ Add item</Button>} />
+      <p className="ui-secondary">List what you sell. When a client asks for something similar, Tovira suggests it on their page.</p>
     </>
   );
 }
@@ -142,17 +153,17 @@ interface FormProps {
   description: string; setDescription: (v: string) => void;
   quantity: string; setQuantity: (v: string) => void;
   error: string | null; add: (e: React.FormEvent) => void;
+  submitLabel: string;
 }
-function AddForm(p: FormProps): JSX.Element {
+/** [P46-1] The add / edit fields, labelled above each field, in a Sheet. */
+function ItemForm(p: FormProps): JSX.Element {
   return (
-    <form onSubmit={p.add} className="tov-inv-add">
-      <input aria-label="Item title" placeholder="Title (e.g. Premium plan, Unit 402, Q3 proposal)" value={p.title} onChange={(e) => p.setTitle(e.target.value)} />
-      <textarea aria-label="Item description" placeholder="Description: what it is, so Tovira can match it" value={p.description} onChange={(e) => p.setDescription(e.target.value)} rows={2} />
-      <div className="tov-inv-add__row">
-        <input aria-label="Quantity (optional)" placeholder="Qty" className="tov-mono" type="number" min={0} step={1} value={p.quantity} onChange={(e) => p.setQuantity(e.target.value)} style={{ width: '5rem' }} />
-        <button type="submit" className="tov-primary">Add item</button>
-      </div>
-      {p.error && <p style={{ color: 'var(--claret)', margin: 'var(--space-2) 0 0' }}>{p.error}</p>}
+    <form onSubmit={p.add} className="ui-stack ui-gap-3">
+      <TextInput label="Title" placeholder="e.g. Premium plan" value={p.title} onChange={(e) => p.setTitle(e.target.value)} />
+      <TextArea label="Description" placeholder="What it is, so Tovira can match it" value={p.description} onChange={(e) => p.setDescription(e.target.value)} rows={3} />
+      <TextInput label="Quantity (optional)" type="number" inputMode="numeric" min={0} step={1} value={p.quantity} onChange={(e) => p.setQuantity(e.target.value)} />
+      {p.error && <p role="alert" className="ui-danger">{p.error}</p>}
+      <Button type="submit" variant="primary" block>{p.submitLabel}</Button>
     </form>
   );
 }
@@ -185,61 +196,62 @@ function ItemCard({ item, clients, api, editing, onEditToggle, onSave, onShare, 
     onChanged(); // a bought outcome may have decremented / disabled the item
   }
 
-  return (
-    <li className="tov-card tov-inv-item">
-      <div className="tov-inv-item__head">
-        <span className="tov-inv-item__title" style={{ color: disabled ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{item.title}</span>
-        {/* [P43-4] "Out of stock" only when a quantity is set and it is 0; an uncounted item shows no number. */}
-        {disabled && item.disabledReason && (item.disabledReason !== 'sold_out' || item.quantity === 0) && <span className="tov-stamp">{STATUS_TAG[item.disabledReason]}</span>}
-        {item.quantity !== null && <span className="tov-mono tov-inv-item__qty" title="Quantity">{item.quantity}</span>}
-      </div>
-      <p style={{ color: 'var(--text-secondary)', margin: 'var(--space-1) 0 var(--space-2)' }}>{item.description}</p>
+  const soldOut = disabled && item.quantity === 0;
+  const [editError, setEditError] = useState<string | null>(null);
+  function saveEdit(e: React.FormEvent): void {
+    e.preventDefault();
+    const qty = q.trim() === '' ? null : Number(q);
+    if (!t.trim() || !d.trim()) { setEditError('A title and description are both needed.'); return; }
+    if (qty !== null && (!Number.isInteger(qty) || qty < 0)) { setEditError('Quantity must be a whole number, zero or more.'); return; }
+    void onSave({ title: t.trim(), description: d.trim(), quantity: qty });
+  }
 
-      {editing ? (
-        <div className="tov-inv-item__edit">
-          <input aria-label="Edit title" value={t} onChange={(e) => setT(e.target.value)} />
-          <textarea aria-label="Edit description" value={d} onChange={(e) => setD(e.target.value)} rows={2} />
-          <div className="tov-inv-add__row">
-            <input aria-label="Edit quantity" placeholder="Qty" className="tov-mono" type="number" min={0} step={1} value={q} onChange={(e) => setQ(e.target.value)} style={{ width: '5rem' }} />
-            <button className="tov-primary" onClick={() => void onSave({ title: t.trim(), description: d.trim(), quantity: q.trim() === '' ? null : Number(q) })}>Save</button>
-            <button className="tov-link" onClick={onEditToggle}>Cancel</button>
-          </div>
-        </div>
-      ) : picking ? (
-        <div className="tov-inv-add__row">
-          <select className="tov-client-select ui-native-select" aria-label="Share with client" value={pick} onChange={(e) => setPick(e.target.value)}>
+  return (
+    <li className="ui-card ui-stack ui-gap-2" style={{ padding: 'var(--space-4)' }}>
+      <div className="ui-cluster ui-cluster--between ui-gap-2">
+        <span className="ui-strong" dir="auto" style={{ color: disabled ? 'var(--text-secondary)' : undefined }}>{item.title}</span>
+        {soldOut && <Badge>Sold out</Badge>}
+        {disabled && item.disabledReason === 'unlisted' && <Badge>Not listed</Badge>}
+      </div>
+      <p className="ui-secondary" dir="auto" style={{ margin: 0 }}>{item.description}</p>
+      {/* [P43-4 → P46-1] the quantity only when it is counted, in words */}
+      {item.quantity !== null && item.quantity > 0 && <p className="ui-caption" data-testid="item-qty" style={{ margin: 0 }}>{item.quantity} left</p>}
+
+      <Sheet open={editing} onClose={onEditToggle} title={`Edit ${item.title}`}>
+        <ItemForm title={t} setTitle={setT} description={d} setDescription={setD} quantity={q} setQuantity={setQ} error={editError} add={saveEdit} submitLabel="Save" />
+      </Sheet>
+
+      {picking ? (
+        <div className="ui-stack ui-gap-2">
+          <select className="ui-input ui-native-select" aria-label="Share with client" value={pick} onChange={(e) => setPick(e.target.value)}>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <button className="tov-primary" disabled={!pick} onClick={() => { onShare(pick); setPicking(false); }}>Send via WhatsApp</button>
-          <button className="tov-link" onClick={() => setPicking(false)}>Cancel</button>
+          <div className="ui-cluster ui-gap-2">
+            <Button variant="primary" size="sm" disabled={!pick} onClick={() => { onShare(pick); setPicking(false); }}>Send via WhatsApp</Button>
+            <Button variant="text" size="sm" onClick={() => setPicking(false)}>Cancel</Button>
+          </div>
         </div>
       ) : (
-        <div className="tov-inv-item__actions">
-          {disabled ? (
-            <button className="tov-link" onClick={onEditToggle}>Set quantity</button>
-          ) : (
-            <>
-              <button className="tov-primary" disabled={clients.length === 0} onClick={() => setPicking(true)}>Share</button>
-              <button className="tov-link" onClick={onEditToggle}>Edit</button>
-            </>
-          )}
-          <button className="tov-link" onClick={() => void toggleHistory()}>{history ? 'Hide history' : 'History'}</button>
+        <div className="ui-actions--equal" data-testid="item-actions">
+          <Button size="sm" disabled={disabled || clients.length === 0} onClick={() => setPicking(true)}>Share</Button>
+          <Button size="sm" onClick={onEditToggle}>Edit</Button>
+          <Button size="sm" aria-expanded={!!history} onClick={() => void toggleHistory()}>History</Button>
         </div>
       )}
 
       {history && (
-        <ul className="tov-list-plain tov-inv-history">
+        <ul className="ui-plainlist ui-stack ui-gap-2">
           {history.length === 0 ? (
-            <li style={{ color: 'var(--text-secondary)' }}>Not shared yet.</li>
+            <li className="ui-secondary">Not shared yet.</li>
           ) : history.map((s) => (
-            <li key={s.id} className="tov-inv-shared">
-              <span className="tov-inv-shared__title">{clientName(s.clientId)}</span>
-              <span className="tov-stamp">{OUTCOME_LABEL[s.outcome]}</span>
-              <span className="tov-mono tov-inv-shared__date">{new Date(s.sharedAt).toLocaleDateString()}</span>
+            <li key={s.id} className="ui-cluster ui-gap-2" style={{ flexWrap: 'wrap' }}>
+              <span className="ui-strong">{clientName(s.clientId)}</span>
+              <Badge>{OUTCOME_LABEL[s.outcome]}</Badge>
+              <span className="ui-caption">{new Date(s.sharedAt).toLocaleDateString()}</span>
               {s.outcome === 'pending' && (
-                <span className="tov-inv-shared__set">
-                  <button className="tov-link" onClick={() => void outcome(s.id, 'bought')}>Bought</button>
-                  <button className="tov-link" onClick={() => void outcome(s.id, 'declined')}>Declined</button>
+                <span className="ui-cluster ui-gap-2">
+                  <Button variant="text" size="sm" onClick={() => void outcome(s.id, 'bought')}>Bought</Button>
+                  <Button variant="text" size="sm" onClick={() => void outcome(s.id, 'declined')}>Declined</Button>
                 </span>
               )}
             </li>

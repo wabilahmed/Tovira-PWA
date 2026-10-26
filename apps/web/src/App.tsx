@@ -342,6 +342,10 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
     setTrail((t) => t.slice(0, -1));
     setView(prev ?? fallback);
   };
+  const isDesktop = useIsDesktop();
+  // [P46-1] "← More" on a More sub-page reopens the More sheet on a phone; the desktop sidebar is always there.
+  const [moreRequest, setMoreRequest] = useState(0);
+  const backToMore = isDesktop ? undefined : { label: 'More', onBack: () => setMoreRequest((n) => n + 1) };
   const backTo = (fallback: View): { label: string; onBack: () => void } => {
     const prev = trail[trail.length - 1] ?? fallback;
     return { label: VIEW_LABEL[prev] ?? 'Back', onBack: () => goBack(fallback) };
@@ -432,7 +436,6 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
   // INV-MATCH: the strong-match unseen count on the Inventory tab (server-computed, per-rep
   // last-viewed). Fetched on load; cleared the moment the rep opens Inventory (marks it seen).
   const [matchBadge, setMatchBadge] = useState(0);
-  const isDesktop = useIsDesktop();
 
   const loadSeeding = (): void => void onboardingApi.status().then(setSeeding);
   useEffect(loadSeeding, []);
@@ -662,6 +665,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       onNavigate={navigate}
       needsSeeding={needsSeeding}
       badges={{ inventory: matchBadge }}
+      moreRequest={moreRequest}
     >
       <ErrorBoundary key={view}>
       <DevCrash />{/* dev-only: ?boom=1 throws here so the view ErrorBoundary fallback can be exercised */}
@@ -773,7 +777,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
       {view === 'ledger' && <Ledger api={ledgerApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
 
-      {view === 'inventory' && <Inventory api={inventoryApi} clients={clients.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? null }))} onSubscribe={startCheckout} />}
+      {view === 'inventory' && <Inventory api={inventoryApi} clients={clients.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? null }))} onSubscribe={startCheckout} {...(backToMore ? { back: backToMore } : {})} />}
 
       {view === 'settings' && (
         <Page testId="settings" label="Settings">

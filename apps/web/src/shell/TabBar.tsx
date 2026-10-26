@@ -15,8 +15,9 @@ const MARKER_SPRING = { damping: 0.9, response: 0.4 } as const;
  * and placed instantly (no glide) on first paint or under reduced motion. More
  * opens a fluid, draggable bottom sheet of the remaining sections.
  */
-export function TabBar({ view, onNavigate, badges }: { view: View; onNavigate: (v: View) => void; badges?: Partial<Record<View, number>> }): JSX.Element {
+export function TabBar({ view, onNavigate, badges, moreRequest = 0 }: { view: View; onNavigate: (v: View) => void; badges?: Partial<Record<View, number>>; /** [P46-1] bumped by "← More" on a More sub-page */ moreRequest?: number }): JSX.Element {
   const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => { if (moreRequest > 0) setMoreOpen(true); }, [moreRequest]);
   // [P39] The same five tabs on every screen; a sub-screen highlights its parent (To Confirm → Today,
   // Settings pages → More). An overflow screen never takes a primary tab's slot.
   const active = activeTab(view);
