@@ -18,7 +18,7 @@ function refFromUrl(): string {
  * know either way. The account is always created regardless of the code (crediting is isolated
  * server-side); this screen only reports the outcome.
  */
-export function LoginScreen({ auth, onAuthed, signupEnabled = true }: { auth: AuthClient; onAuthed: (s: Session) => void; signupEnabled?: boolean }): JSX.Element {
+export function LoginScreen({ auth, onAuthed, signupEnabled = true, referralsEnabled = false }: { auth: AuthClient; onAuthed: (s: Session) => void; signupEnabled?: boolean; /** [P46-3] REFERRALS_ENABLED: off hides the field and the outcome; a ?ref= code still rides along */ referralsEnabled?: boolean }): JSX.Element {
   // [INV-12] When self-serve signup is off (invite-only beta), never offer the "Sign up" toggle or the
   // signup form — the API 404s signup, so a visible path to it is a dead end. Point to beta access instead.
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
@@ -43,7 +43,7 @@ export function LoginScreen({ auth, onAuthed, signupEnabled = true }: { auth: Au
         : await auth.signup(email, password, code || undefined, true);
       // The account is created. If a code was processed, show its outcome before continuing; otherwise
       // go straight in (no code, no extra step).
-      if (mode === 'signup' && (session.referral === 'applied' || session.referral === 'invalid')) {
+      if (referralsEnabled && mode === 'signup' && (session.referral === 'applied' || session.referral === 'invalid')) {
         setDone({ session, referral: session.referral });
       } else {
         onAuthed(session);
@@ -94,7 +94,7 @@ export function LoginScreen({ auth, onAuthed, signupEnabled = true }: { auth: Au
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </label>
-        {mode === 'signup' && (
+        {referralsEnabled && mode === 'signup' && (
           <label className="auth__field">
             <span>Referral code <span style={{ color: 'var(--text-secondary)' }}>(optional)</span></span>
             <input

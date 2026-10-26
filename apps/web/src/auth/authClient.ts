@@ -59,6 +59,17 @@ export class AuthClient {
     }
   }
 
+  /** [P46-3] Whether referral UI and copy are shown (REFERRALS_ENABLED, public /version). Off on any error. */
+  async referralsEnabled(): Promise<boolean> {
+    try {
+      const res = await fetch(this.url('/version'), { credentials: 'include' });
+      if (!res.ok) return false;
+      return ((await res.json()) as { referralsEnabled?: boolean }).referralsEnabled === true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Update the rep's IANA timezone (Settings). Returns the value the server stored
    *  (validated to a real zone, or the default). */
   async updateTimezone(timezone: string): Promise<string> {

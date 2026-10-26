@@ -84,8 +84,9 @@ export interface BookScanConfig {
   promiseStaleThresholdDays?: number;
 }
 
+// [P46-3] Tovira speaks, never "I"; no "X-ray".
 const INVITATION =
-  "That was one relationship. Export your next most important chat and I'll X-ray that one too.";
+  'That was one client. Import your next most important chat and Tovira will scan it too.';
 
 function isoDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
@@ -249,8 +250,8 @@ export class BookScanService {
       isEmpty,
       message: isEmpty
         ? chatsRead === 0
-          ? "Nothing to scan yet. Export your first WhatsApp chat and I'll X-ray it for you."
-          : "Not much here yet. Export another chat and I'll scan it too."
+          ? 'Nothing to scan yet. Import your first WhatsApp chat and Tovira will scan it.'
+          : 'Not much here yet. Import another chat and Tovira will scan it too.'
         : null,
       invitation: INVITATION,
       chatsRead,

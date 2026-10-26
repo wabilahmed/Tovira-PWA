@@ -190,13 +190,25 @@ describe('BookScanService (P5-3b)', () => {
     const report = await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'));
     expect(report.items).toEqual([]);
     expect(report.isEmpty).toBe(true);
-    expect(report.message).toMatch(/not much here yet|export/i);
+    // [P46-3 · owner] "Import", not "Export"
+    expect(report.message).toMatch(/not much here yet|import/i);
   });
 
+  // [P46-3 · owner] the invitation says "Import" (the app imports a chat), not "Export"
   it('always ends with an invitation to export the next chat', async () => {
     await clients.create(USER, 'Acme');
     const report = await scan.scan(USER, Date.parse('2026-07-15T00:00:00Z'));
-    expect(report.invitation).toMatch(/export/i);
+    expect(report.invitation).toMatch(/import/i);
+  });
+
+  // [P46-3] Owner: Tovira speaks, not "I"; no "X-ray".
+  it('[P46-3] the invitation and the empty messages: "Tovira will scan it", never "I" or "X-ray"', async () => {
+    const empty = await scan.scan('rep-nobody', Date.parse('2026-07-15T00:00:00Z'));
+    expect(empty.message).toBe('Nothing to scan yet. Import your first WhatsApp chat and Tovira will scan it.');
+    expect(empty.invitation).toBe('That was one client. Import your next most important chat and Tovira will scan it too.');
+    for (const s of [empty.message ?? '', empty.invitation]) {
+      expect(s).not.toMatch(/\bI['’]ll\b|\bI\b|x-?ray/i);
+    }
   });
 
   // TRUST RULE: the scan never fires on another rep's data.

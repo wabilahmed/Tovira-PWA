@@ -138,12 +138,13 @@ describe('<RequestAccess>', () => {
   });
 
   // [INV-05] A ?ref= code from the landing URL is shown read-only AND sent with the request.
+  // [P46-3 · owner] shown only with REFERRALS_ENABLED on; this test runs with it on.
   it('shows the referral code read-only and submits it', async () => {
     window.history.replaceState({}, '', '/request-access?ref=TESTREF123');
     try {
       const user = userEvent.setup();
       const client = makeClient();
-      render(<RequestAccess client={client} />);
+      render(<RequestAccess client={client} referralsEnabled />);
       expect(screen.getByTestId('referral-note').textContent).toMatch(/TESTREF123/);
       await fillBase(user);
       await user.click(screen.getByLabelText('I own or manage it'));
@@ -151,6 +152,30 @@ describe('<RequestAccess>', () => {
       await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
       await user.click(screen.getByLabelText('Under 50'));
       await user.click(screen.getByLabelText('Recruitment')); // [P42 · owner] Industry is required
+      await user.click(screen.getByText(CONFIRMATION_TEXT));
+      await user.click(screen.getByRole('button', { name: /request access/i }));
+      await waitFor(() => expect(client.submit).toHaveBeenCalled());
+      expect(client.submit.mock.calls[0]![0].referralCode).toBe('TESTREF123');
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
+  });
+
+  // [P46-3] Owner: with referrals off (the default) the code is not shown, but it is still captured and sent.
+  it('NEGATIVE: referrals off → no referral note on screen; the ?ref= code is still submitted', async () => {
+    window.history.replaceState({}, '', '/request-access?ref=TESTREF123');
+    try {
+      const user = userEvent.setup();
+      const client = makeClient();
+      const { container } = render(<RequestAccess client={client} />);
+      expect(screen.queryByTestId('referral-note')).toBeNull();
+      expect(container.textContent).not.toMatch(/referral|TESTREF123/i);
+      await fillBase(user);
+      await user.click(screen.getByLabelText('I own or manage it'));
+      await user.type(screen.getByLabelText('Trade licence number'), 'TL-1');
+      await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
+      await user.click(screen.getByLabelText('Under 50'));
+      await user.click(screen.getByLabelText('Recruitment'));
       await user.click(screen.getByText(CONFIRMATION_TEXT));
       await user.click(screen.getByRole('button', { name: /request access/i }));
       await waitFor(() => expect(client.submit).toHaveBeenCalled());

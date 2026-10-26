@@ -10,7 +10,15 @@ export interface ShareCardApi {
  * a counts-only endpoint, so there is nothing client-identifying to leak. Give a
  * month / get a month via the referral link.
  */
-export function ShareCard({
+export function ShareCard(props: Parameters<typeof ShareCardInner>[0] & {
+  /** [P46-3] REFERRALS_ENABLED. Off (the default): the card, the link and the "free month" line are not rendered. */
+  referralsEnabled?: boolean;
+}): JSX.Element | null {
+  const { referralsEnabled = false, ...rest } = props;
+  return referralsEnabled ? <ShareCardInner {...rest} /> : null;
+}
+
+function ShareCardInner({
   api,
   referralCode,
   origin = typeof window !== 'undefined' ? window.location.origin : '',
@@ -46,7 +54,7 @@ export function ShareCard({
   // under a brass rule — never a social badge. (Counts-only per the P5-6 tests.)
   return (
     <section aria-label="Share card" className="tov-statement" style={box}>
-      <div className="tov-stamp" style={{ marginBottom: 'var(--space-3)' }}>Book Scan · statement excerpt</div>
+      <div className="ui-label" style={{ marginBottom: 'var(--space-3)' }}>Summary</div>
       <ul data-testid="share-stats" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 'var(--space-2)' }}>
         {rows.filter(([, n]) => n > 0).map(([label, n]) => (
           <li key={label} style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'baseline', borderBottom: '1px solid var(--hairline)', paddingBottom: 'var(--space-1)' }}>

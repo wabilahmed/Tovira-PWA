@@ -253,14 +253,17 @@ export function App(): JSX.Element {
   // [INV-12] Whether self-serve signup is open (public /version flag). Default false = invite-only, so
   // the login page shows "Request beta access" by default and only reveals "Sign up" when it's really on.
   const [signupEnabled, setSignupEnabled] = useState(false);
+  // [P46-3] REFERRALS_ENABLED (off by default): referral UI and copy show only when it is on.
+  const [referralsEnabled, setReferralsEnabled] = useState(false);
   useEffect(() => {
     void auth.signupEnabled().then(setSignupEnabled);
+    void auth.referralsEnabled().then(setReferralsEnabled);
   }, []);
 
   // Public, pre-auth: the beta access-request form (reached from the landing page). Like /reset-password
   // and /verify-email, it is served by the SPA before the session gate (no infra route needed).
   if (typeof window !== 'undefined' && window.location.pathname === '/request-access') {
-    return <RequestAccess client={accessRequestApi} />;
+    return <RequestAccess client={accessRequestApi} referralsEnabled={referralsEnabled} />;
   }
   // [P45-4] The former ops-token pages moved into the admin console: send the old links there.
   const movedTo = typeof window !== 'undefined' ? opsRedirect(window.location.pathname) : null;
@@ -327,12 +330,12 @@ export function App(): JSX.Element {
     return <Centered><NotFound /></Centered>;
   }
   if (loading) return <Centered>Loading…</Centered>;
-  if (!session) return <LoginScreen auth={auth} onAuthed={setSession} signupEnabled={signupEnabled} />;
+  if (!session) return <LoginScreen auth={auth} onAuthed={setSession} signupEnabled={signupEnabled} referralsEnabled={referralsEnabled} />;
 
-  return <ClientsScreen session={session} onLogout={() => void auth.logout().then(() => setSession(null))} />;
+  return <ClientsScreen session={session} referralsEnabled={referralsEnabled} onLogout={() => void auth.logout().then(() => setSession(null))} />;
 }
 
-function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () => void }): JSX.Element {
+function ClientsScreen({ session, onLogout, referralsEnabled = false }: { session: Session; onLogout: () => void; referralsEnabled?: boolean }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
@@ -793,7 +796,7 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
       {view === 'bookscan' && gated(
         <>
           <BookScan api={bookScanApi} />
-          <ShareCard api={shareCardApi} referralCode={session.user.referralCode} />
+          <ShareCard api={shareCardApi} referralCode={session.user.referralCode} referralsEnabled={referralsEnabled} />
         </>,
       )}
 

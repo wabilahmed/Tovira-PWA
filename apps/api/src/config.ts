@@ -247,6 +247,8 @@ export interface AppConfig {
   /** [BETA-7] Public self-registration (/auth/signup). Default OFF — beta is request-and-invite only.
    *  Set SIGNUP_ENABLED=true only to re-open self-serve signup. */
   signupEnabled: boolean;
+  /** [P46-3] Referral UI and copy (share card, link, "free month"). Off by default; codes and ?ref= capture run regardless. */
+  referralsEnabled: boolean;
   vatTrn: string | undefined;
   vatRate: number;
   vatRegisteredFromMs: number | null;
@@ -368,6 +370,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     accessRequestNotifyEmail: isBlank(env.ACCESS_REQUEST_NOTIFY_TO) ? undefined : env.ACCESS_REQUEST_NOTIFY_TO!.trim(),
     vatRegistered: env.VAT_REGISTERED?.trim() === 'true',
     signupEnabled: env.SIGNUP_ENABLED?.trim() === 'true', // default false (undefined → off)
+    referralsEnabled: env.REFERRALS_ENABLED?.trim() === 'true', // [P46-3] default false
     vatTrn: isBlank(env.VAT_TRN) ? undefined : env.VAT_TRN!.trim(),
     vatRate: parsePositive(env.VAT_RATE, 0.05, 'VAT_RATE'),
     vatRegisteredFromMs: parseDateOrNull(env.VAT_REGISTERED_FROM, 'VAT_REGISTERED_FROM'),

@@ -236,6 +236,8 @@ export interface ApiDeps {
   loginLimiter?: RateLimiter;
   /** [BETA-7] Public self-registration flag. Default off (prod); /auth/signup 404s when false. */
   signupEnabled?: boolean;
+  /** [P46-3] whether the app shows referral UI and copy (public, on /version). */
+  referralsEnabled?: boolean;
   /** [BETA-3] Public beta access-request intake. Absent → /access-request is not served. */
   accessRequest?: AccessRequestService;
   /** [BETA-8] Self-serve expired-invite resend (public /auth/invite/resend). Absent → not served. */
@@ -300,6 +302,7 @@ export function createApiServer(deps: ApiDeps): Server {
           // [INV-12] Public, no secret: lets the login page hide the sign-up link when self-serve
           // signup is off (invite-only beta). Drives the UI from the same flag the API enforces.
           signupEnabled: deps.signupEnabled ?? false,
+          referralsEnabled: deps.referralsEnabled ?? false, // [P46-3]
         });
         return;
       }

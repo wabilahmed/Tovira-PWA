@@ -31,7 +31,7 @@ const VOLUME_OPTIONS: Array<{ value: AccessRequestPayload['expectedVolume']; lab
   { value: '500_plus', label: '500+' },
 ];
 
-export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.Element {
+export function RequestAccess({ client, referralsEnabled = false }: { client: AccessRequestClient; /** [P46-3] off: the ?ref= code is captured and sent, never shown */ referralsEnabled?: boolean }): JSX.Element {
   const [submitted, setSubmitted] = useState<{ employed: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +111,7 @@ export function RequestAccess({ client }: { client: AccessRequestClient }): JSX.
       <p className="auth__intro">Tovira is in private beta for sales people whose clients stay with them for years. Tell us a little about you and we’ll be in touch.</p>
       {/* [INV-05] A referral code from the landing URL (?ref=) rides along with the request. Show it
           read-only so the rep can see it was captured; an invalid code is ignored server-side, never a block. */}
-      {referralCode && (
+      {referralsEnabled && referralCode && (
         <p className="auth__hint" data-testid="referral-note">Referral code: <strong>{referralCode}</strong></p>
       )}
       <form className="auth__form" onSubmit={(e) => void onSubmit(e)} noValidate>

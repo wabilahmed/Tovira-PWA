@@ -39,7 +39,8 @@ describe('[P5-3b] Book Scan endpoint', () => {
     const body = (await res.json()) as { items: unknown[]; isEmpty: boolean; invitation: string };
     expect(body.items).toEqual([]);
     expect(body.isEmpty).toBe(true);
-    expect(body.invitation).toMatch(/export/i);
+    // [P46-3 · owner] the invitation says "Import your next most important chat"
+    expect(body.invitation).toMatch(/import your next/i);
   });
 
   it('surfaces an imported unanswered question with its receipt (end-to-end)', async () => {
