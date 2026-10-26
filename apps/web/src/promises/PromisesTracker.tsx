@@ -138,12 +138,7 @@ export function PromisesTracker({ api, now = Date.now() }: { api: PromisesApi; n
                 </span>
               </span>
               <span style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-                <input
-                  type="date"
-                  aria-label={`Due date for: ${p.text}`}
-                  value={p.dueDate ?? ''}
-                  onChange={(e) => void editDate(p.id, e.target.value)}
-                />
+                <DueDateField label={`Due date for: ${p.text}`} stored={p.dueDate ?? ''} onConfirm={(v) => void editDate(p.id, v)} />
                 <button onClick={() => void done(p.id)}>Done</button>
                 <button aria-label={`Delete promise: ${p.text}`} onClick={() => void del(p, 'open')}>Delete</button>
               </span>
@@ -225,3 +220,22 @@ const row: React.CSSProperties = {
   padding: 'var(--space-2) 0',
   borderBottom: '1px solid var(--hairline)',
 };
+
+/** [P43-8 · owner] The date is saved when the rep confirms it (the picker closes / the field loses focus, or Enter),
+ *  not on every picker change: adjusting it three times then confirming writes ONE edit record. Unchanged → nothing. */
+function DueDateField({ label, stored, onConfirm }: { label: string; stored: string; onConfirm: (value: string) => void }): JSX.Element {
+  const [draft, setDraft] = useState(stored);
+  const sent = useRef<string | null>(null); // a second blur before the save lands never sends it again
+  useEffect(() => { setDraft(stored); sent.current = null; }, [stored]);
+  const confirm = (): void => { if (draft && draft !== stored && draft !== sent.current) { sent.current = draft; onConfirm(draft); } };
+  return (
+    <input
+      type="date"
+      aria-label={label}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={confirm}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+    />
+  );
+}

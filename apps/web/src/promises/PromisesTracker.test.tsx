@@ -123,6 +123,8 @@ describe('[AUDIT item 2] inline due-date edit', () => {
     // A date input emits one change carrying the full value (how the picker works); drive it that way
     // rather than clear+char-type, which desyncs against a controlled input (the field re-renders).
     fireEvent.change(input, { target: { value: '2026-09-15' } });
+    // [P43 · owner] the date saves when the rep confirms it (the picker closes / the field loses focus), not on change
+    fireEvent.blur(input);
     await waitFor(() => expect(editDueDate).toHaveBeenCalledWith('p1', '2026-09-15'));
   });
 
@@ -134,5 +136,42 @@ describe('[AUDIT item 2] inline due-date edit', () => {
     await userEvent.clear(input);
     await new Promise((r) => setTimeout(r, 0));
     expect(editDueDate).not.toHaveBeenCalled(); // empty is ignored, not written
+  });
+
+  // [P43-8 · owner] One change means one edit record: adjusting the picker never writes; confirming writes once.
+  it('[P43-8] adjusting the picker three times, then confirming, writes exactly one edit (the last date)', async () => {
+    const editDueDate = vi.fn().mockResolvedValue(true);
+    render(<PromisesTracker api={{ ...makeApi([p('p1', 'send quote')]), editDueDate }} />);
+    const input = await screen.findByLabelText('Due date for: send quote');
+    fireEvent.change(input, { target: { value: '2026-09-13' } });
+    fireEvent.change(input, { target: { value: '2026-09-14' } });
+    fireEvent.change(input, { target: { value: '2026-09-15' } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(editDueDate).not.toHaveBeenCalled(); // nothing written while adjusting
+    fireEvent.blur(input);
+    await waitFor(() => expect(editDueDate).toHaveBeenCalledTimes(1));
+    expect(editDueDate).toHaveBeenCalledWith('p1', '2026-09-15');
+  });
+
+  it('[P43-8] Enter confirms the chosen date too (once)', async () => {
+    const editDueDate = vi.fn().mockResolvedValue(true);
+    render(<PromisesTracker api={{ ...makeApi([p('p1', 'send quote')]), editDueDate }} />);
+    const input = await screen.findByLabelText('Due date for: send quote');
+    fireEvent.change(input, { target: { value: '2026-09-15' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.blur(input);
+    await waitFor(() => expect(editDueDate).toHaveBeenCalledTimes(1));
+  });
+
+  it('[P43-8] NEGATIVE: confirming the same date as stored, or after moving back to it, writes nothing', async () => {
+    const editDueDate = vi.fn().mockResolvedValue(true);
+    render(<PromisesTracker api={{ ...makeApi([p('p1', 'send quote')]), editDueDate }} />);
+    const input = await screen.findByLabelText('Due date for: send quote');
+    fireEvent.blur(input);
+    fireEvent.change(input, { target: { value: '2026-09-15' } });
+    fireEvent.change(input, { target: { value: '2026-08-01' } }); // back to the stored date
+    fireEvent.blur(input);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(editDueDate).not.toHaveBeenCalled();
   });
 });
