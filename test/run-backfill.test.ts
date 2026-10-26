@@ -144,6 +144,14 @@ describe('[P21-C] run-backfill.sh — choosing the backfill', () => {
     expect(line).not.toContain('--apply');
   });
 
+  // [P44-3] the subscription-periods audit is READ-ONLY: it runs without --apply, and --apply is refused
+  it('--script subscription-periods runs the read-only audit and refuses --apply', () => {
+    const r = run(['--script', 'subscription-periods', '--apply']); // refused before any AWS call
+    expect(r.status).not.toBe(0);
+    expect(runTaskLine(r.calls)).toBe('');
+    expect(runTaskLine(run(['--script', 'subscription-periods']).calls)).toContain('audit-subscription-periods.ts');
+  });
+
   // [P43] the undated-to-confirm backfill, dry-run first like the others
   it('--script undated-to-confirm runs backfill-undated-to-confirm.ts (dry run by default)', () => {
     const r = run(['--script', 'undated-to-confirm']);
