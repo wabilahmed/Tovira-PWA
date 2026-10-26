@@ -29,6 +29,6 @@ export function appLinks(appBaseUrl: string): AppLinks {
     invite: (t) => `${base}/invite?token=${encodeURIComponent(t)}`,
     verifyEmail: (t) => `${base}/verify-email?token=${encodeURIComponent(t)}`,
     opsApprove: (id) => `${base}/api/ops/access-requests/${encodeURIComponent(id)}/approve`,
-    opsAccess: `${base}/ops/access`,
+    opsAccess: `${base}/admin/access`, // [P45] the review page is in the admin console
   };
 }

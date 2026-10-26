@@ -73,6 +73,8 @@ import { handleFindRoute } from './http/find-routes.js';
 import type { FindService } from './services/find/find-service.js';
 import { handleOpsRoute, opsTokenOk, type OpsRouteDeps } from './http/ops-routes.js';
 import { handleAdminRoute, type AdminRouteDeps } from './http/admin-routes.js';
+import { adminAccessRoute, adminCostsRoute } from './http/admin-console-routes.js';
+import type { CostReportService } from './services/spend/cost-report-service.js';
 import type { AskCaptureService } from './services/recall/ask-capture-service.js';
 import { handleCorpusRoute } from './http/corpus-routes.js';
 import type { CorpusStatsService } from './services/corpus/corpus-service.js';
@@ -218,6 +220,8 @@ export interface ApiDeps {
   opsRoute?: OpsRouteDeps;
   /** [P45] The admin console API (/admin/…): its own login, 2FA and sessions; never a rep session. */
   adminRoute?: Omit<AdminRouteDeps, 'cookieSecure'>;
+  /** [P45-2] the console's cost report (falls back to the ops one). */
+  adminCosts?: Pick<CostReportService, 'report'>;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -335,7 +339,15 @@ export function createApiServer(deps: ApiDeps): Server {
       }
 
       // [P45] The admin console (its own cookie + store), before any rep routing.
-      if (deps.adminRoute && (await handleAdminRoute(request, response, { ...deps.adminRoute, cookieSecure }))) return;
+      if (deps.adminRoute) {
+        const costs = deps.adminCosts ?? deps.opsRoute?.costReport;
+        const extra = [
+          ...(deps.adminRoute.extra ?? []),
+          ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval)] : []),
+          ...(costs ? [adminCostsRoute(costs)] : []),
+        ];
+        if (await handleAdminRoute(request, response, { ...deps.adminRoute, extra, cookieSecure })) return;
+      }
 
       // [SPEND-CAP · CAP-OVERRIDE] Ops-only, token-gated (not a rep session), before auth routing.
       if (deps.opsRoute && (await handleOpsRoute(request, response, deps.opsRoute))) return;
