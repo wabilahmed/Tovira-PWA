@@ -47,6 +47,11 @@ export class SpendService {
    * allowed to burn most of a paying month's COGS. Paid/expired periods use the full `capAed`. An ops
    * override still wins over either base (it can raise a specific rep+period).
    */
+  /** [P44-2] The cap this (rep, period) is held to, for the ops cost report: the same rule as enforcement. */
+  capForPeriod(userId: string, periodKey: string): Promise<number> {
+    return this.capFor(userId, periodKey);
+  }
+
   private async capFor(userId: string, periodKey: string): Promise<number> {
     const base = periodKey.startsWith('t:') ? (this.cfg.trialCapAed ?? this.cfg.capAed) : this.cfg.capAed;
     return (await this.overrideFor?.(userId, periodKey)) ?? base;

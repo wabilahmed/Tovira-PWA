@@ -127,6 +127,7 @@ import { AllowanceStatusService } from './services/spend/allowance-status.js';
 import { allowanceWindow } from './services/spend/ai-period.js';
 import { ModelCallEventService } from './services/spend/model-call-event-service.js';
 import { setTranscriptionEventSink } from './adapters/spend/recording-transcriber.js';
+import { CostReportService } from './services/spend/cost-report-service.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 import { appLinks } from './services/email/email-links.js';
 
@@ -664,7 +665,9 @@ async function main(): Promise<void> {
     trainingLog: trainingLogStats,
     spend,
     opsAlerts,
-    opsRoute: { tourFunnel, opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause },
+    opsRoute: { tourFunnel, opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause,
+      // [P44-2] the ops cost report; emails per id via auth (users-table access stays in the user repository)
+      costReport: new CostReportService(costReportStore, async (id) => (await auth.getPublicUser(id))?.email ?? null, (u, p) => spend.capForPeriod(u, p)) },
     cookieSecure: config.nodeEnv === 'production',
     // Brute-force guard: 8 failed logins per IP+email per 15 minutes, then 429.
     loginLimiter: new FixedWindowRateLimiter(8, 15 * 60 * 1000),

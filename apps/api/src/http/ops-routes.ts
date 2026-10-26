@@ -1,3 +1,5 @@
+import type { CostReportService } from '../services/spend/cost-report-service.js';
+import { costReportCsv } from '../services/spend/cost-report.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { sendJson, readJsonBody, BadJsonError } from './helpers.js';
@@ -34,6 +36,8 @@ export interface OpsRouteDeps {
   aiPause?: { getPaused(): Promise<boolean>; setPaused(paused: boolean): Promise<void> };
   /** [P37] the anonymous tour funnel (where reps drop off). Absent → 404. */
   tourFunnel?: { list(): Promise<unknown[]> };
+  /** [P44-2] the ops cost report (GET /ops/costs). Absent → 404. */
+  costReport?: Pick<CostReportService, 'report'>;
 }
 
 const ACCESS_STATUSES: ReadonlySet<string> = new Set<AccessRequestStatus>(['pending', 'approved', 'rejected', 'invited', 'activated']);
@@ -275,6 +279,27 @@ export async function handleOpsRoute(req: IncomingMessage, res: ServerResponse, 
       return true;
     }
     sendJson(res, 200, await conversationCostReport(deps.modelCallEvents, userId, conversationId));
+    return true;
+  }
+
+  // [P44-2] GET /ops/costs?view=period|month[&format=csv] — one row per user per period: Claude + estimated voice
+  // cost, revenue, margin, and the AED 67 / cap flags. Read-only, no model calls. CSV for the books.
+  if (req.method === 'GET' && (url === '/ops/costs' || url.startsWith('/ops/costs?'))) {
+    if (!deps.costReport) { sendJson(res, 404, { error: 'not_found' }); return true; }
+    const q = new URL(req.url ?? '/', 'http://x').searchParams;
+    const view = q.get('view') ?? 'period';
+    if (view !== 'period' && view !== 'month') { sendJson(res, 400, { error: 'validation', message: 'view must be period or month.' }); return true; }
+    const report = await deps.costReport.report(view);
+    if (q.get('format') === 'csv') {
+      res.writeHead(200, {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="tovira-costs-${view}-${new Date().toISOString().slice(0, 10)}.csv"`,
+        'cache-control': 'no-store',
+      });
+      res.end(costReportCsv(report));
+      return true;
+    }
+    sendJson(res, 200, report);
     return true;
   }
 
