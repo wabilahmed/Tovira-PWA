@@ -31,12 +31,22 @@ export class LedgerService {
     return this.repo.record(userId, event);
   }
 
+  /** [P46-5] The stored events (for the Ledger's entries). */
+  listEvents(userId: string): ReturnType<LedgerRepository['listByUser']> {
+    return this.repo.listByUser(userId);
+  }
+
   removeBySource(userId: string, sourceId: string): Promise<void> {
     return this.repo.removeBySource(userId, sourceId);
   }
 
   setDealValue(userId: string, clientId: string, aed: number): Promise<void> {
     return this.repo.setDealValue(userId, clientId, aed);
+  }
+
+  /** [P46-5] The deal value on one entry (null clears it). False when the entry is not the rep's. */
+  setEntryDealValue(userId: string, entryId: string, aed: number | null): Promise<boolean> {
+    return this.repo.setEntryDealValue(userId, entryId, aed);
   }
 
   /** Recomputed from stored events every call — never a cached counter. */

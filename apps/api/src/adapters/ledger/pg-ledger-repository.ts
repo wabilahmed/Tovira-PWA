@@ -10,6 +10,7 @@ interface Row {
   source_id: string;
   dedupe_key: string;
   occurred_at: Date;
+  deal_value_aed: string | null;
 }
 
 function toRecord(row: Row): LedgerEventRecord {
@@ -21,6 +22,7 @@ function toRecord(row: Row): LedgerEventRecord {
     sourceId: row.source_id,
     dedupeKey: row.dedupe_key,
     occurredAt: row.occurred_at.getTime(),
+    dealValueAed: row.deal_value_aed === null || row.deal_value_aed === undefined ? null : Number(row.deal_value_aed),
   };
 }
 
@@ -43,7 +45,7 @@ export class PgLedgerRepository implements LedgerRepository {
   async listByUser(userId: string): Promise<LedgerEventRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `SELECT id, user_id, client_id, type, source_id, dedupe_key, occurred_at
+        `SELECT id, user_id, client_id, type, source_id, dedupe_key, occurred_at, deal_value_aed
          FROM ledger_events WHERE user_id = $1 ORDER BY occurred_at DESC`,
         [userId],
       );
@@ -64,6 +66,14 @@ export class PgLedgerRepository implements LedgerRepository {
          ON CONFLICT (user_id, client_id) DO UPDATE SET aed = EXCLUDED.aed`,
         [userId, clientId, aed],
       );
+    });
+  }
+
+  async setEntryDealValue(userId: string, entryId: string, aed: number | null): Promise<boolean> {
+    if (!/^[0-9a-f-]{36}$/i.test(entryId)) return false;
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`UPDATE ledger_events SET deal_value_aed = $3 WHERE user_id = $1 AND id = $2 RETURNING id`, [userId, entryId, aed]);
+      return rows.length > 0;
     });
   }
 

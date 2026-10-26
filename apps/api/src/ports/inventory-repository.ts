@@ -56,12 +56,16 @@ export interface InventoryShareRecord {
   outcomeSetBy: ShareSetBy | null;
   /** How many were bought — null until the outcome is `bought`. */
   quantityBought: number | null;
+  /** [P46-5] The suggestion (inventory match) this share was made from; null for an independent share or an older one. */
+  matchId: string | null;
 }
 
 export interface ShareInput {
   itemId: string;
   clientId: string;
   outcomeSetBy?: ShareSetBy | null;
+  /** [P46-5] set only when the share was made from a Tovira suggestion */
+  matchId?: string | null;
 }
 export interface ShareOutcomePatch {
   outcome: ShareOutcome;

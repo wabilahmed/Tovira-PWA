@@ -21,6 +21,8 @@ export interface LedgerEvent {
 export interface LedgerEventRecord extends LedgerEvent {
   id: string;
   userId: string;
+  /** [P46-5] The deal value (AED) the rep entered on THIS entry; null until entered. Never estimated. */
+  dealValueAed: number | null;
 }
 
 export interface DealValue {
@@ -36,4 +38,6 @@ export interface LedgerRepository {
   removeBySource(userId: string, sourceId: string): Promise<void>;
   setDealValue(userId: string, clientId: string, aed: number): Promise<void>;
   listDealValues(userId: string): Promise<DealValue[]>;
+  /** [P46-5] Set (or clear, with null) the deal value on one of the rep's entries. False when it is not theirs. */
+  setEntryDealValue(userId: string, entryId: string, aed: number | null): Promise<boolean>;
 }

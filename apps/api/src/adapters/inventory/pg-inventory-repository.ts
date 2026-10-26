@@ -20,12 +20,13 @@ interface ShareRow {
   shared_at: Date;
   outcome: InventoryShareRecord['outcome'];
   outcome_set_by: InventoryShareRecord['outcomeSetBy'];
+  match_id: string | null;
   quantity_bought: number | null;
 }
 function toShare(row: ShareRow): InventoryShareRecord {
-  return { id: row.id, userId: row.user_id, itemId: row.item_id, clientId: row.client_id, sharedAt: row.shared_at.getTime(), outcome: row.outcome, outcomeSetBy: row.outcome_set_by, quantityBought: row.quantity_bought === null ? null : Number(row.quantity_bought) };
+  return { id: row.id, userId: row.user_id, itemId: row.item_id, clientId: row.client_id, sharedAt: row.shared_at.getTime(), outcome: row.outcome, outcomeSetBy: row.outcome_set_by, quantityBought: row.quantity_bought === null ? null : Number(row.quantity_bought), matchId: row.match_id ?? null };
 }
-const SHARE_COLUMNS = 'id, user_id, item_id, client_id, shared_at, outcome, outcome_set_by, quantity_bought';
+const SHARE_COLUMNS = 'id, user_id, item_id, client_id, shared_at, outcome, outcome_set_by, quantity_bought, match_id';
 
 interface InventoryRow {
   id: string;
@@ -137,9 +138,9 @@ export class PgInventoryRepository implements InventoryRepository {
   async createShare(userId: string, input: ShareInput): Promise<InventoryShareRecord> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO inventory_shares (user_id, item_id, client_id, outcome_set_by)
-         VALUES ($1, $2, $3, $4) RETURNING ${SHARE_COLUMNS}`,
-        [userId, input.itemId, input.clientId, input.outcomeSetBy ?? 'rep'],
+        `INSERT INTO inventory_shares (user_id, item_id, client_id, outcome_set_by, match_id)
+         VALUES ($1, $2, $3, $4, $5) RETURNING ${SHARE_COLUMNS}`,
+        [userId, input.itemId, input.clientId, input.outcomeSetBy ?? 'rep', input.matchId ?? null],
       );
       return toShare(rows[0] as unknown as ShareRow);
     });

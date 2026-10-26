@@ -196,6 +196,8 @@ export interface ApiDeps {
   aiPaused?: () => Promise<boolean>;
   monday: MondayDigestService;
   ledger: LedgerService;
+  /** [P46-5] The Ledger's entries, built from the stored links (see services/ledger/ledger-entries.ts). */
+  ledgerEntries?: (userId: string) => Promise<import('./services/ledger/ledger-entries.js').LedgerEntry[]>;
   referral: ReferralService;
   accountEmail: AccountEmailService;
   appBaseUrl: string;
@@ -518,7 +520,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (deps.find && (await handleFindRoute(request, response, { auth: deps.auth, billing: deps.billing, find: deps.find }))) return;
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
       if (await handleMondayRoute(request, response, { auth: deps.auth, monday: deps.monday, billing: deps.billing })) return;
-      if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger, clients: deps.clients })) return;
+      if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger, clients: deps.clients, ...(deps.ledgerEntries ? { entries: deps.ledgerEntries } : {}) })) return;
       if (await handleShareCardRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing, appBaseUrl: deps.appBaseUrl })) return;
       if (await handleAllowanceRoute(request, response, { auth: deps.auth, allowanceStatus: deps.allowanceStatus, billing: deps.billing, aiPaused: deps.aiPaused })) return;

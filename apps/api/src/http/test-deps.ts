@@ -113,6 +113,7 @@ import { AccessRequestService } from '../services/access/access-request-service.
 import { AccessApprovalService, INVITE_RESEND_MAX_PER_DAY } from '../services/access/access-approval-service.js';
 import { FixedWindowRateLimiter } from '../services/security/rate-limiter.js';
 import { ModelMetricsRegistry } from '../services/metrics/model-metrics.js';
+import { ledgerEntries } from '../services/ledger/ledger-entries.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -464,6 +465,7 @@ export function buildInMemoryDeps(
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, surfacing.notes, surfacing.facts, notifications, 30, pushDispatch),
     ledger,
+    ledgerEntries: (uid: string) => ledgerEntries(uid, { ledger: { listByUser: (u) => ledger.listEvents(u) }, inventory: inventoryRepo, matches: inventoryMatches, requirements, clients, restriction }),
     referral,
     accountEmail,
     appBaseUrl: 'http://localhost:5173',

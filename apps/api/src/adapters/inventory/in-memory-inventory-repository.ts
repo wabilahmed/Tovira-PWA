@@ -83,7 +83,7 @@ export class InMemoryInventoryRepository implements InventoryRepository {
   async createShare(userId: string, input: ShareInput): Promise<InventoryShareRecord> {
     const record: InventoryShareRecord = {
       id: randomUUID(), userId, itemId: input.itemId, clientId: input.clientId,
-      sharedAt: this.tick(), outcome: 'pending', outcomeSetBy: input.outcomeSetBy ?? 'rep', quantityBought: null,
+      sharedAt: this.tick(), outcome: 'pending', outcomeSetBy: input.outcomeSetBy ?? 'rep', quantityBought: null, matchId: input.matchId ?? null,
     };
     this.shares.set(record.id, record);
     return { ...record };

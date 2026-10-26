@@ -37,6 +37,8 @@ export interface InventoryMatchRepository {
   upsert(userId: string, m: MatchUpsert): Promise<MatchRecord>;
   findPairing(userId: string, requirementId: string, itemId: string): Promise<MatchRecord | null>;
   findById(userId: string, matchId: string): Promise<MatchRecord | null>;
+  /** [P46-5] Every match (open or dismissed) pairing this client and item, newest first. */
+  listByClientItem(userId: string, clientId: string, itemId: string): Promise<MatchRecord[]>;
   listOpenByClient(userId: string, clientId: string): Promise<MatchRecord[]>;
   listOpenByItem(userId: string, itemId: string): Promise<MatchRecord[]>;
   /** All open STRONG matches across the rep — Today's register + the badge (possibles never enter

@@ -136,6 +136,7 @@ import { HttpExpleeClient } from './adapters/leads/explee-client.js';
 import { newAdminLimiter } from './http/admin-routes.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 import { appLinks } from './services/email/email-links.js';
+import { ledgerEntries } from './services/ledger/ledger-entries.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -674,6 +675,8 @@ async function main(): Promise<void> {
     corpus,
     monday,
     ledger,
+    // [P46-5] the Ledger's entries: suggested sales the rep marked bought, with their receipts and deal values
+    ledgerEntries: (uid: string) => ledgerEntries(uid, { ledger: { listByUser: (u) => ledger.listEvents(u) }, inventory: inventoryRepo, matches: inventoryMatches, requirements, clients, restriction }),
     referral,
     accountEmail,
     appBaseUrl: config.appBaseUrl,

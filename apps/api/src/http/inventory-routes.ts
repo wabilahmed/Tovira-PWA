@@ -31,7 +31,7 @@ const OUTCOMES: ShareOutcome[] = ['bought', 'declined', 'no_response'];
 export function itemDto(r: InventoryItemRecord): Omit<InventoryItemRecord, 'userId' | 'embedded'> {
   return { id: r.id, title: r.title, description: r.description, quantity: r.quantity, status: r.status, disabledReason: r.disabledReason, createdAt: r.createdAt, updatedAt: r.updatedAt };
 }
-export function shareDto(s: InventoryShareRecord): Omit<InventoryShareRecord, 'userId'> {
+export function shareDto(s: InventoryShareRecord): Omit<InventoryShareRecord, 'userId' | 'matchId'> {
   return { id: s.id, itemId: s.itemId, clientId: s.clientId, sharedAt: s.sharedAt, outcome: s.outcome, outcomeSetBy: s.outcomeSetBy, quantityBought: s.quantityBought };
 }
 
@@ -96,7 +96,7 @@ export async function handleInventoryRoute(
       // nothing — that distinction is the ledger's honesty.
       const m = await deps.matching.getMatch(userId, decodeURIComponent(sm[1]!));
       if (!m || m.status !== 'open') { sendJson(res, 404, { error: 'not_found' }); return true; }
-      const result = await deps.inventory.share(userId, m.itemId, m.clientId, 'confirmed_suggestion');
+      const result = await deps.inventory.share(userId, m.itemId, m.clientId, 'confirmed_suggestion', m.id); // [P46-5] remember which suggestion
       if (!result.ok) { sendJson(res, 409, { error: result.reason }); return true; }
       await deps.matching.dismiss(userId, m.id); // acted on — resolve the open suggestion
       sendJson(res, 200, { share: shareDto(result.share), warning: result.warning?.map(shareDto) ?? null });

@@ -1,90 +1,166 @@
 import { useEffect, useState } from 'react';
-import type { LedgerSummary, LedgerEventType } from './ledgerClient.js';
+import type { LedgerEntry, LedgerSummary } from './ledgerClient.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
+import { Button, Chip, ChipGroup, EmptyState, Toast } from '../ui/index.js';
+import { ReceiptThread } from '../receipts/ReceiptThread.js';
 
 export interface LedgerApi {
   summary(): Promise<LedgerSummary | null>;
-  setDealValue(clientId: string, aed: number): Promise<boolean>;
+  setEntryDealValue(entryId: string, aed: number | null): Promise<boolean>;
 }
 
-const LABEL: Record<LedgerEventType, string> = {
-  promise_kept: 'promise kept on time',
-  thread_reopened: 'thread reopened',
-  brief_before_meeting: 'brief before a meeting',
-  inventory_suggested_bought: 'a suggested item was marked bought',
-};
+export type LedgerPeriod = 'month' | '3months' | 'all';
+const PERIODS: Array<{ value: LedgerPeriod; label: string }> = [
+  { value: 'month', label: 'This month' }, { value: '3months', label: 'Last 3 months' }, { value: 'all', label: 'All time' },
+];
+
+function periodStart(period: LedgerPeriod, now: number): number {
+  if (period === 'all') return -Infinity;
+  const d = new Date(now);
+  return period === 'month' ? new Date(d.getFullYear(), d.getMonth(), 1).getTime() : new Date(d.getFullYear(), d.getMonth() - 3, d.getDate()).getTime();
+}
+const inPeriod = (e: LedgerEntry, period: LedgerPeriod, now: number): boolean => e.outcomeAt >= periodStart(period, now);
 
 /**
- * The Recovered Value Ledger (P4-11). Language is "touched", never "closed" or
- * "won" — no causal claims. AED shows only when the rep has entered deal values.
+ * [P46-5] The summary for a period: how many deals Tovira helped with, and the value of those deals from the values
+ * the rep entered (null when none has a value: never an estimate). `withValue` counts the deals that have one.
  */
-export function Ledger({ api, clients }: { api: LedgerApi; clients: Array<{ id: string; name: string }> }): JSX.Element {
-  const [summary, setSummary] = useState<LedgerSummary | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [clientId, setClientId] = useState(clients[0]?.id ?? '');
-  const [aed, setAed] = useState('');
+export function ledgerTotals(entries: LedgerEntry[], period: LedgerPeriod, now: number): { count: number; valueAed: number | null; withValue: number } {
+  const es = entries.filter((e) => inPeriod(e, period, now));
+  const valued = es.filter((e) => e.dealValueAed !== null);
+  return { count: es.length, valueAed: valued.length ? valued.reduce((s, e) => s + (e.dealValueAed ?? 0), 0) : null, withValue: valued.length };
+}
 
-  const load = (): Promise<void> =>
-    api.summary().then((s) => {
-      if (s) { setSummary(s); setState('ready'); } else setState('error');
-    });
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function shortDate(ms: number, now: number): string {
+  const d = new Date(ms);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}${d.getFullYear() === new Date(now).getFullYear() ? '' : ` ${d.getFullYear()}`}`;
+}
+const aed = (n: number): string => `AED ${n.toLocaleString('en-US')}`;
+
+/**
+ * [P46-5] The Ledger: "the record of what Tovira helped you win", the app paying for itself. A summary for the chosen
+ * period, then one card per deal, newest first: the client, what Tovira did (the suggestion, with the client's words as
+ * its receipt), what happened (marked bought), and the deal value entered on the card. An entry exists only where a
+ * stored link joins Tovira's suggestion to a sale the rep marked; nothing is inferred.
+ */
+export function Ledger({ api, now = Date.now(), back, onOpenInventory }: {
+  api: LedgerApi;
+  now?: number;
+  back?: { label: string; onBack: () => void };
+  onOpenInventory?: () => void;
+}): JSX.Element {
+  const [data, setData] = useState<LedgerSummary | null>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [period, setPeriod] = useState<LedgerPeriod>('all');
+  const [saved, setSaved] = useState(false);
+
+  const load = (): Promise<void> => api.summary().then((s) => { if (s) { setData(s); setState('ready'); } else setState('error'); });
   useEffect(() => { void load(); }, [api]);
 
-  async function saveDealValue(e: React.FormEvent): Promise<void> {
-    e.preventDefault();
-    const value = Number(aed);
-    if (!clientId || !Number.isFinite(value) || value < 0) return;
-    if (await api.setDealValue(clientId, value)) {
-      setAed('');
-      void load();
+  const header = <PageHeader title="The Ledger" subtitle="What Tovira helped you win" {...(back ? { back } : {})} />;
+  if (state === 'loading') return <Page testId="ledger-page" label="The Ledger">{header}<p className="ui-secondary">Loading your ledger…</p></Page>;
+  if (state === 'error' || !data) return <Page testId="ledger-page" label="The Ledger">{header}<p role="alert" className="ui-secondary">Couldn’t load your ledger.</p></Page>;
+
+  async function saveValue(id: string, value: number | null): Promise<boolean> {
+    const ok = await api.setEntryDealValue(id, value);
+    if (ok) {
+      setData((d) => (d ? { ...d, entries: d.entries.map((e) => (e.id === id ? { ...e, dealValueAed: value } : e)) } : d));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
     }
+    return ok;
   }
 
-  // [P39-8] Loading and error states sit in the page template too.
-  if (state === 'loading') return <Page testId="ledger-page" label="The Ledger"><PageHeader title="The Ledger" /><p className="ui-secondary">Loading your ledger…</p></Page>;
-  if (state === 'error' || !summary) return <Page testId="ledger-page" label="The Ledger"><PageHeader title="The Ledger" /><p role="alert" className="ui-secondary">Couldn’t load your ledger.</p></Page>;
+  if (data.entries.length === 0) {
+    return (
+      <Page testId="ledger-page" label="The Ledger">
+        {header}
+        <EmptyState title="Nothing here yet." action={onOpenInventory ? <Button onClick={onOpenInventory}>Open Inventory</Button> : undefined}>
+          When Tovira’s suggestion leads to a sale, it shows up here. Add what you sell in Inventory to start.
+        </EmptyState>
+      </Page>
+    );
+  }
 
+  const totals = ledgerTotals(data.entries, period, now);
+  const shown = data.entries.filter((e) => inPeriod(e, period, now));
   return (
     <Page testId="ledger-page" label="The Ledger">
-      <PageHeader title="The Ledger" />
-
-      {summary.totalTouched === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Nothing yet. As you act on flags and keep promises, they’ll show here.</p>
-      ) : (
-        <>
-          <p data-testid="headline" className="tov-statement" style={{ paddingTop: 'var(--space-2)' }}>
-            Tovira touched <strong className="tov-mono">{summary.totalTouched}</strong> opportunit{summary.totalTouched === 1 ? 'y' : 'ies'}
-            {summary.aed !== null && <> · <strong className="tov-mono">AED {summary.aed.toLocaleString()}</strong> of your pipeline</>}.
+      {header}
+      <ChipGroup label="Period">
+        {PERIODS.map((p) => <Chip key={p.value} selected={period === p.value} onClick={() => setPeriod(p.value)}>{p.label}</Chip>)}
+      </ChipGroup>
+      <div className="ui-card ui-stack ui-gap-3" data-testid="ledger-summary">
+        <div>
+          <p className="ui-label">Deals Tovira helped with</p>
+          <p className="ui-title" data-testid="deals-count">{totals.count}</p>
+        </div>
+        <div>
+          <p className="ui-label">Value of those deals</p>
+          <p data-testid="deals-value" className={totals.valueAed === null ? 'ui-secondary' : 'ui-strong'}>
+            {totals.valueAed === null ? 'Add deal values to see the total' : aed(totals.valueAed)}
+            {totals.valueAed !== null && totals.withValue < totals.count && <span className="ui-caption ui-block">{totals.withValue} of {totals.count} deals have a value</span>}
           </p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0' }}>
-            {(Object.keys(summary.byType) as LedgerEventType[])
-              .filter((t) => summary.byType[t] > 0)
-              .map((t) => (
-                <li
-                  key={t}
-                  data-testid={`type-${t}`}
-                  style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'baseline', padding: 'var(--space-2) 0', borderBottom: '1px solid var(--hairline)' }}
-                >
-                  <span className="tov-mono" style={{ color: 'var(--brass)' }}>{summary.byType[t]} ×</span>{' '}
-                  <span>{LABEL[t]}</span>
-                </li>
-              ))}
-          </ul>
-        </>
+        </div>
+      </div>
+      {shown.length === 0 ? (
+        <p className="ui-secondary">No deals in this period.</p>
+      ) : (
+        <ul className="ui-plainlist ui-stack ui-gap-3">
+          {shown.map((e) => <EntryCard key={e.id} entry={e} now={now} onSave={saveValue} />)}
+        </ul>
       )}
-
-      {clients.length > 0 && (
-        <form onSubmit={saveDealValue} style={{ marginTop: 'var(--space-4)', display: 'flex', gap: 'var(--space-2)', alignItems: 'baseline', flexWrap: 'wrap' }}>
-          <label>
-            Deal value for{' '}
-            <select className="tov-client-select ui-native-select" value={clientId} onChange={(e) => setClientId(e.target.value)} aria-label="Deal value client">
-              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-          <input value={aed} onChange={(e) => setAed(e.target.value)} inputMode="numeric" placeholder="AED" aria-label="Deal value (AED)" style={{ width: 120 }} />
-          <button type="submit" disabled={!aed.trim()}>Save</button>
-        </form>
-      )}
+      {saved && <Toast>Saved</Toast>}
     </Page>
+  );
+}
+
+function EntryCard({ entry: e, now, onSave }: { entry: LedgerEntry; now: number; onSave: (id: string, v: number | null) => Promise<boolean> }): JSX.Element {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(e.dealValueAed === null ? '' : String(e.dealValueAed));
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save(): Promise<void> {
+    const raw = draft.replace(/[,\s]/g, '').replace(/^AED/i, '');
+    const value = raw === '' ? null : Number(raw);
+    if (value !== null && (!Number.isFinite(value) || value < 0)) { setError('Enter the value as a number in AED, for example 12500.'); return; }
+    setBusy(true);
+    setError(null);
+    if (await onSave(e.id, value)) setEditing(false);
+    else setError('Could not save the value. Try again.');
+    setBusy(false);
+  }
+
+  return (
+    <li className="ui-card ui-stack ui-gap-2" data-testid="ledger-entry">
+      <span className="ui-strong" dir="auto">{e.clientName}</span>
+      <div className="ui-stack ui-gap-1">
+        <p style={{ margin: 0 }}>Suggested {e.itemTitle} on {shortDate(e.suggestedAt, now)}</p>
+        {e.receipt && <ReceiptThread compact refInfo={{ noteId: e.receipt.noteId, clientId: e.clientId, span: e.receipt.quote, quote: e.receipt.quote, at: e.receipt.statedOn }} />}
+      </div>
+      <p style={{ margin: 0 }}>Marked bought on {shortDate(e.outcomeAt, now)}</p>
+      {editing ? (
+        <div className="ui-stack ui-gap-2">
+          <label className="ui-field">
+            <span className="ui-field__label">Deal value (AED)</span>
+            <input className="ui-input" inputMode="numeric" value={draft} onChange={(ev) => setDraft(ev.target.value)} placeholder="e.g. 12500" />
+          </label>
+          {error && <p role="alert" className="ui-danger">{error}</p>}
+          <div className="ui-cluster ui-gap-2">
+            <Button size="sm" variant="primary" onClick={() => void save()} loading={busy}>Save</Button>
+            <Button size="sm" variant="text" onClick={() => { setEditing(false); setError(null); }}>Cancel</Button>
+          </div>
+        </div>
+      ) : e.dealValueAed === null ? (
+        <div><Button size="sm" onClick={() => setEditing(true)}>+ Add deal value</Button></div>
+      ) : (
+        <div className="ui-cluster ui-cluster--between ui-gap-2">
+          <span className="ui-strong">{aed(e.dealValueAed)}</span>
+          <Button size="sm" variant="text" aria-label="Change deal value" onClick={() => setEditing(true)}>Change</Button>
+        </div>
+      )}
+    </li>
   );
 }

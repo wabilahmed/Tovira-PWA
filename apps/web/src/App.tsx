@@ -801,7 +801,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
         </>,
       )}
 
-      {view === 'ledger' && <Ledger api={ledgerApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />}
+      {view === 'ledger' && <Ledger api={ledgerApi} {...(backToMore ? { back: backToMore } : {})} onOpenInventory={() => navigate('inventory')} />}
 
       {view === 'inventory' && <Inventory api={inventoryApi} clients={clients.map((c) => ({ id: c.id, name: c.name, phone: c.phone ?? null }))} onSubscribe={startCheckout} {...(backToMore ? { back: backToMore } : {})} />}
 

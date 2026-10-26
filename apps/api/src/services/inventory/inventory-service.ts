@@ -134,12 +134,12 @@ export class InventoryService {
    * is now over-shared (active pending shares meet or exceed quantity), so the rep sees
    * "already shared with …" — contextual, never blocking. The caller validates the client.
    */
-  async share(userId: string, itemId: string, clientId: string, outcomeSetBy?: ShareSetBy): Promise<ShareResult> {
+  async share(userId: string, itemId: string, clientId: string, outcomeSetBy?: ShareSetBy, matchId?: string): Promise<ShareResult> {
     const item = await this.repo.findByIdForUser(userId, itemId);
     if (!item) return { ok: false, reason: 'not_found' };
     if (item.status !== 'active') return { ok: false, reason: 'disabled' };
     const priorPending = (await this.repo.listSharesByItem(userId, itemId)).filter((s) => s.outcome === 'pending');
-    const share = await this.repo.createShare(userId, { itemId, clientId, outcomeSetBy });
+    const share = await this.repo.createShare(userId, { itemId, clientId, outcomeSetBy, ...(matchId ? { matchId } : {}) });
     // Warn only when re-sharing an already-committed item: there IS a prior pending share, and
     // this one takes the pending count to meet-or-exceed quantity. No warning on the first share.
     // [P43-4] An uncounted item (quantity null) is never over-shared.

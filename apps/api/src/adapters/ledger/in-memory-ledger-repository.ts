@@ -8,7 +8,7 @@ export class InMemoryLedgerRepository implements LedgerRepository {
 
   async record(userId: string, event: LedgerEvent): Promise<boolean> {
     if (this.rows.some((r) => r.userId === userId && r.dedupeKey === event.dedupeKey)) return false;
-    this.rows.push({ ...event, id: randomUUID(), userId });
+    this.rows.push({ ...event, id: randomUUID(), userId, dealValueAed: null });
     return true;
   }
 
@@ -30,6 +30,13 @@ export class InMemoryLedgerRepository implements LedgerRepository {
 
   async listDealValues(userId: string): Promise<DealValue[]> {
     return this.deals.get(userId) ?? [];
+  }
+
+  async setEntryDealValue(userId: string, entryId: string, aed: number | null): Promise<boolean> {
+    const row = this.rows.find((r) => r.userId === userId && r.id === entryId);
+    if (!row) return false;
+    row.dealValueAed = aed;
+    return true;
   }
 
   async purgeUser(userId: string): Promise<void> {

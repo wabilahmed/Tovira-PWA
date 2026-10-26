@@ -79,7 +79,7 @@ export const SURFACES: Record<string, Probe | string> = {
   '/billing/top-up': 'billing', '/billing/webhook': 'billing',
   '/clients/': 'prefix of the client routes', '/lead-status': 'write (status)', '/outcome': 'write (outcome)',
   '/clients/:id/images': 'write (photo upload, removed in P36)', '/images/:id': 'an image the rep uploaded',
-  '/clients/:id/deal-value': 'write', '/clients/:id/notes/import': 'write', '/clients/:id/notes/paste': 'write', '/clients/:id/notes/voice': 'write',
+  '/clients/:id/deal-value': 'write', '/ledger/entries/:id/deal-value': 'write', '/clients/:id/notes/import': 'write', '/clients/:id/notes/paste': 'write', '/clients/:id/notes/voice': 'write',
   '/notes/:id/audio': 'the rep\'s own recording', '/notes/:id/extract': 'write (queues extraction)', '/notes/:id/follow-up': 'model draft — refuses restricted notes (TASK 2)',
   '/notes/:id/move': 'write', '/notes/:id/transcribe': 'write', '/notes/:id/undo': 'write',
   '/promises/:id': 'write', '/promises/:id/confirm': 'write', '/promises/:id/done': 'write', '/promises/:id/restore': 'write',

@@ -57,6 +57,13 @@ export class InMemoryInventoryMatchRepository implements InventoryMatchRepositor
     return r ? { ...r } : null;
   }
 
+  async listByClientItem(userId: string, clientId: string, itemId: string): Promise<MatchRecord[]> {
+    return this.rows
+      .filter((r) => r.userId === userId && r.clientId === clientId && r.itemId === itemId)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((r) => ({ ...r }));
+  }
+
   async listOpenByClient(userId: string, clientId: string): Promise<MatchRecord[]> {
     return this.rows
       .filter((r) => r.userId === userId && r.clientId === clientId && r.status === 'open')

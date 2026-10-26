@@ -79,6 +79,13 @@ export class PgInventoryMatchRepository implements InventoryMatchRepository {
     });
   }
 
+  async listByClientItem(userId: string, clientId: string, itemId: string): Promise<MatchRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${COLUMNS} FROM inventory_matches WHERE client_id = $1 AND item_id = $2 ORDER BY created_at DESC`, [clientId, itemId]);
+      return (rows as unknown as Row[]).map(toRecord);
+    });
+  }
+
   async listOpenByClient(userId: string, clientId: string): Promise<MatchRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(`SELECT ${COLUMNS} FROM inventory_matches WHERE client_id = $1 AND status = 'open' ORDER BY similarity DESC`, [clientId]);
