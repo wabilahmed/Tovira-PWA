@@ -139,6 +139,43 @@ describe('StripeGatewayImpl', () => {
     expect(event).toMatchObject({ checkoutSessionId: 'cs_9', amountTotalFils: 4900, checkoutCurrency: 'aed', topUpOptionId: 'pack_50', mode: 'payment' });
   });
 
+  // [P44-3] Since API 2025-03-31 the subscription's period lives on its items, not the subscription; and an invoice's
+  // top-level period looks back one period on a renewal, so it is never the subscription period.
+  it('[P44-3] a subscription event reads its period from the item (clover/dahlia shape), else the legacy top level', async () => {
+    const mk = (object: object) => ({
+      checkout: { sessions: { create: async () => ({ url: '', id: '' }) } },
+      customers: { create: async () => ({ id: 'c' }), update: async () => ({ id: 'c' }) },
+      webhooks: { constructEvent: () => ({ id: 'evt_s', type: 'customer.subscription.updated', data: { object } }) },
+    }) as unknown as StripeLike;
+    const item = new StripeGatewayImpl({ ...opts, stripe: mk({ id: 'sub_1', object: 'subscription', customer: 'cus_1', status: 'active', cancel_at_period_end: true, items: { data: [{ current_period_start: 1_793_015_392, current_period_end: 1_795_693_792 }] } }) }).constructEvent('{}', 'sig');
+    expect(item).toMatchObject({ subscriptionId: 'sub_1', customerId: 'cus_1', currentPeriodStart: 1_793_015_392_000, currentPeriodEnd: 1_795_693_792_000, cancelAtPeriodEnd: true });
+    const legacy = new StripeGatewayImpl({ ...opts, stripe: mk({ id: 'sub_1', object: 'subscription', customer: 'cus_1', current_period_start: 1_793_015_392, current_period_end: 1_795_693_792 }) }).constructEvent('{}', 'sig');
+    expect(legacy).toMatchObject({ currentPeriodStart: 1_793_015_392_000, currentPeriodEnd: 1_795_693_792_000 });
+  });
+
+  it('[P44-3] NEGATIVE: an invoice\'s top-level (look-back) period is never read as the subscription period', async () => {
+    const stripe = {
+      checkout: { sessions: { create: async () => ({ url: '', id: '' }) } },
+      customers: { create: async () => ({ id: 'c' }), update: async () => ({ id: 'c' }) },
+      webhooks: { constructEvent: () => ({ id: 'evt_r', type: 'invoice.paid', data: { object: { id: 'in_r', customer: 'cus_1', subscription: 'sub_1', total: 29900, period_start: 1_790_000_000, period_end: 1_793_015_392, lines: { data: [{ period: { start: 1_793_015_392, end: 1_795_693_792 } }] } } } }) },
+    } as unknown as StripeLike;
+    const e = new StripeGatewayImpl({ ...opts, stripe }).constructEvent('{}', 'sig')!;
+    expect(e.currentPeriodStart).toBeUndefined();
+    expect(e.currentPeriodEnd).toBeUndefined();
+    expect(e).toMatchObject({ invoiceLinePeriodStart: 1_793_015_392_000, invoiceLinePeriodEnd: 1_795_693_792_000 });
+  });
+
+  it('[P44-3] subscriptionPeriod fetches the subscription and reads its item period', async () => {
+    const stripe = {
+      checkout: { sessions: { create: async () => ({ url: '', id: '' }) } },
+      customers: { create: async () => ({ id: 'c' }), update: async () => ({ id: 'c' }) },
+      subscriptions: { retrieve: async (id: string) => (id === 'sub_1' ? { id, items: { data: [{ current_period_start: 1_793_015_392, current_period_end: 1_795_693_792 }] } } : Promise.reject(new Error('No such subscription'))) },
+    } as unknown as StripeLike;
+    const g = new StripeGatewayImpl({ ...opts, stripe });
+    expect(await g.subscriptionPeriod('sub_1')).toEqual({ start: 1_793_015_392_000, end: 1_795_693_792_000 });
+    expect(await g.subscriptionPeriod('sub_missing')).toBeNull();
+  });
+
   // [VAT] invoice.* events surface the id, total (fils), customer country, and supply date.
   it('extracts invoice fields (id, total, country, supply date) from an invoice event', async () => {
     const stripe = {

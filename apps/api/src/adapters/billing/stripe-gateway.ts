@@ -26,6 +26,8 @@ export interface StripeLike {
   invoices: { pay(id: string, params?: Stripe.InvoicePayParams): Promise<{ status: string | null }> };
   billingPortal: { sessions: { create(params: Stripe.BillingPortal.SessionCreateParams): Promise<{ url: string }> } };
   webhooks: { constructEvent(payload: string, sig: string, secret: string): Stripe.Event };
+  // [P44-3] Read a subscription's current period (on its items since API 2025-03-31).
+  subscriptions?: { retrieve(id: string): Promise<unknown> };
 }
 
 export interface StripeGatewayOptions {
@@ -54,11 +56,34 @@ export function isMissingCustomer(err: unknown): boolean {
  * creates a real subscription session; webhook verification uses Stripe's
  * signature check — a forged/unsigned event is rejected (returns null).
  */
+/** [P44-3] A subscription object's current period, in Stripe's seconds: its first item's (API 2025-03-31 and later),
+ *  else the legacy top-level fields. */
+function subscriptionPeriodSec(sub: Record<string, unknown>): { start: number | undefined; end: number | undefined } {
+  const item = ((sub.items as { data?: unknown[] } | undefined)?.data?.[0] ?? undefined) as { current_period_start?: unknown; current_period_end?: unknown } | undefined;
+  const num = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
+  return {
+    start: num(item?.current_period_start) ?? num(sub.current_period_start),
+    end: num(item?.current_period_end) ?? num(sub.current_period_end),
+  };
+}
+
 export class StripeGatewayImpl implements StripeGateway {
   private readonly stripe: StripeLike;
 
   constructor(private readonly opts: StripeGatewayOptions) {
     this.stripe = opts.stripe ?? (new Stripe(opts.secretKey) as unknown as StripeLike);
+  }
+
+  /** [P44-3] The subscription's current period from Stripe (the source of truth), or null if it can't be read. */
+  async subscriptionPeriod(subscriptionId: string): Promise<{ start: number; end: number } | null> {
+    try {
+      const sub = (await this.stripe.subscriptions?.retrieve(subscriptionId)) as Record<string, unknown> | undefined;
+      if (!sub) return null;
+      const { start, end } = subscriptionPeriodSec(sub);
+      return start !== undefined && end !== undefined ? { start: start * 1000, end: end * 1000 } : null;
+    } catch {
+      return null;
+    }
   }
 
   // [PAY-04] Price intervals don't change under us, so cache each verified lookup — a steady-state
@@ -258,13 +283,11 @@ export class StripeGatewayImpl implements StripeGateway {
       return null; // invalid/forged signature
     }
     const obj = event.data.object as unknown as Record<string, unknown>;
-    // Stripe sends period ends in SECONDS. Subscriptions expose current_period_end;
-    // invoices expose period_end. Convert to epoch ms; leave undefined otherwise.
-    const periodEndSec = typeof obj.current_period_end === 'number' ? obj.current_period_end
-      : typeof obj.period_end === 'number' ? obj.period_end : undefined;
-    // Period START: subscriptions expose current_period_start; invoices expose period_start.
-    const periodStartSec = typeof obj.current_period_start === 'number' ? obj.current_period_start
-      : typeof obj.period_start === 'number' ? obj.period_start : undefined;
+    // [P44-3] The billing period is the SUBSCRIPTION's (seconds → ms below): on its first item since API 2025-03-31,
+    // else the legacy top-level field. An invoice's own period_start/period_end are NEVER read as the subscription
+    // period: Stripe documents them as looking back one period on a renewal (reproduced with a test clock).
+    const isSubscription = obj.object === 'subscription' || event.type.startsWith('customer.subscription.');
+    const { start: periodStartSec, end: periodEndSec } = isSubscription ? subscriptionPeriodSec(obj) : { start: undefined, end: undefined };
     // [VAT] invoice fields on invoice.* events: id, total (fils = Stripe's smallest-unit amount),
     // the customer's country (for zero-rating), and the supply date.
     const isInvoice = event.type.startsWith('invoice.');
@@ -283,6 +306,7 @@ export class StripeGatewayImpl implements StripeGateway {
     // and a completed Checkout session's id + amount paid.
     const firstLine = ((obj.lines as { data?: unknown[] } | undefined)?.data?.[0] ?? undefined) as { period?: { start?: unknown } } | undefined;
     const linePeriodStartSec = typeof firstLine?.period?.start === 'number' ? firstLine.period.start : undefined;
+    const linePeriodEndSec = typeof (firstLine?.period as { end?: unknown } | undefined)?.end === 'number' ? (firstLine!.period as { end: number }).end : undefined;
     const isCheckout = event.type === 'checkout.session.completed';
     const finErr = obj.last_finalization_error as { code?: unknown } | null | undefined;
     const payErr = (obj.last_payment_error ?? (obj.payment_intent as { last_payment_error?: unknown } | undefined)?.last_payment_error) as { code?: unknown } | null | undefined;
@@ -293,7 +317,7 @@ export class StripeGatewayImpl implements StripeGateway {
       userId: typeof obj.client_reference_id === 'string' ? obj.client_reference_id
         : meta && typeof meta.tovira_user_id === 'string' ? meta.tovira_user_id : undefined,
       customerId: typeof obj.customer === 'string' ? obj.customer : undefined,
-      subscriptionId: typeof obj.subscription === 'string' ? obj.subscription : undefined,
+      subscriptionId: typeof obj.subscription === 'string' ? obj.subscription : isSubscription && typeof obj.id === 'string' ? obj.id : undefined,
       ...(periodEndSec !== undefined ? { currentPeriodEnd: periodEndSec * 1000 } : {}),
       ...(periodStartSec !== undefined ? { currentPeriodStart: periodStartSec * 1000 } : {}),
       ...(isInvoice && typeof obj.id === 'string' ? { invoiceId: obj.id } : {}),
@@ -305,6 +329,8 @@ export class StripeGatewayImpl implements StripeGateway {
       ...(hostedInvoiceUrl ? { hostedInvoiceUrl } : {}),
       ...(isInvoice && typeof obj.currency === 'string' ? { invoiceCurrency: obj.currency } : {}),
       ...(isInvoice && linePeriodStartSec !== undefined ? { invoiceLinePeriodStart: linePeriodStartSec * 1000 } : {}),
+      ...(isInvoice && linePeriodEndSec !== undefined ? { invoiceLinePeriodEnd: linePeriodEndSec * 1000 } : {}),
+      ...(isSubscription && typeof obj.cancel_at_period_end === 'boolean' ? { cancelAtPeriodEnd: obj.cancel_at_period_end } : {}),
       ...(isCheckout && typeof obj.id === 'string' ? { checkoutSessionId: obj.id } : {}),
       ...(isCheckout && typeof obj.amount_total === 'number' ? { amountTotalFils: obj.amount_total } : {}),
       ...(isCheckout && typeof obj.currency === 'string' ? { checkoutCurrency: obj.currency } : {}),

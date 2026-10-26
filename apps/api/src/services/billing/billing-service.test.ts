@@ -244,19 +244,23 @@ describe('[P14-2] confirmCheckoutSession — server-side success confirmation', 
 
 describe('[P5-2] renewal date (from the webhook, source of truth)', () => {
   const RENEW = Date.parse('2026-09-14T00:00:00Z');
+  // [P44 · owner] the period comes from the SUBSCRIPTION Stripe holds (a checkout session carries none of its own)
   it('stores current_period_end from the activation webhook and exposes it as renewsAt', async () => {
-    const { billing } = make();
+    const { billing, stripe } = make();
     await billing.onSignup('u', 'rep@x.com', NOW);
-    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodEnd: RENEW }), 'whsec_test');
+    stripe.setSubscriptionPeriod('sub_1', RENEW - 31 * DAY, RENEW);
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', subscriptionId: 'sub_1' }), 'whsec_test');
     expect((await billing.entitlement('u', NOW)).renewsAt).toBe(RENEW);
   });
 
+  // [P44 · owner] a renewal invoice's period is its LINE's (Stripe's top-level invoice period looks back one period)
   it('advances renewsAt on a renewal invoice (the webhook is the source of truth)', async () => {
-    const { billing } = make();
+    const { billing, stripe } = make();
     await billing.onSignup('u', 'rep@x.com', NOW);
-    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodEnd: RENEW }), 'whsec_test');
+    stripe.setSubscriptionPeriod('sub_1', RENEW - 31 * DAY, RENEW);
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', subscriptionId: 'sub_1' }), 'whsec_test');
     const next = RENEW + 30 * DAY;
-    await billing.handleWebhook(evt({ id: 'e2', type: 'invoice.payment_succeeded', customerId: 'cus_1', currentPeriodEnd: next }), 'whsec_test');
+    await billing.handleWebhook(evt({ id: 'e2', type: 'invoice.payment_succeeded', customerId: 'cus_1', invoiceLinePeriodStart: RENEW, invoiceLinePeriodEnd: next }), 'whsec_test');
     const ent = await billing.entitlement('u', NOW);
     expect(ent.status).toBe('active'); // a successful renewal keeps access
     expect(ent.renewsAt).toBe(next);
@@ -289,7 +293,8 @@ describe('[BILLING-PERIOD] current_period_start — the spend-cap bucket anchor'
     // Rep switches monthly → annual: Stripe issues a new period via a renewal invoice.
     const newStart = END;
     const newEnd = END + 365 * DAY;
-    await billing.handleWebhook(evt({ id: 'e2', type: 'invoice.payment_succeeded', customerId: 'cus_1', currentPeriodStart: newStart, currentPeriodEnd: newEnd }), 'whsec_test');
+    // [P44 · owner] the new period is the invoice LINE's (its top-level period looks back one period)
+    await billing.handleWebhook(evt({ id: 'e2', type: 'invoice.payment_succeeded', customerId: 'cus_1', invoiceLinePeriodStart: newStart, invoiceLinePeriodEnd: newEnd }), 'whsec_test');
     const ent = await billing.entitlement('u', NOW);
     expect(ent.periodStart).toBe(newStart); // the anchor moved forward → the new bucket starts clean
     expect(ent.status).toBe('active');
@@ -443,15 +448,18 @@ describe('[EMAIL-HOOKS 1b] webhook lifecycle emails', () => {
   const RENEW = Date.parse('2026-09-14T00:00:00Z');
   function withHook(hook: { paymentFailed?: unknown; subscriptionConfirmed?: unknown; subscriptionCanceled?: unknown }) {
     const subs = new InMemorySubscriptionRepository();
-    const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7, hook as never);
-    return { subs, billing };
+    const stripe = new StubStripeGateway('whsec_test');
+    const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), stripe, 7, hook as never);
+    return { subs, billing, stripe };
   }
 
   it('fires confirmed/failed/canceled, with the renewal date only when supplied', async () => {
     const hook = { paymentFailed: vi.fn(), subscriptionConfirmed: vi.fn(), subscriptionCanceled: vi.fn() };
-    const { billing } = withHook(hook);
+    const { billing, stripe } = withHook(hook);
     await billing.onSignup('u', 'u@x.com', NOW);
-    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', currentPeriodEnd: RENEW }), 'whsec_test');
+    // [P44 · owner] the renewal date comes from the subscription Stripe holds
+    stripe.setSubscriptionPeriod('sub_1', RENEW - 31 * DAY, RENEW);
+    await billing.handleWebhook(evt({ id: 'e1', type: 'checkout.session.completed', userId: 'u', customerId: 'cus_1', subscriptionId: 'sub_1' }), 'whsec_test');
     expect(hook.subscriptionConfirmed).toHaveBeenCalledWith('u', 'e1', RENEW);
     await billing.handleWebhook(evt({ id: 'e2', type: 'invoice.payment_failed', customerId: 'cus_1' }), 'whsec_test');
     expect(hook.paymentFailed).toHaveBeenCalledWith('u', 'e2');
@@ -557,8 +565,9 @@ describe('[BILLING-DUNNING] invoice.paid + invoice.payment_succeeded for ONE inv
     // Different currentPeriodEnd so we can SEE whether the second re-processed: only the FIRST should land.
     const FIRST_END = NOW + 30 * 24 * 3600 * 1000;
     const SECOND_END = NOW + 999 * 24 * 3600 * 1000; // sentinel: must NOT be stored (second is deduped)
-    const r1 = await billing.handleWebhook(evt({ id: 'ok_succeeded', type: 'invoice.payment_succeeded', customerId: 'cus_1', invoiceId: 'in_9', currentPeriodStart: NOW, currentPeriodEnd: FIRST_END }), 'whsec_test');
-    const r2 = await billing.handleWebhook(evt({ id: 'ok_paid', type: 'invoice.paid', customerId: 'cus_1', invoiceId: 'in_9', currentPeriodStart: NOW, currentPeriodEnd: SECOND_END }), 'whsec_test');
+    // [P44 · owner] an invoice's period is its LINE's (its top-level period looks back one period)
+    const r1 = await billing.handleWebhook(evt({ id: 'ok_succeeded', type: 'invoice.payment_succeeded', customerId: 'cus_1', invoiceId: 'in_9', invoiceLinePeriodStart: NOW, invoiceLinePeriodEnd: FIRST_END }), 'whsec_test');
+    const r2 = await billing.handleWebhook(evt({ id: 'ok_paid', type: 'invoice.paid', customerId: 'cus_1', invoiceId: 'in_9', invoiceLinePeriodStart: NOW, invoiceLinePeriodEnd: SECOND_END }), 'whsec_test');
 
     expect(r1).toBe(200);
     expect(r2).toBe(200); // the second is accepted but a no-op
@@ -620,5 +629,66 @@ describe('[P44-2] revenue recording from the webhook', () => {
   it('NEGATIVE: a recorder failure never fails the webhook (Stripe is not made to retry a processed payment)', async () => {
     const { billing } = await setup(true);
     expect(await billing.handleWebhook(paid('evt_4'), 'whsec_test')).toBe(200);
+  });
+});
+
+// [P44-3] The billing period comes from the SUBSCRIPTION (fetched on invoice.paid, and on customer.subscription.*),
+// never from the invoice's top-level period, which Stripe "looks back one period" on a renewal (reproduced with a
+// test clock: the app stored the previous period after every renewal, and end = start after the first invoice).
+describe('[P44-3] the billing period follows the subscription', () => {
+  const MONTH = (n: number) => Date.UTC(2026, 9 + n, 26, 11, 49); // 26 Oct 2026 + n months
+  async function setup() {
+    const { billing, subs } = make();
+    const stripe = (billing as unknown as { stripe: StubStripeGateway }).stripe;
+    await subs.create('u1', NOW);
+    await subs.update('u1', { stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_1', status: 'active' });
+    return { billing, subs, stripe };
+  }
+  // A renewal invoice as Stripe sends it: the top-level period is the PREVIOUS one; the line is the new one.
+  const renewal = (id: string, n: number) => evt({ id, type: 'invoice.paid', customerId: 'cus_1', subscriptionId: 'sub_1', invoiceId: `in_${n}`, invoiceTotalFils: 29900, invoiceLinePeriodStart: MONTH(n), invoiceLinePeriodEnd: MONTH(n + 1) });
+  const subUpdated = (id: string, n: number, extra: object = {}) => evt({ id, type: 'customer.subscription.updated', customerId: 'cus_1', subscriptionId: 'sub_1', currentPeriodStart: MONTH(n), currentPeriodEnd: MONTH(n + 1), ...extra });
+
+  it('subscribe: the period is the subscription\'s (end is NOT the start)', async () => {
+    const { billing, subs, stripe } = await setup();
+    stripe.setSubscriptionPeriod('sub_1', MONTH(0), MONTH(1));
+    await billing.handleWebhook(renewal('evt_0', 0), 'whsec_test');
+    expect(await subs.get('u1')).toMatchObject({ currentPeriodStart: MONTH(0), currentPeriodEnd: MONTH(1) });
+  });
+
+  it('a renewal moves the period forward by exactly one cycle; two renewals by two', async () => {
+    const { billing, subs, stripe } = await setup();
+    stripe.setSubscriptionPeriod('sub_1', MONTH(0), MONTH(1));
+    await billing.handleWebhook(renewal('evt_0', 0), 'whsec_test');
+    stripe.setSubscriptionPeriod('sub_1', MONTH(1), MONTH(2));
+    await billing.handleWebhook(subUpdated('evt_1u', 1), 'whsec_test');
+    await billing.handleWebhook(renewal('evt_1', 1), 'whsec_test');
+    expect(await subs.get('u1')).toMatchObject({ currentPeriodStart: MONTH(1), currentPeriodEnd: MONTH(2) });
+    stripe.setSubscriptionPeriod('sub_1', MONTH(2), MONTH(3));
+    await billing.handleWebhook(renewal('evt_2', 2), 'whsec_test'); // even without the subscription.updated
+    expect(await subs.get('u1')).toMatchObject({ currentPeriodStart: MONTH(2), currentPeriodEnd: MONTH(3) });
+    const e = await billing.entitlement('u1', MONTH(2) + 1000);
+    expect(e.periodStart).toBe(MONTH(2)); // the spend-cap key and the allowance anchor read this
+  });
+
+  it('a cancellation at period end does not move the period early (and the account stays active)', async () => {
+    const { billing, subs, stripe } = await setup();
+    stripe.setSubscriptionPeriod('sub_1', MONTH(0), MONTH(1));
+    await billing.handleWebhook(renewal('evt_0', 0), 'whsec_test');
+    await billing.handleWebhook(subUpdated('evt_c', 0, { cancelAtPeriodEnd: true }), 'whsec_test');
+    expect(await subs.get('u1')).toMatchObject({ status: 'active', currentPeriodStart: MONTH(0), currentPeriodEnd: MONTH(1) });
+  });
+
+  it('NEGATIVE: an out-of-order older subscription.updated never moves the period backwards', async () => {
+    const { billing, subs, stripe } = await setup();
+    stripe.setSubscriptionPeriod('sub_1', MONTH(1), MONTH(2));
+    await billing.handleWebhook(renewal('evt_1', 1), 'whsec_test');
+    await billing.handleWebhook(subUpdated('evt_old', 0), 'whsec_test');
+    expect(await subs.get('u1')).toMatchObject({ currentPeriodStart: MONTH(1), currentPeriodEnd: MONTH(2) });
+  });
+
+  it('NEGATIVE: if the subscription can\'t be fetched, the invoice LINE period is used, never the look-back period', async () => {
+    const { billing, subs } = await setup(); // no period set on the stub → fetch returns null
+    await billing.handleWebhook(evt({ id: 'evt_x', type: 'invoice.paid', customerId: 'cus_1', subscriptionId: 'sub_1', invoiceId: 'in_x', invoiceTotalFils: 29900, currentPeriodStart: MONTH(0), currentPeriodEnd: MONTH(1), invoiceLinePeriodStart: MONTH(1), invoiceLinePeriodEnd: MONTH(2) }), 'whsec_test');
+    expect(await subs.get('u1')).toMatchObject({ currentPeriodStart: MONTH(1), currentPeriodEnd: MONTH(2) });
   });
 });

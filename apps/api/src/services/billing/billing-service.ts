@@ -1,4 +1,5 @@
 import type { RevenueEvent } from '../../ports/cost-report.js';
+import type { StripeWebhookEvent } from '../../ports/billing.js';
 import type {
   BillingState,
   CustomerDetails,
@@ -255,6 +256,32 @@ export class BillingService {
     if (s?.stripeCustomerId) await this.stripe.updateCustomer(s.stripeCustomerId, details);
   }
 
+  /**
+   * [P44-3] The rep's billing period, from the SUBSCRIPTION (the source of truth): fetched from Stripe when the
+   * event names one, else the period a subscription event carries, else (an invoice) its line's service period.
+   * NEVER an invoice's top-level period, which looks back one period on a renewal.
+   */
+  private async resolvePeriod(event: StripeWebhookEvent): Promise<{ start: number; end: number } | null> {
+    if (event.subscriptionId) {
+      const fetched = await this.stripe.subscriptionPeriod(event.subscriptionId).catch(() => null);
+      if (fetched) return fetched;
+    }
+    if (event.type.startsWith('invoice.')) {
+      // an invoice: its LINE's service period only (its top-level period looks back one period)
+      return event.invoiceLinePeriodStart !== undefined && event.invoiceLinePeriodEnd !== undefined ? { start: event.invoiceLinePeriodStart, end: event.invoiceLinePeriodEnd } : null;
+    }
+    if (event.currentPeriodStart !== undefined && event.currentPeriodEnd !== undefined) return { start: event.currentPeriodStart, end: event.currentPeriodEnd };
+    return null;
+  }
+
+  /** [P44-3] The period patch, never backwards: an out-of-order older event can't undo a renewal. A later start
+   *  (a renewal, a plan change) moves it forward; the same start may update the end (e.g. a plan change). */
+  private periodPatch(stored: { currentPeriodStart: number | null } | null, p: { start: number; end: number } | null): { currentPeriodStart?: number; currentPeriodEnd?: number } {
+    if (!p) return {};
+    if (stored?.currentPeriodStart != null && p.start < stored.currentPeriodStart) return {};
+    return { currentPeriodStart: p.start, currentPeriodEnd: p.end };
+  }
+
   /** Process a Stripe webhook. Returns the HTTP status to reply with. */
   async handleWebhook(payload: string, signature: string): Promise<number> {
     const event = this.stripe.constructEvent(payload, signature);
@@ -287,19 +314,18 @@ export class BillingService {
       // subscription row (a pre-P14-0 invited rep, or any gap) would pay and never activate. Create the
       // row first if it is missing (never overwrite an existing one — that would wipe its trial/period).
       if (!(await this.subs.get(event.userId))) await this.subs.create(event.userId, this.now());
+      const period = this.periodPatch(await this.subs.get(event.userId), await this.resolvePeriod(event));
       await this.subs.update(event.userId, {
         status: 'active',
         billingState: 'active', // a fresh subscription starts clean (no failed-payment clock)
         stripeCustomerId: event.customerId ?? null,
         stripeSubscriptionId: event.subscriptionId ?? null,
-        // Only stamp the period dates when the webhook actually carries them —
-        // never invent them (P5-2 / BILLING-PERIOD). A plan change issues a NEW period;
-        // stamping its start rolls the spend-cap bucket forward cleanly (old spend stays
-        // in the old bucket, the new period starts at zero).
-        ...(event.currentPeriodEnd !== undefined ? { currentPeriodEnd: event.currentPeriodEnd } : {}),
-        ...(event.currentPeriodStart !== undefined ? { currentPeriodStart: event.currentPeriodStart } : {}),
+        // Only stamp the period when Stripe says what it is — never invented (P5-2 / BILLING-PERIOD). [P44-3] It is
+        // the subscription's own period. A plan change issues a NEW period; stamping its start rolls the spend-cap
+        // bucket forward cleanly (old spend stays in the old bucket, the new period starts at zero).
+        ...period,
       });
-      if (this.emailHook) await this.notify(() => this.emailHook!.subscriptionConfirmed(event.userId!, event.id, event.currentPeriodEnd ?? null));
+      if (this.emailHook) await this.notify(() => this.emailHook!.subscriptionConfirmed(event.userId!, event.id, period.currentPeriodEnd ?? null));
     } else if ((event.type === 'invoice.payment_succeeded' || event.type === 'invoice.paid') && event.customerId) {
       // Stripe fires BOTH invoice.paid AND invoice.payment_succeeded for the SAME invoice, as two separate
       // events with different ids — so the event-id dedupe above lets both through. Dedupe by INVOICE id
@@ -315,6 +341,7 @@ export class BillingService {
       const s = await this.subs.findByCustomerId(event.customerId);
       if (s) {
         const wasReactivation = s.billingState !== 'active'; // coming BACK from payment_failed/suspended
+        const period = this.periodPatch(s, await this.resolvePeriod(event));
         await this.subs.update(s.userId, {
           status: 'active',
           billingState: 'active',
@@ -322,8 +349,7 @@ export class BillingService {
           openInvoiceId: null,
           hostedInvoiceUrl: null,
           endedAt: null,
-          ...(event.currentPeriodEnd !== undefined ? { currentPeriodEnd: event.currentPeriodEnd } : {}),
-          ...(event.currentPeriodStart !== undefined ? { currentPeriodStart: event.currentPeriodStart } : {}),
+          ...period, // [P44-3] the subscription's period (a renewal moves it forward exactly one cycle)
         });
         await this.recordInvoiceTax(event, s.userId);
         if (event.invoiceId && event.invoiceTotalFils !== undefined) {
@@ -335,7 +361,16 @@ export class BillingService {
           }));
         }
         // Email only on REACTIVATION (payment recovered) — never on an ordinary renewal (that would be noise).
-        if (wasReactivation && this.emailHook) await this.notify(() => this.emailHook!.subscriptionConfirmed(s.userId, event.id, event.currentPeriodEnd ?? null));
+        if (wasReactivation && this.emailHook) await this.notify(() => this.emailHook!.subscriptionConfirmed(s.userId, event.id, period.currentPeriodEnd ?? s.currentPeriodEnd ?? null));
+      }
+    } else if ((event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') && event.customerId) {
+      // [P44-3] Renewals, a cancellation at period end and portal changes keep the stored period equal to Stripe's.
+      // Only the period is taken from here: a cancel-at-period-end changes nothing until the period ends (the
+      // deleted event below), and payment status stays with the invoice events.
+      const s = await this.subs.findByCustomerId(event.customerId);
+      if (s) {
+        const period = this.periodPatch(s, await this.resolvePeriod(event));
+        if (period.currentPeriodStart !== undefined) await this.subs.update(s.userId, period);
       }
     } else if (event.type === 'customer.subscription.deleted' && event.customerId) {
       const s = await this.subs.findByCustomerId(event.customerId);

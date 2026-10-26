@@ -118,8 +118,9 @@ export interface StripeWebhookEvent {
   /** current_period_end from the subscription/invoice, epoch ms (the gateway
    *  converts Stripe's seconds). Absent when the event doesn't carry one. */
   currentPeriodEnd?: number;
-  /** current_period_start (subscription) / period_start (invoice), epoch ms.
-   *  Absent when the event doesn't carry one — then the period start is not stamped. */
+  /** [P44-3] The SUBSCRIPTION's current period start, epoch ms — from a subscription object only (its item's
+   *  current_period_start since API 2025-03-31, else the legacy top-level field). NEVER an invoice's period_start,
+   *  which looks back one period on a renewal. Absent → the period is not stamped from this event. */
   currentPeriodStart?: number;
   /** [VAT] invoice fields, present on invoice.* events — the id, its total (fils), the customer's
    *  country (for zero-rating), and its supply date (drives the tax boundary). */
@@ -141,6 +142,10 @@ export interface StripeWebhookEvent {
    *  top-level invoice period_start looks back one period on a renewal; the line period is the service period. */
   invoiceCurrency?: string;
   invoiceLinePeriodStart?: number;
+  /** [P44-3] the end of that line period, epoch ms (the fallback when the subscription can't be fetched). */
+  invoiceLinePeriodEnd?: number;
+  /** [P44-3] on a subscription event: the rep cancelled at period end (access continues until then). */
+  cancelAtPeriodEnd?: boolean;
   /** [P44-2] revenue: a completed Checkout session's id, amount paid (smallest unit) and currency. */
   checkoutSessionId?: string;
   amountTotalFils?: number;
@@ -218,6 +223,8 @@ export interface StripeGateway {
   createPortalSession(customerId: string, returnUrl: string, owner?: { userId: string; email: string }): Promise<{ url: string; customerId?: string }>;
   /** Verify + parse a webhook; returns null if the signature is invalid. */
   constructEvent(payload: string, signature: string): StripeWebhookEvent | null;
+  /** [P44-3] The subscription's CURRENT period (epoch ms), read from Stripe; null if it can't be fetched. */
+  subscriptionPeriod(subscriptionId: string): Promise<{ start: number; end: number } | null>;
   /** [P14-2] Retrieve a Checkout Session by id for the server-side success confirmation — returns null
    *  for an unknown/invalid session. Used so a delayed/lost webhook never leaves a paying rep unactivated. */
   retrieveCheckoutSession(sessionId: string): Promise<CheckoutSessionInfo | null>;

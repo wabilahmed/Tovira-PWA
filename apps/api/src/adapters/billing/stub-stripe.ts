@@ -8,6 +8,15 @@ import type { CheckoutSessionInfo, CustomerDetails, Plan, PlanPriceCheck, Stripe
 export class StubStripeGateway implements StripeGateway {
   constructor(private readonly webhookSecret = 'whsec_test') {}
 
+  /** [P44-3] Test control: what Stripe would return as a subscription's current period. Unset → null (unreadable). */
+  private readonly periods = new Map<string, { start: number; end: number }>();
+  setSubscriptionPeriod(subscriptionId: string, start: number, end: number): void {
+    this.periods.set(subscriptionId, { start, end });
+  }
+  async subscriptionPeriod(subscriptionId: string): Promise<{ start: number; end: number } | null> {
+    return this.periods.get(subscriptionId) ?? null;
+  }
+
   /** Recorded so tests can assert what the app supplied to Stripe (name/company/metadata sync). */
   readonly customers: Array<{ userId: string; details: CustomerDetails }> = [];
   readonly updates: Array<{ customerId: string; details: CustomerDetails }> = [];
