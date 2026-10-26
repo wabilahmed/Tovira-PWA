@@ -167,6 +167,7 @@ describe('[P37] the tour', () => {
     }
   });
 
+  // [P46-6 · owner] the limit is 270 words now (the Ledger line joined step 8); still nine steps
   it('about 75 seconds of reading at most (≈ 250 words across the nine steps)', async () => {
     render(<Tour {...props()} />);
     let words = 0;
@@ -178,7 +179,7 @@ describe('[P37] the tour', () => {
       words += (body.textContent ?? '').split(/\s+/).filter(Boolean).length;
       if (s < 9) await next();
     }
-    expect(words).toBeLessThanOrEqual(250); // ≈ 75 s at ~200 words a minute
+    expect(words).toBeLessThanOrEqual(270); // ≈ 80 s at ~200 words a minute
   });
 });
 
@@ -204,6 +205,53 @@ describe('[P42-B1] the tour examples are neutral', () => {
     for (let s = 1; s <= 9; s += 1) {
       await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 9`));
       expect(screen.getByRole('dialog').textContent).not.toMatch(/floor plans?|villa|Mirdif|\b\d+\s?BR\b|apartment|viewing|listing|bedroom/i);
+      if (s < 9) await next();
+    }
+  });
+});
+
+// [P46-6] Owner: step 8 ("Your plan and settings") adds the Ledger after Subscription, spotlighting More (where The
+// Ledger lives), still nine steps, and no step mentions referrals.
+describe('[P46-6] the Ledger in step 8', () => {
+  async function toStep(n: number): Promise<void> {
+    for (let s = 1; s < n; s += 1) {
+      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 9`));
+      await next();
+    }
+    await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${n} of 9`));
+  }
+
+  it('step 8 says what The Ledger is, after the subscription lines', async () => {
+    render(<Tour {...props()} />);
+    await toStep(8);
+    const dialog = screen.getByRole('dialog');
+    expect(screen.getByRole('heading', { name: 'Your plan and settings' })).toBeInTheDocument();
+    const line = within(dialog).getByTestId('tour-ledger');
+    expect(line.textContent).toBe('The Ledger shows the deals Tovira helped you win, and what they were worth.');
+    expect(line.querySelector('strong')?.textContent).toBe('The Ledger');
+    const text = dialog.textContent ?? '';
+    expect(text.indexOf('Subscribe here any time')).toBeLessThan(text.indexOf('The Ledger shows'));
+  });
+
+  it('step 8 spotlights More (where The Ledger is) as well as the subscription', async () => {
+    const more = document.createElement('button');
+    more.setAttribute('data-tour', 'nav-more');
+    more.getBoundingClientRect = () => ({ top: 700, left: 312, width: 78, height: 44, bottom: 744, right: 390, x: 312, y: 700, toJSON: () => ({}) }); // inside jsdom's 768px window
+    document.body.appendChild(more);
+    try {
+      render(<Tour {...props()} />);
+      await toStep(8);
+      await waitFor(() => expect(document.querySelector('[data-testid="tour-spot-2"]')).not.toBeNull());
+    } finally {
+      more.remove();
+    }
+  });
+
+  it('NEGATIVE: still nine steps, and no step mentions referrals or a free month', async () => {
+    render(<Tour {...props()} />);
+    for (let s = 1; s <= 9; s += 1) {
+      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 9`));
+      expect(screen.getByRole('dialog').textContent).not.toMatch(/referr|free month|you both get/i);
       if (s < 9) await next();
     }
   });

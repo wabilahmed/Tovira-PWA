@@ -50,6 +50,8 @@ interface StepDef {
   title: string;
   /** Spotlight: the first of these selectors that is on screen. */
   spot?: string[];
+  /** [P46-6] A second spotlight on the same step (step 8: More, where The Ledger is). */
+  spot2?: string[];
   view?: View;
   body: ReactNode;
 }
@@ -81,6 +83,7 @@ export function Tour(props: TourProps): JSX.Element {
   }, [i]);
 
   const rect = useSpotlight(step.spot, i);
+  const rect2 = useSpotlight(step.spot2, i);
 
   function next(): void { if (!last) setI((n) => n + 1); }
   function back(): void { if (i > 0) setI((n) => n - 1); }
@@ -112,6 +115,7 @@ export function Tour(props: TourProps): JSX.Element {
       {/* Dims the app and takes its taps: the tour is required. */}
       <div className="tov-tour__block" aria-hidden="true" />
       {rect && <div className="tov-tour__spot" aria-hidden="true" style={{ top: rect.top - 6, left: rect.left - 6, width: rect.width + 12, height: rect.height + 12 }} />}
+      {rect2 && <div className="tov-tour__spot" data-testid="tour-spot-2" aria-hidden="true" style={{ top: rect2.top - 6, left: rect2.left - 6, width: rect2.width + 12, height: rect2.height + 12 }} />}
       <div
         ref={cardRef}
         className={`tov-tour__card${rect ? ' tov-tour__card--with-spot' : ''}${rect && rect.top > window.innerHeight / 2 ? ' tov-tour__card--top' : ''}`}
@@ -287,6 +291,7 @@ function buildSteps(c: {
       title: 'Your plan and settings',
       view: 'settings',
       spot: subscribed ? ['[data-tour="buy-more"]'] : ['[data-tour="subscribe"]'],
+      spot2: ['[data-tour="nav-more"]'], // [P46-6] More → The Ledger
       body: <PlanStep ent={c.ent} usage={c.usage} now={c.now} />,
     },
     {
@@ -346,6 +351,8 @@ function PlanStep({ ent, usage, now }: { ent: Entitlement | null; usage: Allowan
       </div>
       <p>At 100%, AI features like imports pause until it resets. Find and everything else keep working.</p>
       <p>{subscribed ? 'If you run low, tap Buy more usage here.' : 'Once you subscribe, you can buy extra usage here if you run low.'}</p>
+      {/* [P46-6] The Ledger, after Subscription (spotlit: More, where it lives) */}
+      <p data-testid="tour-ledger"><strong>The Ledger</strong> shows the deals Tovira helped you win, and what they were worth.</p>
       <p>Notifications and your time zone are in Settings too.</p>
     </>
   );
