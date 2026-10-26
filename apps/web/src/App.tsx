@@ -771,7 +771,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
         />,
       )}
 
-      {view === 'promises' && <PromisesTracker api={promisesApi} />}
+      {view === 'promises' && <PromisesTracker api={promisesApi} {...(backToMore ? { back: backToMore } : {})} />}
 
       {view === 'meetings' && (
         <Meetings

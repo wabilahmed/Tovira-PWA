@@ -78,6 +78,18 @@ export class PromisesClient {
   }
 
   /** Every open promise across all clients, due-date order (no-date last). */
+  /** [P46-6b] The Promises screen's read: open promises (named), done promises, and the "older" window in days. */
+  async tracker(): Promise<{ promises: OpenPromise[]; done: OpenPromise[]; staleThresholdDays: number }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/promises`, { credentials: 'include' });
+      if (res.status !== 200) return { promises: [], done: [], staleThresholdDays: 90 };
+      const b = (await res.json()) as { promises?: OpenPromise[]; done?: OpenPromise[]; staleThresholdDays?: number };
+      return { promises: b.promises ?? [], done: b.done ?? [], staleThresholdDays: b.staleThresholdDays ?? 90 };
+    } catch {
+      return { promises: [], done: [], staleThresholdDays: 90 };
+    }
+  }
+
   listOpen(): Promise<OpenPromise[]> {
     return this.listFrom('/promises');
   }

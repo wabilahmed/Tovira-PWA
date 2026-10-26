@@ -64,3 +64,20 @@ describe('PromisesClient mutations', () => {
     expect(await new PromisesClient().reject('nope')).toBe(false);
   });
 });
+
+// [P46-6b] One read for the Promises screen: open promises, done promises, and the "older" window.
+describe('[P46-6b] PromisesClient.tracker', () => {
+  it('reads promises, done and staleThresholdDays from /promises', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { promises: [PROMISE], done: [{ ...PROMISE, id: 'd1', done: true }], staleThresholdDays: 60 }));
+    const t = await new PromisesClient('http://api.test').tracker();
+    expect(t.promises).toHaveLength(1);
+    expect(t.done.map((p) => p.id)).toEqual(['d1']);
+    expect(t.staleThresholdDays).toBe(60);
+  });
+  it('NEGATIVE: an older server (no done, no window) → [] and 90; a failure → empty', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { promises: [PROMISE] }));
+    expect(await new PromisesClient().tracker()).toEqual({ promises: [PROMISE], done: [], staleThresholdDays: 90 });
+    fetchMock.mockResolvedValueOnce(json(500, {}));
+    expect(await new PromisesClient().tracker()).toEqual({ promises: [], done: [], staleThresholdDays: 90 });
+  });
+});

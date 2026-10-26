@@ -16,6 +16,11 @@ describe('[P43-5] CI runs the landing 390px test', () => {
     expect(job).toMatch(/npx playwright test apps\/web\/e2e\/landing-usecases\.spec\.ts/);
     expect(existsSync(join(ROOT, 'apps/web/e2e/landing-usecases.spec.ts'))).toBe(true);
   });
+  // [P46-6b] The app's 390px layout check (long text, long names) runs in the same job, so an overflow never ships.
+  it('[P46-6b] the same job runs the app layout spec', () => {
+    expect(job).toMatch(/npx playwright test [^\n]*apps\/web\/e2e\/app-layout\.spec\.ts/);
+    expect(existsSync(join(ROOT, 'apps/web/e2e/app-layout.spec.ts'))).toBe(true);
+  });
   it('deploy still waits for the CI workflow to succeed', () => {
     const deploy = readFileSync(join(ROOT, '.github/workflows/deploy.yml'), 'utf8');
     expect(deploy).toMatch(/workflow_run:\s*\n\s*workflows: \[CI\]/);

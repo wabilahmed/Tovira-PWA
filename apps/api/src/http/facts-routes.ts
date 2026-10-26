@@ -113,10 +113,16 @@ export async function handleFactsRoute(
     // filter) but the active count and claret key off `!stale`. Storage is untouched.
     const threshold = deps.promiseStaleThresholdDays ?? 90;
     const now = Date.now();
-    const open = (await deps.facts.listPromisesByUser(userId)).filter((p) => !p.done);
+    const all = await deps.facts.listPromisesByUser(userId);
+    const open = all.filter((p) => !p.done);
     open.sort(byDueDate);
-    const promises = open.map((p) => ({ ...withReceipt(p), stale: isStalePromise(p, now, threshold) }));
-    sendJson(res, 200, { promises });
+    // [P46-6b] Every row names its client; done promises are listed for the Done chip (newest due first, at most 100);
+    // the window is sent so the "Older than N days" chip says the real number.
+    const names = deps.clients ? new Map((await deps.clients.listByUser(userId)).map((c) => [c.id, c.name])) : null;
+    const named = <T extends { clientId: string | null }>(r: T) => ({ ...r, clientName: r.clientId && names ? names.get(r.clientId) ?? null : null });
+    const promises = open.map((p) => named({ ...withReceipt(p), stale: isStalePromise(p, now, threshold) }));
+    const done = all.filter((p) => p.done).sort((a, b) => (b.dueDate ?? '').localeCompare(a.dueDate ?? '')).slice(0, 100).map((p) => named(withReceipt(p)));
+    sendJson(res, 200, { promises, done, staleThresholdDays: threshold });
     return true;
   }
 
