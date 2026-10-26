@@ -16,7 +16,7 @@ function setup(now = { t: 1_800_000_000_000 }) {
   const store = new InMemoryAdminStore();
   const sent: EmailMessage[] = [];
   const svc = new AdminAuthService({
-    store, hasher: new ScryptHasher(), adminEmails: [EMAIL], serverSecret: 'test-server-secret', appBaseUrl: 'https://tovira.io',
+    store, hasher: new ScryptHasher(), adminEmails: [EMAIL], totpKey: 'test-admin-totp-key-0123456789', appBaseUrl: 'https://tovira.io',
     email: { send: async (m) => { sent.push(m); } }, now: () => now.t,
   });
   return { store, svc, sent, now };
@@ -31,6 +31,7 @@ async function enrolled() {
   return { ...s, secret, recoveryCodes, firstToken: token };
 }
 
+// [P46-6c.1 · owner] the service takes the dedicated ADMIN_TOTP_KEY (was the OPS_TOKEN-derived serverSecret)
 describe('[P45-1] create-admin', () => {
   it('NEGATIVE: refuses an email not in ADMIN_EMAILS', async () => {
     const { svc, store } = setup();
@@ -112,7 +113,7 @@ describe('[P45-1] password, 2FA enrolment and login', () => {
     const wrong = await svc.login(EMAIL, 'not the passphrase').catch((e) => e.message);
     const unknown = await svc.login('nobody@tovira.io', 'not the passphrase').catch((e) => e.message);
     expect(wrong).toBe(unknown);
-    const locked = new AdminAuthService({ store, hasher: new ScryptHasher(), adminEmails: [], serverSecret: 'test-server-secret', appBaseUrl: 'https://tovira.io' });
+    const locked = new AdminAuthService({ store, hasher: new ScryptHasher(), adminEmails: [], totpKey: 'test-admin-totp-key-0123456789', appBaseUrl: 'https://tovira.io' });
     await expect(locked.login(EMAIL, 'a long admin passphrase')).rejects.toBeInstanceOf(AdminAuthError);
   });
 });

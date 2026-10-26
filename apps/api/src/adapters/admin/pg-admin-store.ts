@@ -17,6 +17,11 @@ export class PgAdminStore implements AdminStore {
     const { rows } = await this.pool.query<UserRow>(`SELECT ${USER_COLS} FROM admin_users WHERE email = $1`, [email.toLowerCase()]);
     return rows[0] ? toUser(rows[0]) : null;
   }
+  async listUsers(): Promise<AdminUser[]> {
+    const { rows } = await this.pool.query<UserRow>(`SELECT ${USER_COLS} FROM admin_users ORDER BY created_at`);
+    return rows.map(toUser);
+  }
+
   async findUserById(id: string): Promise<AdminUser | null> {
     const { rows } = await this.pool.query<UserRow>(`SELECT ${USER_COLS} FROM admin_users WHERE id = $1`, [id]);
     return rows[0] ? toUser(rows[0]) : null;

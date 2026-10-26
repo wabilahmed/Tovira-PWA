@@ -95,6 +95,9 @@ resource "aws_ecs_task_definition" "api" {
       # Same TRAP as OPS_TOKEN: both keys must EXIST in the secret before this is applied.
       { name = "ADMIN_EMAILS", valueFrom = "${aws_secretsmanager_secret.app.arn}:ADMIN_EMAILS::" },
       { name = "EXPLEE_API_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:EXPLEE_API_KEY::" },
+      # [P46-6c.1] The dedicated key that seals admin 2FA secrets (never OPS_TOKEN). Unset: admin sign-in refuses.
+      # Same TRAP: the key must EXIST in the secret before this is applied.
+      { name = "ADMIN_TOTP_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:ADMIN_TOTP_KEY::" },
     ]
     healthCheck = {
       command     = ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]

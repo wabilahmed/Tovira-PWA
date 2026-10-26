@@ -13,6 +13,7 @@ export class InMemoryAdminStore implements AdminStore {
     return [...this.users.values()].find((u) => u.email === email.toLowerCase()) ?? null;
   }
   async findUserById(id: string): Promise<AdminUser | null> { return this.users.get(id) ?? null; }
+  async listUsers(): Promise<AdminUser[]> { return [...this.users.values()]; }
   async createUser(email: string, at: number): Promise<AdminUser> {
     const u: AdminUser = { id: randomUUID(), email: email.toLowerCase(), passwordHash: null, totpSecretEnc: null, totpPendingEnc: null, totpEnrolledAt: null, totpLastStep: null, createdAt: at };
     this.users.set(u.id, u);

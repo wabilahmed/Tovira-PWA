@@ -31,6 +31,8 @@ export interface AdminAuditEntry { adminEmail: string; action: string; target: s
 export interface AdminStore {
   findUserByEmail(email: string): Promise<AdminUser | null>;
   findUserById(id: string): Promise<AdminUser | null>;
+  /** [P46-6c.1] Every admin (a handful): the deploy-time TOTP re-encryption walks them. */
+  listUsers(): Promise<AdminUser[]>;
   createUser(email: string, at: number): Promise<AdminUser>;
   updateUser(id: string, patch: Partial<Pick<AdminUser, 'passwordHash' | 'totpSecretEnc' | 'totpPendingEnc' | 'totpEnrolledAt' | 'totpLastStep'>>): Promise<void>;
   createInvite(tokenHash: string, adminId: string, expiresAt: number): Promise<void>;

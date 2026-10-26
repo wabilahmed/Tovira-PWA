@@ -137,6 +137,7 @@ import { newAdminLimiter } from './http/admin-routes.js';
 import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/prompt.js';
 import { appLinks } from './services/email/email-links.js';
 import { ledgerEntries } from './services/ledger/ledger-entries.js';
+import { reencryptAdminTotp } from './services/admin/reencrypt-totp.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -241,7 +242,18 @@ async function main(): Promise<void> {
     api: new HttpExpleeClient(config.expleeApiKey ?? ''), store: hotLeads, apiKeyConfigured: Boolean(config.expleeApiKey),
     adminEmails: config.adminEmails, appBaseUrl: config.appBaseUrl, email: createEmailSender(config),
   });
-  const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: config.adminEmails, serverSecret: config.opsToken ?? null, appBaseUrl: config.appBaseUrl, email: createEmailSender(config) });
+  // [P46-6c.1] Admin 2FA is sealed with the dedicated ADMIN_TOTP_KEY, never OPS_TOKEN. On boot, move any secret still
+  // sealed with the old OPS_TOKEN-derived key to the new one (idempotent), so an enrolled admin never re-enrols.
+  if (config.adminTotpKey) {
+    const r = await reencryptAdminTotp({ store: adminStore, legacySecret: config.opsToken ?? null, totpKey: config.adminTotpKey }).catch((e: unknown) => {
+      console.error('[admin-2fa] re-encryption failed', e instanceof Error ? e.message : 'unknown error');
+      return null;
+    });
+    if (r && (r.reencrypted || r.failed)) console.log(`[admin-2fa] moved to ADMIN_TOTP_KEY: ${r.reencrypted} re-encrypted, ${r.alreadyCurrent} already current, ${r.failed} could not be opened`);
+  } else {
+    console.warn('[admin-2fa] ADMIN_TOTP_KEY is not set: admin sign-in is unavailable');
+  }
+  const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: config.adminEmails, totpKey: config.adminTotpKey, appBaseUrl: config.appBaseUrl, email: createEmailSender(config) });
   const spendPeriodFor = (uid: string, now: number) => billing.entitlement(uid, now).then((e) => periodKeyFrom({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, now).key);
   // CAP-WARN: at 80% of the cap, alert OPS (not the rep — a rep on a generous cap is doing nothing
   // wrong). Idempotent per rep per period via the dedupe key.

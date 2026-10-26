@@ -103,3 +103,29 @@ describe('[P45] admin console secrets', () => {
     }
   });
 });
+
+describe('[P46-6c.1] every secret the app reads is mapped into the task', () => {
+  it('ADMIN_TOTP_KEY is mapped from the app secret, and a fresh env seeds it', () => {
+    expect(read('infra/terraform/ecs.tf')).toContain('{ name = "ADMIN_TOTP_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:ADMIN_TOTP_KEY::" }');
+    expect(read('infra/terraform/runtime-config.tf')).toMatch(/\n\s*ADMIN_TOTP_KEY\s*=\s*"REPLACE_ME"/);
+  });
+
+  // [P46-6c.1 · owner] From now on a new secret key is mapped in ecs.tf in the SAME commit that first reads it. Any
+  // env key the API (or its one-off scripts, which run in the same task) reads whose name says secret (…_KEY, …_SECRET,
+  // …_TOKEN, …_PASSWORD, DATABASE_URL) must be in the task's `secrets`, read from tovira/prod/app.
+  it('NEGATIVE: no secret-named env key is read without an ecs.tf secrets mapping', () => {
+    const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
+    const src = join(repo, 'apps/api/src');
+    const read_ = new Set<string>();
+    for (const f of walk(src)) {
+      if (!f.endsWith('.ts') || /\.test\.ts$|\/eval\//.test(f)) continue;
+      for (const m of readFileSync(f, 'utf8').matchAll(/\benv\.([A-Z][A-Z0-9_]*)/g)) read_.add(m[1]!);
+    }
+    const SECRET = /(_KEY|_SECRET|_TOKEN|_PASSWORD|^DATABASE_URL|^APP_DATABASE_URL)$/;
+    const ecs = read('infra/terraform/ecs.tf');
+    const mapped = new Set([...ecs.matchAll(/name = "([A-Z0-9_]+)", valueFrom = "\$\{aws_secretsmanager_secret\.app\.arn\}:\1::"/g)].map((m) => m[1]!));
+    const unmapped = [...read_].filter((k) => SECRET.test(k) && !mapped.has(k)).sort();
+    expect(unmapped).toEqual([]);
+    expect(read_.has('ADMIN_TOTP_KEY')).toBe(true); // the guard sees the new key
+  });
+});

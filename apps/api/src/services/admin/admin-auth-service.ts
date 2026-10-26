@@ -27,6 +27,8 @@ export const ADMIN_SESSION_IDLE_MS = 12 * 3_600_000;
 const INVITE_TTL_MS = 7 * 24 * 3_600_000;
 const MIN_PASSWORD = 12;
 const sha256 = (s: string): string => createHash('sha256').update(s).digest('hex');
+/** [P46-6c.1] Shown when ADMIN_TOTP_KEY is not set: admin sign-in stops rather than fall back to another key. */
+export const NO_TOTP_KEY = 'Admin sign-in is unavailable: the two-factor key (ADMIN_TOTP_KEY) is not set on the server.';
 const newToken = (): string => randomBytes(32).toString('base64url');
 /** "abcd-efgh-ijkl": 60 bits each, easy to type from paper. */
 const newRecoveryCode = (): string => randomBytes(9).toString('base64url').replace(/[^A-Za-z0-9]/g, 'x').slice(0, 12).toLowerCase().replace(/(.{4})(.{4})(.{4})/, '$1-$2-$3');
@@ -37,7 +39,8 @@ export interface AdminAuthDeps {
   /** ADMIN_EMAILS, lower-cased. */
   adminEmails: string[];
   /** A server secret NOT in the database (OPS_TOKEN): encrypts TOTP secrets. Null → admin 2FA can't run (refused). */
-  serverSecret: string | null;
+  /** [P46-6c.1] ADMIN_TOTP_KEY: seals TOTP secrets. Missing → admin sign-in refuses. Never OPS_TOKEN. */
+  totpKey: string | null;
   appBaseUrl: string;
   email?: EmailSender;
   now?: () => number;
@@ -54,8 +57,8 @@ export class AdminAuthService {
   }
 
   private box(): SecretBox {
-    if (!this.deps.serverSecret) throw new AdminAuthError('Admin sign-in is not configured.', 'forbidden');
-    return new SecretBox(this.deps.serverSecret);
+    if (!this.deps.totpKey) throw new AdminAuthError(NO_TOTP_KEY, 'forbidden');
+    return new SecretBox(this.deps.totpKey);
   }
 
   /** [create-admin] Dry run by default. Creates the admin (if new) and emails a single-use set-password link. */
@@ -103,6 +106,7 @@ export class AdminAuthService {
 
   /** Same answer for an unknown email and a wrong password (and the same scrypt cost). */
   async login(rawEmail: string, password: string): Promise<{ token: string }> {
+    if (!this.deps.totpKey) throw new AdminAuthError(NO_TOTP_KEY, 'forbidden'); // [P46-6c.1] no fallback, ever
     const email = rawEmail.trim().toLowerCase();
     const user = this.isAdminEmail(email) ? await this.deps.store.findUserByEmail(email) : null;
     const ok = await this.deps.hasher.verify(password ?? '', user?.passwordHash ?? DUMMY_VERIFY_HASH);

@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   if (!url) { console.error('DATABASE_URL is required.'); process.exit(1); }
   const pool = createPool(url);
   try {
-    const svc = new AdminAuthService({ store: new PgAdminStore(pool), hasher: new ScryptHasher(), adminEmails: config.adminEmails, serverSecret: config.opsToken ?? null, appBaseUrl: config.appBaseUrl, email: createEmailSender(config) });
+    const svc = new AdminAuthService({ store: new PgAdminStore(pool), hasher: new ScryptHasher(), adminEmails: config.adminEmails, totpKey: config.adminTotpKey, appBaseUrl: config.appBaseUrl, email: createEmailSender(config) });
     const r = await svc.createAdmin(email, { apply });
     const say: Record<string, string> = {
       would_create: `DRY RUN: would create the admin account for ${r.email} and email the set-password link. Re-run with --apply.`,

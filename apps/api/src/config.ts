@@ -258,6 +258,8 @@ export interface AppConfig {
   adminEmails: string[];
   /** [P45] EXPLEE_API_KEY: the outreach platform key for the hot-leads job. Never logged or returned. Unset → off. */
   expleeApiKey: string | undefined;
+  /** [P46-6c.1] ADMIN_TOTP_KEY: the dedicated key that seals admin TOTP secrets. Null when unset (admin sign-in refuses). Never OPS_TOKEN. */
+  adminTotpKey: string | null;
   /** [BETA-3] Owner address that receives new beta access-request notifications. Unset → no email is
    *  sent (the request is still recorded); set it to the operator's inbox in any env that takes signups. */
   accessRequestNotifyEmail: string | undefined;
@@ -367,6 +369,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),
     adminEmails: (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')),
     expleeApiKey: isBlank(env.EXPLEE_API_KEY) ? undefined : env.EXPLEE_API_KEY!.trim(),
+    adminTotpKey: isBlank(env.ADMIN_TOTP_KEY) || env.ADMIN_TOTP_KEY!.trim() === 'REPLACE_ME' ? null : env.ADMIN_TOTP_KEY!.trim(), // the fresh-env seed is not a key
     accessRequestNotifyEmail: isBlank(env.ACCESS_REQUEST_NOTIFY_TO) ? undefined : env.ACCESS_REQUEST_NOTIFY_TO!.trim(),
     vatRegistered: env.VAT_REGISTERED?.trim() === 'true',
     signupEnabled: env.SIGNUP_ENABLED?.trim() === 'true', // default false (undefined → off)

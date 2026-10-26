@@ -54,6 +54,8 @@ import { InMemorySpendOverrideRepository } from '../adapters/spend/in-memory-spe
 
 /** [HEALTH-LEAK] a known ops token so tests can exercise the authenticated /health + /ops surfaces. */
 export const TEST_OPS_TOKEN = 'test-ops-token';
+/** [P46-6c.1] the dedicated admin 2FA key in tests (never the ops token). */
+export const TEST_ADMIN_TOTP_KEY = 'test-admin-totp-key-0123456789abcdef';
 /** [P45] the admin email configured in tests (ADMIN_EMAILS). */
 export const TEST_ADMIN_EMAIL = 'wabil@tovira.io';
 import { StubEmbedder } from '../adapters/embedding/stub.js';
@@ -381,7 +383,7 @@ export function buildInMemoryDeps(
   const tour = new TourService({ users: authUsers, funnel: tourFunnel });
   // [P45] the admin plane: its own store and login, separate from reps
   const adminStore = new InMemoryAdminStore();
-  const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: [TEST_ADMIN_EMAIL], serverSecret: TEST_OPS_TOKEN, appBaseUrl: 'https://tovira.io', email: emailSender });
+  const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: [TEST_ADMIN_EMAIL], totpKey: TEST_ADMIN_TOTP_KEY, appBaseUrl: 'https://tovira.io', email: emailSender });
   return {
     hotLeads,
     accessRequestsForLeads: accessRequests,
