@@ -77,4 +77,16 @@ export interface AccessRequestRepository {
    *  'rejected'. Approved/invited/activated are the authority record and are never deleted. Returns the
    *  number removed. */
   deleteStale(cutoffMs: number): Promise<number>;
+  /** [P46-6c.2] The request that became this account (linked at approval), or null. */
+  findByLinkedUser(userId: string): Promise<AccessRequestRecord | null>;
+  /** [P46-6c.2] A hot-lead invitee's answers + the confirmation, filled in on first sign-in. */
+  completeAnswers(id: string, a: AnswersPatch): Promise<AccessRequestRecord | null>;
+}
+
+export interface AnswersPatch {
+  phone: string;
+  ownership: Ownership; tradeLicenceNumber: string | null;
+  conversationOwnership: ConversationOwnership; conversationOwnershipOther: string | null;
+  expectedVolume: ExpectedVolume; industry: Industry; industryOther: string | null;
+  confirmationAcceptedAt: number; confirmationTextVersion: string;
 }

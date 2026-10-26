@@ -66,6 +66,72 @@ function optStr(v: unknown, field: string, max = MAX_TEXT): string | null {
   return s;
 }
 
+/** The form's answers about the rep's business (everything after name, email and company), validated. */
+export interface AccessAnswers {
+  ownership: Ownership; tradeLicenceNumber: string | null;
+  conversationOwnership: ConversationOwnership; conversationOwnershipOther: string | null;
+  expectedVolume: ExpectedVolume; industry: Industry; industryOther: string | null;
+}
+
+/**
+ * [P46-6c.2] The form's ownership / conversations / volume / industry answers and the mandatory confirmation, shared by
+ * the public form and a hot-lead invitee's first sign-in, so both ask exactly the same and store the same.
+ */
+export function validateAnswers(raw: RawAccessRequest): AccessAnswers {
+  const ownership = raw.ownership;
+  if (typeof ownership !== 'string' || !OWNERSHIP.has(ownership)) throw new AccessRequestValidationError('ownership', 'Choose whether you own/manage or are employed.');
+
+  // Trade licence is conditional. Requiredness for owns_or_manages is OURS (app-owned, per the schema
+  // decision); and an employed applicant must not carry one (mirrors the DB CHECK).
+  const licenceRaw = optStr(raw.tradeLicenceNumber, 'tradeLicenceNumber', MAX_SHORT);
+  let tradeLicenceNumber: string | null;
+  if (ownership === 'owns_or_manages') {
+    if (!licenceRaw) throw new AccessRequestValidationError('tradeLicenceNumber', 'A trade licence number is required when you own or manage the company.');
+    tradeLicenceNumber = licenceRaw;
+  } else {
+    if (licenceRaw) throw new AccessRequestValidationError('tradeLicenceNumber', 'A trade licence number does not apply to an employed applicant.');
+    tradeLicenceNumber = null;
+  }
+
+  const conversationOwnership = raw.conversationOwnership;
+  if (typeof conversationOwnership !== 'string' || !CONVO.has(conversationOwnership)) throw new AccessRequestValidationError('conversationOwnership', 'Choose whose client conversations you intend to upload.');
+  const otherRaw = optStr(raw.conversationOwnershipOther, 'conversationOwnershipOther', MAX_TEXT);
+  let conversationOwnershipOther: string | null;
+  if (conversationOwnership === 'other') {
+    if (!otherRaw) throw new AccessRequestValidationError('conversationOwnershipOther', 'Please describe whose conversations you intend to upload.');
+    conversationOwnershipOther = otherRaw;
+  } else {
+    if (otherRaw) throw new AccessRequestValidationError('conversationOwnershipOther', 'Free text only applies to the "Other" option.');
+    conversationOwnershipOther = null;
+  }
+
+  const expectedVolume = raw.expectedVolume;
+  if (typeof expectedVolume !== 'string' || !VOLUME.has(expectedVolume)) throw new AccessRequestValidationError('expectedVolume', 'Choose roughly how many conversations you expect to upload.');
+
+  // [P42-A6] Industry is required on every new request; 'other' carries its own text (and only 'other' does).
+  const industry = raw.industry;
+  if (typeof industry !== 'string' || !INDUSTRY.has(industry)) throw new AccessRequestValidationError('industry', 'Choose the industry you sell in.');
+  const industryOtherRaw = optStr(raw.industryOther, 'industryOther', MAX_SHORT);
+  let industryOther: string | null;
+  if (industry === 'other') {
+    if (!industryOtherRaw) throw new AccessRequestValidationError('industryOther', 'Please say which industry you sell in.');
+    industryOther = industryOtherRaw;
+  } else {
+    if (industryOtherRaw) throw new AccessRequestValidationError('industryOther', 'Free text only applies to the "Other" industry.');
+    industryOther = null;
+  }
+
+  // The confirmation checkbox is mandatory. Its exact wording lives in the form; we store the VERSION
+  // (not the sentence) so we can prove later which wording was shown. This is NOT terms acceptance.
+  if (raw.confirmationAccepted !== true) throw new AccessRequestValidationError('confirmation', 'Please confirm the information is accurate and that you have authority to share these conversations.');
+
+  return {
+    ownership: ownership as Ownership, tradeLicenceNumber,
+    conversationOwnership: conversationOwnership as ConversationOwnership, conversationOwnershipOther,
+    expectedVolume: expectedVolume as ExpectedVolume, industry: industry as Industry, industryOther,
+  };
+}
+
 export class AccessRequestService {
   constructor(
     private readonly repo: AccessRequestRepository,
@@ -80,52 +146,7 @@ export class AccessRequestService {
     const companyName = reqStr(raw.companyName, 'companyName');
     const roleTitle = reqStr(raw.roleTitle, 'roleTitle');
 
-    const ownership = raw.ownership;
-    if (typeof ownership !== 'string' || !OWNERSHIP.has(ownership)) throw new AccessRequestValidationError('ownership', 'Choose whether you own/manage or are employed.');
-
-    // Trade licence is conditional. Requiredness for owns_or_manages is OURS (app-owned, per the schema
-    // decision); and an employed applicant must not carry one (mirrors the DB CHECK).
-    const licenceRaw = optStr(raw.tradeLicenceNumber, 'tradeLicenceNumber', MAX_SHORT);
-    let tradeLicenceNumber: string | null;
-    if (ownership === 'owns_or_manages') {
-      if (!licenceRaw) throw new AccessRequestValidationError('tradeLicenceNumber', 'A trade licence number is required when you own or manage the company.');
-      tradeLicenceNumber = licenceRaw;
-    } else {
-      if (licenceRaw) throw new AccessRequestValidationError('tradeLicenceNumber', 'A trade licence number does not apply to an employed applicant.');
-      tradeLicenceNumber = null;
-    }
-
-    const conversationOwnership = raw.conversationOwnership;
-    if (typeof conversationOwnership !== 'string' || !CONVO.has(conversationOwnership)) throw new AccessRequestValidationError('conversationOwnership', 'Choose whose client conversations you intend to upload.');
-    const otherRaw = optStr(raw.conversationOwnershipOther, 'conversationOwnershipOther', MAX_TEXT);
-    let conversationOwnershipOther: string | null;
-    if (conversationOwnership === 'other') {
-      if (!otherRaw) throw new AccessRequestValidationError('conversationOwnershipOther', 'Please describe whose conversations you intend to upload.');
-      conversationOwnershipOther = otherRaw;
-    } else {
-      if (otherRaw) throw new AccessRequestValidationError('conversationOwnershipOther', 'Free text only applies to the "Other" option.');
-      conversationOwnershipOther = null;
-    }
-
-    const expectedVolume = raw.expectedVolume;
-    if (typeof expectedVolume !== 'string' || !VOLUME.has(expectedVolume)) throw new AccessRequestValidationError('expectedVolume', 'Choose roughly how many conversations you expect to upload.');
-
-    // [P42-A6] Industry is required on every new request; 'other' carries its own text (and only 'other' does).
-    const industry = raw.industry;
-    if (typeof industry !== 'string' || !INDUSTRY.has(industry)) throw new AccessRequestValidationError('industry', 'Choose the industry you sell in.');
-    const industryOtherRaw = optStr(raw.industryOther, 'industryOther', MAX_SHORT);
-    let industryOther: string | null;
-    if (industry === 'other') {
-      if (!industryOtherRaw) throw new AccessRequestValidationError('industryOther', 'Please say which industry you sell in.');
-      industryOther = industryOtherRaw;
-    } else {
-      if (industryOtherRaw) throw new AccessRequestValidationError('industryOther', 'Free text only applies to the "Other" industry.');
-      industryOther = null;
-    }
-
-    // The confirmation checkbox is mandatory. Its exact wording lives in the form; we store the VERSION
-    // (not the sentence) so we can prove later which wording was shown. This is NOT terms acceptance.
-    if (raw.confirmationAccepted !== true) throw new AccessRequestValidationError('confirmation', 'Please confirm the information is accurate and that you have authority to share these conversations.');
+    const answers = validateAnswers(raw);
 
     // Referral code is opaque + optional; a malformed value is simply ignored (never blocks the request,
     // mirroring how a bad code never blocks a signup today).
@@ -137,18 +158,18 @@ export class AccessRequestService {
       phone,
       companyName,
       roleTitle,
-      ownership: ownership as Ownership,
-      tradeLicenceNumber,
-      conversationOwnership: conversationOwnership as ConversationOwnership,
-      conversationOwnershipOther,
-      expectedVolume: expectedVolume as ExpectedVolume,
+      ownership: answers.ownership,
+      tradeLicenceNumber: answers.tradeLicenceNumber,
+      conversationOwnership: answers.conversationOwnership,
+      conversationOwnershipOther: answers.conversationOwnershipOther,
+      expectedVolume: answers.expectedVolume,
       confirmationAcceptedAt: this.now(),
       confirmationTextVersion: CONFIRMATION_TEXT_VERSION,
       sourceIp: meta.sourceIp,
       userAgent: meta.userAgent,
       referralCode,
-      industry: industry as Industry,
-      industryOther,
+      industry: answers.industry,
+      industryOther: answers.industryOther,
     });
   }
 }

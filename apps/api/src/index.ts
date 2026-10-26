@@ -138,6 +138,7 @@ import { EXTRACTION_SYSTEM_PROMPT, estimateTokens } from './services/extraction/
 import { appLinks } from './services/email/email-links.js';
 import { ledgerEntries } from './services/ledger/ledger-entries.js';
 import { reencryptAdminTotp } from './services/admin/reencrypt-totp.js';
+import { AccessAnswersService } from './services/access/access-answers-service.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -687,6 +688,7 @@ async function main(): Promise<void> {
     corpus,
     monday,
     ledger,
+    accessAnswers: new AccessAnswersService(accessRequests), // [P46-6c.2]
     // [P46-5] the Ledger's entries: suggested sales the rep marked bought, with their receipts and deal values
     ledgerEntries: (uid: string) => ledgerEntries(uid, { ledger: { listByUser: (u) => ledger.listEvents(u) }, inventory: inventoryRepo, matches: inventoryMatches, requirements, clients, restriction }),
     referral,

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AccessRequestInput, AccessRequestRecord, AccessRequestRepository, AccessRequestReview, AccessRequestStatus } from '../../ports/access-request-repository.js';
+import type { AccessRequestInput, AccessRequestRecord, AccessRequestRepository, AccessRequestReview, AccessRequestStatus, AnswersPatch } from '../../ports/access-request-repository.js';
 
 /** In-memory access-request store for tests and local runs. */
 export class InMemoryAccessRequestRepository implements AccessRequestRepository {
@@ -40,6 +40,17 @@ export class InMemoryAccessRequestRepository implements AccessRequestRepository 
     rec.reviewedAt = patch.reviewedAt;
     if (patch.reviewedNote !== undefined) rec.reviewedNote = patch.reviewedNote;
     if (patch.linkedUserId !== undefined) rec.linkedUserId = patch.linkedUserId;
+    return rec;
+  }
+
+  async findByLinkedUser(userId: string): Promise<AccessRequestRecord | null> {
+    return [...this.byId.values()].find((r) => r.linkedUserId === userId) ?? null;
+  }
+
+  async completeAnswers(id: string, a: AnswersPatch): Promise<AccessRequestRecord | null> {
+    const rec = this.byId.get(id);
+    if (!rec) return null;
+    Object.assign(rec, a);
     return rec;
   }
 

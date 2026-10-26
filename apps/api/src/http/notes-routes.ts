@@ -32,6 +32,7 @@ import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requir
 import { redactSensitive } from '../services/redaction/redact.js';
 import { isAppRecordingContainer, looksLikeAudio, AUDIO_ELSEWHERE_MESSAGE, VOICE_TOO_LONG_MESSAGE } from '../services/media/sniff.js';
 import { screenSensitive } from '../services/screening/sensitive-screen.js';
+import { ANSWERS_REQUIRED } from './access-answers-routes.js';
 
 /** REDACT-2: strip Tier-1 sensitive values before storage; log the COUNT per note
  *  (never the values) so the volume is observable. */
@@ -116,6 +117,8 @@ export interface NoteRouteDeps {
   /** [USAGE-ALLOWANCE · D4] at 100% of the allowance, a chat-export upload is REFUSED (not queued).
    *  Optional — without it, imports are never allowance-gated (local/old wiring). */
   allowanceExhausted?: (userId: string) => Promise<boolean>;
+  /** [P46-6c.2] True while a hot-lead invitee has not answered and confirmed: captures are refused. */
+  answersRequired?: (userId: string) => Promise<boolean>;
   /** [TASK 2] Active erasure-window restriction — in the rep's book, a note about a restricted
    *  counterparty shows a placeholder instead of the content (still stored, still exported). Optional. */
   restriction?: { forUser(userId: string): Promise<Restriction> };
@@ -175,6 +178,11 @@ export async function handleNoteRoute(
     return true;
   }
   const userId = identity.userId;
+  // [P46-6c.2] The confirmation is not optional for anyone: no capture before a hot-lead invitee has confirmed.
+  if ((voiceMatch || pasteMatch || importMatch) && deps.answersRequired && (await deps.answersRequired(userId))) {
+    sendJson(res, 403, ANSWERS_REQUIRED);
+    return true;
+  }
 
   try {
     if (voiceMatch) {

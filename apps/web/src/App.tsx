@@ -6,6 +6,7 @@ import { AuthClient, type Session } from './auth/authClient.js';
 import { ResetPassword } from './auth/PasswordReset.js';
 import { InviteAccept } from './auth/InviteAccept.js';
 import { RequestAccess } from './access/RequestAccess.js';
+import { AnswersGate, AccessAnswersClient } from './access/AccessAnswers.js';
 import { HttpAccessRequestClient } from './access/requestAccessClient.js';
 import { LoginScreen } from './auth/LoginScreen.js';
 import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
@@ -147,6 +148,7 @@ const mondayApi = new MondayClient(API_BASE);
 const ledgerApi = new LedgerClient(API_BASE);
 const shareCardApi = new ShareCardClient(API_BASE);
 const pushClient = new PushClient(API_BASE);
+const accessAnswersApi = new AccessAnswersClient(API_BASE);
 /** [P36-7] The To Confirm status cards: the rep's answer is the only thing that changes a status.
  *  Mark cold → Cold. Keep warm → Warm + "still open" (resets the going-quiet clock, so it stops suggesting).
  *  Mark lost → Done + lost. Keep open → "still open" (clears the inferred loss, resets the clock). */
@@ -333,7 +335,12 @@ export function App(): JSX.Element {
   if (loading) return <Centered>Loading…</Centered>;
   if (!session) return <LoginScreen auth={auth} onAuthed={setSession} signupEnabled={signupEnabled} referralsEnabled={referralsEnabled} />;
 
-  return <ClientsScreen session={session} referralsEnabled={referralsEnabled} onLogout={() => void auth.logout().then(() => setSession(null))} />;
+  // [P46-6c.2] A rep approved from a hot lead answers the blank questions and ticks the confirmation before Clients.
+  return (
+    <AnswersGate api={accessAnswersApi}>
+      <ClientsScreen session={session} referralsEnabled={referralsEnabled} onLogout={() => void auth.logout().then(() => setSession(null))} />
+    </AnswersGate>
+  );
 }
 
 function ClientsScreen({ session, onLogout, referralsEnabled = false }: { session: Session; onLogout: () => void; referralsEnabled?: boolean }): JSX.Element {

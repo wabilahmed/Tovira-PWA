@@ -7,7 +7,7 @@ import { AuthShell } from '../auth/AuthShell.js';
 export const CONFIRMATION_TEXT =
   'I confirm the information above is true and accurate to the best of my knowledge, and that I have the authority to share the client conversations I have described with Tovira.';
 
-const CONVERSATION_OPTIONS: Array<{ value: AccessRequestPayload['conversationOwnership']; label: string }> = [
+export const CONVERSATION_OPTIONS: Array<{ value: AccessRequestPayload['conversationOwnership']; label: string }> = [
   { value: 'own_clients', label: 'My own clients. I hold the relationship directly.' },
   { value: 'brokerage_i_manage', label: 'Clients of the company I own or manage.' },
   { value: 'brokerage_employs_me', label: 'Clients of the company that employs me.' },
@@ -15,7 +15,7 @@ const CONVERSATION_OPTIONS: Array<{ value: AccessRequestPayload['conversationOwn
   { value: 'other', label: 'Other' },
 ];
 /** [P42-A6] Owner: seven choices, in this order. The stored values are the API's. */
-const INDUSTRY_OPTIONS: Array<{ value: AccessRequestPayload['industry']; label: string }> = [
+export const INDUSTRY_OPTIONS: Array<{ value: AccessRequestPayload['industry']; label: string }> = [
   { value: 'insurance', label: 'Insurance' },
   { value: 'wealth_private_banking', label: 'Wealth / private banking' },
   { value: 'b2b_key_accounts', label: 'B2B / key accounts' },
@@ -24,7 +24,7 @@ const INDUSTRY_OPTIONS: Array<{ value: AccessRequestPayload['industry']; label: 
   { value: 'property', label: 'Property' },
   { value: 'other', label: 'Other' },
 ];
-const VOLUME_OPTIONS: Array<{ value: AccessRequestPayload['expectedVolume']; label: string }> = [
+export const VOLUME_OPTIONS: Array<{ value: AccessRequestPayload['expectedVolume']; label: string }> = [
   { value: 'under_50', label: 'Under 50' },
   { value: '50_200', label: '50–200' },
   { value: '200_500', label: '200–500' },

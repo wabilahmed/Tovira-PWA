@@ -3,8 +3,11 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import type { AskCaptureService } from '../services/recall/ask-capture-service.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson, requireEntitled } from './helpers.js';
+import { ANSWERS_REQUIRED } from './access-answers-routes.js';
 
 export interface RecallRouteDeps {
+  /** [P46-6c.2] True while a hot-lead invitee has not answered and confirmed: captures are refused. */
+  answersRequired?: (userId: string) => Promise<boolean>;
   auth: AuthService;
   billing: BillingService;
   /** [ASK-CAPTURE] the pending-capture queue + confirm/reject; [P39-7] POST /captures holds an "Add a note". */
@@ -38,6 +41,8 @@ export async function handleRecallRoute(
 
   // [ASK-CAPTURE] the pending-capture queue + one-tap confirm/reject (nothing enters the vault
   // until confirm). These are the rep's own pending statements — no entitlement gate.
+  // [P46-6c.2] no capture before a hot-lead invitee has answered and confirmed
+  if (isCreate && deps.answersRequired && (await deps.answersRequired(identity.userId))) { sendJson(res, 403, ANSWERS_REQUIRED); return true; }
   if (isQueue) {
     sendJson(res, 200, { captures: await deps.capture.listPending(identity.userId) });
     return true;

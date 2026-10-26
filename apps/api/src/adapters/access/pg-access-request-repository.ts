@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { AccessRequestInput, AccessRequestRecord, AccessRequestRepository, AccessRequestReview, AccessRequestStatus, ConversationOwnership, ExpectedVolume, Industry, Ownership } from '../../ports/access-request-repository.js';
+import type { AccessRequestInput, AccessRequestRecord, AccessRequestRepository, AccessRequestReview, AccessRequestStatus, ConversationOwnership, ExpectedVolume, Industry, Ownership, AnswersPatch } from '../../ports/access-request-repository.js';
 
 export interface Row {
   id: string;
@@ -106,6 +106,23 @@ export class PgAccessRequestRepository implements AccessRequestRepository {
          SET status = $2, reviewed_at = to_timestamp($3 / 1000.0), reviewed_note = $4, linked_user_id = COALESCE($5, linked_user_id)
        WHERE id = $1 RETURNING ${COLS}`,
       [id, patch.status, patch.reviewedAt, patch.reviewedNote ?? null, patch.linkedUserId ?? null],
+    );
+    return rows[0] ? toRecord(rows[0]) : null;
+  }
+
+  async findByLinkedUser(userId: string): Promise<AccessRequestRecord | null> {
+    const { rows } = await this.pool.query<Row>(`SELECT ${COLS} FROM access_requests WHERE linked_user_id = $1 ORDER BY created_at DESC LIMIT 1`, [userId]);
+    return rows[0] ? toRecord(rows[0]) : null;
+  }
+
+  async completeAnswers(id: string, a: AnswersPatch): Promise<AccessRequestRecord | null> {
+    const { rows } = await this.pool.query<Row>(
+      `UPDATE access_requests
+          SET phone = $2, ownership = $3, trade_licence_number = $4, conversation_ownership = $5, conversation_ownership_other = $6,
+              expected_volume = $7, industry = $8, industry_other = $9,
+              confirmation_accepted_at = to_timestamp($10 / 1000.0), confirmation_text_version = $11
+        WHERE id = $1 RETURNING ${COLS}`,
+      [id, a.phone, a.ownership, a.tradeLicenceNumber, a.conversationOwnership, a.conversationOwnershipOther, a.expectedVolume, a.industry, a.industryOther, a.confirmationAcceptedAt, a.confirmationTextVersion],
     );
     return rows[0] ? toRecord(rows[0]) : null;
   }

@@ -12,6 +12,7 @@ import { BULK_MAX_FILES, type RowState } from '../services/import/bulk-parse.js'
 import { decodeBulkFiles, decodeBulkFileBytes, MAX_IMPORT_UPLOAD_BYTES } from '../services/import/bulk-decode.js';
 import { putBatchFile, listBatchFiles, writeBatchStatus, readBatchStatus, clearBatch } from '../services/import/bulk-batch-store.js';
 import { extractToken, readJsonBody, readRawBody, sendJson, BadJsonError, requireEntitled, type EntitlementGate } from './helpers.js';
+import { ANSWERS_REQUIRED } from './access-answers-routes.js';
 
 /**
  * [BULK-IMPORT page] The bulk endpoints. The API caps a JSON body at 1 MB and 20 exports far exceed that,
@@ -22,6 +23,8 @@ import { extractToken, readJsonBody, readRawBody, sendJson, BadJsonError, requir
  *   GET  /import/bulk/:id/status       — poll per-chat job state; done=true carries the result upsell.
  */
 export interface BulkImportRouteDeps {
+  /** [P46-6c.2] True while a hot-lead invitee has not answered and confirmed: captures are refused. */
+  answersRequired?: (userId: string) => Promise<boolean>;
   auth: AuthService;
   bulkImport?: BulkImportService;
   /** [P14-1] entitlement gate for the confirmed import (the synchronous model-calling step). */
@@ -95,6 +98,8 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
   // so the dunning chokepoint lets it through) cannot run free extraction. Upload/parse/status stay open
   // so a rep mid-review is never stranded — only the extract step is paywalled.
   if (isImport && deps.billing && !(await requireEntitled(deps.billing, userId, res))) return true;
+  // [P46-6c.2] no capture before a hot-lead invitee has answered and confirmed
+  if ((isImport || isFiles || isParse) && deps.answersRequired && (await deps.answersRequired(userId))) { sendJson(res, 403, ANSWERS_REQUIRED); return true; }
 
   // GET status — read-only (except the one-shot heal of an interrupted batch).
   if (statusMatch) {

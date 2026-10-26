@@ -69,6 +69,7 @@ import { handleHeroRoute } from './http/hero-routes.js';
 import { handleBookScanRoute } from './http/book-scan-routes.js';
 import type { BookScanService } from './services/book-scan/book-scan-service.js';
 import { handleRecallRoute } from './http/recall-routes.js';
+import { handleAccessAnswersRoute } from './http/access-answers-routes.js';
 import { handleFindRoute } from './http/find-routes.js';
 import type { FindService } from './services/find/find-service.js';
 import { handleOpsRoute, opsTokenOk, type OpsRouteDeps } from './http/ops-routes.js';
@@ -191,6 +192,8 @@ export interface ApiDeps {
   /** [USAGE-ALLOWANCE · D4] true when the rep is at 100% of the allowance → import refused, questions
    *  paused. Read-only status for the meter is `allowanceStatus`. Optional (local/old wiring). */
   allowanceExhausted?: (userId: string) => Promise<boolean>;
+  /** [P46-6c.2] A hot-lead invitee's blank answers + the confirmation, asked on first sign-in; gates captures. */
+  accessAnswers?: import('./services/access/access-answers-service.js').AccessAnswersService;
   allowanceStatus?: AllowanceStatusService;
   /** [AUDIT item 4] ops AI-pause kill switch, surfaced via /allowance/status for the in-app banner. */
   aiPaused?: () => Promise<boolean>;
@@ -444,6 +447,7 @@ export function createApiServer(deps: ApiDeps): Server {
           repNames: deps.repNames,
           importAck: deps.importAck,
           allowanceExhausted: deps.allowanceExhausted,
+          ...(deps.accessAnswers ? { answersRequired: (u: string) => deps.accessAnswers!.required(u) } : {}),
           restriction: deps.restriction,
         })
       )
@@ -457,6 +461,7 @@ export function createApiServer(deps: ApiDeps): Server {
           storage: deps.storage,
           notes: deps.notes,
           bulkUpsell: deps.bulkUpsell,
+          ...(deps.accessAnswers ? { answersRequired: (u: string) => deps.accessAnswers!.required(u) } : {}), // [P46-6c.2]
         })
       )
         return;
@@ -515,7 +520,8 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
       if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero, priorities: deps.priorities, billing: deps.billing, clients: deps.clients })) return;
       if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan, billing: deps.billing })) return;
-      if (await handleRecallRoute(request, response, { auth: deps.auth, billing: deps.billing, capture: deps.askCapture })) return;
+      if (deps.accessAnswers && (await handleAccessAnswersRoute(request, response, { auth: deps.auth, answers: deps.accessAnswers }))) return; // [P46-6c.2]
+      if (await handleRecallRoute(request, response, { auth: deps.auth, billing: deps.billing, capture: deps.askCapture, ...(deps.accessAnswers ? { answersRequired: (u: string) => deps.accessAnswers!.required(u) } : {}) })) return;
       // [P39-7] Find: fixed questions over stored data — no model call.
       if (deps.find && (await handleFindRoute(request, response, { auth: deps.auth, billing: deps.billing, find: deps.find }))) return;
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
