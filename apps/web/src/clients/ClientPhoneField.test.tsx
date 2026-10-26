@@ -71,3 +71,15 @@ describe('[P46-4] the phone field', () => {
     expect(screen.getByText('Add the country code, for example +971 50 123 4567.')).toBeInTheDocument();
   });
 });
+
+// [P46-4] Seen at 390px: the phone field shared a row with Call and WhatsApp and got half the width. It has its own row.
+describe('[P46-4] the phone row in the client header', () => {
+  it('the phone editor sits in its own row, not beside Call / WhatsApp', async () => {
+    const { ClientHeader } = await import('./page/ClientHeader.js');
+    const { container } = render(<ClientHeader name="Sara" status={null} line="" phone="+971503863103" phoneEditor={<ClientPhoneField phone="+971503863103" onSave={vi.fn()} />} onStatus={vi.fn()} addOpen={false} onAdd={vi.fn()} />);
+    const contact = container.querySelector('.tov-clienthead__contact')!;
+    expect(contact.textContent).toMatch(/Call/);
+    expect(contact.querySelector('[data-testid="client-phone"]')).toBeNull();
+    expect(container.querySelector('.tov-clienthead__phone [data-testid="client-phone"]')).not.toBeNull();
+  });
+});

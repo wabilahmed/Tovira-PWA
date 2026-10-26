@@ -31,3 +31,17 @@ test('390px: the client page (phone row), Inventory and Settings never scroll si
     expect(scrollW, path).toBeLessThanOrEqual(clientW);
   }
 });
+
+// [P46-4] The phone row on the client page: the label above a field that spans the row ("Phon / e" and "Sav / e" wrapped
+// letter by letter when the field shared a row with Call and WhatsApp).
+test('390px: the client phone field spans the row, Save is never squeezed', async ({ page, context }) => {
+  await stubApi(context);
+  await page.goto('/app?client=c1');
+  const field = page.getByLabel('Phone', { exact: true });
+  await expect(field).toBeVisible();
+  const w = (await field.boundingBox())!.width;
+  expect(w).toBeGreaterThan(300);
+  const save = (await page.getByRole('button', { name: 'Save' }).boundingBox())!;
+  expect(save.height).toBeLessThan(60); // one line, never "Sav / e"
+});
+

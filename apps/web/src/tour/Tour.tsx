@@ -84,6 +84,8 @@ export function Tour(props: TourProps): JSX.Element {
 
   const rect = useSpotlight(step.spot, i);
   const rect2 = useSpotlight(step.spot2, i);
+  // [P46-6] Place the card away from whichever spotlight is on screen (step 8 may only have More).
+  const anchor = rect ?? rect2;
 
   function next(): void { if (!last) setI((n) => n + 1); }
   function back(): void { if (i > 0) setI((n) => n - 1); }
@@ -118,7 +120,7 @@ export function Tour(props: TourProps): JSX.Element {
       {rect2 && <div className="tov-tour__spot" data-testid="tour-spot-2" aria-hidden="true" style={{ top: rect2.top - 6, left: rect2.left - 6, width: rect2.width + 12, height: rect2.height + 12 }} />}
       <div
         ref={cardRef}
-        className={`tov-tour__card${rect ? ' tov-tour__card--with-spot' : ''}${rect && rect.top > window.innerHeight / 2 ? ' tov-tour__card--top' : ''}`}
+        className={`tov-tour__card${anchor ? ' tov-tour__card--with-spot' : ''}${anchor && anchor.top > window.innerHeight / 2 ? ' tov-tour__card--top' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="tov-tour-title"

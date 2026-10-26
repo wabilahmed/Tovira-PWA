@@ -58,8 +58,9 @@ export function ClientHeader({ name, status, line, phone, phoneEditor, onStatus,
       <div className="tov-clienthead__contact">
         {phone && <a className="tov-chip-link" href={`tel:${phone.replace(/[^\d+]/g, '')}`}>Call</a>}
         {wa && <a className="tov-chip-link" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
-        {phoneEditor}
       </div>
+      {/* [P46-4] The phone has its own full-width row: label above, field across, Save below (never squeezed beside Call). */}
+      <div className="tov-clienthead__phone">{phoneEditor}</div>
       <div><Button variant="primary" className="tov-clienthead__add" aria-haspopup="dialog" aria-expanded={addOpen} onClick={onAdd}>+ Add</Button></div>
       {children}
     </header>

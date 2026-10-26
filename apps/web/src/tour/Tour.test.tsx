@@ -242,6 +242,8 @@ describe('[P46-6] the Ledger in step 8', () => {
       render(<Tour {...props()} />);
       await toStep(8);
       await waitFor(() => expect(document.querySelector('[data-testid="tour-spot-2"]')).not.toBeNull());
+      // the card moves to the top, away from More at the bottom (it covered it when centred)
+      expect(screen.getByRole('dialog')).toHaveClass('tov-tour__card--top');
     } finally {
       more.remove();
     }
