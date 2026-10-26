@@ -34,7 +34,7 @@ const OWNER_PLANE = new Set<string>([
   // [P45] the admin console: index.ts createAdminStore(config, migrationPool) — operator accounts, never the app role
   'admin_users', 'admin_invites', 'admin_sessions', 'admin_recovery_codes', 'admin_audit',
   // [P45-3] index.ts createHotLeadsStore(config, migrationPool) — prospects, admin console only
-  'hot_leads', 'explee_sync_state',
+  'hot_leads', 'explee_sync_state', 'hot_lead_tombstones',
 ]);
 
 function createdTables(sql: string): string[] {

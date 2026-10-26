@@ -71,11 +71,37 @@ describe('[P45-3] the hot-leads sync', () => {
     expect((await s.store.getState()).cursor).toBeNull();
   });
 
+  // [P46-6c.4 · owner] "keeps nothing" now means the lead's row is gone; only a tombstone (person_id + campaign_id) stays
   it('an erased lead keeps nothing of the person', async () => {
     const s = setup([page([lead(1, '2026-10-26T10:00:00Z')]), page([{ person_id: 'p1', campaign_id: 7, erased: true, became_hot_at: '2026-10-26T10:00:00Z' }])]);
     await s.svc.run(); await s.svc.run();
-    const l = (await s.store.list({}))[0]!;
-    expect(l).toMatchObject({ erased: true, name: null, email: null, whyHot: null, phone: null, linkedinUrl: null });
+    expect(await s.store.list({})).toEqual([]);
+    expect([...s.store.tombstones]).toEqual([{ personId: 'p1', campaignId: 7 }]);
+  });
+
+  // [P46-6c.4] Owner: a lead we wiped is never re-imported by a later poll (the at-or-after overlap, or Explee sending an
+  // older copy). A tombstone keeps person_id + campaign_id only, no personal fields.
+  it('NEGATIVE: a wiped lead returned again (not erased) by a later poll is never re-imported', async () => {
+    const s = setup([
+      page([lead(1, '2026-10-26T10:00:00Z')]),
+      page([{ person_id: 'p1', campaign_id: 7, erased: true, became_hot_at: '2026-10-26T10:00:00Z' }]),
+      page([lead(1, '2026-10-26T10:00:00Z')]),
+    ]);
+    await s.svc.run(); await s.svc.run(); await s.svc.run();
+    expect(await s.store.list({})).toEqual([]);
+  });
+
+  it('NEGATIVE: a lead erased before we ever saw it is never imported later either', async () => {
+    const s = setup([page([{ person_id: 'p9', campaign_id: 7, erased: true, became_hot_at: '2026-10-26T10:00:00Z' }]), page([lead(9, '2026-10-26T09:00:00Z')])]);
+    await s.svc.run(); await s.svc.run();
+    expect(await s.store.list({})).toEqual([]);
+    expect([...s.store.tombstones]).toEqual([{ personId: 'p9', campaignId: 7 }]);
+  });
+
+  it('the tombstone is per campaign: the same person hot in another campaign is a new lead', async () => {
+    const s = setup([page([{ person_id: 'p1', campaign_id: 7, erased: true, became_hot_at: '2026-10-26T10:00:00Z' }]), page([lead(1, '2026-10-26T11:00:00Z', { campaign_id: 8 })])]);
+    await s.svc.run(); await s.svc.run();
+    expect((await s.store.list({})).map((l) => [l.personId, l.campaignId])).toEqual([['p1', 8]]);
   });
 
   it('429: stop this run, the cursor stays', async () => {

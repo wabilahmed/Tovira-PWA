@@ -41,6 +41,7 @@ const RLS_EXEMPT: Record<string, string> = {
   admin_audit: '[P45] admin plane: the operator action log (who, what, when), owner pool only',
   hot_leads: '[P45-3] admin plane: prospects from the outreach platform (not tenant data), owner pool only, admin console only',
   explee_sync_state: '[P45-3] admin plane: the hot-leads sync cursor and banner, one platform row, owner pool only',
+  hot_lead_tombstones: '[P46-6c.4] admin plane: person_id + campaign_id of leads erased at the outreach platform (no personal fields), owner pool only',
   model_call_events: 'spend instrumentation; user_id is nullable (NULL = system call), written system-side on every model call and read cross-tenant by ops cost reports — never a rep query path',
   transcription_events: '[P44-2] cost accounting: one row per completed transcription, written system-side and read cross-tenant by the ops cost report only — never a rep query path',
   revenue_events: '[P44-2] cost accounting: one row per paid Stripe object, written by the billing webhook (no tenant session) and read by the ops cost report only',

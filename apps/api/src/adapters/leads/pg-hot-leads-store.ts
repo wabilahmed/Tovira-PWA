@@ -17,8 +17,8 @@ const ts = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString
 
 /**
  * [P45-3] Hot leads on the OWNER pool (never granted to the app role). One transaction per batch. A known lead's
- * details are refreshed but never its status or notes; an erased lead keeps nothing of the person (and a new erased
- * lead is not stored at all). (xmax = 0) tells an INSERT from an UPDATE, so the caller learns which leads are new.
+ * details are refreshed but never its status or notes. [P46-6c.4] An erased lead keeps nothing of the person: its row
+ * is deleted and a tombstone (person_id + campaign_id) stops any later poll from importing it again. (xmax = 0) tells an INSERT from an UPDATE, so the caller learns which leads are new.
  */
 export class PgHotLeadsStore implements HotLeadsStore {
   constructor(private readonly pool: Pool) {}
@@ -29,11 +29,13 @@ export class PgHotLeadsStore implements HotLeadsStore {
     try {
       await c.query('BEGIN');
       for (const l of batch) {
+        // [P46-6c.4] Wiped once: never imported again (the poll's at-or-after overlap, or an older copy from Explee).
+        const { rows: dead } = await c.query('SELECT 1 FROM hot_lead_tombstones WHERE person_id = $1 AND campaign_id = $2', [l.personId, l.campaignId]);
+        if (dead.length > 0) continue;
         if (l.erased) {
-          await c.query(
-            `UPDATE hot_leads SET erased = true, name = NULL, email = NULL, job_title = NULL, company_name = NULL, company_domain = NULL,
-               linkedin_url = NULL, country = NULL, phone = NULL, why_hot = NULL, notes = NULL, updated_at = $3
-             WHERE person_id = $1 AND campaign_id = $2`, [l.personId, l.campaignId, ts(at)]);
+          // Nothing of the person is kept: the lead's row goes; only person_id + campaign_id stay, as the tombstone.
+          await c.query('DELETE FROM hot_leads WHERE person_id = $1 AND campaign_id = $2', [l.personId, l.campaignId]);
+          await c.query('INSERT INTO hot_lead_tombstones (person_id, campaign_id, erased_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [l.personId, l.campaignId, ts(at)]);
           continue;
         }
         const { rows } = await c.query<Row & { inserted: boolean }>(

@@ -1,21 +1,28 @@
 import type { ExpleeSyncState, HotLead, HotLeadInput, HotLeadsStore, LeadStatus } from '../../ports/hot-leads.js';
 
-const PERSONAL: Array<keyof HotLeadInput> = ['name', 'email', 'jobTitle', 'companyName', 'companyDomain', 'linkedinUrl', 'country', 'phone', 'whyHot'];
-
 /** [P45-3] In-memory hot leads for tests and local runs (same rules as the pg store). */
 export class InMemoryHotLeadsStore implements HotLeadsStore {
   private leads: HotLead[] = [];
   private seq = 0;
   private state: ExpleeSyncState = { cursor: null, lastRunAt: null, lastStatus: null, banner: null };
 
+  /** [P46-6c.4] Leads erased at Explee: person_id + campaign_id only, so a later poll never imports them again. */
+  readonly tombstones: Array<{ personId: string; campaignId: number }> = [];
+
   async saveBatch(batch: HotLeadInput[], at: number): Promise<HotLead[]> {
     const fresh: HotLead[] = [];
     for (const input of batch) {
-      const clean = input.erased ? { ...input, ...Object.fromEntries(PERSONAL.map((k) => [k, null])) } as HotLeadInput : input;
-      const existing = this.leads.find((l) => l.personId === input.personId && l.campaignId === input.campaignId);
-      if (existing) { Object.assign(existing, clean, { updatedAt: at }); continue; }
-      if (input.erased) continue; // nothing to keep of someone who asked to be removed
-      const l: HotLead = { ...clean, id: String(++this.seq), status: 'new', notes: null, accessRequestId: null, firstSeenAt: at, updatedAt: at };
+      const key = (t: { personId: string; campaignId: number }) => t.personId === input.personId && t.campaignId === input.campaignId;
+      if (this.tombstones.some(key)) continue; // wiped once: never imported again
+      if (input.erased) {
+        // nothing of the person is kept: the row goes, only the tombstone stays
+        this.leads = this.leads.filter((l) => !key(l));
+        this.tombstones.push({ personId: input.personId, campaignId: input.campaignId });
+        continue;
+      }
+      const existing = this.leads.find(key);
+      if (existing) { Object.assign(existing, input, { updatedAt: at }); continue; }
+      const l: HotLead = { ...input, id: String(++this.seq), status: 'new', notes: null, accessRequestId: null, firstSeenAt: at, updatedAt: at };
       this.leads.push(l);
       fresh.push({ ...l });
     }
