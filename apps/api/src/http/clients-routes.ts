@@ -4,6 +4,7 @@ import type { ClientRepository, ClientOutcome } from '../ports/client-repository
 import type { ClientPointerRepository } from '../ports/client-pointer-repository.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 import { NO_RESTRICTION, type Restriction } from '../services/erasure/restriction.js';
+import { canonicalPhone } from '../services/clients/phone.js';
 
 /** Handle a /clients or /clients/:id request. Returns true if it handled it. */
 export async function handleClientRoute(
@@ -35,8 +36,13 @@ export async function handleClientRoute(
         sendJson(res, 400, { error: 'validation', message: 'A client name is required.' });
         return true;
       }
-      // Stored as entered (P4-7) — we never rewrite it or guess a country code.
-      const phone = typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null;
+      // [P46-4] Validated and stored in the canonical international form; never a guessed country code.
+      let phone: string | null = null;
+      if (typeof body.phone === 'string' && body.phone.trim()) {
+        const p = canonicalPhone(body.phone);
+        if (!p.ok) { sendJson(res, 400, { error: 'validation', message: p.message }); return true; }
+        phone = p.phone;
+      }
       const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : null;
       const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null;
       sendJson(res, 201, await clients.create(userId, name, phone, title, email));
@@ -138,7 +144,13 @@ export async function handleClientRoute(
         return true;
       }
       const body = (await readJsonBody(req)) as { phone?: unknown };
-      const phone = typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null;
+      // [P46-4] Validated and stored canonical (+971503863103); a refused number changes nothing. Empty clears it.
+      let phone: string | null = null;
+      if (typeof body.phone === 'string' && body.phone.trim()) {
+        const p = canonicalPhone(body.phone);
+        if (!p.ok) { sendJson(res, 400, { error: 'validation', message: p.message }); return true; }
+        phone = p.phone;
+      }
       await clients.setPhone(userId, id, phone);
       sendJson(res, 200, await clients.findByIdForUser(userId, id));
       return true;

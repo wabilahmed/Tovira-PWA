@@ -150,3 +150,12 @@ describe('[CLIENT-SEARCH] highlight ranges map to the ORIGINAL string', () => {
     expect('+971 50 123 4567'.slice(r.start, r.end)).toBe('4567');
   });
 });
+
+// [P46-4] Phones are stored canonical (+971503863103) and shown in international format, in search results too.
+describe('[P46-4] a phone match reads in international format', () => {
+  it('"386 31" finds +971503863103 and shows "+971 50 386 3103"', () => {
+    const hit = searchClients([{ id: 'c1', name: 'Sara', phone: '+971503863103' }], '386 31').hits[0]!;
+    expect(hit.field).toBe('phone');
+    expect(hit.value).toBe('+971 50 386 3103');
+  });
+});

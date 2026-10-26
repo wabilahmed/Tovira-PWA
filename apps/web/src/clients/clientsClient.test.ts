@@ -97,6 +97,12 @@ describe('ClientsClient', () => {
     expect(await new ClientsClient('http://api.test').setPhone('c1', 'x')).toBeNull();
   });
 
+  // [P46-4] A number the server refuses (no country code, not a number) surfaces its message for the field to show.
+  it('setPhone throws the server\'s message when the number is refused (400)', async () => {
+    fetchMock.mockResolvedValueOnce(json(400, { error: 'validation', message: 'Add the country code, for example +971 50 123 4567.' }));
+    await expect(new ClientsClient('http://api.test').setPhone('c1', '0501234567')).rejects.toThrow('Add the country code, for example +971 50 123 4567.');
+  });
+
   it('creates a pasted note under a client', async () => {
     fetchMock.mockResolvedValueOnce(json(201, { id: 'n1', source: 'paste', rawText: 'hi', status: 'pending_extraction', createdAt: 1 }));
     const client = new ClientsClient('http://api.test');

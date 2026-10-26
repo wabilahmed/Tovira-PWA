@@ -104,6 +104,11 @@ export type ImportResult =
   | { ok: false; error: 'consent' | 'not_whatsapp' | 'too_large' | 'not_found' | 'other'; message: string };
 
 /** Client-side API for the rep's clients (same-origin; session cookie included). */
+/** [P46-4] The server refused a phone number; the message says how to fix it. */
+export class PhoneRefused extends Error {
+  constructor(message: string) { super(message); this.name = 'PhoneRefused'; }
+}
+
 export class ClientsClient {
   constructor(private readonly baseUrl: string = '') {}
 
@@ -226,9 +231,12 @@ export class ClientsClient {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ phone }),
       });
+      // [P46-4] A refused number (no country code, not a number): the server's fix, for the field to show.
+      if (res.status === 400) throw new PhoneRefused(((await res.json().catch(() => ({}))) as { message?: string }).message ?? 'Could not save the phone.');
       if (!res.ok) return null;
       return (await res.json()) as ClientSummary;
-    } catch {
+    } catch (err) {
+      if (err instanceof PhoneRefused) throw err;
       return null;
     }
   }

@@ -1,3 +1,4 @@
+import { displayPhone } from '../format/phone.js';
 /**
  * [CLIENT-SEARCH · P12 Feature 2] Find clients by name, phone OR email — all at once. [P36-6] Also by alias.
  *
@@ -139,7 +140,7 @@ function matchClient<T extends SearchableClient>(client: T, raw: string): Client
   if (isDigitQuery(raw)) {
     // Digit query → phones only.
     const qDigits = digitsOf(raw);
-    const phone = client.phone ?? '';
+    const phone = displayPhone(client.phone); // [P46-4] shown in international format
     const r = textRank(canonicalPhone(digitsOf(phone)), canonicalPhone(qDigits));
     if (r !== null) candidates.push({ field: 'phone', value: phone, ranges: [phoneRange(phone, qDigits)], rank: r });
   } else {

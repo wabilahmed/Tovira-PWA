@@ -59,7 +59,8 @@ describe('clients HTTP endpoints (tenant-scoped)', () => {
       body: JSON.stringify({ name: 'Acme', phone: '+971 50 123 4567' }),
     }));
     expect(create.status).toBe(201);
-    expect(((await create.json()) as { phone: string }).phone).toBe('+971 50 123 4567');
+    // [P46-4 · owner] stored in the canonical international form (+971501234567), shown formatted by the app
+    expect(((await create.json()) as { phone: string }).phone).toBe('+971501234567');
   });
 
   it('sets a client phone via PATCH and reads it back', async () => {
