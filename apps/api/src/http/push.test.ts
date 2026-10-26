@@ -59,3 +59,56 @@ describe('[P3-6] web push subscription + test notification', () => {
     expect(((await test.json()) as { sent: number }).sent).toBe(0);
   });
 });
+
+// [P46-2] Owner (phone review): Settings said "Notifications are on" but the test went to 0 devices. The live web build
+// never had a VAPID key, so it never subscribed. The app now asks the server for the public key, checks that THIS
+// device's subscription is stored, and the test reports on this phone. A subscription the push service rejects as gone
+// (404 / 410) is deleted, and one dead device never stops the others getting the push.
+describe('[P46-2] push: the key from the server, this device, gone subscriptions', () => {
+  it('GET /push/config gives the VAPID public key (never the private key)', async () => {
+    const token = await signup('cfg@example.com');
+    const res = await fetch(`${base}/push/config`, { headers: auth(token) });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toEqual({ vapidPublicKey: 'test-vapid-public' });
+  });
+
+  it('POST /push/status says whether THIS device (its endpoint) is stored for the rep', async () => {
+    const token = await signup('status@example.com');
+    const ask = async (endpoint: string) => ((await (await fetch(`${base}/push/status`, { method: 'POST', headers: auth(token), body: JSON.stringify({ endpoint }) })).json()) as { stored: boolean }).stored;
+    expect(await ask(sub.endpoint)).toBe(false);
+    await fetch(`${base}/push/subscribe`, { method: 'POST', headers: auth(token), body: JSON.stringify(sub) });
+    expect(await ask(sub.endpoint)).toBe(true);
+    expect(await ask('https://push.example/other-phone')).toBe(false);
+  });
+
+  it('NEGATIVE: another rep\'s stored endpoint is not "stored" for me', async () => {
+    const a = await signup('status-a@example.com');
+    const b = await signup('status-b@example.com');
+    const mine = { endpoint: 'https://push.example/a-only', keys: { p256dh: 'k', auth: 'a' } };
+    await fetch(`${base}/push/subscribe`, { method: 'POST', headers: auth(a), body: JSON.stringify(mine) });
+    const res = await fetch(`${base}/push/status`, { method: 'POST', headers: auth(b), body: JSON.stringify({ endpoint: mine.endpoint }) });
+    expect(((await res.json()) as { stored: boolean }).stored).toBe(false);
+  });
+
+  it('the test reports on this phone: "sent", or "not_set_up" when this endpoint is not stored', async () => {
+    const token = await signup('thisphone@example.com');
+    const test = async (endpoint: string) => (await (await fetch(`${base}/push/test`, { method: 'POST', headers: auth(token), body: JSON.stringify({ endpoint }) })).json()) as { sent: number; thisDevice: string };
+    expect((await test(sub.endpoint)).thisDevice).toBe('not_set_up');
+    await fetch(`${base}/push/subscribe`, { method: 'POST', headers: auth(token), body: JSON.stringify(sub) });
+    expect(await test(sub.endpoint)).toEqual({ sent: 1, thisDevice: 'sent' });
+  });
+
+  it('a subscription the push service says is gone (410) is deleted, reported, and the other device still gets the push', async () => {
+    const token = await signup('gone@example.com');
+    const dead = { endpoint: 'https://push.example/dead', keys: { p256dh: 'k', auth: 'a' } };
+    const live = { endpoint: 'https://push.example/live', keys: { p256dh: 'k', auth: 'a' } };
+    for (const s of [dead, live]) await fetch(`${base}/push/subscribe`, { method: 'POST', headers: auth(token), body: JSON.stringify(s) });
+    sender.goneEndpoints.add(dead.endpoint);
+    const res = (await (await fetch(`${base}/push/test`, { method: 'POST', headers: auth(token), body: JSON.stringify({ endpoint: dead.endpoint }) })).json()) as { sent: number; thisDevice: string };
+    expect(res).toEqual({ sent: 1, thisDevice: 'gone' });
+    const status = await fetch(`${base}/push/status`, { method: 'POST', headers: auth(token), body: JSON.stringify({ endpoint: dead.endpoint }) });
+    expect(((await status.json()) as { stored: boolean }).stored).toBe(false);
+    sender.goneEndpoints.clear();
+  });
+});

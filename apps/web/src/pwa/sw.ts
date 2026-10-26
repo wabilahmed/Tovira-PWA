@@ -11,6 +11,7 @@ import { precacheAndRoute, cleanupOutdatedCaches, matchPrecache } from 'workbox-
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { NetworkFirst } from 'workbox-strategies';
 import { readSharedChat, idbSharedChatStore } from './sharedChat.js';
+import { resubscribeOnChange } from './resubscribe.js';
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> };
 
@@ -71,6 +72,11 @@ self.addEventListener('push', (event) => {
   try { payload = event.data.json() as typeof payload; } catch { payload = { body: event.data.text() }; }
   const { title = 'Tovira', body = '', url = '/app', tag } = payload;
   event.waitUntil(self.registration.showNotification(title, { body, data: { url }, ...(tag ? { tag } : {}) }));
+});
+// [P46-2] The browser replaced this device's subscription: store the new one so alerts keep arriving.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const e = event as Event & { newSubscription?: PushSubscription | null; waitUntil(p: Promise<unknown>): void };
+  e.waitUntil(resubscribeOnChange({ fetchFn: (u, i) => fetch(u, i), pushManager: self.registration.pushManager, newSubscription: e.newSubscription ?? null }));
 });
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

@@ -656,6 +656,7 @@ async function main(): Promise<void> {
     scanConfig: scanConfigFrom(config),
     pushSubscriptions,
     pushSender,
+    vapidPublicKey: config.vapidPublicKey,
     pushDispatch,
     images,
     hero,

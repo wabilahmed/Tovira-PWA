@@ -1,4 +1,4 @@
-import type { PushSender, PushSubscriptionRepository } from '../../ports/push.js';
+import { PushSubscriptionGoneError, type PushSender, type PushSubscriptionRepository } from '../../ports/push.js';
 import type { NotificationRepository, NotificationType } from '../../ports/notification-repository.js';
 
 /**
@@ -70,15 +70,25 @@ export class PushDispatchService {
     const pushable = candidates.filter((c) => TIME_CRITICAL.has(c.type));
     const heldForDigest = candidates.filter((c) => !TIME_CRITICAL.has(c.type));
 
-    const devices = await this.subs.listByUser(userId);
-    if (devices.length > 0) {
-      for (const alert of pushable) {
-        for (const device of devices) {
+    // [P46-2] One device at a time, each on its own: a dead subscription never stops the push to the others, and a
+    // gone one (404 / 410) is deleted so it is never tried again.
+    let devices = await this.subs.listByUser(userId);
+    let delivered = false;
+    for (const alert of pushable) {
+      for (const device of devices) {
+        try {
           await this.sender.send(device, { title: alert.title, body: alert.body, ...(alert.url ? { url: alert.url } : {}) });
+          delivered = true;
+        } catch (err) {
+          if (err instanceof PushSubscriptionGoneError) {
+            await this.subs.remove(userId, device.endpoint);
+            devices = devices.filter((d) => d.endpoint !== device.endpoint);
+          }
+          // anything else: best-effort, the in-app list is the fallback
         }
       }
     }
 
-    return { sent: devices.length > 0 ? pushable : [], heldForDigest };
+    return { sent: delivered ? pushable : [], heldForDigest };
   }
 }

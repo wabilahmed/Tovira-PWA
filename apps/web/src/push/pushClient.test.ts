@@ -27,14 +27,15 @@ describe('PushClient', () => {
     expect(await new PushClient().saveSubscription(SUB)).toBe(false);
   });
 
+  // [P46-2 · owner] the test names this device (its endpoint) and returns { sent, thisDevice }; the count is still there
   it('sends a test and returns the delivered count', async () => {
-    fetchMock.mockResolvedValueOnce(json(200, { sent: 2 }));
-    expect(await new PushClient('http://api.test').sendTest()).toBe(2);
+    fetchMock.mockResolvedValueOnce(json(200, { sent: 2, thisDevice: 'sent' }));
+    expect((await new PushClient('http://api.test').sendTest('https://push.test/x')).sent).toBe(2);
     expect((fetchMock.mock.calls[0]![1] as RequestInit).method).toBe('POST');
   });
 
   it('returns 0 delivered on failure', async () => {
     fetchMock.mockResolvedValueOnce(json(500, {}));
-    expect(await new PushClient().sendTest()).toBe(0);
+    expect((await new PushClient().sendTest(null)).sent).toBe(0);
   });
 });

@@ -28,4 +28,10 @@ export class PgPushSubscriptionRepository implements PushSubscriptionRepository 
       return (rows as unknown as Row[]).map((r) => ({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }));
     });
   }
+
+  async remove(userId: string, endpoint: string): Promise<void> {
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query('DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2', [userId, endpoint]);
+    });
+  }
 }

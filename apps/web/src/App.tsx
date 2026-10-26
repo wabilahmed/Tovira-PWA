@@ -83,6 +83,7 @@ import { Ledger } from './ledger/Ledger.js';
 import { ShareCardClient } from './share/shareCardClient.js';
 import { ShareCard } from './share/ShareCard.js';
 import { PushClient } from './push/pushClient.js';
+import { ensureDevicePush, type DeviceStatus, type DevicePushDeps, type PushManagerLike } from './push/devicePush.js';
 import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
 import { ThemeToggle } from './settings/ThemeToggle.js';
@@ -178,18 +179,36 @@ function readPushState(): OnboardingState {
   return { standalone, notificationPermission: permission, pushSupported };
 }
 
+// [P46-2] Push: the VAPID public key comes from the server at runtime (the web build never had one, so the live app
+// never subscribed). On open and in Settings the app makes sure this device's subscription is stored.
+const pushRegistration = (): Promise<{ pushManager?: PushManagerLike } | null> =>
+  typeof navigator !== 'undefined' && navigator.serviceWorker
+    ? (navigator.serviceWorker.ready as unknown as Promise<{ pushManager?: PushManagerLike }>)
+    : Promise.resolve(null);
+const devicePushDeps: DevicePushDeps = {
+  state: readPushState,
+  getRegistration: pushRegistration,
+  api: { config: () => pushClient.config(), isStored: (e) => pushClient.isStored(e), save: (s) => pushClient.saveSubscription(s) },
+};
+let thisDeviceEndpoint: string | null = null;
+async function syncThisDevice(): Promise<DeviceStatus> {
+  const r = await ensureDevicePush(devicePushDeps);
+  thisDeviceEndpoint = r.endpoint;
+  return r.status;
+}
 const notificationApi: NotificationApi = {
-  enable: () =>
+  enable: async () =>
     enablePush({
-      vapidPublicKey: (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? '',
+      vapidPublicKey: (await pushClient.config()) ?? '',
       requestPermission: () => Notification.requestPermission(),
-      getRegistration: () =>
-        navigator.serviceWorker
-          ? (navigator.serviceWorker.ready as unknown as Promise<import('./push/enablePush.js').PushRegistrationLike>)
-          : Promise.resolve(null),
+      getRegistration: () => pushRegistration() as Promise<import('./push/enablePush.js').PushRegistrationLike | null>,
       saveSubscription: (s) => pushClient.saveSubscription(s),
     }),
-  sendTest: () => pushClient.sendTest(),
+  status: syncThisDevice,
+  sendTest: async () => {
+    if (!thisDeviceEndpoint) await syncThisDevice();
+    return pushClient.sendTest(thisDeviceEndpoint);
+  },
 };
 const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader(API_BASE));
 // [P14-4b] A recording still waiting to upload is unsaved work — a service-worker update must prompt,
@@ -439,6 +458,9 @@ function ClientsScreen({ session, onLogout }: { session: Session; onLogout: () =
 
   const loadSeeding = (): void => void onboardingApi.status().then(setSeeding);
   useEffect(loadSeeding, []);
+  // [P46-2] On app open: when notifications are allowed, make sure this phone's subscription exists and is stored on
+  // the server (re-subscribes after an expiry, a key change, or a subscription the server deleted as gone). Never prompts.
+  useEffect(() => { void syncThisDevice(); }, []);
 
   // Entitlement: gate the premium views behind one calm locked state when the
   // trial has lapsed. Default open on a fetch failure — the server 402s anyway.

@@ -1,5 +1,5 @@
 import webpush from 'web-push';
-import type { PushPayload, PushSender, PushSubscription } from '../../ports/push.js';
+import { PushSubscriptionGoneError, type PushPayload, type PushSender, type PushSubscription } from '../../ports/push.js';
 
 /** Injectable send fn (so tests don't hit a real push service). */
 export type WebPushSendFn = (subscription: webpush.PushSubscription, payload: string) => Promise<unknown>;
@@ -27,9 +27,16 @@ export class WebPushSender implements PushSender {
   }
 
   async send(subscription: PushSubscription, payload: PushPayload): Promise<void> {
-    await this.sendFn(
-      { endpoint: subscription.endpoint, keys: subscription.keys },
-      JSON.stringify(payload),
-    );
+    try {
+      await this.sendFn(
+        { endpoint: subscription.endpoint, keys: subscription.keys },
+        JSON.stringify(payload),
+      );
+    } catch (err) {
+      // [P46-2] 404 / 410: the browser dropped this subscription (expired, uninstalled, keys changed).
+      const status = (err as { statusCode?: number } | null)?.statusCode;
+      if (status === 404 || status === 410) throw new PushSubscriptionGoneError(subscription.endpoint);
+      throw err;
+    }
   }
 }

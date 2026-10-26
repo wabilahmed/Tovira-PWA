@@ -1,12 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
-import type { PushSender, PushSubscription, PushSubscriptionRepository } from '../ports/push.js';
+import { PushSubscriptionGoneError, type PushSender, type PushSubscription, type PushSubscriptionRepository } from '../ports/push.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
 export interface PushRouteDeps {
   auth: AuthService;
   subscriptions: PushSubscriptionRepository;
   sender: PushSender;
+  /** [P46-2] The VAPID PUBLIC key, served to the app at runtime (the web build never had it). Never the private key. */
+  vapidPublicKey: string;
 }
 
 function isSubscription(v: unknown): v is PushSubscription {
@@ -14,7 +16,10 @@ function isSubscription(v: unknown): v is PushSubscription {
   return !!s && typeof s.endpoint === 'string' && !!s.keys && typeof s.keys.p256dh === 'string' && typeof s.keys.auth === 'string';
 }
 
-/** Handle POST /push/subscribe and POST /push/test. Returns true if handled. */
+/**
+ * Handle GET /push/config, POST /push/subscribe, POST /push/status and POST /push/test. Returns true if handled.
+ * [P46-2] /push/status and /push/test take this device's endpoint, so Settings shows the server's truth for THIS phone.
+ */
 export async function handlePushRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -24,7 +29,9 @@ export async function handlePushRoute(
   const path = (req.url ?? '/').split('?')[0]!;
   const isSubscribe = method === 'POST' && path === '/push/subscribe';
   const isTest = method === 'POST' && path === '/push/test';
-  if (!isSubscribe && !isTest) return false;
+  const isConfig = method === 'GET' && path === '/push/config';
+  const isStatus = method === 'POST' && path === '/push/status';
+  if (!isSubscribe && !isTest && !isConfig && !isStatus) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -34,6 +41,17 @@ export async function handlePushRoute(
   const userId = identity.userId;
 
   try {
+    if (isConfig) {
+      sendJson(res, 200, { vapidPublicKey: deps.vapidPublicKey });
+      return true;
+    }
+    if (isStatus) {
+      const body = (await readJsonBody(req)) as { endpoint?: unknown };
+      const endpoint = typeof body?.endpoint === 'string' ? body.endpoint : '';
+      const stored = !!endpoint && (await deps.subscriptions.listByUser(userId)).some((s) => s.endpoint === endpoint);
+      sendJson(res, 200, { stored });
+      return true;
+    }
     if (isSubscribe) {
       const body = await readJsonBody(req);
       if (!isSubscription(body)) {
@@ -45,18 +63,25 @@ export async function handlePushRoute(
       return true;
     }
 
-    // Send a test notification to all of the rep's subscriptions.
+    // Send a test notification to all of the rep's subscriptions, and say what happened on THIS device.
+    const body = (await readJsonBody(req).catch(() => null)) as { endpoint?: unknown } | null;
+    const here = typeof body?.endpoint === 'string' ? body.endpoint : null;
     const subs = await deps.subscriptions.listByUser(userId);
     let sent = 0;
+    let thisDevice: 'sent' | 'failed' | 'gone' | 'not_set_up' = 'not_set_up';
     for (const sub of subs) {
+      const isHere = sub.endpoint === here;
       try {
-        await deps.sender.send(sub, { title: 'Tovira', body: 'Notifications are on 🎉' });
+        await deps.sender.send(sub, { title: 'Tovira', body: 'Notifications work on this phone.' });
         sent += 1;
-      } catch {
-        // A failed push must not break the flow — the in-app list is the fallback.
+        if (isHere) thisDevice = 'sent';
+      } catch (err) {
+        // A failed push must not break the flow — the in-app list is the fallback. A gone one is deleted.
+        if (err instanceof PushSubscriptionGoneError) await deps.subscriptions.remove(userId, sub.endpoint);
+        if (isHere) thisDevice = err instanceof PushSubscriptionGoneError ? 'gone' : 'failed';
       }
     }
-    sendJson(res, 200, { sent });
+    sendJson(res, 200, here === null ? { sent } : { sent, thisDevice });
     return true;
   } catch (err) {
     if (err instanceof BadJsonError) {

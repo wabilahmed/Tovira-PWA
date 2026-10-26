@@ -13,4 +13,8 @@ export class InMemoryPushSubscriptionRepository implements PushSubscriptionRepos
   async listByUser(userId: string): Promise<PushSubscription[]> {
     return [...(this.byUser.get(userId)?.values() ?? [])];
   }
+
+  async remove(userId: string, endpoint: string): Promise<void> {
+    this.byUser.get(userId)?.delete(endpoint);
+  }
 }

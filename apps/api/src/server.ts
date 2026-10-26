@@ -158,6 +158,8 @@ export interface ApiDeps {
   scanConfig: ScanConfig;
   pushSubscriptions: PushSubscriptionRepository;
   pushSender: PushSender;
+  /** [P46-2] served at GET /push/config so the app can subscribe (public key only). */
+  vapidPublicKey?: string;
   pushDispatch: PushDispatchService;
   images: ImageRepository;
   hero: HeroService;
@@ -458,6 +460,7 @@ export function createApiServer(deps: ApiDeps): Server {
           auth: deps.auth,
           subscriptions: deps.pushSubscriptions,
           sender: deps.pushSender,
+          vapidPublicKey: deps.vapidPublicKey ?? '',
         })
       )
         return;

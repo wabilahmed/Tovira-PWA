@@ -433,6 +433,7 @@ export function buildInMemoryDeps(
     scanConfig: { coldThresholdDays: 30, nudgeLeadMs: 24 * 60 * 60 * 1000, reminderWindowDays: 7, chatRefreshStaleDays: 21 },
     pushSubscriptions,
     pushSender,
+    vapidPublicKey: 'test-vapid-public',
     pushDispatch,
     images,
     hero,

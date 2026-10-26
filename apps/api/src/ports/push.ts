@@ -18,9 +18,16 @@ export interface PushSender {
   send(subscription: PushSubscription, payload: PushPayload): Promise<void>;
 }
 
+/** [P46-2] The push service says this subscription no longer exists (HTTP 404 / 410): delete it, never retry it. */
+export class PushSubscriptionGoneError extends Error {
+  constructor(readonly endpoint: string) { super('push subscription gone'); this.name = 'PushSubscriptionGoneError'; }
+}
+
 export interface PushSubscriptionRepository {
   save(userId: string, subscription: PushSubscription): Promise<void>;
   listByUser(userId: string): Promise<PushSubscription[]>;
+  /** [P46-2] Remove one device's subscription (gone at the push service). */
+  remove(userId: string, endpoint: string): Promise<void>;
 }
 
 /**
