@@ -19,7 +19,8 @@ export function zoneLabel(tz: string, at: Date = new Date()): string {
   const city = (tz.split('/').pop() ?? tz).replace(/_/g, ' ');
   try {
     const part = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(at).find((p) => p.type === 'timeZoneName');
-    return part ? `${city} (${part.value})` : city;
+    // ICU versions differ: some say "GMT+0" for UTC, others "GMT". Read the same everywhere.
+    return part ? `${city} (${part.value.replace(/^GMT[+-]0$/, 'GMT')})` : city;
   } catch {
     return city;
   }
