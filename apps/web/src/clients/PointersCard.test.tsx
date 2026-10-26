@@ -9,7 +9,8 @@ describe('<PointersCard>', () => {
   // "To close the sale:"); an inferred pointer reads "Tovira's read" (was "(our read)").
   it('renders the template heading + both sections (open deal → Closing the sale)', () => {
     render(<PointersCard clientName="Layla" pointers={[P({ text: "don't push on timeline" }), P({ section: 'close', text: 'offer the Marina unit' })]} disclosure={null} />);
-    expect(screen.getByText(/in your next meeting with layla, keep these in mind/i)).toBeInTheDocument();
+    // [P46-4 · owner] the line repeated the section heading ("Before your next meeting"); it is gone
+    expect(screen.queryByText(/in your next meeting with layla, keep these in mind/i)).toBeNull();
     expect(screen.getByText('Building the relationship')).toBeInTheDocument();
     expect(screen.getByText('Closing the sale')).toBeInTheDocument();
     expect(screen.getByText(/offer the marina unit/i)).toBeInTheDocument();
@@ -49,5 +50,13 @@ describe('<PointersCard>', () => {
     render(<PointersCard clientName="Khalid" pointers={[]} disclosure={null} />);
     expect(screen.getByText(/this chat is short, so only a couple of things stood out\./i)).toBeInTheDocument();
     expect(screen.queryByText(/to build the relationship:/i)).toBeNull();
+  });
+});
+
+// [P46-4] Owner: "In your next meeting with X, keep these in mind." repeated the "Before your next meeting" heading.
+describe('[P46-4] no duplicate line', () => {
+  it('NEGATIVE: the card never repeats the heading', () => {
+    const { container } = render(<PointersCard clientName="Sara" pointers={[P({ text: 'prefers calls' })]} disclosure={null} />);
+    expect(container.textContent).not.toMatch(/in your next meeting with|keep these in mind/i);
   });
 });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ReceiptThread } from '../../receipts/ReceiptThread.js';
 import { formatBody, formatDateTime } from '../../format/dates.js';
 import type { ClientOverview, OverviewPromise } from './clientPageClient.js';
+import { aiText } from '../../format/aiText.js';
 
 /**
  * [P36-5] The bodies and one-line summaries of the client page's sections — everything read from the overview
@@ -23,7 +24,7 @@ export function WantsSection({ overview }: { overview: ClientOverview }): JSX.El
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 'var(--space-2)' }}>
         {w.items.map((r) => (
           <li key={r.id}>
-            <div dir="auto">{r.text}</div>
+            <div dir="auto">{aiText(r.text)}</div>
             <ReceiptThread refInfo={{ noteId: r.noteId, span: r.quote, quote: r.quote, at: r.statedOn }} />
           </li>
         ))}
@@ -48,7 +49,7 @@ function PromiseItem({ p, clientName, clientId }: { p: OverviewPromise; clientNa
     <li data-testid="client-promise" style={{ display: 'grid', gap: 'var(--space-1)' }}>
       <div>
         <span className="tov-stamp" data-owner={p.owner === 'client' ? 'client' : 'rep'}>{whose(p, clientName)}</span>{' '}
-        <span dir="auto">{p.text}</span>
+        <span dir="auto">{aiText(p.text)}</span>
         {p.dueDate && <span className={p.overdue ? 'tov-overdue' : 'tov-muted'}> · {p.overdue ? 'overdue since' : 'due'} {formatBody(p.dueDate)}</span>}
         {/* [P40-1] the resolver couldn't read the phrase: no date (never Overdue) until the rep answers */}
         {!p.dueDate && p.dateStatus === 'to_confirm' && <span className="tov-muted" data-testid="date-to-confirm"> · Date to confirm</span>}

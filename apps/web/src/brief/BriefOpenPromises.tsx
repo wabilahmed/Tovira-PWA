@@ -1,6 +1,7 @@
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody } from '../format/dates.js';
 import type { FactReceipt } from '../clients/clientsClient.js';
+import { aiText } from '../format/aiText.js';
 
 export interface BriefPromise {
   id: string;
@@ -29,7 +30,7 @@ export function BriefOpenPromises({ promises }: { promises: BriefPromise[] }): J
         {promises.map((p) => (
           <li key={p.id} style={{ padding: 'var(--space-1) 0' }}>
             <span>
-              {p.text}
+              {aiText(p.text)}
               {p.dueDate ? ` (due ${formatBody(p.dueDate)})` : p.dueRaw ? ` (${p.dueRaw})` : ''}
             </span>
             {p.receipt?.quote && (

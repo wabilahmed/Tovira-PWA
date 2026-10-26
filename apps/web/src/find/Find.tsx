@@ -3,6 +3,7 @@ import { Badge, Banner, Chip, ChipGroup, EmptyState, ListRow, Page, PageHeader, 
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { leadStatusLabel } from '../clients/LeadStatus.js';
 import type { FindApi, FindItem, FindQuery, FindResult, WantingBy, WantingOptions } from './findClient.js';
+import { aiText } from '../format/aiText.js';
 
 /**
  * [P39-7] Find — Ask became a list of fixed questions. Each one is answered from what is stored (no model, no
@@ -145,7 +146,7 @@ function FindRow({ item: i, onOpen }: { item: FindItem; onOpen: () => void }): J
       title={i.clientName}
       openLabel={`Open ${i.clientName}`}
       onOpen={onOpen}
-      secondary={whose ? <><span className="ui-strong">{whose}:</span> {i.line}</> : i.line}
+      secondary={whose ? <><span className="ui-strong">{whose}:</span> {aiText(i.line)}</> : aiText(i.line)}
       meta={i.meta ?? undefined}
       trailing={i.overdue
         ? <Badge tone="danger" data-testid="due-badge">Overdue</Badge>

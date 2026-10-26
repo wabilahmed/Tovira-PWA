@@ -1,4 +1,4 @@
-import { humanizeIsoDates } from '../format/dates.js';
+import { aiText } from '../format/aiText.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 
 /**
@@ -21,7 +21,8 @@ const SECOND_HEADING: Record<Exclude<Pointer['section'], 'relationship'>, string
   retrospective: 'What we think went wrong:',
 };
 
-export function PointersCard({ clientName, clientId, pointers, disclosure }: {
+export function PointersCard({ clientId, pointers, disclosure }: {
+  /** Kept for callers; [P46-4] the card no longer repeats the client's name in a lead line. */
   clientName: string;
   /** [P35-3] Whose chats the "why" receipts come from. */
   clientId?: string;
@@ -34,14 +35,14 @@ export function PointersCard({ clientName, clientId, pointers, disclosure }: {
 
   return (
     <section aria-label="Pointers for your next meeting" data-testid="pointers-card" style={{ display: 'grid', gap: 'var(--space-3)' }}>
-      <p style={{ margin: 0, fontWeight: 600 }}>In your next meeting with {clientName}, keep these in mind.</p>
+      {/* [P46-4] no lead line: the section heading ("Before your next meeting" / "Pre-meeting brief") already says it */}
       {pointers.length === 0 ? (
         <p style={{ margin: 0, color: 'var(--text-secondary)' }}>This chat is short, so only a couple of things stood out.</p>
       ) : (
         <>
           {relationship.length > 0 && <PointerGroup heading="Building the relationship" pointers={relationship} clientId={clientId} />}
           {secondSection && <PointerGroup heading={SECOND_HEADING[secondSection]} pointers={second} clientId={clientId} />}
-          {disclosure && <p style={{ margin: 0, fontStyle: 'italic', color: 'var(--text-secondary)' }}>{disclosure}</p>}
+          {disclosure && <p style={{ margin: 0, fontStyle: 'italic', color: 'var(--text-secondary)' }}>{aiText(disclosure)}</p>}
         </>
       )}
     </section>
@@ -55,7 +56,7 @@ function PointerGroup({ heading, pointers, clientId }: { heading: string; pointe
       <ul style={{ margin: 'var(--space-1) 0 0', paddingLeft: 'var(--space-4)' }}>
         {pointers.map((p, i) => (
           <li key={i}>
-            {humanizeIsoDates(p.text) /* [P21-D] "(for 2026-04-06)" → "(for 6 Apr 2026)" */}
+            {aiText(p.text) /* [P21-D] ISO dates read as dates; [P46-4] no em-dash */}
             {/* [P36-5] an inferred pointer is labelled as Tovira's read, not a stated fact */}
             {p.inferred && <span className="tov-read" style={{ color: 'var(--text-secondary)' }}> · Tovira's read</span>}
             {p.receipts.length > 0 && (

@@ -3,6 +3,7 @@ import type { GateState, Pattern, RiskItem, TodayAction } from './heroClient.js'
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody } from '../format/dates.js';
 import { Badge, Card, IconButton, Page, PageHeader, Section } from '../ui/index.js';
+import { aiText } from '../format/aiText.js';
 
 export interface HeroApi {
   status(): Promise<GateState | null>;
@@ -180,13 +181,13 @@ export function HeroInsights({ api, now = () => new Date(), top, needsAnswer }: 
  *  "**Your note** · …" when the item genuinely has no client. Older payloads (no clientName/title) fall back to
  *  the action's text as before. */
 function TodayLead({ action: a }: { action: TodayAction }): JSX.Element {
-  if (a.clientName === undefined) return <>{a.text}</>;
+  if (a.clientName === undefined) return <>{aiText(a.text)}</>;
   const who = a.clientName ?? 'Your note';
   return (
     <>
       <strong>{who}</strong>
       {a.owner === 'client' ? ' promised: ' : ' · '}
-      <span>{a.title ?? a.text}</span>
+      <span>{aiText(a.title ?? a.text)}</span>
     </>
   );
 }

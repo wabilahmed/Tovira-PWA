@@ -36,6 +36,7 @@ import { BulkImportClient } from './import/bulkImportClient.js';
 import { BulkImport } from './import/BulkImport.js';
 import { BookScan } from './bookscan/BookScan.js';
 import { Inventory } from './inventory/Inventory.js';
+import { aiText } from './format/aiText.js';
 import { InventoryClient } from './inventory/inventoryClient.js';
 import { ClientInventory } from './inventory/ClientInventory.js';
 import { BriefMatches } from './inventory/BriefMatches.js';
@@ -1277,7 +1278,8 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
 }
 
 
-function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: string; onChange: () => void }): JSX.Element {
+/** [P46-4] exported for the AI-text render guard. */
+export function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: string; onChange: () => void }): JSX.Element {
   if (brief.empty) {
     return (
       <section style={briefBox}>
@@ -1307,7 +1309,7 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
           <ul>
             {brief.needsConfirmation.map((p) => (
               <li key={p.id}>
-                {p.text}{' '}
+                {aiText(p.text)}{' '}
                 <button onClick={() => void clientsApi.confirmPromise(p.id).then(onChange)} style={{ marginLeft: 'var(--space-1)' }}>Confirm</button>{' '}
                 <button onClick={() => void clientsApi.rejectPromise(p.id).then(onChange)}>Reject</button>
               </li>
@@ -1326,7 +1328,7 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
               const blocks = p.decision_role === 'blocker';
               return (
                 <li key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', padding: 'var(--space-1) 0' }}>
-                  <span>{p.name ?? 'Unknown'}{p.role ? `, ${p.role}` : ''}</span>
+                  <span>{p.name ?? 'Unknown'}{p.role ? `, ${aiText(p.role)}` : ''}</span>
                   {word && <span className="tov-stamp" style={blocks ? { color: 'var(--claret)' } : undefined}>{word}</span>}
                 </li>
               );
@@ -1335,10 +1337,10 @@ function BriefPanel({ brief, clientId, onChange }: { brief: Brief; clientId?: st
         </div>
       )}
       {brief.concerns.length > 0 && (
-        <div style={briefSection}><div className="tov-stamp">Concerns</div><ul>{brief.concerns.map((c, i) => <li key={i}>{c}</li>)}</ul></div>
+        <div style={briefSection}><div className="tov-stamp">Concerns</div><ul>{brief.concerns.map((c, i) => <li key={i}>{aiText(c)}</li>)}</ul></div>
       )}
       {brief.personalNotes.length > 0 && (
-        <div style={briefSection}><div className="tov-stamp">Personal notes</div><ul>{brief.personalNotes.map((f, i) => <li key={i}>{f.subject}: {f.fact}</li>)}</ul></div>
+        <div style={briefSection}><div className="tov-stamp">Personal notes</div><ul>{brief.personalNotes.map((f, i) => <li key={i}>{f.subject}: {aiText(f.fact)}</li>)}</ul></div>
       )}
       {brief.relatedNotes.length > 0 && (
         <div style={briefSection}>

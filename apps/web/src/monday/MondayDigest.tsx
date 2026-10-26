@@ -4,6 +4,7 @@ import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody, formatRange, daysSince } from '../format/dates.js';
 import { OutcomeControl, type OutcomeChoice } from '../outcomes/OutcomeControl.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
+import { aiText } from '../format/aiText.js';
 
 export interface MondayApi {
   get(): Promise<Digest | null>;
@@ -57,7 +58,7 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
 
       <Section testid="due" label="Promises due" count={digest.promisesDue.length}>
         {digest.promisesDue.map((p) => (
-          <Row key={p.id} left={p.text} right={p.dueDate ? formatBody(p.dueDate) : 'no date'} />
+          <Row key={p.id} left={aiText(p.text)} right={p.dueDate ? formatBody(p.dueDate) : 'no date'} />
         ))}
       </Section>
 
