@@ -93,3 +93,13 @@ describe('[P33] owner notifications', () => {
     expect(read('infra/terraform/ecs.tf')).toMatch(/\{ name = "ACCESS_REQUEST_NOTIFY_TO", value = "wabil@prospera-technologies\.com" \}/);
   });
 });
+
+describe('[P45] admin console secrets', () => {
+  it('the API task maps ADMIN_EMAILS and EXPLEE_API_KEY from the app secret, and a fresh env seeds both keys', () => {
+    const ecs = read('infra/terraform/ecs.tf');
+    for (const k of ['ADMIN_EMAILS', 'EXPLEE_API_KEY']) {
+      expect(ecs).toContain(`{ name = "${k}", valueFrom = "\${aws_secretsmanager_secret.app.arn}:${k}::" }`);
+      expect(read('infra/terraform/runtime-config.tf')).toMatch(new RegExp(`\\n\\s*${k}\\s*=\\s*"REPLACE_ME"`));
+    }
+  });
+});

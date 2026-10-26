@@ -46,6 +46,9 @@ resource "aws_secretsmanager_secret_version" "app" {
     # EXISTING env this placeholder is NOT written (ignore_changes below) — add the real key manually
     # FIRST, then apply. Generate with `openssl rand -hex 32`.
     OPS_TOKEN = "REPLACE_ME"
+    # [P45] Seeded for a FRESH env only (ignore_changes below); on prod add the real keys manually FIRST.
+    ADMIN_EMAILS   = "REPLACE_ME"
+    EXPLEE_API_KEY = "REPLACE_ME"
   })
 
   lifecycle {

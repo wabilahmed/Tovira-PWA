@@ -90,6 +90,11 @@ resource "aws_ecs_task_definition" "api" {
       # TRAP: the OPS_TOKEN key must EXIST in the secret BEFORE this ref is applied, or the task fails to
       # start and the deploy rolls back. Order: key into the secret → terraform apply → deploy.
       { name = "OPS_TOKEN", valueFrom = "${aws_secretsmanager_secret.app.arn}:OPS_TOKEN::" },
+      # [P45] Admin console. ADMIN_EMAILS: comma-separated addresses allowed an admin account (create-admin refuses
+      # any other). EXPLEE_API_KEY: the hot-leads pull (unset or placeholder: the job logs and does nothing).
+      # Same TRAP as OPS_TOKEN: both keys must EXIST in the secret before this is applied.
+      { name = "ADMIN_EMAILS", valueFrom = "${aws_secretsmanager_secret.app.arn}:ADMIN_EMAILS::" },
+      { name = "EXPLEE_API_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:EXPLEE_API_KEY::" },
     ]
     healthCheck = {
       command     = ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
