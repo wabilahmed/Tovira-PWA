@@ -1,71 +1,46 @@
 import { useCallback, useEffect, useState } from 'react';
-import { OpsUnauthorizedError } from './opsAccessClient.js';
-import type { CostReport, CostView, OpsCostsApi } from './opsCostsClient.js';
-import { Wordmark } from '../components/Wordmark.js';
-import { Badge, Button, Chip, ChipGroup } from '../ui/index.js';
+import { AdminSignedOutError, type AdminApi, type CostReport, type CostView } from './adminClient.js';
+import { Badge, Banner, Button, Chip, ChipGroup, PageHeader } from '../ui/index.js';
 
 /**
- * [P44-2 · owner] /ops/costs — what each rep costs and pays, per period. The page holds no credential: the owner types
- * the ops token (the same one, kept for THIS TAB as on /ops/access). Billing period by default (lines up with what
- * each rep pays, so the margin is per rep); calendar month to match the Anthropic and Groq invoices. Read-only.
+ * [P44-2 · owner → P45-4] What each rep costs and pays, per period, in the admin console (admin session; no ops
+ * token). Billing period by default (lines up with what each rep pays, so the margin is per rep); calendar month to
+ * match the Anthropic and Groq invoices. Read-only; the CSV export is audited.
  */
-const TOKEN_KEY = 'tovira.opsToken'; // shared with /ops/access: one token for the ops pages
-const readToken = (): string | null => { try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; } };
-const writeToken = (t: string | null): void => {
-  try { if (t) sessionStorage.setItem(TOKEN_KEY, t); else sessionStorage.removeItem(TOKEN_KEY); } catch { /* private mode */ }
-};
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const day = (ms: number): string => { const d = new Date(ms); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
 const aed = (x: number): string => x.toFixed(2);
-const pct = (x: number | null): string => (x === null ? '—' : `${x.toFixed(1)}%`);
+const pct = (x: number | null): string => (x === null ? 'n/a' : `${x.toFixed(1)}%`); // [P45] no em-dash in new copy
 
 const cell = { padding: 'var(--space-2) var(--space-3)', textAlign: 'right' as const, whiteSpace: 'nowrap' as const, borderBottom: '1px solid var(--hairline)' };
 const left = { ...cell, textAlign: 'left' as const };
 
-export function CostsAdmin({ api }: { api: OpsCostsApi }): JSX.Element {
-  const [token, setToken] = useState<string | null>(() => readToken());
-  const [draft, setDraft] = useState('');
+export function CostsPanel({ api, onSignedOut }: { api: Pick<AdminApi, 'costs' | 'downloadCsv'>; onSignedOut: () => void }): JSX.Element {
   const [view, setView] = useState<CostView>('period');
   const [report, setReport] = useState<CostReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const refused = useCallback(() => {
-    writeToken(null); setToken(null); setReport(null);
-    setError('That ops token was refused. Check OPS_TOKEN in tovira/prod/app and try again.');
-  }, []);
+  const fail = useCallback((err: unknown, fallback: string) => {
+    if (err instanceof AdminSignedOutError) onSignedOut(); else setError(err instanceof Error ? err.message : fallback);
+  }, [onSignedOut]);
   useEffect(() => {
-    if (!token) return;
     let live = true;
     setError(null);
-    api.get(token, view).then((r) => { if (live) setReport(r); }).catch((err) => {
-      if (!live) return;
-      if (err instanceof OpsUnauthorizedError) refused(); else setError(err instanceof Error ? err.message : 'Could not load the report.');
-    });
+    api.costs(view).then((r) => { if (live) setReport(r); }).catch((err) => { if (live) fail(err, 'Could not load the report.'); });
     return () => { live = false; };
-  }, [api, token, view, refused]);
+  }, [api, view, fail]);
 
   return (
-    <main className="standard" style={{ maxWidth: 1200, margin: '0 auto', padding: 'var(--space-5) var(--space-4)' }}>
-      <p style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'var(--text-section-size)', margin: 0 }}><Wordmark /></p>
-      <h1 style={{ fontSize: 'var(--text-section-size)', margin: 'var(--space-2) 0 var(--space-4)' }}>Costs and margin</h1>
-      {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
-
-      {!token ? (
-        <form onSubmit={(e) => { e.preventDefault(); const t = draft.trim(); if (!t) return; writeToken(t); setToken(t); setDraft(''); }}>
-          <label htmlFor="ops-token" style={{ display: 'block', marginBottom: 'var(--space-2)' }}>Ops token</label>
-          <input id="ops-token" type="password" autoComplete="off" value={draft} onChange={(e) => setDraft(e.target.value)} style={{ width: '100%', maxWidth: 420 }} />
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-secondary-size)' }}>The OPS_TOKEN value from Secrets Manager (tovira/prod/app). Kept for this tab only.</p>
-          <button type="submit" className="tov-button">Open</button>
-        </form>
-      ) : (
-        <>
+    <>
+      <PageHeader title="Costs and margin" subtitle="What each rep costs and pays." />
+      {error && <Banner tone="danger">{error}</Banner>}
+      <>
           <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap', marginBottom: 'var(--space-3)' }}>
             <ChipGroup label="Group by">
               <Chip selected={view === 'period'} onClick={() => setView('period')}>Billing period</Chip>
               <Chip selected={view === 'month'} onClick={() => setView('month')}>Calendar month</Chip>
             </ChipGroup>
-            <Button size="sm" onClick={() => void api.downloadCsv(token, view).catch((err) => { if (err instanceof OpsUnauthorizedError) refused(); else setError('Could not download the CSV.'); })}>Download CSV</Button>
-            <button className="tov-link" style={{ marginLeft: 'auto' }} onClick={() => { writeToken(null); setToken(null); setReport(null); }}>Lock</button>
+            <Button size="sm" onClick={() => void api.downloadCsv(`/costs?view=${view}&format=csv`, `tovira-costs-${view}-${new Date().toISOString().slice(0, 10)}.csv`).catch((err) => fail(err, 'Could not download the CSV.'))}>Download CSV</Button>
           </div>
 
           <p data-testid="costs-note" className="ui-secondary" style={{ fontSize: 'var(--text-secondary-size)', maxWidth: 820 }}>
@@ -121,7 +96,6 @@ export function CostsAdmin({ api }: { api: OpsCostsApi }): JSX.Element {
           )}
           {report?.rows.some((r) => r.voiceEstimated) && <p className="ui-secondary" style={{ fontSize: 'var(--text-caption-size)' }}>* voice seconds estimated from the recording size (the provider gave no duration).</p>}
         </>
-      )}
-    </main>
+    </>
   );
 }

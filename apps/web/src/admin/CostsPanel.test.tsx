@@ -1,14 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CostsAdmin } from './CostsAdmin.js';
-import { OpsUnauthorizedError } from './opsAccessClient.js';
-import type { OpsCostsApi, CostReport } from './opsCostsClient.js';
+import { CostsPanel } from './CostsPanel.js';
+import { AdminSignedOutError, type AdminApi, type CostReport } from './adminClient.js';
 
 /**
- * [P44-2 · owner] /ops/costs: the ops cost report (ops token, like /ops/access). Billing period by default, calendar
- * month as a toggle, a CSV download, the AED 67 ceiling and the spending cap highlighted, a totals row per period,
- * and a note that embeddings and infrastructure are left out.
+ * [P44-2 · owner → P45-4] The cost report, moved from /ops/costs into the admin console (admin session, no ops
+ * token). Billing period by default, calendar month as a toggle, a CSV download, the AED 67 ceiling and the spending
+ * cap highlighted, a totals row per period, and a note that embeddings and infrastructure are left out.
+ * [P45 · owner] The token-prompt tests became admin-session tests.
  */
 const report = (view: 'period' | 'month'): CostReport => ({
   view, ceilingAed: 67, voiceRecordedSince: Date.parse('2026-10-26T08:00:00Z'),
@@ -18,35 +18,32 @@ const report = (view: 'period' | 'month'): CostReport => ({
   ],
   totals: [{ group: '2026-10', label: view === 'period' ? 'Periods starting Oct 2026' : 'Oct 2026', costAed: 74.07, revenueAed: 299, marginAed: 224.93, marginPct: 75.23 }],
 });
-function api(over: Partial<OpsCostsApi> = {}): OpsCostsApi & { calls: string[] } {
+type CostsApi = Pick<AdminApi, 'costs' | 'downloadCsv'>;
+function api(over: Partial<CostsApi> = {}): CostsApi & { calls: string[] } {
   const calls: string[] = [];
   return {
     calls,
-    get: vi.fn(async (token: string, view: 'period' | 'month') => { calls.push(`get:${token}:${view}`); return report(view); }),
-    downloadCsv: vi.fn(async (token: string, view: 'period' | 'month') => { calls.push(`csv:${token}:${view}`); }),
+    costs: vi.fn(async (view: 'period' | 'month') => { calls.push(`get:${view}`); return report(view); }),
+    downloadCsv: vi.fn(async (path: string) => { calls.push(`csv:${path}`); }),
     ...over,
   };
 }
-async function open(a: OpsCostsApi): Promise<void> {
-  render(<CostsAdmin api={a} />);
-  await userEvent.type(screen.getByLabelText(/ops token/i), 'tok123');
-  await userEvent.click(screen.getByRole('button', { name: /open/i }));
+async function open(a: CostsApi): Promise<void> {
+  render(<CostsPanel api={a} onSignedOut={vi.fn()} />);
 }
-beforeEach(() => { try { sessionStorage.clear(); } catch { /* ignore */ } });
 
 describe('[P44-2] /ops/costs', () => {
-  it('asks for the ops token first; nothing is fetched without it', () => {
-    const a = api();
-    render(<CostsAdmin api={a} />);
-    expect(screen.getByLabelText(/ops token/i)).toHaveAttribute('type', 'password');
-    expect(a.calls).toEqual([]);
+  it('[P45 · owner] never asks for the ops token', async () => {
+    await open(api());
+    await screen.findByTestId('cost-row-u1-p:1');
+    expect(screen.queryByLabelText(/ops token/i)).toBeNull();
   });
 
   it('billing period by default: one row per user per period with cost, revenue and margin', async () => {
     const a = api();
     await open(a);
     const row = await screen.findByTestId('cost-row-u1-p:1');
-    expect(a.calls).toEqual(['get:tok123:period']);
+    expect(a.calls).toEqual(['get:period']);
     for (const t of ['layla@x.io', 'Monthly', 'from 1 Oct 2026', '70.00', '0.07', '70.07', '12', 'extraction 60.00', 'recall 10.00', '299.00', '228.93', '76.6%']) expect(row).toHaveTextContent(t);
   });
 
@@ -71,10 +68,10 @@ describe('[P44-2] /ops/costs', () => {
     await open(a);
     await screen.findByTestId('cost-row-u1-p:1');
     await userEvent.click(screen.getByRole('button', { name: 'Calendar month' }));
-    await waitFor(() => expect(a.calls).toContain('get:tok123:month'));
+    await waitFor(() => expect(a.calls).toContain('get:month'));
     expect(await screen.findByText('Oct 2026', { selector: '[data-testid="cost-row-u1-p:1"] *' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Download CSV' }));
-    expect(a.calls).toContain('csv:tok123:month');
+    expect(a.calls).toContain('csv:/costs?view=month&format=csv');
   });
 
   it('says what is left out, and from when voice cost is recorded', async () => {
@@ -84,9 +81,9 @@ describe('[P44-2] /ops/costs', () => {
     expect(screen.getByTestId('costs-note')).toHaveTextContent('Voice-note cost is estimated from recorded audio seconds at the Groq rate, recorded from 26 Oct 2026.');
   });
 
-  it('NEGATIVE: a refused token is cleared and the prompt shown again', async () => {
-    await open(api({ get: vi.fn(async () => { throw new OpsUnauthorizedError(); }) }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/refused/i);
-    expect(screen.getByLabelText(/ops token/i)).toBeInTheDocument();
+  it('[P45 · owner] NEGATIVE: a signed-out admin session goes back to sign-in', async () => {
+    const onSignedOut = vi.fn();
+    render(<CostsPanel api={api({ costs: vi.fn(async () => { throw new AdminSignedOutError(); }) })} onSignedOut={onSignedOut} />);
+    await waitFor(() => expect(onSignedOut).toHaveBeenCalled());
   });
 });
