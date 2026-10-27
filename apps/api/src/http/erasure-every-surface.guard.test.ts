@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { discoveredRoutes } from '../test-support/route-discovery.js';
 
 /**
  * [P40-2] Guard: while a third-party erasure request is open, the restricted person's data appears on NO rep-facing
@@ -77,7 +75,9 @@ export const SURFACES: Record<string, Probe | string> = {
   '/auth/logout': 'auth', '/auth/resend-verification': 'auth', '/auth/reset-password': 'auth', '/auth/signup': 'auth', '/auth/verify-email': 'auth',
   '/billing/checkout': 'billing', '/billing/customer': 'billing', '/billing/portal': 'billing', '/billing/status': 'billing', '/billing/success': 'billing',
   '/billing/top-up': 'billing', '/billing/webhook': 'billing',
-  '/clients/': 'prefix of the client routes', '/lead-status': 'write (status)', '/outcome': 'write (outcome)',
+  '/clients/': 'prefix of the client routes', '/clients/:id': GET((i) => `/clients/${i.clientId}`), '/clients/:id/outcome': 'write (outcome)', '/clients/:id/lead-status': 'write (status)',
+  // [P47] discovery now reads server.ts and prefix + suffix routes
+  '/version': 'build info', '/health': 'liveness', '/healthz': 'liveness', '/lead-status': 'write (status)', '/outcome': 'write (outcome)',
   '/clients/:id/images': 'write (photo upload, removed in P36)', '/images/:id': 'an image the rep uploaded',
   '/clients/:id/deal-value': 'write', '/ledger/entries/:id/deal-value': 'write', '/today/cold-shown': 'write: Today reports the going-quiet cards it showed', '/clients/:id/notes/import': 'write', '/clients/:id/notes/paste': 'write', '/clients/:id/notes/voice': 'write',
   '/notes/:id/audio': 'the rep\'s own recording', '/notes/:id/extract': 'write (queues extraction)', '/notes/:id/follow-up': 'model draft — refuses restricted notes (TASK 2)',
@@ -97,20 +97,6 @@ export const SURFACES: Record<string, Probe | string> = {
   '/ops/erasure/reject': 'ops', '/ops/erasure/withdraw': 'ops', '/ops/spend': 'ops', '/ops/spend-cap/audit': 'ops', '/ops/spend-cap/override': 'ops',
   '/ops/spend/by-class': 'ops', '/ops/spend/conversation': 'ops', '/ops/tour-funnel': 'ops',
 };
-
-/** The routes the API serves, read from the route files (string paths and /^\/…$/ patterns). */
-function discoveredRoutes(): string[] {
-  const dir = fileURLToPath(new URL('.', import.meta.url));
-  const out = new Set<string>();
-  for (const f of readdirSync(dir).filter((n) => n.endsWith('.ts') && !n.includes('.test.') && n !== 'test-deps.ts')) {
-    const src = readFileSync(join(dir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    for (const m of src.matchAll(/\/\^((?:\\\/[^\s$]*?))\$\//g)) {
-      out.add(m[1]!.replace(/\\\//g, '/').replace(/\(\[\^\/\]\+\)/g, ':id').replace(/\(\[a-z-\]\+\)/g, ':query').replace(/\((?:[a-z|-]+)\)/g, ':action'));
-    }
-    for (const line of src.split('\n')) if (/path|GET_PATHS|PATHS|url/.test(line)) for (const m of line.matchAll(/'(\/[a-z][a-z0-9/-]*)'/g)) out.add(m[1]!);
-  }
-  return [...out].sort();
-}
 
 let server: Server;
 let base: string;
