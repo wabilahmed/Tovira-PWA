@@ -389,7 +389,8 @@ async function main(): Promise<void> {
   // no user_id/FK, so it is not tenant data and it survives the rep deleting their account.
   const erasureRequests = new ErasureRequestService({ erasure, requests: erasureRequestRepo, receipts: createErasureReceiptRepository(config, migrationPool), notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts) });
   const images = createImageRepository(config, appPool);
-  const hero = createHeroService(config, clients, facts, meetings, notes, matching, restriction);
+  // [P47] Today, Deals at risk and patterns read promises and meetings through the erasure-restricted views
+  const hero = createHeroService(config, clients, surfacing.facts, surfacing.meetings, notes, matching, restriction);
   // Daily priorities: precomputed nightly, cached; app-opens serve the cache
   // (cost-guard #3, P4b-3). Uses the priorities-class model (see routing).
   const prioritiesRepo = createPrioritiesRepository(config, appPool);

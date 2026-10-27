@@ -275,7 +275,7 @@ export function buildInMemoryDeps(
   const images = new InMemoryImageRepository();
   const recallSessions = new InMemoryRecallSessionRepository();
   const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog, requirements });
-  const hero = new HeroService({ clients, facts, meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching, restriction);
+  const hero = new HeroService({ clients, facts: surfacing.facts, meetings: surfacing.meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching, restriction); // [P47] restricted views
   const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
   // [SPEND-INSTRUMENT] The durable spend cap (mirrors prod): status-aware caps (trial 20 / paid 45),
   // period-bucketed. Wired into the sweep's canSpend skip + the extraction spendGate so a capped rep's
