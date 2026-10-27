@@ -10,7 +10,10 @@ export interface LedgerEntry {
   itemTitle: string;
   suggestedAt: number;
   receipt: { quote: string; statedOn: string | null; noteId: string } | null;
-  outcome: 'bought';
+  /** [P47-1] what the rep marked: bought, Won, or both (one card) */
+  outcome: 'bought' | 'won' | 'bought_won';
+  boughtAt: number | null;
+  wonAt: number | null;
   outcomeAt: number;
   dealValueAed: number | null;
 }

@@ -11,7 +11,7 @@ const DAY = 86_400_000;
 const entry = (o: Partial<LedgerEntry> & { id: string }): LedgerEntry => ({
   clientId: 'c1', clientName: 'Sara Khan', itemTitle: 'Premium plan', suggestedAt: NOW - 14 * DAY,
   receipt: { quote: 'we need cover for the whole family', statedOn: '2026-10-10', noteId: 'n1' },
-  outcome: 'bought', outcomeAt: NOW - 6 * DAY, dealValueAed: null, ...o,
+  outcome: 'bought', boughtAt: NOW - 6 * DAY, wonAt: null, outcomeAt: NOW - 6 * DAY, dealValueAed: null, ...o,
 });
 const view = (entries: LedgerEntry[]): LedgerSummary => ({
   totalTouched: entries.length, byType: { promise_kept: 0, thread_reopened: 0, brief_before_meeting: 0, inventory_suggested_bought: entries.length }, aed: null, items: [], entries,
@@ -151,5 +151,33 @@ describe('[P46-5] the Ledger', () => {
     expect(await screen.findByText('When Tovira’s suggestion leads to a sale, it shows up here. Add what you sell in Inventory to start.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Open Inventory' }));
     expect(onOpenInventory).toHaveBeenCalled();
+  });
+});
+
+// [P47-1] Owner: "Won after a suggestion". The card says "Tovira suggested <item> on <date>" with its receipt and
+// "You marked them Won on <date>"; a suggestion marked bought and then Won is one card with both facts.
+describe('[P47-1] Won after a suggestion on the Ledger', () => {
+  it('a Won card: Tovira suggested …, its receipt, You marked them Won on …, the deal value', async () => {
+    render(<Ledger api={makeApi(view([entry({ id: 'w1', outcome: 'won', boughtAt: null, wonAt: NOW - 4 * DAY, outcomeAt: NOW - 4 * DAY, dealValueAed: 9000 })]))} now={NOW} />);
+    const card = (await screen.findByText('Sara Khan')).closest('li')!;
+    expect(card.textContent).toContain('Tovira suggested Premium plan on 12 Oct');
+    expect(within(card).getByTestId('receipt')).toHaveTextContent('we need cover for the whole family');
+    expect(card.textContent).toContain('You marked them Won on 22 Oct');
+    expect(card.textContent).not.toContain('Marked bought');
+    expect(card.textContent).toContain('AED 9,000');
+  });
+
+  it('bought and Won: one card with both facts', async () => {
+    render(<Ledger api={makeApi(view([entry({ id: 'b1', outcome: 'bought_won', boughtAt: NOW - 6 * DAY, wonAt: NOW - 4 * DAY, outcomeAt: NOW - 4 * DAY })]))} now={NOW} />);
+    expect(await screen.findAllByTestId('ledger-entry')).toHaveLength(1);
+    const card = screen.getByTestId('ledger-entry');
+    expect(card.textContent).toContain('Suggested Premium plan on 12 Oct');
+    expect(card.textContent).toContain('Marked bought on 20 Oct · Won on 22 Oct');
+  });
+
+  it('a Won counts toward "Deals Tovira helped with" and its value toward the total', async () => {
+    render(<Ledger api={makeApi(view([entry({ id: 'b1', dealValueAed: 1000 }), entry({ id: 'w1', outcome: 'won', boughtAt: null, wonAt: NOW - 2 * DAY, outcomeAt: NOW - 2 * DAY, dealValueAed: 500 })]))} now={NOW} />);
+    expect(await screen.findByTestId('deals-count')).toHaveTextContent('2');
+    expect(screen.getByTestId('deals-value')).toHaveTextContent('AED 1,500');
   });
 });

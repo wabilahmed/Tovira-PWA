@@ -36,6 +36,11 @@ export class LedgerService {
     return this.repo.listByUser(userId);
   }
 
+  /** [P47-1] Remove a client's entries of one type. */
+  removeWhere(userId: string, where: { clientId: string; type: LedgerEventType }): Promise<void> {
+    return this.repo.removeWhere(userId, where);
+  }
+
   removeBySource(userId: string, sourceId: string): Promise<void> {
     return this.repo.removeBySource(userId, sourceId);
   }
@@ -54,7 +59,7 @@ export class LedgerService {
     const events = await this.repo.listByUser(userId);
     const deals = await this.repo.listDealValues(userId);
 
-    const byType: Record<LedgerEventType, number> = { thread_reopened: 0, promise_kept: 0, brief_before_meeting: 0, inventory_suggested_bought: 0 };
+    const byType: Record<LedgerEventType, number> = { thread_reopened: 0, promise_kept: 0, brief_before_meeting: 0, inventory_suggested_bought: 0, won_after_suggestion: 0 };
     const touchedClients = new Set<string>();
     for (const e of events) {
       byType[e.type] += 1;

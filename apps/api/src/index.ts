@@ -140,6 +140,7 @@ import { ledgerEntries } from './services/ledger/ledger-entries.js';
 import { reencryptAdminTotp } from './services/admin/reencrypt-totp.js';
 import { AccessAnswersService } from './services/access/access-answers-service.js';
 import { accessRequestNotifier, adminAlertSender } from './services/access/admin-notify.js';
+import { syncWonEntry } from './services/ledger/won-after-suggestion.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -691,6 +692,8 @@ async function main(): Promise<void> {
     ledger,
     accessAnswers: new AccessAnswersService(accessRequests), // [P46-6c.2]
     // [P46-5] the Ledger's entries: suggested sales the rep marked bought, with their receipts and deal values
+    // [P47-1] keep "Won after a suggestion" in step with the client's outcome (set, undo, restore)
+    onOutcomeChanged: (uid: string, cid: string) => syncWonEntry({ ledger: { listByUser: (u) => ledger.listEvents(u), record: (u, e) => ledger.record(u, e), removeWhere: (u, w) => ledger.removeWhere(u, w) }, clients, shares: inventoryRepo }, uid, cid),
     ledgerEntries: (uid: string) => ledgerEntries(uid, { ledger: { listByUser: (u) => ledger.listEvents(u) }, inventory: inventoryRepo, matches: inventoryMatches, requirements, clients, restriction }),
     referral,
     accountEmail,

@@ -77,6 +77,12 @@ export class PgLedgerRepository implements LedgerRepository {
     });
   }
 
+  async removeWhere(userId: string, where: { clientId: string; type: LedgerEventRecord['type'] }): Promise<void> {
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query('DELETE FROM ledger_events WHERE user_id = $1 AND client_id = $2 AND type = $3', [userId, where.clientId, where.type]);
+    });
+  }
+
   async listDealValues(userId: string): Promise<DealValue[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(`SELECT client_id, aed FROM client_deal_values WHERE user_id = $1`, [userId]);

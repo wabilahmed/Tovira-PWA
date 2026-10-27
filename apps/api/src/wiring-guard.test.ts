@@ -40,6 +40,7 @@ const LEDGER_WIRING: Record<LedgerEventType, Wiring> = {
   promise_kept: { triggeredBy: "type: 'promise_kept'" }, // facts-routes on promise done-on-time
   brief_before_meeting: { triggeredBy: "type: 'brief_before_meeting'" }, // brief-routes
   inventory_suggested_bought: { triggeredBy: "'confirmed_suggestion'" }, // INV-MATCH A5: the share-from-suggestion route sets it; the ledger credits it on bought
+  won_after_suggestion: { triggeredBy: 'onOutcomeChanged: (uid: string, cid: string) => syncWonEntry(' }, // [P47-1] the outcome route, via index.ts
 };
 
 // Every job that must be registered on the ScheduledBrain (asserted present in index.ts).

@@ -199,6 +199,8 @@ export interface ApiDeps {
   aiPaused?: () => Promise<boolean>;
   monday: MondayDigestService;
   ledger: LedgerService;
+  /** [P47-1] keeps "Won after a suggestion" in step with a client's outcome */
+  onOutcomeChanged?: (userId: string, clientId: string) => Promise<void>;
   /** [P46-5] The Ledger's entries, built from the stored links (see services/ledger/ledger-entries.ts). */
   ledgerEntries?: (userId: string) => Promise<import('./services/ledger/ledger-entries.js').LedgerEntry[]>;
   referral: ReferralService;
@@ -534,7 +536,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleTourRoute(request, response, { auth: deps.auth, tour: deps.tour })) return;
       if (await handleClientOverviewRoute(request, response, { auth: deps.auth, overview: deps.clientOverview })) return;
-      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction)) return;
+      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction, deps.onOutcomeChanged)) return;
       if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing, matching: deps.matching })) return;
 
       if (request.method === 'GET' && url === '/') {

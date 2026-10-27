@@ -16,6 +16,8 @@ export async function handleClientRoute(
   /** [TASK 2] Active erasure-window restriction — pointers citing a restricted counterparty (or all of a
    *  restricted client's pointers) are withheld from the thread card. Absent → no restriction. */
   restriction?: { forUser(userId: string): Promise<Restriction> },
+  /** [P47-1] After any outcome change (set, undo, restore): keep the Ledger's "Won after a suggestion" in step. */
+  onOutcomeChanged?: (userId: string, clientId: string) => Promise<void>,
 ): Promise<boolean> {
   const method = req.method ?? 'GET';
   const path = (req.url ?? '/').split('?')[0]!;
@@ -81,6 +83,7 @@ export async function handleClientRoute(
         }
         if (p.outcome === 'open' && (p.source ?? null) === null) await clients.clearOutcome(userId, id, 'rep', Date.now());
         else await clients.setOutcome(userId, id, p.outcome as ClientOutcome, p.source as 'rep' | 'inferred', at as number);
+        await onOutcomeChanged?.(userId, id);
         sendJson(res, 200, await clients.findByIdForUser(userId, id));
         return true;
       }
@@ -96,6 +99,7 @@ export async function handleClientRoute(
       } else {
         await clients.setOutcome(userId, id, mapped, 'rep', Date.now());
       }
+      await onOutcomeChanged?.(userId, id);
       sendJson(res, 200, await clients.findByIdForUser(userId, id));
       return true;
     }

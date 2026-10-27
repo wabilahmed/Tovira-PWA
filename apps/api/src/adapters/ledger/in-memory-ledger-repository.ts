@@ -39,6 +39,10 @@ export class InMemoryLedgerRepository implements LedgerRepository {
     return true;
   }
 
+  async removeWhere(userId: string, where: { clientId: string; type: LedgerEventRecord['type'] }): Promise<void> {
+    this.rows = this.rows.filter((r) => !(r.userId === userId && r.clientId === where.clientId && r.type === where.type));
+  }
+
   async purgeUser(userId: string): Promise<void> {
     this.rows = this.rows.filter((r) => r.userId !== userId);
     this.deals.delete(userId);

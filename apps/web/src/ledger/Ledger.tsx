@@ -137,10 +137,15 @@ function EntryCard({ entry: e, now, onSave }: { entry: LedgerEntry; now: number;
     <li className="ui-card ui-stack ui-gap-2" data-testid="ledger-entry">
       <span className="ui-strong" dir="auto">{e.clientName}</span>
       <div className="ui-stack ui-gap-1">
-        <p style={{ margin: 0 }}>Suggested {e.itemTitle} on {shortDate(e.suggestedAt, now)}</p>
+        {/* [P47-1] a Won after a suggestion reads "Tovira suggested …"; a bought (or bought and Won) card keeps "Suggested …" */}
+        <p style={{ margin: 0 }}>{e.outcome === 'won' ? 'Tovira suggested' : 'Suggested'} {e.itemTitle} on {shortDate(e.suggestedAt, now)}</p>
         {e.receipt && <ReceiptThread compact refInfo={{ noteId: e.receipt.noteId, clientId: e.clientId, span: e.receipt.quote, quote: e.receipt.quote, at: e.receipt.statedOn }} />}
       </div>
-      <p style={{ margin: 0 }}>Marked bought on {shortDate(e.outcomeAt, now)}</p>
+      <p style={{ margin: 0 }}>
+        {e.outcome === 'won' && e.wonAt !== null && `You marked them Won on ${shortDate(e.wonAt, now)}`}
+        {e.outcome === 'bought' && `Marked bought on ${shortDate(e.boughtAt ?? e.outcomeAt, now)}`}
+        {e.outcome === 'bought_won' && e.wonAt !== null && `Marked bought on ${shortDate(e.boughtAt ?? e.outcomeAt, now)} · Won on ${shortDate(e.wonAt, now)}`}
+      </p>
       {editing ? (
         <div className="ui-stack ui-gap-2">
           <label className="ui-field">

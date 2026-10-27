@@ -117,6 +117,7 @@ import { FixedWindowRateLimiter } from '../services/security/rate-limiter.js';
 import { ModelMetricsRegistry } from '../services/metrics/model-metrics.js';
 import { ledgerEntries } from '../services/ledger/ledger-entries.js';
 import { AccessAnswersService } from '../services/access/access-answers-service.js';
+import { syncWonEntry } from '../services/ledger/won-after-suggestion.js';
 
 export interface TestDeps extends ApiDeps {
   storage: InMemoryStorage;
@@ -469,6 +470,8 @@ export function buildInMemoryDeps(
     monday: new MondayDigestService(clients, surfacing.notes, surfacing.facts, notifications, 30, pushDispatch),
     ledger,
     accessAnswers: new AccessAnswersService(accessRequests), // [P46-6c.2]
+    // [P47-1] keep "Won after a suggestion" in step with the client's outcome (set, undo, restore)
+    onOutcomeChanged: (uid: string, cid: string) => syncWonEntry({ ledger: { listByUser: (u) => ledger.listEvents(u), record: (u, e) => ledger.record(u, e), removeWhere: (u, w) => ledger.removeWhere(u, w) }, clients, shares: inventoryRepo }, uid, cid),
     ledgerEntries: (uid: string) => ledgerEntries(uid, { ledger: { listByUser: (u) => ledger.listEvents(u) }, inventory: inventoryRepo, matches: inventoryMatches, requirements, clients, restriction }),
     referral,
     accountEmail,

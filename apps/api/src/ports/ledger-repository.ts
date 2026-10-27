@@ -6,7 +6,9 @@
  * never estimated. Tenant-scoped (RLS on pg).
  */
 
-export type LedgerEventType = 'thread_reopened' | 'promise_kept' | 'brief_before_meeting' | 'inventory_suggested_bought';
+export type LedgerEventType = 'thread_reopened' | 'promise_kept' | 'brief_before_meeting' | 'inventory_suggested_bought'
+  /** [P47-1] the rep set the client Won within 60 days of a Tovira-suggestion share (sourceId = that share) */
+  | 'won_after_suggestion';
 
 export interface LedgerEvent {
   type: LedgerEventType;
@@ -40,4 +42,6 @@ export interface LedgerRepository {
   listDealValues(userId: string): Promise<DealValue[]>;
   /** [P46-5] Set (or clear, with null) the deal value on one of the rep's entries. False when it is not theirs. */
   setEntryDealValue(userId: string, entryId: string, aed: number | null): Promise<boolean>;
+  /** [P47-1] Remove a client's entries of one type (an undone Won). */
+  removeWhere(userId: string, where: { clientId: string; type: LedgerEventType }): Promise<void>;
 }
