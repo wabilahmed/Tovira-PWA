@@ -1,6 +1,6 @@
 /** Client for the Recovered Value Ledger (P4-11). */
 
-export type LedgerEventType = 'thread_reopened' | 'promise_kept' | 'brief_before_meeting' | 'inventory_suggested_bought';
+export type LedgerEventType = 'thread_reopened' | 'promise_kept' | 'brief_before_meeting' | 'inventory_suggested_bought' | 'won_after_suggestion';
 
 /** [P46-5] One deal Tovira helped with: what Tovira suggested (with the client's words), the sale the rep marked, the value. */
 export interface LedgerEntry {
@@ -18,6 +18,17 @@ export interface LedgerEntry {
   dealValueAed: number | null;
 }
 
+/** [P47-2] A client who wrote back within a week after a going-quiet alert reached the rep. Not a deal: no AED. */
+export interface WinBack {
+  id: string;
+  clientId: string;
+  clientName: string;
+  flaggedAt: number;
+  silentDays: number;
+  wroteBackAt: number;
+  receipt: { quote: string; at: string; noteId: string };
+}
+
 export interface LedgerSummary {
   totalTouched: number;
   byType: Record<LedgerEventType, number>;
@@ -25,6 +36,8 @@ export interface LedgerSummary {
   items: Array<{ type: LedgerEventType; clientId: string; sourceId: string; occurredAt: number }>;
   /** [P46-5] The Ledger's entries, newest first. */
   entries: LedgerEntry[];
+  /** [P47-2] Clients Tovira helped the rep win back, newest first. */
+  winBacks: WinBack[];
 }
 
 export class LedgerClient {
@@ -35,7 +48,7 @@ export class LedgerClient {
       const res = await fetch(`${this.baseUrl}/ledger`, { credentials: 'include' });
       if (res.status !== 200) return null;
       const body = (await res.json()) as LedgerSummary;
-      return { ...body, entries: Array.isArray(body.entries) ? body.entries : [] };
+      return { ...body, entries: Array.isArray(body.entries) ? body.entries : [], winBacks: Array.isArray(body.winBacks) ? body.winBacks : [] };
     } catch {
       return null;
     }

@@ -83,6 +83,13 @@ export class HeroClient {
     );
   }
 
+  /** [P47-2] Today showed these going-quiet cards: the alert reached the rep (the server re-checks each). Best effort. */
+  async coldShown(clientIds: string[]): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/today/cold-shown`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ clientIds }) });
+    } catch { /* best effort: a missed report only means no win-back credit */ }
+  }
+
   /** Manual refresh of today's priorities (rate-limited server-side). */
   async refreshToday(): Promise<{ actions: TodayAction[]; refreshesRemaining: number } | 'rate_limited' | null> {
     try {

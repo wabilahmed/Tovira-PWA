@@ -201,6 +201,8 @@ export interface ApiDeps {
   ledger: LedgerService;
   /** [P47-1] keeps "Won after a suggestion" in step with a client's outcome */
   onOutcomeChanged?: (userId: string, clientId: string) => Promise<void>;
+  /** [P47-2] going-quiet alerts that reached the rep, and win-backs */
+  winBack?: import('./services/ledger/win-back.js').WinBackService;
   /** [P46-5] The Ledger's entries, built from the stored links (see services/ledger/ledger-entries.ts). */
   ledgerEntries?: (userId: string) => Promise<import('./services/ledger/ledger-entries.js').LedgerEntry[]>;
   referral: ReferralService;
@@ -528,7 +530,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (deps.find && (await handleFindRoute(request, response, { auth: deps.auth, billing: deps.billing, find: deps.find }))) return;
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
       if (await handleMondayRoute(request, response, { auth: deps.auth, monday: deps.monday, billing: deps.billing })) return;
-      if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger, clients: deps.clients, ...(deps.ledgerEntries ? { entries: deps.ledgerEntries } : {}) })) return;
+      if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger, clients: deps.clients, ...(deps.ledgerEntries ? { entries: deps.ledgerEntries } : {}), ...(deps.winBack ? { winBack: deps.winBack } : {}) })) return;
       if (await handleShareCardRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing, appBaseUrl: deps.appBaseUrl })) return;
       if (await handleAllowanceRoute(request, response, { auth: deps.auth, allowanceStatus: deps.allowanceStatus, billing: deps.billing, aiPaused: deps.aiPaused })) return;

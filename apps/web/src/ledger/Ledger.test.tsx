@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Ledger, ledgerTotals, type LedgerApi } from './Ledger.js';
-import type { LedgerEntry, LedgerSummary } from './ledgerClient.js';
+import type { LedgerEntry, LedgerSummary, WinBack } from './ledgerClient.js';
 
 vi.mock('../receipts/ReceiptThread.js', () => ({ ReceiptThread: ({ refInfo }: { refInfo: { quote: string } }) => <blockquote data-testid="receipt">{refInfo.quote}</blockquote> }));
 
@@ -14,7 +14,7 @@ const entry = (o: Partial<LedgerEntry> & { id: string }): LedgerEntry => ({
   outcome: 'bought', boughtAt: NOW - 6 * DAY, wonAt: null, outcomeAt: NOW - 6 * DAY, dealValueAed: null, ...o,
 });
 const view = (entries: LedgerEntry[]): LedgerSummary => ({
-  totalTouched: entries.length, byType: { promise_kept: 0, thread_reopened: 0, brief_before_meeting: 0, inventory_suggested_bought: entries.length }, aed: null, items: [], entries,
+  totalTouched: entries.length, byType: { promise_kept: 0, thread_reopened: 0, brief_before_meeting: 0, inventory_suggested_bought: entries.length, won_after_suggestion: 0 }, aed: null, items: [], entries, winBacks: [],
 });
 function makeApi(summary: LedgerSummary | null, over: Partial<LedgerApi> = {}): LedgerApi {
   return { summary: vi.fn().mockResolvedValue(summary), setEntryDealValue: vi.fn().mockResolvedValue(true), ...over };
@@ -47,7 +47,9 @@ describe('<Ledger>', () => {
   it('never uses "closed" or "won" in its copy', async () => {
     const { container } = render(<Ledger api={makeApi(view(two))} now={NOW} />);
     await screen.findByTestId('deals-count');
-    expect(container.textContent!.toLowerCase()).not.toMatch(/closed|won\b/);
+    // [P47 · owner] "won" is now the owner's own word ("Clients won back", "You marked them Won"); still never
+    // "closed", and never Tovira claiming the win ("Tovira won …")
+    expect(container.textContent!.toLowerCase()).not.toMatch(/closed|tovira won\b/);
   });
 
   it('shows an empty state when nothing has been touched', async () => {
@@ -92,10 +94,11 @@ describe('[P46-5] the Ledger', () => {
 
   it('ledgerTotals: the count and the value of the deals in the period; values the rep never entered add nothing', () => {
     const es = [entry({ id: 'a', dealValueAed: 1000, outcomeAt: NOW - 2 * DAY }), entry({ id: 'b', dealValueAed: null, outcomeAt: NOW - 3 * DAY }), entry({ id: 'c', dealValueAed: 500, outcomeAt: NOW - 60 * DAY }), entry({ id: 'd', dealValueAed: 0, outcomeAt: NOW - 400 * DAY })];
-    expect(ledgerTotals(es, 'month', NOW)).toEqual({ count: 2, valueAed: 1000, withValue: 1 });
-    expect(ledgerTotals(es, '3months', NOW)).toEqual({ count: 3, valueAed: 1500, withValue: 2 });
-    expect(ledgerTotals(es, 'all', NOW)).toEqual({ count: 4, valueAed: 1500, withValue: 3 });
-    expect(ledgerTotals([entry({ id: 'x' })], 'all', NOW)).toEqual({ count: 1, valueAed: null, withValue: 0 });
+    // [P47-2 · owner] a fourth figure, wonBack (no win-backs here → 0)
+    expect(ledgerTotals(es, 'month', NOW)).toEqual({ count: 2, valueAed: 1000, withValue: 1, wonBack: 0 });
+    expect(ledgerTotals(es, '3months', NOW)).toEqual({ count: 3, valueAed: 1500, withValue: 2, wonBack: 0 });
+    expect(ledgerTotals(es, 'all', NOW)).toEqual({ count: 4, valueAed: 1500, withValue: 3, wonBack: 0 });
+    expect(ledgerTotals([entry({ id: 'x' })], 'all', NOW)).toEqual({ count: 1, valueAed: null, withValue: 0, wonBack: 0 });
   });
 
   it('the period picker: This month / Last 3 months / All time changes the summary and the list', async () => {
@@ -179,5 +182,61 @@ describe('[P47-1] Won after a suggestion on the Ledger', () => {
     render(<Ledger api={makeApi(view([entry({ id: 'b1', dealValueAed: 1000 }), entry({ id: 'w1', outcome: 'won', boughtAt: null, wonAt: NOW - 2 * DAY, outcomeAt: NOW - 2 * DAY, dealValueAed: 500 })]))} now={NOW} />);
     expect(await screen.findByTestId('deals-count')).toHaveTextContent('2');
     expect(screen.getByTestId('deals-value')).toHaveTextContent('AED 1,500');
+  });
+});
+
+// [P47-2] Owner: "Clients Tovira helped you win back", a separate section under the deals: the client, "Tovira flagged
+// them as going quiet on <date> (<N> days silent)", "They wrote back on <date>" with their message. No AED. A third
+// summary figure, "Clients won back", that never adds to the AED total. The period picker filters everything.
+describe('[P47-2] Clients Tovira helped you win back', () => {
+  const wb = (o: Partial<WinBack> & { id: string }): WinBack => ({ clientId: 'c9', clientName: 'Layla Hassan', flaggedAt: NOW - 9 * DAY, silentDays: 42, wroteBackAt: NOW - 7 * DAY, receipt: { quote: 'Back from travel, can we talk?', at: '2026-10-19T10:00', noteId: 'n9' }, ...o });
+  const both = (entries: LedgerEntry[], winBacks: WinBack[]): LedgerSummary => ({ ...view(entries), winBacks });
+
+  it('a separate section under the deals; each card: the client, the flag, the reply with its message; no AED', async () => {
+    render(<Ledger api={makeApi(both([entry({ id: 'e1' })], [wb({ id: 'w1' })]))} now={NOW} />);
+    const section = await screen.findByRole('region', { name: 'Clients Tovira helped you win back' });
+    expect(within(section).getByRole('heading', { name: 'Clients Tovira helped you win back' })).toBeInTheDocument();
+    const card = within(section).getByText('Layla Hassan').closest('li')!;
+    expect(card.textContent).toContain('Tovira flagged them as going quiet on 17 Oct (42 days silent)');
+    expect(card.textContent).toContain('They wrote back on 19 Oct');
+    expect(within(card).getByTestId('receipt')).toHaveTextContent('Back from travel, can we talk?');
+    expect(card.textContent).not.toMatch(/AED|deal value/i);
+    const deals = screen.getAllByTestId('ledger-entry')[0]!;
+    expect(deals.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // under the deals
+  });
+
+  it('the summary: deals, their value, and "Clients won back", which never adds to the AED total', async () => {
+    render(<Ledger api={makeApi(both([entry({ id: 'e1', dealValueAed: 1000 })], [wb({ id: 'w1' }), wb({ id: 'w2', clientName: 'Omar', wroteBackAt: NOW - 2 * DAY })]))} now={NOW} />);
+    expect(await screen.findByTestId('deals-count')).toHaveTextContent('1');
+    expect(screen.getByTestId('deals-value')).toHaveTextContent('AED 1,000');
+    expect(screen.getByTestId('won-back-count')).toHaveTextContent('2');
+    expect(screen.getByText('Clients won back')).toBeInTheDocument();
+  });
+
+  it('ledgerTotals counts win-backs in the period', () => {
+    const t = ledgerTotals([entry({ id: 'a', outcomeAt: NOW - 2 * DAY })], 'month', NOW, [wb({ id: 'w1', wroteBackAt: NOW - 2 * DAY }), wb({ id: 'w2', wroteBackAt: NOW - 70 * DAY })]);
+    expect(t).toEqual({ count: 1, valueAed: null, withValue: 0, wonBack: 1 });
+  });
+
+  it('the period picker filters both lists and all three figures', async () => {
+    render(<Ledger api={makeApi(both([entry({ id: 'e1', outcomeAt: NOW - 70 * DAY })], [wb({ id: 'w1', wroteBackAt: NOW - 70 * DAY }), wb({ id: 'w2', clientName: 'Omar', wroteBackAt: NOW - 2 * DAY })]))} now={NOW} />);
+    await screen.findByTestId('deals-count');
+    await userEvent.click(screen.getByRole('button', { name: 'This month' }));
+    expect(screen.getByTestId('deals-count')).toHaveTextContent('0');
+    expect(screen.getByTestId('won-back-count')).toHaveTextContent('1');
+    expect(screen.queryByText('Layla Hassan')).toBeNull();
+    expect(screen.getByText('Omar')).toBeInTheDocument();
+  });
+
+  it("the win-back section's empty state", async () => {
+    render(<Ledger api={makeApi(both([entry({ id: 'e1' })], []))} now={NOW} />);
+    const section = await screen.findByRole('region', { name: 'Clients Tovira helped you win back' });
+    expect(section.textContent).toContain('When a client Tovira flagged as going quiet writes back within a week, it shows up here.');
+  });
+
+  it('only win-backs (no deals yet): the Ledger is not empty, it shows them', async () => {
+    render(<Ledger api={makeApi(both([], [wb({ id: 'w1' })]))} now={NOW} />);
+    expect(await screen.findByText('Layla Hassan')).toBeInTheDocument();
+    expect(screen.getByTestId('won-back-count')).toHaveTextContent('1');
   });
 });

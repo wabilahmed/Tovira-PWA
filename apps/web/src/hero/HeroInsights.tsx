@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { GateState, Pattern, RiskItem, TodayAction } from './heroClient.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody } from '../format/dates.js';
@@ -11,6 +11,8 @@ export interface HeroApi {
   risk(): Promise<RiskItem[]>;
   today(): Promise<{ actions: TodayAction[]; refreshesRemaining: number | null }>;
   refreshToday(): Promise<{ actions: TodayAction[]; refreshesRemaining: number } | 'rate_limited' | null>;
+  /** [P47-2] Report the going-quiet cards shown (the alert reached the rep). Optional for older mocks. */
+  coldShown?(clientIds: string[]): Promise<void>;
 }
 
 /** [P39-5] "Wednesday 21 Oct" — the date under the Today title, in the rep's own clock. */
@@ -73,6 +75,16 @@ export function HeroInsights({ api, now = () => new Date(), top, needsAnswer }: 
       live = false;
     };
   }, [api]);
+
+  // [P47-2] The going-quiet cards on screen reached the rep: report each client once per visit.
+  const reported = useRef(new Set<string>());
+  useEffect(() => {
+    if (loading || !api.coldShown) return;
+    const ids = actions.filter((a) => a.kind === 'cold' && a.clientId && !reported.current.has(a.clientId)).map((a) => a.clientId!);
+    if (ids.length === 0) return;
+    ids.forEach((id) => reported.current.add(id));
+    void api.coldShown(ids);
+  }, [actions, loading, api]);
 
   async function refresh(): Promise<void> {
     setRefreshing(true);

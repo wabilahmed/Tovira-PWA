@@ -92,6 +92,9 @@ async function suggestion(userId: string, shareId: string, deps: LedgerEntryDeps
     match = pairings.length === 1 ? pairings[0]! : null; // exactly one: that is the suggestion; more than one: no guess
   }
   const req = match ? await deps.requirements.findByIdForUser(userId, match.requirementId) : null;
+  // [TASK 2] The suggestion was read from a requirement the restricted person stated (the restricted view withholds it):
+  // the whole deal is withheld, not just its receipt.
+  if (match && !req) return null;
   const receipt = req && !(r.active && r.restrictsText(req.requirementRaw)) ? { quote: req.requirementRaw, statedOn: req.statedOn, noteId: req.noteId } : null;
   return { share, clientName: client.name, itemTitle: item?.title ?? 'An item from your inventory', suggestedAt: match?.createdAt ?? share.sharedAt, receipt };
 }

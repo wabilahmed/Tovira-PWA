@@ -141,6 +141,8 @@ import { reencryptAdminTotp } from './services/admin/reencrypt-totp.js';
 import { AccessAnswersService } from './services/access/access-answers-service.js';
 import { accessRequestNotifier, adminAlertSender } from './services/access/admin-notify.js';
 import { syncWonEntry } from './services/ledger/won-after-suggestion.js';
+import { WinBackService } from './services/ledger/win-back.js';
+import { PgGoingQuietAlertRepository } from './adapters/ledger/pg-going-quiet-alert-repository.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -696,7 +698,9 @@ async function main(): Promise<void> {
     // [P46-5] the Ledger's entries: suggested sales the rep marked bought, with their receipts and deal values
     // [P47-1] keep "Won after a suggestion" in step with the client's outcome (set, undo, restore)
     onOutcomeChanged: (uid: string, cid: string) => syncWonEntry({ ledger: { listByUser: (u) => ledger.listEvents(u), record: (u, e) => ledger.record(u, e), removeWhere: (u, w) => ledger.removeWhere(u, w) }, clients, shares: inventoryRepo }, uid, cid),
-    ledgerEntries: (uid: string) => ledgerEntries(uid, { ledger: { listByUser: (u) => ledger.listEvents(u) }, inventory: inventoryRepo, matches: inventoryMatches, requirements, clients, restriction }),
+    // [P47-2] going-quiet alerts that reached the rep (Today card shown) and the clients who wrote back within a week
+    winBack: new WinBackService({ notesView: surfacing.notes, alerts: new PgGoingQuietAlertRepository(appPool), clients, notes, timezoneFor: (u) => auth.timezoneFor(u), coldThresholdDays: config.coldThresholdDays, restriction }),
+    ledgerEntries: (uid: string) => ledgerEntries(uid, { ledger: { listByUser: (u) => ledger.listEvents(u) }, inventory: inventoryRepo, matches: inventoryMatches, requirements: surfacing.requirements, clients, restriction }), // [P47] the restricted views: a deal built on a withheld requirement is withheld
     referral,
     accountEmail,
     appBaseUrl: config.appBaseUrl,

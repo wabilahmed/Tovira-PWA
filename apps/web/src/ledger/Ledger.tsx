@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { LedgerEntry, LedgerSummary } from './ledgerClient.js';
+import type { LedgerEntry, LedgerSummary, WinBack } from './ledgerClient.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
 import { Button, Chip, ChipGroup, EmptyState, Toast } from '../ui/index.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
@@ -25,10 +25,12 @@ const inPeriod = (e: LedgerEntry, period: LedgerPeriod, now: number): boolean =>
  * [P46-5] The summary for a period: how many deals Tovira helped with, and the value of those deals from the values
  * the rep entered (null when none has a value: never an estimate). `withValue` counts the deals that have one.
  */
-export function ledgerTotals(entries: LedgerEntry[], period: LedgerPeriod, now: number): { count: number; valueAed: number | null; withValue: number } {
+export function ledgerTotals(entries: LedgerEntry[], period: LedgerPeriod, now: number, winBacks: WinBack[] = []): { count: number; valueAed: number | null; withValue: number; wonBack: number } {
   const es = entries.filter((e) => inPeriod(e, period, now));
   const valued = es.filter((e) => e.dealValueAed !== null);
-  return { count: es.length, valueAed: valued.length ? valued.reduce((s, e) => s + (e.dealValueAed ?? 0), 0) : null, withValue: valued.length };
+  // [P47-2] Clients won back: a count of their own, never part of the AED total (not a deal).
+  const wonBack = winBacks.filter((w) => w.wroteBackAt >= periodStart(period, now)).length;
+  return { count: es.length, valueAed: valued.length ? valued.reduce((s, e) => s + (e.dealValueAed ?? 0), 0) : null, withValue: valued.length, wonBack };
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -72,7 +74,7 @@ export function Ledger({ api, now = Date.now(), back, onOpenInventory }: {
     return ok;
   }
 
-  if (data.entries.length === 0) {
+  if (data.entries.length === 0 && data.winBacks.length === 0) {
     return (
       <Page testId="ledger-page" label="The Ledger">
         {header}
@@ -83,8 +85,9 @@ export function Ledger({ api, now = Date.now(), back, onOpenInventory }: {
     );
   }
 
-  const totals = ledgerTotals(data.entries, period, now);
+  const totals = ledgerTotals(data.entries, period, now, data.winBacks);
   const shown = data.entries.filter((e) => inPeriod(e, period, now));
+  const wonBack = data.winBacks.filter((w) => w.wroteBackAt >= periodStart(period, now));
   return (
     <Page testId="ledger-page" label="The Ledger">
       {header}
@@ -103,6 +106,10 @@ export function Ledger({ api, now = Date.now(), back, onOpenInventory }: {
             {totals.valueAed !== null && totals.withValue < totals.count && <span className="ui-caption ui-block">{totals.withValue} of {totals.count} deals have a value</span>}
           </p>
         </div>
+        <div>
+          <p className="ui-label">Clients won back</p>
+          <p className="ui-title" data-testid="won-back-count">{totals.wonBack}</p>
+        </div>
       </div>
       {shown.length === 0 ? (
         <p className="ui-secondary">No deals in this period.</p>
@@ -111,6 +118,24 @@ export function Ledger({ api, now = Date.now(), back, onOpenInventory }: {
           {shown.map((e) => <EntryCard key={e.id} entry={e} now={now} onSave={saveValue} />)}
         </ul>
       )}
+      {/* [P47-2] Its own section under the deals: a client who wrote back within a week of a going-quiet alert. No AED. */}
+      <section className="ui-stack ui-gap-3" aria-labelledby="ledger-winbacks" role="region" aria-label="Clients Tovira helped you win back">
+        <h2 id="ledger-winbacks" className="ui-section-title">Clients Tovira helped you win back</h2>
+        {wonBack.length === 0 ? (
+          <p className="ui-secondary">When a client Tovira flagged as going quiet writes back within a week, it shows up here.</p>
+        ) : (
+          <ul className="ui-plainlist ui-stack ui-gap-3">
+            {wonBack.map((w) => (
+              <li key={w.id} className="ui-card ui-stack ui-gap-2" data-testid="ledger-winback">
+                <span className="ui-strong" dir="auto">{w.clientName}</span>
+                <p style={{ margin: 0 }}>Tovira flagged them as going quiet on {shortDate(w.flaggedAt, now)} ({w.silentDays} days silent)</p>
+                <p style={{ margin: 0 }}>They wrote back on {shortDate(w.wroteBackAt, now)}</p>
+                <ReceiptThread compact refInfo={{ noteId: w.receipt.noteId, clientId: w.clientId, span: w.receipt.quote, quote: w.receipt.quote, at: w.receipt.at }} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       {saved && <Toast>Saved</Toast>}
     </Page>
   );

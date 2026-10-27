@@ -79,7 +79,7 @@ export const SURFACES: Record<string, Probe | string> = {
   '/billing/top-up': 'billing', '/billing/webhook': 'billing',
   '/clients/': 'prefix of the client routes', '/lead-status': 'write (status)', '/outcome': 'write (outcome)',
   '/clients/:id/images': 'write (photo upload, removed in P36)', '/images/:id': 'an image the rep uploaded',
-  '/clients/:id/deal-value': 'write', '/ledger/entries/:id/deal-value': 'write', '/clients/:id/notes/import': 'write', '/clients/:id/notes/paste': 'write', '/clients/:id/notes/voice': 'write',
+  '/clients/:id/deal-value': 'write', '/ledger/entries/:id/deal-value': 'write', '/today/cold-shown': 'write: Today reports the going-quiet cards it showed', '/clients/:id/notes/import': 'write', '/clients/:id/notes/paste': 'write', '/clients/:id/notes/voice': 'write',
   '/notes/:id/audio': 'the rep\'s own recording', '/notes/:id/extract': 'write (queues extraction)', '/notes/:id/follow-up': 'model draft — refuses restricted notes (TASK 2)',
   '/notes/:id/move': 'write', '/notes/:id/transcribe': 'write', '/notes/:id/undo': 'write',
   '/promises/:id': 'write', '/promises/:id/confirm': 'write', '/promises/:id/done': 'write', '/promises/:id/restore': 'write',
@@ -158,6 +158,19 @@ beforeAll(async () => {
   ids = { clientId: c.id, noteId: note.id, promiseId: p!.id, captureId: held!.noteId };
   // an alert written BEFORE the window opens quotes him; the scan then runs again inside the window
   await deps.notifications.createIfAbsent(u, { type: 'overdue_promise', dedupeKey: 'pre-window', clientId: c.id, title: 'Overdue', body: `Khalid: ${MARK} passport copy` });
+  // [P47-1 / P47-2] both new Ledger kinds for him: a Won after a suggestion built on his requirement (the receipt quotes
+  // him) and a win-back (his reply, quoting the marker, after a going-quiet card reached the rep)
+  const [kreq] = await deps.requirements.listByClient(u, c.id);
+  const item = await deps.inventoryRepo.create(u, { title: 'Villa list', description: 'villas', quantity: null, embedding: null } as never);
+  const km = await deps.inventoryMatches.upsert(u, { requirementId: kreq!.id, itemId: item.id, clientId: c.id, similarity: 1, confidence: 'strong' });
+  await deps.inventoryRepo.createShare(u, { itemId: item.id, clientId: c.id, outcomeSetBy: 'confirmed_suggestion', matchId: km.id });
+  await deps.clients.setOutcome(u, c.id, 'won', 'rep', Date.now() + 5_000); // after the share (the in-memory share clock can run a few ms ahead)
+  await deps.onOutcomeChanged!(u, c.id);
+  await deps.clients.setLastTouched(u, c.id, Date.now() - 40 * DAY);
+  await deps.winBack!.recordShown(u, [c.id], Date.now() - 2 * DAY);
+  await deps.notes.create(u, { clientId: c.id, source: 'whatsapp_export', rawText: 'chat', audioKey: null, status: 'extracted', messages: [{ sentAt: new Date(Date.now() - DAY).toISOString().slice(0, 16), sender: 'Khalid', body: `${MARK} back from travel`, media: false, role: 'client' }] } as never);
+  const seeded = (await (await fetch(`${base}/ledger`, { headers: { authorization: `Bearer ${token}` } })).json()) as { entries: unknown[]; winBacks: unknown[] };
+  if (seeded.entries.length !== 1 || seeded.winBacks.length !== 1 || !JSON.stringify(seeded).includes(MARK)) throw new Error(`fixture: both Ledger kinds must exist (and quote him) before the restriction: ${JSON.stringify(seeded).slice(0, 300)}`);
   await deps.erasureRequests.create(u, { requesterNames: ['Khalid'], requestedAt: Date.now(), windowEndsAt: Date.now() + 10 * DAY });
   await fetch(`${base}/scan`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
 });

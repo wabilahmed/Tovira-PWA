@@ -3,6 +3,7 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { LedgerService } from '../services/ledger/ledger-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import type { LedgerEntry } from '../services/ledger/ledger-entries.js';
+import type { WinBackService } from '../services/ledger/win-back.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 
 export interface LedgerRouteDeps {
@@ -11,6 +12,8 @@ export interface LedgerRouteDeps {
   clients: ClientRepository;
   /** [P46-5] The Ledger's entries (what Tovira suggested, the sale, the deal value). Optional for older wiring. */
   entries?: (userId: string) => Promise<LedgerEntry[]>;
+  /** [P47-2] going-quiet alerts that reached the rep, and the clients who wrote back. Optional for older wiring. */
+  winBack?: WinBackService;
 }
 
 const ENTRY_VALUE_RE = /^\/ledger\/entries\/([^/]+)\/deal-value$/;
@@ -28,7 +31,8 @@ export async function handleLedgerRoute(
   const isSummary = method === 'GET' && path === '/ledger';
   const dealMatch = method === 'POST' ? DEAL_VALUE_RE.exec(path) : null;
   const entryMatch = method === 'PUT' ? ENTRY_VALUE_RE.exec(path) : null;
-  if (!isSummary && !dealMatch && !entryMatch) return false;
+  const isColdShown = method === 'POST' && path === '/today/cold-shown' && !!deps.winBack;
+  if (!isSummary && !dealMatch && !entryMatch && !isColdShown) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -38,11 +42,26 @@ export async function handleLedgerRoute(
 
   if (isSummary) {
     const summary = await deps.ledger.summary(identity.userId);
-    sendJson(res, 200, { ...summary, entries: deps.entries ? await deps.entries(identity.userId) : [] });
+    sendJson(res, 200, {
+      ...summary,
+      entries: deps.entries ? await deps.entries(identity.userId) : [],
+      winBacks: deps.winBack ? await deps.winBack.entries(identity.userId) : [], // [P47-2]
+    });
     return true;
   }
 
   try {
+    if (isColdShown) {
+      // [P47-2] Today showed these going-quiet cards: the alert reached the rep. The server re-checks each client.
+      const body = (await readJsonBody(req)) as { clientIds?: unknown };
+      if (!Array.isArray(body.clientIds) || !body.clientIds.every((x) => typeof x === 'string')) {
+        sendJson(res, 400, { error: 'validation', message: 'clientIds must be a list.' });
+        return true;
+      }
+      const recorded = await deps.winBack!.recordShown(identity.userId, body.clientIds as string[], Date.now());
+      sendJson(res, 200, { recorded });
+      return true;
+    }
     if (entryMatch) {
       // [P46-5] The deal value on one entry: a non-negative AED amount, or null to clear it. Never estimated.
       const body = (await readJsonBody(req)) as { aed?: unknown };

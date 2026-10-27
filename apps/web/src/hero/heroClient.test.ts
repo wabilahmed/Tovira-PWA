@@ -67,3 +67,16 @@ describe('HeroClient', () => {
     expect(await new HeroClient().refreshToday()).toBeNull();
   });
 });
+
+// [P47-2] Today's going-quiet cards shown → POST /today/cold-shown with the client ids (best effort, never throws).
+describe('[P47-2] HeroClient.coldShown', () => {
+  it('POSTs the client ids', async () => {
+    const f = vi.fn().mockResolvedValue(new Response('{"recorded":1}', { status: 200 }));
+    vi.stubGlobal('fetch', f);
+    await new HeroClient('http://api.test').coldShown(['c1']);
+    expect(f).toHaveBeenCalledWith('http://api.test/today/cold-shown', expect.objectContaining({ method: 'POST', credentials: 'include', body: JSON.stringify({ clientIds: ['c1'] }) }));
+    f.mockRejectedValueOnce(new Error('offline'));
+    await expect(new HeroClient().coldShown(['c1'])).resolves.toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+});
