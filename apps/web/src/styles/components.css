@@ -131,6 +131,11 @@ textarea.ui-input { padding: var(--space-3); min-height: var(--space-7); resize:
 .ui-banner--success { border-color: var(--color-success-line); background: var(--color-success-soft); }
 .ui-toast { position: fixed; left: 50%; bottom: calc(var(--space-7) + var(--space-6)); transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: var(--space-3); max-width: calc(100vw - 2 * var(--gutter)); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-2); background: var(--color-text); color: var(--color-surface); font-size: var(--text-secondary-size); line-height: var(--text-secondary-lh); box-shadow: var(--elev-2); }
 .ui-toast .ui-btn--text { color: var(--color-surface); }
+/* [P49] A small anchored menu (the client page's ⋯): the list opens under its button, aligned to the end edge. */
+.ui-menu { position: relative; display: inline-flex; }
+.ui-menu__list { position: absolute; inset-inline-end: 0; top: 100%; z-index: 20; min-width: calc(var(--touch) * 4); margin-top: var(--space-1); padding: var(--space-1); border: var(--border-1); border-radius: var(--radius-2); background: var(--color-surface); box-shadow: var(--elev-2); }
+.ui-menu__item { display: flex; align-items: center; width: 100%; min-height: var(--touch); padding: 0 var(--space-3); border: none; border-radius: var(--radius-2); background: none; color: var(--color-text); font: inherit; font-size: var(--text-body-size); text-align: start; cursor: pointer; }
+.ui-menu__item:hover, .ui-menu__item:focus-visible { background: var(--color-sunken); outline: none; }
 .ui-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); padding: var(--space-5) 0; }
 
 /* ---- Sheet (bottom sheet) content ----------------------------------------------------------- */

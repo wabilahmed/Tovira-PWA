@@ -13,6 +13,7 @@ import { VerifyEmailPage, VerifyBanner } from './auth/EmailVerification.js';
 import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSummary, type Brief, type LeadStatus, type Stakeholder, type StatusSnapshot } from './clients/clientsClient.js';
 import { HttpClientPageClient, type ClientOverview } from './clients/page/clientPageClient.js';
 import { Accordion } from './ui/Accordion.js';
+import { ClientNameMenu } from './clients/page/ClientNameMenu.js';
 import { Page, PageHeader, Section, ListRow, Button, IconButton, ActionRow, SearchInput, Sheet, TextInput, EmptyState } from './ui/index.js';
 import { AddNote } from './clients/page/AddNote.js';
 
@@ -569,6 +570,13 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
     if (next === 'done' && !opts.outcome) setOutcomeFor({ ...client, leadStatus: next });
   }
 
+  /** [P49-5] A rename (or its Undo): the list row and the open page take the new name at once, keeping everything else
+   *  the list knows about the client. */
+  function applyRename(c: ClientSummary): void {
+    setClients((list) => list.map((x) => (x.id === c.id ? { ...x, name: c.name } : x)));
+    setOpen((o) => (o && o.id === c.id ? { ...o, name: c.name } : o));
+  }
+
   /** [P36-7] The existing outcome: won / lost (rep-sourced — the nightly inference never overwrites it). */
   async function setClientOutcome(client: ClientSummary, outcome: 'won' | 'lost' | 'open'): Promise<void> {
     if (!(await clientsApi.setOutcome(client.id, outcome))) return;
@@ -613,6 +621,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
               timeZone={session.user.timezone}
               billingStatus={billing?.status}
               onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }}
+              onRenamed={applyRename}
               initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined}
               onOpenSubscription={openSubscription}
             />
@@ -999,7 +1008,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }} initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined} onOpenSubscription={openSubscription} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }} onRenamed={applyRename} initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined} onOpenSubscription={openSubscription} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -1033,7 +1042,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport, onOpenSubscription }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; /** [P39-8] where back goes ("Clients", "Find", "Today") */ backLabel?: string; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string }; /** [P37] */ onOpenSubscription?: () => void }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport, onOpenSubscription, onRenamed }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; /** [P39-8] where back goes ("Clients", "Find", "Today") */ backLabel?: string; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string }; /** [P37] */ onOpenSubscription?: () => void; /** [P49] the client was renamed (or the rename undone) */ onRenamed?: (c: ClientSummary) => void }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
@@ -1156,7 +1165,8 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
     <main className="tov-clientpage">
       <Page testId="client-page" label={client.name}>
       {/* [P39-8] PageHeader: the client's name, and a back to wherever the rep came from. */}
-      <PageHeader title={client.name} back={{ label: backLabel, onBack }} />
+      {/* [P49-5] the ⋯ menu: Edit name (absent for a client under an erasure restriction) */}
+      <PageHeader title={client.name} back={{ label: backLabel, onBack }} action={onRenamed ? <ClientNameMenu client={client} api={clientsApi} onRenamed={onRenamed} /> : undefined} />
       <ClientHeader
         name={client.name}
         status={client.leadStatus}

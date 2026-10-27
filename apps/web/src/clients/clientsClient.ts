@@ -1,3 +1,4 @@
+import type { RenameResult } from './page/ClientNameMenu.js';
 import { LOCKED, type Locked } from '../billing/gated.js';
 import type { Pointer } from './PointersCard.js';
 
@@ -14,6 +15,8 @@ export interface ClientSummary {
   /** [LEAD-STATUS] null = Unsorted. Absent on older responses → treat as Unsorted. */
   leadStatus?: LeadStatus | null;
   leadStatusChangedAt?: number | null;
+  /** [P49] Under an active erasure restriction: the client can't be renamed (no "Edit name"). */
+  nameLocked?: boolean;
   /** [OUTCOME] the deal outcome (open / won / lost_confirmed / lost_inferred); absent on older responses. */
   outcome?: string;
   outcomeSource?: string | null;
@@ -223,6 +226,24 @@ export class ClientsClient {
 
   /** Set (or clear) a client's phone (P4-7). Returns the updated record, or null
    *  on failure (e.g. not the owner). */
+  /** [P49] Rename a client. A name another client has comes back as a 'duplicate' warning unless confirmed. */
+  async rename(id: string, name: string, confirmDuplicate: boolean): Promise<RenameResult> {
+    try {
+      const res = await fetch(this.url(`/clients/${encodeURIComponent(id)}/name`), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, confirmDuplicate }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { client?: ClientSummary; previousName?: string; message?: string };
+      if (res.ok && body.client) return { ok: true, client: body.client, previousName: body.previousName ?? '' };
+      const reason = res.status === 409 ? 'duplicate' : res.status === 403 ? 'restricted' : res.status === 400 ? 'invalid' : 'failed';
+      return { ok: false, reason, message: body.message ?? 'Could not save the name. Please try again.' };
+    } catch {
+      return { ok: false, reason: 'failed', message: 'Could not save the name. Please try again.' };
+    }
+  }
+
   async setPhone(id: string, phone: string | null): Promise<ClientSummary | null> {
     try {
       const res = await fetch(this.url(`/clients/${id}`), {
