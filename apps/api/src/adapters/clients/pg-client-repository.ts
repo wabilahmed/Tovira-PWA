@@ -81,6 +81,13 @@ export class PgClientRepository implements ClientRepository {
     });
   }
 
+  async listRenamesByUser(userId: string): Promise<Array<NameChange & { clientId: string }>> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('SELECT client_id, old_name, new_name, changed_at FROM client_name_history ORDER BY changed_at ASC, id ASC');
+      return (rows as Array<{ client_id: string; old_name: string; new_name: string; changed_at: Date }>).map((r) => ({ clientId: r.client_id, oldName: r.old_name, newName: r.new_name, changedAt: new Date(r.changed_at).getTime() }));
+    });
+  }
+
   async listNameHistory(userId: string, id: string): Promise<NameChange[]> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query('SELECT old_name, new_name, changed_at FROM client_name_history WHERE client_id = $1 ORDER BY changed_at ASC, id ASC', [id]);

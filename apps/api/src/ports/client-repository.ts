@@ -95,6 +95,8 @@ export interface ClientRepository {
   rename(userId: string, id: string, name: string, changedAtMs: number): Promise<{ oldName: string } | null>;
   /** [P49] Every rename of one client, oldest first. Scoped to the owner. */
   listNameHistory(userId: string, id: string): Promise<NameChange[]>;
+  /** [P49] Every rename across the rep's clients, oldest first (one read, for surfaces that hold an old copy). */
+  listRenamesByUser(userId: string): Promise<Array<NameChange & { clientId: string }>>;
 }
 
 /** [P49] One rename, as recorded. */

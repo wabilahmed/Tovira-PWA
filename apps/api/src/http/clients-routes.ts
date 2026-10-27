@@ -25,6 +25,8 @@ export async function handleClientRoute(
   onOutcomeChanged?: (userId: string, clientId: string) => Promise<void>,
   /** [P49] Where a rename keeps the old name (as a previous name), so the next chat finds the same client. */
   aliases?: Pick<ContactAliasRepository, 'add'>,
+  /** [P49] After a rename: re-attribute the client's folded-in people entries to the new name. */
+  onRenamed?: (userId: string, clientId: string, oldName: string, newName: string) => Promise<void>,
 ): Promise<boolean> {
   const method = req.method ?? 'GET';
   const path = (req.url ?? '/').split('?')[0]!;
@@ -175,6 +177,7 @@ export async function handleClientRoute(
       const done = await clients.rename(userId, id, name, Date.now());
       if (!done) { sendJson(res, 404, { error: 'not_found' }); return true; }
       if (done.oldName !== name && aliases) await aliases.add(userId, id, done.oldName, 'previous_name');
+      if (done.oldName !== name && onRenamed) await onRenamed(userId, id, done.oldName, name);
       sendJson(res, 200, { client: await clients.findByIdForUser(userId, id), previousName: done.oldName });
       return true;
     }

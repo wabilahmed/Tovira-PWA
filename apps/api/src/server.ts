@@ -42,6 +42,7 @@ import type { AccessRequestRecord } from './ports/access-request-repository.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
+import { reattributeRenamedClient } from './services/clients/live-names.js';
 import { handleClientOverviewRoute } from './http/client-overview-routes.js';
 import { handleTourRoute } from './http/tour-routes.js';
 import type { TourService } from './services/tour/tour-service.js';
@@ -546,7 +547,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleTourRoute(request, response, { auth: deps.auth, tour: deps.tour })) return;
       if (await handleClientOverviewRoute(request, response, { auth: deps.auth, overview: deps.clientOverview })) return;
-      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction, deps.onOutcomeChanged, deps.aliases)) return;
+      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction, deps.onOutcomeChanged, deps.aliases, (u, c, from, to) => reattributeRenamedClient(deps.notes, u, c, from, to).then(() => undefined))) return;
       if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing, matching: deps.matching })) return;
 
       if (request.method === 'GET' && url === '/') {

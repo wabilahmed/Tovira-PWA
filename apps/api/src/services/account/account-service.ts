@@ -9,6 +9,7 @@ import type { Storage } from '../../ports/storage.js';
 import { restrictNote, noteIsAboutRestricted } from '../erasure/restrict-note.js';
 import { factWithholder, withoutRestricted, type RestrictionSource } from '../erasure/surface-filter.js';
 import { NO_RESTRICTION } from '../erasure/restriction.js';
+import { liveNames } from '../clients/live-names.js';
 
 /** [P48] The book's exact placeholder, on a restricted note in the export too. */
 const NOTE_RESTRICTION_NOTICE = 'Restricted while a privacy request is reviewed.';
@@ -82,12 +83,15 @@ export class AccountService {
   async exportData(userId: string): Promise<unknown> {
     const r = this.restriction ? await this.restriction.forUser(userId) : NO_RESTRICTION;
     const clients = await this.clients.listByUser(userId);
+    const live = await liveNames(this.clients, userId); // [P49] a stored move suggestion names the client as they are now
+    const named = <N extends { moveSuggestion?: { toClientId: string | null; toClientName: string | null; reason: string } | null }>(n: N): N =>
+      n.moveSuggestion ? { ...n, moveSuggestion: { ...n.moveSuggestion, toClientName: (n.moveSuggestion.toClientId && live.name(n.moveSuggestion.toClientId)) ?? n.moveSuggestion.toClientName, reason: live.rewrite(n.moveSuggestion.toClientId, n.moveSuggestion.reason) } } : n;
     const notes = [];
     const images = [];
     for (const c of clients) {
       // [P48] a restricted note reads as the book shows it: their part withheld, flagged with the book's notice
       for (const n of await this.notes.listByClient(userId, c.id)) {
-        notes.push(r.active ? { ...restrictNote(n, r), ...(noteIsAboutRestricted(n, r) ? { restricted: true, restrictionNotice: NOTE_RESTRICTION_NOTICE } : {}) } : n);
+        notes.push(named(r.active ? { ...restrictNote(n, r), ...(noteIsAboutRestricted(n, r) ? { restricted: true, restrictionNotice: NOTE_RESTRICTION_NOTICE } : {}) } : n));
       }
       // Image metadata + retrievable id — the "usable format" for the gallery
       // (each fetched from /images/:id). Completes the full-corpus export (P5-4).
@@ -112,6 +116,8 @@ export class AccountService {
       images,
       recallSessions: r.active ? recallSessions.map((s) => ({ ...s, messages: s.messages.filter((m) => !r.restrictsText(m.content)) })) : recallSessions,
       contactAliases: this.aliases ? await this.aliases.listByUser(userId) : [],
+      // [P49] every rename of every client (old name, new name, when): the rep's record of what each client was called
+      clientNameHistory: await this.clients.listRenamesByUser(userId),
       // [NO-TRAINING-RETENTION] the rep's operational extraction metadata + verdicts (no content), and
       // their per-rep glossary — all the rep's own data, carried in a DSAR export.
       extractionLogs: this.extractionLog ? await this.extractionLog.listByUser(userId) : [],

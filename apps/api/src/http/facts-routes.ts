@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { liveNames } from '../services/clients/live-names.js';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { FactsRepository, PromisePatch } from '../ports/facts-repository.js';
 import type { NoteRepository } from '../ports/note-repository.js';
@@ -33,7 +34,7 @@ export interface FactsRouteDeps {
    *  keeps it behind a filter and out of the active count/claret). Defaults to 90 when unset (tests). */
   promiseStaleThresholdDays?: number;
   /** [P34-2] Client names for the To Confirm cards (optional: absent → no clientName). */
-  clients?: Pick<import('../ports/client-repository.js').ClientRepository, 'listByUser'>;
+  clients?: Pick<import('../ports/client-repository.js').ClientRepository, 'listByUser' | 'listRenamesByUser'>;
 }
 
 const CONFIRM_RE = /^\/promises\/([^/]+)\/confirm$/;
@@ -81,14 +82,19 @@ export async function handleFactsRoute(
     // MISFILE-POST (B2): a note that looks like it belongs to another client rides here too — a
     // soft "Move it?" the rep resolves. Never auto-applied.
     const moveNotes = deps.notes ? await deps.notes.listMoveSuggestionsByUser(userId) : [];
-    const moveSuggestions = moveNotes.map((n) => ({
-      noteId: n.id,
-      fromClientId: n.clientId,
-      toClientId: n.moveSuggestion?.toClientId ?? null,
-      toClientName: n.moveSuggestion?.toClientName ?? null,
-      mentioned: n.moveSuggestion?.mentioned ?? [],
-      reason: n.moveSuggestion?.reason ?? '',
-    }));
+    // [P49] the suggested client by their current name (a suggestion stored before a rename keeps the old one)
+    const live = deps.clients ? await liveNames(deps.clients, userId) : null;
+    const moveSuggestions = moveNotes.map((n) => {
+      const to = n.moveSuggestion?.toClientId ?? null;
+      return {
+        noteId: n.id,
+        fromClientId: n.clientId,
+        toClientId: to,
+        toClientName: (to && live?.name(to)) ?? n.moveSuggestion?.toClientName ?? null,
+        mentioned: n.moveSuggestion?.mentioned ?? [],
+        reason: live ? live.rewrite(to, n.moveSuggestion?.reason ?? '') : n.moveSuggestion?.reason ?? '',
+      };
+    });
     // [P34-2] Every To Confirm card names its client.
     const names = deps.clients ? new Map((await deps.clients.listByUser(userId)).map((c) => [c.id, c.name])) : null;
     const named = <T extends { clientId: string | null }>(r: T) => (names ? { ...r, clientName: r.clientId ? names.get(r.clientId) ?? null : null } : r);

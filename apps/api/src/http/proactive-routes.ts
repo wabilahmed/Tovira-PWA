@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { liveNames } from '../services/clients/live-names.js';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import type { NotificationRepository } from '../ports/notification-repository.js';
@@ -55,8 +56,12 @@ export async function handleProactiveRoute(
     // [P40-2] An alert written before the window opened may quote the restricted person: withheld while it's open
     // (still stored). An alert ABOUT the erasure itself is always shown.
     const r = deps.restriction ? await deps.restriction.forUser(userId) : null;
-    const all = await deps.notifications.listByUser(userId);
-    const shown = r?.active ? all.filter((n) => n.type.startsWith('erasure_') || !(r.restrictsText(n.title) || r.restrictsText(n.body))) : all;
+    // [P49] An alert written before a rename shows the client's current name (the stored row stays as it was sent). The
+    // restriction is checked on both: the text as stored and as shown.
+    const live = await liveNames(deps.clients, userId);
+    const all = (await deps.notifications.listByUser(userId)).map((n) => ({ stored: n, shown: { ...n, title: live.rewrite(n.clientId, n.title), body: live.rewrite(n.clientId, n.body) } }));
+    const hidden = (t: string) => !!r?.active && r.restrictsText(t);
+    const shown = all.filter(({ stored, shown: v }) => stored.type.startsWith('erasure_') || !(hidden(stored.title) || hidden(stored.body) || hidden(v.title) || hidden(v.body))).map((x) => x.shown);
     sendJson(res, 200, { notifications: shown });
     return true;
   }

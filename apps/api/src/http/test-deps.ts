@@ -454,7 +454,7 @@ export function buildInMemoryDeps(
     // [PRIVACY-3] purgeables covers every in-memory store the users FK cascade purges in Postgres, so
     // account deletion leaves zero rows in the in-memory model too (recall + S3 archive are purged by
     // AccountService directly). A new store added here without a purge fails the deletion test.
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary, clientPointers, keptSuggestionRepo], undefined, undefined, extractionLog, corrections, repGlossary, storage, clientPointers, inventoryRepo, restriction),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary, clientPointers, keptSuggestionRepo], undefined, contactAliases /* [P49-4] as in production (container.ts): the export carries the aliases */, extractionLog, corrections, repGlossary, storage, clientPointers, inventoryRepo, restriction),
     recallSessions,
     extractionCounter,
     runSweep,

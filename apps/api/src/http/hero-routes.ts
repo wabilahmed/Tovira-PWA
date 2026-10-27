@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
+import { liveNames } from '../services/clients/live-names.js';
 import { withClientNames, type HeroService, type TodayAction } from '../services/hero/hero-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import { PrioritiesService, RefreshLimitError } from '../services/hero/priorities-service.js';
@@ -12,7 +13,7 @@ export interface HeroRouteDeps {
   priorities: PrioritiesService;
   billing: BillingService;
   /** [P34-2] Names for a cached list that predates clientName (optional: absent → served as cached). */
-  clients?: Pick<ClientRepository, 'listByUser'>;
+  clients?: Pick<ClientRepository, 'listByUser' | 'listRenamesByUser'>;
   /** [P47] Applies an erasure restriction opened after the cached list was computed. Optional for older wiring. */
   withholdRestricted?: (userId: string, actions: TodayAction[]) => Promise<TodayAction[]>;
 }
@@ -62,10 +63,20 @@ export async function handleHeroRoute(
   // only ever reads `actions`. Dropped. `actions` (the flat feed) and `refreshesRemaining` are unchanged.
   else {
     const cached = await deps.priorities.getForToday(userId, now);
-    // [P34-2] A list cached before clientName existed gets names here (one client list, no model call).
-    const named = deps.clients && cached.some((a) => a.clientName === undefined)
-      ? withClientNames(cached, new Map((await deps.clients.listByUser(userId)).map((c) => [c.id, c.name])))
-      : cached;
+    // [P34-2] A list cached before clientName existed gets names here (one client list, no model call). [P49] And a list
+    // cached before a rename shows the client's current name: in clientName and wherever the old name sits in the text.
+    // The receipt quote is never rewritten.
+    let named = cached;
+    if (deps.clients) {
+      const live = await liveNames(deps.clients, userId);
+      named = withClientNames(cached, new Map((await deps.clients.listByUser(userId)).map((c) => [c.id, c.name]))).map((a) => (a.clientId ? {
+        ...a,
+        clientName: live.name(a.clientId) ?? a.clientName,
+        text: live.rewrite(a.clientId, a.text),
+        ...(a.title !== undefined && a.title !== null ? { title: live.rewrite(a.clientId, a.title) } : {}),
+        ...(a.subline ? { subline: live.rewrite(a.clientId, a.subline) } : {}),
+      } : a));
+    }
     // [P47] the list may predate an erasure restriction: apply it now
     const actions = deps.withholdRestricted ? await deps.withholdRestricted(userId, named) : named;
     sendJson(res, 200, { actions, refreshesRemaining: await deps.priorities.refreshesRemaining(userId, now) });

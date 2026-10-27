@@ -122,6 +122,12 @@ export class InMemoryClientRepository implements ClientRepository {
     return { oldName };
   }
 
+  async listRenamesByUser(userId: string): Promise<Array<NameChange & { clientId: string }>> {
+    const out: Array<NameChange & { clientId: string }> = [];
+    for (const [clientId, list] of this.names) if (this.byId.get(clientId)?.userId === userId) out.push(...list.map((n) => ({ ...n, clientId })));
+    return out.sort((a, b) => a.changedAt - b.changedAt);
+  }
+
   async listNameHistory(userId: string, id: string): Promise<NameChange[]> {
     const client = this.byId.get(id);
     if (!client || client.userId !== userId) return [];
