@@ -108,7 +108,7 @@ import { InMemoryAccessRequestRepository } from '../adapters/access/in-memory-ac
 import { InMemoryInviteRepository } from '../adapters/access/in-memory-invite-repository.js';
 import { InMemoryErasureRequestRepository } from '../adapters/erasure/in-memory-erasure-request-repository.js';
 import { RestrictionService } from '../services/erasure/restriction.js';
-import { surfacingRepos } from '../services/erasure/surface-filter.js';
+import { surfacingRepos, restrictingRequirements } from '../services/erasure/surface-filter.js';
 import { InMemoryAccessApprovalTx } from '../adapters/access/in-memory-access-approval-tx.js';
 import { InMemoryInviteActivationTx } from '../adapters/access/in-memory-invite-activation-tx.js';
 import { AccessRequestService } from '../services/access/access-request-service.js';
@@ -194,7 +194,7 @@ export function buildInMemoryDeps(
   const ledger = new LedgerService(new InMemoryLedgerRepository());
   const requirements = new InMemoryRequirementRepository();
   const inventoryMatches = new InMemoryInventoryMatchRepository();
-  const matching = new MatchingService(inventoryMatches, requirements, inventoryRepo);
+  const matching = new MatchingService(inventoryMatches, restrictingRequirements(requirements, { forUser: (u) => restriction.forUser(u) }, notes, clients), inventoryRepo); // [P47]
   const inventory = new InventoryService(inventoryRepo, embedder, ledger, matching); // direction 2 trigger
   const extractionLog = new InMemoryExtractionLogRepository();
   const corrections = new InMemoryCorrectionRepository();

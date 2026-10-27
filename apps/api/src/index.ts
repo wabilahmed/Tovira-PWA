@@ -117,7 +117,7 @@ import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
 import { RecallMetrics } from './services/metrics/recall-metrics.js';
 import { FindService } from './services/find/find-service.js';
-import { surfacingRepos } from './services/erasure/surface-filter.js';
+import { surfacingRepos, restrictingRequirements } from './services/erasure/surface-filter.js';
 import { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import { ExtractionHealthRegistry } from './services/metrics/extraction-health.js';
 import { ExtractionCanaryService } from './services/extraction/extraction-canary.js';
@@ -336,7 +336,9 @@ async function main(): Promise<void> {
   const meetings = createMeetingRepository(config, appPool);
   const requirements = createRequirementRepository(config, appPool);
   const inventoryMatches = createInventoryMatchRepository(config, appPool);
-  const matching = createMatchingService(inventoryMatches, requirements, inventoryRepo);
+  // [P47] suggestions read requirements through the erasure-restricted view (a restricted person's words never surface);
+  // the restriction is built below, and only read at request time
+  const matching = createMatchingService(inventoryMatches, restrictingRequirements(requirements, { forUser: (u) => restriction.forUser(u) }, notes, clients), inventoryRepo);
   const noteMoveAudit = createNoteMoveAuditRepository(config, appPool);
   const noteMoveTx = createNoteMoveTx(config, appPool, notes, facts, meetings, clients, noteMoveAudit, requirements, inventoryMatches);
   const noteMove = createNoteMoveService(notes, facts, meetings, noteMoveTx);

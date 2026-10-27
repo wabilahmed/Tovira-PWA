@@ -120,10 +120,24 @@ export function restrictingMeetings<T extends object>(meetings: T, restriction: 
   return viewDropping(meetings, ['listByUser', 'listUnconfirmedByUser', 'dueForNudge'] as Array<keyof T>, restriction, notes, clients, spanned as never);
 }
 
-/** Requirements stated by the restricted person are withheld from every list read. */
+/** Requirements stated by the restricted person are withheld from every list read, and [P47] from a single read
+ *  (findByIdForUser → null), so nothing built on one (an inventory suggestion, a Ledger entry) can quote them. */
 export function restrictingRequirements<T extends object>(requirements: T, restriction: RestrictionSource | undefined, notes: NoteLister, clients: Names): T {
-  return viewDropping(requirements, ['listOpenByUser', 'listByClient'] as Array<keyof T>, restriction, notes, clients,
-    ((x: { clientId: string; noteId: string; requirementRaw: string; text: string }) => ({ clientId: x.clientId, noteId: x.noteId, quote: x.requirementRaw || x.text })) as never);
+  const fact = (x: { clientId: string; noteId: string; requirementRaw: string; text: string }): WithheldFact => ({ clientId: x.clientId, noteId: x.noteId, quote: x.requirementRaw || x.text });
+  const listed = viewDropping(requirements, ['listOpenByUser', 'listByClient'] as Array<keyof T>, restriction, notes, clients, fact as never);
+  const one = (requirements as unknown as { findByIdForUser?: (u: string, id: string) => Promise<Parameters<typeof fact>[0] | null> }).findByIdForUser;
+  if (!restriction || typeof one !== 'function') return listed;
+  return overlay(listed, {
+    findByIdForUser: async (userId: string, id: string) => {
+      const req = await one.call(requirements, userId, id);
+      if (!req) return null;
+      const r = await restriction.forUser(userId);
+      if (!r.active) return req;
+      const names = new Map((await clients.listByUser(userId)).map((c) => [c.id, c.name]));
+      const withheld = await factWithholder(userId, restriction, notes, (cid) => names.get(cid));
+      return (await withheld(fact(req))) ? null : req;
+    },
+  } as Partial<Record<keyof T, unknown>>);
 }
 
 /** Everything a read-only surface needs, restricted. Writes, the export and the erasure itself use the real repos. */
