@@ -15,6 +15,7 @@ import { SpendCap } from './spend-cap.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { FAB_TRIPWIRE_PCT, parseFabLedger, poolFabWindow, fabWindowVerdict, freshWindowPlan, formatThisRun, formatPooled, fabRecordLine, type FabLedgerEntry } from './fab-window.js';
 import { gateModelId, gateWindowKey, gateRunRef } from './fab-started.js';
+import { unmatchedPromises, formatFabCase } from './fab-cases.js';
 
 /**
  * The P1-9 quality gate under the redefined standard (temperature is deprecated
@@ -168,6 +169,8 @@ async function main(): Promise<void> {
     line('FULL SET   ', full, fullGate.passed ? 'HARD PASS' : `HARD FAIL: ${fullGate.reasons.join('; ')}`);
     line('MULTILINGUAL', ml, mlGate.passed ? 'HARD PASS' : `HARD FAIL: ${mlGate.reasons.join('; ')}`);
     if (run === 1) { spuriousPeople(scored); spuriousRequirements(scored); }
+    // [P48 · owner] name every fabricated promise (item, run, what was predicted, its quote), every run
+    for (const s of scored) for (const fp of unmatchedPromises(s.note.expected, s.actual)) console.log(formatFabCase(s.note.id, run, fp, s.note.expected.promises));
     for (const s of scored) {
       if (s.note.id === 'health-exclusion') continue; // health has its own bars, not the Tier-2 split
       for (const rec of classifyLeaks(s.note.id, s.note.forbidden ?? [], s.actual)) leakRecords.push({ ...rec, run });
