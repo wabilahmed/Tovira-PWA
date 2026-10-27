@@ -583,7 +583,7 @@ async function main(): Promise<void> {
   // [ASK-CAPTURE] capture uses the CERTIFIED extraction engine (`extraction`), never the recall model.
   const askCapture = createAskCaptureService(config, notes, clients, facts, extraction, corrections, extractionLogs, requirements);
   // [P39-7] Find replaces the free-text Ask (POST /recall is gone): fixed questions over stored data, no model.
-  const find = new FindService({ clients, facts, notes, requirements, hero, restriction, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays });
+  const find = new FindService({ clients, facts, notes, requirements: surfacing.requirements /* [P47] a restricted person's wants never reach Find */, hero, restriction, coldThresholdDays: config.coldThresholdDays, promiseStaleThresholdDays: config.promiseStaleThresholdDays });
   const corpus = new CorpusStatsService(clients, notes);
   const monday = new MondayDigestService(clients, surfacing.notes, surfacing.facts, notifications, config.coldThresholdDays, pushDispatch, (userId) => auth.timezoneFor(userId), matching);
   const ledger = createLedgerService(config, appPool);

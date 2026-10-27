@@ -466,7 +466,7 @@ export function buildInMemoryDeps(
     bookScan: new BookScanService({ clients, notes: surfacing.notes, facts: surfacing.facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }, keptSuggestions),
     keptSuggestions,
     // [P39-7] Find replaces the free-text Ask: fixed questions over stored data, no model.
-    find: new FindService({ clients, facts, notes, requirements, hero, restriction, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
+    find: new FindService({ clients, facts, notes, requirements: surfacing.requirements /* [P47] a restricted person's wants never reach Find */, hero, restriction, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
     askCapture,
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, surfacing.notes, surfacing.facts, notifications, 30, pushDispatch),
