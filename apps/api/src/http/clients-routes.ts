@@ -5,6 +5,11 @@ import type { ClientPointerRepository } from '../ports/client-pointer-repository
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 import { NO_RESTRICTION, type Restriction } from '../services/erasure/restriction.js';
 import { canonicalPhone } from '../services/clients/phone.js';
+import type { ContactAliasRepository } from '../ports/contact-alias-repository.js';
+
+/** [P49] The longest client name a rep can save. */
+export const MAX_CLIENT_NAME = 80;
+const foldName = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
 /** Handle a /clients or /clients/:id request. Returns true if it handled it. */
 export async function handleClientRoute(
@@ -18,6 +23,8 @@ export async function handleClientRoute(
   restriction?: { forUser(userId: string): Promise<Restriction> },
   /** [P47-1] After any outcome change (set, undo, restore): keep the Ledger's "Won after a suggestion" in step. */
   onOutcomeChanged?: (userId: string, clientId: string) => Promise<void>,
+  /** [P49] Where a rename keeps the old name (as a previous name), so the next chat finds the same client. */
+  aliases?: Pick<ContactAliasRepository, 'add'>,
 ): Promise<boolean> {
   const method = req.method ?? 'GET';
   const path = (req.url ?? '/').split('?')[0]!;
@@ -29,6 +36,11 @@ export async function handleClientRoute(
     return true;
   }
   const userId = identity.userId;
+  /** [P49] A client under an active erasure restriction can't be renamed: the page hides "Edit name". */
+  const locked = async <T extends { name: string }>(list: T[]): Promise<Array<T & { nameLocked?: true }>> => {
+    const r = restriction ? await restriction.forUser(userId) : NO_RESTRICTION;
+    return r.active ? list.map((c) => (r.restrictsWho(c.name) ? { ...c, nameLocked: true as const } : c)) : list;
+  };
 
   try {
     if (method === 'POST' && path === '/clients') {
@@ -138,6 +150,35 @@ export async function handleClientRoute(
       return true;
     }
 
+    // [P49] Rename a client. Trimmed, never empty, at most MAX_CLIENT_NAME. Another client with the same name is a
+    // warning the rep confirms (confirmDuplicate), never a merge. The old name is kept as a previous name, so the next
+    // chat (still labelled the old way in WhatsApp) links to this client; the change is recorded (old, new, when).
+    // Undo is a rename back. Stored messages and receipts are never touched: a quote keeps the name it was said with.
+    const renameMatch = method === 'POST' ? /^\/clients\/([^/]+)\/name$/.exec(path) : null;
+    if (renameMatch) {
+      const id = decodeURIComponent(renameMatch[1]!);
+      const existing = await clients.findByIdForUser(userId, id);
+      if (!existing) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      const r = restriction ? await restriction.forUser(userId) : NO_RESTRICTION;
+      if (r.active && r.restrictsWho(existing.name)) {
+        sendJson(res, 403, { error: 'restricted', message: 'This client can\'t be renamed while a privacy request is reviewed.' });
+        return true;
+      }
+      const body = (await readJsonBody(req)) as { name?: unknown; confirmDuplicate?: unknown };
+      const name = typeof body.name === 'string' ? body.name.trim().replace(/\s+/g, ' ') : '';
+      if (!name) { sendJson(res, 400, { error: 'validation', message: 'A client name is required.' }); return true; }
+      if (name.length > MAX_CLIENT_NAME) { sendJson(res, 400, { error: 'validation', message: `Keep the name to ${MAX_CLIENT_NAME} characters or fewer.` }); return true; }
+      if (name !== existing.name && body.confirmDuplicate !== true) {
+        const twin = (await clients.listByUser(userId)).find((c) => c.id !== id && foldName(c.name) === foldName(name));
+        if (twin) { sendJson(res, 409, { error: 'duplicate_name', message: `You already have a client called ${twin.name}. Save anyway?` }); return true; }
+      }
+      const done = await clients.rename(userId, id, name, Date.now());
+      if (!done) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      if (done.oldName !== name && aliases) await aliases.add(userId, id, done.oldName, 'previous_name');
+      sendJson(res, 200, { client: await clients.findByIdForUser(userId, id), previousName: done.oldName });
+      return true;
+    }
+
     // [P4-7] Set (or clear) a client's phone. RLS/ownership scopes the row: a
     // rep can never edit another rep's client, so a miss is a 404.
     if (method === 'PATCH' && path.startsWith('/clients/') && !path.slice('/clients/'.length).includes('/')) {
@@ -166,7 +207,7 @@ export async function handleClientRoute(
       // and must never ride in a URL (it would land in CloudFront / ALB access logs). The legacy ?q=
       // name-search was removed in P12. (ClientRepository.search still exists for the meeting parser's
       // server-side name match — that never puts a name in a URL.)
-      sendJson(res, 200, { clients: await clients.listByUser(userId) });
+      sendJson(res, 200, { clients: await locked(await clients.listByUser(userId)) });
       return true;
     }
 
@@ -196,7 +237,7 @@ export async function handleClientRoute(
         sendJson(res, 404, { error: 'not_found' });
         return true;
       }
-      sendJson(res, 200, client);
+      sendJson(res, 200, (await locked([client]))[0]);
       return true;
     }
 

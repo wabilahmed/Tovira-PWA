@@ -191,6 +191,19 @@ describe('[P47] the erasure guard finds every surface by itself', () => {
     expect([...after].some(([key, body]) => key.includes('/account/export') && body.includes(RESTRICTED))).toBe(false);
   });
 
+  // [P49] A rename must not be a way around the restriction: a client who IS the restricted person can't be renamed (a
+  // new name would stop matching the request), the refusal says nothing about them, and the name stays as it was.
+  it('NEGATIVE: the rename route refuses a client under the restriction, and leaks nothing', async () => {
+    const H = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const c = (await (await fetch(`${base}/clients`, { method: 'POST', headers: H, body: JSON.stringify({ name: 'Khalid' }) })).json()) as { id: string };
+    const res = await fetch(`${base}/clients/${c.id}/name`, { method: 'POST', headers: H, body: JSON.stringify({ name: 'Somebody Else' }) });
+    expect(res.status).toBe(403);
+    const text = await res.text();
+    expect(text).not.toContain(RESTRICTED);
+    expect(text).not.toContain('Khalid');
+    expect(((await (await fetch(`${base}/clients/${c.id}`, { headers: H })).json()) as { name: string }).name).toBe('Khalid');
+  });
+
   it('NEGATIVE: every API path the web app calls is a discovered route (no renderer reads an unswept source)', () => {
     const all = discoveredRoutes();
     const unknown = webCalls().paths.filter((p) => !all.some((r) => matchesRoute(r, p.replace(/:p/g, 'x')) || r === p));

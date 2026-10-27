@@ -76,6 +76,7 @@ export const SURFACES: Record<string, Probe | string> = {
   '/billing/checkout': 'billing', '/billing/customer': 'billing', '/billing/portal': 'billing', '/billing/status': 'billing', '/billing/success': 'billing',
   '/billing/top-up': 'billing', '/billing/webhook': 'billing',
   '/clients/': 'prefix of the client routes', '/clients/:id': GET((i) => `/clients/${i.clientId}`), '/clients/:id/outcome': 'write (outcome)', '/clients/:id/lead-status': 'write (status)',
+  '/clients/:id/name': 'write (rename): refused for a restricted client (erasure-discovery.guard.test.ts, client-rename.test.ts)',
   // [P47] discovery now reads server.ts and prefix + suffix routes
   '/version': 'build info', '/health': 'liveness', '/healthz': 'liveness', '/lead-status': 'write (status)', '/outcome': 'write (outcome)',
   '/clients/:id/images': 'write (photo upload, removed in P36)', '/images/:id': 'an image the rep uploaded',

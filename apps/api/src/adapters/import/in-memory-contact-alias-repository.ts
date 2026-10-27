@@ -1,16 +1,20 @@
-import type { ContactAliasRepository, RepNameRepository } from '../../ports/contact-alias-repository.js';
+import type { AliasKind, ContactAliasRepository, RepNameRepository } from '../../ports/contact-alias-repository.js';
 
 const norm = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
 /** In-memory client-alias store (tests + local). Keyed userId → clientId → set of aliases. */
 export class InMemoryContactAliasRepository implements ContactAliasRepository {
-  private readonly rows: Array<{ userId: string; clientId: string; alias: string }> = [];
+  private readonly rows: Array<{ userId: string; clientId: string; alias: string; kind: AliasKind }> = [];
 
-  async add(userId: string, clientId: string, alias: string): Promise<void> {
+  async add(userId: string, clientId: string, alias: string, kind: AliasKind = 'learned'): Promise<void> {
     const a = alias.trim();
     if (!a) return;
     if (this.rows.some((r) => r.userId === userId && r.clientId === clientId && norm(r.alias) === norm(a))) return;
-    this.rows.push({ userId, clientId, alias: a });
+    this.rows.push({ userId, clientId, alias: a, kind });
+  }
+
+  async listByClientWithKind(userId: string, clientId: string): Promise<Array<{ alias: string; kind: AliasKind }>> {
+    return this.rows.filter((r) => r.userId === userId && r.clientId === clientId).map((r) => ({ alias: r.alias, kind: r.kind }));
   }
 
   async listByClient(userId: string, clientId: string): Promise<string[]> {

@@ -1,20 +1,27 @@
 import type { Pool } from 'pg';
 import { withTenant } from '../../db/tenant.js';
-import type { ContactAliasRepository, RepNameRepository } from '../../ports/contact-alias-repository.js';
+import type { AliasKind, ContactAliasRepository, RepNameRepository } from '../../ports/contact-alias-repository.js';
 
 /** RLS-backed client aliases (composite FK to clients; cascades on client/account delete). */
 export class PgContactAliasRepository implements ContactAliasRepository {
   constructor(private readonly pool: Pool) {}
 
-  async add(userId: string, clientId: string, alias: string): Promise<void> {
+  async add(userId: string, clientId: string, alias: string, kind: AliasKind = 'learned'): Promise<void> {
     const a = alias.trim();
     if (!a) return;
     await withTenant(this.pool, userId, async (c) => {
       await c.query(
-        `INSERT INTO client_aliases (user_id, client_id, alias) VALUES ($1, $2, $3)
+        `INSERT INTO client_aliases (user_id, client_id, alias, kind) VALUES ($1, $2, $3, $4)
          ON CONFLICT (user_id, client_id, alias) DO NOTHING`,
-        [userId, clientId, a],
+        [userId, clientId, a, kind],
       );
+    });
+  }
+
+  async listByClientWithKind(userId: string, clientId: string): Promise<Array<{ alias: string; kind: AliasKind }>> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT alias, kind FROM client_aliases WHERE user_id = $1 AND client_id = $2 ORDER BY created_at, alias`, [userId, clientId]);
+      return (rows as Array<{ alias: string; kind: AliasKind }>).map((r) => ({ alias: r.alias, kind: r.kind }));
     });
   }
 

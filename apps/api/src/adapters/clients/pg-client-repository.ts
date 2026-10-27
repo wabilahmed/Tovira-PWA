@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition, LeadStatus } from '../../ports/client-repository.js';
+import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition, LeadStatus, NameChange } from '../../ports/client-repository.js';
 import type { TenantQueryable } from '../../db/tenant.js';
 import { withTenant } from '../../db/tenant.js';
 
@@ -61,6 +61,30 @@ export class PgClientRepository implements ClientRepository {
     // RLS scopes the row to the owner; a mismatched tenant simply updates nothing.
     await withTenant(this.pool, userId, async (c) => {
       await c.query('UPDATE clients SET phone = $2 WHERE id = $1', [id, phone]);
+    });
+  }
+
+  /** [P49] The name and its history row in one transaction (withTenant): the row lock means two renames can't record
+   *  the same old name twice. A foreign client is invisible under RLS, so nothing changes. */
+  async rename(userId: string, id: string, name: string, changedAtMs: number): Promise<{ oldName: string } | null> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('SELECT name FROM clients WHERE id = $1 FOR UPDATE', [id]);
+      const oldName = (rows[0] as { name: string } | undefined)?.name;
+      if (oldName === undefined) return null;
+      if (oldName === name) return { oldName };
+      await c.query('UPDATE clients SET name = $2 WHERE id = $1', [id, name]);
+      await c.query(
+        'INSERT INTO client_name_history (user_id, client_id, old_name, new_name, changed_at) VALUES ($1, $2, $3, $4, to_timestamp($5 / 1000.0))',
+        [userId, id, oldName, name, changedAtMs],
+      );
+      return { oldName };
+    });
+  }
+
+  async listNameHistory(userId: string, id: string): Promise<NameChange[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query('SELECT old_name, new_name, changed_at FROM client_name_history WHERE client_id = $1 ORDER BY changed_at ASC, id ASC', [id]);
+      return (rows as Array<{ old_name: string; new_name: string; changed_at: Date }>).map((r) => ({ oldName: r.old_name, newName: r.new_name, changedAt: new Date(r.changed_at).getTime() }));
     });
   }
 

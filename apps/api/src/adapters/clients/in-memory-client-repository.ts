@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition, LeadStatus } from '../../ports/client-repository.js';
+import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition, LeadStatus, NameChange } from '../../ports/client-repository.js';
 
 /** In-memory client store mirroring the RLS isolation contract, for tests. */
 export class InMemoryClientRepository implements ClientRepository {
@@ -7,6 +7,8 @@ export class InMemoryClientRepository implements ClientRepository {
   /** [FOLLOWUP-2] Append-only outcome history, keyed by client id. Mirrors the RLS-isolated
    *  client_outcome_history table; scoped by userId on read/write like the pg adapter. */
   private readonly history = new Map<string, OutcomeTransition[]>();
+  /** [P49] Append-only rename history, keyed by client id (mirrors client_name_history). */
+  private readonly names = new Map<string, NameChange[]>();
   private clock = 0;
 
   /** Monotonic recency stamp so ordering is deterministic even within a ms. */
@@ -108,5 +110,21 @@ export class InMemoryClientRepository implements ClientRepository {
     const client = this.byId.get(id);
     if (!client || client.userId !== userId) return []; // isolation: never another rep's history
     return [...(this.history.get(id) ?? [])];
+  }
+
+  async rename(userId: string, id: string, name: string, changedAtMs: number): Promise<{ oldName: string } | null> {
+    const client = this.byId.get(id);
+    if (!client || client.userId !== userId) return null;
+    const oldName = client.name;
+    if (oldName === name) return { oldName };
+    client.name = name;
+    this.names.set(id, [...(this.names.get(id) ?? []), { oldName, newName: name, changedAt: changedAtMs }]);
+    return { oldName };
+  }
+
+  async listNameHistory(userId: string, id: string): Promise<NameChange[]> {
+    const client = this.byId.get(id);
+    if (!client || client.userId !== userId) return [];
+    return [...(this.names.get(id) ?? [])];
   }
 }

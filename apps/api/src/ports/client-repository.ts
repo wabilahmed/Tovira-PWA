@@ -90,4 +90,12 @@ export interface ClientRepository {
    *  Scoped to the owner; a no-op for a foreign/unknown client (RLS is the hard net in Postgres).
    *  Only ever called from the rep-tap route — nothing automatic calls this. */
   setLeadStatus(userId: string, id: string, status: LeadStatus | null, changedAtMs: number): Promise<void>;
+  /** [P49] Rename a client and record the change (old, new, when) in one step. Returns the old name, or null for a
+   *  foreign/unknown client (nothing changed). The same name again changes nothing and records nothing. */
+  rename(userId: string, id: string, name: string, changedAtMs: number): Promise<{ oldName: string } | null>;
+  /** [P49] Every rename of one client, oldest first. Scoped to the owner. */
+  listNameHistory(userId: string, id: string): Promise<NameChange[]>;
 }
+
+/** [P49] One rename, as recorded. */
+export interface NameChange { oldName: string; newName: string; changedAt: number }

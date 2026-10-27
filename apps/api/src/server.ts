@@ -546,7 +546,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleTourRoute(request, response, { auth: deps.auth, tour: deps.tour })) return;
       if (await handleClientOverviewRoute(request, response, { auth: deps.auth, overview: deps.clientOverview })) return;
-      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction, deps.onOutcomeChanged)) return;
+      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction, deps.onOutcomeChanged, deps.aliases)) return;
       if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing, matching: deps.matching })) return;
 
       if (request.method === 'GET' && url === '/') {
