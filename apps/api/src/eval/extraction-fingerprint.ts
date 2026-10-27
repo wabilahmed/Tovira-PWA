@@ -47,6 +47,7 @@ export const NARROW_SURFACE = [
   'services/extraction/prompt.ts', 'services/extraction/parse.ts', 'services/extraction/validate.ts', 'services/extraction/owner-check.ts',
   'services/extraction/health-filter.ts', 'services/extraction/receipt-postcheck.ts', 'services/extraction/resolve-date.ts',
   'services/redaction/redact.ts', 'eval/gate.ts', 'eval/score.ts', 'eval/eval-set.ts',
+  'services/extraction/counterpart.ts', // [P50-1 · owner] the fold decides who is the client: what the gate scores
 ];
 /** [owner ruling, 18 Oct] The CERTIFICATION surface — a change here (or to the prompt version / model) makes the
  *  next CI gate run the in-job full certification: the certified prompt, the gate code, the scorer, the eval set. */

@@ -31,7 +31,7 @@ import { correctPromiseOwners, logOwnerCorrections } from './owner-check.js';
 import { AiGateRefused } from '../spend/ai-gate.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
-import { detectMisfilePostExtraction, nameMatches, norm } from '../import/misfile.js';
+import { detectMisfilePostExtraction } from '../import/misfile.js';
 import type { ExtractionAlias } from '../clients/extraction-aliases.js';
 import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { dropSensitivePersonalFacts } from './health-filter.js';
@@ -103,35 +103,9 @@ function parseMsgDate(sentAt: string | null | undefined): string | null {
   return null;
 }
 
-/** [ALIAS-NORMALISE + CLIENT-PERSON v0.9.4] Fold the chat counterpart (this client under a
- *  nickname/company alias) into the client's identity: the client IS a person (v0.9.4), so KEEP them
- *  in people[] but under their REAL client name — never the alias/nickname — and re-subject a personal
- *  fact about the alias to the real name. If the model emitted both the alias and the real name,
- *  collapse to one client entry. Mutates in place; never touches receipts/raw text (evidence stays
- *  verbatim). NB: pre-v0.9.4 this DROPPED the client from people[]; that stripped the client the
- *  certified ruling requires before it reached the vault (the BLIND-2 finding — the gate never sees
- *  this layer because extractForEval does not call it). */
-export function normaliseCounterpart(
-  extraction: { people?: Array<{ name?: string | null }>; personal_facts?: Array<{ subject?: string | null }> },
-  clientName: string,
-  aliases: string[],
-  /** [P49-3] Previous names (the name a rename replaced): they fold on the EXACT full name only, never a shared word. */
-  previousNames: string[] = [],
-): void {
-  if (!clientName && aliases.length === 0 && previousNames.length === 0) return;
-  const exact = new Set(previousNames.map(norm).filter(Boolean));
-  const isClient = (n: string | null | undefined): boolean =>
-    !!n && (nameMatches(n, clientName) || aliases.some((a) => nameMatches(n, a)) || exact.has(norm(n)));
-  if (Array.isArray(extraction.people)) {
-    const seen = new Set<string>();
-    extraction.people = extraction.people
-      .map((p) => (isClient(p.name) ? { ...p, name: clientName } : p)) // the client is a person — keep, under the REAL name
-      .filter((p) => { const k = (p.name ?? '').trim().toLowerCase(); if (k === '') return true; if (seen.has(k)) return false; seen.add(k); return true; }); // collapse an alias+real double
-  }
-  for (const f of extraction.personal_facts ?? []) {
-    if (isClient(f.subject)) f.subject = clientName; // a fact about the alias is a fact about the client
-  }
-}
+/** [P50-1] The fold moved to its own file (on NARROW_SURFACE); re-exported for the callers that import it from here. */
+export { normaliseCounterpart } from './counterpart.js';
+import { normaliseCounterpart } from './counterpart.js';
 
 /** DATE-REF: the reference date for resolving a note's relative dates is the date its
  *  CONTENT was created — for an imported chat, the latest message's timestamp (NOT the
