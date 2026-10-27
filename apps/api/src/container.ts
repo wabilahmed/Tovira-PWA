@@ -169,6 +169,10 @@ import { PgErasureAuditRepository } from './adapters/erasure/pg-erasure-audit-re
 import { InMemoryErasureRequestRepository } from './adapters/erasure/in-memory-erasure-request-repository.js';
 import { PgErasureRequestRepository } from './adapters/erasure/pg-erasure-request-repository.js';
 import { RestrictionService } from './services/erasure/restriction.js';
+import type { SamePersonService } from './services/clients/same-person.js';
+import { PgPersonLinkRepository } from './adapters/clients/pg-person-link-repository.js';
+import { InMemoryPersonLinkRepository } from './adapters/clients/in-memory-person-link-repository.js';
+import type { PersonLinkRepository } from './ports/person-link-repository.js';
 import type { ExtractionAlias } from './services/clients/extraction-aliases.js';
 import { InMemoryErasureReceiptRepository } from './adapters/erasure/in-memory-erasure-receipt-repository.js';
 import { PgErasureReceiptRepository } from './adapters/erasure/pg-erasure-receipt-repository.js';
@@ -559,6 +563,15 @@ export function createOpsAlertRepository(config: AppConfig, rootPool?: Pool): Op
   return new InMemoryOpsAlertRepository();
 }
 
+/** [P50-2] The "same person?" questions (migration 0104). */
+export function createPersonLinkRepository(config: AppConfig, appPool?: Pool): PersonLinkRepository {
+  if (config.authStore === 'postgres') {
+    if (!appPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgPersonLinkRepository(appPool);
+  }
+  return new InMemoryPersonLinkRepository();
+}
+
 export function createContactAliasRepository(config: AppConfig, appPool?: Pool): ContactAliasRepository {
   if (config.authStore === 'postgres') {
     if (!appPool) throw new Error('authStore=postgres requires a database pool');
@@ -650,12 +663,13 @@ export function createExtractionService(
   pointers?: ClientPointerRepository,
   restriction?: RestrictionService,
   keptSuggestions?: KeptSuggestionService,
+  samePerson?: SamePersonService,
 ): ExtractionService {
   const modelId = config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub';
   // [BULK-IMPORT · Task 4 / D1] Every extraction request carries exactly one chat. extractNote reads a
   // single note, so this holds structurally; the IsolatingModelClient makes it enforced, not merely
   // true by convention — a request body with two chats throws before it can reach a provider.
-  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate, pointers, restriction, config.windowing, keptSuggestions);
+  return new ExtractionService(new IsolatingModelClient(createModelClient(config)), clients, notes, facts, createEmbedder(config), logs, modelId, repGlossary, router, limiter, config.extractionCacheTtl, meetings, timezoneFor, requirements, matching, importCost, allowanceExhausted, aliasesFor, health, verifiedGate, pointers, restriction, config.windowing, keptSuggestions, samePerson);
 }
 
 /** [NO-TRAINING-RETENTION] The operational per-rep glossary (P4-9), RLS-backed on pg. */

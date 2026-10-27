@@ -4,7 +4,7 @@
  */
 /** [P49] 'learned': confirmed on an import. 'previous_name': the name a rename replaced. Both match the next chat and
  *  label its speakers; only a learned alias folds an extracted person into the client on a shared word. */
-export type AliasKind = 'learned' | 'previous_name';
+export type AliasKind = 'learned' | 'previous_name' | 'rep_confirmed';
 
 export interface ContactAliasRepository {
   /** Add an alias for a client (idempotent on the alias; an existing row keeps its kind). Default kind: learned. */

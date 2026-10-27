@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { SamePersonService } from './services/clients/same-person.js';
 import { extractionAliasesFor } from './services/clients/extraction-aliases.js';
 import { dirname, resolve } from 'node:path';
 import { loadConfig, assertDeployReady, describeAdapters, emailConfigSummary, opsSurfaceWarning, topUpCreditAed, TOP_UP_OPTIONS } from './config.js';
@@ -80,6 +81,7 @@ import {
   createNoteMoveTx,
   createNoteMoveService,
   createContactAliasRepository,
+  createPersonLinkRepository,
   createImportAckRepository,
   createRepNameRepository,
   createMeetingParser,
@@ -367,7 +369,9 @@ async function main(): Promise<void> {
   // [P24-2] delivered promises become To Confirm suggestions — never auto-completed.
   // [P47] a restricted person's promise never surfaces as a suggestion: promises are read through the restriction
   const keptSuggestions = new KeptSuggestionService({ suggestions: createKeptSuggestionRepository(config, appPool), facts: restrictingFacts(facts, restriction, notes, clients), clients });
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, extractionAliasesFor(contactAliases), extractionHealth, verifiedGate, clientPointers, restriction, keptSuggestions);
+  // [P50-2] "Is 'Khalid' the same person as Khalid Al Mansoori?": asked after extraction, answered in Needs your answer
+  const samePerson = new SamePersonService({ links: createPersonLinkRepository(config, appPool), clients, notes, aliases: contactAliases, restriction });
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, extractionAliasesFor(contactAliases), extractionHealth, verifiedGate, clientPointers, restriction, keptSuggestions, samePerson);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));
@@ -661,6 +665,7 @@ async function main(): Promise<void> {
     followUp,
     facts,
     restriction, // [TASK 2] erasure-window restriction for the book + pointer surfaces
+    samePerson, // [P50-2] the "same person?" cards
     noteMove,
     aliases: contactAliases,
     repNames,

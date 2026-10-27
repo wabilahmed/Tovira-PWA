@@ -178,6 +178,8 @@ export class ExtractionService {
     private readonly windowing?: WindowConfig & { enabled: boolean },
     /** [P24-2] After a chat is saved, a delivered promise becomes a To Confirm suggestion (never done). */
     private readonly keptSuggestions?: { detect(userId: string, clientId: string, noteId: string, promises: ExtractedPromise[], messages: ImportedMessage[]): Promise<number> },
+    /** [P50-2] After the fold: an unfolded person who shares a word with the client becomes a "same person?" card. */
+    private readonly samePerson?: { noteLookalikes(userId: string, clientId: string, noteId: string | null, extraction: { people?: Array<{ name?: string | null; source_span?: string | null; source_message_at?: string | null }> }): Promise<number> },
   ) {}
 
   /** INV-MATCH: persist a note's requirements as spine rows, each with its own embedding, then
@@ -465,6 +467,8 @@ export class ExtractionService {
         const previous = all.flatMap((a) => (typeof a === 'string' ? [] : [a.previousName]));
         normaliseCounterpart(extraction, client?.name ?? '', learned, previous);
       }
+      // [P50-2] Never guess: an unfolded person sharing a word with the client is asked about, never merged.
+      if (this.samePerson) await this.samePerson.noteLookalikes(userId, note.clientId, noteId, extraction).catch((err) => console.warn(`[same-person] could not record a question for note ${noteId}`, err));
       // [P18-8] Deterministic write-time backstop: a receipt span must be a VERBATIM excerpt of the text
       // the model saw. Drop any span that isn't (a paraphrased/fabricated receipt is as serious as a
       // fabricated fact, Rule 9) — the fact is kept, only its unverifiable span is nulled.

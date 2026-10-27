@@ -1,4 +1,6 @@
 import { InMemoryAdminStore } from '../adapters/admin/in-memory-admin-store.js';
+import { SamePersonService } from '../services/clients/same-person.js';
+import { InMemoryPersonLinkRepository } from '../adapters/clients/in-memory-person-link-repository.js';
 import { extractionAliasesFor } from './../services/clients/extraction-aliases.js';
 import { InMemoryHotLeadsStore } from '../adapters/leads/in-memory-hot-leads-store.js';
 import { AdminAuthService } from '../services/admin/admin-auth-service.js';
@@ -125,6 +127,8 @@ import { InMemoryGoingQuietAlertRepository } from '../adapters/ledger/in-memory-
 export interface TestDeps extends ApiDeps {
   /** [P47] the kept-suggestion store (the erasure guard seeds one). */
   keptSuggestionRepo: InMemoryKeptSuggestionRepository;
+  /** [P50-2] */
+  samePerson: SamePersonService;
   storage: InMemoryStorage;
   notes: InMemoryNoteRepository;
   clients: InMemoryClientRepository;
@@ -230,6 +234,9 @@ export function buildInMemoryDeps(
   const keptSuggestionRepo = new InMemoryKeptSuggestionRepository();
   // [P47] a restricted person's promise never surfaces as a suggestion: promises are read through the restriction
   const keptSuggestions = new KeptSuggestionService({ suggestions: keptSuggestionRepo, facts: restrictingFacts(facts, restriction, notes, clients), clients });
+  // [P50-2] "same person?" questions, as in index.ts
+  const personLinks = new InMemoryPersonLinkRepository();
+  const samePerson = new SamePersonService({ links: personLinks, clients, notes, aliases: contactAliases, restriction });
   const extraction = new ExtractionService(
     // [BULK-IMPORT · Task 4 / D1] enforce one-chat-per-request in the harness too.
     new IsolatingModelClient(opts.modelClient ?? new StubModelClient()),
@@ -263,6 +270,7 @@ export function buildInMemoryDeps(
     restriction, // [TASK 2]
     undefined, // windowing (EXTRACT_WINDOWED off, as in prod)
     keptSuggestions, // [P24-2]
+    samePerson, // [P50-2]
   );
   const meetings = new InMemoryMeetingRepository();
   // [P40-2] read-only surfaces see the restricted views; the export and the erasure read the real repos.
@@ -454,7 +462,7 @@ export function buildInMemoryDeps(
     // [PRIVACY-3] purgeables covers every in-memory store the users FK cascade purges in Postgres, so
     // account deletion leaves zero rows in the in-memory model too (recall + S3 archive are purged by
     // AccountService directly). A new store added here without a purge fails the deletion test.
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary, clientPointers, keptSuggestionRepo], undefined, contactAliases /* [P49-4] as in production (container.ts): the export carries the aliases */, extractionLog, corrections, repGlossary, storage, clientPointers, inventoryRepo, restriction),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary, clientPointers, keptSuggestionRepo, personLinks], undefined, contactAliases /* [P49-4] as in production (container.ts): the export carries the aliases */, extractionLog, corrections, repGlossary, storage, clientPointers, inventoryRepo, restriction),
     recallSessions,
     extractionCounter,
     runSweep,
@@ -477,6 +485,7 @@ export function buildInMemoryDeps(
     monday: new MondayDigestService(clients, surfacing.notes, surfacing.facts, notifications, 30, pushDispatch),
     ledger,
     keptSuggestionRepo, // [P47] the erasure guard's fixture seeds one
+    samePerson, // [P50-2]
     accessAnswers: new AccessAnswersService(accessRequests), // [P46-6c.2]
     // [P47-1] keep "Won after a suggestion" in step with the client's outcome (set, undo, restore)
     onOutcomeChanged: (uid: string, cid: string) => syncWonEntry({ ledger: { listByUser: (u) => ledger.listEvents(u), record: (u, e) => ledger.record(u, e), removeWhere: (u, w) => ledger.removeWhere(u, w) }, clients, shares: inventoryRepo }, uid, cid),

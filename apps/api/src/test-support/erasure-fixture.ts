@@ -41,6 +41,8 @@ export async function seedPerson(deps: TestDeps, u: string, p: { person: string;
     { text: `Share the ${M} floor plan`, owner: 'rep', due_date: null, due_raw: 'after the holidays', confidence: 'high', source_span: S1, source_message_at: '2026-01-01T10:00' },
   ], keyDates: [{ description: `${M} lease ends`, date: '2026-12-01', date_raw: '01/12/2026', type: 'deadline', source_span: S2, source_message_at: '2026-01-02T10:00' }] });
   const [req] = await deps.requirements.saveForNote(u, note.id, c.id, [{ text: `4BR villa in ${M} Gardens`, requirementRaw: S1, statedOn: '2026-01-01', confidence: 'high', embedding: null }]);
+  // [P50-2] a "same person?" card: a name in their chat that shares a word with the client, its receipt one of their messages
+  await deps.samePerson.noteLookalikes(u, c.id, note.id, { people: [{ name: `${person} ${p.clientName.split(' ')[0]}`, source_span: S1, source_message_at: '2026-01-01T10:00' }] });
   const meeting = await deps.meetings.create(u, { clientId: c.id, datetime: '2026-02-10T11:00:00.000Z', datetimeRaw: `${M} viewing`, title: null, confirmed: true, noteId: note.id, sourceSpan: S1, sourceMessageAt: '2026-01-01T10:00', captureAt: '2026-01-03' });
   await deps.clientPointers!.save(u, c.id, { pointers: [{ section: 'relationship', text: `${person} (${M}) pushes on price`, receipts: [] }], retrospectiveDisclosure: null }, Date.now());
   const held = await deps.askCapture!.capture(u, c.id, `${person} raised his budget to 3.2M`, '2026-01-04');

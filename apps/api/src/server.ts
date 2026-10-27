@@ -42,6 +42,8 @@ import type { AccessRequestRecord } from './ports/access-request-repository.js';
 import { handleProactiveRoute } from './http/proactive-routes.js';
 import { handlePushRoute } from './http/push-routes.js';
 import { handleClientRoute } from './http/clients-routes.js';
+import { handleSamePersonRoute } from './http/same-person-routes.js';
+import type { SamePersonService } from './services/clients/same-person.js';
 import { reattributeRenamedClient } from './services/clients/live-names.js';
 import { handleClientOverviewRoute } from './http/client-overview-routes.js';
 import { handleTourRoute } from './http/tour-routes.js';
@@ -147,6 +149,8 @@ export interface ApiDeps {
   /** [TASK 2] Erasure-window restriction reader — withholds a restricted counterparty in the rep's book
    *  and pointer surfaces. Optional (older wiring → no restriction). */
   restriction?: { forUser(userId: string): Promise<Restriction> };
+  /** [P50-2] "Is 'Khalid' the same person as Khalid Al Mansoori?" cards (Needs your answer). */
+  samePerson?: SamePersonService;
   /** [P35-3] Receipt sources as chat bubbles; defaults to one built from notes + restriction. */
   receiptSources?: ReceiptSourceService;
   corrections: CorrectionRepository;
@@ -498,6 +502,7 @@ export function createApiServer(deps: ApiDeps): Server {
       )
         return;
       if (await handleBriefRoute(request, response, { auth: deps.auth, brief: deps.brief, billing: deps.billing, activation: deps.activation, meetings: deps.meetings, ledger: deps.ledger })) return;
+      if (await handleSamePersonRoute(request, response, { auth: deps.auth, samePerson: deps.samePerson })) return; // [P50-2]
       if (await handleInsightsRoute(request, response, { auth: deps.auth, notes: readNotes, clients: deps.clients, aliases: deps.aliases })) return; // [P40-2]
       if (
         await handleMeetingRoute(request, response, {

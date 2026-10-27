@@ -45,6 +45,8 @@ export const SURFACES: Record<string, Probe | string> = {
   '/hero/patterns': GET(() => '/hero/patterns'),
   '/hero/status': 'counts only (no content)',
   '/confirmations': GET(() => '/confirmations'),
+  '/confirmations/same-person': GET(() => '/confirmations/same-person'), // [P50-2]
+  '/confirmations/same-person/:id': 'write (answer a same-person card): a card the rep cannot see cannot be answered',
   '/captures': GET(() => '/captures'),
   '/promises/kept-suggestions': GET(() => '/promises/kept-suggestions'),
   '/promises': GET(() => '/promises'),
