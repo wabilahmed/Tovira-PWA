@@ -117,7 +117,7 @@ import { NudgeSignalsProvider } from './services/scheduler/nudge-signals.js';
 import { modelMetrics } from './services/metrics/model-metrics.js';
 import { RecallMetrics } from './services/metrics/recall-metrics.js';
 import { FindService } from './services/find/find-service.js';
-import { surfacingRepos, restrictingRequirements } from './services/erasure/surface-filter.js';
+import { surfacingRepos, restrictingRequirements, restrictingFacts } from './services/erasure/surface-filter.js';
 import { ImportCostMetrics } from './services/metrics/import-cost-metrics.js';
 import { ExtractionHealthRegistry } from './services/metrics/extraction-health.js';
 import { ExtractionCanaryService } from './services/extraction/extraction-canary.js';
@@ -364,7 +364,8 @@ async function main(): Promise<void> {
   const erasureRequestRepo = createErasureRequestRepository(config, appPool);
   const restriction = createRestrictionService(erasureRequestRepo);
   // [P24-2] delivered promises become To Confirm suggestions — never auto-completed.
-  const keptSuggestions = new KeptSuggestionService({ suggestions: createKeptSuggestionRepository(config, appPool), facts, clients });
+  // [P47] a restricted person's promise never surfaces as a suggestion: promises are read through the restriction
+  const keptSuggestions = new KeptSuggestionService({ suggestions: createKeptSuggestionRepository(config, appPool), facts: restrictingFacts(facts, restriction, notes, clients), clients });
   const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate, clientPointers, restriction, keptSuggestions);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.

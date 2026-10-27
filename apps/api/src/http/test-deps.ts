@@ -108,7 +108,7 @@ import { InMemoryAccessRequestRepository } from '../adapters/access/in-memory-ac
 import { InMemoryInviteRepository } from '../adapters/access/in-memory-invite-repository.js';
 import { InMemoryErasureRequestRepository } from '../adapters/erasure/in-memory-erasure-request-repository.js';
 import { RestrictionService } from '../services/erasure/restriction.js';
-import { surfacingRepos, restrictingRequirements } from '../services/erasure/surface-filter.js';
+import { surfacingRepos, restrictingRequirements, restrictingFacts } from '../services/erasure/surface-filter.js';
 import { InMemoryAccessApprovalTx } from '../adapters/access/in-memory-access-approval-tx.js';
 import { InMemoryInviteActivationTx } from '../adapters/access/in-memory-invite-activation-tx.js';
 import { AccessRequestService } from '../services/access/access-request-service.js';
@@ -122,6 +122,8 @@ import { WinBackService } from '../services/ledger/win-back.js';
 import { InMemoryGoingQuietAlertRepository } from '../adapters/ledger/in-memory-going-quiet-alert-repository.js';
 
 export interface TestDeps extends ApiDeps {
+  /** [P47] the kept-suggestion store (the erasure guard seeds one). */
+  keptSuggestionRepo: InMemoryKeptSuggestionRepository;
   storage: InMemoryStorage;
   notes: InMemoryNoteRepository;
   clients: InMemoryClientRepository;
@@ -225,7 +227,8 @@ export function buildInMemoryDeps(
   const restriction = new RestrictionService({ requests: erasureRequestRepo });
   // [P24-2] delivered promises → To Confirm suggestions (never auto-done), same as index.ts.
   const keptSuggestionRepo = new InMemoryKeptSuggestionRepository();
-  const keptSuggestions = new KeptSuggestionService({ suggestions: keptSuggestionRepo, facts, clients });
+  // [P47] a restricted person's promise never surfaces as a suggestion: promises are read through the restriction
+  const keptSuggestions = new KeptSuggestionService({ suggestions: keptSuggestionRepo, facts: restrictingFacts(facts, restriction, notes, clients), clients });
   const extraction = new ExtractionService(
     // [BULK-IMPORT · Task 4 / D1] enforce one-chat-per-request in the harness too.
     new IsolatingModelClient(opts.modelClient ?? new StubModelClient()),
@@ -471,6 +474,7 @@ export function buildInMemoryDeps(
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, surfacing.notes, surfacing.facts, notifications, 30, pushDispatch),
     ledger,
+    keptSuggestionRepo, // [P47] the erasure guard's fixture seeds one
     accessAnswers: new AccessAnswersService(accessRequests), // [P46-6c.2]
     // [P47-1] keep "Won after a suggestion" in step with the client's outcome (set, undo, restore)
     onOutcomeChanged: (uid: string, cid: string) => syncWonEntry({ ledger: { listByUser: (u) => ledger.listEvents(u), record: (u, e) => ledger.record(u, e), removeWhere: (u, w) => ledger.removeWhere(u, w) }, clients, shares: inventoryRepo }, uid, cid),
