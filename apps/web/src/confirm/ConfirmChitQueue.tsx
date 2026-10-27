@@ -4,7 +4,7 @@ import type { MeetingToConfirm, OpenPromise } from '../promises/promisesClient.j
 import { AnswerCard, DateCard, MeetingDateCard } from './ConfirmChit.js';
 import { ActionRow } from '../ui/Button.js';
 import { Card } from '../ui/Card.js';
-import { clientPromiseCopy, dateCopy, fieldCopy, keptCopy, meetingDateCopy, noteCopy, repPromiseCopy, shortDay, shortDayTime, statusCopy } from './cardCopy.js';
+import { clientPromiseCopy, dateCopy, fieldCopy, keptCopy, meetingDateCopy, noteCopy, repPromiseCopy, shortDay, shortDayTime, statusCopy, samePersonCopy } from './cardCopy.js';
 import type { PendingCapture } from '../recall/recallClient.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { Button } from '../ui/Button.js';
@@ -47,6 +47,12 @@ const KEPT_UNDO_MS = 10_000;
  */
 /** [P36-7] What the existing inference would change (gone quiet → Cold; lost_inferred → Done, lost). Shown as a
  *  question; nothing changes until the rep answers. `keep` is the rep saying it's still alive. */
+/** [P50-2] "Is 'Khalid' in this chat the same person as Khalid Al Mansoori?" */
+export interface SamePersonCard { id: string; clientId: string; clientName: string; noteId: string | null; personName: string; quote: string | null; quoteAt: string | null; question: string }
+export interface SamePersonApi {
+  listSamePerson(): Promise<SamePersonCard[]>;
+  answerSamePerson(id: string, answer: 'same' | 'different'): Promise<boolean>;
+}
 export interface StatusSuggestionCard { clientId: string; clientName: string; status: 'cold' | 'done'; outcome?: 'lost'; reason: string }
 export interface StatusSuggestionsApi {
   list(): Promise<StatusSuggestionCard[]>;
@@ -72,7 +78,7 @@ export interface DateConfirmApi {
   answerMeetingDate?(id: string, answer: { datetime: string } | { dateStatus: 'not_sure' | 'no_date' }): Promise<boolean>;
 }
 
-export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures, kept, statusSuggestions, dates, limit, onSeeAll, standalone = false, back }: {
+export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures, kept, statusSuggestions, dates, samePerson, limit, onSeeAll, standalone = false, back }: {
   api: ConfirmQueueApi;
   heading?: string;
   captures?: CaptureQueueApi;
@@ -81,6 +87,8 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
   statusSuggestions?: StatusSuggestionsApi;
   /** [P40-1] dates to confirm — "When is the floor plans promise due?" */
   dates?: DateConfirmApi;
+  /** [P50-2] "same person?" questions */
+  samePerson?: SamePersonApi;
   /** [P34-3] Show at most this many cards (newest first) and a "See all N" link — Today uses 3. */
   limit?: number;
   /** [P34-3] Opens the full To Confirm screen. */
@@ -97,6 +105,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
   const [statusCards, setStatusCards] = useState<StatusSuggestionCard[]>([]);
   const [dateCards, setDateCards] = useState<OpenPromise[]>([]);
   const [meetingCards, setMeetingCards] = useState<MeetingToConfirm[]>([]);
+  const [personCards, setPersonCards] = useState<SamePersonCard[]>([]);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set()); // [P40-1] opened "N promises need a due date" cards
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
@@ -111,16 +120,23 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
     if (statusSuggestions) void statusSuggestions.list().then((x) => { if (live) setStatusCards(x); });
     if (dates) void dates.listDatesToConfirm().then((x) => { if (live) setDateCards(x); });
     if (dates?.listMeetingDatesToConfirm) void dates.listMeetingDatesToConfirm().then((x) => { if (live) setMeetingCards(x); });
+    if (samePerson) void samePerson.listSamePerson().then((x) => { if (live) setPersonCards(x); });
     return () => {
       live = false;
     };
-  }, [api, captures, kept, statusSuggestions, dates]);
+  }, [api, captures, kept, statusSuggestions, dates, samePerson]);
 
   async function answerDate(p: OpenPromise, a: { dueDate: string } | { dateStatus: 'not_sure' | 'no_due_date' }): Promise<void> {
     if (dates && (await dates.answerDate(p.id, a))) {
       if ('dueDate' in a) hapticTick();
       setDateCards((prev) => prev.filter((x) => x.id !== p.id));
     }
+  }
+
+  async function answerPerson(c: SamePersonCard, a: 'same' | 'different'): Promise<void> {
+    if (!samePerson || !(await samePerson.answerSamePerson(c.id, a))) return; // a failed answer keeps the card
+    if (a === 'same') hapticTick();
+    setPersonCards((prev) => prev.filter((x) => x.id !== c.id));
   }
 
   async function answerStatus(s: StatusSuggestionCard, take: boolean): Promise<void> {
@@ -151,7 +167,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
     if (kept && (await kept.notYetKept(s.id))) setLooksSent((prev) => prev.filter((x) => x.id !== s.id));
   }
 
-  const total = items.length + held.length + looksSent.length + statusCards.length + dateCards.length + meetingCards.length;
+  const total = items.length + held.length + looksSent.length + statusCards.length + dateCards.length + meetingCards.length + personCards.length;
   const header = standalone ? (
     <PageHeader title="Needs your answer" subtitle={total === 0 ? 'Nothing to answer' : `${total} to answer`} back={back} />
   ) : null;
@@ -311,6 +327,21 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
       }
       return ms.map((m) => ({ key: `meeting:${m.id}`, at: m.createdAt ?? 0, node: meetingNode(m) }));
     }),
+    ...personCards.map((c) => ({
+      key: `person:${c.id}`,
+      at: 0,
+      node: (
+        <AnswerCard
+          key={`person:${c.id}`}
+          label="Same person?"
+          testId="same-person-card"
+          copy={{ question: c.question, ...samePersonCopy(c.clientName) }}
+          source={c.quote ? <ReceiptThread refInfo={{ noteId: c.noteId, clientId: c.clientId, span: c.quote, at: c.quoteAt, quote: c.quote }} /> : undefined}
+          onYes={() => void answerPerson(c, 'same')}
+          onNo={() => void answerPerson(c, 'different')}
+        />
+      ),
+    })),
     ...statusCards.map((c) => ({
       key: `status:${c.clientId}`,
       at: 0,

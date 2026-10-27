@@ -1,3 +1,4 @@
+import type { SamePersonCard } from '../confirm/ConfirmChitQueue.js';
 import type { RenameResult } from './page/ClientNameMenu.js';
 import { LOCKED, type Locked } from '../billing/gated.js';
 import type { Pointer } from './PointersCard.js';
@@ -226,6 +227,29 @@ export class ClientsClient {
 
   /** Set (or clear) a client's phone (P4-7). Returns the updated record, or null
    *  on failure (e.g. not the owner). */
+  /** [P50-2] "Is 'Khalid' in this chat the same person as Khalid Al Mansoori?" cards (Needs your answer). */
+  async listSamePerson(): Promise<SamePersonCard[]> {
+    try {
+      const res = await fetch(this.url('/confirmations/same-person'), { credentials: 'include' });
+      if (!res.ok) return [];
+      const body = (await res.json()) as { questions?: unknown };
+      return Array.isArray(body.questions) ? (body.questions as SamePersonCard[]) : []; // an unexpected body never breaks the queue
+    } catch {
+      return [];
+    }
+  }
+
+  async answerSamePerson(id: string, answer: 'same' | 'different'): Promise<boolean> {
+    try {
+      const res = await fetch(this.url(`/confirmations/same-person/${encodeURIComponent(id)}`), {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ answer }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   /** [P49] Rename a client. A name another client has comes back as a 'duplicate' warning unless confirmed. */
   async rename(id: string, name: string, confirmDuplicate: boolean): Promise<RenameResult> {
     try {

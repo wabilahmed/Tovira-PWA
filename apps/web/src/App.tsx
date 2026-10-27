@@ -760,13 +760,13 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
               <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
             </>}
             /* [P34-3] the newest 3 on Today; the rest one tap away */
-            needsAnswer={<ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} dates={promisesApi} limit={3} onSeeAll={() => navigate('confirm')} />}
+            needsAnswer={<ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} dates={promisesApi} samePerson={clientsApi} limit={3} onSeeAll={() => navigate('confirm')} />}
           />
         </>,
       )}
 
       {view === 'confirm' && (
-        <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} dates={promisesApi} standalone back={backTo('today')} />
+        <ConfirmChitQueue api={promisesApi} captures={recallApi} kept={promisesApi} statusSuggestions={statusSuggestionsApi} dates={promisesApi} samePerson={clientsApi} standalone back={backTo('today')} />
       )}
 
       {view === 'week' && gated(

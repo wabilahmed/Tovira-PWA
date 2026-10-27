@@ -133,3 +133,12 @@ export function meetingDateCopy(m: { clientName?: string | null; title: string |
   const onDay = shortDay(m.day ?? null);
   return { question: onDay ? `What time is the ${what}${who} on ${onDay}?` : `When is the ${what}${who}?`, said: `The chat said '${m.datetimeRaw.trim()}'${when ? ` on ${when}` : ''}.` };
 }
+
+/** [P50-2] "Is 'Khalid' in this chat the same person as Khalid Al Mansoori?" (the question comes from the server). */
+export function samePersonCopy(clientName: string): Omit<CardCopy, 'question'> {
+  return {
+    consequence: `Same person: Tovira files them under ${clientName}. Different person: they stay separate, and Tovira won't ask again.`,
+    yes: 'Same person',
+    no: 'Different person',
+  };
+}
