@@ -36,9 +36,23 @@ export function restrictNote(note: NoteRecord, r: Restriction): NoteRecord {
   } else if (noteIsAboutRestricted(note, r)) {
     // A message-free note (voice/paste) that is about the restricted party is withheld whole.
     rawText = null;
+  } else if (rawText) {
+    // [P47] A pasted chat not yet parsed: their own lines ("Khalid: …", "[date] Khalid: …") are their messages, withheld
+    // like parsed ones; the rest stays. A paste in the rep's own words that only mentions them has no such line: kept.
+    rawText = withoutTheirLines(rawText, r);
   }
 
   return { ...note, messages, extracted, rawText };
+}
+
+/** "Name: text" or "[when] Name: text" (a WhatsApp-style line); the speaker is the part before the first colon. */
+const SPEAKER_LINE = /^\s*(?:\[[^\]]{1,40}\]\s*(?:-\s*)?)?([^:\n]{1,60}):\s/;
+
+function withoutTheirLines(text: string, r: Restriction): string | null {
+  const lines = text.split('\n');
+  const kept = lines.filter((l) => { const m = SPEAKER_LINE.exec(l); return !(m && r.restrictsWho(m[1]!.trim())); });
+  if (kept.length === lines.length) return text;
+  return kept.some((l) => l.trim()) ? kept.join('\n') : null;
 }
 
 /** True if the note (its messages or its structured who-fields) is about a restricted counterparty. */
