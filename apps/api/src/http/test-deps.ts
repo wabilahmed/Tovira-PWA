@@ -1,4 +1,5 @@
 import { InMemoryAdminStore } from '../adapters/admin/in-memory-admin-store.js';
+import { extractionAliasesFor } from './../services/clients/extraction-aliases.js';
 import { InMemoryHotLeadsStore } from '../adapters/leads/in-memory-hot-leads-store.js';
 import { AdminAuthService } from '../services/admin/admin-auth-service.js';
 import { newAdminLimiter } from './admin-routes.js';
@@ -250,7 +251,7 @@ export function buildInMemoryDeps(
     // [USAGE-ALLOWANCE · D4] extraction defers when the rep is at 100% of the allowance (forward-refs
     // `allowanceStatus`, declared below; invoked only at extraction time). Replaces the retired cap.
     (uid: string) => allowanceStatus.isExhausted(uid), // allowanceExhausted
-    (uid, cid) => contactAliases.listByClient(uid, cid), // [ALIAS-NORMALISE]
+    extractionAliasesFor(contactAliases), // [ALIAS-NORMALISE] + [P49-3] previous names fold on the exact name only
     undefined, // health
     // [TRIAL-FARM] verification gate — extraction requires a verified email (the one paid op). Tests
     // default to VERIFIED (verification is a precondition, proven by the dedicated verification test);

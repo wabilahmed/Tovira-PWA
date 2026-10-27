@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { extractionAliasesFor } from './services/clients/extraction-aliases.js';
 import { dirname, resolve } from 'node:path';
 import { loadConfig, assertDeployReady, describeAdapters, emailConfigSummary, opsSurfaceWarning, topUpCreditAed, TOP_UP_OPTIONS } from './config.js';
 import { ClientOverviewService } from './services/clients/client-overview.js';
@@ -366,7 +367,7 @@ async function main(): Promise<void> {
   // [P24-2] delivered promises become To Confirm suggestions — never auto-completed.
   // [P47] a restricted person's promise never surfaces as a suggestion: promises are read through the restriction
   const keptSuggestions = new KeptSuggestionService({ suggestions: createKeptSuggestionRepository(config, appPool), facts: restrictingFacts(facts, restriction, notes, clients), clients });
-  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, (uid, cid) => contactAliases.listByClient(uid, cid), extractionHealth, verifiedGate, clientPointers, restriction, keptSuggestions);
+  const extraction = createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, modelRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, extractionAliasesFor(contactAliases), extractionHealth, verifiedGate, clientPointers, restriction, keptSuggestions);
   // [EXTRACT-CANARY] one real extraction call/day over the SAME Sonnet path, asserting a text block
   // comes back — the pennies/hours tripwire for the decay class that reached a blind test.
   const extractionCanary = new ExtractionCanaryService(createModelClient(config));

@@ -31,7 +31,8 @@ import { correctPromiseOwners, logOwnerCorrections } from './owner-check.js';
 import { AiGateRefused } from '../spend/ai-gate.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
-import { detectMisfilePostExtraction, nameMatches } from '../import/misfile.js';
+import { detectMisfilePostExtraction, nameMatches, norm } from '../import/misfile.js';
+import type { ExtractionAlias } from '../clients/extraction-aliases.js';
 import { callCostUsd, estimateEmbedUsd, USD_TO_AED } from '../metrics/model-budget.js';
 import { dropSensitivePersonalFacts } from './health-filter.js';
 import type { ImportCostRecord } from '../metrics/import-cost-metrics.js';
@@ -114,10 +115,13 @@ export function normaliseCounterpart(
   extraction: { people?: Array<{ name?: string | null }>; personal_facts?: Array<{ subject?: string | null }> },
   clientName: string,
   aliases: string[],
+  /** [P49-3] Previous names (the name a rename replaced): they fold on the EXACT full name only, never a shared word. */
+  previousNames: string[] = [],
 ): void {
-  if (!clientName && aliases.length === 0) return;
+  if (!clientName && aliases.length === 0 && previousNames.length === 0) return;
+  const exact = new Set(previousNames.map(norm).filter(Boolean));
   const isClient = (n: string | null | undefined): boolean =>
-    !!n && (nameMatches(n, clientName) || aliases.some((a) => nameMatches(n, a)));
+    !!n && (nameMatches(n, clientName) || aliases.some((a) => nameMatches(n, a)) || exact.has(norm(n)));
   if (Array.isArray(extraction.people)) {
     const seen = new Set<string>();
     extraction.people = extraction.people
@@ -181,7 +185,7 @@ export class ExtractionService {
     /** [SPEND-CAP] over-cap gate: when canSpend is false, extraction defers (note stays pending). */
     private readonly allowanceExhausted?: (userId: string) => Promise<boolean>,
     /** [ALIAS-NORMALISE] learned aliases for a client, to normalise counterpart attribution. */
-    private readonly aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
+    private readonly aliasesFor?: (userId: string, clientId: string) => Promise<ExtractionAlias[]>,
     /** [EXTRACT-STOPREASON] observability sink for starved (no-text) extraction outputs. */
     private readonly health?: { recordStarvedOutput(): void },
     /** [TRIAL-FARM] Email-verification gate: extraction is the one paid, unbounded-cost operation,
@@ -482,8 +486,10 @@ export class ExtractionService {
       // about the client (rewrite the subject to the real name). Receipts/quotes are raw note text
       // and are NEVER touched here — attribution is normalised, evidence is verbatim.
       if (this.aliasesFor) {
-        const aliases = await this.aliasesFor(userId, note.clientId).catch(() => [] as string[]);
-        normaliseCounterpart(extraction, client?.name ?? '', aliases);
+        const all = await this.aliasesFor(userId, note.clientId).catch(() => [] as ExtractionAlias[]);
+        const learned = all.filter((a): a is string => typeof a === 'string');
+        const previous = all.flatMap((a) => (typeof a === 'string' ? [] : [a.previousName]));
+        normaliseCounterpart(extraction, client?.name ?? '', learned, previous);
       }
       // [P18-8] Deterministic write-time backstop: a receipt span must be a VERBATIM excerpt of the text
       // the model saw. Drop any span that isn't (a paraphrased/fabricated receipt is as serious as a

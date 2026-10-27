@@ -169,6 +169,7 @@ import { PgErasureAuditRepository } from './adapters/erasure/pg-erasure-audit-re
 import { InMemoryErasureRequestRepository } from './adapters/erasure/in-memory-erasure-request-repository.js';
 import { PgErasureRequestRepository } from './adapters/erasure/pg-erasure-request-repository.js';
 import { RestrictionService } from './services/erasure/restriction.js';
+import type { ExtractionAlias } from './services/clients/extraction-aliases.js';
 import { InMemoryErasureReceiptRepository } from './adapters/erasure/in-memory-erasure-receipt-repository.js';
 import { PgErasureReceiptRepository } from './adapters/erasure/pg-erasure-receipt-repository.js';
 import { StubPushSender } from './adapters/push/stub-sender.js';
@@ -643,7 +644,7 @@ export function createExtractionService(
   matching?: MatchingService,
   importCost?: ImportCostMetrics,
   allowanceExhausted?: (userId: string) => Promise<boolean>,
-  aliasesFor?: (userId: string, clientId: string) => Promise<string[]>,
+  aliasesFor?: (userId: string, clientId: string) => Promise<ExtractionAlias[]>,
   health?: { recordStarvedOutput(): void },
   verifiedGate?: { isVerified(userId: string): Promise<boolean> },
   pointers?: ClientPointerRepository,
