@@ -18,7 +18,7 @@ import { parseWhatsAppExport, type ParsedMessage } from './whatsapp.js';
 import { parseBatch, type BulkInputFile, type BulkClient, type BulkParseResult, type RowState } from './bulk-parse.js';
 import { dedupeMessages, renderThread } from './dedup.js';
 import { assignSpeakerRoles } from './unanswered.js';
-import { redactSensitive } from '../redaction/redact.js';
+import { redactMessages } from '../redaction/redact.js';
 import { screenSensitive } from '../screening/sensitive-screen.js';
 import { estimateBulkAed, percentOfAllowance } from './bulk-estimate.js';
 import { BulkExtractionOrchestrator, type ChatJob } from './bulk-extraction.js';
@@ -132,10 +132,10 @@ export class BulkImportService {
 
   /** Redact + screen each message exactly as the import pipeline does, so dedupe compares like-for-like. */
   private screen(messages: ParsedMessage[]): ImportedMessage[] {
-    return messages.map((m) => {
-      const red = redactSensitive(m.body);
-      const flags = screenSensitive(red.redacted);
-      return { ...m, body: red.redacted, ...(flags.length > 0 ? { sensitive: flags, excluded: true } : {}) } as ImportedMessage;
+    // [P50-0] redactMessages also blanks a card number split over consecutive messages from one sender.
+    return redactMessages(messages).messages.map((m) => {
+      const flags = screenSensitive(m.body);
+      return { ...m, ...(flags.length > 0 ? { sensitive: flags, excluded: true } : {}) } as ImportedMessage;
     });
   }
 

@@ -29,7 +29,7 @@ const RESTRICTION_NOTICE = 'Restricted while a privacy request is reviewed.';
 import { extractionState, aggregateExtractionStates } from '../services/notes/extraction-state.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
-import { redactSensitive } from '../services/redaction/redact.js';
+import { redactSensitive, redactMessages } from '../services/redaction/redact.js';
 import { isAppRecordingContainer, looksLikeAudio, AUDIO_ELSEWHERE_MESSAGE, VOICE_TOO_LONG_MESSAGE } from '../services/media/sniff.js';
 import { screenSensitive } from '../services/screening/sensitive-screen.js';
 import { ANSWERS_REQUIRED } from './access-answers-routes.js';
@@ -422,12 +422,12 @@ export async function handleNoteRoute(
       // marked excluded=true so it is withheld from every model send (extraction/embedding/recall/draft),
       // automatically and permanently — flagged = withheld, no rep review. It is still stored (the rep's
       // record + receipt source). Deterministic, no model call (a model screen would be the very send we gate).
-      let importRedactions = 0;
-      parsed = { ...parsed, messages: parsed.messages.map((m) => {
-        const r = redactSensitive(m.body);
-        importRedactions += r.total;
-        const flags = screenSensitive(r.redacted);
-        return { ...m, body: r.redacted, ...(flags.length > 0 ? { sensitive: flags, excluded: true } : {}) };
+      // [P50-0] redactMessages also blanks a card number split over consecutive messages from one sender.
+      const red = redactMessages(parsed.messages);
+      const importRedactions = red.total;
+      parsed = { ...parsed, messages: red.messages.map((m) => {
+        const flags = screenSensitive(m.body);
+        return { ...m, ...(flags.length > 0 ? { sensitive: flags, excluded: true } : {}) };
       }) };
       if (importRedactions > 0) {
         console.info(`[redact] import (client ${clientId}): ${importRedactions} Tier-1 value(s) redacted across messages`);
