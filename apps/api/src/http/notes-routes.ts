@@ -622,7 +622,10 @@ export async function handleNoteRoute(
     // The resume path: every note still awaiting transcription/extraction, across
     // all the rep's clients, so the app can advance them on load (FLOWS-5).
     if (pendingMatch) {
-      sendJson(res, 200, { notes: await deps.notes.listPendingByUser(userId) });
+      // [P47] through the erasure restriction, like every other note surface
+      const pending = await deps.notes.listPendingByUser(userId);
+      const r = deps.restriction ? await deps.restriction.forUser(userId) : NO_RESTRICTION;
+      sendJson(res, 200, { notes: r.active ? pending.map((n) => restrictNote(n, r)) : pending });
       return true;
     }
 
