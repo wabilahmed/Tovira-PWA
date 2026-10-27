@@ -354,7 +354,7 @@ function PlanStep({ ent, usage, now }: { ent: Entitlement | null; usage: Allowan
       <p>At 100%, AI features like imports pause until it resets. Find and everything else keep working.</p>
       <p>{subscribed ? 'If you run low, tap Buy more usage here.' : 'Once you subscribe, you can buy extra usage here if you run low.'}</p>
       {/* [P46-6] The Ledger, after Subscription (spotlit: More, where it lives) */}
-      <p data-testid="tour-ledger"><strong>The Ledger</strong> shows the deals Tovira helped you win, and what they were worth.</p>
+      <p data-testid="tour-ledger"><strong>The Ledger</strong> shows the deals and clients Tovira helped you win.</p>
       <p>Notifications and your time zone are in Settings too.</p>
     </>
   );

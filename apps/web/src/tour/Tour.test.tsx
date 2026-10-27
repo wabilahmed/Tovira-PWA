@@ -227,7 +227,8 @@ describe('[P46-6] the Ledger in step 8', () => {
     const dialog = screen.getByRole('dialog');
     expect(screen.getByRole('heading', { name: 'Your plan and settings' })).toBeInTheDocument();
     const line = within(dialog).getByTestId('tour-ledger');
-    expect(line.textContent).toBe('The Ledger shows the deals Tovira helped you win, and what they were worth.');
+    // [P47-4 · owner] the line now covers the clients won back too
+    expect(line.textContent).toBe('The Ledger shows the deals and clients Tovira helped you win.');
     expect(line.querySelector('strong')?.textContent).toBe('The Ledger');
     const text = dialog.textContent ?? '';
     expect(text.indexOf('Subscribe here any time')).toBeLessThan(text.indexOf('The Ledger shows'));
