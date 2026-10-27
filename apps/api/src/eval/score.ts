@@ -243,6 +243,9 @@ export interface ReceiptScore {
   messageAtNotInSource: number;
 }
 
+/** [P50] The placeholders redact.ts writes in place of a Tier-1 value. */
+export const BLANKING_PLACEHOLDER = /\[(?:card ending \d{4}|card number redacted|IBAN redacted|Emirates ID redacted|SWIFT redacted|bank account redacted|ID redacted|credential redacted)\]/;
+
 /** The receipt gate bars (zero-tolerance, per the source-receipt doctrine, Rule 9). */
 export const GATE_RECEIPTS = { maxFabricatedSpans: 0, maxMessageAtOnAmbiguous: 0 };
 
@@ -255,6 +258,10 @@ export function scoreReceipts(
   sourceText: string,
   actual: Extraction | null,
   sourceHasMessageTimestamps: boolean,
+  /** [P50 · owner] The note as the model saw it, after Tier-1 blanking. ONLY an exact blanking placeholder may differ
+   *  from the original: a span quoting a placeholder must appear verbatim in this text (no tolerance); every other
+   *  span is judged against the original exactly as before. */
+  opts: { seenText?: string } = {},
 ): ReceiptScore {
   const s: ReceiptScore = { spansEmitted: 0, spansFabricated: 0, messageAtOnAmbiguous: 0, messageAtNotInSource: 0 };
   if (!actual) return s;
@@ -268,7 +275,10 @@ export function scoreReceipts(
     const span = it.source_span;
     if (typeof span === 'string' && span.trim()) {
       s.spansEmitted += 1;
-      if (!spanFaithful(span, sourceText)) s.spansFabricated += 1;
+      const faithful = BLANKING_PLACEHOLDER.test(span)
+        ? normContains(span, opts.seenText ?? sourceText) // a placeholder: verbatim in the blanked note, or fabricated
+        : spanFaithful(span, sourceText);
+      if (!faithful) s.spansFabricated += 1;
     }
     const at = it.source_message_at;
     if (at != null && String(at).trim()) {

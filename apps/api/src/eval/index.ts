@@ -41,8 +41,8 @@ async function runOnce(model: ModelClient): Promise<Scored[]> {
     // without it the leakage metric is dark and the HARD leak check can never fire.
     // [RECEIPTS-v0.9.5 Task 5] Score receipts against the source: only an imported chat carries
     // per-message timestamps, so voice/paste must leave source_message_at null (Rule 9).
-    // [P50] against the note as the model saw it (after Tier-1 redaction), never the raw note
-    const receipt = scoreReceipts(receiptSource(note), actual, note.source === 'whatsapp_export');
+    // [P50 · owner] only an exact blanking placeholder may differ from the original (the blanked note is what the model saw)
+    const receipt = scoreReceipts(note.note, actual, note.source === 'whatsapp_export', { seenText: receiptSource(note) });
     // [P50] Tier-1 items count every fragment as a hard zero; the alias class ignores receipts; a wrong fold is a merge.
     const opts = { tier1: isTier1Fixture(note.id), aliasClass: tier2ClassOf(note.id) === 'alias_normalisation', aliases: note.aliases ?? [], mustNotFold: note.mustNotFold ?? [], folded: foldedBy(actual) };
     out.push({ note, actual, score: scoreNote(note.expected, actual, note.mustNotMerge, note.forbidden, opts), receipt });
