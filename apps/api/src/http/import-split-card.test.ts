@@ -22,6 +22,10 @@ async function rep(): Promise<{ token: string; userId: string }> {
   const b = (await (await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'rep@example.com', password: 'password123' }) })).json()) as { token: string; user: { id: string } };
   return { token: b.token, userId: b.user.id };
 }
+// Only the stored CONTENT (raw text and every message body): ids and timestamps are random digits and can contain a
+// fragment by chance (a note id "02414889-…" once did), which says nothing about the card.
+type Stored = Array<{ rawText: string | null; messages: Array<{ body: string }> | null }>;
+const contentOf = (notes: Stored): string => notes.map((n) => [n.rawText ?? '', ...(n.messages ?? []).map((m) => m.body)].join('\n')).join('\n');
 const noFragments = (stored: string) => { for (const f of ['4539', '1488', '0343']) expect(stored, `fragment ${f} stored`).not.toContain(f); };
 
 describe('[P50-0] imports never store a split card', () => {
@@ -30,7 +34,7 @@ describe('[P50-0] imports never store a split card', () => {
     const id = ((await (await fetch(`${base}/clients`, { method: 'POST', headers: h(token), body: JSON.stringify({ name: 'Omar' }) })).json()) as { id: string }).id;
     const res = await fetch(`${base}/clients/${id}/notes/import`, { method: 'POST', headers: h(token), body: JSON.stringify({ firstImportAck: true, consent: true, content: CHAT }) });
     expect(res.status, await res.clone().text()).toBeLessThan(300);
-    const stored = JSON.stringify(await deps.notes.listByClient(userId, id));
+    const stored = contentOf(await deps.notes.listByClient(userId, id));
     noFragments(stored);
     expect(stored).toContain('[card ending 6467]');
   });
@@ -44,7 +48,7 @@ describe('[P50-0] imports never store a split card', () => {
     let stored = '';
     for (let i = 0; i < 100; i++) {
       const [c] = await deps.clients.listByUser(userId);
-      stored = c ? JSON.stringify(await deps.notes.listByClient(userId, c.id)) : '';
+      stored = c ? contentOf(await deps.notes.listByClient(userId, c.id)) : '';
       if (stored.includes('second half')) break;
       await new Promise((r) => setTimeout(r, 10));
     }
