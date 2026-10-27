@@ -41,7 +41,7 @@ export interface BulkImportDeps {
   modelId: string;
   repNames?: RepNameRepository;
   /** [P28] The client's confirmed aliases, so a chat merged into an aliased client gets speaker roles. */
-  aliases?: { listByClient: (userId: string, clientId: string) => Promise<string[]> };
+  aliases?: { listByClient: (userId: string, clientId: string) => Promise<string[]>; listByUser?: (userId: string) => Promise<Array<{ clientId: string; alias: string }>> };
   /** [P20-3 / BULK-08] Register/unregister a note as belonging to the in-flight batch, so its per-note
    *  import_complete notification is suppressed in favour of the one aggregate below. */
   bulkNotes?: { add: (noteId: string) => void; remove: (noteId: string) => void };
@@ -83,7 +83,10 @@ export class BulkImportService {
 
   async parse(userId: string, files: BulkInputFile[], storedRepName?: string | null): Promise<BulkParseOutcome> {
     const existing = await this.deps.clients.listByUser(userId);
-    const bulkClients: BulkClient[] = existing.map((c) => ({ id: c.id, name: c.name, phone: c.phone }));
+    // [P49-2] with every alias (learned, or a previous name a rename replaced), so a chat labelled the way WhatsApp still
+    // shows the client links to them instead of becoming a new client. Before P49 bulk matched on the name alone.
+    const aliasRows = this.deps.aliases?.listByUser ? await this.deps.aliases.listByUser(userId) : [];
+    const bulkClients: BulkClient[] = existing.map((c) => ({ id: c.id, name: c.name, phone: c.phone, aliases: aliasRows.filter((a) => a.clientId === c.id).map((a) => a.alias) }));
     const repName = storedRepName ?? (this.deps.repNames ? await this.deps.repNames.get(userId) : null);
     const result = parseBatch(files, bulkClients, repName);
 

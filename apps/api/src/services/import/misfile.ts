@@ -127,6 +127,7 @@ function clientMatched(participants: string[], client: ClientIdentity, knownPeop
   for (const p of participants) {
     if (isPhone(p)) {
       if (client.phone && phonesMatch(p, client.phone)) return true;
+      if (aliases.some((a) => isPhone(a) && phonesMatch(p, a))) return true; // [P49-2] a previous name that was a number
       continue; // a phone that doesn't match this client's phone is not a name signal
     }
     // [P21-D / BOOK-08] against the client's NAME, a word generic across the book ("QA", "Client") is no match.

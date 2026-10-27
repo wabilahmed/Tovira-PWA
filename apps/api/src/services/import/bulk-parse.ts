@@ -153,6 +153,8 @@ function matchClient(counterpart: string, clients: BulkClient[]): BulkClient | u
   for (const c of clients) {
     if (phone) {
       if (c.phone && phonesMatch(counterpart, c.phone)) return c;
+      // [P49-2] a client first saved under a phone number keeps it as a previous name: still that number's client
+      if ((c.aliases ?? []).some((a) => isPhone(a) && phonesMatch(counterpart, a))) return c;
       continue;
     }
     if (nameMatches(counterpart, c.name)) return c;

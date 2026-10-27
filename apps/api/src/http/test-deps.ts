@@ -366,6 +366,7 @@ export function buildInMemoryDeps(
   const bulkImport = new BulkImportService({
     clients,
     notes,
+    aliases: contactAliases, // [P49-2] as in production (index.ts): bulk matching and speaker roles see every alias
     extract: (u, id, today) => claimAndExtract(u, id, today),
     isExhausted: (u) => allowanceStatus.isExhausted(u),
     isPaused: () => aiPause.getPaused(),
