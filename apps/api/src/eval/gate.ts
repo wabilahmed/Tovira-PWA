@@ -9,7 +9,8 @@ import { redactSensitive } from '../services/redaction/redact.js';
 import { dropSensitivePersonalFacts, isSensitiveFact } from '../services/extraction/health-filter.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { renderThread } from '../services/import/dedup.js';
-import { referenceDateFor, normaliseCounterpart } from '../services/extraction/extraction-service.js';
+import { referenceDateFor } from '../services/extraction/extraction-service.js';
+import { normaliseCounterpart, foldKey } from '../services/extraction/counterpart.js';
 import { checkPointers } from '../services/extraction/pointer-postcheck.js';
 import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from '../services/extraction/pointer-prompt.js';
 import type { Pointer } from '../services/extraction/types.js';
@@ -36,6 +37,10 @@ export const GATE_HARD = {
   maxMergedPeople: 0,
   maxFalseCertainties: 0,
   maxNullNamedPeople: 0,
+  /** [P50 · owner] a Tier-1 value in the output (redaction missed a format): zero, every run. */
+  maxTier1Leaked: 0,
+  /** [P50 · P43-4] the client under an exact alias as a separate person: zero, every run. */
+  maxAliasPeople: 0,
 };
 
 /**
@@ -218,6 +223,12 @@ function ownerContextForEval(source: EvalNote['source'], text: string, clientNam
   return { source, text };
 }
 
+/** [P50] Who the fold renamed into the client, per extraction (read with foldedBy). */
+const FOLDED = new WeakMap<object, string[]>();
+export function foldedBy(ex: Extraction | null): string[] {
+  return ex ? FOLDED.get(ex) ?? [] : [];
+}
+
 export async function extractForEval(model: ModelClient, note: EvalNote, opts: { redactIngest?: boolean; sensitiveDrop?: boolean; aliases?: string[] } = {}): Promise<Extraction | null> {
   let text: string;
   // Ingest redaction FIRST — production strips Tier-1 values before extraction, so the
@@ -256,7 +267,11 @@ export async function extractForEval(model: ModelClient, note: EvalNote, opts: {
   // production (aliasesFor); the eval fixture (guarded ground truth) carries no alias, so opts.aliases
   // defaults to [] and the client-person-alias fixture is NOT fully mirrored until that alias is
   // supplied — see the audit report. It still normalises any people entry emitted under clientName.
+  // [P50] record who the fold renamed into the client, so a wrong fold is scored as a merged person (score.ts mustNotFold)
+  const before = ex.people.map((p) => p.name ?? '');
   normaliseCounterpart(ex, note.clientName, opts.aliases ?? []);
+  const clientKey = foldKey(note.clientName);
+  FOLDED.set(ex, before.filter((n, i) => foldKey(n) !== clientKey && foldKey(ex!.people[i]?.name ?? '') === clientKey));
   // [P25-1] Mirror production's write-time OWNER check (extractNote runs it before saving), so the gate
   // scores the shipped owner, not the raw model owner. A chat note is traced through its parsed messages
   // (speaker roles as the import assigns them); voice/paste through the text the model saw.
@@ -397,6 +412,12 @@ export function evaluateGate(metrics: AggregateMetrics, modelId: string): GateRe
   }
   if (metrics.nullNamedPeople > GATE_HARD.maxNullNamedPeople) {
     reasons.push(`emitted ${metrics.nullNamedPeople} person(s) with no name — a role-only reference is never a person (Rule 5)`);
+  }
+  if (metrics.tier1Leaked > GATE_HARD.maxTier1Leaked) {
+    reasons.push(`${metrics.tier1Leaked} Tier-1 value(s) (card, IBAN, Emirates ID) reached the output: redaction missed a format`);
+  }
+  if (metrics.aliasPeople > GATE_HARD.maxAliasPeople) {
+    reasons.push(`stored the client under an exact alias as ${metrics.aliasPeople} separate person(s)`);
   }
   return { model: modelId, passed: reasons.length === 0, reasons, metrics };
 }

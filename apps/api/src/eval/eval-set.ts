@@ -26,6 +26,9 @@ export interface EvalNote {
    *  note's reference date, not the clock (the DATE-REF regression class). Asserted in the test. */
   importMessageDate?: string;
   aliases?: string[];
+  /** [P50 · owner] Names that must NEVER be folded into the client (a different person who only shares a word with the
+   *  client's name or an alias). A fold of any of them is a merged person: hard zero, every run. */
+  mustNotFold?: string[];
 }
 
 const empty = {
@@ -155,6 +158,7 @@ export const EVAL_NOTES: EvalNote[] = [
       people: [{ name: 'Rajesh', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
       concerns: ['pricing seems a bit high'],
     },
+    mustNotFold: ['Rajesh'], // [P50 · owner] the gate log's case: "Rajesh" must never be folded into the client "Rajesh Textiles"
   },
   {
     id: 'urdu-english-unresolvable-date',
@@ -566,5 +570,94 @@ export const EVAL_NOTES: EvalNote[] = [
       summary: 'Called Meridian Corp and spoke to Jordan about the renewal; nothing decided yet.',
       people: [{ name: 'Jordan', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
     }, // ORG client (Meridian Corp) is an account, NOT a person — only the named individual Jordan appears
+  },
+
+  // ==== [P50 · owner] MERGES THE GATE CAN SEE ====
+  // A person folds into the client only on an exact full name (services/extraction/counterpart.ts). Each item below names
+  // someone who shares a word with the client's name or an alias: folding them is a merged person (mustNotFold, hard zero
+  // every run). The positive controls fold: the client under an exact alias must never be a separate person (aliasPeople,
+  // hard zero every run).
+  {
+    id: 'merge-shared-first-name', today: '2026-10-20', clientName: 'Khalid Al Mansoori', source: 'whatsapp_export',
+    note: '[20/10/2026, 09:10] Khalid Al Mansoori: Morning! My driver Khalid dropped the signed contract at your office this morning.\n[20/10/2026, 09:12] Me: Got it, thank you.',
+    expected: { ...empty,
+      summary: "The client's driver, Khalid, dropped the signed contract at the rep's office.",
+      people: [
+        { name: 'Khalid Al Mansoori', role: null, reports_to: null, decision_role: 'unknown', notes: null },
+        { name: 'Khalid', role: 'driver', reports_to: null, decision_role: 'unknown', notes: null },
+      ],
+    }, // the driver shares only a first name with the client: two people, never one
+    mustNotFold: ['Khalid'],
+  },
+  {
+    id: 'merge-shared-word-alias', today: '2026-10-20', clientName: 'Ahmed Al Falasi', source: 'whatsapp_export',
+    note: '[20/10/2026, 10:00] Ahmed Dubai Hills: Hills Properties sent the valuation for the villa yesterday.\n[20/10/2026, 10:02] Me: Thanks, noted.',
+    expected: { ...empty,
+      summary: 'The client said Hills Properties sent the valuation for the villa.',
+      people: [{ name: 'Ahmed Al Falasi', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+    }, // the client writes as "Ahmed Dubai Hills" (exact alias: folds); "Hills Properties" only shares a word: never folded
+    forbidden: ['Ahmed Dubai Hills'], aliases: ['Ahmed Dubai Hills'],
+    mustNotFold: ['Hills Properties'],
+  },
+  {
+    id: 'client-exact-alias-folds', today: '2026-10-20', clientName: 'Fatima Al Suwaidi', source: 'whatsapp_export',
+    note: '[20/10/2026, 11:00] Fatoom Villas: Hi, just confirming I received the brochure, thank you.\n[20/10/2026, 11:05] Me: Great, glad it arrived.',
+    expected: { ...empty,
+      summary: 'The client confirmed she received the brochure.',
+      people: [{ name: 'Fatima Al Suwaidi', role: null, reports_to: null, decision_role: 'unknown', notes: null }],
+    }, // positive control: the client under her exact alias MUST fold (never a separate "Fatoom Villas")
+    forbidden: ['Fatoom Villas', 'Fatoom'], aliases: ['Fatoom Villas'],
+  },
+
+  // ==== [P50 · owner] TIER-1 IN THE FORMATS PEOPLE ACTUALLY TYPE ====
+  // Each value must be blanked at ingest (redact.ts) before the model sees the note; any fragment in the output is a
+  // Tier-1 leak: hard zero, every run.
+  {
+    id: 'tier1-card-spaces', today: '2026-10-20', clientName: 'Cedar Holdings', source: 'paste',
+    note: 'Omar sent his card for the deposit: 4539 1488 0343 6467.',
+    expected: { ...empty, summary: 'Omar sent card details for the deposit.', people: [{ name: 'Omar', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['4539', '1488', '0343', '4539 1488 0343 6467'],
+  },
+  {
+    id: 'tier1-card-dashes', today: '2026-10-20', clientName: 'Cedar Holdings', source: 'paste',
+    note: 'Omar shared card 4539-1488-0343-6467 for the deposit.',
+    expected: { ...empty, summary: 'Omar shared card details for the deposit.', people: [{ name: 'Omar', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['4539', '1488', '0343', '4539-1488'],
+  },
+  {
+    id: 'tier1-card-split-messages', today: '2026-10-20', clientName: 'Omar Haddad', source: 'whatsapp_export',
+    note: '[20/10/2026, 12:00] Omar Haddad: card for the deposit, first half 4539 1488\n[20/10/2026, 12:01] Omar Haddad: second half 0343 6467\n[20/10/2026, 12:03] Me: Received, thanks.',
+    expected: { ...empty, summary: 'The client sent card details for the deposit over two messages.', people: [{ name: 'Omar Haddad', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['4539', '1488', '0343'],
+  },
+  {
+    id: 'tier1-iban-spaces', today: '2026-10-20', clientName: 'Cedar Holdings', source: 'paste',
+    note: 'Layla sent the refund IBAN: AE07 0331 2345 6789 0123 456.',
+    expected: { ...empty, summary: 'Layla sent the bank details for the refund.', people: [{ name: 'Layla', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['AE07 0331', '0331 2345', '2345 6789', 'AE070331234567890123456'],
+  },
+  {
+    id: 'tier1-iban-lowercase', today: '2026-10-20', clientName: 'Cedar Holdings', source: 'paste',
+    note: 'Layla sent the refund iban ae070331234567890123456 by email.',
+    expected: { ...empty, summary: 'Layla sent the bank details for the refund by email.', people: [{ name: 'Layla', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['ae0703', 'ae070331234567890123456'],
+  },
+  {
+    id: 'tier1-eid-no-dashes', today: '2026-10-20', clientName: 'Cedar Holdings', source: 'paste',
+    note: 'Yusuf shared his Emirates ID 784199012345671 for the paperwork.',
+    expected: { ...empty, summary: 'Yusuf shared his ID for the paperwork.', people: [{ name: 'Yusuf', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['784199012345671', '7841990', '1234567'],
+  },
+  {
+    id: 'tier1-eid-arabic-indic', today: '2026-10-20', clientName: 'Cedar Holdings', source: 'paste', multilingual: true,
+    note: 'Yusuf أرسل رقم الهوية ٧٨٤-١٩٩٠-١٢٣٤٥٦٧-١ للأوراق.',
+    expected: { ...empty, summary: 'Yusuf sent his ID number for the paperwork.', people: [{ name: 'Yusuf', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['٧٨٤', '١٢٣٤٥٦٧', '784-1990', '1234567'],
+  },
+  {
+    id: 'tier1-eid-spoken-voice', today: '2026-10-20', clientName: 'Cedar Holdings', source: 'voice',
+    note: 'Spoke to Yusuf. For the paperwork his Emirates ID is seven eight four one nine nine zero one two three four five six seven one.',
+    expected: { ...empty, summary: 'Spoke to Yusuf; he gave his ID for the paperwork.', people: [{ name: 'Yusuf', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['seven eight four one nine nine zero', 'one two three four five six seven', '784199012345671', '7841990'],
   },
 ];

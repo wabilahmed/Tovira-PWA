@@ -40,6 +40,8 @@ const cleanMetrics: AggregateMetrics = {
   fabricatedPromises: 0,
   guessedDates: 0,
   mergedPeople: 0,
+  tier1Leaked: 0, // [P50]
+  aliasPeople: 0, // [P50]
   falseCertainties: 0,
   leakedValues: 0,
   nullNamedPeople: 0,
@@ -63,6 +65,8 @@ describe('[GATE-SELFTEST] every hard metric can fail the gate', () => {
     { field: 'mergedPeople', reason: /merged/i },
     { field: 'falseCertainties', reason: /certaint|confiden/i },
     { field: 'nullNamedPeople', reason: /no name|role-only|Rule 5/i },
+    { field: 'tier1Leaked', reason: /Tier-1/i }, // [P50 · owner] a Tier-1 value in the output: zero, every run
+    { field: 'aliasPeople', reason: /alias/i }, // [P50 · P43-4] the client under an exact alias as a separate person
   ];
 
   it('PASSES a fully clean synthetic result (control)', () => {

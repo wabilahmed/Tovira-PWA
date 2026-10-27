@@ -1,3 +1,5 @@
+import { foldKey } from '../services/extraction/counterpart.js';
+import { withoutReceipts } from './tier2-classify.js';
 import type { Extraction, ExtractedPromise, ExtractedPerson, Requirement } from '../services/extraction/types.js';
 
 /** Per-note scoring counts for the quality gate. */
@@ -8,6 +10,10 @@ export interface NoteScore {
   dates: { resolvedExpected: number; expectedResolvable: number };
   fabricatedPromises: number; // predicted promises with no matching expected
   guessedDates: number; // predicted a specific date where the truth is null
+  /** [P50] a Tier-1 value (or fragment) anywhere in the output, receipts included, on a Tier-1 item. Hard zero. */
+  tier1Leaked: number;
+  /** [P50 · P43-4] the client under an exact alias stored as a separate person. Hard zero. */
+  aliasPeople: number;
   mergedPeople: number; // two people who must stay distinct were collapsed into one
   falseCertainties: number; // a promise the key marks low-confidence returned as high — an unconfirmed guess presented as a fact
   leakedValues: number; // REDACT-5: a forbidden sensitive value/fragment appeared in the model output
@@ -56,6 +62,8 @@ export function scoreNote(
   actual: Extraction | null,
   mustNotMerge: Array<[string, string]> = [],
   forbidden: string[] = [],
+  /** [P50] how this item's leaks and folds are scored (absent: as before P50). */
+  opts: { tier1?: boolean; aliasClass?: boolean; aliases?: string[]; mustNotFold?: string[]; folded?: string[] } = {},
 ): NoteScore {
   const score: NoteScore = {
     promises: { tp: 0, fp: 0, fn: 0 },
@@ -65,6 +73,8 @@ export function scoreNote(
     fabricatedPromises: 0,
     guessedDates: 0,
     mergedPeople: 0,
+    tier1Leaked: 0,
+    aliasPeople: 0,
     falseCertainties: 0,
     leakedValues: 0,
     nullNamedPeople: 0,
@@ -147,6 +157,12 @@ export function scoreNote(
   for (const [a, b] of mustNotMerge) {
     if (!(hasName(a) && hasName(b))) score.mergedPeople += 1;
   }
+  // [P50 · owner] A wrong fold is a merged person: a name that must never be folded into the client, folded.
+  const folded = new Set((opts.folded ?? []).map(foldKey));
+  for (const n of opts.mustNotFold ?? []) if (folded.has(foldKey(n))) score.mergedPeople += 1;
+  // [P50 · P43-4] The client under an exact alias stored as a separate person.
+  const aliasKeys = new Set((opts.aliases ?? []).map(foldKey));
+  score.aliasPeople = predicted.people.filter((p) => aliasKeys.has(foldKey(p.name ?? ''))).length;
 
   // Requirements (REQ-CERT). tp/fp/fn drive precision/recall; fp is the concern↔requirement leak
   // (a complaint, question or rep speculation emitted as a stated need) — the flagged regression.
@@ -172,8 +188,13 @@ export function scoreNote(
   score.requirementFalsePositives = score.requirements.fp;
 
   if (forbidden.length) {
-    const blob = JSON.stringify(predicted).toLowerCase();
-    for (const f of forbidden) if (blob.includes(f.toLowerCase())) score.leakedValues += 1;
+    // [P50] A Tier-1 item: every fragment counts, receipts included (a hard zero). The alias class ignores receipts (a
+    // verbatim quote keeps the WhatsApp label). Everything else as before: the Tier-2 rate.
+    const blob = JSON.stringify(opts.aliasClass && !opts.tier1 ? withoutReceipts(predicted) : predicted).toLowerCase();
+    let hits = 0;
+    for (const f of forbidden) if (blob.includes(f.toLowerCase())) hits += 1;
+    if (opts.tier1) score.tier1Leaked += hits;
+    else score.leakedValues += hits;
   }
 
   return score;
@@ -289,6 +310,8 @@ export interface AggregateMetrics {
   requirements: FieldMetrics;
   fabricatedPromises: number;
   guessedDates: number;
+  tier1Leaked: number;
+  aliasPeople: number;
   mergedPeople: number;
   falseCertainties: number;
   leakedValues: number;
@@ -309,6 +332,8 @@ export function aggregate(scores: NoteScore[]): AggregateMetrics {
     fabricatedPromises: sum((s) => s.fabricatedPromises),
     guessedDates: sum((s) => s.guessedDates),
     mergedPeople: sum((s) => s.mergedPeople),
+    tier1Leaked: sum((s) => s.tier1Leaked),
+    aliasPeople: sum((s) => s.aliasPeople),
     falseCertainties: sum((s) => s.falseCertainties),
     leakedValues: sum((s) => s.leakedValues),
     nullNamedPeople: sum((s) => s.nullNamedPeople),

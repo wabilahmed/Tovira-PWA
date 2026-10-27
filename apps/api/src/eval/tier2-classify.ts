@@ -15,7 +15,26 @@ export type Tier2Class = 'special_category' | 'alias_normalisation' | 'other';
 const TIER2_CLASS_BY_FIXTURE: Record<string, Tier2Class> = {
   'special-category-not-a-fact': 'special_category', // religion, ethnicity, politics, sexual orientation
   'client-person-alias': 'alias_normalisation', // a client's nickname/company alias echoed, not normalised
+  'merge-shared-word-alias': 'alias_normalisation', // [P50]
+  'client-exact-alias-folds': 'alias_normalisation', // [P50]
 };
+
+/** [P50 · owner] Items whose forbidden values are Tier-1 (card, IBAN, Emirates ID). A fragment anywhere in the output,
+ *  receipts included, is a hard per-run zero (score.ts tier1Leaked), never a Tier-2 rate. */
+const TIER1_FIXTURES = new Set([
+  'redact-iban-card', 'redact-emirates-id', 'redact-adjacency', 'redact-adjacency-inline', 'redact-collision', 'req-beside-tier1',
+  'tier1-card-spaces', 'tier1-card-dashes', 'tier1-card-split-messages', 'tier1-iban-spaces', 'tier1-iban-lowercase',
+  'tier1-eid-no-dashes', 'tier1-eid-arabic-indic', 'tier1-eid-spoken-voice',
+]);
+export function isTier1Fixture(fixtureId: string): boolean {
+  return TIER1_FIXTURES.has(fixtureId);
+}
+
+/** [P50 · P43-4] A copy without receipts (source_span / source_message_at): a verbatim quote keeps the WhatsApp label the
+ *  message was sent under, which is evidence, not an alias left in the record. */
+export function withoutReceipts<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value ?? null, (k, v) => (k === 'source_span' || k === 'source_message_at' ? undefined : v))) as T;
+}
 
 export function tier2ClassOf(fixtureId: string): Tier2Class {
   return TIER2_CLASS_BY_FIXTURE[fixtureId] ?? 'other';
@@ -54,9 +73,9 @@ function fieldsOf(ex: Extraction): Array<{ field: string; structured: boolean; t
  * WHERE and WHICH CLASS — the granularity a gate needs to be actionable.
  */
 export function classifyLeaks(fixtureId: string, forbidden: string[], ex: Extraction | null): LeakRecord[] {
-  if (!ex || forbidden.length === 0) return [];
+  if (!ex || forbidden.length === 0 || isTier1Fixture(fixtureId)) return []; // [P50] Tier-1 items are a hard zero, not a Tier-2 rate
   const cls = tier2ClassOf(fixtureId);
-  const fields = fieldsOf(ex);
+  const fields = fieldsOf(cls === 'alias_normalisation' ? withoutReceipts(ex) : ex);
   const out: LeakRecord[] = [];
   for (const term of forbidden) {
     const t = term.toLowerCase();

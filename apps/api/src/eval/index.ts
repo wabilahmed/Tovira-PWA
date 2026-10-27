@@ -1,8 +1,8 @@
 import { loadConfig } from '../config.js';
 import { createModelClient } from '../container.js';
-import { extractForEval, extractImportFixture, extractPointersForEval, evaluateGate, softGate, fabricationGate, tier1Residual, requirementsGate, structuredSensitiveCount, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
+import { extractForEval, foldedBy, extractImportFixture, extractPointersForEval, evaluateGate, softGate, fabricationGate, tier1Residual, requirementsGate, structuredSensitiveCount, GATE_FAB, GATE_TIER2, GATE_REQ } from './gate.js';
 import { POINTER_FIXTURES, scorePointerFixture } from './pointer-fixtures.js';
-import { classifyLeaks, tier2Bars, tier2ClassOf, type LeakRecord, type Tier2Class } from './tier2-classify.js';
+import { classifyLeaks, tier2Bars, tier2ClassOf, isTier1Fixture, type LeakRecord, type Tier2Class } from './tier2-classify.js';
 import { IMPORT_FIXTURES, RECALL_BASELINES } from './import-fixtures.js';
 import { scoreInvariants } from './score-invariants.js';
 import { redactSensitive } from '../services/redaction/redact.js';
@@ -41,13 +41,15 @@ async function runOnce(model: ModelClient): Promise<Scored[]> {
     // [RECEIPTS-v0.9.5 Task 5] Score receipts against the source: only an imported chat carries
     // per-message timestamps, so voice/paste must leave source_message_at null (Rule 9).
     const receipt = scoreReceipts(note.note, actual, note.source === 'whatsapp_export');
-    out.push({ note, actual, score: scoreNote(note.expected, actual, note.mustNotMerge, note.forbidden), receipt });
+    // [P50] Tier-1 items count every fragment as a hard zero; the alias class ignores receipts; a wrong fold is a merge.
+    const opts = { tier1: isTier1Fixture(note.id), aliasClass: tier2ClassOf(note.id) === 'alias_normalisation', aliases: note.aliases ?? [], mustNotFold: note.mustNotFold ?? [], folded: foldedBy(actual) };
+    out.push({ note, actual, score: scoreNote(note.expected, actual, note.mustNotMerge, note.forbidden, opts), receipt });
   }
   return out;
 }
 
 function line(label: string, m: ReturnType<typeof aggregate>, verdict: string): void {
-  console.log(`[gate]   ${label}: promises p=${p(m.promises.precision)} r=${p(m.promises.recall)} · people p=${p(m.people.precision)} r=${p(m.people.recall)} · guessed=${m.guessedDates} merged=${m.mergedPeople} falseCert=${m.falseCertainties} leaked=${m.leakedValues} nullNamed=${m.nullNamedPeople} · fab=${m.fabricatedPromises} (aggregate bar) → ${verdict}`);
+  console.log(`[gate]   ${label}: promises p=${p(m.promises.precision)} r=${p(m.promises.recall)} · people p=${p(m.people.precision)} r=${p(m.people.recall)} · guessed=${m.guessedDates} merged=${m.mergedPeople} falseCert=${m.falseCertainties} tier1=${m.tier1Leaked} aliasPeople=${m.aliasPeople} leaked(T2)=${m.leakedValues} nullNamed=${m.nullNamedPeople} · fab=${m.fabricatedPromises} (aggregate bar) → ${verdict}`);
 }
 
 // REQ-GATE (v0.9.3): requirements PRECISION is gated (floor GATE_REQ.floorPct), recall is measured
@@ -229,7 +231,7 @@ async function main(): Promise<void> {
   // (non-health Tier-2 fixtures in that class) × runs. The SPECIAL-CATEGORY bar (religion / ethnicity /
   // politics / sexual orientation) is the privacy GATE; alias-normalisation and 'other' are reported,
   // not gated — an echoed alias is a quality miss, not a privacy leak, and must never fail the privacy bar.
-  const t2Fixtures = EVAL_NOTES.filter((n) => n.id !== 'health-exclusion' && (n.forbidden ?? []).some((f) => redactSensitive(n.note).redacted.includes(f)));
+  const t2Fixtures = EVAL_NOTES.filter((n) => n.id !== 'health-exclusion' && !isTier1Fixture(n.id) && (n.forbidden ?? []).some((f) => redactSensitive(n.note).redacted.includes(f))); // [P50] Tier-1 items are a hard zero
   const exposuresByClass: Partial<Record<Tier2Class, number>> = {};
   for (const n of t2Fixtures) { const c = tier2ClassOf(n.id); exposuresByClass[c] = (exposuresByClass[c] ?? 0) + RUNS; }
   const bars = tier2Bars(leakRecords, exposuresByClass, GATE_TIER2.minExposures, GATE_TIER2.maxRatePct);
