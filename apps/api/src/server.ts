@@ -66,6 +66,7 @@ import { handleInsightsRoute } from './http/insights-routes.js';
 import { restrictingFacts, restrictingMeetings, restrictingNotes } from './services/erasure/surface-filter.js';
 import { handleImageRoute } from './http/images-routes.js';
 import { handleHeroRoute } from './http/hero-routes.js';
+import { withholdRestrictedActions } from './services/hero/today-restriction.js';
 import { handleBookScanRoute } from './http/book-scan-routes.js';
 import type { BookScanService } from './services/book-scan/book-scan-service.js';
 import { handleRecallRoute } from './http/recall-routes.js';
@@ -522,7 +523,14 @@ export function createApiServer(deps: ApiDeps): Server {
       )
         return;
       if (await handleImageRoute(request, response, { auth: deps.auth, clients: deps.clients, images: deps.images, storage: deps.storage })) return;
-      if (await handleHeroRoute(request, response, { auth: deps.auth, hero: deps.hero, priorities: deps.priorities, billing: deps.billing, clients: deps.clients })) return;
+      if (await handleHeroRoute(request, response, {
+        auth: deps.auth, hero: deps.hero, priorities: deps.priorities, billing: deps.billing, clients: deps.clients,
+        // [P47] a restriction opened after Today's list was computed applies when it is served
+        withholdRestricted: async (uid, actions) => {
+          const names = new Map((await deps.clients.listByUser(uid)).map((c) => [c.id, c.name]));
+          return withholdRestrictedActions(uid, actions, deps.restriction, deps.notes, (id) => names.get(id));
+        },
+      })) return;
       if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan, billing: deps.billing })) return;
       if (deps.accessAnswers && (await handleAccessAnswersRoute(request, response, { auth: deps.auth, answers: deps.accessAnswers }))) return; // [P46-6c.2]
       if (await handleRecallRoute(request, response, { auth: deps.auth, billing: deps.billing, capture: deps.askCapture, ...(deps.accessAnswers ? { answersRequired: (u: string) => deps.accessAnswers!.required(u) } : {}) })) return;

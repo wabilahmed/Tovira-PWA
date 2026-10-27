@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
-import { withClientNames, type HeroService } from '../services/hero/hero-service.js';
+import { withClientNames, type HeroService, type TodayAction } from '../services/hero/hero-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import { PrioritiesService, RefreshLimitError } from '../services/hero/priorities-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
@@ -13,6 +13,8 @@ export interface HeroRouteDeps {
   billing: BillingService;
   /** [P34-2] Names for a cached list that predates clientName (optional: absent → served as cached). */
   clients?: Pick<ClientRepository, 'listByUser'>;
+  /** [P47] Applies an erasure restriction opened after the cached list was computed. Optional for older wiring. */
+  withholdRestricted?: (userId: string, actions: TodayAction[]) => Promise<TodayAction[]>;
 }
 
 const GET_PATHS = ['/hero/status', '/hero/patterns', '/hero/risk', '/today'];
@@ -61,9 +63,11 @@ export async function handleHeroRoute(
   else {
     const cached = await deps.priorities.getForToday(userId, now);
     // [P34-2] A list cached before clientName existed gets names here (one client list, no model call).
-    const actions = deps.clients && cached.some((a) => a.clientName === undefined)
+    const named = deps.clients && cached.some((a) => a.clientName === undefined)
       ? withClientNames(cached, new Map((await deps.clients.listByUser(userId)).map((c) => [c.id, c.name])))
       : cached;
+    // [P47] the list may predate an erasure restriction: apply it now
+    const actions = deps.withholdRestricted ? await deps.withholdRestricted(userId, named) : named;
     sendJson(res, 200, { actions, refreshesRemaining: await deps.priorities.refreshesRemaining(userId, now) });
   }
   return true;
