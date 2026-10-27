@@ -115,9 +115,11 @@ export class AccountService {
       meetings: await withoutRestricted(await this.meetings.listByUser(userId), withheld, spanned),
       images,
       recallSessions: r.active ? recallSessions.map((s) => ({ ...s, messages: s.messages.filter((m) => !r.restrictsText(m.content)) })) : recallSessions,
-      contactAliases: this.aliases ? await this.aliases.listByUser(userId) : [],
+      // [P49] name records: an alias or a rename naming the restricted person is withheld during the review, like a
+      // glossary entry naming them
+      contactAliases: (this.aliases ? await this.aliases.listByUser(userId) : []).filter((a) => !(r.active && r.restrictsWho(a.alias))),
       // [P49] every rename of every client (old name, new name, when): the rep's record of what each client was called
-      clientNameHistory: await this.clients.listRenamesByUser(userId),
+      clientNameHistory: (await this.clients.listRenamesByUser(userId)).filter((h) => !(r.active && (r.restrictsWho(h.oldName) || r.restrictsWho(h.newName)))),
       // [NO-TRAINING-RETENTION] the rep's operational extraction metadata + verdicts (no content), and
       // their per-rep glossary — all the rep's own data, carried in a DSAR export.
       extractionLogs: this.extractionLog ? await this.extractionLog.listByUser(userId) : [],

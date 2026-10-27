@@ -113,6 +113,23 @@ describe('[P48] the export withholds a restricted person while their request is 
     expect(n.restrictionNotice).toBe('Restricted while a privacy request is reviewed.');
   });
 
+  // [P49] The export now carries each client's rename history; it and the contact aliases are name records too, so an
+  // entry naming the restricted person is withheld during the review like a glossary entry naming them.
+  it('NEGATIVE: contact aliases and rename history naming the restricted person are withheld; everyone else\'s stay', async () => {
+    const { token, userId, clientId } = await seed();
+    await deps.aliases!.add(userId, clientId, 'Khalid DXB');
+    await deps.aliases!.add(userId, clientId, 'Omar DXB');
+    const other = await deps.clients.create(userId, 'Khalid Office');
+    await deps.clients.rename(userId, other.id, 'Harbour Homes', Date.now());
+    const kept = await deps.clients.create(userId, 'Omar Office');
+    await deps.clients.rename(userId, kept.id, 'Bay Homes', Date.now());
+    expect(await exported(token)).toContain('Khalid DXB');
+    await restrict(userId);
+    const data = JSON.parse(await exported(token)) as { contactAliases: Array<{ alias: string }>; clientNameHistory: Array<{ oldName: string; newName: string }> };
+    expect(data.contactAliases.map((x) => x.alias)).toEqual(['Omar DXB']);
+    expect(data.clientNameHistory.map((x) => x.oldName)).toEqual(['Omar Office']);
+  });
+
   it('it is withheld, not deleted: the stored records are intact and withdrawing the request brings it back', async () => {
     const { token, userId, noteId } = await seed();
     const reqId = await restrict(userId);
