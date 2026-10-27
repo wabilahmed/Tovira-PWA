@@ -19,6 +19,8 @@
 #   stripe-mode-audit   apps/api/src/scripts/stripe-mode-audit.ts   [P30-3] READ-ONLY: active accounts whose
 #                  Stripe customer/subscription is test-mode (or none); no args, refuses --apply.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script stripe-mode-audit
+#   ledger-backfill apps/api/src/scripts/ledger-backfill.ts  [P47-5] Ledger entries from stored history; dry run lists them, --apply writes.
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script ledger-backfill
 #   push-audit    apps/api/src/scripts/push-audit.ts  [P46-2] reps with no stored push subscription; counts only, refuses --apply.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script push-audit
 #   qa-data-audit       apps/api/src/scripts/qa-data-audit.ts       [P39-10] QA/test clients, access requests and
@@ -85,7 +87,7 @@ while [ "$#" -gt 0 ]; do
     --script)
       # consumed here (never sent to the container) but part of the guard key, so a dry run of one
       # backfill never authorises --apply of another
-      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit)"
+      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | ledger-backfill)"
       SCRIPT_NAME="$2"; KEYARGS+=("$1" "$2"); shift 2 ;;
     *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --ids <id,…>, --email <address>, --apply, --i-checked-the-dry-run)" ;;
   esac
@@ -102,7 +104,8 @@ case "$SCRIPT_NAME" in
   stripe-mode-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/stripe-mode-audit.ts" ;;
   qa-data-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/qa-data-audit.ts" ;;
   push-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/push-audit.ts" ;;
-  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit)" ;;
+  ledger-backfill) SCRIPT_IN_IMAGE="apps/api/src/scripts/ledger-backfill.ts" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | ledger-backfill)" ;;
 esac
 
 # [P26-2/P30-3] Read-only checks: nothing to apply, no args — refused here, before any AWS call.
