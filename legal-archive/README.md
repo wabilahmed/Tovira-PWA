@@ -9,6 +9,10 @@ drifts from its constant.
 
 ## Contents
 
+- `2026-10-27/`: the current **published Privacy** (owner-approved, lawyer-approved line, P48). New Privacy
+  acceptances record this `PRIVACY_VERSION`. Adds one line to section 13, word for word: "While a privacy request
+  about someone else is being reviewed, data about that person may be held back from your copy. It is not deleted."
+  Nothing else changed. Terms unchanged (`2026-10-21`).
 - `2026-10-21/` — the current **published Terms** (owner-approved, P38). New acceptances record this
   `TERMS_VERSION`. Removes the unnumbered top-up paragraph under 6.9 ("…non-refundable once any of it has
   been used"), which contradicted 6.10, and adds 14.8 (the lawyer-approved consumer-rights sentence, word
@@ -16,7 +20,7 @@ drifts from its constant.
 - `2026-10-20/` — the prior published Terms (P37): added clause 6.10, the lawyer-verified extra-usage
   sentence, word for word.
 - `2026-10-05/` — the prior published Terms, and the current **published Privacy** (owner-approved). This is
-  the version Privacy acceptances record (`PRIVACY_VERSION`). Snapshotted from `apps/web/{terms,privacy}/index.html`.
+  the version Privacy acceptances recorded until 2026-10-27. Snapshotted from `apps/web/{terms,privacy}/index.html`.
   The revision added the failed-payment procedure (Terms 6.7–6.8: pause AI, daily retry/remind, suspend at
   7 days, end at 30, 90-day retention then deletion), the same-date/time renewal wording (Terms 6.3), the
   Privacy retention row for an ended-after-failed-payment account, and changed every contact address to

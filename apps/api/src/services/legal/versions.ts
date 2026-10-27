@@ -17,12 +17,14 @@
  *  legal-archive/ (2026-10-20, 2026-10-05, 2026-10-03, 2026-10-02, 2026-09-22). PRIVACY_VERSION is unchanged. */
 export const TERMS_VERSION = '2026-10-21';
 
-/** Privacy Policy version. Derivation: matches "Last updated: 2 October 2026" on the published Privacy
+/** Privacy Policy version. [P48] 2026-10-27 added the lawyer-approved line in section 13: a restricted person may be
+ *  held back from the rep's copy during a review (prior published version: legal-archive/2026-10-05/).
+ *  Earlier derivation: matches "Last updated: 2 October 2026" on the published Privacy
  *  page (apps/web/privacy/index.html) — the 2026-10-02 revision corrected the voice redaction claim,
  *  added the recording-retention and access-request disclosures, and the image-storage statement.
  *  Tracked separately from TERMS so the two can diverge when only one document changes; today they are
  *  the same date. Prior published version: legal-archive/2026-09-22/. */
-export const PRIVACY_VERSION = '2026-10-05';
+export const PRIVACY_VERSION = '2026-10-27';
 
 /** Version of the access-request confirmation checkbox wording (BETA-3). Derivation: the date that
  *  exact confirmation sentence was fixed — authored in this batch, 2026-10-01. It is NOT terms
