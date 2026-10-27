@@ -6,7 +6,8 @@ import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 
 // [TASK 2] End-to-end: while a third-party erasure request is in its review window, that counterparty's
 // messages and facts are WITHHELD from every surface (book shows a placeholder, brief/answer/pointers
-// omit them) but are NEVER deleted — they stay in the export, and the restriction lifts on withdraw.
+// omit them) but are NEVER deleted, and the restriction lifts on withdraw. [P48 · owner] They used to stay in the
+// export; the export now withholds them too (erasure-export.test.ts), still without deleting anything.
 
 let server: Server;
 let base: string;
@@ -96,11 +97,14 @@ describe('[TASK 2] processing restriction during the erasure window', () => {
     expect(body.pointers.map((p) => p.text)).toEqual(['Omar prefers email']);
   });
 
-  it('the export STILL includes the restricted content — it is withheld, not deleted', async () => {
-    const { token, userId } = await seed();
+  // [P48 · owner] was "the export STILL includes the restricted content": the export now withholds it like the book does,
+  // and the stored note keeps it (withheld, not deleted).
+  it('the export withholds the restricted content too, and the stored note still holds it', async () => {
+    const { token, userId, noteId } = await seed();
     await restrict(userId, ['Khalid']);
     const data = (await (await fetch(`${base}/account/export`, { headers: auth(token) })).json()) as { notes: Array<{ rawText: string; messages?: Array<{ sender: string }> | null }> };
-    expect(data.notes.some((n) => (n.rawText ?? '').includes('floor plan') || (n.messages ?? []).some((m) => m.sender === 'Khalid'))).toBe(true);
+    expect(data.notes.some((n) => (n.rawText ?? '').includes('floor plan') || (n.messages ?? []).some((m) => m.sender === 'Khalid'))).toBe(false);
+    expect((await deps.notes.findByIdForUser(userId, noteId))!.messages!.some((m) => m.sender === 'Khalid')).toBe(true);
   });
 
   it('withdrawing the request lifts the restriction — the content surfaces again', async () => {

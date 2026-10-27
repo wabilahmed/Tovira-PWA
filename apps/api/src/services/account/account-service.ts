@@ -6,6 +6,14 @@ import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { ImageRepository } from '../../ports/image-repository.js';
 import type { RecallSessionRepository } from '../../ports/recall-session-repository.js';
 import type { Storage } from '../../ports/storage.js';
+import { restrictNote, noteIsAboutRestricted } from '../erasure/restrict-note.js';
+import { factWithholder, withoutRestricted, type RestrictionSource } from '../erasure/surface-filter.js';
+import { NO_RESTRICTION } from '../erasure/restriction.js';
+
+/** [P48] The book's exact placeholder, on a restricted note in the export too. */
+const NOTE_RESTRICTION_NOTICE = 'Restricted while a privacy request is reviewed.';
+/** [P48] Said once, at the top of an export that withholds anything. */
+export const EXPORT_RESTRICTION_NOTICE = 'Some data is restricted while a privacy request is reviewed. It is not deleted: it will be in your export again when the review ends, unless it is erased.';
 
 export interface UserPurgeable {
   purgeUser(userId: string): Promise<void>;
@@ -24,6 +32,12 @@ export interface UserPurgeable {
  * push subscriptions, daily priorities, the value + spend ledgers, email log, billing/subscription
  * rows, referrals, activation analytics. These are retained for operation/compliance; the export's
  * scope is the rep's content + their extracted facts + operational metadata, which is now complete.
+ *
+ * [P48 · owner] During a third-party erasure review the export withholds the restricted person like every other
+ * surface (it used to keep their data, TASK 2): their messages and who-fields (restrictNote, flagged like the book),
+ * promises, key dates and meetings read from them, pointers and glossary entries naming them, and Find turns about
+ * them. Nothing is deleted; the export says data is withheld, and it all returns when the request is withdrawn or
+ * rejected.
  */
 export class AccountService {
   constructor(
@@ -61,36 +75,52 @@ export class AccountService {
     /** [P18-10j] the rep's inventory items — their own data, carried in the export (deletion cascades on
      *  the users FK on pg). Absent → an empty inventory array. */
     private readonly inventory?: { listByUser(userId: string): Promise<unknown[]> },
+    /** [P48] the active erasure restriction; absent → nothing withheld. */
+    private readonly restriction?: RestrictionSource,
   ) {}
 
   async exportData(userId: string): Promise<unknown> {
+    const r = this.restriction ? await this.restriction.forUser(userId) : NO_RESTRICTION;
     const clients = await this.clients.listByUser(userId);
     const notes = [];
     const images = [];
     for (const c of clients) {
-      notes.push(...(await this.notes.listByClient(userId, c.id)));
+      // [P48] a restricted note reads as the book shows it: their part withheld, flagged with the book's notice
+      for (const n of await this.notes.listByClient(userId, c.id)) {
+        notes.push(r.active ? { ...restrictNote(n, r), ...(noteIsAboutRestricted(n, r) ? { restricted: true, restrictionNotice: NOTE_RESTRICTION_NOTICE } : {}) } : n);
+      }
       // Image metadata + retrievable id — the "usable format" for the gallery
       // (each fetched from /images/:id). Completes the full-corpus export (P5-4).
       images.push(...(await this.images.listByClient(userId, c.id)));
     }
+    // [P48] facts read from the restricted person (their quote, or the client is them) are withheld; mentions stay
+    const names = new Map(clients.map((c) => [c.id, c.name]));
+    const withheld = await factWithholder(userId, this.restriction, this.notes, (id) => names.get(id));
+    const spanned = (x: { clientId: string; noteId: string | null; sourceSpan: string | null }) => ({ clientId: x.clientId, noteId: x.noteId, quote: x.sourceSpan });
+    const recallSessions = await this.recallSessions.exportForUser(userId);
+    const repGlossary = this.repGlossary ? ((await this.repGlossary.listByUser(userId)) as Array<{ wrongTerm: string; rightTerm: string }>) : [];
+    const clientPointers = this.pointers ? ((await this.pointers.listByUser(userId)) as Array<{ clientId: string; pointers: Array<{ text: string }> }>) : [];
     return {
       exportedAt: new Date().toISOString(),
+      ...(r.active ? { restrictionNotice: EXPORT_RESTRICTION_NOTICE } : {}),
       clients,
       notes, // raw text / transcripts live here
       // [P20-2] include soft-deleted promises (with their deleted_at) — the rep's own data in a DSAR.
-      promises: await this.facts.listPromisesByUser(userId, { includeDeleted: true }),
-      keyDates: await this.facts.listKeyDatesByUser(userId),
-      meetings: await this.meetings.listByUser(userId),
+      promises: await withoutRestricted(await this.facts.listPromisesByUser(userId, { includeDeleted: true }), withheld, spanned),
+      keyDates: await withoutRestricted(await this.facts.listKeyDatesByUser(userId), withheld, spanned),
+      meetings: await withoutRestricted(await this.meetings.listByUser(userId), withheld, spanned),
       images,
-      recallSessions: await this.recallSessions.exportForUser(userId),
+      recallSessions: r.active ? recallSessions.map((s) => ({ ...s, messages: s.messages.filter((m) => !r.restrictsText(m.content)) })) : recallSessions,
       contactAliases: this.aliases ? await this.aliases.listByUser(userId) : [],
       // [NO-TRAINING-RETENTION] the rep's operational extraction metadata + verdicts (no content), and
       // their per-rep glossary — all the rep's own data, carried in a DSAR export.
       extractionLogs: this.extractionLog ? await this.extractionLog.listByUser(userId) : [],
       corrections: this.corrections ? await this.corrections.listByUser(userId) : [],
-      repGlossary: this.repGlossary ? await this.repGlossary.listByUser(userId) : [],
+      repGlossary: r.active ? repGlossary.filter((g) => !r.restrictsText(`${g.wrongTerm} ${g.rightTerm}`)) : repGlossary,
       // [POINTERS · D10] the rep's per-client relationship/closing pointers.
-      clientPointers: this.pointers ? await this.pointers.listByUser(userId) : [],
+      clientPointers: r.active
+        ? clientPointers.map((set) => ({ ...set, pointers: r.restrictsWho(names.get(set.clientId) ?? '') ? [] : set.pointers.filter((p) => !r.restrictsText(p.text)) }))
+        : clientPointers,
       // [P18-10j] the rep's inventory — their own data, previously missing from the export.
       inventory: this.inventory ? await this.inventory.listByUser(userId) : [],
     };

@@ -22,8 +22,8 @@ import { FIND_QUERIES } from '../services/find/find-service.js';
  *    surface, so it fails until the fixture reaches it;
  *  - a surface that shows neither must be listed as showing no person text, with its reason, and the claim is
  *    re-checked on every run (it fails the moment the surface starts showing person text);
- *  - after the restriction opens, RESTRICTED appears nowhere (the export excepted, by the existing rule), and CONTROL
- *    still appears wherever it did (nothing over-withheld).
+ *  - after the restriction opens, RESTRICTED appears nowhere, the export included ([P48 · owner]), and CONTROL still
+ *    appears wherever it did (nothing over-withheld).
  * The POST routes that read (receipts, the Today refresh) are probed the same way. And every API path the web app
  * calls must be one of the discovered routes, so no renderer reads from a source this guard does not sweep.
  */
@@ -48,8 +48,6 @@ const NO_PERSON_TEXT: Record<string, string> = {
   '/clients/:id/images': 'photos (removed in P36): always empty',
   '/hero/patterns': 'parked: empty unless PATTERNS_ENABLED',
 };
-/** The rep's own copy keeps restricted data (TASK 2). */
-const EXPORT_KEEPS = new Set(['/account/export']);
 
 type Probe = { route: string; body: (i: PersonIds) => unknown };
 /** The POST routes that READ (return person-derived text). Every other POST is a write. */
@@ -148,7 +146,7 @@ beforeAll(async () => {
   await fetch(`${base}/scan`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
   after = await sweep();
   // diagnostics: ERASURE_LEAKS=1 prints what leaked; ERASURE_COVERAGE=1 prints the surface table
-  if (process.env.ERASURE_LEAKS) for (const [key, body] of after) if (body.includes(RESTRICTED) && !key.includes('/account/export')) console.log('LEAK', key, body.slice(Math.max(0, body.indexOf(RESTRICTED) - 250), body.indexOf(RESTRICTED) + 80));
+  if (process.env.ERASURE_LEAKS) for (const [key, body] of after) if (body.includes(RESTRICTED)) console.log('LEAK', key, body.slice(Math.max(0, body.indexOf(RESTRICTED) - 250), body.indexOf(RESTRICTED) + 80));
   if (process.env.ERASURE_COVERAGE) {
     const b = byRoute(before); const a = byRoute(after);
     for (const r of [...b.keys()].sort()) console.log(`COVERAGE\t${r}\t${b.get(r)!.restricted ? 'shows-restricted' : b.get(r)!.control ? 'GAP' : b.get(r)!.ok ? 'no-person-text' : 'not-a-GET'}\t${a.get(r)?.restricted ? 'LEAK' : 'withheld'}`);
@@ -175,8 +173,8 @@ describe('[P47] the erasure guard finds every surface by itself', () => {
     expect(wrongClaims).toEqual([]);
   });
 
-  it('NEGATIVE: once the restriction opens, the restricted person\'s words appear on no surface (the export excepted)', () => {
-    const leaks = [...after].filter(([key, body]) => body.includes(RESTRICTED) && !EXPORT_KEEPS.has(key.split(' ')[1]!)).map(([key]) => key);
+  it('NEGATIVE: once the restriction opens, the restricted person\'s words appear on no surface', () => {
+    const leaks = [...after].filter(([, body]) => body.includes(RESTRICTED)).map(([key]) => key);
     expect(leaks).toEqual([]);
   });
 
@@ -186,8 +184,11 @@ describe('[P47] the erasure guard finds every surface by itself', () => {
     expect(lost).toEqual([]);
   });
 
-  it('the export keeps it (so the fixture really carries the data)', () => {
-    expect([...after].some(([key, body]) => key.includes('/account/export') && body.includes(RESTRICTED))).toBe(true);
+  // [P48 · owner] was "the export keeps it": the export now withholds them like every other surface (pending the
+  // lawyer's confirmation). The before sweep is what proves the export carried them.
+  it('NEGATIVE: the export carried the restricted person before the restriction, and does not after it', () => {
+    expect([...before].some(([key, body]) => key.includes('/account/export') && body.includes(RESTRICTED))).toBe(true);
+    expect([...after].some(([key, body]) => key.includes('/account/export') && body.includes(RESTRICTED))).toBe(false);
   });
 
   it('NEGATIVE: every API path the web app calls is a discovered route (no renderer reads an unswept source)', () => {

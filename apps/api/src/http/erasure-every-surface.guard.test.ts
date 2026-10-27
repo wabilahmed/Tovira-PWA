@@ -13,8 +13,8 @@ import { discoveredRoutes } from '../test-support/route-discovery.js';
  *
  * Every route the API serves is listed below: a READ surface is probed; anything else carries its reason. A NEW
  * route that isn't in this list fails the guard, so a new surface can't ship without being checked.
- * Exports are the one exception, by the existing rule: restricted data is withheld from every surface but stays in
- * the rep's own export (TASK 2, erasure-restriction.test.ts).
+ * [P48 · owner] The export is no longer an exception: it withholds the restricted person like every other surface
+ * (it used to keep their data by TASK 2's rule; see erasure-export.test.ts).
  */
 const MARK = 'ZEBRAQUARTZ';
 type Probe = { method: 'GET' | 'POST'; path: (ids: Ids) => string; body?: (ids: Ids) => unknown };
@@ -65,8 +65,8 @@ export const SURFACES: Record<string, Probe | string> = {
   '/ledger': GET(() => '/ledger'),
   '/notes/:id/move-preview': GET((i) => `/notes/${i.noteId}/move-preview`),
   '/import/bulk/:id/status': 'an import batch: the rep\'s own upload in progress, not a stored client surface',
-  // exports keep restricted data (existing rule)
-  '/account/export': 'EXPORT — keeps restricted data by the existing rule (the rep\'s own copy)',
+  // [P48 · owner] the export withholds them too (it kept their data by TASK 2's rule)
+  '/account/export': GET(() => '/account/export'),
   // not read surfaces
   '/account': 'account deletion', '/me': 'the rep\'s own profile', '/me/timezone': 'write', '/me/ui-prefs': 'the rep\'s UI preferences',
   '/me/tour': 'tour progress', '/me/access-answers': 'the rep\'s own answers about their business, no client content', '/me/tour/complete': 'write', '/onboarding/status': 'counts only', '/allowance/status': 'usage numbers',
@@ -103,6 +103,7 @@ let base: string;
 let deps: TestDeps;
 let token: string;
 let ids: Ids;
+let userId: string;
 const DAY = 86_400_000;
 
 beforeAll(async () => {
@@ -113,6 +114,7 @@ beforeAll(async () => {
   const s = (await (await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'rep@example.com', password: 'password123' }) })).json()) as { token: string; user: { id: string } };
   token = s.token;
   const u = s.user.id;
+  userId = u;
   const c = await deps.clients.create(u, 'Marina Estates');
   (c as { lastTouchedAt: number }).lastTouchedAt = Date.now() - 45 * DAY; // gone quiet → Today, Find, risk
   const K1 = `${MARK} here, looking for a 4BR villa in Mirdif, budget around 3M`;
@@ -181,8 +183,10 @@ describe('[P40-2] the erasure restriction holds on every surface', () => {
     });
   }
 
-  it('the export keeps it (the existing rule) — so the fixture really carries the data', async () => {
-    const { text } = await call(GET(() => '/account/export'));
-    expect(text).toContain(MARK);
+  // [P48 · owner] was "the export keeps it (the existing rule)", which also proved the fixture carried the data. The
+  // export now withholds it (probed above), so the proof is the stored records: withheld, never deleted.
+  it('the stored records still carry it (withheld, not deleted), so the fixture really carries the data', async () => {
+    expect(JSON.stringify(await deps.notes.listByClient(userId, ids.clientId))).toContain(MARK);
+    expect(JSON.stringify(await deps.facts.listPromisesByUser(userId))).toContain(MARK);
   });
 });
