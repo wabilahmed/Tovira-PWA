@@ -65,7 +65,9 @@ const CARD_CANDIDATE = new RegExp(`\\b(?:\\d[${SEP}]?){13,19}\\b`, 'g');
 // would not fire before/after it). Arabic forms are the ones that actually occur in UAE chats: OTP
 // (رمز التحقق), password (كلمة المرور/السر), PIN (الرقم السري), and the generic code (الرمز). Bare رمز is
 // deliberately excluded — it collides with الرمز البريدي (postal code) and other non-secret uses.
-const CREDENTIAL = /(?:\b(?:otp|one[- ]?time (?:code|password)|2fa|pin|password|passcode|api[ -]?key|token|cvv|cvc)\b|رمز التحقق|كلمة المرور|كلمة السر|الرقم السري|الرمز)\s*(?:is|:|=|-)?\s*([A-Za-z0-9._-]{3,})/gi;
+// [P53 · owner] "PIN code" is a postal code (India), never a secret: "pin" followed by "code" is not a credential label.
+// A bare "PIN" with digits stays a secret PIN.
+const CREDENTIAL = /(?:\b(?:otp|one[- ]?time (?:code|password)|2fa|pin(?!\s*code\b)|password|passcode|api[ -]?key|token|cvv|cvc)\b|رمز التحقق|كلمة المرور|كلمة السر|الرقم السري|الرمز)\s*(?:is|:|=|-)?\s*([A-Za-z0-9._-]{3,})/gi;
 const SWIFT = /(?:\b(?:swift|bic)\b|رمز سويفت|كود سويفت|سويفت)[:\s]*([A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b/gi;
 // Bank account — English enumerated + unenumerated ("acct", "bank a/c") labels, plus Arabic (رقم الحساب /
 // رقم حساب / حساب بنكي / الحساب). Longest Arabic form first so "رقم الحساب" wins over "الحساب".
