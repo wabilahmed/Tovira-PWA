@@ -9,8 +9,9 @@ const d = new DOMParser().parseFromString(html, 'text/html');
 const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
 describe('[P41-1] hero', () => {
-  it('the eyebrow is "FOR RELATIONSHIP SALES · UAE"', () => {
-    expect(text(d.querySelector('.hero .eyebrow'))).toBe('FOR RELATIONSHIP SALES · UAE');
+  // [P51 · owner] was "FOR RELATIONSHIP SALES · UAE": Tovira is no longer presented as UAE-only (no-uae.test.ts)
+  it('the eyebrow is "FOR RELATIONSHIP SALES"', () => {
+    expect(text(d.querySelector('.hero .eyebrow'))).toBe('FOR RELATIONSHIP SALES');
   });
   it('the headline is kept', () => {
     expect(text(d.querySelector('#hero-h'))).toBe('Forty clients.Ten thousand details.One memory.');

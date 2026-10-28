@@ -55,7 +55,8 @@ describe('[SITE-5] meta & SEO', () => {
     expect(d.querySelector('meta[property="og:title"]')).not.toBeNull();
     expect(d.querySelector('meta[property="og:image"]')?.getAttribute('content')).toMatch(/og\.(png|svg)$/);
     expect(d.querySelector('meta[name="twitter:card"]')?.getAttribute('content')).toBe('summary_large_image');
-    expect(d.querySelector('meta[property="og:locale:alternate"]')?.getAttribute('content')).toBe('ar_AE');
+    // [P51 · owner] was ar_AE (Arabic as used in the UAE): the neutral Arabic locale, no country
+    expect(d.querySelector('meta[property="og:locale:alternate"]')?.getAttribute('content')).toBe('ar_AR');
   });
 });
 
