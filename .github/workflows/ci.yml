@@ -107,8 +107,9 @@ jobs:
           DATABASE_URL: postgres://gate:gate@localhost:5432/gate
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "No ANTHROPIC_API_KEY secret set — the gate is skipped, nothing to record."
-            exit 0
+            # [P52 · owner] fail closed: no key, no gate, no deploy, whatever changed
+            echo "::error::No ANTHROPIC_API_KEY secret set: the gate cannot run, so this commit cannot deploy (FAIL, closed)."
+            exit 1
           fi
           npx tsx apps/api/src/eval/fab-started.ts > "$RUNNER_TEMP/fab-started.jsonl"
           scripts/ops/append-fab-ledger.sh "$RUNNER_TEMP/fab-started.jsonl" "gate started: ${GITHUB_SHA::7} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
@@ -123,10 +124,11 @@ jobs:
           GATE_LEDGER_REQUIRED: '1'
           GATE_LEDGER_FILE: ${{ runner.temp }}/fab-ledger.jsonl
           GATE_LEDGER_OUT: ${{ runner.temp }}/fab-record.jsonl
+          GATE_VERDICT_OUT: ${{ runner.temp }}/verdict.jsonl # [P52] this run's verdict, for the deploy ledger
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "No ANTHROPIC_API_KEY secret set — skipping the P1-9 gate."
-            exit 0
+            echo "::error::No ANTHROPIC_API_KEY secret set: the P1-9 gate cannot run (FAIL, closed)."
+            exit 1
           fi
           # Fail closed: no ledger branch / no ledger file → the gate refuses to run.
           git fetch --no-tags --depth=1 origin gate-ledger || { echo "FABRICATION LEDGER: the gate-ledger branch is missing — FAIL (closed)"; exit 1; }
@@ -142,3 +144,38 @@ jobs:
             exit 0
           fi
           scripts/ops/append-fab-ledger.sh "$RECORD" "gate: ${GITHUB_SHA::7} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+      # [P52 · owner] The verdict (deploy gate, certification PASS / PROVISIONAL / FAIL, every counter) is kept permanently
+      # on the gate ledger: deploy.yml refuses a commit whose latest verdict is a FAIL, or that has no verdict at all.
+      - name: Append this run's verdict to the deploy ledger (whatever the result)
+        if: always()
+        env:
+          VERDICT: ${{ runner.temp }}/verdict.jsonl
+        run: |
+          if [ ! -s "$VERDICT" ]; then
+            echo "No verdict (the gate stopped before scoring): none recorded, so this commit cannot deploy."
+            exit 0
+          fi
+          TARGET_FILE=deploy-ledger.jsonl scripts/ops/append-fab-ledger.sh "$VERDICT" "verdict: ${GITHUB_SHA::7} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
+
+  # [P52 · owner] Every CI job passed for this commit: recorded permanently, so a manual deploy (or a rollback to an older
+  # green commit) can be checked long after CI artifacts expire.
+  record-green:
+    needs: [verify, migrations-pg, landing-e2e, gate]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: fab-ledger
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Append the CI-green record to the deploy ledger
+        run: |
+          npx tsx apps/api/src/eval/deploy-record.ts ci-green > "$RUNNER_TEMP/ci-green.jsonl"
+          TARGET_FILE=deploy-ledger.jsonl scripts/ops/append-fab-ledger.sh "$RUNNER_TEMP/ci-green.jsonl" "ci green: ${GITHUB_SHA::7} run ${GITHUB_RUN_ID}"

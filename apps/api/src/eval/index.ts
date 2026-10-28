@@ -16,6 +16,7 @@ import { SpendCap } from './spend-cap.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { FAB_TRIPWIRE_PCT, parseFabLedger, poolFabWindow, fabWindowVerdict, freshWindowPlan, formatThisRun, formatPooled, fabRecordLine, type FabLedgerEntry } from './fab-window.js';
 import { gateModelId, gateWindowKey, gateRunRef } from './fab-started.js';
+import { verdictLine } from './deploy-ledger.js';
 import { unmatchedPromises, formatFabCase } from './fab-cases.js';
 
 /**
@@ -389,6 +390,21 @@ async function main(): Promise<void> {
   const fullyCertified = hardPassed && soft.passed && tier1Pass && fab.passed && !fab.provisional && scBar.passed && !scBar.provisional && reqGate.passed && !reqGate.provisional;
   console.log(`\n[gate] DEPLOY GATE: ${deployPass ? 'PASS (per-run hard + soft + Tier-1 zero + structured-sensitive zero + fabrication & special-category ≤ ceiling)' : 'FAIL'}`);
   console.log(`[gate] FULL CERTIFICATION: ${fullyCertified ? 'PASS (aggregate rates certified over ≥ minimum sample)' : deployPass ? 'PROVISIONAL — deploy-safe, an aggregate rate not yet certified at this N' : 'FAIL'}`);
+  // [P52 · owner] The verdict, kept permanently on the gate ledger (deploy-ledger.jsonl): deploy.yml refuses a commit whose
+  // latest verdict is a certification FAIL or a deploy-gate FAIL, and a commit with no verdict at all.
+  if (process.env.GATE_VERDICT_OUT) {
+    writeFileSync(process.env.GATE_VERDICT_OUT, verdictLine({
+      type: 'verdict', sha: runRef.sha, runId: runRef.runId, attempt: runRef.attempt, at: new Date().toISOString(),
+      mode: windowPlan?.mode ?? 'normal',
+      deployGate: deployPass ? 'PASS' : 'FAIL',
+      certification: fullyCertified ? 'PASS' : deployPass ? 'PROVISIONAL' : 'FAIL',
+      counters: {
+        guessed: agg.guessedDates, merged: agg.mergedPeople, falseCert: agg.falseCertainties, tier1: agg.tier1Leaked, aliasPeople: agg.aliasPeople,
+        nullNamed: agg.nullNamedPeople, leakedT2: agg.leakedValues, receiptsFabricated: receiptAgg.spansFabricated, msgAtOnAmbiguous: receiptAgg.messageAtOnAmbiguous,
+        tier1Residual: tier1Bad.length, structuredSensitive, fabricated: fabCurrent.fabricated, extractions: fabCurrent.extractions,
+      },
+    }));
+  }
   if (!deployPass) process.exit(1);
 }
 

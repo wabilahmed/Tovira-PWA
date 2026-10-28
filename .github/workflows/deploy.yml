@@ -21,6 +21,20 @@ on:
         type: choice
         default: both
         options: [both, api, web]
+      # [P52 · owner] Deploy an older commit (a rollback): it must have a CI-green record and no certification FAIL.
+      sha:
+        description: Commit to deploy (blank = the branch head)
+        type: string
+        required: false
+      # [P52 · owner] Force past the rules: needs a reason, is recorded (who, when, why) and emails ADMIN_EMAILS.
+      force:
+        description: Force this deploy past the release checks
+        type: boolean
+        default: false
+      reason:
+        description: Why (required with force, at least 10 characters)
+        type: string
+        required: false
 
 concurrency:
   group: deploy-${{ vars.DEPLOY_ENV || 'prod' }}
@@ -28,27 +42,89 @@ concurrency:
 
 permissions:
   id-token: write # required for OIDC
-  contents: read
+  contents: write # [P52] the decide job appends a forced deploy to the gate ledger
+  actions: read # [P52] a commit from before the deploy ledger: GitHub's CI result for it
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
   DEPLOY_ENV: ${{ vars.DEPLOY_ENV || 'prod' }}
   ECR_REPOSITORY: tovira/api # matches infra/terraform/ecr.tf
-  # The exact commit CI verified (head_sha on the auto path, dispatch sha manually)
-  # — tag the image and check out with the SAME sha so we deploy what was tested.
-  IMAGE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
-  api:
-    # Auto (after a green CI) → deploy; manual → honor the target picker.
-    if: >-
-      ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-          || (github.event_name == 'workflow_dispatch' && (inputs.target == 'both' || inputs.target == 'api')) }}
+  # [P52 · owner] One decision gates both halves. Auto: CI green and the commit's latest gate verdict has no
+  # certification FAIL (PROVISIONAL allowed for now). Manual: a CI-green record and no FAIL (an older commit is a
+  # rollback). Forced: a reason, recorded and emailed. No verdict, an unreadable ledger or any error refuses.
+  decide:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    concurrency:
+      group: fab-ledger
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: The commit to deploy
+        id: sha
+        env:
+          WANT: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+        run: |
+          SHA=$(git rev-parse --verify "${WANT}^{commit}") || { echo "::error::Unknown commit ${WANT}"; exit 1; }
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+      - name: Read the deploy ledger (fail closed)
+        run: |
+          git fetch --no-tags origin gate-ledger || { echo "::error::The gate-ledger branch is missing: refusing (closed)"; exit 1; }
+          if git cat-file -e FETCH_HEAD:deploy-ledger.jsonl 2>/dev/null; then git show FETCH_HEAD:deploy-ledger.jsonl > "$RUNNER_TEMP/deploy-ledger.jsonl"; else : > "$RUNNER_TEMP/deploy-ledger.jsonl"; fi
+      - name: A commit from before the deploy ledger (manual only)
+        id: legacy
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          n=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${SHA}&status=success&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI")] | length')
+          echo "green=$([ "${n:-0}" -gt 0 ] && echo 1 || echo 0)" >> "$GITHUB_OUTPUT"
+      - name: Decide
+        env:
+          TRIGGER: ${{ github.event_name == 'workflow_run' && 'auto' || 'manual' }}
+          SHA: ${{ steps.sha.outputs.sha }}
+          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          LEDGER_FILE: ${{ runner.temp }}/deploy-ledger.jsonl
+          LEGACY_CI_GREEN: ${{ steps.legacy.outputs.green }}
+          FORCE: ${{ inputs.force }}
+          REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}
+          DEPLOY_POLICY: provisional-ok # owner: PROVISIONAL allowed for now; 'pass-required' refuses it
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
+          FORCED_OUT: ${{ runner.temp }}/forced.jsonl
+        run: |
+          npx tsx apps/api/src/eval/deploy-decide.ts
+          if [ -s "$FORCED_OUT" ]; then
+            TARGET_FILE=deploy-ledger.jsonl scripts/ops/append-fab-ledger.sh "$FORCED_OUT" "forced deploy: ${SHA::7} by ${ACTOR}"
+          fi
+
+  api:
+    needs: decide
+    # Only on the decision; manual → honor the target picker.
+    if: >-
+      ${{ needs.decide.result == 'success'
+          && (github.event_name == 'workflow_run' || inputs.target == 'both' || inputs.target == 'api') }}
+    runs-on: ubuntu-latest
+    env:
+      # The exact commit the decision approved: tag the image and check out with the SAME sha.
+      IMAGE_SHA: ${{ needs.decide.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.decide.outputs.sha }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -123,15 +199,18 @@ jobs:
           echo "::error::/api/health never returned 200 through CloudFront"; exit 1
 
   web:
-    # Auto (after a green CI) → deploy; manual → honor the target picker.
+    # [P52 · owner] Only on the decision, and never ahead of the API: web waits for the api job to succeed (a manual
+    # web-only deploy, where api is skipped, is the one exception).
+    needs: [decide, api]
     if: >-
-      ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-          || (github.event_name == 'workflow_dispatch' && (inputs.target == 'both' || inputs.target == 'web')) }}
+      ${{ always() && needs.decide.result == 'success'
+          && (needs.api.result == 'success'
+              || (github.event_name == 'workflow_dispatch' && inputs.target == 'web' && needs.api.result == 'skipped')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ needs.decide.outputs.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
