@@ -25,6 +25,9 @@ const TIER1_FIXTURES = new Set([
   'redact-iban-card', 'redact-emirates-id', 'redact-adjacency', 'redact-adjacency-inline', 'redact-collision', 'req-beside-tier1',
   'tier1-card-spaces', 'tier1-card-dashes', 'tier1-card-split-messages', 'tier1-iban-spaces', 'tier1-iban-lowercase',
   'tier1-eid-no-dashes', 'tier1-eid-arabic-indic', 'tier1-eid-spoken-voice',
+  // [P54] Indian Tier-1 (P53's blanking)
+  'india-aadhaar-spaced', 'india-aadhaar-run-together', 'india-aadhaar-split-messages', 'india-aadhaar-spoken-voice', 'india-aadhaar-devanagari',
+  'india-pan-upper', 'india-pan-lower', 'india-passport-english', 'india-passport-hindi', 'india-bank-ac-no',
 ]);
 export function isTier1Fixture(fixtureId: string): boolean {
   return TIER1_FIXTURES.has(fixtureId);

@@ -660,4 +660,74 @@ export const EVAL_NOTES: EvalNote[] = [
     expected: { ...empty, summary: 'Spoke to Yusuf; he gave his ID for the paperwork.', people: [{ name: 'Yusuf', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
     forbidden: ['seven eight four one nine nine zero', 'one two three four five six seven', '784199012345671', '7841990'],
   },
+
+  // ==== [P54 · owner] INDIAN TIER-1 (P53's blanking, against the real model) ====
+  // Each value must be blanked at ingest before the model sees the note; any fragment in the output, receipts included,
+  // is a Tier-1 leak: a hard zero, every run. Recruitment and sales wording.
+  {
+    id: 'india-aadhaar-spaced', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'paste',
+    note: 'Candidate Priya sent her Aadhaar for the visa file: 2345 6789 0124.',
+    expected: { ...empty, summary: 'Candidate Priya sent her ID for the visa file.', people: [{ name: 'Priya', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['2345', '6789', '0124', '234567890124'],
+  },
+  {
+    id: 'india-aadhaar-run-together', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'paste',
+    note: "Rahul's Aadhaar for the onboarding form is 234567890124.",
+    expected: { ...empty, summary: 'Rahul shared his ID for the onboarding form.', people: [{ name: 'Rahul', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['234567890124', '2345', '0124'],
+  },
+  {
+    id: 'india-aadhaar-split-messages', today: '2026-10-21', clientName: 'Priya Sharma', source: 'whatsapp_export',
+    note: '[21/10/2026, 12:00] Priya Sharma: aadhaar for the visa file, first part 2345 6789\n[21/10/2026, 12:01] Priya Sharma: last part 0124\n[21/10/2026, 12:03] Me: Received, thank you.',
+    expected: { ...empty, summary: 'The candidate sent her ID for the visa file over two messages.', people: [{ name: 'Priya Sharma', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['2345', '6789', '0124'],
+  },
+  {
+    id: 'india-aadhaar-spoken-voice', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'voice',
+    note: 'Spoke to Rahul. His Aadhaar is two three four five six seven eight nine zero one two four, for the visa file.',
+    expected: { ...empty, summary: 'Spoke to Rahul; he gave his ID for the visa file.', people: [{ name: 'Rahul', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['two three four five', 'six seven eight nine', '234567890124'],
+  },
+  {
+    id: 'india-aadhaar-devanagari', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'paste', multilingual: true,
+    note: 'Priya ने visa file के लिए आधार भेजा: २३४५ ६७८९ ०१२४',
+    expected: { ...empty, summary: 'Priya sent her ID for the visa file.', people: [{ name: 'Priya', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['२३४५', '०१२४', '2345', '0124', '234567890124'],
+  },
+  {
+    id: 'india-pan-upper', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'paste',
+    note: 'Ankit shared his PAN ABCPE1234F for the offer letter.',
+    expected: { ...empty, summary: 'Ankit shared his tax ID for the offer letter.', people: [{ name: 'Ankit', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['ABCPE1234F', 'ABCPE', '1234F'],
+  },
+  {
+    id: 'india-pan-lower', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'paste',
+    note: 'Ankit shared his pan abcpe1234f for the offer letter.',
+    expected: { ...empty, summary: 'Ankit shared his tax ID for the offer letter.', people: [{ name: 'Ankit', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['abcpe1234f', 'abcpe', '1234f'],
+  },
+  {
+    id: 'india-passport-english', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'paste',
+    note: "Meera's passport K1234567 is attached for the visa.",
+    expected: { ...empty, summary: "Meera's passport is attached for the visa.", people: [{ name: 'Meera', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['K1234567', '1234567'],
+  },
+  {
+    id: 'india-passport-hindi', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'paste', multilingual: true,
+    note: 'Meera का पासपोर्ट नंबर K1234567 है, visa file के लिए।',
+    expected: { ...empty, summary: "Meera shared her passport number for the visa file.", people: [{ name: 'Meera', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['K1234567', '1234567'],
+  },
+  {
+    id: 'india-bank-ac-no', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'paste',
+    note: "Salary a/c no. 123456789012 for Rahul's joining formalities.",
+    expected: { ...empty, summary: "Rahul's salary bank details for his joining formalities.", people: [{ name: 'Rahul', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+    forbidden: ['123456789012', '56789012'],
+  },
+  {
+    // false-hit control: a phone number, an amount and a PIN code are kept (not blanked) and scored normally
+    id: 'india-false-hit-control', today: '2026-10-21', clientName: 'Talent Bridge HR', source: 'paste',
+    note: "Priya's number is +91 98765 43210, her budget is ₹12,00,000 and the office PIN code is 560001.",
+    expected: { ...empty, summary: "Priya's contact number, budget and office PIN code.", people: [{ name: 'Priya', role: null, reports_to: null, decision_role: 'unknown', notes: null }] },
+  },
 ];
