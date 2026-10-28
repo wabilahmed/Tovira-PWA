@@ -95,7 +95,17 @@ const BANK_ACCOUNT = /(?:\b(?:account (?:number|no|#)|acct(?: (?:no|number|#))?|
 // Passport / visa / residency. Bare "licence"/"license" is intentionally NOT a keyword: it caught
 // business references (trade/commercial/business licence) as IDs. Only "driving licen[cs]e" (the actual
 // ID document) is kept. Arabic: جواز السفر / رقم الجواز / الجواز (passport), الإقامة (residency), تأشيرة (visa).
-const PASSPORT = /(?:\b(?:passport|visa|residency|driving licen[cs]e)\b|جواز السفر|رقم الجواز|الجواز|الإقامة|تأشيرة)(?:\s*(?:no|number|#|is|:|-))?\s*([A-Z0-9]{6,12})\b/gi;
+// [P53] + पासपोर्ट; the label may carry punctuation ("no.", "no:", "number:"); the value needs a digit, so the word "number"
+// itself is never taken for the passport.
+const PASSPORT = /(?:\b(?:passport|visa|residency|driving licen[cs]e)\b|جواز السفر|رقم الجواز|الجواز|الإقامة|تأشيرة|पासपोर्ट)(?:\s*(?:no\.?|number|#|is)(?![A-Za-z]))?\s*[:-]?\s*((?=[A-Z]*\d)[A-Z0-9]{6,12})\b/gi;
+// [P53] An Indian passport (a letter and 7 digits) with "passport" / पासपोर्ट within four words, before or after it.
+const IN_PASSPORT = /(?<![A-Za-z0-9])[A-Za-z][1-9]\d{6}(?![A-Za-z0-9])/g;
+const PASSPORT_WORD = /passport|पासपोर्ट/i;
+function nearPassport(text: string, at: number, len: number): boolean {
+  const before = text.slice(0, at).split(/\s+/).filter(Boolean).slice(-5).join(' ');
+  const after = text.slice(at + len).split(/\s+/).filter(Boolean).slice(0, 5).join(' ');
+  return PASSPORT_WORD.test(before) || PASSPORT_WORD.test(after);
+}
 
 function bump(counts: Record<string, number>, kind: SensitiveKind): void {
   counts[kind] = (counts[kind] ?? 0) + 1;
@@ -133,7 +143,8 @@ export function redactSensitive(input: string): RedactionResult {
   text = text.replace(CREDENTIAL, (m, val: string) => { bump(counts, 'credential'); return m.replace(val, '[credential redacted]'); });
   text = text.replace(SWIFT, (m, val: string) => { bump(counts, 'swift'); return m.replace(val, '[SWIFT redacted]'); });
   text = text.replace(BANK_ACCOUNT, (m, val: string) => { bump(counts, 'bank_account'); return m.replace(val, '[bank account redacted]'); });
-  text = text.replace(PASSPORT, (m, val: string) => { bump(counts, 'passport'); return m.replace(val, '[ID redacted]'); });
+  text = text.replace(PASSPORT, (m, val: string) => { bump(counts, 'passport'); return m.slice(0, m.length - val.length) + '[ID redacted]'; });
+  text = text.replace(IN_PASSPORT, (m, at: number, whole: string) => (nearPassport(whole, at, m.length) ? (bump(counts, 'passport'), '[ID redacted]') : m));
 
   // [P50-0] A card split over consecutive messages from one sender, in a raw chat's lines.
   if (text.includes('\n')) {

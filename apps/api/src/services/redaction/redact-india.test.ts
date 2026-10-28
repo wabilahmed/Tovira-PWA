@@ -76,3 +76,31 @@ describe('[P53-2] PAN', () => {
     for (const t of ['ref ABCPE12345F', 'XABCPE1234F', 'ABCPE1234FX', 'job JOB12345', 'booking PNR4523A', 'flight EK0512']) untouched(t);
   });
 });
+
+describe('[P53-3] passports', () => {
+  it('an Indian passport (letter + 7 digits) with "passport" a few words before or after it is blanked', () => {
+    expect(blanked('His passport for the visa is K1234567, expiring 2031')) // up to four words between
+      .toBe('His passport for the visa is [ID redacted], expiring 2031');
+    expect(blanked('K1234567 is the passport he renewed')).toBe('[ID redacted] is the passport he renewed');
+  });
+  it('with पासपोर्ट (Hindi) before it', () => {
+    expect(blanked('उसका पासपोर्ट नंबर K1234567 है')).toBe('उसका पासपोर्ट नंबर [ID redacted] है');
+  });
+  it('other passports right after the word or its label (6-12 letters and digits, at least one digit)', () => {
+    expect(blanked('passport A1234567')).toBe('passport [ID redacted]');
+    expect(blanked('Passport no: 123456789')).toBe('Passport no: [ID redacted]');
+    expect(blanked('passport no. A1234567')).toBe('passport no. [ID redacted]');
+    expect(blanked('passport # A1234567')).toBe('passport # [ID redacted]');
+  });
+  it('the number is blanked, never the word "number" (it used to blank "number" and leave the passport)', () => {
+    expect(blanked('passport number: A1234567')).toBe('passport number: [ID redacted]');
+  });
+  it('NEGATIVE: "bring your passport" with no number stays', () => {
+    untouched('bring your passport to the interview on Monday');
+    untouched('पासपोर्ट साथ लाना');
+  });
+  it('NEGATIVE: a letter + 7 digits with no "passport" nearby stays (an order, a ticket)', () => {
+    untouched('order K1234567 ships Monday');
+    untouched('ticket K1234567 was raised yesterday and closed after the team checked the passport desk');
+  });
+});
