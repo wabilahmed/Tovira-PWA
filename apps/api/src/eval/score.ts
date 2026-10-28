@@ -243,6 +243,28 @@ export interface ReceiptScore {
   messageAtNotInSource: number;
 }
 
+/** [P54-3] "YYYY-MM-DDTHH:MM" for a model's message time (ISO, seconds or zone ignored: the chat's own clock), or null. */
+function momentKey(v: string): string | null {
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/.exec(v.trim());
+  return m ? `${m[1]}T${m[2]}:${m[3]}` : null;
+}
+/** [P54-3] Every message moment a chat states, read as written (day-first WhatsApp dates, 12- or 24-hour, or ISO). */
+function momentsOf(text: string): Set<string> {
+  const out = new Set<string>();
+  const pad = (n: string | number) => String(n).padStart(2, '0');
+  const add = (d: string, mo: string, y: string, h: string, mi: string, ap?: string) => {
+    let hour = Number(h);
+    const half = (ap ?? '').toLowerCase().replace(/\./g, '');
+    if (half === 'pm' && hour < 12) hour += 12;
+    if (half === 'am' && hour === 12) hour = 0;
+    const year = y.length === 2 ? `20${y}` : y;
+    out.add(`${year}-${pad(mo)}-${pad(d)}T${pad(hour)}:${mi}`);
+  };
+  for (const m of text.matchAll(/\[?(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s*(\d{1,2}):(\d{2})(?::\d{2})?[\s\u202f]*([ap]\.?m\.?)?/gi)) add(m[1]!, m[2]!, m[3]!, m[4]!, m[5]!, m[6]);
+  for (const m of text.matchAll(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/g)) out.add(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`);
+  return out;
+}
+
 /** [P50] The placeholders redact.ts writes in place of a Tier-1 value. */
 export const BLANKING_PLACEHOLDER = /\[(?:card ending \d{4}|card number redacted|IBAN redacted|Emirates ID redacted|SWIFT redacted|bank account redacted|ID redacted|credential redacted)\]/;
 
@@ -284,7 +306,7 @@ export function scoreReceipts(
     if (at != null && String(at).trim()) {
       if (!sourceHasMessageTimestamps) {
         s.messageAtOnAmbiguous += 1;
-      } else if (!sourceText.includes(String(at)) && !sourceText.includes(String(at).slice(0, 16))) {
+      } else if (!sourceText.includes(String(at)) && !sourceText.includes(String(at).slice(0, 16)) && !momentsOf(sourceText).has(momentKey(String(at)) ?? '')) {
         // The chat renders "[<timestamp>] …"; a source_message_at not present there is invented.
         s.messageAtNotInSource += 1;
       }
