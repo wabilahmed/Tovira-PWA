@@ -9,7 +9,7 @@
  * plain "we ordered 100000 units" or "AED 45000" must pass through untouched.
  */
 
-export type SensitiveKind = 'card' | 'iban' | 'emirates_id' | 'swift' | 'bank_account' | 'passport' | 'credential';
+export type SensitiveKind = 'card' | 'iban' | 'emirates_id' | 'aadhaar' | 'pan' | 'swift' | 'bank_account' | 'passport' | 'credential';
 
 export interface RedactionResult {
   redacted: string;
@@ -40,11 +40,24 @@ function luhnValid(digits: string): boolean {
 // this is a multilingual market and `\d` in JS is ASCII-only, so an Emirates ID or IBAN in
 // Arabic-Indic numerals would otherwise sail straight through the redactor.
 function normalizeDigits(s: string): string {
-  return s.replace(/[٠-٩۰-۹]/g, (d) => {
+  // [P53] and Devanagari (U+0966–096F), for Hindi chats and transcripts
+  return s.replace(/[٠-٩۰-۹०-९]/g, (d) => {
     const c = d.codePointAt(0)!;
-    return String((c >= 0x06f0 ? c - 0x06f0 : c - 0x0660));
+    return String(c >= 0x0966 ? c - 0x0966 : c >= 0x06f0 ? c - 0x06f0 : c - 0x0660);
   });
 }
+
+// [P53] Verhoeff checksum (Aadhaar's check digit): cuts the false hits a bare 12-digit pattern would make.
+const VD = [[0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],[3,4,0,1,2,8,9,5,6,7],[4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],[6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],[8,7,6,5,9,3,2,1,0,4],[9,8,7,6,5,4,3,2,1,0]];
+const VP = [[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,6,1,4,2],[8,9,1,6,0,4,3,5,2,7],[9,4,5,3,1,2,6,8,7,0],[4,2,8,6,5,7,3,9,0,1],[2,7,9,3,8,0,6,4,1,5],[7,0,4,6,9,1,3,2,5,8]];
+function verhoeffValid(digits: string): boolean {
+  let c = 0;
+  const r = digits.split('').reverse();
+  for (let i = 0; i < r.length; i++) c = VD[c]![VP[i % 8]![Number(r[i])]!]!;
+  return c === 0;
+}
+/** [P53] Aadhaar: 12 digits, the first 2–9, Verhoeff-valid. */
+const isAadhaar = (digits: string): boolean => digits.length === 12 && /^[2-9]/.test(digits) && verhoeffValid(digits);
 
 // Separators an obfuscated card/IBAN may carry: ASCII space/tab, newline/CR (a value split across a
 // line break within ONE message), dot, NBSP, narrow NBSP, non-breaking hyphen, hyphen. NOT "/" — dates
@@ -58,6 +71,10 @@ const EMIRATES_ID = /\b784[- ]?\d{4}[- ]?\d{7}[- ]?\d\b/g; // 784-YYYY-NNNNNNN-C
 const IBAN_AE = /\bAE(?:\s?\d){21}\b/gi;
 // Keyworded (foreign) IBAN — allow the common "IBAN no"/"IBAN number" label variant before the value.
 const IBAN_KEYWORDED = /\b(?:iban)(?:\s*(?:no|number|#))?\b[:\s]*([A-Z]{2}\d{2}[A-Z0-9]{10,30})\b/gi;
+// [P53] Aadhaar: 4-4-4 with one consistent separator (space or dash) or run together; never part of a longer number,
+// never after "+" (a country code). Checked by isAadhaar (2–9 first, Verhoeff). Runs AFTER the card rule, so it can never
+// take the first twelve digits of a card.
+const AADHAAR = /(?<!\d[ -]?)(?<!\+)[2-9]\d{3}([ -]?)\d{4}\1\d{4}(?![ -]?\d)/g;
 // Card: 13–19 digits, optionally grouped by any of the separators above; validated by Luhn.
 const CARD_CANDIDATE = new RegExp(`\\b(?:\\d[${SEP}]?){13,19}\\b`, 'g');
 // Keyword-anchored credentials/identifiers — require the label so we never eat a bare number. English
@@ -103,6 +120,11 @@ export function redactSensitive(input: string): RedactionResult {
     if (digits.length < 13 || digits.length > 19 || !luhnValid(digits)) return m; // not a card — leave it
     bump(counts, 'card');
     return `[card ending ${digits.slice(-4)}]${/[^\d]*$/.exec(m)![0]}`; // [P50-0] keep the separator the run swallowed
+  });
+  text = text.replace(AADHAAR, (m) => {
+    if (!isAadhaar(m.replace(/\D/g, ''))) return m; // fails the checksum: not an Aadhaar
+    bump(counts, 'aadhaar');
+    return '[ID redacted]';
   });
   text = text.replace(CREDENTIAL, (m, val: string) => { bump(counts, 'credential'); return m.replace(val, '[credential redacted]'); });
   text = text.replace(SWIFT, (m, val: string) => { bump(counts, 'swift'); return m.replace(val, '[SWIFT redacted]'); });
@@ -163,11 +185,15 @@ function joinSplitCards(parts: Array<{ who: string | null; text: string }>, coun
     if (!first) continue;
     const pieces: Array<{ part: number; at: number; s: string }> = [{ part: i, ...first }];
     let digits = first.d;
+    let aadhaarPieces: { pieces: Array<{ part: number; at: number; s: string }>; end: number } | null = null;
+    let cardDone = false;
     for (let k = i + 1; k < parts.length && k <= i + 3 && parts[k]!.who === parts[i]!.who; k++) {
       const head = runs(texts[k]!)[0];
       if (!head) break;
       const candidate = digits + head.d;
       if (candidate.length > 19) break;
+      // [P53] an Aadhaar split over messages, unless the chain goes on to complete a card (a card always wins)
+      if (isAadhaar(candidate) && !aadhaarPieces) aadhaarPieces = { pieces: [...pieces, { part: k, at: head.at, s: head.s }], end: k };
       if (candidate.length >= 13 && luhnValid(candidate)) {
         pieces.push({ part: k, at: head.at, s: head.s });
         for (const [n, p] of pieces.entries()) {
@@ -176,12 +202,19 @@ function joinSplitCards(parts: Array<{ who: string | null; text: string }>, coun
         }
         bump(counts, 'card');
         changed = true;
+        cardDone = true;
         i = k;
         break;
       }
       if (texts[k]!.trim() !== head.s) break; // only a part that is nothing but digits can sit in the middle
       pieces.push({ part: k, at: head.at, s: head.s });
       digits = candidate;
+    }
+    if (!cardDone && aadhaarPieces) {
+      for (const p of aadhaarPieces.pieces) texts[p.part] = texts[p.part]!.slice(0, p.at) + '[ID redacted]' + texts[p.part]!.slice(p.at + p.s.length);
+      bump(counts, 'aadhaar');
+      changed = true;
+      i = aadhaarPieces.end;
     }
   }
   return { texts, changed };
@@ -214,6 +247,7 @@ function spokenNumbers(text: string, counts: Record<string, number>): string {
     }
     if (digits.length < 7) return run;
     if (digits.length === 15 && digits.startsWith('784')) { bump(counts, 'emirates_id'); return '[Emirates ID redacted]'; }
+    if (isAadhaar(digits)) { bump(counts, 'aadhaar'); return '[ID redacted]'; } // [P53]
     if (digits.length >= 13 && digits.length <= 19 && luhnValid(digits)) { bump(counts, 'card'); return `[card ending ${digits.slice(-4)}]`; }
     return run;
   });
