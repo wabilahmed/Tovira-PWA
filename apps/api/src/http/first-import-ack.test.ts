@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { FIRST_IMPORT_NOTICE } from '../ports/import-ack-repository.js';
+import { listenForTest } from '../test-support/listen.js';
 
 let server: Server;
 let base: string;
@@ -12,7 +13,7 @@ let deps: TestDeps;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

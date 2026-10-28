@@ -8,6 +8,7 @@ import { StubEmailSender } from '../adapters/email/stub-email-sender.js';
 import { InMemoryEmailLogRepository } from '../adapters/email/in-memory-email-log-repository.js';
 import { VERIFY_RESEND_LIMIT } from '../services/auth/auth-service.js';
 import type { EmailSender } from '../ports/email.js';
+import { listenForTest } from '../test-support/listen.js';
 
 let server: Server;
 let base: string;
@@ -16,7 +17,7 @@ const email = new StubEmailSender();
 beforeAll(async () => {
   const deps = buildInMemoryDeps({ accountEmail: new AccountEmailService(email, new InMemoryEmailLogRepository(), 'http://localhost:5173') });
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {
@@ -119,7 +120,7 @@ describe('[EMAIL-SEND-500] resend-verification survives a delivery failure', () 
   beforeAll(async () => {
     const deps = buildInMemoryDeps({ accountEmail: new AccountEmailService(throwingSender, new InMemoryEmailLogRepository(), 'http://localhost:5173') });
     s = createApiServer(deps);
-    await new Promise<void>((r) => s.listen(0, r));
+    await listenForTest(s);
     b = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
   });
   afterAll(async () => {

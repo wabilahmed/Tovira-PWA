@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
 import { canonicalPhone } from '../services/clients/phone.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // [P46-4] Owner: a client phone is validated on save and stored in its canonical international form (+971503863103);
 // the app shows it as "+971 50 386 3103". A number without a country code is refused with a clear fix: Tovira never
@@ -12,7 +13,7 @@ let server: Server;
 let base: string;
 beforeAll(async () => {
   server = createApiServer(buildInMemoryDeps());
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import type { AccessRequestInput } from '../ports/access-request-repository.js';
+import { listenForTest } from '../test-support/listen.js';
 
 const OPS = 'test-ops-token';
 const REQ = (over: Partial<AccessRequestInput> = {}): AccessRequestInput => ({
@@ -19,7 +20,7 @@ let deps: TestDeps;
 beforeEach(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterEach(async () => {

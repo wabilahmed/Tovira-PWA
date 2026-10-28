@@ -3,13 +3,14 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P40-1 · owner] Meetings get the same question card: "When is the meeting with Sara Khan?" — the phrase, when it
  * was said, a suggested time only when the resolver has one, a picker, Not sure and No date yet; the same 90-day limit.
  */
 let server: Server; let base: string; let deps: TestDeps;
-beforeEach(async () => { deps = buildInMemoryDeps(); server = createApiServer(deps); await new Promise<void>((r) => server.listen(0, r)); base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`; });
+beforeEach(async () => { deps = buildInMemoryDeps(); server = createApiServer(deps); await listenForTest(server); base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`; });
 afterEach(async () => { await new Promise<void>((r) => server.close(() => r())); });
 const H = (t: string) => ({ authorization: `Bearer ${t}`, 'content-type': 'application/json' });
 async function signup(email: string) {

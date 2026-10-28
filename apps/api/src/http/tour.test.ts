@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, TEST_OPS_TOKEN, type TestDeps } from './test-deps.js';
 import { TOUR_STEPS, TOUR_VERSION } from '../services/tour/tour-service.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P37] The required first-login tour, server side. Completion lives on the ACCOUNT (tour_completed_at +
@@ -18,7 +19,7 @@ let deps: TestDeps;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

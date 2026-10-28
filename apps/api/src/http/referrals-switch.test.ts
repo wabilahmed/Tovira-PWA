@@ -5,6 +5,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
 import type { ApiDeps } from '../server.js';
 import { loadConfig } from '../config.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // [P46-3] Owner: referrals are hidden behind REFERRALS_ENABLED, off by default. The public /version payload carries the
 // switch so every screen hides the share card, the referral link and any "free month" wording. Codes are still made
@@ -12,7 +13,7 @@ import { loadConfig } from '../config.js';
 let server: Server | null = null;
 async function start(over: Partial<ApiDeps>): Promise<string> {
   server = createApiServer(buildInMemoryDeps(over));
-  await new Promise<void>((r) => server!.listen(0, r));
+  await listenForTest(server!);
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
 afterEach(async () => { if (server) await new Promise<void>((r) => server!.close(() => r())); server = null; });

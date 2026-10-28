@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { topUpOptionById } from '../config.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // +25% of the AED 60 allowance = AED 15. Read from config so this can never drift from the top-up amount.
 const TOPUP25 = topUpOptionById('topup_25')!.addedAed;
@@ -19,7 +20,7 @@ let deps: TestDeps;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

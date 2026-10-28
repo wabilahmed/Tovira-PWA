@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { promiseDedupeKey } from '../services/facts/promise-identity.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // [P47 · found by the self-discovering erasure guard] "Looks like they sent it" read promises unrestricted, so a
 // suggestion on the restricted person's promise quoted their delivery message. It now reads through the restriction.
@@ -12,7 +13,7 @@ const DAY = 86_400_000; const MARK = 'COPPERFINCH';
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

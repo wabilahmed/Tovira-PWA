@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P36-5] Which client-page sections a rep keeps open is remembered PER REP, ACROSS DEVICES — stored with the
@@ -12,7 +13,7 @@ let server: Server;
 let base: string;
 beforeAll(async () => {
   server = createApiServer(buildInMemoryDeps());
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

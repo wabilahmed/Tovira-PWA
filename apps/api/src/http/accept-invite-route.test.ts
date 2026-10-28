@@ -5,6 +5,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { TERMS_VERSION, PRIVACY_VERSION } from '../services/legal/versions.js';
 import type { AccessRequestInput } from '../ports/access-request-repository.js';
+import { listenForTest } from '../test-support/listen.js';
 
 const REQ = (over: Partial<AccessRequestInput> = {}): AccessRequestInput => ({
   fullName: 'Dana', workEmail: 'invitee@x.ae', phone: '1', companyName: 'Co', roleTitle: 'Broker',
@@ -19,7 +20,7 @@ let deps: TestDeps;
 beforeEach(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterEach(async () => { await new Promise<void>((r) => server.close(() => r())); });

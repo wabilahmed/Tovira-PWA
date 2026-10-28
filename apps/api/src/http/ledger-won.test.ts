@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P47-1] The Ledger shows a client the rep set to Won after Tovira's suggestion: "Tovira suggested <item>", its receipt,
@@ -15,7 +16,7 @@ const DAY = 86_400_000;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

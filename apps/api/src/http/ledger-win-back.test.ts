@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // [P47-2] Through the API: Today reports the going-quiet cards it showed; the Ledger lists the clients who wrote back
 // within a week as "Clients Tovira helped you win back" (no AED), restricted clients withheld.
@@ -13,7 +14,7 @@ const DAY = 86_400_000;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

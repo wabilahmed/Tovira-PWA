@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [INV-DATA] Inventory isolation contract. RLS + composite FKs are the real DB-level net
@@ -18,7 +19,7 @@ describe('[INV-DATA] inventory tenant isolation', () => {
   async function boot(): Promise<{ deps: TestDeps; base: string }> {
     const deps = buildInMemoryDeps();
     server = createApiServer(deps);
-    await new Promise<void>((r) => server!.listen(0, r));
+    await listenForTest(server!);
     return { deps, base: `http://127.0.0.1:${(server!.address() as AddressInfo).port}` };
   }
   async function signup(base: string, email: string): Promise<string> {

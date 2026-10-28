@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { discoveredRoutes } from '../test-support/route-discovery.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P40-2] Guard: while a third-party erasure request is open, the restricted person's data appears on NO rep-facing
@@ -112,7 +113,7 @@ const DAY = 86_400_000;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const s = (await (await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'rep@example.com', password: 'password123' }) })).json()) as { token: string; user: { id: string } };
   token = s.token;

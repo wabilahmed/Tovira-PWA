@@ -5,6 +5,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { signInAdmin } from '../test-support/admin-session.js';
 import type { HotLeadInput } from '../ports/hot-leads.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /** [P45-3] Hot leads in the admin console: list + filters, status and notes (audited), Invite to beta, CSV, Signed up. */
 let server: Server | null = null;
@@ -12,7 +13,7 @@ afterEach(async () => { if (server) await new Promise<void>((r) => server!.close
 async function start(): Promise<{ base: string; deps: TestDeps }> {
   const deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server!.listen(0, r));
+  await listenForTest(server!);
   return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, deps };
 }
 const L = (n: number, o: Partial<HotLeadInput> = {}): HotLeadInput => ({ personId: `p${n}`, campaignId: 7, campaignName: 'Dubai brokers', name: `Lead ${n}`, email: `lead${n}@x.io`, jobTitle: 'Head of Sales', companyName: 'Acme', companyDomain: 'acme.io', linkedinUrl: 'https://linkedin.com/in/x', country: 'AE', phone: '+971501234567', whyHot: 'Yes please', becameHotAt: Date.now() - n * 3_600_000, erased: false, ...o });

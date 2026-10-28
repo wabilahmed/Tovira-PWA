@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P36-1] "New client from a chat" lands the rep on the client's page WITH THE IMPORT RUNNING — so the batch
@@ -13,7 +14,7 @@ let server: Server;
 let base: string;
 beforeAll(async () => {
   server = createApiServer(buildInMemoryDeps());
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

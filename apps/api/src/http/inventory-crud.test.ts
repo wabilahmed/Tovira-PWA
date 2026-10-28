@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /** [INV-CRUD] create / edit / list, and the arithmetic quantity↔status coupling. */
 describe('[INV-CRUD] inventory CRUD', () => {
@@ -12,7 +13,7 @@ describe('[INV-CRUD] inventory CRUD', () => {
 
   async function boot(): Promise<{ base: string; token: string }> {
     server = createApiServer(buildInMemoryDeps());
-    await new Promise<void>((r) => server!.listen(0, r));
+    await listenForTest(server!);
     const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
     const res = await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: `c${randomUUID()}@x.com`, password: 'password123' }) });
     return { base, token: ((await res.json()) as { token: string }).token };

@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /** [INV-SHARE] sharing, the bought→decrement→sold_out lifecycle, and the duplicate warning. */
 describe('[INV-SHARE] sharing and lifecycle', () => {
@@ -14,7 +15,7 @@ describe('[INV-SHARE] sharing and lifecycle', () => {
 
   async function boot() {
     server = createApiServer(buildInMemoryDeps());
-    await new Promise<void>((r) => server!.listen(0, r));
+    await listenForTest(server!);
     const base = `http://127.0.0.1:${(server!.address() as AddressInfo).port}`;
     const token = ((await (await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: `s${randomUUID()}@x.com`, password: 'password123' }) })).json()) as { token: string }).token;
     const client = await (await fetch(`${base}/clients`, { method: 'POST', headers: H(token), body: JSON.stringify({ name: 'Meridian' }) })).json() as { id: string };

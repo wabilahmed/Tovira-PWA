@@ -9,6 +9,7 @@ import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { discoveredRoutes, matchesRoute } from '../test-support/route-discovery.js';
 import { seedPerson, type PersonIds } from '../test-support/erasure-fixture.js';
 import { FIND_QUERIES } from '../services/find/find-service.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P47 · owner] The erasure guard finds rep-facing surfaces BY ITSELF. P40's guard listed every route, but a listed
@@ -129,7 +130,7 @@ const byRoute = (s: Sweep) => {
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const s = (await (await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'guard@example.com', password: 'password123' }) })).json()) as { token: string; user: { id: string } };
   token = s.token;

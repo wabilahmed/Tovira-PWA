@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // [P47 · found by the self-discovering erasure guard] /notes/pending read the raw notes: a pasted chat waiting for
 // extraction showed the restricted person's lines. It now reads through the restriction, like every other note surface.
@@ -11,7 +12,7 @@ const DAY = 86_400_000; const MARK = 'QUILLHARBOR';
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

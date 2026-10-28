@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { signInAdmin } from '../test-support/admin-session.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P45-1 · owner] GUARD: an admin can read only admin data (leads, access requests, the cost report) and NEVER a
@@ -36,7 +37,7 @@ const PUBLIC = /^\/(version|health|healthz|legal|auth|access-request|billing\/we
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const s = (await (await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'rep-zebraquartz@example.com', password: 'password123' }) })).json()) as { user: { id: string } };
   const u = s.user.id;

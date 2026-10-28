@@ -5,6 +5,7 @@ import { deflateRawSync } from 'node:zlib';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { MAX_IMPORT_UPLOAD_BYTES } from '../services/import/bulk-decode.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /** A valid Android export grown to ~approxBytes (Wabil + the counterpart), for the large-file tests. */
 function bigChat(other: string, approxBytes: number): string {
@@ -25,7 +26,7 @@ let deps: TestDeps;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {

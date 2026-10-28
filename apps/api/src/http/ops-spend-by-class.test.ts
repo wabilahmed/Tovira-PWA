@@ -10,6 +10,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, TEST_OPS_TOKEN, type TestDeps } from './test-deps.js';
 import type { ModelCallEvent } from '../ports/model-call-event-store.js';
 import type { SpendByClassReport } from '../services/spend/spend-by-class-report.js';
+import { listenForTest } from '../test-support/listen.js';
 type ClassRow = SpendByClassReport['byClass'][number];
 type ModelRow = SpendByClassReport['byModel'][number];
 
@@ -28,7 +29,7 @@ const ev = (over: Partial<ModelCallEvent>): ModelCallEvent => ({
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   // Seed: rep-A extraction 5 + recall 1; rep-B extraction 3; a system canary 0.5.
   await deps.modelCallEvents.record(ev({ userId: 'rep-A', spendClass: 'extraction', model: SONNET, costAed: 5 }));

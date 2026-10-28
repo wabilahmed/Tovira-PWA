@@ -8,6 +8,7 @@ import { BillingService } from '../services/billing/billing-service.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../adapters/billing/in-memory.js';
 import { StubStripeGateway } from '../adapters/billing/stub-stripe.js';
 import type { ModelClient } from '../ports/model.js';
+import { listenForTest } from '../test-support/listen.js';
 
 let server: Server;
 let base: string;
@@ -21,7 +22,7 @@ beforeAll(async () => {
   deps = buildInMemoryDeps();
   deps.meetingParser = new MeetingParser(model, deps.clients);
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {
@@ -278,7 +279,7 @@ describe('[P16-1] /meetings/parse falls back deterministically when the rep is n
     d = buildInMemoryDeps({ billing });
     d.meetingParser = new MeetingParser({ complete: async () => { spy.calls++; return { text: '{"clientName":"Meridian","datetime":"2026-07-14T15:00","datetimeRaw":"next Tuesday 3pm"}' }; } }, d.clients);
     srv = createApiServer(d);
-    await new Promise<void>((r) => srv.listen(0, r));
+    await listenForTest(srv);
     b = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
   });
   afterAll(async () => { await new Promise<void>((r) => srv.close(() => r())); });

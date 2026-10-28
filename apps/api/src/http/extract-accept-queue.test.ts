@@ -12,6 +12,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import type { ModelClient } from '../ports/model.js';
+import { listenForTest } from '../test-support/listen.js';
 
 const VALID = JSON.stringify({ summary: 'ok', promises: [], people: [], personal_facts: [], key_dates: [], concerns: [], next_steps: [], meeting: null });
 
@@ -33,7 +34,7 @@ const slowCountingModel: ModelClient = {
 beforeAll(async () => {
   deps = buildInMemoryDeps({}, { modelClient: slowCountingModel });
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {

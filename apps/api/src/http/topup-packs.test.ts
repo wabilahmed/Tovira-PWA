@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { TOP_UP_PACKS, TOP_UP_OPTIONS, topUpCreditAed, DEFAULT_MONTHLY_AI_ALLOWANCE_AED } from '../config.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P37 · owner, 20 Oct] Top-up packs: "AED 1 buys 1% of your monthly allowance". Exactly three — AED 50 (+50%),
@@ -18,7 +19,7 @@ let deps: TestDeps;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });

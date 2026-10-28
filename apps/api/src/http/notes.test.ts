@@ -5,6 +5,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { AudioRetentionService } from '../services/media/audio-retention-service.js';
+import { listenForTest } from '../test-support/listen.js';
 
 let server: Server;
 let base: string;
@@ -15,7 +16,7 @@ beforeAll(async () => {
   deps = buildInMemoryDeps();
   storage = deps.storage;
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 

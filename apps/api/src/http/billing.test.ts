@@ -6,6 +6,7 @@ import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { BillingService } from '../services/billing/billing-service.js';
 import { InMemorySubscriptionRepository, InMemoryTrialGrantRepository, InMemoryWebhookEventRepository } from '../adapters/billing/in-memory.js';
 import { StubStripeGateway } from '../adapters/billing/stub-stripe.js';
+import { listenForTest } from '../test-support/listen.js';
 
 let server: Server;
 let base: string;
@@ -17,7 +18,7 @@ beforeAll(async () => {
   const billing = new BillingService(subs, new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 14);
   deps = buildInMemoryDeps({ billing });
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {
@@ -123,7 +124,7 @@ describe('[PAY-04] checkout refuses a mismatched price interval (no charge)', ()
     }
     const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new ThrowingGateway('whsec_test'), 14);
     const s = createApiServer(buildInMemoryDeps({ billing }));
-    await new Promise<void>((r) => s.listen(0, r));
+    await listenForTest(s);
     const b = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
     try {
       const token = ((await (await fetch(`${b}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'pay04@example.com', password: 'password123' }) })).json()) as { token: string }).token;

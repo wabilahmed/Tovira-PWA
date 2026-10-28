@@ -7,6 +7,7 @@ import { InMemoryJobRunStore } from '../adapters/scheduler/in-memory-scheduled-j
 import { ModelMetricsRegistry, NA_BELOW_MIN } from '../services/metrics/model-metrics.js';
 import { PROMPT_VERSION } from '../services/extraction/prompt.js';
 import type { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
+import { listenForTest } from '../test-support/listen.js';
 
 const ops = { headers: { 'x-ops-token': TEST_OPS_TOKEN } };
 
@@ -27,7 +28,7 @@ describe('[SWEEP-NEVER-RUNS] /health surfaces scheduled-job liveness', () => {
     modelMetrics.record('recall', 'claude-haiku-4-5', { cacheable: false, hit: false });
     const deps = buildInMemoryDeps({ jobRuns, modelMetrics, adapterModes: { model: 'live', embedder: 'live' }, emailConfig: { provider: 'resend', from: 'Tovira <hello@tovira.io>', replyTo: 'hello@tovira.io', appOrigin: 'https://staging.tovira.io' } });
     server = createApiServer(deps);
-    await new Promise<void>((r) => server.listen(0, r));
+    await listenForTest(server);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
   afterAll(async () => {
@@ -114,7 +115,7 @@ describe('[EXTRACTION-METRICS] /health surfaces extraction-log volume', () => {
     await deps.corrections.record('u1', { noteId: 'n1', entityType: 'promise', entityId: 'p', field: 'text', verdict: 'edit', correctionKind: 'wrong_value', dateDeltaDays: null, promptVersion: PROMPT_VERSION });
     await (deps.trainingLog as TrainingLogStatsService).refresh(); // warm the cache for a deterministic read
     server = createApiServer(deps);
-    await new Promise<void>((r) => server.listen(0, r));
+    await listenForTest(server);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
   afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });
@@ -163,7 +164,7 @@ describe('[OPS-VISIBILITY] public /health exposes opsConfigured', () => {
     const deps = buildInMemoryDeps(); // opsToken defaults to TEST_OPS_TOKEN
     if (clearToken) deps.opsRoute!.opsToken = undefined; // simulate prod with OPS_TOKEN unset
     const server = createApiServer(deps);
-    await new Promise<void>((r) => server.listen(0, r));
+    await listenForTest(server);
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     try {
       return await (await fetch(`${base}/health`)).json(); // NO token → the public view

@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import type { ReferralService } from '../services/referral/referral-service.js';
+import { listenForTest } from '../test-support/listen.js';
 
 let server: Server;
 let base: string;
@@ -12,7 +13,7 @@ let deps: TestDeps;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {
@@ -98,7 +99,7 @@ describe('[P5-6] referral', () => {
     const failing = buildInMemoryDeps();
     failing.referral = { apply: async () => { throw new Error('permission denied for table referrals'); } } as unknown as ReferralService;
     const srv = createApiServer(failing);
-    await new Promise<void>((r) => srv.listen(0, r));
+    await listenForTest(srv);
     const b = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
     try {
       const referrer = (await (await fetch(`${b}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'iso-referrer@example.com', password: 'password123' }) })).json()) as { user: { referralCode: string } };

@@ -5,6 +5,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, TEST_ADMIN_EMAIL, type TestDeps } from './test-deps.js';
 import { signInAdmin } from '../test-support/admin-session.js';
 import { totpCode } from '../services/admin/totp.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /** [P45-1] The admin API's sign-in: password, then 2FA; nothing else until 2FA is done; logout; the audit log. */
 let server: Server | null = null;
@@ -12,7 +13,7 @@ afterEach(async () => { if (server) await new Promise<void>((r) => server!.close
 async function start(): Promise<{ base: string; deps: TestDeps }> {
   const deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server!.listen(0, r));
+  await listenForTest(server!);
   return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, deps };
 }
 const json = (cookie?: string) => ({ 'content-type': 'application/json', ...(cookie ? { cookie } : {}) });

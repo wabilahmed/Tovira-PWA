@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // [P49-1] Owner: a rep can rename a client. A chat export often names someone "Khalid Dubai Marina" or "+971 50…" and the
 // rep was stuck with it. POST /clients/:id/name { name, confirmDuplicate? }: trimmed, never empty, at most 80 characters;
@@ -15,7 +16,7 @@ let deps: TestDeps;
 beforeEach(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterEach(async () => { await new Promise<void>((r) => server.close(() => r())); });

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [MALFORMED-ID] A malformed path id reaches Postgres as an invalid uuid (SQLSTATE
@@ -13,7 +14,7 @@ describe('[MALFORMED-ID] a malformed path id → 400, not 500', () => {
   it('maps a Postgres invalid-uuid error (22P02) to a generic 400 with no internal detail', async () => {
     const deps = buildInMemoryDeps();
     const srv = createApiServer(deps);
-    await new Promise<void>((r) => srv.listen(0, r));
+    await listenForTest(srv);
     const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
     try {
       const { token } = (await (await fetch(`${base}/auth/signup`, {

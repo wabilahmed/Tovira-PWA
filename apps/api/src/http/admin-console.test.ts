@@ -6,6 +6,7 @@ import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { signInAdmin } from '../test-support/admin-session.js';
 import { InMemoryCostReportStore } from '../adapters/spend/in-memory-cost-report-store.js';
 import { CostReportService } from '../services/spend/cost-report-service.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P45-2 · owner] The console's Access and Costs, on the admin session (never the ops token): the same review
@@ -17,7 +18,7 @@ async function start(): Promise<{ base: string; deps: TestDeps }> {
   const deps = buildInMemoryDeps();
   deps.adminCosts = new CostReportService(new InMemoryCostReportStore().seed({ calls: [{ userId: 'u1', periodKey: 'p:1', spendClass: 'extraction', costAed: 70, at: Date.parse('2026-10-02') }] }), async () => 'layla@x.io', async () => 45);
   server = createApiServer(deps);
-  await new Promise<void>((r) => server!.listen(0, r));
+  await listenForTest(server!);
   return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, deps };
 }
 const REQ = { fullName: 'Dana Rep', workEmail: 'dana@example.ae', phone: '+971 50 123 4567', companyName: 'Meridian', roleTitle: 'Advisor', ownership: 'employed', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'insurance', confirmationAccepted: true };

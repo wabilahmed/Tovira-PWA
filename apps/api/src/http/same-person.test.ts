@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // [P50-2 · owner] With exact-name folding, "Khalid" in a chat whose client is "Khalid Al Mansoori" no longer folds. Tovira
 // never guesses: when an unfolded person shares a word with the client's name or an alias, Needs your answer asks "Is
@@ -13,7 +14,7 @@ let server: Server; let base: string; let deps: TestDeps;
 beforeEach(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterEach(async () => { await new Promise<void>((r) => server.close(() => r())); });

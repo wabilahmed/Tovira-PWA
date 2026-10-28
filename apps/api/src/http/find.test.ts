@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { StubModelClient } from '../adapters/model/stub.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [P39-7] Find over HTTP: fixed questions, answered from stored data, each line with its receipt. No model is
@@ -16,7 +17,7 @@ let deps: TestDeps;
 beforeEach(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterEach(async () => { await new Promise<void>((r) => server.close(() => r())); vi.restoreAllMocks(); });

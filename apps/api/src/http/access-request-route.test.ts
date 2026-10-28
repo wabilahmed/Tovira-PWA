@@ -5,6 +5,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { FixedWindowRateLimiter } from '../services/security/rate-limiter.js';
 import type { ApiDeps } from '../server.js';
+import { listenForTest } from '../test-support/listen.js';
 
 const VALID = {
   fullName: 'Dana Rep',
@@ -25,7 +26,7 @@ let server: Server | null = null;
 async function start(overrides: Partial<ApiDeps> = {}): Promise<{ base: string; deps: TestDeps }> {
   const deps = buildInMemoryDeps(overrides);
   server = createApiServer(deps);
-  await new Promise<void>((r) => server!.listen(0, r));
+  await listenForTest(server!);
   const { port } = server.address() as AddressInfo;
   return { base: `http://127.0.0.1:${port}`, deps };
 }

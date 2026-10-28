@@ -9,13 +9,14 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import type { ModelClient } from '../ports/model.js';
+import { listenForTest } from '../test-support/listen.js';
 
 const H = (t: string) => ({ authorization: `Bearer ${t}`, 'content-type': 'application/json' });
 
 async function start(modelClient?: ModelClient): Promise<{ server: Server; base: string; deps: TestDeps }> {
   const deps = buildInMemoryDeps({}, modelClient ? { modelClient } : {});
   const server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return { server, base, deps };
 }

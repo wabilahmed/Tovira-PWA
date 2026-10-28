@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { AudioRetentionService } from '../services/media/audio-retention-service.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /**
  * [USAGE-ALLOWANCE · D4/D5] The stopped state at 100% of the monthly allowance: import refused up front,
@@ -17,7 +18,7 @@ let deps: TestDeps;
 beforeEach(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterEach(async () => { await new Promise<void>((r) => server.close(() => r())); });

@@ -6,6 +6,7 @@ import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { discoveredRoutes } from '../test-support/route-discovery.js';
 import { seedPerson, type PersonIds } from '../test-support/erasure-fixture.js';
 import { FIND_QUERIES } from '../services/find/find-service.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // [P49-4] Owner: after a rename every surface shows the new name right away and nothing cached keeps the old one: the
 // client page, the Clients list, Today (including its precomputed list), Find, Promises, the Ledger, the brief, the Monday
@@ -42,7 +43,7 @@ async function sweep(): Promise<Sweep> {
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const s = (await (await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'rename@example.com', password: 'password123' }) })).json()) as { token: string; user: { id: string } };
   token = s.token; u = s.user.id;

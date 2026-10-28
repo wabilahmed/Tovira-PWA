@@ -5,6 +5,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, TEST_OPS_TOKEN } from './test-deps.js';
 import { InMemoryCostReportStore } from '../adapters/spend/in-memory-cost-report-store.js';
 import { CostReportService } from '../services/spend/cost-report-service.js';
+import { listenForTest } from '../test-support/listen.js';
 
 /** [P44-2] GET /ops/costs — the ops cost report (ops token, like /ops/access), as JSON or CSV. Read-only. */
 let server: Server | null = null;
@@ -20,7 +21,7 @@ async function start() {
   const deps = buildInMemoryDeps();
   deps.opsRoute = { ...deps.opsRoute!, costReport: new CostReportService(store, async (id) => (id === 'u1' ? 'layla@x.io' : null), async () => 45) };
   server = createApiServer(deps);
-  await new Promise<void>((r) => server!.listen(0, r));
+  await listenForTest(server!);
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
 const get = (base: string, path: string, token?: string) => fetch(`${base}${path}`, { headers: token ? { 'x-ops-token': token } : {} });

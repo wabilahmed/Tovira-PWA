@@ -5,6 +5,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps } from './test-deps.js';
 import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { AUDIO_ELSEWHERE_MESSAGE } from '../services/media/sniff.js';
+import { listenForTest } from '../test-support/listen.js';
 
 describe('[IMPORT-GATE] WhatsApp parser strips attachment markers (incl. filenames) and flags audio', () => {
   const chat = [
@@ -44,7 +45,7 @@ describe('[IMPORT-GATE] import endpoint', () => {
 
   beforeAll(async () => {
     server = createApiServer(buildInMemoryDeps());
-    await new Promise<void>((r) => server.listen(0, r));
+    await listenForTest(server);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     const s = await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'rep@x.ae', password: 'password123' }) });
     cookie = (s.headers.get('set-cookie') ?? '').split(';')[0] ?? '';

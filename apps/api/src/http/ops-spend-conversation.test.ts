@@ -9,6 +9,7 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, TEST_OPS_TOKEN, type TestDeps } from './test-deps.js';
 import type { ModelCallEvent } from '../ports/model-call-event-store.js';
 import type { ConversationCostReport } from '../services/spend/conversation-cost-report.js';
+import { listenForTest } from '../test-support/listen.js';
 
 let server: Server;
 let base: string;
@@ -24,7 +25,7 @@ const turn = (turnIndex: number, over: Partial<ModelCallEvent> = {}): ModelCallE
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   await deps.modelCallEvents.record(turn(1));
   await deps.modelCallEvents.record(turn(2));

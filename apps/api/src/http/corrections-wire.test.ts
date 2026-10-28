@@ -7,6 +7,7 @@ import { AskCaptureService } from '../services/recall/ask-capture-service.js';
 import { InMemoryCorrectionRepository } from '../adapters/corrections/in-memory-correction-repository.js';
 import { InMemoryExtractionLogRepository } from '../adapters/logs/in-memory-extraction-log-repository.js';
 import type { ExtractionLogEntry } from '../ports/extraction-log-repository.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // [CORRECTIONS-WIRE / NO-TRAINING-RETENTION] Every human verdict — reject, confirm, edit — is recorded
 // as a correction row with its VERDICT + (for reject/edit) KIND — never before/after content — across
@@ -29,7 +30,7 @@ let deps: TestDeps;
 beforeAll(async () => {
   deps = buildInMemoryDeps();
   server = createApiServer(deps);
-  await new Promise<void>((r) => server.listen(0, r));
+  await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {
@@ -129,7 +130,7 @@ describe('[CORRECTIONS-WIRE] isolation — a failing correction write never brea
     // Poison the corrections repo: every record() throws.
     d.corrections.record = async () => { throw new Error('db down'); };
     const srv = createApiServer(d);
-    await new Promise<void>((r) => srv.listen(0, r));
+    await listenForTest(srv);
     const b = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
     try {
       const res = await fetch(`${b}/auth/signup`, {

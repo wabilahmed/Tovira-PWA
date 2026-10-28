@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 const bytes = (...n: number[]): Buffer => Buffer.from(n);
 const WEBM = bytes(0x1a, 0x45, 0xdf, 0xa3, 1, 2, 3, 4); // real recorder container (passes the voice gate)
@@ -19,7 +20,7 @@ describe('[MEDIA-DELETE] account deletion removes the stored audio + image OBJEC
   beforeEach(async () => {
     deps = buildInMemoryDeps();
     server = createApiServer(deps);
-    await new Promise<void>((r) => server.listen(0, r));
+    await listenForTest(server);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     const s = await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'rep@x.ae', password: 'password123' }) });
     cookie = (s.headers.get('set-cookie') ?? '').split(';')[0] ?? '';

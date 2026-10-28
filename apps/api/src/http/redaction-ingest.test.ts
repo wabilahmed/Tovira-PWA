@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
+import { listenForTest } from '../test-support/listen.js';
 
 // REDACT-2 + REDACT-4: a Tier-1 value pasted into a note must be redacted BEFORE storage,
 // and must therefore appear nowhere downstream — not in the stored note, and not in the
@@ -18,7 +19,7 @@ describe('[REDACT-2/4] Tier-1 values never reach storage or the extraction log',
   beforeAll(async () => {
     deps = buildInMemoryDeps();
     server = createApiServer(deps);
-    await new Promise<void>((r) => server.listen(0, r));
+    await listenForTest(server);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
   afterAll(async () => {
