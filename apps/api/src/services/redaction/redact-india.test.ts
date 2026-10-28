@@ -104,3 +104,23 @@ describe('[P53-3] passports', () => {
     untouched('ticket K1234567 was raised yesterday and closed after the team checked the passport desk');
   });
 });
+
+describe('[P53-4] bank accounts', () => {
+  it('after "a/c no.", "A/C no:", bare "account" or the existing labels, blanked fully (no last four)', () => {
+    expect(blanked('Candidate salary a/c no. 123456789012 for payroll')).toBe('Candidate salary a/c no. [bank account redacted] for payroll');
+    expect(blanked('A/C no: 50100123456789')).toBe('A/C no: [bank account redacted]');
+    expect(blanked('send it to account 123456789 today')).toBe('send it to account [bank account redacted] today');
+    expect(blanked('account number 12345678')).toBe('account number [bank account redacted]'); // as before
+  });
+  it('after खाता संख्या / खाता नंबर (Hindi)', () => {
+    expect(blanked('खाता संख्या 123456789012 है')).toBe('खाता संख्या [bank account redacted] है');
+    expect(blanked('खाता नंबर १२३४५६७८९०१२')).toBe('खाता नंबर [bank account redacted]');
+  });
+  it('read out in a voice note after an account label', () => {
+    expect(blanked('his account number is one two three four five six seven eight nine zero, thanks'))
+      .toBe('his account number is [bank account redacted], thanks');
+  });
+  it('NEGATIVE: numbers with no account label stay, and so does a spoken number with none', () => {
+    for (const t of ['budget 450000', 'order 4500012345', 'PIN code 560001', 'account manager Priya called', 'call me on nine eight seven six five four three two one zero']) untouched(t);
+  });
+});

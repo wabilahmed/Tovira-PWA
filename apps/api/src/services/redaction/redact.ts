@@ -91,7 +91,10 @@ const CREDENTIAL = /(?:\b(?:otp|one[- ]?time (?:code|password)|2fa|pin(?!\s*code
 const SWIFT = /(?:\b(?:swift|bic)\b|رمز سويفت|كود سويفت|سويفت)[:\s]*([A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b/gi;
 // Bank account — English enumerated + unenumerated ("acct", "bank a/c") labels, plus Arabic (رقم الحساب /
 // رقم حساب / حساب بنكي / الحساب). Longest Arabic form first so "رقم الحساب" wins over "الحساب".
-const BANK_ACCOUNT = /(?:\b(?:account (?:number|no|#)|acct(?: (?:no|number|#))?|a\/c(?: (?:no|number))?|bank a\/c)\b|رقم الحساب|رقم حساب|حساب بنكي|الحساب)[:\s]*([0-9]{6,20})\b/gi;
+// [P53] + bare "account", "A/C no." (with its period), and Hindi खाता संख्या / खाता नंबर. Still 6–20 digits, still only
+// after a label.
+const BANK_ACCOUNT = /(?:\b(?:bank a\/c|account|acct|a\/c)(?:\s*(?:number|no|#))?(?![A-Za-z])\.?|رقم الحساب|رقم حساب|حساب بنكي|الحساب|खाता संख्या|खाता नंबर)[:\s]*([0-9]{6,20})\b/gi;
+const ACCOUNT_LABEL = /(?:\b(?:account|acct|a\/c)\b|खाता)[^.\n]{0,24}$/i;
 // Passport / visa / residency. Bare "licence"/"license" is intentionally NOT a keyword: it caught
 // business references (trade/commercial/business licence) as IDs. Only "driving licen[cs]e" (the actual
 // ID document) is kept. Arabic: جواز السفر / رقم الجواز / الجواز (passport), الإقامة (residency), تأشيرة (visa).
@@ -128,6 +131,8 @@ export function redactSensitive(input: string): RedactionResult {
     bump(counts, 'iban');
     return m.replace(/([A-Z]{2}\d{2}[A-Z0-9]{10,30})/i, '[IBAN redacted]');
   });
+  // [P53] a labelled bank account first: its label beats a chance Luhn match (an account is never shown as a card)
+  text = text.replace(BANK_ACCOUNT, (m, val: string) => { bump(counts, 'bank_account'); return m.replace(val, '[bank account redacted]'); });
   text = text.replace(CARD_CANDIDATE, (m) => {
     const digits = m.replace(/\D/g, '');
     if (digits.length < 13 || digits.length > 19 || !luhnValid(digits)) return m; // not a card — leave it
@@ -142,7 +147,6 @@ export function redactSensitive(input: string): RedactionResult {
   text = text.replace(PAN, () => { bump(counts, 'pan'); return '[ID redacted]'; });
   text = text.replace(CREDENTIAL, (m, val: string) => { bump(counts, 'credential'); return m.replace(val, '[credential redacted]'); });
   text = text.replace(SWIFT, (m, val: string) => { bump(counts, 'swift'); return m.replace(val, '[SWIFT redacted]'); });
-  text = text.replace(BANK_ACCOUNT, (m, val: string) => { bump(counts, 'bank_account'); return m.replace(val, '[bank account redacted]'); });
   text = text.replace(PASSPORT, (m, val: string) => { bump(counts, 'passport'); return m.slice(0, m.length - val.length) + '[ID redacted]'; });
   text = text.replace(IN_PASSPORT, (m, at: number, whole: string) => (nearPassport(whole, at, m.length) ? (bump(counts, 'passport'), '[ID redacted]') : m));
 
@@ -250,7 +254,7 @@ const SPOKEN_RUN = new RegExp(`(?<![\\p{L}\\p{N}])${WORD}(?:[\\s,،.-]+${WORD})+
 /** A run of 7+ number words that spells an Emirates ID (15 digits, 784 first) or a card (13–19 digits, Luhn) is blanked
  *  like the digits would be. Anything else (a phone number, a quantity) is left as said. */
 function spokenNumbers(text: string, counts: Record<string, number>): string {
-  return text.replace(SPOKEN_RUN, (run) => {
+  return text.replace(SPOKEN_RUN, (run, at: number, whole: string) => {
     const words = run.toLowerCase().split(/[\s,،.-]+/).filter(Boolean);
     let digits = '';
     for (let i = 0; i < words.length; i++) {
@@ -263,6 +267,8 @@ function spokenNumbers(text: string, counts: Record<string, number>): string {
     if (digits.length < 7) return run;
     if (digits.length === 15 && digits.startsWith('784')) { bump(counts, 'emirates_id'); return '[Emirates ID redacted]'; }
     if (isAadhaar(digits)) { bump(counts, 'aadhaar'); return '[ID redacted]'; } // [P53]
+    // [P53] a bank account read out right after an account label ("his account number is one two three…")
+    if (digits.length >= 9 && digits.length <= 18 && ACCOUNT_LABEL.test(whole.slice(Math.max(0, at - 40), at))) { bump(counts, 'bank_account'); return '[bank account redacted]'; }
     if (digits.length >= 13 && digits.length <= 19 && luhnValid(digits)) { bump(counts, 'card'); return `[card ending ${digits.slice(-4)}]`; }
     return run;
   });
