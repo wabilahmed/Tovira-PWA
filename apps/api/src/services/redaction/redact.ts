@@ -75,6 +75,9 @@ const IBAN_KEYWORDED = /\b(?:iban)(?:\s*(?:no|number|#))?\b[:\s]*([A-Z]{2}\d{2}[
 // never after "+" (a country code). Checked by isAadhaar (2–9 first, Verhoeff). Runs AFTER the card rule, so it can never
 // take the first twelve digits of a card.
 const AADHAAR = /(?<!\d[ -]?)(?<!\+)[2-9]\d{3}([ -]?)\d{4}\1\d{4}(?![ -]?\d)/g;
+// [P53] PAN (India): 5 letters, 4 digits, 1 letter, any case; the 4th letter is a holder type (P person, C company,
+// H HUF, F firm, A AOP, T trust, B BOI, L local authority, J artificial juridical person, G government). A whole token only.
+const PAN = /(?<![A-Za-z0-9])[A-Za-z]{3}[ABCFGHJLPTabcfghjlpt][A-Za-z]\d{4}[A-Za-z](?![A-Za-z0-9])/g;
 // Card: 13–19 digits, optionally grouped by any of the separators above; validated by Luhn.
 const CARD_CANDIDATE = new RegExp(`\\b(?:\\d[${SEP}]?){13,19}\\b`, 'g');
 // Keyword-anchored credentials/identifiers — require the label so we never eat a bare number. English
@@ -126,6 +129,7 @@ export function redactSensitive(input: string): RedactionResult {
     bump(counts, 'aadhaar');
     return '[ID redacted]';
   });
+  text = text.replace(PAN, () => { bump(counts, 'pan'); return '[ID redacted]'; });
   text = text.replace(CREDENTIAL, (m, val: string) => { bump(counts, 'credential'); return m.replace(val, '[credential redacted]'); });
   text = text.replace(SWIFT, (m, val: string) => { bump(counts, 'swift'); return m.replace(val, '[SWIFT redacted]'); });
   text = text.replace(BANK_ACCOUNT, (m, val: string) => { bump(counts, 'bank_account'); return m.replace(val, '[bank account redacted]'); });

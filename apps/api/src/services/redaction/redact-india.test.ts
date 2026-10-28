@@ -57,3 +57,22 @@ describe('[P53-1] Aadhaar', () => {
     expect(blanked(`id ${AADHAAR}`)).toContain('[ID redacted]');
   });
 });
+
+describe('[P53-2] PAN', () => {
+  it('upper or lower case is blanked whole', () => {
+    for (const p of ['ABCPE1234F', 'abcpe1234f', 'AbCpE1234f']) {
+      const r = redactSensitive(`Candidate PAN for the offer letter: ${p}.`);
+      expect(r.redacted, p).toBe('Candidate PAN for the offer letter: [ID redacted].');
+      expect(r.counts.pan, p).toBe(1);
+    }
+  });
+  it('every valid holder type (the 4th letter) is blanked', () => {
+    for (const t of 'ABCFGHJLPT') expect(blanked(`pan ABC${t}E1234F`), t).toBe('pan [ID redacted]');
+  });
+  it('NEGATIVE: a 4th letter that is not a PAN holder type stays', () => {
+    for (const t of 'DEIKMNOQRSUVWXYZ') untouched(`ref ABC${t}E1234F`);
+  });
+  it('NEGATIVE: lookalikes stay (wrong length, inside a longer token, a job or booking code)', () => {
+    for (const t of ['ref ABCPE12345F', 'XABCPE1234F', 'ABCPE1234FX', 'job JOB12345', 'booking PNR4523A', 'flight EK0512']) untouched(t);
+  });
+});
