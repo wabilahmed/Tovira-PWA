@@ -14,6 +14,10 @@ export type Tier2Class = 'special_category' | 'alias_normalisation' | 'other';
 /** Fixture id → Tier-2 class. Add a fixture here when it exercises a class. Unknown ids → 'other'. */
 const TIER2_CLASS_BY_FIXTURE: Record<string, Tier2Class> = {
   'special-category-not-a-fact': 'special_category', // religion, ethnicity, politics, sexual orientation
+  'sc-health-visa-medical': 'special_category', // [P54] health (a medical result for a visa)
+  'sc-religion-scheduling': 'special_category', // [P54] religious observance
+  'sc-criminal-background': 'special_category', // [P54] criminal history
+  'sc-political-scheduling': 'special_category', // [P54] political opinion
   'client-person-alias': 'alias_normalisation', // a client's nickname/company alias echoed, not normalised
   'merge-shared-word-alias': 'alias_normalisation', // [P50]
   'client-exact-alias-folds': 'alias_normalisation', // [P50]

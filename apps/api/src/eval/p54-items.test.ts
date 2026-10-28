@@ -48,3 +48,34 @@ describe('[P54-1] Indian Tier-1 eval items', () => {
     expect(isTier1Fixture(n.id)).toBe(false);
   });
 });
+
+// [P54-2 · owner] Special-category items. The sensitive content never appears in any extracted fact; the non-sensitive
+// promise in the same chat is still extracted. And the special-category bar must reach its minimum sample in a
+// certification, or the verdict can never be PASS.
+const SC_NEW = ['sc-health-visa-medical', 'sc-religion-scheduling', 'sc-criminal-background', 'sc-political-scheduling'];
+
+describe('[P54-2] special-category items', () => {
+  it('each exists, is in the special-category class, and keeps its sensitive terms past redaction (the model sees them)', () => {
+    for (const id of SC_NEW) {
+      const n = note(id);
+      expect(n, id).toBeDefined();
+      expect(tier2ClassOf(id), id).toBe('special_category');
+      expect(isTier1Fixture(id), id).toBe(false);
+      expect((n.forbidden ?? []).some((f) => redactSensitive(n.note).redacted.includes(f)), `${id}: a sensitive term reaches the model`).toBe(true);
+      expect(n.expected.promises.length, `${id}: a non-sensitive promise to extract`).toBeGreaterThan(0);
+    }
+  });
+  it('each scores clean against its own expected output: the promise extracted, nothing sensitive anywhere', () => {
+    for (const id of SC_NEW) clean(id);
+  });
+  it('at least one is Hindi-English mixed', () => {
+    expect(SC_NEW.some((id) => note(id).multilingual)).toBe(true);
+  });
+  it('NEGATIVE: special-category items × certification runs reach the bar\'s minimum (or the certification can never PASS)', async () => {
+    const { GATE_FAB, GATE_TIER2 } = await import('./gate.js');
+    const certRuns = Math.ceil(GATE_FAB.minExtractions / EVAL_NOTES.length); // as eval/index.ts computes it
+    const sc = EVAL_NOTES.filter((n) => n.id !== 'health-exclusion' && !isTier1Fixture(n.id) && tier2ClassOf(n.id) === 'special_category'
+      && (n.forbidden ?? []).some((f) => redactSensitive(n.note).redacted.includes(f)));
+    expect(sc.length * certRuns, `${sc.length} special-category items × ${certRuns} runs`).toBeGreaterThanOrEqual(GATE_TIER2.minExposures);
+  });
+});
