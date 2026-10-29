@@ -83,8 +83,10 @@ describe('[P52] Deploy: one decision gates both halves', () => {
     expect(runOf(d)).toMatch(/FORCED_OUT[\s\S]*TARGET_FILE=deploy-ledger\.jsonl/);
     expect(deploy.permissions.contents).toBe('write');
   });
-  it('the policy is explicit: PROVISIONAL allowed for now', () => {
+  // [P56-3 · owner] was 'provisional-ok' ("PROVISIONAL allowed for now"); switched after the P55 full certification
+  // passed. PROVISIONAL now deploys only when backed by a PASS certification of the same CERT_SURFACE (P56-1).
+  it('the policy is explicit: PASS required', () => {
     const step = d.steps.find((s) => (s.run ?? '').includes('deploy-decide.ts'))!;
-    expect(step.env?.DEPLOY_POLICY).toBe('provisional-ok');
+    expect(step.env?.DEPLOY_POLICY).toBe('pass-required');
   });
 });

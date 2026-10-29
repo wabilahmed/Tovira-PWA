@@ -68,3 +68,12 @@ describe('[P56-1] pass-required: a PROVISIONAL commit backed by a PASS certifica
     expect(auto([ordinary], { policy: 'provisional-ok' }).allow).toBe(true);
   });
 });
+
+describe('[P56-3 · owner] the switch: deploy.yml requires PASS (after the P55 certification passed)', () => {
+  it('the decide job runs with DEPLOY_POLICY pass-required', async () => {
+    const { readFileSync } = await import('node:fs');
+    const yml = readFileSync(new URL('../../../../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+    expect(yml).toMatch(/^\s+DEPLOY_POLICY: pass-required\b/m);
+    expect(yml).not.toMatch(/DEPLOY_POLICY: provisional-ok/);
+  });
+});

@@ -101,7 +101,7 @@ jobs:
           FORCE: ${{ inputs.force }}
           REASON: ${{ inputs.reason }}
           ACTOR: ${{ github.actor }}
-          DEPLOY_POLICY: provisional-ok # owner: PROVISIONAL allowed for now; 'pass-required' refuses it
+          DEPLOY_POLICY: pass-required # [P56-3 · owner] PROVISIONAL deploys only when the latest certification of its CERT_SURFACE is a PASS
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
           FORCED_OUT: ${{ runner.temp }}/forced.jsonl
