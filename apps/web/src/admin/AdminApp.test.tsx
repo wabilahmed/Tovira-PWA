@@ -23,7 +23,7 @@ function api(stage: AdminStage | null, over: Partial<AdminApi> = {}): AdminApi {
     accessList: vi.fn(async () => []), approve: vi.fn(), reject: vi.fn(), reinvite: vi.fn(),
     costs: vi.fn(async () => ({ view: 'period' as const, ceilingAed: 67, voiceRecordedSince: null, rows: [], totals: [] })),
     leads: vi.fn(async () => ({ leads: [], newCount: 0, countries: [], sync: { cursor: null, lastRunAt: null, lastStatus: null, banner: null } })),
-    updateLead: vi.fn(), inviteLead: vi.fn(), downloadCsv: vi.fn(),
+    updateLead: vi.fn(), previewInvite: vi.fn(), sendInvite: vi.fn(), addTestLead: vi.fn(), downloadCsv: vi.fn(), // [P58 · owner] Invite to beta became the invite email
     ...over,
   };
 }

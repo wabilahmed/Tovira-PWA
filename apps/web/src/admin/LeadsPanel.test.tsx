@@ -11,13 +11,16 @@ import type { AdminApi, HotLead, LeadsView } from './adminClient.js';
  */
 const NOW = Date.parse('2026-10-26T12:00:00Z');
 const lead = (o: Partial<HotLead> = {}): HotLead => ({ id: '1', personId: 'p1', campaignId: 7, campaignName: 'Dubai brokers', name: 'Layla Nasser', email: 'layla@acme.ae', jobTitle: 'Head of Sales', companyName: 'Acme', companyDomain: 'acme.ae', linkedinUrl: 'https://linkedin.com/in/layla', country: 'AE', phone: '+971501234567', whyHot: 'Yes, send me details', becameHotAt: NOW - 2 * 3_600_000, erased: false, status: 'new', notes: null, accessRequestId: null, firstSeenAt: NOW, updatedAt: NOW, ...o });
-type LeadsApi = Pick<AdminApi, 'leads' | 'updateLead' | 'inviteLead' | 'downloadCsv'>;
+type LeadsApi = Pick<AdminApi, 'leads' | 'updateLead' | 'previewInvite' | 'sendInvite' | 'addTestLead' | 'downloadCsv'>;
 function api(leads: HotLead[], banner: string | null = null, over: Partial<LeadsApi> = {}): LeadsApi {
   const view = (): LeadsView => ({ leads, newCount: leads.filter((l) => l.status === 'new').length, countries: ['AE', 'GB'], sync: { cursor: null, lastRunAt: NOW, lastStatus: 'ok', banner } });
   return {
     leads: vi.fn(async () => view()),
     updateLead: vi.fn(async (id, patch) => ({ ...leads.find((l) => l.id === id)!, ...patch })),
-    inviteLead: vi.fn(async (id) => ({ ...leads.find((l) => l.id === id)!, status: 'invited' as const, accessRequestId: 'r1' })),
+    // [P58 · owner] Invite to beta became the invite email
+    previewInvite: vi.fn(async (_id: string, line: string) => ({ to: 'layla@acme.ae', from: '"Wabil Ahmed, Tovira" <wabil@tovira.io>', replyTo: 'wabil@tovira.io', subject: 'Your Tovira beta invite', html: `<p>Hi Layla,</p><p>${line}</p>`, text: `Hi Layla,\n\n${line}`, refusal: null })),
+    sendInvite: vi.fn(async (id: string, _line: string, resend: boolean) => ({ ...leads.find((l) => l.id === id)!, status: 'invited' as const, ...(resend ? { inviteResentAt: NOW } : { inviteSentAt: NOW, inviteExpiresAt: NOW + 14 * 86_400_000 }) })),
+    addTestLead: vi.fn(async (t: { name: string; email: string }) => lead({ id: '9', name: t.name, email: t.email, isTest: true, whyHot: null })),
     downloadCsv: vi.fn(async () => {}),
     ...over,
   };
@@ -61,15 +64,6 @@ describe('[P45-4] the Leads screen', () => {
     expect(a.updateLead).toHaveBeenCalledWith('1', { notes: 'Called' });
   });
 
-  it('Invite to beta (after a confirm) marks the lead Invited and points to the Access tab', async () => {
-    const a = api([lead()]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    render(<LeadsPanel api={a} onSignedOut={vi.fn()} now={() => NOW} />);
-    await userEvent.click(within(await screen.findByTestId('lead-1')).getByRole('button', { name: 'Invite to beta' }));
-    expect(a.inviteLead).toHaveBeenCalledWith('1');
-    expect(await screen.findByText(/added to Access as a pending request/i)).toBeInTheDocument();
-  });
-
   it('filters by status and country, and exports the current filter as CSV', async () => {
     const a = api([lead()]);
     render(<LeadsPanel api={a} onSignedOut={vi.fn()} now={() => NOW} />);
@@ -91,5 +85,74 @@ describe('[P45-4] the Leads screen', () => {
     const card = await screen.findByTestId('lead-1');
     expect(card).toHaveTextContent('This person asked to be removed.');
     expect(within(card).queryByRole('link')).toBeNull();
+  });
+});
+
+// [P58 · owner] "Send invite email" replaces Invite to beta (which made a pending request with blank answers).
+describe('[P58] Send invite email', () => {
+  it('opens a preview (To, From, Subject, the personal line, the email); nothing is sent until Send', async () => {
+    const a = api([lead()]);
+    render(<LeadsPanel api={a} onSignedOut={vi.fn()} now={() => NOW} />);
+    await userEvent.click(within(await screen.findByTestId('lead-1')).getByRole('button', { name: 'Send invite email' }));
+    const sheet = await screen.findByTestId('invite-preview');
+    expect(within(sheet).getByLabelText('Personal line')).toHaveValue('Thanks for your reply about Tovira.');
+    await waitFor(() => expect(a.previewInvite).toHaveBeenCalledWith('1', 'Thanks for your reply about Tovira.'));
+    expect(await within(sheet).findByTitle('Email preview')).toBeInTheDocument();
+    for (const t of ['layla@acme.ae', 'Wabil Ahmed, Tovira', 'Your Tovira beta invite']) expect(sheet).toHaveTextContent(t);
+    expect(a.sendInvite).not.toHaveBeenCalled();
+  });
+  it('the edited personal line is previewed and sent; the card shows Invited with the date', async () => {
+    const a = api([lead()]);
+    render(<LeadsPanel api={a} onSignedOut={vi.fn()} now={() => NOW} />);
+    await userEvent.click(within(await screen.findByTestId('lead-1')).getByRole('button', { name: 'Send invite email' }));
+    const input = within(await screen.findByTestId('invite-preview')).getByLabelText('Personal line');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Great to meet you at GITEX.');
+    await waitFor(() => expect(a.previewInvite).toHaveBeenLastCalledWith('1', 'Great to meet you at GITEX.'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled());
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(a.sendInvite).toHaveBeenCalledWith('1', 'Great to meet you at GITEX.', false);
+    expect(await screen.findByText('Invite sent to layla@acme.ae.')).toBeInTheDocument();
+    expect(screen.getByTestId('invite-trail-1')).toHaveTextContent('Invited 26 Oct 2026');
+    expect(within(screen.getByTestId('lead-1')).queryByRole('button', { name: 'Send invite email' })).toBeNull();
+  });
+  it('Resend: not before 3 days (it says when it opens); after 3 days it sends a resend', async () => {
+    const early = api([lead({ status: 'invited', inviteSentAt: NOW - 86_400_000 })]);
+    const { unmount } = render(<LeadsPanel api={early} onSignedOut={vi.fn()} now={() => NOW} />);
+    const card = await screen.findByTestId('lead-1');
+    expect(within(card).queryByRole('button', { name: 'Resend invite' })).toBeNull();
+    expect(card).toHaveTextContent('Resend opens 28 Oct 2026');
+    unmount();
+    const late = api([lead({ status: 'invited', inviteSentAt: NOW - 4 * 86_400_000 })]);
+    render(<LeadsPanel api={late} onSignedOut={vi.fn()} now={() => NOW} />);
+    await userEvent.click(within(await screen.findByTestId('lead-1')).getByRole('button', { name: 'Resend invite' }));
+    await screen.findByTitle('Email preview'); // Send waits for the preview
+    await userEvent.click(screen.getByRole('button', { name: 'Resend' }));
+    expect(late.sendInvite).toHaveBeenCalledWith('1', 'Thanks for your reply about Tovira.', true);
+  });
+  it('NEGATIVE: no Send for a lead marked Not interested, already Requested or Signed up, or already re-sent', async () => {
+    render(<LeadsPanel api={api([lead({ id: '1', status: 'not_interested' }), lead({ id: '2', status: 'requested', inviteSentAt: NOW - 86_400_000, requestedAt: NOW }), lead({ id: '3', status: 'signed_up' }), lead({ id: '4', status: 'invited', inviteSentAt: NOW - 9 * 86_400_000, inviteResentAt: NOW - 86_400_000 })])} onSignedOut={vi.fn()} now={() => NOW} />);
+    for (const id of ['1', '2', '3', '4']) {
+      const card = await screen.findByTestId(`lead-${id}`);
+      expect(within(card).queryByRole('button', { name: /Send invite email|Resend invite/ })).toBeNull();
+    }
+    expect(screen.getByTestId('invite-trail-2')).toHaveTextContent('Invited 25 Oct 2026 · Requested 26 Oct 2026');
+  });
+  it('a refusal from the server shows in the preview and Send stays off', async () => {
+    const a = api([lead()], null, { previewInvite: vi.fn(async () => ({ to: 'layla@acme.ae', from: 'x', replyTo: 'x', subject: 'Your Tovira beta invite', html: '<p/>', text: '', refusal: { code: 'has_account', message: 'They already have an account.' } })) });
+    render(<LeadsPanel api={a} onSignedOut={vi.fn()} now={() => NOW} />);
+    await userEvent.click(within(await screen.findByTestId('lead-1')).getByRole('button', { name: 'Send invite email' }));
+    expect(await screen.findByText('They already have an account.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  });
+  it('Add test lead: added, and marked Test', async () => {
+    const a = api([lead()]);
+    render(<LeadsPanel api={a} onSignedOut={vi.fn()} now={() => NOW} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Add test lead' }));
+    await userEvent.type(screen.getByLabelText('Name'), 'Wabil Ahmed');
+    await userEvent.type(screen.getByLabelText('Email'), 'wabil@prospera-technologies.com');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Add test lead' }).at(-1)!);
+    expect(a.addTestLead).toHaveBeenCalledWith(expect.objectContaining({ name: 'Wabil Ahmed', email: 'wabil@prospera-technologies.com' }));
+    expect(await screen.findByTestId('lead-9')).toHaveTextContent('Test');
   });
 });

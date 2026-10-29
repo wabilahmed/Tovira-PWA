@@ -26,13 +26,17 @@ export interface CostRow {
 }
 export interface CostTotals { group: string; label: string; costAed: number; revenueAed: number; marginAed: number; marginPct: number | null }
 export interface CostReport { view: CostView; ceilingAed: number; voiceRecordedSince: number | null; rows: CostRow[]; totals: CostTotals[] }
-export type LeadStatus = 'new' | 'contacted' | 'invited' | 'signed_up' | 'not_interested';
+export type LeadStatus = 'new' | 'contacted' | 'invited' | 'requested' | 'signed_up' | 'not_interested';
 export interface HotLead {
   id: string; personId: string; campaignId: number; campaignName: string | null;
   name: string | null; email: string | null; jobTitle: string | null; companyName: string | null; companyDomain: string | null;
   linkedinUrl: string | null; country: string | null; phone: string | null; whyHot: string | null; becameHotAt: number | null;
   erased: boolean; status: LeadStatus; notes: string | null; accessRequestId: string | null; firstSeenAt: number; updatedAt: number;
+  /** [P58] the owner's test lead; the invite email: sent, re-sent, link expiry, form submitted */
+  isTest?: boolean; inviteSentAt?: number | null; inviteResentAt?: number | null; inviteExpiresAt?: number | null; requestedAt?: number | null;
 }
+/** [P58] What "Send invite email" would send, and why it can't (null when it can). */
+export interface InvitePreview { to: string; from: string; replyTo: string; subject: string; html: string; text: string; refusal: { code: string; message: string } | null }
 export interface LeadsView { leads: HotLead[]; newCount: number; countries: string[]; sync: { cursor: number | null; lastRunAt: number | null; lastStatus: string | null; banner: string | null } }
 export interface AuditEntry { adminEmail: string; action: string; target: string | null; detail: Record<string, unknown> | null; at: number }
 
@@ -52,7 +56,9 @@ export interface AdminApi {
   costs(view: CostView): Promise<CostReport>;
   leads(filter: { status?: LeadStatus; country?: string }): Promise<LeadsView>;
   updateLead(id: string, patch: { status?: LeadStatus; notes?: string | null }): Promise<HotLead>;
-  inviteLead(id: string): Promise<HotLead>;
+  previewInvite(id: string, personalLine: string): Promise<InvitePreview>;
+  sendInvite(id: string, personalLine: string, resend: boolean): Promise<HotLead>;
+  addTestLead(t: { name: string; email: string; companyName?: string; jobTitle?: string }): Promise<HotLead>;
   /** Fetches a CSV with the admin cookie and saves it (costs or leads). */
   downloadCsv(path: string, filename: string): Promise<void>;
 }
@@ -98,7 +104,10 @@ export class HttpAdminClient implements AdminApi {
     return this.call<LeadsView>('GET', `/leads${q ? `?${q}` : ''}`);
   }
   async updateLead(id: string, patch: { status?: LeadStatus; notes?: string | null }) { return (await this.call<{ lead: HotLead }>('PATCH', `/leads/${encodeURIComponent(id)}`, patch)).lead; }
-  async inviteLead(id: string) { return (await this.call<{ lead: HotLead }>('POST', `/leads/${encodeURIComponent(id)}/invite`, {})).lead; }
+  /** [P58] the invite email: a preview (nothing sent), Send / Resend, and the owner's test lead */
+  previewInvite(id: string, personalLine: string) { return this.call<InvitePreview>('POST', `/leads/${encodeURIComponent(id)}/invite-email/preview`, { personalLine }); }
+  async sendInvite(id: string, personalLine: string, resend: boolean) { return (await this.call<{ lead: HotLead }>('POST', `/leads/${encodeURIComponent(id)}/invite-email`, { personalLine, resend })).lead; }
+  async addTestLead(t: { name: string; email: string; companyName?: string; jobTitle?: string }) { return (await this.call<{ lead: HotLead }>('POST', '/leads/test', t)).lead; }
   async downloadCsv(path: string, filename: string): Promise<void> {
     const res = await fetch(`${this.baseUrl}/admin${path}`, { credentials: 'include' });
     if (res.status === 401) throw new AdminSignedOutError();
