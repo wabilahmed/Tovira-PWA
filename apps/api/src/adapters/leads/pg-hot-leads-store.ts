@@ -1,18 +1,22 @@
 import type { Pool } from 'pg';
 import type { ExpleeSyncState, HotLead, HotLeadInput, HotLeadsStore, LeadStatus } from '../../ports/hot-leads.js';
+import { LEAD_INVITE_RESEND_AFTER_MS } from '../../ports/hot-leads.js';
 
 interface Row {
   id: string; person_id: string; campaign_id: number; campaign_name: string | null; name: string | null; email: string | null; job_title: string | null;
   company_name: string | null; company_domain: string | null; linkedin_url: string | null; country: string | null; phone: string | null; why_hot: string | null;
   became_hot_at: Date | null; erased: boolean; status: LeadStatus; notes: string | null; access_request_id: string | null; first_seen_at: Date; updated_at: Date;
+  is_test: boolean; invite_sent_at: Date | null; invite_resent_at: Date | null; invite_expires_at: Date | null; requested_at: Date | null;
 }
 const toLead = (r: Row): HotLead => ({
   id: String(r.id), personId: r.person_id, campaignId: Number(r.campaign_id), campaignName: r.campaign_name, name: r.name, email: r.email, jobTitle: r.job_title,
   companyName: r.company_name, companyDomain: r.company_domain, linkedinUrl: r.linkedin_url, country: r.country, phone: r.phone, whyHot: r.why_hot,
   becameHotAt: r.became_hot_at?.getTime() ?? null, erased: r.erased, status: r.status, notes: r.notes, accessRequestId: r.access_request_id,
   firstSeenAt: r.first_seen_at.getTime(), updatedAt: r.updated_at.getTime(),
+  isTest: r.is_test, inviteSentAt: r.invite_sent_at?.getTime() ?? null, inviteResentAt: r.invite_resent_at?.getTime() ?? null,
+  inviteExpiresAt: r.invite_expires_at?.getTime() ?? null, requestedAt: r.requested_at?.getTime() ?? null,
 });
-const COLS = 'id, person_id, campaign_id, campaign_name, name, email, job_title, company_name, company_domain, linkedin_url, country, phone, why_hot, became_hot_at, erased, status, notes, access_request_id, first_seen_at, updated_at';
+const COLS = 'id, person_id, campaign_id, campaign_name, name, email, job_title, company_name, company_domain, linkedin_url, country, phone, why_hot, became_hot_at, erased, status, notes, access_request_id, first_seen_at, updated_at, is_test, invite_sent_at, invite_resent_at, invite_expires_at, requested_at';
 const ts = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
 
 /**
@@ -99,6 +103,52 @@ export class PgHotLeadsStore implements HotLeadsStore {
     if (patch.accessRequestId !== undefined) { vals.push(patch.accessRequestId); sets.push(`access_request_id = $${vals.length}`); }
     vals.push(ts(at)); sets.push(`updated_at = $${vals.length}`);
     const { rows } = await this.pool.query<Row>(`UPDATE hot_leads SET ${sets.join(', ')} WHERE id = $1 RETURNING ${COLS}`, vals);
+    return rows[0] ? toLead(rows[0]) : null;
+  }
+
+  async createTestLead(i: { name: string; email: string; companyName: string | null; jobTitle: string | null }, at: number): Promise<HotLead> {
+    const { rows } = await this.pool.query<Row>(
+      `INSERT INTO hot_leads (person_id, campaign_id, campaign_name, name, email, job_title, company_name, became_hot_at, first_seen_at, updated_at, is_test)
+       VALUES ('test:' || gen_random_uuid(), 0, 'Test', $1, $2, $3, $4, $5, $5, $5, true) RETURNING ${COLS}`,
+      [i.name, i.email, i.jobTitle, i.companyName, ts(at)]);
+    return toLead(rows[0]!);
+  }
+
+  async setInvite(id: string, i: { tokenHash: string; at: number; expiresAt: number; resend: boolean }): Promise<HotLead | null> {
+    if (!/^\d+$/.test(id)) return null;
+    // one conditional UPDATE: two taps (or two admins) can never both send
+    const cond = i.resend
+      ? `invite_sent_at IS NOT NULL AND invite_resent_at IS NULL AND invite_sent_at <= $5::timestamptz`
+      : 'invite_sent_at IS NULL';
+    const vals: unknown[] = [id, i.tokenHash, ts(i.at), ts(i.expiresAt)];
+    if (i.resend) vals.push(ts(i.at - LEAD_INVITE_RESEND_AFTER_MS)); // $5: the latest send that may be re-sent now
+    const { rows } = await this.pool.query<Row>(
+      `UPDATE hot_leads SET invite_token_hash = $2, ${i.resend ? 'invite_resent_at' : 'invite_sent_at'} = $3::timestamptz, invite_expires_at = $4::timestamptz, invite_used_at = NULL,
+         status = CASE WHEN status IN ('new', 'contacted') THEN 'invited' ELSE status END, updated_at = $3::timestamptz
+       WHERE id = $1 AND ${cond} RETURNING ${COLS}`,
+      vals);
+    return rows[0] ? toLead(rows[0]) : null;
+  }
+
+  async restoreInvite(id: string, prev: Pick<HotLead, 'status' | 'inviteSentAt' | 'inviteResentAt' | 'inviteExpiresAt'>, at: number): Promise<void> {
+    if (!/^\d+$/.test(id)) return;
+    await this.pool.query(
+      `UPDATE hot_leads SET status = $2, invite_sent_at = $3, invite_resent_at = $4, invite_expires_at = $5, invite_token_hash = NULL, updated_at = $6 WHERE id = $1`,
+      [id, prev.status, ts(prev.inviteSentAt ?? null), ts(prev.inviteResentAt ?? null), ts(prev.inviteExpiresAt ?? null), ts(at)]);
+  }
+
+  async findByInviteToken(tokenHash: string, at: number): Promise<HotLead | null> {
+    const { rows } = await this.pool.query<Row>(
+      `SELECT ${COLS} FROM hot_leads WHERE invite_token_hash = $1 AND invite_used_at IS NULL AND invite_expires_at > $2`, [tokenHash, ts(at)]);
+    return rows[0] ? toLead(rows[0]) : null;
+  }
+
+  async markRequested(id: string, tokenHash: string, accessRequestId: string, at: number): Promise<HotLead | null> {
+    if (!/^\d+$/.test(id)) return null;
+    const { rows } = await this.pool.query<Row>(
+      `UPDATE hot_leads SET invite_used_at = $4, status = 'requested', requested_at = $4, access_request_id = $3, updated_at = $4
+       WHERE id = $1 AND invite_token_hash = $2 AND invite_used_at IS NULL RETURNING ${COLS}`,
+      [id, tokenHash, accessRequestId, ts(at)]);
     return rows[0] ? toLead(rows[0]) : null;
   }
 
