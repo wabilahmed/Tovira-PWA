@@ -23,8 +23,16 @@ test('billing/cancel renders a real page, never the 404', async ({ page }) => {
   await expect(page.getByText(/page not found/i)).toHaveCount(0);
 });
 
-test('billing/success renders a real page, never the 404', async ({ page }) => {
-  await page.goto('/billing/success');
+// [P58 · owner] Stale since P14-4a/P16-3b (95d173e): the success page confirms a payment server-side from Stripe's
+// session_id, and with no session_id it says so at once instead of "confirming". Both are real pages, never the 404.
+test('billing/success with a session renders a real page (confirming), never the 404', async ({ page }) => {
+  await page.goto('/billing/success?session_id=cs_test_e2e');
   await expect(page.getByRole('status')).toHaveText(/confirming your payment|payment received|you're subscribed/i);
+  await expect(page.getByText(/page not found/i)).toHaveCount(0);
+});
+
+test('billing/success with no session renders the neutral page, never the 404', async ({ page }) => {
+  await page.goto('/billing/success');
+  await expect(page.getByRole('status')).toHaveText(/couldn't confirm a payment from this link/i);
   await expect(page.getByText(/page not found/i)).toHaveCount(0);
 });

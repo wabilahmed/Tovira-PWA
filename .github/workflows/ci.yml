@@ -37,7 +37,8 @@ jobs:
       # playwright.config.ts builds the web app and serves it with `vite preview` (webServer).
       # [P46-6b] The app at 390px with real lengths (long promise text, long names): no sideways scroll on Promises, the
       # client page, Inventory or Settings. Stub API, no server, no secrets.
-      - run: npx playwright test apps/web/e2e/landing-usecases.spec.ts apps/web/e2e/app-layout.spec.ts
+      # [P58] billing/success and cancel never 404 (BILL-13), and + New client / + Add note at 390px (P57).
+      - run: npx playwright test apps/web/e2e/landing-usecases.spec.ts apps/web/e2e/app-layout.spec.ts apps/web/e2e/billing-return.spec.ts apps/web/e2e/new-client.spec.ts
 
   # The unit suite runs migrations against a FAKE client that never executes SQL, so anything real
   # Postgres rejects at apply time — an FK whose column type doesn't match its referent, a grant to a
