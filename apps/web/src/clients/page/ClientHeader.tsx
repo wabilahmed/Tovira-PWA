@@ -61,7 +61,7 @@ export function ClientHeader({ name, status, line, phone, phoneEditor, onStatus,
       </div>
       {/* [P46-4] The phone has its own full-width row: label above, field across, Save below (never squeezed beside Call). */}
       <div className="tov-clienthead__phone">{phoneEditor}</div>
-      <div><Button variant="primary" className="tov-clienthead__add" aria-haspopup="dialog" aria-expanded={addOpen} onClick={onAdd}>+ Add</Button></div>
+      <div><Button variant="primary" className="tov-clienthead__add" aria-haspopup="dialog" aria-expanded={addOpen} onClick={onAdd}>+ Add note</Button></div>
       {children}
     </header>
   );

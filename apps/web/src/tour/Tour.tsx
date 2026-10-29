@@ -217,8 +217,8 @@ function buildSteps(c: {
       spot: ['[data-tour="add-client"]', '[data-tour="nav-clients"]'],
       body: (
         <>
-          {/* [P39-3] "New client from a chat" now sits behind "+ Add client". */}
-          <p><strong>Add client</strong> → <strong>New client from a chat</strong>. Export first:</p>
+          {/* [P39-3] "New client from a chat" now sits behind "+ Add client". [P57] The button is "+ New client". */}
+          <p><strong>New client</strong> → <strong>Import a WhatsApp chat</strong>. Export first:</p>
           <ExportSteps nav={c.nav} />
         </>
       ),

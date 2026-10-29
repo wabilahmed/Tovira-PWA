@@ -61,18 +61,19 @@ describe('[P36-3] capture lives inside a client', () => {
     expect(await screen.findByText('Layla asked something', {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
+  // [P57 · owner] the button reads "+ Add note", with Type (the pasted-note path) and Record (the voice note) beside the chat import
   it('every capture type is on the client page, behind its one Add button: voice note, paste a message, import a WhatsApp chat', async () => {
     stub({ seeded: true, clients: [client('c1', 'Sara Khan')] });
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByText('Sara Khan'));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Sara Khan' })).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: '+ Add' }));
-    expect(screen.getByRole('button', { name: /record voice note/i })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Paste a message' }));
-    expect(screen.getByLabelText('Paste a message')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '+ Add' })); // closes
-    await user.click(screen.getByRole('button', { name: '+ Add' })); // reopens the options
+    await user.click(screen.getByRole('button', { name: '+ Add note' }));
+    expect(screen.getByRole('button', { name: /^Record/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Type/ }));
+    expect(screen.getByLabelText('Type a note')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '+ Add note' })); // closes
+    await user.click(screen.getByRole('button', { name: '+ Add note' })); // reopens the options
     await user.click(screen.getByRole('button', { name: /import a whatsapp chat/i }));
     expect(await screen.findByLabelText(/consent to import/i)).toBeInTheDocument();
   });
@@ -85,8 +86,8 @@ describe('[P36-3] capture lives inside a client', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByText('Sara Khan'));
-    await user.click(await screen.findByRole('button', { name: '+ Add' }));
-    await user.click(screen.getByRole('button', { name: /record voice note/i }));
+    await user.click(await screen.findByRole('button', { name: '+ Add note' })); // [P57 · owner] was "+ Add" / "Record voice note"
+    await user.click(screen.getByRole('button', { name: /^Record/ }));
     expect(await screen.findByTestId('rec-elapsed')).toHaveTextContent(/^00:0\d$/);
     expect(screen.getByTestId('rec-remaining')).toHaveTextContent(/^· (10:00|09:5\d) left$/);
     expect(screen.getByRole('button', { name: /stop & save/i })).toBeInTheDocument();

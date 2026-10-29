@@ -37,8 +37,9 @@ describe('[P39-4] New client from a chat', () => {
     stub();
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: '+ Add client' }));
-    await user.click(await screen.findByRole('button', { name: /^New client from a chat/ }));
+    // [P57 · owner] "+ New client" → "Import a WhatsApp chat" opens the same "New client from a chat" page
+    await user.click(await screen.findByRole('button', { name: '+ New client' }));
+    await user.click(await screen.findByRole('button', { name: /^Import a WhatsApp chat/ }));
     const page = await screen.findByTestId('clients-action');
     expect(within(page).getAllByRole('heading', { name: 'New client from a chat' })).toHaveLength(1);
     expect(within(page).getByText(INTRO)).toBeInTheDocument();

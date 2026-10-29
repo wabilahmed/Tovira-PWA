@@ -43,19 +43,23 @@ function stub(state: { clients: ReturnType<typeof client>[]; calls: Array<{ meth
 }
 
 // [P39 · owner] The two buttons moved into the "+ Add client" sheet, next to "Add by name only".
+// [P57 · owner] "+ Add client" is now "+ New client" (Type it · Record a voice note · Import a WhatsApp chat · Import several chats);
+// "Add by name only" became "Type it" (a name alone still creates the client, with no note and no AI call).
+// "New client from a chat" is reached by "Import a WhatsApp chat" (the same page and flow, unchanged).
 async function openAddSheet(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await user.click(await screen.findByRole('button', { name: '+ Add client' }));
+  await user.click(await screen.findByRole('button', { name: '+ New client' }));
 }
 
 describe('[P36-1] the Clients list is where a new client\'s chat comes in', () => {
-  it('"+ Add client" offers "New client from a chat", "Import several chats" and "Add by name only"', async () => {
+  it('"+ New client" offers "Type it", "Record a voice note", "Import a WhatsApp chat" and "Import several chats"', async () => {
     stub({ clients: [client('c1', 'Sara Khan')], calls: [] });
     const user = userEvent.setup();
     render(<App />);
     await openAddSheet(user);
-    expect(await screen.findByRole('button', { name: /^New client from a chat/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Type it/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Record a voice note/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Import a WhatsApp chat/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Import several chats/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Add by name only/ })).toBeInTheDocument();
   });
 
   it('"New client from a chat": no import (no model) before the rep confirms; then lands on the new client\'s page', async () => {
@@ -64,7 +68,7 @@ describe('[P36-1] the Clients list is where a new client\'s chat comes in', () =
     const user = userEvent.setup();
     render(<App />);
     await openAddSheet(user);
-    await user.click(await screen.findByRole('button', { name: /^New client from a chat/ }));
+    await user.click(await screen.findByRole('button', { name: /^Import a WhatsApp chat/ }));
     const picker = await screen.findByLabelText(/choose the chat export/i /* [P39 · owner] the button reads "Choose the chat export (.zip or .txt)" */);
     expect(picker).not.toHaveAttribute('multiple'); // one chat → one client
     await user.upload(picker, new File(['13/07/2019, 1:00 am - Layla: hi'], 'WhatsApp Chat with Layla.txt', { type: 'text/plain' }));

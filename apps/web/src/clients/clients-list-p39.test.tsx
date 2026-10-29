@@ -40,6 +40,8 @@ const SOME: C[] = [
   { id: 'b', name: 'Bravo', phone: null, createdAt: 2, leadStatus: null },
 ];
 
+// [P57 · owner] "+ Add client" is now "+ New client" (Type it · Record a voice note · Import a WhatsApp chat · Import several chats);
+// "Add by name only" became "Type it" (a name alone still creates the client, with no note and no AI call).
 describe('[P39-3] the Clients list', () => {
   it('a PageHeader "Clients" in the page template, no standalone name input and no native <select>', async () => {
     stub(SOME);
@@ -48,7 +50,7 @@ describe('[P39-3] the Clients list', () => {
     const page = screen.getByTestId('clients-page');
     expect(page).toHaveAttribute('data-page-template');
     expect(within(page).getByRole('heading', { level: 1, name: 'Clients' })).toBeInTheDocument();
-    expect(within(page).getByRole('button', { name: '+ Add client' })).toBeInTheDocument();
+    expect(within(page).getByRole('button', { name: '+ New client' })).toBeInTheDocument();
     expect(page.querySelector('select')).toBeNull();
     expect(screen.queryByLabelText('New client name')).toBeNull();
     expect(within(page).queryByRole('button', { name: 'New client from a chat' })).toBeNull(); // only in the sheet
@@ -64,18 +66,19 @@ describe('[P39-3] the Clients list', () => {
     expect(document.body.textContent).not.toMatch(/unsorted/i);
   });
 
-  it('"Add by name only" creates the client from the sheet', async () => {
+  it('"Type it" with only a name creates the client from the sheet', async () => {
     const posts: Array<{ url: string; body: unknown }> = [];
     stub(SOME, posts);
     const user = userEvent.setup();
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: '+ Add client' }));
-    await user.click(await screen.findByRole('button', { name: /^Add by name only/ }));
-    await user.type(await screen.findByLabelText('Client name'), 'Layla Haddad');
-    await user.click(screen.getByRole('button', { name: 'Add client' }));
+    await user.click(await screen.findByRole('button', { name: '+ New client' }));
+    await user.click(await screen.findByRole('button', { name: /^Type it/ }));
+    await user.type(await screen.findByLabelText('Name'), 'Layla Haddad');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0]!.body).toMatchObject({ name: 'Layla Haddad' });
-    expect(await screen.findByRole('button', { name: 'Open Layla Haddad' })).toBeInTheDocument();
+    // [P57] + New client opens the client it made (where its note is read), instead of staying on the list
+    expect(await screen.findByRole('heading', { level: 1, name: 'Layla Haddad' })).toBeInTheDocument();
   });
 
   it('no clients → "No clients yet." with a way to add one', async () => {
@@ -83,7 +86,7 @@ describe('[P39-3] the Clients list', () => {
     render(<App />);
     const empty = await screen.findByTestId('clients-empty');
     expect(empty).toHaveTextContent('No clients yet.');
-    expect(within(empty).getByRole('button', { name: '+ Add client' })).toBeInTheDocument();
+    expect(within(empty).getByRole('button', { name: '+ New client' })).toBeInTheDocument();
   });
 
   it('no search results → says so, with Clear search', async () => {

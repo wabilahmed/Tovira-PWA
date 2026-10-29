@@ -14,8 +14,7 @@ import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSu
 import { HttpClientPageClient, type ClientOverview } from './clients/page/clientPageClient.js';
 import { Accordion } from './ui/Accordion.js';
 import { ClientNameMenu } from './clients/page/ClientNameMenu.js';
-import { Page, PageHeader, Section, ListRow, Button, IconButton, ActionRow, SearchInput, Sheet, TextInput, EmptyState } from './ui/index.js';
-import { AddNote } from './clients/page/AddNote.js';
+import { Page, PageHeader, Section, ListRow, Button, IconButton, SearchInput, Sheet, EmptyState } from './ui/index.js';
 
 /** [P36-6] The client-list sort orders. */
 const SORT_OPTIONS: Array<{ value: 'last' | 'name' | 'overdue'; label: string }> = [
@@ -118,6 +117,7 @@ import { HttpUploader } from './capture/uploader.js';
 import { requestMicrophone } from './capture/microphone.js';
 import { startRecording, MAX_RECORDING_MS, type ActiveRecording } from './capture/recorder.js';
 import { RecordingTimer } from './clients/page/RecordingTimer.js';
+import { NewClient, type StartRecorder } from './clients/NewClient.js';
 
 const auth = new AuthClient(API_BASE);
 const accessRequestApi = new HttpAccessRequestClient(API_BASE);
@@ -218,6 +218,14 @@ const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader(API_BASE));
 // [P14-4b] A recording still waiting to upload is unsaved work — a service-worker update must prompt,
 // not silently reload, while any is pending. Registered once (the outbox is a singleton).
 registerUnsavedSource(async () => (await outbox.pending()).length > 0);
+
+/** [P57] The microphone for a voice "new client": the same recorder as a client's voice note. */
+const startNewClientRecorder: StartRecorder = async () => {
+  const mic = await requestMicrophone();
+  if (!mic.granted || !mic.stream) return { ok: false, message: mic.guidance ?? 'Microphone unavailable.' };
+  const rec = startRecording(mic.stream);
+  return { ok: true, stop: () => rec.stop() };
+};
 
 function randomId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Math.random());
@@ -346,10 +354,7 @@ export function App(): JSX.Element {
 
 function ClientsScreen({ session, onLogout, referralsEnabled = false }: { session: Session; onLogout: () => void; referralsEnabled?: boolean }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
-  const [name, setName] = useState('');
   const [query, setQuery] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<ClientSummary | null>(null);
   // [P37] The required first-login tour: shown whenever the account hasn't completed it (resuming at its saved
   // step), before anything else; "Take the tour again" (More) replays it without touching the record.
@@ -431,7 +436,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
   const [sortBy, setSortBy] = useState<'last' | 'name' | 'overdue'>('last');
   const [sortSheet, setSortSheet] = useState(false);
   const [findScreen, setFindScreen] = useState<FindScreen>({ kind: 'home' }); // [P39-7] kept across opening a client
-  const [addSheet, setAddSheet] = useState<'menu' | 'name' | null>(null);
+  const [addSheet, setAddSheet] = useState<'menu' | null>(null); // [P57] the + New client sheet
   const loadRows = (): void => void clientsApi.rowSummaries().then(setRows);
   const loadSuggestions = (): void => void clientsApi.statusSuggestions().then((list) => setSuggestions(new Map(list.map((x) => [x.clientId, x]))));
   useEffect(loadSuggestions, []);
@@ -633,20 +638,11 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
       </PushView>
     );
 
-  async function addClient(e: React.FormEvent): Promise<void> {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      const created = await clientsApi.create(name);
-      setClients((prev) => [created, ...prev]);
-      setName('');
-      setAddSheet(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create client.');
-    } finally {
-      setBusy(false);
-    }
+  // [P57 · owner] + New client: open the client it made (or the existing one the rep added this to).
+  function openAfterNewClient(id: string, created: ClientSummary | null): void {
+    if (created) setClients((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+    const c = created ?? clients.find((x) => x.id === id);
+    if (c) setOpen(c);
   }
 
   // [LEAD-STATUS] Counts come from the FULL loaded list; the rendered list is the active-filter slice.
@@ -895,7 +891,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
           {/* [P39] One primary action: "+ Add client" opens a sheet with the three ways in. */}
           <PageHeader
             title="Clients"
-            action={<Button variant="primary" size="sm" data-tour="add-client" aria-haspopup="dialog" onClick={() => setAddSheet('menu')}>+ Add client</Button>}
+            action={<Button variant="primary" size="sm" data-tour="add-client" aria-haspopup="dialog" onClick={() => setAddSheet('menu')}>+ New client</Button>}
           />
           {/* [P36-1] Capture lives inside a client; a chat for a client you don't have yet starts here. */}
           {(sharedContent || sharedContentB64) && (
@@ -933,9 +929,9 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
               <EmptyState
                 data-testid="clients-empty"
                 title="No clients yet."
-                action={<Button variant="primary" onClick={() => setAddSheet('menu')}>+ Add client</Button>}
+                action={<Button variant="primary" onClick={() => setAddSheet('menu')}>+ New client</Button>}
               >
-                Add your first client from a WhatsApp chat, or by name.
+                Add your first client: type it, record a voice note, or import a WhatsApp chat.
               </EmptyState>
             ) : search.active ? (
               <EmptyState
@@ -969,29 +965,17 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
             </ul>
           )}
 
-          <Sheet open={addSheet === 'menu'} onClose={() => setAddSheet(null)} title="Add a client">
-            <div className="ui-stack ui-gap-1">
-              <button type="button" className="ui-sheet__option" onClick={() => { setAddSheet(null); setClientsAction('newFromChat'); }}>
-                <span>New client from a chat</span><span className="ui-sheet__hint">Choose a WhatsApp chat export. You confirm who it's with first.</span>
-              </button>
-              <button type="button" className="ui-sheet__option" onClick={() => { setAddSheet(null); setClientsAction('importSeveral'); }}>
-                <span>Import several chats</span><span className="ui-sheet__hint">Add several clients at once from their chat exports.</span>
-              </button>
-              <button type="button" className="ui-sheet__option" onClick={() => setAddSheet('name')}>
-                <span>Add by name only</span><span className="ui-sheet__hint">Start an empty client and add notes later.</span>
-              </button>
-            </div>
-          </Sheet>
-          <Sheet open={addSheet === 'name'} onClose={() => { setAddSheet(null); setError(null); }} title="Add by name only">
-            <form onSubmit={(e) => void addClient(e)} className="ui-stack">
-              <TextInput label="Client name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-              {error && <p className="ui-secondary ui-danger" role="alert">{error}</p>}
-              <ActionRow>
-                <Button type="submit" variant="primary" loading={busy} disabled={!name.trim()}>Add client</Button>
-                <Button variant="text" onClick={() => { setAddSheet(null); setError(null); }}>Cancel</Button>
-              </ActionRow>
-            </form>
-          </Sheet>
+          {/* [P57 · owner] + New client: Type it, Record a voice note, or Import a WhatsApp chat (the existing flow). */}
+          <NewClient
+            open={addSheet === 'menu'}
+            onClose={() => setAddSheet(null)}
+            api={clientsApi}
+            startRecorder={startNewClientRecorder}
+            onSaveRecording={(clientId, blob, recordedAt) => outbox.enqueue({ id: randomId(), clientId, blob, createdAt: recordedAt }).then(() => undefined)}
+            onDone={openAfterNewClient}
+            onImportChat={() => setClientsAction('newFromChat')}
+            onImportSeveral={() => setClientsAction('importSeveral')}
+          />
           <Sheet open={sortSheet} onClose={() => setSortSheet(false)} title="Sort clients">
             {/* [P36-6] Sort: last message (default), name, or most overdue promises. */}
             <div role="radiogroup" aria-label="Sort clients" className="ui-stack ui-gap-1">
@@ -1062,7 +1046,7 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
   const [overview, setOverview] = useState<ClientOverview | null>(null);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [addOpen, setAddOpen] = useState(!!initialImport);
-  const [capture, setCapture] = useState<'voice' | 'paste' | 'import' | 'note' | null>(initialImport ? 'import' : null);
+  const [capture, setCapture] = useState<'voice' | 'paste' | 'import' | null>(initialImport ? 'import' : null);
 
 
   const refresh = (): void => {
@@ -1187,15 +1171,21 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
       >
         {/* [P36-5] Add: every capture for this client starts here — voice note, a pasted message, a WhatsApp chat. */}
         {/* [P39-8] The Add menu is a sheet; the chosen capture opens under the header. */}
+        {/* [P57 · owner] "+ Add note": Type (the pasted-note path, the same as + New client → Type it) or Record (the
+            voice-note path); a WhatsApp chat as before. The held "Add a note" capture stays with Find. */}
         <Sheet open={addOpen && !capture} onClose={() => setAddOpen(false)} title={`Add to ${client.name}`}>
           <div className="ui-stack ui-gap-1" role="group" aria-label="Add to this client">
-            <button type="button" className="ui-sheet__option" onClick={() => { setCapture('voice'); void startRec(); }}>Record voice note</button>
-            <button type="button" className="ui-sheet__option" onClick={() => setCapture('paste')}>Paste a message</button>
-            <button type="button" className="ui-sheet__option" onClick={() => setCapture('import')}>Import a WhatsApp chat</button>
-            <button type="button" className="ui-sheet__option" onClick={() => setCapture('note')}>Add a note</button>
+            <button type="button" className="ui-sheet__option" onClick={() => setCapture('paste')}>
+              <span>Type</span><span className="ui-sheet__hint">Type or paste a note: needs, budget, dates, what you promised.</span>
+            </button>
+            <button type="button" className="ui-sheet__option" onClick={() => { setCapture('voice'); void startRec(); }}>
+              <span>Record</span><span className="ui-sheet__hint">A voice note, up to 10 minutes.</span>
+            </button>
+            <button type="button" className="ui-sheet__option" onClick={() => setCapture('import')}>
+              <span>Import a WhatsApp chat</span><span className="ui-sheet__hint">Choose a WhatsApp chat export.</span>
+            </button>
           </div>
         </Sheet>
-        {capture === 'note' && <AddNote clientId={client.id} clientName={client.name} api={recallApi} onOpenSubscription={onOpenSubscription} />}
         {(capture === 'voice' || recording) && (
           <div className="tov-capture">
             {recording && recStartedAt !== null && <RecordingTimer startedAt={recStartedAt} maxMs={MAX_RECORDING_MS} />}
@@ -1211,13 +1201,13 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
             <textarea
               value={paste}
               onChange={(e) => setPaste(e.target.value)}
-              placeholder="Paste a message (WhatsApp, email…)"
-              aria-label="Paste a message"
+              placeholder="What do you know? Needs, budget, dates, what you promised."
+              aria-label="Type a note"
               rows={3}
               style={{ width: '100%' }}
               dir="auto"
             />
-            <button type="submit" disabled={!paste.trim()}>Save message</button>
+            <button type="submit" disabled={!paste.trim()}>Save note</button>
           </form>
         )}
         {(capture === 'import' || showImport) && (

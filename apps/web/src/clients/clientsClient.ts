@@ -12,6 +12,9 @@ export interface ClientSummary {
   phone: string | null;
   title?: string | null;
   email?: string | null;
+  /** [P57-3] */
+  company?: string | null;
+  industry?: string | null;
   createdAt: number;
   /** [LEAD-STATUS] null = Unsorted. Absent on older responses → treat as Unsorted. */
   leadStatus?: LeadStatus | null;
@@ -32,6 +35,18 @@ export interface StatusSnapshot {
   outcomeSource: string | null;
   outcomeChangedAt: number | null;
 }
+
+/** [P57-3] The New client form's fields. Role is the client's title field. Industry uses the sign-up form's list. */
+export interface NewClientInput { name: string; phone?: string; company?: string; industry?: string; title?: string; confirmDuplicate?: boolean }
+export type CreateNewResult =
+  | { ok: true; client: ClientSummary }
+  | { ok: false; duplicate: { id: string; name: string }; message: string }
+  | { ok: false; duplicate?: undefined; message: string };
+/** [P57-4] Who the transcript suggests; every field is the rep's to confirm or edit. */
+export interface VoiceSuggestion { name: string | null; company: string | null; phone: string | null }
+export type VoiceDraftResult =
+  | { ok: true; transcript: string; suggestion: VoiceSuggestion }
+  | { ok: false; kind: 'paused' | 'refused' | 'unavailable'; message: string };
 
 export type ExtractionState = 'queued' | 'processing' | 'done' | 'failed';
 
@@ -149,6 +164,36 @@ export class ClientsClient {
       throw new Error(body.message ?? 'Could not create client.');
     }
     return (await res.json()) as ClientSummary;
+  }
+
+  /** [P57-3] New client (typed or voice): the fields, and the duplicate question. A client with the same name or phone
+   *  comes back as `duplicate` (never merged); `confirmDuplicate` makes a separate client. */
+  async createNew(input: NewClientInput): Promise<CreateNewResult> {
+    try {
+      const body: Record<string, unknown> = { name: input.name, checkDuplicate: true };
+      if (input.confirmDuplicate) body.confirmDuplicate = true;
+      for (const k of ['phone', 'company', 'industry', 'title'] as const) if (input[k]?.trim()) body[k] = input[k]!.trim();
+      const res = await fetch(this.url('/clients'), { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const data = (await res.json().catch(() => ({}))) as { message?: string; client?: { id: string; name: string } };
+      if (res.status === 409 && data.client) return { ok: false, duplicate: data.client, message: data.message ?? `You already have ${data.client.name}. Add this to ${data.client.name} instead?` };
+      if (!res.ok) return { ok: false, message: data.message ?? 'Could not create the client.' };
+      return { ok: true, client: data as unknown as ClientSummary };
+    } catch {
+      return { ok: false, message: 'Could not reach Tovira. Check your connection and try again.' };
+    }
+  }
+
+  /** [P57-4] Transcribe a voice "new client" and suggest who it is. Nothing is stored; the recording stays here. */
+  async voiceDraft(blob: Blob | Uint8Array): Promise<VoiceDraftResult> {
+    try {
+      const res = await fetch(this.url('/voice/draft'), { method: 'POST', credentials: 'include', headers: { 'content-type': 'audio/webm' }, body: blob as BodyInit });
+      const data = (await res.json().catch(() => ({}))) as { transcript?: string; suggestion?: VoiceSuggestion; message?: string };
+      if (res.ok && typeof data.transcript === 'string') return { ok: true, transcript: data.transcript, suggestion: data.suggestion ?? { name: null, company: null, phone: null } };
+      if (res.status === 402 || res.status === 403) return { ok: false, kind: 'paused', message: 'AI is paused on your account, so this recording can\'t be transcribed. You can type the client instead.' };
+      return { ok: false, kind: res.status === 413 || res.status === 415 ? 'refused' : 'unavailable', message: data.message ?? "Couldn't transcribe that just now. Your recording is kept on this phone. Try again." };
+    } catch {
+      return { ok: false, kind: 'unavailable', message: "Couldn't transcribe that just now. Your recording is kept on this phone. Try again." };
+    }
   }
 
   /** [OUTCOME-3] Set a client's deal outcome (rep-sourced server-side). 'lost' → lost_confirmed;
