@@ -1,3 +1,4 @@
+import type { Industry } from './access-request-repository.js';
 /**
  * Port: the per-rep client list (the first tenant-scoped table). Every method is
  * scoped to a userId; the Postgres implementation additionally enforces this at
@@ -42,6 +43,10 @@ export interface ClientRecord {
   /** Optional business-card fields (P4-5), stored verbatim; null otherwise. */
   title: string | null;
   email: string | null;
+  /** [P57-3] Optional company, as the rep typed it; null when not given. */
+  company?: string | null;
+  /** [P57-3] Optional industry, from the sign-up form's list (access-request Industry); null when not given. */
+  industry?: Industry | null;
   createdAt: number;
   /** Recency signal for fast selection — bumped on create and on activity. */
   lastTouchedAt: number;
@@ -58,7 +63,7 @@ export interface ClientRecord {
 }
 
 export interface ClientRepository {
-  create(userId: string, name: string, phone?: string | null, title?: string | null, email?: string | null): Promise<ClientRecord>;
+  create(userId: string, name: string, phone?: string | null, title?: string | null, email?: string | null, extra?: { company?: string | null; industry?: Industry | null }): Promise<ClientRecord>;
   /** Set (or clear) a client's phone. Scoped to the owner; a no-op otherwise. */
   setPhone(userId: string, id: string, phone: string | null): Promise<void>;
   /** Most-recently-touched first. */

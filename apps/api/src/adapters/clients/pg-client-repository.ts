@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition, LeadStatus, NameChange } from '../../ports/client-repository.js';
+import type { Industry } from '../../ports/access-request-repository.js';
 import type { TenantQueryable } from '../../db/tenant.js';
 import { withTenant } from '../../db/tenant.js';
 
@@ -10,6 +11,8 @@ interface ClientRow {
   phone: string | null;
   title: string | null;
   email: string | null;
+  company?: string | null;
+  industry?: Industry | null;
   created_at: Date;
   last_touched_at: Date;
   outcome: ClientOutcome;
@@ -27,6 +30,8 @@ function toRecord(row: ClientRow): ClientRecord {
     phone: row.phone,
     title: row.title,
     email: row.email,
+    company: row.company ?? null,
+    industry: row.industry ?? null,
     createdAt: row.created_at.getTime(),
     lastTouchedAt: row.last_touched_at.getTime(),
     outcome: row.outcome,
@@ -37,7 +42,7 @@ function toRecord(row: ClientRow): ClientRecord {
   };
 }
 
-const COLUMNS = 'id, user_id, name, phone, title, email, created_at, last_touched_at, outcome, outcome_changed_at, outcome_source, lead_status, lead_status_changed_at';
+const COLUMNS = 'id, user_id, name, phone, title, email, company, industry, created_at, last_touched_at, outcome, outcome_changed_at, outcome_source, lead_status, lead_status_changed_at';
 
 /**
  * Postgres-backed client store. Every method runs inside a tenant transaction
@@ -47,11 +52,11 @@ const COLUMNS = 'id, user_id, name, phone, title, email, created_at, last_touche
 export class PgClientRepository implements ClientRepository {
   constructor(private readonly pool: Pool) {}
 
-  async create(userId: string, name: string, phone: string | null = null, title: string | null = null, email: string | null = null): Promise<ClientRecord> {
+  async create(userId: string, name: string, phone: string | null = null, title: string | null = null, email: string | null = null, extra: { company?: string | null; industry?: Industry | null } = {}): Promise<ClientRecord> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO clients (user_id, name, phone, title, email) VALUES ($1, $2, $3, $4, $5) RETURNING ${COLUMNS}`,
-        [userId, name, phone, title, email],
+        `INSERT INTO clients (user_id, name, phone, title, email, company, industry) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING ${COLUMNS}`,
+        [userId, name, phone, title, email, extra.company ?? null, extra.industry ?? null],
       );
       return toRecord(rows[0] as unknown as ClientRow);
     });

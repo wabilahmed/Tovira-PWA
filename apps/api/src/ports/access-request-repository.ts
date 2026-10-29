@@ -11,6 +11,8 @@ export type ConversationOwnership = 'own_clients' | 'brokerage_i_manage' | 'brok
 export type ExpectedVolume = 'under_50' | '50_200' | '200_500' | '500_plus';
 /** [P42-A6] The segment the rep sells in (migration 0095). */
 export type Industry = 'insurance' | 'wealth_private_banking' | 'b2b_key_accounts' | 'luxury_client_advisory' | 'recruitment' | 'property' | 'other';
+/** [P57-3] The same list, as values: a client's industry uses it too, so a rep's clients line up with the segments. */
+export const INDUSTRIES: readonly Industry[] = ['insurance', 'wealth_private_banking', 'b2b_key_accounts', 'luxury_client_advisory', 'recruitment', 'property', 'other'];
 
 /** The validated, submitted fields (no provenance/review fields — those are set by the store/reviewer). */
 export interface AccessRequestInput {

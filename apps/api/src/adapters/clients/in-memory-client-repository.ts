@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Industry } from '../../ports/access-request-repository.js';
 import type { ClientRecord, ClientRepository, ClientOutcome, OutcomeSource, OutcomeTransition, LeadStatus, NameChange } from '../../ports/client-repository.js';
 
 /** In-memory client store mirroring the RLS isolation contract, for tests. */
@@ -17,9 +18,9 @@ export class InMemoryClientRepository implements ClientRepository {
     return this.clock;
   }
 
-  async create(userId: string, name: string, phone: string | null = null, title: string | null = null, email: string | null = null): Promise<ClientRecord> {
+  async create(userId: string, name: string, phone: string | null = null, title: string | null = null, email: string | null = null, extra: { company?: string | null; industry?: Industry | null } = {}): Promise<ClientRecord> {
     const now = this.tick();
-    const record: ClientRecord = { id: randomUUID(), userId, name, phone, title, email, createdAt: now, lastTouchedAt: now, outcome: 'open', outcomeChangedAt: null, outcomeSource: null, leadStatus: null, leadStatusChangedAt: null };
+    const record: ClientRecord = { id: randomUUID(), userId, name, phone, title, email, company: extra.company ?? null, industry: extra.industry ?? null, createdAt: now, lastTouchedAt: now, outcome: 'open', outcomeChangedAt: null, outcomeSource: null, leadStatus: null, leadStatusChangedAt: null };
     this.byId.set(record.id, record);
     return record;
   }

@@ -6,6 +6,8 @@ import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js
 import { NO_RESTRICTION, type Restriction } from '../services/erasure/restriction.js';
 import { canonicalPhone } from '../services/clients/phone.js';
 import type { ContactAliasRepository } from '../ports/contact-alias-repository.js';
+import { INDUSTRIES, type Industry } from '../ports/access-request-repository.js';
+import { phonesMatch } from '../services/import/misfile.js';
 
 /** [P49] The longest client name a rep can save. */
 export const MAX_CLIENT_NAME = 80;
@@ -46,12 +48,24 @@ export async function handleClientRoute(
 
   try {
     if (method === 'POST' && path === '/clients') {
-      const body = (await readJsonBody(req)) as { name?: unknown; phone?: unknown; title?: unknown; email?: unknown };
+      const body = (await readJsonBody(req)) as { name?: unknown; phone?: unknown; title?: unknown; email?: unknown; company?: unknown; industry?: unknown; checkDuplicate?: unknown; confirmDuplicate?: unknown };
       const name = typeof body.name === 'string' ? body.name.trim() : '';
       if (!name) {
         sendJson(res, 400, { error: 'validation', message: 'A client name is required.' });
         return true;
       }
+      // [P57-3] the same cap as a rename
+      if (name.length > MAX_CLIENT_NAME) {
+        sendJson(res, 400, { error: 'validation', message: `Keep the name to ${MAX_CLIENT_NAME} characters or fewer.` });
+        return true;
+      }
+      // [P57-3] industry from the sign-up form's list; company as typed
+      let industry: Industry | null = null;
+      if (typeof body.industry === 'string' && body.industry.trim()) {
+        if (!(INDUSTRIES as readonly string[]).includes(body.industry)) { sendJson(res, 400, { error: 'validation', message: 'Choose an industry from the list.' }); return true; }
+        industry = body.industry as Industry;
+      }
+      const company = typeof body.company === 'string' && body.company.trim() ? body.company.trim().slice(0, 120) : null;
       // [P46-4] Validated and stored in the canonical international form; never a guessed country code.
       let phone: string | null = null;
       if (typeof body.phone === 'string' && body.phone.trim()) {
@@ -61,7 +75,22 @@ export async function handleClientRoute(
       }
       const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : null;
       const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null;
-      sendJson(res, 201, await clients.create(userId, name, phone, title, email));
+      // [P57-3 · owner] Same name (folded) or same phone: a question, never a merge. Only for callers that ask
+      // (New client); "Create new" sends confirmDuplicate and makes a separate client.
+      if (body.checkDuplicate === true && body.confirmDuplicate !== true) {
+        const all = await clients.listByUser(userId);
+        const byName = all.find((c) => foldName(c.name) === foldName(name));
+        const byPhone = phone ? all.find((c) => c.phone && phonesMatch(c.phone, phone!)) : undefined;
+        const dup = byName ?? byPhone;
+        if (dup) {
+          sendJson(res, 409, { error: 'duplicate_client', message: `You already have ${dup.name}. Add this to ${dup.name} instead?`, client: { id: dup.id, name: dup.name }, match: byName ? 'name' : 'phone' });
+          return true;
+        }
+      }
+      // [P57-3] the erasure guard as everywhere else (P49): a client who is a restricted person comes back name-locked, and
+      // its notes are withheld from the model at extraction (restrictNote). Creating one is allowed, as before.
+      const [created] = await locked([await clients.create(userId, name, phone, title, email, { company, industry })]);
+      sendJson(res, 201, created);
       return true;
     }
 
