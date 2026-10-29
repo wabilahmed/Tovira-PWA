@@ -1,3 +1,4 @@
+import { redactSensitive } from '../redaction/redact.js';
 import { modelSafeText } from '../import/dedup.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
@@ -69,10 +70,13 @@ export class AskCaptureService {
   async capture(userId: string, clientId: string, statement: string, today: string): Promise<PendingCapture | null> {
     const client = await this.deps.clients.findByIdForUser(userId, clientId);
     if (!client) return null; // unknown/foreign client → capture nothing
+    // [P57-1 · owner] Tier-1 values (Aadhaar, PAN, bank, card…) are blanked BEFORE storage, like every other capture
+    // path: the stored note, the receipt and every model send carry the placeholder, never the number.
+    statement = redactSensitive(statement).redacted;
     const note = await this.deps.notes.create(userId, {
       clientId,
       source: 'ask_conversation',
-      rawText: statement, // the rep's verbatim words — the receipt
+      rawText: statement, // the rep's words (Tier-1 blanked) — the receipt
       audioKey: null,
       status: PENDING,
     });
