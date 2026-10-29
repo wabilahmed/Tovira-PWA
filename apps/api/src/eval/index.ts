@@ -4,6 +4,7 @@ import { extractForEval, foldedBy, extractImportFixture, extractPointersForEval,
 import { POINTER_FIXTURES, scorePointerFixture } from './pointer-fixtures.js';
 import { classifyLeaks, tier2Bars, tier2ClassOf, isTier1Fixture, type LeakRecord, type Tier2Class } from './tier2-classify.js';
 import { IMPORT_FIXTURES, RECALL_BASELINES } from './import-fixtures.js';
+import { formatImportFailure } from './import-case.js';
 import { scoreInvariants } from './score-invariants.js';
 import { redactSensitive } from '../services/redaction/redact.js';
 import { receiptSource } from './receipt-source.js';
@@ -362,6 +363,7 @@ async function main(): Promise<void> {
       importPass &&= wrongOk;
       const expectedFacts = f.expected.promises.length + f.expected.people.length;
       const recall = expectedFacts === 0 ? 1 : (s.promises.tp + s.people.tp) / expectedFacts;
+      if (!wrongOk) for (const l of formatImportFailure(f.id, ['wrongness'], actual)) console.log(l); // [P58-P4]
       console.log(`[gate]   ${f.id} [full]: GATE ${wrongOk ? 'PASS' : 'FAIL'} — wrongness{guessed ${s.guessedDates} leak ${s.leakedValues} merged ${s.mergedPeople} nullName ${s.nullNamedPeople}} · RECALL ${recall.toFixed(2)} (${prevRecall(f.id)}) [reported] · fab ${s.fabricatedPromises} (aggregate bar, not gated here)`);
     } else {
       const r = scoreInvariants(f.contract, actual);
@@ -370,6 +372,8 @@ async function main(): Promise<void> {
       const wrongTxt = r.wrongness.length ? ' — WRONGNESS: ' + r.wrongness.join('; ') : '';
       const missTxt = r.recallMisses.length ? ` · reported: ${r.recallMisses.join('; ')}` : '';
       console.log(`[gate]   ${f.id} [invariant]: GATE ${r.wrongness.length === 0 ? 'PASS' : 'FAIL'} · RECALL ${recall.toFixed(2)} (${prevRecall(f.id)}) [reported]${wrongTxt}${missTxt}`);
+      // [P58-P4 · owner] the record behind the failure, verbatim, so it can be read without a re-run
+      if (r.wrongness.length) for (const l of formatImportFailure(f.id, r.wrongness, actual)) console.log(l);
     }
   }
 
