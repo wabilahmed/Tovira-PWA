@@ -22,6 +22,7 @@ import { BulkBatchRetentionService, BULK_BATCH_TTL_MS } from './services/import/
 import { BulkUpsellService } from './services/import/bulk-upsell.js';
 import { bulkConcurrency } from './services/import/bulk-extraction.js';
 import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
+import { LeadInviteService } from './services/leads/lead-invite-service.js';
 import { ScryptHasher } from './services/auth/password.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
@@ -725,6 +726,8 @@ async function main(): Promise<void> {
     adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },
     hotLeads,
     accessRequestsForLeads: accessRequests,
+    // [P58] the founder's invite email to a hot lead (from wabil@tovira.io), its prefilled form and auto-approval
+    leadInvites: new LeadInviteService({ store: hotLeads, users: new PgUserRepository(appPool), email: createEmailSender(config), appBaseUrl: config.appBaseUrl }),
     opsRoute: { tourFunnel, opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause,
       // [P44-2] the ops cost report; emails per id via auth (users-table access stays in the user repository)
       costReport: new CostReportService(costReportStore, async (id) => (await auth.getPublicUser(id))?.email ?? null, (u, p) => spend.capForPeriod(u, p)) },

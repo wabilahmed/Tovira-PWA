@@ -79,6 +79,7 @@ import type { FindService } from './services/find/find-service.js';
 import { handleOpsRoute, opsTokenOk, type OpsRouteDeps } from './http/ops-routes.js';
 import { handleAdminRoute, type AdminRouteDeps } from './http/admin-routes.js';
 import { adminAccessRoute, adminCostsRoute } from './http/admin-console-routes.js';
+import type { LeadInviteService } from './services/leads/lead-invite-service.js';
 import { adminLeadsRoute } from './http/admin-leads-routes.js';
 import type { HotLeadsStore } from './ports/hot-leads.js';
 import type { AccessRequestRepository } from './ports/access-request-repository.js';
@@ -246,6 +247,8 @@ export interface ApiDeps {
   hotLeads?: HotLeadsStore;
   /** [P45-3] where Invite to beta writes the pending request. */
   accessRequestsForLeads?: Pick<AccessRequestRepository, 'create'>;
+  /** [P58] the founder's invite email to a hot lead, its prefilled form, and its auto-approval */
+  leadInvites?: LeadInviteService;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -372,7 +375,7 @@ export function createApiServer(deps: ApiDeps): Server {
           ...(deps.adminRoute.extra ?? []),
           ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval)] : []),
           ...(costs ? [adminCostsRoute(costs)] : []),
-          ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, accessRequests: deps.accessRequestsForLeads })] : []),
+          ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, invites: deps.leadInvites })] : []),
         ];
         if (await handleAdminRoute(request, response, { ...deps.adminRoute, extra, cookieSecure })) return;
       }

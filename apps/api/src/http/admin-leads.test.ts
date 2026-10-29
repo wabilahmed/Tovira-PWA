@@ -7,7 +7,7 @@ import { signInAdmin } from '../test-support/admin-session.js';
 import type { HotLeadInput } from '../ports/hot-leads.js';
 import { listenForTest } from '../test-support/listen.js';
 
-/** [P45-3] Hot leads in the admin console: list + filters, status and notes (audited), Invite to beta, CSV, Signed up. */
+/** [P45-3] Hot leads in the admin console: list + filters, status and notes (audited), CSV, Signed up. [P58] Invite to beta became the invite email. */
 let server: Server | null = null;
 afterEach(async () => { if (server) await new Promise<void>((r) => server!.close(() => r())); server = null; });
 async function start(): Promise<{ base: string; deps: TestDeps }> {
@@ -43,27 +43,29 @@ describe('[P45-3] admin leads', () => {
     expect(entries.find((e) => e.action === 'lead.status')).toMatchObject({ target: 'lead1@x.io', detail: { from: 'new', to: 'contacted' } });
   });
 
-  it('Invite to beta: a PENDING access request (not an invite), pre-filled from the lead; the lead is Invited; nothing is emailed', async () => {
+  // [P58 · owner] "Invite to beta" (a pending request with blank answers, nothing emailed) is replaced by the invite
+  // email (lead-invite-admin.test.ts): the old route is gone.
+  it('NEGATIVE: the old Invite to beta route is gone; nothing is created or sent', async () => {
     const { base, deps } = await start();
     const [l] = await deps.hotLeads.saveBatch([L(1)], Date.now());
     const { cookie } = await signInAdmin(base, deps);
     const before = deps.emailSender.sent.length;
-    const r = await fetch(`${base}/admin/leads/${l!.id}/invite`, { method: 'POST', headers: json(cookie), body: '{}' });
-    const body = (await r.json()) as { lead: { status: string }; request: { id: string; status: string; source: string; workEmail: string; fullName: string; companyName: string; roleTitle: string; industry: unknown } };
-    expect(body.lead.status).toBe('invited');
-    expect(body.request).toMatchObject({ status: 'pending', source: 'hot_lead', workEmail: 'lead1@x.io', fullName: 'Lead 1', companyName: 'Acme', roleTitle: 'Head of Sales', industry: null });
-    expect(deps.emailSender.sent.length).toBe(before); // no invite email until the admin approves it on the Access tab
-    const pending = (await (await fetch(`${base}/admin/access-requests?status=pending`, { headers: { cookie } })).json()) as { requests: Array<{ id: string }> };
-    expect(pending.requests.map((x) => x.id)).toContain(body.request.id);
-    expect((await fetch(`${base}/admin/leads/${l!.id}/invite`, { method: 'POST', headers: json(cookie), body: '{}' })).status).toBe(409);
+    expect((await fetch(`${base}/admin/leads/${l!.id}/invite`, { method: 'POST', headers: json(cookie), body: '{}' })).status).toBe(404);
+    expect((await deps.hotLeads.get(l!.id))!).toMatchObject({ status: 'new', accessRequestId: null });
+    expect(deps.emailSender.sent.length).toBe(before);
+    const pending = (await (await fetch(`${base}/admin/access-requests?status=pending`, { headers: { cookie } })).json()) as { requests: unknown[] };
+    expect(pending.requests).toEqual([]);
   });
 
+  // [P58 · owner] the same rule, reached without the removed Invite to beta: the lead requests access through the public
+  // form, the admin approves it on the Access tab, and activating the account marks the lead Signed up.
   it('Signed up is set automatically when an account is activated with the lead\'s email', async () => {
     const { base, deps } = await start();
     const [l] = await deps.hotLeads.saveBatch([L(1, { email: 'Lead1@X.io' })], Date.now());
     const { cookie } = await signInAdmin(base, deps);
-    const { request } = (await (await fetch(`${base}/admin/leads/${l!.id}/invite`, { method: 'POST', headers: json(cookie), body: '{}' })).json()) as { request: { id: string } };
-    await fetch(`${base}/admin/access-requests/${request.id}/approve`, { method: 'POST', headers: json(cookie), body: '{}' });
+    const form = { fullName: 'Lead 1', workEmail: 'lead1@x.io', phone: '+971 50 123 4567', companyName: 'Acme', roleTitle: 'Head of Sales', ownership: 'employed', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'insurance', confirmationAccepted: true };
+    const { id } = (await (await fetch(`${base}/access-request`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(form) })).json()) as { id: string };
+    await fetch(`${base}/admin/access-requests/${id}/approve`, { method: 'POST', headers: json(cookie), body: '{}' });
     const invite = /token=([A-Za-z0-9_-]+)/.exec(deps.emailSender.sent.filter((m) => m.to === 'lead1@x.io').at(-1)!.text)![1]!;
     const accept = await fetch(`${base}/auth/accept-invite`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: invite, password: 'password123', acceptTerms: true }) });
     expect(accept.status).toBeLessThan(300);

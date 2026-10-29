@@ -33,6 +33,7 @@ import { InMemoryInventoryMatchRepository } from '../adapters/inventory/in-memor
 import { MatchingService } from '../services/inventory/matching-service.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { StubTranscriber } from '../adapters/transcription/stub.js';
+import { LeadInviteService } from '../services/leads/lead-invite-service.js';
 import type { Transcriber } from '../ports/transcriber.js';
 import { TranscriptionService } from '../services/transcription/transcription-service.js';
 import { StubModelClient } from '../adapters/model/stub.js';
@@ -165,6 +166,8 @@ export interface TestDeps extends ApiDeps {
   /** [P45] the admin plane (wabil@tovira.io is the configured admin), exposed for admin tests. */
   adminStore: InMemoryAdminStore;
   hotLeads: InMemoryHotLeadsStore;
+  /** [P58-4] shifts the lead-invite clock (Resend after 3 days, the 14-day link) */
+  leadInviteClock: { offsetMs: number };
   adminAuth: AdminAuthService;
 }
 
@@ -402,9 +405,12 @@ export function buildInMemoryDeps(
   // [P45] the admin plane: its own store and login, separate from reps
   const adminStore = new InMemoryAdminStore();
   const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: [TEST_ADMIN_EMAIL], totpKey: TEST_ADMIN_TOTP_KEY, appBaseUrl: 'https://tovira.io', email: emailSender });
+  const leadInviteClock = { offsetMs: 0 };
   return {
     hotLeads,
     accessRequestsForLeads: accessRequests,
+    leadInviteClock,
+    leadInvites: new LeadInviteService({ store: hotLeads, users: authUsers, email: emailSender, appBaseUrl: 'https://tovira.io', now: () => Date.now() + leadInviteClock.offsetMs }),
     adminStore,
     adminAuth,
     adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },
