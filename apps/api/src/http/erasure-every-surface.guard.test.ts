@@ -73,7 +73,7 @@ export const SURFACES: Record<string, Probe | string> = {
   // not read surfaces
   '/account': 'account deletion', '/me': 'the rep\'s own profile', '/me/timezone': 'write', '/me/ui-prefs': 'the rep\'s UI preferences',
   '/me/tour': 'tour progress', '/me/access-answers': 'the rep\'s own answers about their business, no client content', '/me/tour/complete': 'write', '/onboarding/status': 'counts only', '/allowance/status': 'usage numbers',
-  '/share-card': 'the rep\'s referral card', '/access-request': 'public form', '/push/subscribe': 'write', '/push/test': 'a fixed test message', '/push/config': 'the VAPID public key only', '/push/status': 'whether this device is stored, a boolean',
+  '/share-card': 'the rep\'s referral card', '/access-request': 'public form', '/access-request/invite': 'public ([P58-5]): a prospect\'s own four fields for a live invite token, no rep data', '/push/subscribe': 'write', '/push/test': 'a fixed test message', '/push/config': 'the VAPID public key only', '/push/status': 'whether this device is stored, a boolean',
   '/auth/accept-invite': 'auth', '/auth/forgot-password': 'auth', '/auth/invite': 'auth', '/auth/invite/resend': 'auth', '/auth/login': 'auth',
   '/auth/logout': 'auth', '/auth/resend-verification': 'auth', '/auth/reset-password': 'auth', '/auth/signup': 'auth', '/auth/verify-email': 'auth',
   '/billing/checkout': 'billing', '/billing/customer': 'billing', '/billing/portal': 'billing', '/billing/status': 'billing', '/billing/success': 'billing',

@@ -417,6 +417,10 @@ export function createApiServer(deps: ApiDeps): Server {
           service: deps.accessRequest,
           limiter: deps.accessRequestLimiter,
           notify: deps.accessRequestNotify,
+          // [P58-5] the founder's invite link: prefill, locked email, auto-approval (the Access tab's own approval)
+          leadInvites: deps.leadInvites,
+          autoApprove: deps.opsRoute?.accessApproval ? async (id) => { await deps.opsRoute!.accessApproval!.approve(id, { createdBy: 'lead invite link' }); } : undefined,
+          audit: deps.adminRoute ? (e) => deps.adminRoute!.store.audit(e) : undefined,
         }))
       )
         return;
