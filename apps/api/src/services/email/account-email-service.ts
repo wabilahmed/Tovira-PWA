@@ -108,7 +108,10 @@ export class AccountEmailService {
       ...(r.conversationOwnershipOther ? [`  Note: ${r.conversationOwnershipOther}`] : []),
       `Expected volume: ${r.expectedVolume ? (VOLUME_LABEL[r.expectedVolume] ?? r.expectedVolume) : 'Not asked (from a hot lead)'}`,
       '',
-      ...(r.ownership === 'employed' ? ['This applicant is EMPLOYED — ask for the company NOC by email before approving.', ''] : []),
+      // [P59-1] an employed invitee confirmed the employer's permission and was approved at once: no NOC to ask for
+      ...(r.ownership === 'employed' && r.employerPermissionText
+        ? [`Employed: confirmed "${r.employerPermissionText}" and approved automatically (your invite).`, '']
+        : r.ownership === 'employed' ? ['This applicant is EMPLOYED — ask for the company NOC by email before approving.', ''] : []),
       reviewUrl ? 'Or approve from a terminal (fill in your ops token):' : 'To approve this request (fill in your ops token):',
       '',
       `curl -X POST '${approveUrl}' \\`,

@@ -43,6 +43,9 @@ export interface AccessRequestInput {
   industryOther?: string | null;
   /** [P45-3] 'form' (the public form, every answer given) or 'hot_lead' (made by the admin from a hot lead). */
   source?: 'form' | 'hot_lead';
+  /** [P59-1] An employed invitee's "I have my employer's permission…" tick: when, and the exact wording. Null otherwise. */
+  employerPermissionAcceptedAt?: number | null;
+  employerPermissionText?: string | null;
 }
 
 export interface AccessRequestRecord extends AccessRequestInput {

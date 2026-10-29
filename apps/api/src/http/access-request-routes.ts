@@ -81,7 +81,7 @@ export async function handleAccessRequestRoute(req: IncomingMessage, res: Server
     const lead = token && opts.leadInvites ? await opts.leadInvites.leadForToken(token) : null;
     const raw = (lead ? { ...body, workEmail: lead.email!.trim().toLowerCase() } : body) as RawAccessRequest;
     // The row is written here. The notification below is best-effort and must never fail the request.
-    const record = await opts.service.submit(raw, { sourceIp: ip, userAgent });
+    const record = await opts.service.submit(raw, { sourceIp: ip, userAgent, invited: lead !== null }); // [P59-1]
     let approved = false;
     if (lead && token && opts.leadInvites && opts.autoApprove) {
       const claimed = await opts.leadInvites.claim(lead, token, record.id);

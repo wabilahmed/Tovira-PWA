@@ -132,13 +132,18 @@ export function validateAnswers(raw: RawAccessRequest): AccessAnswers {
   };
 }
 
+/** [P59-1 · owner] What an employed invitee must also tick, word for word. Stored with the request as ticked. */
+export const EMPLOYER_PERMISSION_TEXT = 'I have my employer\'s permission to use Tovira with their clients\' information.';
+
 export class AccessRequestService {
   constructor(
     private readonly repo: AccessRequestRepository,
     private readonly now: () => number = () => Date.now(),
   ) {}
 
-  async submit(raw: RawAccessRequest, meta: { sourceIp: string | null; userAgent: string | null }): Promise<AccessRequestRecord> {
+  /** [P59-1] With `invited`, an employed requester must also have ticked the employer's permission (refused otherwise);
+   *  it is stored only then. Without `invited` (the public form) it is never asked and never stored. */
+  async submit(raw: RawAccessRequest, meta: { sourceIp: string | null; userAgent: string | null; invited?: boolean }): Promise<AccessRequestRecord> {
     const fullName = reqStr(raw.fullName, 'fullName');
     const workEmail = reqStr(raw.workEmail, 'workEmail').toLowerCase();
     if (!EMAIL_RE.test(workEmail)) throw new AccessRequestValidationError('workEmail', 'A valid work email is required.');
@@ -147,6 +152,10 @@ export class AccessRequestService {
     const roleTitle = reqStr(raw.roleTitle, 'roleTitle');
 
     const answers = validateAnswers(raw);
+    const employerPermission = meta.invited === true && answers.ownership === 'employed';
+    if (employerPermission && (raw as { employerPermissionAccepted?: unknown }).employerPermissionAccepted !== true) {
+      throw new AccessRequestValidationError('employerPermissionAccepted', 'Please tick that you have your employer\'s permission.');
+    }
 
     // Referral code is opaque + optional; a malformed value is simply ignored (never blocks the request,
     // mirroring how a bad code never blocks a signup today).
@@ -170,6 +179,8 @@ export class AccessRequestService {
       referralCode,
       industry: answers.industry,
       industryOther: answers.industryOther,
+      employerPermissionAcceptedAt: employerPermission ? this.now() : null,
+      employerPermissionText: employerPermission ? EMPLOYER_PERMISSION_TEXT : null,
     });
   }
 }
