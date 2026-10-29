@@ -12,7 +12,8 @@ export interface EmailButton {
 }
 
 export interface EmailContent {
-  heading: string;
+  /** The card's heading. [P58-2] Optional: a personal letter (the founder's beta invite) opens with its greeting. */
+  heading?: string;
   /** Body paragraphs shown before the button. */
   intro: string[];
   /** Optional call-to-action button (e.g. a reset/confirm link). */
@@ -21,6 +22,10 @@ export interface EmailContent {
   secondary?: EmailButton;
   /** Body paragraphs shown after the button. */
   outro?: string[];
+  /** [P58-2] The sign-off lines; default "Tovira". */
+  signoff?: string[];
+  /** [P58-2] A small note under the sign-off (e.g. how to opt out). */
+  postscript?: string[];
 }
 
 const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -64,12 +69,13 @@ export function renderEmail(c: EmailContent): string {
           <span style="color:#d14821;">T</span>o<span style="color:#d14821;">v</span>ira
         </td></tr>
         <tr><td style="background:#faf7ef;border:1px solid #d6cfbd;border-radius:12px;padding:28px 28px 22px;">
-          <h1 style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:21px;font-weight:600;line-height:1.28;color:#1c1917;">${escapeHtml(c.heading)}</h1>
+          ${c.heading !== undefined ? `<h1 style="margin:0 0 16px;font-family:Georgia,'Times New Roman',serif;font-size:21px;font-weight:600;line-height:1.28;color:#1c1917;">${escapeHtml(c.heading)}</h1>` : ''}
           ${paras(c.intro)}
           ${button}
           ${secondary}
           ${paras(c.outro)}
-          <p style="margin:22px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:15px;color:#6b645d;">Tovira</p>
+          <p style="margin:22px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:15px;color:#6b645d;">${(c.signoff ?? ['Tovira']).map(escapeHtml).join('<br>')}</p>
+          ${(c.postscript ?? []).map((p) => `<p style="margin:18px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#8b847a;">${escapeHtml(p)}</p>`).join('')}
         </td></tr>
         <tr><td style="padding:16px 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#8b847a;">
           Your deal, our memory, instant success.
