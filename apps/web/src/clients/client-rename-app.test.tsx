@@ -55,7 +55,7 @@ describe('[P49-5] renaming from the client page', () => {
     await openClient(user, 'Khalid Dubai Marina');
     const header = screen.getByTestId('page-header');
     await user.click(within(header).getByRole('button', { name: 'More actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Edit name' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Edit details' } /* [P58-P2 · owner] was "Edit name" */));
     const field = screen.getByLabelText('Client name');
     await user.clear(field);
     await user.type(field, 'Khalid Al Mansoori');
@@ -65,7 +65,7 @@ describe('[P49-5] renaming from the client page', () => {
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Khalid Dubai Marina' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'More actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Edit name' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Edit details' }));
     await user.clear(screen.getByLabelText('Client name'));
     await user.type(screen.getByLabelText('Client name'), 'Khalid Al Mansoori');
     await user.click(within(screen.getByLabelText('Client name').closest('form')!).getByRole('button', { name: 'Save' })); // the sheet's Save (the phone field has its own)

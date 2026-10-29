@@ -62,6 +62,13 @@ export class PgClientRepository implements ClientRepository {
     });
   }
 
+  async setDetails(userId: string, id: string, d: { company: string | null; industry: Industry | null }): Promise<void> {
+    // RLS scopes the row to the owner; a mismatched tenant simply updates nothing.
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query('UPDATE clients SET company = $2, industry = $3 WHERE id = $1', [id, d.company, d.industry]);
+    });
+  }
+
   async setPhone(userId: string, id: string, phone: string | null): Promise<void> {
     // RLS scopes the row to the owner; a mismatched tenant simply updates nothing.
     await withTenant(this.pool, userId, async (c) => {

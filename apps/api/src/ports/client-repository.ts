@@ -66,6 +66,8 @@ export interface ClientRepository {
   create(userId: string, name: string, phone?: string | null, title?: string | null, email?: string | null, extra?: { company?: string | null; industry?: Industry | null }): Promise<ClientRecord>;
   /** Set (or clear) a client's phone. Scoped to the owner; a no-op otherwise. */
   setPhone(userId: string, id: string, phone: string | null): Promise<void>;
+  /** [P58-P2] Set (or clear) a client's company and industry. Scoped to the owner; a no-op otherwise. */
+  setDetails(userId: string, id: string, details: { company: string | null; industry: Industry | null }): Promise<void>;
   /** Most-recently-touched first. */
   listByUser(userId: string): Promise<ClientRecord[]>;
   /** Case-insensitive name search, most-recently-touched first. */

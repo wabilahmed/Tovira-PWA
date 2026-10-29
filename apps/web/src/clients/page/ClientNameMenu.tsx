@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClientSummary } from '../clientsClient.js';
-import { Button, IconButton, Sheet, TextInput, Toast } from '../../ui/index.js';
+import { Button, IconButton, Sheet, TextInput, Toast, Select } from '../../ui/index.js';
+import { INDUSTRY_OPTIONS } from '../../access/RequestAccess.js';
 
 /** [P49-5] The longest client name (the server refuses longer too). */
 export const MAX_CLIENT_NAME = 80;
@@ -10,7 +11,12 @@ export const RENAME_UNDO_MS = 5_000;
 export type RenameResult =
   | { ok: true; client: ClientSummary; previousName: string }
   | { ok: false; reason: 'duplicate' | 'invalid' | 'restricted' | 'failed'; message: string };
-export interface RenameApi { rename(id: string, name: string, confirmDuplicate: boolean): Promise<RenameResult> }
+export interface RenameApi {
+  rename(id: string, name: string, confirmDuplicate: boolean): Promise<RenameResult>;
+  /** [P58-P2] company and industry; absent → the sheet edits the name only */
+  setDetails?(id: string, details: { company: string; industry: string }): Promise<{ ok: true; client: ClientSummary } | { ok: false; message: string }>;
+}
+const INDUSTRIES = [{ value: '', label: 'Not set' }, ...INDUSTRY_OPTIONS.map((o) => ({ value: o.value as string, label: o.label }))];
 
 /** Trimmed and single-spaced, as the server stores it; or why it can't be saved. */
 export function checkName(raw: string): { ok: true; name: string } | { ok: false; message: string } {
@@ -29,6 +35,8 @@ export function ClientNameMenu({ client, api, onRenamed }: { client: ClientSumma
   const [menuOpen, setMenuOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [value, setValue] = useState(client.name);
+  const [company, setCompany] = useState(client.company ?? '');
+  const [industry, setIndustry] = useState(client.industry ?? '');
   const [problem, setProblem] = useState<{ message: string; duplicate: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [undo, setUndo] = useState<{ previousName: string } | null>(null);
@@ -57,6 +65,14 @@ export function ClientNameMenu({ client, api, onRenamed }: { client: ClientSumma
   async function save(confirmDuplicate: boolean): Promise<void> {
     const checked = checkName(value);
     if (!checked.ok) { setProblem({ message: checked.message, duplicate: false }); return; }
+    // [P58-P2] company and industry first (no duplicate question for them), then the name if it changed
+    if (api.setDetails && (company.trim() !== (client.company ?? '') || industry !== (client.industry ?? ''))) {
+      setBusy(true);
+      const d = await api.setDetails(client.id, { company: company.trim(), industry });
+      setBusy(false);
+      if (!d.ok) { setProblem({ message: d.message, duplicate: false }); return; }
+      if (checked.name === client.name) { setSheetOpen(false); setProblem(null); onRenamed(d.client); return; }
+    }
     if (checked.name === client.name) { setSheetOpen(false); return; }
     setBusy(true);
     const res = await api.rename(client.id, checked.name, confirmDuplicate);
@@ -86,16 +102,22 @@ export function ClientNameMenu({ client, api, onRenamed }: { client: ClientSumma
           </IconButton>
           {menuOpen && (
             <div className="ui-menu__list" role="menu" aria-label={`${client.name}: more actions`}>
-              <button type="button" role="menuitem" className="ui-menu__item" onClick={() => { setMenuOpen(false); setValue(client.name); setProblem(null); setSheetOpen(true); }}>
-                Edit name
+              <button type="button" role="menuitem" className="ui-menu__item" onClick={() => { setMenuOpen(false); setValue(client.name); setCompany(client.company ?? ''); setIndustry(client.industry ?? ''); setProblem(null); setSheetOpen(true); }}>
+                Edit details
               </button>
             </div>
           )}
         </div>
       )}
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit name">
+      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Edit details">
         <form className="ui-stack ui-gap-3" onSubmit={(e) => { e.preventDefault(); void save(false); }}>
           <TextInput label="Client name" value={value} autoComplete="off" dir="auto" onChange={(e) => { setValue(e.target.value); setProblem(null); }} />
+          {api.setDetails && (
+            <>
+              <TextInput label="Company" value={company} autoComplete="off" dir="auto" onChange={(e) => { setCompany(e.target.value); setProblem(null); }} />
+              <Select label="Industry" value={industry} options={INDUSTRIES} onChange={(v) => { setIndustry(v); setProblem(null); }} />
+            </>
+          )}
           {problem && <p className="ui-secondary" role="alert" data-testid="rename-problem">{problem.message}</p>}
           {problem?.duplicate ? (
             <Button variant="primary" block loading={busy} onClick={() => void save(true)}>Save anyway</Button>

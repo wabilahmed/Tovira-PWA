@@ -84,6 +84,7 @@ export const SURFACES: Record<string, Probe | string> = {
   '/version': 'build info', '/health': 'liveness', '/healthz': 'liveness', '/lead-status': 'write (status)', '/outcome': 'write (outcome)',
   '/clients/:id/images': 'write (photo upload, removed in P36)', '/images/:id': 'an image the rep uploaded',
   '/clients/:id/deal-value': 'write', '/ledger/entries/:id/deal-value': 'write', '/today/cold-shown': 'write: Today reports the going-quiet cards it showed', '/clients/:id/notes/import': 'write', '/clients/:id/notes/paste': 'write', '/clients/:id/notes/voice': 'write',
+  '/clients/:id/details': 'write (company and industry; refused under a restriction, like a rename)',
   '/voice/draft': 'the rep\'s own recording read back to them, no stored client content ([P57-4]: stores nothing; the note it becomes is restricted at extraction)',
   '/notes/:id/audio': 'the rep\'s own recording', '/notes/:id/extract': 'write (queues extraction)', '/notes/:id/follow-up': 'model draft — refuses restricted notes (TASK 2)',
   '/notes/:id/move': 'write', '/notes/:id/transcribe': 'write', '/notes/:id/undo': 'write',

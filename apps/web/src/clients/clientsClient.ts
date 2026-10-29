@@ -313,6 +313,18 @@ export class ClientsClient {
     }
   }
 
+  /** [P58-P2] Company and industry, from the Edit sheet. Empty clears either. */
+  async setDetails(id: string, details: { company: string; industry: string }): Promise<{ ok: true; client: ClientSummary } | { ok: false; message: string }> {
+    try {
+      const res = await fetch(this.url(`/clients/${encodeURIComponent(id)}/details`), { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(details) });
+      const body = (await res.json().catch(() => ({}))) as ClientSummary & { message?: string };
+      if (res.ok) return { ok: true, client: body };
+      return { ok: false, message: body.message ?? 'Could not save the details. Please try again.' };
+    } catch {
+      return { ok: false, message: 'Could not save the details. Please try again.' };
+    }
+  }
+
   async setPhone(id: string, phone: string | null): Promise<ClientSummary | null> {
     try {
       const res = await fetch(this.url(`/clients/${id}`), {

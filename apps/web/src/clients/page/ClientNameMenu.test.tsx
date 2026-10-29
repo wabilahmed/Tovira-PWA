@@ -14,10 +14,11 @@ function api(over: Partial<RenameApi> = {}): RenameApi & { rename: ReturnType<ty
 }
 const openSheet = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole('button', { name: 'More actions' }));
-  await user.click(screen.getByRole('menuitem', { name: 'Edit name' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Edit details' }));
 };
 afterEach(() => vi.useRealTimers());
 
+// [P58-P2 · owner] the menu item and the sheet now read "Edit details" (name, company, industry); the rename is unchanged
 describe('[P49-5] Edit name', () => {
   it('⋯ → Edit name opens a sheet with the name prefilled; Save renames, trimmed, and reports the new client', async () => {
     const user = userEvent.setup();
@@ -109,7 +110,7 @@ describe('[P49-5] Edit name', () => {
   it('NEGATIVE: a client under an erasure restriction has no Edit name', () => {
     render(<ClientNameMenu client={{ ...client('Khalid'), nameLocked: true }} api={api()} onRenamed={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
-    expect(screen.queryByText('Edit name')).toBeNull();
+    expect(screen.queryByText('Edit details')).toBeNull();
   });
 
   it('NEGATIVE: a refusal from the server (the restriction began meanwhile) shows its message and changes nothing', async () => {

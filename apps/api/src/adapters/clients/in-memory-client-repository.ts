@@ -25,6 +25,11 @@ export class InMemoryClientRepository implements ClientRepository {
     return record;
   }
 
+  async setDetails(userId: string, id: string, d: { company: string | null; industry: Industry | null }): Promise<void> {
+    const client = this.byId.get(id);
+    if (client && client.userId === userId) { client.company = d.company; client.industry = d.industry; }
+  }
+
   async setPhone(userId: string, id: string, phone: string | null): Promise<void> {
     const client = this.byId.get(id);
     if (client && client.userId === userId) client.phone = phone;

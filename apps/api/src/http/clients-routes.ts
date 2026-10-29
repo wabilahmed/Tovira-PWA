@@ -211,6 +211,31 @@ export async function handleClientRoute(
       return true;
     }
 
+    // [P58-P2 · owner] Company and industry, editable in the client's Edit sheet. Empty clears either; the phone and
+    // everything else are untouched. Restricted like a rename.
+    const detailsMatch = method === 'POST' ? /^\/clients\/([^/]+)\/details$/.exec(path) : null;
+    if (detailsMatch) {
+      const id = decodeURIComponent(detailsMatch[1]!);
+      const existing = await clients.findByIdForUser(userId, id);
+      if (!existing) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      const r = restriction ? await restriction.forUser(userId) : NO_RESTRICTION;
+      if (r.active && r.restrictsWho(existing.name)) {
+        sendJson(res, 403, { error: 'restricted', message: 'This client can\'t be edited while a privacy request is reviewed.' });
+        return true;
+      }
+      const body = (await readJsonBody(req)) as { company?: unknown; industry?: unknown };
+      let industry: Industry | null = null;
+      if (typeof body.industry === 'string' && body.industry.trim()) {
+        if (!(INDUSTRIES as readonly string[]).includes(body.industry)) { sendJson(res, 400, { error: 'validation', message: 'Choose an industry from the list.' }); return true; }
+        industry = body.industry as Industry;
+      }
+      const company = typeof body.company === 'string' && body.company.trim() ? body.company.trim().slice(0, 120) : null;
+      await clients.setDetails(userId, id, { company, industry });
+      const [updated] = await locked([(await clients.findByIdForUser(userId, id))!]);
+      sendJson(res, 200, updated);
+      return true;
+    }
+
     // [P4-7] Set (or clear) a client's phone. RLS/ownership scopes the row: a
     // rep can never edit another rep's client, so a miss is a 404.
     if (method === 'PATCH' && path.startsWith('/clients/') && !path.slice('/clients/'.length).includes('/')) {
