@@ -1,6 +1,6 @@
 import { SendEmailCommand } from '@aws-sdk/client-sesv2';
 import type { EmailMessage, EmailSender } from '../../ports/email.js';
-import { CONTACT_EMAIL } from '../../services/email/contact.js';
+import { CONTACT_EMAIL, assertOwnSender } from '../../services/email/contact.js';
 
 /** Minimal SES surface we use — lets tests inject a fake with no AWS creds. */
 export interface SesLike {
@@ -22,10 +22,12 @@ export class SesEmailSender implements EmailSender {
   constructor(private readonly opts: SesEmailSenderOptions) {}
 
   async send(message: EmailMessage): Promise<void> {
+    assertOwnSender(message.from); // [P58-1]
+    assertOwnSender(message.replyTo);
     await this.opts.client.send(
       new SendEmailCommand({
-        FromEmailAddress: this.opts.from,
-        ReplyToAddresses: [CONTACT_EMAIL], // [D9] replies land at hello@tovira.io (From comes from EMAIL_FROM)
+        FromEmailAddress: message.from ?? this.opts.from,
+        ReplyToAddresses: [message.replyTo ?? CONTACT_EMAIL], // [D9] hello@tovira.io unless the message says ([P58-1])
         Destination: { ToAddresses: [message.to] },
         Content: {
           Simple: {

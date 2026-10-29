@@ -12,6 +12,10 @@ export interface EmailMessage {
   text: string;
   /** Optional HTML; when absent the client shows the text. */
   html?: string;
+  /** [P58-1] Optional sender for this one message (the founder's beta invite); otherwise EMAIL_FROM. On tovira.io only. */
+  from?: string;
+  /** [P58-1] Optional Reply-To for this one message; otherwise hello@tovira.io. On tovira.io only. */
+  replyTo?: string;
 }
 
 export interface EmailSender {

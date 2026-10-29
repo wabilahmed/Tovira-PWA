@@ -1,5 +1,5 @@
 import type { EmailMessage, EmailSender } from '../../ports/email.js';
-import { CONTACT_EMAIL } from '../../services/email/contact.js';
+import { CONTACT_EMAIL, assertOwnSender } from '../../services/email/contact.js';
 
 export interface ResendEmailSenderOptions {
   apiKey: string;
@@ -20,6 +20,8 @@ export class ResendEmailSender implements EmailSender {
   constructor(private readonly opts: ResendEmailSenderOptions) {}
 
   async send(message: EmailMessage): Promise<void> {
+    assertOwnSender(message.from); // [P58-1]
+    assertOwnSender(message.replyTo);
     const doFetch = this.opts.fetchImpl ?? fetch;
     const res = await doFetch(`${this.opts.baseUrl ?? 'https://api.resend.com'}/emails`, {
       method: 'POST',
@@ -28,8 +30,8 @@ export class ResendEmailSender implements EmailSender {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        from: this.opts.from,
-        reply_to: CONTACT_EMAIL, // [D9] replies land at hello@tovira.io (From comes from EMAIL_FROM)
+        from: message.from ?? this.opts.from,
+        reply_to: message.replyTo ?? CONTACT_EMAIL, // [D9] replies land at hello@tovira.io (From comes from EMAIL_FROM); [P58-1] unless the message says
         to: [message.to],
         subject: message.subject,
         text: message.text,
