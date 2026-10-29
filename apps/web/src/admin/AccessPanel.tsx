@@ -88,7 +88,10 @@ export function AccessPanel({ api, onSignedOut }: { api: Pick<AdminApi, 'accessL
                 {r.ownership ? (OWNERSHIP[r.ownership] ?? r.ownership) : `Ownership: ${NOT_ASKED}`}{r.tradeLicenceNumber ? ` · trade licence ${r.tradeLicenceNumber}` : ''} · conversations: {r.conversationOwnership ? (CONVERSATIONS[r.conversationOwnership] ?? r.conversationOwnership) : NOT_ASKED}
                 {r.conversationOwnershipOther ? ` (${r.conversationOwnershipOther})` : ''} · volume: {r.expectedVolume ? (VOLUME[r.expectedVolume] ?? r.expectedVolume) : NOT_ASKED}
               </p>
-              {r.ownership === 'employed' && r.status === 'pending' && (
+              {r.employerPermissionAcceptedAt != null && (
+                <p data-testid="employer-permission" style={{ margin: 'var(--space-2) 0' }}>Confirmed their employer's permission ({new Date(r.employerPermissionAcceptedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })})</p>
+              )}
+              {r.ownership === 'employed' && r.status === 'pending' && r.employerPermissionAcceptedAt == null && (
                 <p style={{ margin: 'var(--space-2) 0', color: 'var(--amber)' }}>Employed: ask for the company NOC before approving.</p>
               )}
               {r.reviewedNote && <p className="ui-secondary" style={{ margin: 'var(--space-2) 0' }}>Note: {r.reviewedNote}</p>}

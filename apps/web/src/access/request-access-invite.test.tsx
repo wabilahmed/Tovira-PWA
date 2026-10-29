@@ -19,7 +19,7 @@ async function complete(): Promise<void> {
   await userEvent.click(screen.getByRole('radio', { name: /I am employed/i }));
   await userEvent.click(screen.getByRole('radio', { name: /My own clients/ }));
   await userEvent.click(screen.getByRole('radio', { name: 'Under 50' }));
-  await userEvent.click(screen.getByRole('checkbox'));
+  await userEvent.click(screen.getByRole('checkbox', { name: /I confirm the information/ })); // [P59-2] the confirmation, by name (an employed invitee has a second box)
 }
 
 describe('[P58-7] the request form from an invite', () => {
@@ -44,6 +44,7 @@ describe('[P58-7] the request form from an invite', () => {
     render(<RequestAccess client={c} />);
     await waitFor(() => expect(screen.getByLabelText('Full name')).toHaveValue('Sara Khan'));
     await complete();
+    await userEvent.click(screen.getByRole('checkbox', { name: /employer's permission/ })); // [P59-2 · owner] employed invitees also tick this
     await userEvent.click(screen.getByRole('button', { name: /request access/i }));
     expect(c.submit).toHaveBeenCalledWith(expect.objectContaining({ inviteToken: 'tok123', workEmail: 'sara@emaar.example', fullName: 'Sara Khan' }));
     expect(await screen.findByText('Thank you. Your access is approved: we have emailed sara@emaar.example a link to set your password.')).toBeInTheDocument();
@@ -69,5 +70,38 @@ describe('[P58-7] the request form from an invite', () => {
     const c = client(PREFILL);
     render(<RequestAccess client={c} />);
     expect(c.prefill).not.toHaveBeenCalled();
+  });
+});
+
+// [P59-2 · owner] An invitee who says they are employed also ticks the employer's permission (stored with the request);
+// they are still approved at once, so the NOC note does not apply to them. Owners and public requests never see it.
+const PERMISSION = 'I have my employer\'s permission to use Tovira with their clients\' information.';
+describe('[P59-2] the employer\'s permission on the invite form', () => {
+  it('employed invitee: the box with the exact wording, required to submit, sent with the request; no NOC note', async () => {
+    window.history.replaceState({}, '', '/request-access?invite=tok123');
+    const c = client(PREFILL);
+    render(<RequestAccess client={c} />);
+    await waitFor(() => expect(screen.getByLabelText('Full name')).toHaveValue('Sara Khan'));
+    await complete(); // ticks the confirmation, chooses "I am employed by it"
+    expect(screen.queryByTestId('noc-note')).toBeNull();
+    const box = screen.getByRole('checkbox', { name: PERMISSION });
+    expect(screen.getByRole('button', { name: /request access/i })).toBeDisabled();
+    await userEvent.click(box);
+    expect(screen.getByRole('button', { name: /request access/i })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: /request access/i }));
+    expect(c.submit).toHaveBeenCalledWith(expect.objectContaining({ ownership: 'employed', employerPermissionAccepted: true, inviteToken: 'tok123' }));
+  });
+  it('NEGATIVE: an invitee who owns the business is not asked', async () => {
+    window.history.replaceState({}, '', '/request-access?invite=tok123');
+    render(<RequestAccess client={client(PREFILL)} />);
+    await waitFor(() => expect(screen.getByLabelText('Full name')).toHaveValue('Sara Khan'));
+    await userEvent.click(screen.getByRole('radio', { name: /I own or manage it/i }));
+    expect(screen.queryByRole('checkbox', { name: PERMISSION })).toBeNull();
+  });
+  it('NEGATIVE: the public form (no invite) never shows it; the NOC note is unchanged', async () => {
+    render(<RequestAccess client={client(PREFILL)} />);
+    await userEvent.click(screen.getByRole('radio', { name: /I am employed/i }));
+    expect(screen.queryByRole('checkbox', { name: PERMISSION })).toBeNull();
+    expect(screen.getByTestId('noc-note')).toBeInTheDocument();
   });
 });

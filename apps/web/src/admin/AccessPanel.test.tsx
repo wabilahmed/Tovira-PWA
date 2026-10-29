@@ -106,3 +106,20 @@ describe('[P33 → P45-4] Access in the admin console', () => {
     expect(card).toHaveTextContent('volume: Not asked');
   });
 });
+
+// [P59-2 · owner] An employed invitee's "employer's permission" tick shows on their request, with its date; the NOC
+// reminder is for employed requests without it.
+describe('[P59-2] the employer\'s permission on a request', () => {
+  it('shows the confirmation and its date; no NOC reminder', async () => {
+    render(<AccessPanel api={api([req({ ownership: 'employed', tradeLicenceNumber: null, employerPermissionAcceptedAt: Date.parse('2026-10-29T10:00:00Z'), employerPermissionText: 'I have my employer\'s permission to use Tovira with their clients\' information.' })])} onSignedOut={vi.fn()} />);
+    const card = await screen.findByTestId('request-r1');
+    expect(within(card).getByTestId('employer-permission')).toHaveTextContent('Confirmed their employer\'s permission (29 Oct 2026)');
+    expect(card).not.toHaveTextContent('ask for the company NOC');
+  });
+  it('NEGATIVE: an employed request without it keeps the NOC reminder and shows no confirmation', async () => {
+    render(<AccessPanel api={api([req({ ownership: 'employed', tradeLicenceNumber: null })])} onSignedOut={vi.fn()} />);
+    const card = await screen.findByTestId('request-r1');
+    expect(card).toHaveTextContent('Employed: ask for the company NOC before approving.');
+    expect(within(card).queryByTestId('employer-permission')).toBeNull();
+  });
+});

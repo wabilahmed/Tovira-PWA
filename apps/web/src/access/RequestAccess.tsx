@@ -31,6 +31,9 @@ export const VOLUME_OPTIONS: Array<{ value: AccessRequestPayload['expectedVolume
   { value: '500_plus', label: '500+' },
 ];
 
+/** [P59-2 · owner] What an employed invitee must also tick, word for word (the server stores it with the request). */
+export const EMPLOYER_PERMISSION_TEXT = 'I have my employer\'s permission to use Tovira with their clients\' information.';
+
 export function RequestAccess({ client, referralsEnabled = false }: { client: AccessRequestClient; /** [P46-3] off: the ?ref= code is captured and sent, never shown */ referralsEnabled?: boolean }): JSX.Element {
   const [submitted, setSubmitted] = useState<{ employed: boolean; approved: boolean } | null>(null);
   // [P58-7] The founder's invite link (?invite=<token>): the server prefills four fields; the email is then locked. The
@@ -63,6 +66,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
   const [conversationOwnershipOther, setConversationOwnershipOther] = useState('');
   const [expectedVolume, setExpectedVolume] = useState<'' | AccessRequestPayload['expectedVolume']>('');
   const [confirmed, setConfirmed] = useState(false);
+  const [employerPermission, setEmployerPermission] = useState(false); // [P59-2]
   const [honeypot, setHoneypot] = useState(''); // company_url — stays empty for a human
   // [BETA-3b] Capture the referral code from the landing URL (?ref=) so it survives the approval delay.
   const [referralCode] = useState<string | null>(() => {
@@ -83,6 +87,9 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
     });
     return () => { live = false; };
   }, [inviteToken, client]);
+
+  // [P59-2] an employed invitee (approved at once, no NOC wait) confirms the employer's permission instead
+  const askPermission = invitedEmail !== null && ownership === 'employed';
 
   if (submitted?.approved) {
     return (
@@ -117,10 +124,15 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
       setError('Please tick the confirmation box to submit.');
       return;
     }
+    if (askPermission && !employerPermission) {
+      setError('Please tick that you have your employer\'s permission.');
+      return;
+    }
     setBusy(true);
     try {
       const r = await client.submit({
         ...(invitedEmail && inviteToken ? { inviteToken } : {}),
+        ...(askPermission ? { employerPermissionAccepted: employerPermission } : {}),
         fullName, workEmail, phone, companyName, roleTitle,
         ownership,
         tradeLicenceNumber: ownership === 'owns_or_manages' ? tradeLicenceNumber : null,
@@ -182,7 +194,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
         {ownership === 'owns_or_manages' && (
           <label className="auth__field"><span>Trade licence number</span><input value={tradeLicenceNumber} onChange={(e) => setTradeLicenceNumber(e.target.value)} required /></label>
         )}
-        {ownership === 'employed' && (
+        {ownership === 'employed' && !invitedEmail && (
           <p className="auth__hint" data-testid="noc-note">After you submit, we will email you to ask for the company’s NOC (no-objection certificate). There is nothing to upload here.</p>
         )}
 
@@ -219,13 +231,20 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
           <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
           <span>{CONFIRMATION_TEXT}</span>
         </label>
+        {/* [P59-2 · owner] An employed invitee also confirms the employer's permission (stored with the request) */}
+        {askPermission && (
+          <label className="auth__consent" data-testid="employer-permission">
+            <input type="checkbox" checked={employerPermission} onChange={(e) => setEmployerPermission(e.target.checked)} />
+            <span>{EMPLOYER_PERMISSION_TEXT}</span>
+          </label>
+        )}
 
         <p className="auth__hint">
           We use the details above only to review your request. See our <a href="/privacy">Privacy Policy</a> for how we handle your personal data.
         </p>
 
         {error && <p className="auth__error" role="alert">{error}</p>}
-        <button className="auth__submit" type="submit" disabled={busy || !confirmed}>{busy ? 'Submitting…' : 'Request access'}</button>
+        <button className="auth__submit" type="submit" disabled={busy || !confirmed || (askPermission && !employerPermission)}>{busy ? 'Submitting…' : 'Request access'}</button>
       </form>
     </AuthShell>
   );

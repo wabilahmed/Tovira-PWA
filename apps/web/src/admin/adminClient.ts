@@ -14,6 +14,8 @@ export interface AccessRequest {
   ownership: 'owns_or_manages' | 'employed' | null; tradeLicenceNumber: string | null;
   conversationOwnership: string | null; conversationOwnershipOther: string | null; expectedVolume: string | null;
   industry: string | null; industryOther: string | null; source?: 'form' | 'hot_lead';
+  /** [P59] an employed invitee's employer-permission tick: when, and the wording */
+  employerPermissionAcceptedAt?: number | null; employerPermissionText?: string | null;
   createdAt: number; status: AccessStatus; reviewedAt: number | null; reviewedNote: string | null; linkedUserId: string | null;
 }
 export type CostView = 'period' | 'month';
