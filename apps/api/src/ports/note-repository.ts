@@ -56,6 +56,9 @@ export interface NoteRecord {
   /** [BULK-IMPORT · RULING 2 item 2] When a worker atomically claimed this note for extraction (ms).
    *  Set with status 'extracting'; a claim older than the timeout is reclaimable (crash recovery). */
   claimedAt?: number | null;
+  /** [P57-2] When the rep captured it (ms): the recording's start, or the save of a typed note. Relative dates resolve
+   *  from this moment in the rep's timezone. Null for older notes and imported chats (they anchor as before). */
+  capturedAt?: number | null;
   createdAt: number;
 }
 
@@ -66,6 +69,8 @@ export interface NewNote {
   audioKey: string | null;
   status: string;
   messages?: ImportedMessage[] | null;
+  /** [P57-2] see NoteRecord.capturedAt */
+  capturedAt?: number | null;
 }
 
 export interface NotePatch {

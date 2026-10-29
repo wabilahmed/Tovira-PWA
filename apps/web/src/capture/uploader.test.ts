@@ -26,6 +26,13 @@ describe('HttpUploader', () => {
     expect((init as RequestInit).credentials).toBe('include');
   });
 
+  it('[P57-2] sends when the recording was made, so a note uploaded later resolves "Thursday" from then', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 201 }));
+    await new HttpUploader('http://api.test').upload({ ...rec, createdAt: 1_793_000_000_000 });
+    const headers = (fetchMock.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    expect(headers['x-tovira-captured-at']).toBe('1793000000000');
+  });
+
   // NEGATIVE: a non-OK response must throw so the outbox keeps + retries it.
   it('throws on a failed upload (so the recording is retained)', async () => {
     fetchMock.mockResolvedValueOnce(new Response('nope', { status: 500 }));

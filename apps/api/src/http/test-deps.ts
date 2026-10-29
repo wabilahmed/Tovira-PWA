@@ -251,7 +251,7 @@ export function buildInMemoryDeps(
     extractionLimiter,
     undefined, // cacheTtl
     undefined, // meetings
-    undefined, // meetingTimezone
+    (uid: string) => auth.timezoneFor(uid), // meetingTimezone: the rep's zone, as index.ts wires it ([P57-2] the capture day)
     requirements,
     matching, // direction 1 trigger
     undefined, // importCost

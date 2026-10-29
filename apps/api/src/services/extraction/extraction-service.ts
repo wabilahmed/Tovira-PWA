@@ -15,7 +15,7 @@ import type { ClientPointerRepository } from '../../ports/client-pointer-reposit
 import { checkPointers } from './pointer-postcheck.js';
 import { dropNonVerbatimSpans, dropSensitiveSpans } from './receipt-postcheck.js';
 import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from './pointer-prompt.js';
-import { zonedWallClockToInstant } from '../time/zone.js';
+import { zonedWallClockToInstant, zonedTodayIso } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
 import { resolveExtractionDates } from './resolve-date.js';
 import { factsProjection, trustedMeetingDatetime } from './date-policy.js';
@@ -330,7 +330,13 @@ export class ExtractionService {
     const glossary = buildGlossary(
       restriction.active ? glossaryRows.filter((g) => !restriction.restrictsText(`${g.wrongTerm} ${g.rightTerm}`)) : glossaryRows,
     );
-    const referenceDate = referenceDateFor(note, today);
+    // [P57-2 · owner] A typed or voice note anchors on the moment it was captured, in the rep's timezone, not on the
+    // day this extraction runs. A note with no capture time (older notes) keeps the caller's today; a chat still
+    // anchors on its own message dates (referenceDateFor).
+    const captureDay = note.capturedAt != null
+      ? zonedTodayIso(this.meetingTimezone ? await this.meetingTimezone(userId) : 'UTC', new Date(note.capturedAt))
+      : today;
+    const referenceDate = referenceDateFor(note, captureDay);
     // [SCREEN] Only NON-EXCLUDED messages ever reach a model. modelSafeText renders the thread with
     // flagged (held) messages removed; for a note with no message array (paste/voice/Ask — the rep's
     // own words) it is the stored rawText unchanged. This is the SAME text used for the embedding below.

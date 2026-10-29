@@ -79,6 +79,7 @@ export class AskCaptureService {
       rawText: statement, // the rep's words (Tier-1 blanked) — the receipt
       audioKey: null,
       status: PENDING,
+      capturedAt: this.now(), // [P57-2] relative dates resolve from the capture moment
     });
     // Certified engine, held: facts computed into the note's JSONB + an operational log row, but NO
     // embedding / spine / touch — so it is invisible to the vault until confirmed.

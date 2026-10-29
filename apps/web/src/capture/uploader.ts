@@ -14,7 +14,8 @@ export class HttpUploader implements Uploader {
     return fetch(`${this.baseUrl}/clients/${rec.clientId}/notes/voice`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'content-type': 'audio/webm' },
+      // [P57-2] the recording time: the server resolves the note's relative dates from it (kept when sane)
+      headers: { 'content-type': 'audio/webm', 'x-tovira-captured-at': String(rec.createdAt) },
       body: rec.blob as BodyInit,
     });
   }

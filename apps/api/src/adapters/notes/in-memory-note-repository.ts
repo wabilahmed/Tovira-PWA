@@ -36,6 +36,7 @@ export class InMemoryNoteRepository implements NoteRepository {
       transcribedAt: null,
       audioExpiredAt: null,
       claimedAt: null,
+      capturedAt: note.capturedAt ?? null,
       createdAt: Date.now() + this.seq++,
     };
     this.byId.set(record.id, record);

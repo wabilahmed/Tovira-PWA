@@ -17,6 +17,7 @@ interface NoteRow {
   transcribed_at: Date | null;
   audio_expired_at: Date | null;
   claimed_at: Date | null;
+  captured_at: Date | null;
   created_at: Date;
 }
 
@@ -36,11 +37,12 @@ function toRecord(row: NoteRow): NoteRecord {
     transcribedAt: row.transcribed_at ? row.transcribed_at.getTime() : null,
     audioExpiredAt: row.audio_expired_at ? row.audio_expired_at.getTime() : null,
     claimedAt: row.claimed_at ? row.claimed_at.getTime() : null,
+    capturedAt: row.captured_at ? row.captured_at.getTime() : null,
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, move_suggestion, transcribed_at, audio_expired_at, claimed_at, created_at';
+const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, move_suggestion, transcribed_at, audio_expired_at, claimed_at, captured_at, created_at';
 
 /** Postgres-backed note store; every method runs in a tenant tx (RLS enforced). */
 export class PgNoteRepository implements NoteRepository {
@@ -49,8 +51,8 @@ export class PgNoteRepository implements NoteRepository {
   async create(userId: string, note: NewNote): Promise<NoteRecord> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO notes (user_id, client_id, source, raw_text, audio_key, status, messages)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+        `INSERT INTO notes (user_id, client_id, source, raw_text, audio_key, status, messages, captured_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
          RETURNING ${COLUMNS}`,
         [
           userId,
@@ -60,6 +62,7 @@ export class PgNoteRepository implements NoteRepository {
           note.audioKey,
           note.status,
           note.messages == null ? null : JSON.stringify(note.messages),
+          note.capturedAt == null ? null : new Date(note.capturedAt),
         ],
       );
       return toRecord(rows[0] as unknown as NoteRow);

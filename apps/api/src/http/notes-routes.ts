@@ -81,6 +81,16 @@ export async function extractionBlockReason(deps: NoteRouteDeps, userId: string)
 // 96 kbps is ≈29 MB, far over this cap). A rep talking to himself for forty seconds is nowhere near it.
 const VOICE_MAX_BYTES = 11_000_000;
 
+/** [P57-2 · owner] The recording's start, sent by the app's outbox (x-tovira-captured-at, ms), so a voice note recorded
+ *  offline and uploaded later resolves "Thursday" from when it was said. Kept only when sane: a number, never in the
+ *  future (a minute of clock skew allowed), at most 30 days old. Otherwise the upload time. */
+const CAPTURE_MAX_AGE_MS = 30 * 86_400_000;
+export function captureMoment(header: string | string[] | undefined, now: number = Date.now()): number {
+  const raw = Array.isArray(header) ? header[0] : header;
+  const at = raw && /^\d{10,16}$/.test(raw.trim()) ? Number(raw.trim()) : NaN;
+  return Number.isFinite(at) && at <= now + 60_000 && at >= now - CAPTURE_MAX_AGE_MS ? Math.min(at, now) : now;
+}
+
 /** MISFILE-DETECT: the known-people (stakeholder map) names across a client's stored notes. */
 function knownPeopleFrom(notes: Array<{ extracted: unknown }>): string[] {
   const names = new Set<string>();
@@ -224,6 +234,7 @@ export async function handleNoteRoute(
         rawText: null,
         audioKey,
         status: 'pending_transcription',
+        capturedAt: captureMoment(req.headers['x-tovira-captured-at']),
       });
       await deps.clients.touch(userId, clientId); // bump recency
       await recordReopenIfFlagged(deps, userId, clientId);
@@ -259,6 +270,7 @@ export async function handleNoteRoute(
         rawText: redactForStore(text, `paste note (client ${clientId})`),
         audioKey: null,
         status: 'pending_extraction',
+        capturedAt: Date.now(), // [P57-2] relative dates resolve from the save
       });
       await deps.clients.touch(userId, clientId);
       await recordReopenIfFlagged(deps, userId, clientId);
