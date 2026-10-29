@@ -11,7 +11,9 @@ export type { DeployLedgerEntry } from './deploy-ledger.js';
  *                    FAIL for it. A rollback to an older green commit is therefore allowed.
  *  forced            any commit, with a reason (10+ characters); recorded (who, when, why) and emailed to ADMIN_EMAILS,
  *                    so it needs both email secrets. A failed email refuses the deploy.
- *  policy            'provisional-ok' (owner, for now) lets PROVISIONAL through; 'pass-required' does not.
+ *  policy            'provisional-ok' lets PROVISIONAL through. 'pass-required' [P56-1 · owner] lets a PROVISIONAL commit
+ *                    through only when the latest full certification of its CERT_SURFACE is a PASS (an ordinary 3-run
+ *                    gate can never certify on its own); a FAIL is always refused.
  */
 export interface DecideInput {
   trigger: 'auto' | 'manual';
@@ -42,10 +44,18 @@ function latestVerdict(ledger: DeployLedgerEntry[], sha: string): VerdictRecord 
     .at(-1);
 }
 
-function verdictAllows(v: VerdictRecord, policy: DecideInput['policy']): Decision {
+function verdictAllows(v: VerdictRecord, i: DecideInput): Decision {
   if (v.certification === 'FAIL') return { allow: false, reason: `certification FAIL for ${v.sha.slice(0, 7)} (run ${v.runId}/${v.attempt})` };
   if (v.deployGate !== 'PASS') return { allow: false, reason: `deploy gate FAIL for ${v.sha.slice(0, 7)} (run ${v.runId}/${v.attempt})` };
-  if (v.certification === 'PROVISIONAL' && policy === 'pass-required') return { allow: false, reason: `certification PROVISIONAL for ${v.sha.slice(0, 7)}, and the policy requires PASS` };
+  if (v.certification === 'PROVISIONAL' && i.policy === 'pass-required') {
+    // [P56-1 · owner] backed only by the LATEST full certification of the same CERT_SURFACE, and only when it passed
+    const c = i.certFingerprint ? latestCertification(i.ledger, i.certFingerprint, i.certOf) : undefined;
+    if (c?.certification === 'PASS') return { allow: true, reason: `gate PASS, certification PROVISIONAL (${v.mode}, run ${v.runId}/${v.attempt}), backed by the PASS certification of ${c.sha.slice(0, 7)} (run ${c.runId}/${c.attempt}) of the same CERT_SURFACE` };
+    const why = !i.certFingerprint ? 'its CERT_SURFACE fingerprint could not be computed'
+      : !c ? 'no certification of its CERT_SURFACE is on record'
+      : `the latest certification of its CERT_SURFACE (${c.sha.slice(0, 7)}, run ${c.runId}/${c.attempt}) is ${c.certification}`;
+    return { allow: false, reason: `certification PROVISIONAL for ${v.sha.slice(0, 7)}, and the policy requires PASS: ${why}` };
+  }
   return { allow: true, reason: `gate ${v.deployGate}, certification ${v.certification} (${v.mode}, run ${v.runId}/${v.attempt})` };
 }
 
@@ -96,7 +106,7 @@ function decideOwn(i: DecideInput): Decision {
   if (i.trigger === 'auto') {
     if (i.ciConclusion !== 'success') return { allow: false, reason: `CI did not succeed (${i.ciConclusion ?? 'unknown'})` };
     if (!v) return { allow: false, reason: `no gate verdict recorded for ${i.sha.slice(0, 7)} (the gate was skipped or stopped before scoring)` };
-    return verdictAllows(v, i.policy);
+    return verdictAllows(v, i);
   }
   const known = i.ledger.some((e) => e.sha === i.sha);
   if (!known) {
@@ -104,10 +114,10 @@ function decideOwn(i: DecideInput): Decision {
       ? { allow: true, reason: `${i.sha.slice(0, 7)} predates the deploy ledger; GitHub shows its CI green` }
       : { allow: false, reason: `${i.sha.slice(0, 7)} is not green: no CI-green record, and GitHub shows no successful CI run` };
   }
-  if (v && v.certification === 'FAIL') return verdictAllows(v, i.policy);
+  if (v && v.certification === 'FAIL') return verdictAllows(v, i);
   if (!i.ledger.some((e) => e.type === 'ci_green' && e.sha === i.sha)) return { allow: false, reason: `${i.sha.slice(0, 7)} is not green: no CI-green record` };
   if (!v) return { allow: false, reason: `no gate verdict recorded for ${i.sha.slice(0, 7)}` };
-  return verdictAllows(v, i.policy);
+  return verdictAllows(v, i);
 }
 
 type FetchFn = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<Response>;
