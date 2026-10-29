@@ -19,6 +19,7 @@ import { gateModelId, gateWindowKey, gateRunRef } from './fab-started.js';
 import { verdictLine, parseDeployLedger } from './deploy-ledger.js';
 import { mustRecertify } from './deploy-decision.js';
 import { unmatchedPromises, formatFabCase } from './fab-cases.js';
+import { isClientRequestAsRepPromise, requestAsPromiseTally } from './request-as-promise.js';
 
 /**
  * The P1-9 quality gate under the redefined standard (temperature is deprecated
@@ -110,8 +111,8 @@ async function main(): Promise<void> {
   let windowPlan = ledger ? freshWindowPlan(ledger, windowKey) : null;
   // [P55-1 · owner] A CERT_SURFACE whose latest certification FAILED is certified again, never passed by an ordinary
   // 3-run gate (the failed run still filled the fabrication window). The deploy ledger is read fail-closed.
+  let deployLedger: ReturnType<typeof parseDeployLedger> = [];
   if (process.env.GATE_DEPLOY_LEDGER_FILE) {
-    let deployLedger: ReturnType<typeof parseDeployLedger> = [];
     try {
       const f = process.env.GATE_DEPLOY_LEDGER_FILE;
       deployLedger = existsSync(f) ? parseDeployLedger(readFileSync(f, 'utf8')) : [];
@@ -181,6 +182,7 @@ async function main(): Promise<void> {
   } else if (windowPlan?.mode === 'refill') {
     console.log(`[gate] fabrication window: extraction code changed — a fresh window refills from ordinary gates (${windowPlan.sameKeyExtractions}/${GATE_FAB.minExtractions} so far; the ${FAB_TRIPWIRE_PCT}% single-run tripwire applies meanwhile)`);
   }
+  let requestAsPromiseCases = 0;
   for (const run of Array.from({ length: RUNS }, (_, i) => i + 1)) {
     console.log(`\n[gate] === RUN ${run} — model: ${modelId} (default sampling; temperature deprecated) ===`);
     const scored = await runOnce(model);
@@ -192,7 +194,11 @@ async function main(): Promise<void> {
     line('MULTILINGUAL', ml, mlGate.passed ? 'HARD PASS' : `HARD FAIL: ${mlGate.reasons.join('; ')}`);
     if (run === 1) { spuriousPeople(scored); spuriousRequirements(scored); }
     // [P48 · owner] name every fabricated promise (item, run, what was predicted, its quote), every run
-    for (const s of scored) for (const fp of unmatchedPromises(s.note.expected, s.actual)) console.log(formatFabCase(s.note.id, run, fp, s.note.expected.promises));
+    for (const s of scored) for (const fp of unmatchedPromises(s.note.expected, s.actual)) {
+      console.log(formatFabCase(s.note.id, run, fp, s.note.expected.promises));
+      // [P56-2 · owner] reported, never gated: a client's request recorded as the rep's promise
+      if (isClientRequestAsRepPromise(fp)) { requestAsPromiseCases += 1; console.log(`[gate]     ↳ a client request recorded as a rep promise ("${s.note.id}", run ${run})`); }
+    }
     for (const s of scored) {
       if (s.note.id === 'health-exclusion') continue; // health has its own bars, not the Tier-2 split
       for (const rec of classifyLeaks(s.note.id, s.note.forbidden ?? [], s.actual)) leakRecords.push({ ...rec, run });
@@ -232,6 +238,9 @@ async function main(): Promise<void> {
   const fabVerdict = fabWindowVerdict({ current: fabCurrent, pooled });
   console.log(`[gate]   ${formatPooled(pooled)}`);
   for (const r of fabVerdict.reasons) console.log(`[gate]   FABRICATION FAIL: ${r}`);
+  // [P56-2 · owner] the running tally across gates (the deploy ledger's verdicts that recorded it, plus this gate)
+  const reqTally = requestAsPromiseTally(deployLedger, { requestAsPromise: requestAsPromiseCases, fabricated: fabCurrent.fabricated });
+  console.log(`[gate]   CLIENT REQUEST → REP PROMISE [reported]: ${requestAsPromiseCases} of ${fabCurrent.fabricated} invented promise(s) this gate · running tally ${reqTally.cases} of ${reqTally.fabricated} over ${reqTally.gates} gate(s) since P56`);
   if (process.env.GATE_LEDGER_OUT) {
     // This run's record — written whatever the verdict (a failing run must never vanish from the window).
     writeFileSync(process.env.GATE_LEDGER_OUT, fabRecordLine({
@@ -420,6 +429,7 @@ async function main(): Promise<void> {
         guessed: agg.guessedDates, merged: agg.mergedPeople, falseCert: agg.falseCertainties, tier1: agg.tier1Leaked, aliasPeople: agg.aliasPeople,
         nullNamed: agg.nullNamedPeople, leakedT2: agg.leakedValues, receiptsFabricated: receiptAgg.spansFabricated, msgAtOnAmbiguous: receiptAgg.messageAtOnAmbiguous,
         tier1Residual: tier1Bad.length, structuredSensitive, fabricated: fabCurrent.fabricated, extractions: fabCurrent.extractions,
+        requestAsPromise: requestAsPromiseCases, // [P56-2] reported, never gated
       },
     }));
   }
