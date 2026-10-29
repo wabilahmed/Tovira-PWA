@@ -1,3 +1,4 @@
+import { modelSafeText } from '../import/dedup.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
@@ -108,7 +109,7 @@ export class AskCaptureService {
     if (!note || note.status !== PENDING) return false;
     const ex = (note.extracted ?? {}) as { promises?: ExtractedPromise[]; key_dates?: KeyDate[] };
     let embedding: number[] | null = null;
-    try { embedding = await this.deps.embedder.embed(userId, note.rawText ?? ''); } catch { /* degraded search, still committed */ }
+    try { embedding = await this.deps.embedder.embed(userId, modelSafeText(note)); /* [P55-3] never the withheld sentences */ } catch { /* degraded search, still committed */ }
     await this.deps.notes.update(userId, noteId, { status: 'extracted', embedding });
     await this.deps.facts.saveExtraction(userId, {
       noteId,

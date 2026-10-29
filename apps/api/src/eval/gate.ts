@@ -11,6 +11,7 @@ import { parseWhatsAppExport } from '../services/import/whatsapp.js';
 import { renderThread } from '../services/import/dedup.js';
 import { referenceDateFor } from '../services/extraction/extraction-service.js';
 import { normaliseCounterpart, foldKey } from '../services/extraction/counterpart.js';
+import { dropSensitiveSpans } from '../services/extraction/receipt-postcheck.js';
 import { checkPointers } from '../services/extraction/pointer-postcheck.js';
 import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from '../services/extraction/pointer-prompt.js';
 import type { Pointer } from '../services/extraction/types.js';
@@ -291,6 +292,8 @@ export async function extractForEval(model: ModelClient, note: EvalNote, opts: {
   // Default: mirror production (drop sensitive personal_facts). The priming measurement passes
   // sensitiveDrop:false to see the RAW pre-filter output — how often the model TAGGED these categories.
   if (opts.sensitiveDrop !== false) dropSensitivePersonalFacts(ex);
+  // [P55-3 · owner] Option C, as in production: a receipt quoting special-category content is dropped (the fact stays)
+  if (opts.sensitiveDrop !== false) dropSensitiveSpans(ex);
   return ex;
 }
 

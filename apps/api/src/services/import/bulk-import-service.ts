@@ -19,7 +19,7 @@ import { parseBatch, type BulkInputFile, type BulkClient, type BulkParseResult, 
 import { dedupeMessages, renderThread } from './dedup.js';
 import { assignSpeakerRoles } from './unanswered.js';
 import { redactMessages } from '../redaction/redact.js';
-import { screenSensitive } from '../screening/sensitive-screen.js';
+import { screenPrecise } from '../screening/precise-screen.js';
 import { estimateBulkAed, percentOfAllowance } from './bulk-estimate.js';
 import { BulkExtractionOrchestrator, type ChatJob } from './bulk-extraction.js';
 export type { ChatJob } from './bulk-extraction.js';
@@ -134,7 +134,7 @@ export class BulkImportService {
   private screen(messages: ParsedMessage[]): ImportedMessage[] {
     // [P50-0] redactMessages also blanks a card number split over consecutive messages from one sender.
     return redactMessages(messages).messages.map((m) => {
-      const flags = screenSensitive(m.body);
+      const flags = screenPrecise(m.body) /* [P55-3 · owner] the precise list; the broad screen no longer withholds automatically */;
       return { ...m, ...(flags.length > 0 ? { sensitive: flags, excluded: true } : {}) } as ImportedMessage;
     });
   }

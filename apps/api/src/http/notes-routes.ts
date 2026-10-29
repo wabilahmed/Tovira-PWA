@@ -31,7 +31,7 @@ import { dedupeMessages, renderThread } from '../services/import/dedup.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
 import { redactSensitive, redactMessages } from '../services/redaction/redact.js';
 import { isAppRecordingContainer, looksLikeAudio, AUDIO_ELSEWHERE_MESSAGE, VOICE_TOO_LONG_MESSAGE } from '../services/media/sniff.js';
-import { screenSensitive } from '../services/screening/sensitive-screen.js';
+import { screenPrecise } from '../services/screening/precise-screen.js';
 import { ANSWERS_REQUIRED } from './access-answers-routes.js';
 
 /** REDACT-2: strip Tier-1 sensitive values before storage; log the COUNT per note
@@ -426,7 +426,7 @@ export async function handleNoteRoute(
       const red = redactMessages(parsed.messages);
       const importRedactions = red.total;
       parsed = { ...parsed, messages: red.messages.map((m) => {
-        const flags = screenSensitive(m.body);
+        const flags = screenPrecise(m.body) /* [P55-3 · owner] the precise list; the broad screen no longer withholds automatically */;
         return { ...m, ...(flags.length > 0 ? { sensitive: flags, excluded: true } : {}) };
       }) };
       if (importRedactions > 0) {

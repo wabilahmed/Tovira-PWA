@@ -764,9 +764,11 @@ describe('[TIER2-INPUT] Tier-2 is scrubbed from the STORED training-log input on
 
     await service.extractNote('user-A', note.id, '2026-07-09');
 
-    // The model saw the FULL text — extraction is unchanged (no prompt change, no re-certification).
+    // [P55-3 · owner] was "the model saw the FULL text": a pasted note's sentence the precise sensitive list flags is now
+    // withheld from the model, exactly like a flagged chat message; the promise after the semicolon still reaches it.
     const sentContent = String(cap.last()?.messages?.[0]?.content ?? '');
-    expect(sentContent).toContain('diagnosed with cancer');
+    expect(sentContent).not.toContain('diagnosed with cancer');
+    expect(sentContent).toContain('send the revised quote by Friday');
 
     // [NO-TRAINING-RETENTION] there is no STORED training-log input at all now — no conversation content
     // is retained, so there is nothing (health or otherwise) to scrub or to leak.

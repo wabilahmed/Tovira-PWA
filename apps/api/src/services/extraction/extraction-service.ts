@@ -13,7 +13,7 @@ import type { Meeting, Requirement, DealState, Pointer } from './types.js';
 import type { ClientRecord } from '../../ports/client-repository.js';
 import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
 import { checkPointers } from './pointer-postcheck.js';
-import { dropNonVerbatimSpans } from './receipt-postcheck.js';
+import { dropNonVerbatimSpans, dropSensitiveSpans } from './receipt-postcheck.js';
 import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from './pointer-prompt.js';
 import { zonedWallClockToInstant } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
@@ -472,7 +472,7 @@ export class ExtractionService {
       // [P18-8] Deterministic write-time backstop: a receipt span must be a VERBATIM excerpt of the text
       // the model saw. Drop any span that isn't (a paraphrased/fabricated receipt is as serious as a
       // fabricated fact, Rule 9) — the fact is kept, only its unverifiable span is nulled.
-      const droppedSpans = dropNonVerbatimSpans(extraction, safeText);
+      const droppedSpans = dropNonVerbatimSpans(extraction, safeText) + dropSensitiveSpans(extraction); // [P55-3] + no sensitive quote
       if (droppedSpans > 0) console.info(`[receipt-verbatim] note ${noteId}: dropped ${droppedSpans} non-verbatim receipt span(s)`);
       // [P25-1] Write-time OWNER check: a promise whose (verbatim) receipt traces uniquely to a first-person
       // commitment takes the owner of whoever sent it (the rep's own voice/paste → rep). Corrects owner only;

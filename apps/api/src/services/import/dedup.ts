@@ -1,3 +1,4 @@
+import { screenPrecise } from '../screening/precise-screen.js';
 /**
  * Message-level dedup for chat re-imports (P3-7). Re-exporting a chat overlaps
  * the previous export; we store overlapping messages once and extract only the
@@ -37,5 +38,16 @@ export function renderThread(messages: ImportedMessage[]): string {
  */
 export function modelSafeText(note: { messages?: ImportedMessage[] | null; rawText?: string | null }): string {
   if (note.messages && note.messages.length > 0) return renderThread(note.messages.filter((m) => !m.excluded));
-  return note.rawText ?? '';
+  return withholdSensitiveSentences(note.rawText ?? '');
+}
+
+/**
+ * [P55-3 · owner] A pasted note, a voice transcript or an Ask capture has no per-message flags, so each SENTENCE the precise
+ * sensitive list flags is withheld here, exactly as a flagged chat message is: never sent to any model (extraction,
+ * embedding, recall, drafts). The stored note is unchanged; the rep sees it whole.
+ */
+export function withholdSensitiveSentences(text: string): string {
+  if (!text || screenPrecise(text).length === 0) return text;
+  const parts = text.split(/(?<=[.!?;।؟])[ \t]+|(?<=\n)/); // a semicolon ends a clause too: a promise after one survives
+  return parts.filter((p) => screenPrecise(p).length === 0).join(' ').replace(/ \n/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
 }
