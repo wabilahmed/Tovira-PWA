@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type JSX } from 'react';
+import { useState, type FormEvent, type JSX, useEffect } from 'react';
 import { AccessRequestError, type AccessRequestClient, type AccessRequestPayload } from './requestAccessClient.js';
 import { AuthShell } from '../auth/AuthShell.js';
 
@@ -32,7 +32,21 @@ export const VOLUME_OPTIONS: Array<{ value: AccessRequestPayload['expectedVolume
 ];
 
 export function RequestAccess({ client, referralsEnabled = false }: { client: AccessRequestClient; /** [P46-3] off: the ?ref= code is captured and sent, never shown */ referralsEnabled?: boolean }): JSX.Element {
-  const [submitted, setSubmitted] = useState<{ employed: boolean } | null>(null);
+  const [submitted, setSubmitted] = useState<{ employed: boolean; approved: boolean } | null>(null);
+  // [P58-7] The founder's invite link (?invite=<token>): the server prefills four fields; the email is then locked. The
+  // token is read once and taken out of the address bar. An expired or invalid one is the normal empty form.
+  const [inviteToken] = useState<string | null>(() => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get('invite');
+      if (t) { params.delete('invite'); const q = params.toString(); window.history.replaceState(window.history.state, '', `${window.location.pathname}${q ? `?${q}` : ''}`); }
+      return t;
+    } catch {
+      return null;
+    }
+  });
+  const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +73,26 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
     }
   });
 
+  useEffect(() => {
+    if (!inviteToken || !client.prefill) return;
+    let live = true;
+    void client.prefill(inviteToken).then((p) => {
+      if (!live || !p) return;
+      setFullName(p.fullName); setWorkEmail(p.workEmail); setCompanyName(p.companyName); setRoleTitle(p.roleTitle);
+      setInvitedEmail(p.workEmail);
+    });
+    return () => { live = false; };
+  }, [inviteToken, client]);
+
+  if (submitted?.approved) {
+    return (
+      <AuthShell subtitle="Request received">
+        <div aria-live="polite" style={{ display: 'grid', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+          <p className="auth__intro">Thank you. Your access is approved: we have emailed {workEmail} a link to set your password.</p>
+        </div>
+      </AuthShell>
+    );
+  }
   if (submitted) {
     return (
       <AuthShell subtitle="Request received">
@@ -85,7 +119,8 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
     }
     setBusy(true);
     try {
-      await client.submit({
+      const r = await client.submit({
+        ...(invitedEmail && inviteToken ? { inviteToken } : {}),
         fullName, workEmail, phone, companyName, roleTitle,
         ownership,
         tradeLicenceNumber: ownership === 'owns_or_manages' ? tradeLicenceNumber : null,
@@ -98,7 +133,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
         referralCode,
         company_url: honeypot,
       });
-      setSubmitted({ employed: ownership === 'employed' });
+      setSubmitted({ employed: ownership === 'employed', approved: r.approved === true });
     } catch (err) {
       setError(err instanceof AccessRequestError ? err.message : 'Something went wrong. Please try again.');
     } finally {
@@ -117,7 +152,8 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
       <form className="auth__form" onSubmit={(e) => void onSubmit(e)} noValidate>
         {/* 1. Full name, work email, phone */}
         <label className="auth__field"><span>Full name</span><input value={fullName} onChange={(e) => setFullName(e.target.value)} required /></label>
-        <label className="auth__field"><span>Work email</span><input type="email" value={workEmail} onChange={(e) => setWorkEmail(e.target.value)} required /></label>
+        <label className="auth__field"><span>Work email</span><input type="email" value={workEmail} onChange={(e) => setWorkEmail(e.target.value)} readOnly={invitedEmail !== null} aria-describedby={invitedEmail ? 'invite-email-note' : undefined} required /></label>
+        {invitedEmail && <p className="auth__hint" id="invite-email-note">This invite is for {invitedEmail}.</p>}
         <label className="auth__field"><span>Phone</span><input value={phone} onChange={(e) => setPhone(e.target.value)} required /></label>
         {/* 2. Company */}
         <label className="auth__field"><span>Company name</span><input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required /></label>
