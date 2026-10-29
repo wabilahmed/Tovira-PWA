@@ -17,6 +17,8 @@ export interface VerdictRecord {
   deployGate: 'PASS' | 'FAIL';
   certification: Certification;
   counters: Record<string, number>;
+  /** [P55-1] the commit's CERT_SURFACE fingerprint (absent on verdicts written before P55) */
+  certFingerprint?: string;
 }
 export interface CiGreenRecord { type: 'ci_green'; sha: string; runId: string; at: string }
 export interface ForcedDeployRecord { type: 'forced_deploy'; sha: string; actor: string; at: string; reason: string; runId: string }
@@ -33,7 +35,8 @@ export function parseDeployLedger(text: string): DeployLedgerEntry[] {
     const base = isStr(o.sha) && isStr(o.at) && isStr(o.runId);
     const ok =
       (o.type === 'verdict' && base && typeof o.attempt === 'number' && ['normal', 'refill', 'full-cert'].includes(o.mode as string)
-        && ['PASS', 'FAIL'].includes(o.deployGate as string) && ['PASS', 'PROVISIONAL', 'FAIL'].includes(o.certification as string) && typeof o.counters === 'object' && o.counters !== null)
+        && ['PASS', 'FAIL'].includes(o.deployGate as string) && ['PASS', 'PROVISIONAL', 'FAIL'].includes(o.certification as string) && typeof o.counters === 'object' && o.counters !== null
+        && (o.certFingerprint === undefined || isStr(o.certFingerprint)))
       || (o.type === 'ci_green' && base)
       || (o.type === 'forced_deploy' && base && isStr(o.actor) && isStr(o.reason));
     if (!ok) throw new DeployLedgerUnreadable(`deploy ledger line ${i + 1} is not a valid record — failing closed`);

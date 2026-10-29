@@ -10,11 +10,16 @@
 import { existsSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { decideDeploy, sendForceEmail } from './deploy-decision.js';
 import { forcedLine, parseDeployLedger } from './deploy-ledger.js';
+import { certFingerprintAt } from './cert-fingerprint-git.js';
 
 async function main(): Promise<number> {
   const env = process.env;
   const file = env.LEDGER_FILE ?? '';
   const ledger = file && existsSync(file) ? parseDeployLedger(readFileSync(file, 'utf8')) : [];
+  // [P55-1] the target's CERT_SURFACE fingerprint, and those of older verdicts that predate recorded fingerprints
+  const sha = env.SHA ?? '';
+  const certOf: Record<string, string> = {};
+  for (const e of ledger) if (e.type === 'verdict' && e.mode === 'full-cert' && !e.certFingerprint && !(e.sha in certOf)) { const fp = certFingerprintAt(e.sha); if (fp) certOf[e.sha] = fp; }
   const decision = decideDeploy({
     trigger: env.TRIGGER === 'manual' ? 'manual' : 'auto',
     sha: env.SHA ?? '',
@@ -28,6 +33,8 @@ async function main(): Promise<number> {
     now: new Date().toISOString(),
     runId: env.GITHUB_RUN_ID,
     emailConfigured: !!env.RESEND_API_KEY && !!env.ADMIN_EMAILS,
+    certFingerprint: sha ? certFingerprintAt(sha) : undefined,
+    certOf,
   });
   if (decision.allow && decision.forced) {
     try {

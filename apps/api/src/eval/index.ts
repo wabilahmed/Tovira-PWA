@@ -13,10 +13,11 @@ import type { Extraction } from '../services/extraction/types.js';
 import type { ModelClient } from '../ports/model.js';
 import { ModelBudget } from '../services/metrics/model-budget.js';
 import { SpendCap } from './spend-cap.js';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { FAB_TRIPWIRE_PCT, parseFabLedger, poolFabWindow, fabWindowVerdict, freshWindowPlan, formatThisRun, formatPooled, fabRecordLine, type FabLedgerEntry } from './fab-window.js';
 import { gateModelId, gateWindowKey, gateRunRef } from './fab-started.js';
-import { verdictLine } from './deploy-ledger.js';
+import { verdictLine, parseDeployLedger } from './deploy-ledger.js';
+import { mustRecertify } from './deploy-decision.js';
 import { unmatchedPromises, formatFabCase } from './fab-cases.js';
 
 /**
@@ -106,7 +107,23 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
-  const windowPlan = ledger ? freshWindowPlan(ledger, windowKey) : null;
+  let windowPlan = ledger ? freshWindowPlan(ledger, windowKey) : null;
+  // [P55-1 · owner] A CERT_SURFACE whose latest certification FAILED is certified again, never passed by an ordinary
+  // 3-run gate (the failed run still filled the fabrication window). The deploy ledger is read fail-closed.
+  if (process.env.GATE_DEPLOY_LEDGER_FILE) {
+    let deployLedger: ReturnType<typeof parseDeployLedger> = [];
+    try {
+      const f = process.env.GATE_DEPLOY_LEDGER_FILE;
+      deployLedger = existsSync(f) ? parseDeployLedger(readFileSync(f, 'utf8')) : [];
+    } catch (err) {
+      console.error(`[gate] DEPLOY LEDGER unreadable: ${err instanceof Error ? err.message : String(err)} — FAIL (closed)`);
+      process.exit(1);
+    }
+    if (windowPlan && windowPlan.mode !== 'full-cert' && mustRecertify(deployLedger, windowKey.certFingerprint)) {
+      console.log('[gate] the latest certification of this CERT_SURFACE FAILED: running the full certification again');
+      windowPlan = { ...windowPlan, mode: 'full-cert' };
+    }
+  }
   // Wrap the real client so the gate reports its own cache health + spend (the discipline:
   // warm the prefix, then confirm it's actually being read, and know what the run cost).
   const realModel = createModelClient(config);
@@ -395,6 +412,7 @@ async function main(): Promise<void> {
   if (process.env.GATE_VERDICT_OUT) {
     writeFileSync(process.env.GATE_VERDICT_OUT, verdictLine({
       type: 'verdict', sha: runRef.sha, runId: runRef.runId, attempt: runRef.attempt, at: new Date().toISOString(),
+      certFingerprint: windowKey.certFingerprint, // [P55-1]
       mode: windowPlan?.mode ?? 'normal',
       deployGate: deployPass ? 'PASS' : 'FAIL',
       certification: fullyCertified ? 'PASS' : deployPass ? 'PROVISIONAL' : 'FAIL',

@@ -26,6 +26,10 @@ export interface DecideInput {
   now?: string;
   runId?: string;
   emailConfigured: boolean;
+  /** [P55-1] the target commit's CERT_SURFACE fingerprint (computed from git by the decide job) */
+  certFingerprint?: string;
+  /** [P55-1] fingerprints for verdicts written before they were recorded, by sha (computed from git) */
+  certOf?: Record<string, string>;
 }
 export interface Decision { allow: boolean; reason: string; forced?: ForcedDeployRecord }
 
@@ -45,6 +49,33 @@ function verdictAllows(v: VerdictRecord, policy: DecideInput['policy']): Decisio
   return { allow: true, reason: `gate ${v.deployGate}, certification ${v.certification} (${v.mode}, run ${v.runId}/${v.attempt})` };
 }
 
+const fpOf = (v: VerdictRecord, certOf: Record<string, string> = {}): string | undefined => v.certFingerprint ?? certOf[v.sha];
+const byTime = (a: VerdictRecord, b: VerdictRecord) => (a.at === b.at ? a.attempt - b.attempt : a.at < b.at ? -1 : 1);
+
+/** [P55-1] The latest full certification of this CERT_SURFACE, or undefined when none is on record. */
+function latestCertification(ledger: DeployLedgerEntry[], fp: string, certOf?: Record<string, string>): VerdictRecord | undefined {
+  return ledger.filter((e): e is VerdictRecord => e.type === 'verdict' && e.mode === 'full-cert' && fpOf(e, certOf) === fp).sort(byTime).at(-1);
+}
+
+/** [P55-1] The gate side: a surface whose latest certification failed is certified again (not an ordinary 3-run gate),
+ *  otherwise a later certification could never happen without editing a surface. */
+export function mustRecertify(ledger: DeployLedgerEntry[], certFingerprint: string): boolean {
+  return latestCertification(ledger, certFingerprint)?.certification === 'FAIL';
+}
+
+/** [P55-1] Refuse while the latest certification of the target's CERT_SURFACE failed (or, under pass-required, did not pass). */
+function certificationBlocks(i: DecideInput): Decision | null {
+  if (!i.certFingerprint) {
+    const anyFailed = i.ledger.some((e) => e.type === 'verdict' && e.mode === 'full-cert' && e.certification === 'FAIL');
+    return anyFailed ? { allow: false, reason: `the CERT_SURFACE fingerprint of ${i.sha.slice(0, 7)} could not be computed, and a failed certification is on record: refusing (closed)` } : null;
+  }
+  const c = latestCertification(i.ledger, i.certFingerprint, i.certOf);
+  if (!c) return null;
+  if (c.certification === 'FAIL') return { allow: false, reason: `the latest certification of this CERT_SURFACE (${c.sha.slice(0, 7)}, run ${c.runId}/${c.attempt}) FAILED; a later certification must pass before it deploys` };
+  if (c.certification === 'PROVISIONAL' && i.policy === 'pass-required') return { allow: false, reason: `the latest certification of this CERT_SURFACE (${c.sha.slice(0, 7)}) is PROVISIONAL, and the policy requires PASS` };
+  return null;
+}
+
 export function decideDeploy(i: DecideInput): Decision {
   if (i.force) {
     if (i.trigger !== 'manual') return { allow: false, reason: 'force is only for a manual deploy' };
@@ -54,6 +85,13 @@ export function decideDeploy(i: DecideInput): Decision {
     if (!i.actor || !i.now || !i.runId) return { allow: false, reason: 'a forced deploy must record who and when' };
     return { allow: true, reason: `FORCED by ${i.actor}: ${reason}`, forced: { type: 'forced_deploy', sha: i.sha, actor: i.actor, at: i.now, reason, runId: i.runId } };
   }
+  // the commit's own verdict speaks first; then [P55-1] its CERT_SURFACE's latest certification
+  const own = decideOwn(i);
+  if (!own.allow) return own;
+  return certificationBlocks(i) ?? own;
+}
+
+function decideOwn(i: DecideInput): Decision {
   const v = latestVerdict(i.ledger, i.sha);
   if (i.trigger === 'auto') {
     if (i.ciConclusion !== 'success') return { allow: false, reason: `CI did not succeed (${i.ciConclusion ?? 'unknown'})` };

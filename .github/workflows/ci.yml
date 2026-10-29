@@ -125,6 +125,7 @@ jobs:
           GATE_LEDGER_FILE: ${{ runner.temp }}/fab-ledger.jsonl
           GATE_LEDGER_OUT: ${{ runner.temp }}/fab-record.jsonl
           GATE_VERDICT_OUT: ${{ runner.temp }}/verdict.jsonl # [P52] this run's verdict, for the deploy ledger
+          GATE_DEPLOY_LEDGER_FILE: ${{ runner.temp }}/deploy-ledger.jsonl # [P55-1] a failed certification forces another
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
             echo "::error::No ANTHROPIC_API_KEY secret set: the P1-9 gate cannot run (FAIL, closed)."
@@ -133,6 +134,7 @@ jobs:
           # Fail closed: no ledger branch / no ledger file → the gate refuses to run.
           git fetch --no-tags --depth=1 origin gate-ledger || { echo "FABRICATION LEDGER: the gate-ledger branch is missing — FAIL (closed)"; exit 1; }
           git show FETCH_HEAD:fab-ledger.jsonl > "$GATE_LEDGER_FILE" || { echo "FABRICATION LEDGER: fab-ledger.jsonl is missing — FAIL (closed)"; exit 1; }
+          if git cat-file -e FETCH_HEAD:deploy-ledger.jsonl 2>/dev/null; then git show FETCH_HEAD:deploy-ledger.jsonl > "$GATE_DEPLOY_LEDGER_FILE"; else : > "$GATE_DEPLOY_LEDGER_FILE"; fi
           npm run gate
       - name: Append this run to the fabrication ledger (whatever the verdict)
         if: always()
