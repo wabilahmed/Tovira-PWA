@@ -128,3 +128,78 @@ describe('[P57] + New client', () => {
     expect(api.createNew).not.toHaveBeenCalled();
   });
 });
+
+// [P58-P1 · owner] An unconfirmed voice recording stays on the device until Create client or Discard: it is saved to the
+// phone's storage the moment the rep taps Stop (before transcription), survives closing the sheet or the app, and is
+// offered again ("Finish your voice note") the next time + New client opens.
+function memoryDrafts(initial: Array<{ id: string; clientId: string; blob: Blob; createdAt: number; attempts: number }> = []) {
+  const rows = new Map(initial.map((r) => [r.id, r]));
+  return {
+    rows,
+    put: vi.fn(async (r: { id: string; clientId: string; blob: Blob | Uint8Array; createdAt: number; attempts: number }) => { rows.set(r.id, r as never); }),
+    list: vi.fn(async () => [...rows.values()]),
+    delete: vi.fn(async (id: string) => { rows.delete(id); }),
+  };
+}
+function setupDrafts(drafts: ReturnType<typeof memoryDrafts>, draft: Awaited<ReturnType<NewClientApi['voiceDraft']>> = { ok: true, transcript: 'Met Sara Khan from Emaar.', suggestion: { name: 'Sara Khan', company: 'Emaar', phone: null } }) {
+  const api: NewClientApi = {
+    createNew: vi.fn(async (i) => ({ ok: true as const, client: client('new1', i.name) })),
+    createPasteNote: vi.fn(async () => ({})),
+    voiceDraft: vi.fn(async () => draft),
+  };
+  const blob = new Blob(['audio']);
+  const onSaveRecording = vi.fn(async () => undefined);
+  const onDone = vi.fn();
+  const onClose = vi.fn();
+  render(<NewClient open onClose={onClose} api={api} drafts={drafts} startRecorder={async () => ({ ok: true as const, stop: async () => blob })} onSaveRecording={onSaveRecording} onDone={onDone} onImportChat={vi.fn()} onImportSeveral={vi.fn()} />);
+  return { api, blob, onSaveRecording, onDone, onClose, user: userEvent.setup() };
+}
+
+describe('[P58-P1] an unconfirmed voice recording stays on the device', () => {
+  it('saved on Stop, before transcription; kept when transcription fails', async () => {
+    const drafts = memoryDrafts();
+    const { user, blob } = setupDrafts(drafts, { ok: false, kind: 'unavailable', message: "Couldn't transcribe that just now. Your recording is kept on this phone. Try again." });
+    await user.click(screen.getByRole('button', { name: /^Record a voice note/ }));
+    await user.click(await screen.findByRole('button', { name: '■ Stop' }));
+    await screen.findByRole('alert');
+    expect(drafts.put).toHaveBeenCalledWith(expect.objectContaining({ blob }));
+    expect(drafts.rows.size).toBe(1);
+  });
+  it('Create client hands it to the client\'s outbox, then removes the draft', async () => {
+    const drafts = memoryDrafts();
+    const { user, onSaveRecording, onDone } = setupDrafts(drafts);
+    await user.click(screen.getByRole('button', { name: /^Record a voice note/ }));
+    await user.click(await screen.findByRole('button', { name: '■ Stop' }));
+    await user.click(await screen.findByRole('button', { name: 'Create client' }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(onSaveRecording).toHaveBeenCalled();
+    expect(drafts.rows.size).toBe(0);
+  });
+  it('Discard removes it', async () => {
+    const drafts = memoryDrafts();
+    const { user } = setupDrafts(drafts);
+    await user.click(screen.getByRole('button', { name: /^Record a voice note/ }));
+    await user.click(await screen.findByRole('button', { name: '■ Stop' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(drafts.rows.size).toBe(0));
+  });
+  it('NEGATIVE: closing the sheet without Create or Discard keeps it', async () => {
+    const drafts = memoryDrafts();
+    const { user, onClose } = setupDrafts(drafts);
+    await user.click(screen.getByRole('button', { name: /^Record a voice note/ }));
+    await user.click(await screen.findByRole('button', { name: '■ Stop' }));
+    await screen.findByRole('button', { name: 'Create client' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(drafts.rows.size).toBe(1);
+  });
+  it('a kept recording is offered next time: "Finish your voice note" transcribes it and shows the confirm step', async () => {
+    const kept = new Blob(['kept audio']);
+    const drafts = memoryDrafts([{ id: 'd1', clientId: '', blob: kept, createdAt: Date.parse('2026-10-29T09:00:00Z'), attempts: 0 }]);
+    const { user, api } = setupDrafts(drafts);
+    await user.click(await screen.findByRole('button', { name: /^Finish your voice note/ }));
+    expect(await screen.findByRole('heading', { name: 'Check the client' })).toBeInTheDocument();
+    expect(api.voiceDraft).toHaveBeenCalledWith(kept);
+    expect(screen.getByLabelText('Name')).toHaveValue('Sara Khan');
+  });
+});

@@ -7,12 +7,12 @@ import type { PendingRecording, RecordingStore } from './outbox.js';
 const DB_NAME = 'tovira-capture';
 const STORE = 'recordings';
 
-function open(): Promise<IDBDatabase> {
+function open(dbName: string, store: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(dbName, 1);
     req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) {
-        req.result.createObjectStore(STORE, { keyPath: 'id' });
+      if (!req.result.objectStoreNames.contains(store)) {
+        req.result.createObjectStore(store, { keyPath: 'id' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -20,25 +20,30 @@ function open(): Promise<IDBDatabase> {
   });
 }
 
-function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  return open().then(
+function tx<T>(dbName: string, store: string, mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  return open(dbName, store).then(
     (db) =>
       new Promise<T>((resolve, reject) => {
-        const request = run(db.transaction(STORE, mode).objectStore(STORE));
+        const request = run(db.transaction(store, mode).objectStore(store));
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       }),
   );
 }
 
+/** [P58-P1] A voice "new client" waiting for Create client or Discard: its own database, so the upload outbox (which
+ *  needs a client) never sees it. */
+export const VOICE_DRAFTS_DB = 'tovira-voice-drafts';
+
 export class IdbRecordingStore implements RecordingStore {
+  constructor(private readonly dbName: string = DB_NAME, private readonly store: string = STORE) {}
   async put(rec: PendingRecording): Promise<void> {
-    await tx('readwrite', (s) => s.put(rec));
+    await tx(this.dbName, this.store, 'readwrite', (s) => s.put(rec));
   }
   async list(): Promise<PendingRecording[]> {
-    return tx('readonly', (s) => s.getAll() as IDBRequest<PendingRecording[]>);
+    return tx(this.dbName, this.store, 'readonly', (s) => s.getAll() as IDBRequest<PendingRecording[]>);
   }
   async delete(id: string): Promise<void> {
-    await tx('readwrite', (s) => s.delete(id));
+    await tx(this.dbName, this.store, 'readwrite', (s) => s.delete(id));
   }
 }

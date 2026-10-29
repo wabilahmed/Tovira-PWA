@@ -112,7 +112,7 @@ import { ReceiptThread } from './receipts/ReceiptThread.js';
 import { detectStandalone, type OnboardingState } from './onboarding/onboarding.js';
 import { Outbox, type PendingRecording } from './capture/outbox.js';
 import { registerUnsavedSource } from './pwa/unsavedWork.js';
-import { IdbRecordingStore } from './capture/idbRecordingStore.js';
+import { IdbRecordingStore, VOICE_DRAFTS_DB } from './capture/idbRecordingStore.js';
 import { HttpUploader } from './capture/uploader.js';
 import { requestMicrophone } from './capture/microphone.js';
 import { startRecording, MAX_RECORDING_MS, type ActiveRecording } from './capture/recorder.js';
@@ -218,6 +218,11 @@ const outbox = new Outbox(new IdbRecordingStore(), new HttpUploader(API_BASE));
 // [P14-4b] A recording still waiting to upload is unsaved work — a service-worker update must prompt,
 // not silently reload, while any is pending. Registered once (the outbox is a singleton).
 registerUnsavedSource(async () => (await outbox.pending()).length > 0);
+
+/** [P58-P1] Unconfirmed voice "new client" recordings, kept on the device until Create client or Discard. */
+const voiceDrafts = new IdbRecordingStore(VOICE_DRAFTS_DB, 'drafts');
+// [P58-P1] a kept draft is unsaved work too: an app update must ask, never reload over it
+registerUnsavedSource(async () => (await voiceDrafts.list().catch(() => [])).length > 0);
 
 /** [P57] The microphone for a voice "new client": the same recorder as a client's voice note. */
 const startNewClientRecorder: StartRecorder = async () => {
@@ -971,6 +976,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
             onClose={() => setAddSheet(null)}
             api={clientsApi}
             startRecorder={startNewClientRecorder}
+            drafts={voiceDrafts}
             onSaveRecording={(clientId, blob, recordedAt) => outbox.enqueue({ id: randomId(), clientId, blob, createdAt: recordedAt }).then(() => undefined)}
             onDone={openAfterNewClient}
             onImportChat={() => setClientsAction('newFromChat')}

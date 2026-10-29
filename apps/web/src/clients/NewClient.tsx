@@ -5,6 +5,7 @@ import { MAX_RECORDING_MS } from '../capture/recorder.js';
 import { registerUnsavedSource } from '../pwa/unsavedWork.js';
 import { INDUSTRY_OPTIONS } from '../access/RequestAccess.js';
 import type { ClientSummary, CreateNewResult, NewClientInput, VoiceDraftResult } from './clientsClient.js';
+import type { RecordingStore, PendingRecording } from '../capture/outbox.js';
 
 /**
  * [P57 · owner] Clients → "+ New client": three ways in, none needing a chat export.
@@ -30,7 +31,7 @@ const TITLES: Record<Step, string> = { menu: 'New client', type: 'Type it', reco
 const NOTES_PROMPT = 'What do you know? Needs, budget, dates, what you promised.';
 const INDUSTRIES = [{ value: '', label: 'Not set' }, ...INDUSTRY_OPTIONS.map((o) => ({ value: o.value as string, label: o.label }))];
 
-export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, onDone, onImportChat, onImportSeveral }: {
+export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, onDone, onImportChat, onImportSeveral, drafts }: {
   open: boolean;
   onClose: () => void;
   api: NewClientApi;
@@ -41,6 +42,8 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
   onDone: (clientId: string, created: ClientSummary | null) => void;
   onImportChat: () => void;
   onImportSeveral: () => void;
+  /** [P58-P1] Where an unconfirmed recording waits on the device (its own IndexedDB store, never the upload outbox). */
+  drafts?: RecordingStore;
 }): JSX.Element {
   const [step, setStep] = useState<Step>('menu');
   const [source, setSource] = useState<'type' | 'voice'>('type');
@@ -54,7 +57,21 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
   const [busy, setBusy] = useState(false);
   const [recStartedAt, setRecStartedAt] = useState<number | null>(null);
   const stopRef = useRef<(() => Promise<Blob>) | null>(null);
-  const recording = useRef<{ blob: Blob; at: number } | null>(null);
+  const recording = useRef<{ blob: Blob; at: number; draftId?: string } | null>(null);
+  const [kept, setKept] = useState<PendingRecording | null>(null); // [P58-P1] a recording left from last time
+
+  // [P58-P1] Offer a recording kept from last time (closed without Create or Discard).
+  useEffect(() => {
+    if (!open || !drafts) return;
+    let live = true;
+    void drafts.list().then((rows) => { if (live) setKept(rows.sort((a, b) => b.createdAt - a.createdAt)[0] ?? null); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [open, drafts]);
+  async function dropDraft(): Promise<void> {
+    const id = recording.current?.draftId;
+    if (id && drafts) await drafts.delete(id).catch(() => undefined);
+    if (kept && kept.id === id) setKept(null);
+  }
 
   // A recording not yet given to a client lives only in this sheet: an app update must ask, never reload over it.
   const unsaved = useRef(false);
@@ -70,7 +87,10 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
 
   async function attach(clientId: string): Promise<boolean> {
     try {
-      if (source === 'voice' && recording.current) await onSaveRecording(clientId, recording.current.blob, recording.current.at);
+      if (source === 'voice' && recording.current) {
+        await onSaveRecording(clientId, recording.current.blob, recording.current.at);
+        await dropDraft(); // [P58-P1] the outbox holds it now
+      }
       if (source === 'type' && notes.trim()) await api.createPasteNote(clientId, notes);
       return true;
     } catch (err) {
@@ -117,6 +137,11 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
     stopRef.current = null;
     setRecStartedAt(null);
     recording.current = { blob, at: Date.now() };
+    // [P58-P1] on the device before anything else: until Create client or Discard, it is never only in memory
+    if (drafts) {
+      const id = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      await drafts.put({ id, clientId: '', blob, createdAt: recording.current.at, attempts: 0 }).then(() => { recording.current!.draftId = id; }).catch(() => undefined);
+    }
     await transcribe();
   }
   async function transcribe(): Promise<void> {
@@ -146,6 +171,11 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
       <div data-testid={`new-client-${step}`}>
         {step === 'menu' && (
           <div className="ui-stack ui-gap-1">
+            {kept && (
+              <button type="button" className="ui-sheet__option" onClick={() => { setSource('voice'); recording.current = { blob: kept.blob as Blob, at: kept.createdAt, draftId: kept.id }; void transcribe(); }}>
+                <span>Finish your voice note</span><span className="ui-sheet__hint">Recorded {new Date(kept.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}. Check the client and create it, or discard it.</span>
+              </button>
+            )}
             <button type="button" className="ui-sheet__option" onClick={() => { setSource('type'); setStep('type'); }}>
               <span>Type it</span><span className="ui-sheet__hint">Name, contact and what you know.</span>
             </button>
@@ -183,7 +213,7 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
             <ActionRow>
               {step === 'recording' && recStartedAt !== null && <Button variant="primary" onClick={() => void stopVoice()}>■ Stop</Button>}
               {step === 'transcribing' && error && recording.current && <Button variant="primary" onClick={() => void transcribe()}>Try again</Button>}
-              <Button variant="text" onClick={close}>{recording.current ? 'Discard' : 'Cancel'}</Button>
+              <Button variant="text" onClick={() => void (recording.current ? dropDraft() : Promise.resolve()).then(close)}>{recording.current ? 'Discard' : 'Cancel'}</Button>
             </ActionRow>
           </div>
         )}
@@ -200,7 +230,7 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
             {errorLine}
             <ActionRow>
               <Button type="submit" variant="primary" loading={busy} disabled={!fields.name.trim()}>{created ? 'Try saving the recording again' : 'Create client'}</Button>
-              <Button variant="text" onClick={close}>Discard</Button>
+              <Button variant="text" onClick={() => void dropDraft().then(close)}>Discard</Button>
             </ActionRow>
           </form>
         )}
