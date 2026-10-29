@@ -56,3 +56,32 @@ describe('[P55-2] the P54 special-category items are all caught', () => {
     hit('He mentioned he is quite religious and votes for the National party.', 'religion');
   });
 });
+
+// [P55-2 · owner] More false hits closed: names, party names outside party context, account states, retail words.
+describe('[P55-2] false hits from names and everyday words', () => {
+  it('NEGATIVE: a religion word as a first name or surname is not a statement of faith', () => {
+    clear('Rahul Jain sent the PO');
+    clear('Christian confirmed Friday');
+    clear('Mr. Jain will call tomorrow');
+  });
+  it('a religion word describing a person still counts', () => {
+    for (const t of ['he is Jain', 'she is a practising Jain', 'he is a devout Christian', 'they are Sikh', 'she is a Hindu']) hit(t, 'religion');
+  });
+  it('NEGATIVE: party names without party context', () => {
+    for (const t of ['his labour card expires in May', 'Ministry of Labour approved the quota', 'the labour visa is ready', 'a conservative estimate is AED 2M', 'we got the green light', 'shipping to the Democratic Republic of Congo', 'the national team won']) clear(t);
+  });
+  it('party names with party context still count', () => {
+    for (const t of ['he voted for Labour', 'he is a Congress party member', 'she campaigns for the BJP', 'at the Labour rally on Sunday', 'he got a BJP ticket']) hit(t, 'political_opinion');
+  });
+  it('NEGATIVE: "disabled" about a thing is not a disability', () => {
+    clear('the account is disabled');
+    clear('notifications are disabled');
+  });
+  it('disability, and "disabled" describing a person, still count', () => {
+    for (const t of ['he has a disability', 'her disabled son', 'a disabled employee']) hit(t, 'health');
+  });
+  it('NEGATIVE: "ethnic" as a product word is not ethnicity', () => {
+    clear('the ethnic wear collection launches Friday');
+  });
+  it('"ethnicity" still counts', () => hit('his ethnicity came up', 'ethnicity'));
+});

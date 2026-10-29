@@ -22,20 +22,25 @@ const W = (words: string) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${words})(?![\\p{
 const CASED = (words: string) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${words})(?![\\p{L}\\p{N}])`, 'gu');
 const ANY = (words: string) => new RegExp(`(?:${words})`, 'gu'); // Arabic / Devanagari: letters attach (ال…), no \b
 
+const FAITH = 'hindu|muslim|christian|sikh|jain|buddhist|jewish|catholic|atheist';
+const PARTIES = 'labour|congress|bjp|aap|conservatives?|tory|tories|republicans?|democrats?|democratic|greens?|green|national|shiv sena';
+
 const RULES: Rule[] = [
-  { category: 'health', re: W('hepatitis|hiv|cancer|tumou?r|diabetes|diabetic|tuberculosis|chemo(?:therapy)?|dialysis|surgery|pregnan(?:t|cy)|miscarriage|depression|bipolar|schizophreni[ac]|autis(?:m|tic)|adhd|epilep(?:sy|tic)|asthma(?:tic)?|heart attack|disabilit(?:y|ies)|disabled|hospitali[sz]ed|admitted to (?:the )?hospital|mental health|tested positive|diagnosed|diagnosis|medical condition|on medication|infertil(?:e|ity)|ivf|chronic illness') },
+  { category: 'health', re: W('hepatitis|hiv|cancer|tumou?r|diabetes|diabetic|tuberculosis|chemo(?:therapy)?|dialysis|surgery|pregnan(?:t|cy)|miscarriage|depression|bipolar|schizophreni[ac]|autis(?:m|tic)|adhd|epilep(?:sy|tic)|asthma(?:tic)?|heart attack|disabilit(?:y|ies)|disabled (?:person|people|child|children|son|daughter|man|woman|employee|candidate|worker)|hospitali[sz]ed|admitted to (?:the )?hospital|mental health|tested positive|diagnosed|diagnosis|medical condition|on medication|infertil(?:e|ity)|ivf|chronic illness') },
   { category: 'health', re: CASED('AIDS') },
   { category: 'health', re: ANY('कैंसर|डायबिटीज|मधुमेह|गर्भवती|हेपेटाइटिस|अस्पताल में भर्ती|سرطان|سكري|حامل|التهاب الكبد') },
   { category: 'criminal', re: W('convicted|convictions?|criminal record|jail(?:ed)?|prison|imprisoned|arrested|under arrest|sentenced|police case|on bail|parole|charged with') },
   { category: 'criminal', re: CASED('FIR') },
   { category: 'criminal', re: ANY('जेल|गिरफ्तार|سجن|محكوم') },
-  { category: 'religion', re: W('hindu|muslim|christian|sikh|jain|buddhist|jewish|catholic|atheist|devout|religious|fasting|prays|praying|converted to') },
+  // [P55-2 · owner] a faith word counts only describing a person ("is Jain", "a practising Jain"), never as a name ("Rahul Jain")
+  { category: 'religion', re: W(`(?:is|am|are|was|were|be|being|a|an|born|practising|practicing|devout|strict|observant|(?:is|am|are|was) (?:a|an)(?: (?:practising|practicing|devout|strict|observant))?) (?:${FAITH})|(?:is|am|are|was|very|quite|deeply|not) religious|devout|fasting|prays|praying|converted to`) },
   { category: 'religion', re: W('(?:observes|observing|celebrates|celebrating|keeps|keeping) (?:the )?(?:ramadan|ramzan|roza|eid|diwali|navratri|karwa chauth|lent|easter|christmas|passover|shabbat|sabbath)') },
   { category: 'religion', re: W('goes to (?:the )?(?:church|mosque|temple|gurdwara|synagogue)') },
   { category: 'religion', re: ANY('व्रत|रोज़ा|रोजा|صائم|يصوم') },
-  { category: 'political_opinion', re: W('(?:votes?|voted|voting) for (?:the )?(?:[\\p{L}]+ ){0,2}(?:party|labour|congress|bjp|conservatives|tories|republicans|democrats|greens)|political (?:party|views|opinions?|rally|campaign)|party (?:member|worker|ticket)|green party|labour party|conservative party|republican party|democratic party|national party|shiv sena|campaign(?:s|ed|ing)? for (?:the )?(?:[\\p{L}]+ ){0,2}(?:party|candidate)') },
-  { category: 'political_opinion', re: CASED('BJP') },
-  { category: 'ethnicity', re: W('caste|dalit|brahmin|ethnic|ethnicity|tribal') },
+  // [P55-2 · owner] a party name counts only with party context (party, voted, votes, member, campaign, rally, ticket),
+  // never "labour card", "Ministry of Labour", "conservative estimate", "green light" or "Democratic Republic of Congo"
+  { category: 'political_opinion', re: W(`(?:votes?|voted|voting) for (?:the )?(?:[\\p{L}]+ ){0,2}(?:party|${PARTIES})|(?:${PARTIES}) (?:party|rally|ticket|member|members|campaign|candidate|worker)|(?:member|campaign(?:s|ed|ing)?|rally|ticket|works?) (?:of|for) (?:the )?(?:${PARTIES})|political (?:party|views|opinions?|rally|campaign)|party (?:member|worker|ticket)|campaign(?:s|ed|ing)? for (?:the )?(?:[\\p{L}]+ ){0,2}(?:party|candidate)`) },
+  { category: 'ethnicity', re: W('caste|dalit|brahmin|ethnicity|tribal') }, // [P55-2] not bare "ethnic" ("ethnic wear")
   { category: 'sexual_life', re: W('gay|lesbian|bisexual|transgender|lgbtq?|homosexual|same-sex') },
 ];
 
