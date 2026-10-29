@@ -177,6 +177,9 @@ const ACTION_LABEL: Record<string, string> = {
   'access.approve': 'Approved access', 'access.reject': 'Rejected access', 'access.reinvite': 'Re-sent an invite',
   'lead.status': 'Changed a lead status', 'lead.notes': 'Edited lead notes', 'lead.invite_to_beta': 'Invited a lead to the beta',
   'leads.csv_export': 'Exported leads (CSV)', 'costs.csv_export': 'Exported costs (CSV)',
+  // [P59-3] the invite email (P58)
+  'lead.invite_email': 'Sent the beta invite email', 'lead.invite_email_resend': 'Re-sent the beta invite email', 'lead.test_created': 'Added a test lead',
+  'lead.requested': 'Sent the request form from the invite', 'access.auto_approve': 'Approved access automatically (invite link)',
   'admin.sign_in': 'Signed in', 'admin.sign_in_password': 'Password accepted', 'admin.sign_in_recovery_code': 'Signed in with a recovery code',
   'admin.2fa_enrolled': 'Turned on two-factor', 'admin.created': 'Admin account created', 'admin.reinvited': 'Admin link re-sent',
 };

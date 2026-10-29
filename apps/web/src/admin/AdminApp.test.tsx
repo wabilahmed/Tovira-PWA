@@ -106,3 +106,25 @@ describe('[P45-4] /ops pages redirect', () => {
     expect(opsRedirect('/app')).toBeNull();
   });
 });
+
+// [P59-3 · owner, parked from P58] The invite email's audit entries read as sentences, not action codes.
+describe('[P59-3] readable audit labels for the invite email', () => {
+  it('send, resend, test lead, the form from the invite, and the automatic approval', async () => {
+    window.history.replaceState({}, '', '/admin/audit');
+    const at = Date.parse('2026-10-29T10:00:00Z');
+    const entries = [
+      { adminEmail: 'wabil@tovira.io', action: 'lead.invite_email', target: 'sara@emaar.example', detail: null, at },
+      { adminEmail: 'wabil@tovira.io', action: 'lead.invite_email_resend', target: 'sara@emaar.example', detail: null, at },
+      { adminEmail: 'wabil@tovira.io', action: 'lead.test_created', target: 'wabil@prospera-technologies.com', detail: null, at },
+      { adminEmail: 'invite link', action: 'lead.requested', target: 'sara@emaar.example', detail: null, at },
+      { adminEmail: 'invite link', action: 'access.auto_approve', target: 'sara@emaar.example', detail: null, at },
+    ];
+    render(<AdminApp api={api('ok', { audit: vi.fn(async () => entries) })} />);
+    const labels = ['Sent the beta invite email', 'Re-sent the beta invite email', 'Added a test lead', 'Sent the request form from the invite', 'Approved access automatically (invite link)'];
+    for (const [i, label] of labels.entries()) {
+      const row = await screen.findByTestId(`audit-${i}`);
+      expect(row).toHaveTextContent(label);
+      expect(row).not.toHaveTextContent(entries[i]!.action);
+    }
+  });
+});
