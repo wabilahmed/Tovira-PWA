@@ -33,6 +33,7 @@ import { InMemoryInventoryMatchRepository } from '../adapters/inventory/in-memor
 import { MatchingService } from '../services/inventory/matching-service.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { StubTranscriber } from '../adapters/transcription/stub.js';
+import type { Transcriber } from '../ports/transcriber.js';
 import { TranscriptionService } from '../services/transcription/transcription-service.js';
 import { StubModelClient } from '../adapters/model/stub.js';
 import type { ModelClient } from '../ports/model.js';
@@ -173,7 +174,7 @@ export interface TestDeps extends ApiDeps {
  */
 export function buildInMemoryDeps(
   overrides: Partial<ApiDeps> = {},
-  opts: { extractionLimiter?: ExtractionLimiter; enforceVerification?: boolean; modelClient?: ModelClient } = {},
+  opts: { extractionLimiter?: ExtractionLimiter; enforceVerification?: boolean; modelClient?: ModelClient; /** [P57-4] what the recording "said" */ transcriber?: Transcriber } = {},
 ): TestDeps {
   const stubPool = { query: async () => ({ rows: [] }) } as unknown as Pool;
   const authUsers = new InMemoryUserRepository();
@@ -198,7 +199,7 @@ export function buildInMemoryDeps(
   const clients = new InMemoryClientRepository();
   const inventoryRepo = new InMemoryInventoryRepository();
   const facts = new InMemoryFactsRepository();
-  const transcription = new TranscriptionService(new StubTranscriber('clear transcript'), notes, storage);
+  const transcription = new TranscriptionService(opts.transcriber ?? new StubTranscriber('clear transcript'), notes, storage);
   const embedder = new StubEmbedder(8);
   const ledger = new LedgerService(new InMemoryLedgerRepository());
   const requirements = new InMemoryRequirementRepository();

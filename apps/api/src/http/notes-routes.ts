@@ -33,6 +33,7 @@ import { redactSensitive, redactMessages } from '../services/redaction/redact.js
 import { isAppRecordingContainer, looksLikeAudio, AUDIO_ELSEWHERE_MESSAGE, VOICE_TOO_LONG_MESSAGE } from '../services/media/sniff.js';
 import { screenPrecise } from '../services/screening/precise-screen.js';
 import { ANSWERS_REQUIRED } from './access-answers-routes.js';
+import { suggestClientFromTranscript } from '../services/clients/suggest-client.js';
 
 /** REDACT-2: strip Tier-1 sensitive values before storage; log the COUNT per note
  *  (never the values) so the volume is observable. */
@@ -180,7 +181,8 @@ export async function handleNoteRoute(
   const movePreviewMatch = method === 'GET' ? MOVE_PREVIEW_RE.exec(path) : null;
   const moveMatch = method === 'POST' ? MOVE_RE.exec(path) : null;
   const undoMatch = method === 'POST' ? UNDO_RE.exec(path) : null;
-  if (!voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch && !movePreviewMatch && !moveMatch && !undoMatch) return false;
+  const draftMatch = method === 'POST' && path === '/voice/draft'; // [P57-4]
+  if (!draftMatch && !voiceMatch && !pasteMatch && !importMatch && !listMatch && !pendingMatch && !audioMatch && !transcribeMatch && !extractMatch && !followUpMatch && !movePreviewMatch && !moveMatch && !undoMatch) return false;
 
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) {
@@ -189,12 +191,40 @@ export async function handleNoteRoute(
   }
   const userId = identity.userId;
   // [P46-6c.2] The confirmation is not optional for anyone: no capture before a hot-lead invitee has confirmed.
-  if ((voiceMatch || pasteMatch || importMatch) && deps.answersRequired && (await deps.answersRequired(userId))) {
+  if ((voiceMatch || pasteMatch || importMatch || draftMatch) && deps.answersRequired && (await deps.answersRequired(userId))) {
     sendJson(res, 403, ANSWERS_REQUIRED);
     return true;
   }
 
   try {
+    // [P57-4 · owner] New client → Record a voice note: transcribe and suggest who it is about, and STORE NOTHING (no
+    // client, no note, no audio). The recording stays in the phone's outbox until the rep taps Create client; then the
+    // app creates the client and uploads it through the voice-note route below, the ordinary path. Same gates as a voice
+    // note (the cap, the app's own recording, the confirmation gate); transcription is metered against the allowance.
+    if (draftMatch) {
+      if (deps.billing && !(await requireEntitled(deps.billing, userId, res))) return true;
+      const blocked = await extractionBlockReason(deps, userId);
+      if (blocked) { sendJson(res, 402, { error: 'ai_unavailable', reason: blocked }); return true; }
+      let audio: Buffer;
+      try {
+        audio = await readRawBody(req, VOICE_MAX_BYTES);
+      } catch (err) {
+        if (err instanceof BadJsonError) { sendJson(res, 413, { error: 'too_long', message: VOICE_TOO_LONG_MESSAGE }); return true; }
+        throw err;
+      }
+      if (audio.length === 0) { sendJson(res, 400, { error: 'validation', message: 'No audio was uploaded.' }); return true; }
+      if (!isAppRecordingContainer(new Uint8Array(audio))) { sendJson(res, 415, { error: 'unsupported_media', message: AUDIO_ELSEWHERE_MESSAGE }); return true; }
+      let transcript: string;
+      try {
+        transcript = (await deps.transcription.transcribeAudio(userId, new Uint8Array(audio))).text;
+      } catch {
+        sendJson(res, 503, { error: 'transcription_unavailable', message: "Couldn't transcribe that just now. Your recording is kept on this phone. Try again." });
+        return true;
+      }
+      sendJson(res, 200, { transcript, suggestion: suggestClientFromTranscript(transcript) });
+      return true;
+    }
+
     if (voiceMatch) {
       const clientId = decodeURIComponent(voiceMatch[1]!);
       // The client must belong to the caller (guards IDOR + attribution).

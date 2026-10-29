@@ -53,6 +53,13 @@ export class TranscriptionService {
     this.now = now;
   }
 
+  /** [P57-4] A recording with no note yet (a voice "new client" before the rep confirms who it is): the transcript,
+   *  Tier-1 blanked, and nothing stored. Throws when the transcriber fails; the caller keeps the recording. */
+  async transcribeAudio(userId: string, audio: Uint8Array): Promise<{ text: string; quality?: 'ok' | 'low' }> {
+    const result = await this.transcriber.transcribe(userId, audio);
+    return { text: redactSensitive(result.text ?? '').redacted, quality: result.quality };
+  }
+
   async transcribeNote(userId: string, noteId: string): Promise<TranscribeOutcome> {
     const note = await this.notes.findByIdForUser(userId, noteId);
     if (!note) return { status: 'not_found' };
