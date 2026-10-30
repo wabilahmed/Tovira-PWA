@@ -21,6 +21,9 @@
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script stripe-mode-audit
 #   ledger-backfill apps/api/src/scripts/ledger-backfill.ts  [P47-5] Ledger entries from stored history; dry run lists them, --apply writes.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script ledger-backfill
+#   trial-end-audit  apps/api/src/scripts/trial-end-audit.ts  [P61] READ-ONLY: accounts not on a 14-day trial (a short
+#                  7-day-era trial, or an account created after its inbox's trial ended). No args, refuses --apply.
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script trial-end-audit
 #   push-audit    apps/api/src/scripts/push-audit.ts  [P46-2] reps with no stored push subscription; counts only, refuses --apply.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script push-audit
 #   tier1-india-audit apps/api/src/scripts/tier1-india-audit.ts  [P53-5] stored values the Indian Tier-1 rules would now blank; counts only, refuses --apply.
@@ -89,7 +92,7 @@ while [ "$#" -gt 0 ]; do
     --script)
       # consumed here (never sent to the container) but part of the guard key, so a dry run of one
       # backfill never authorises --apply of another
-      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill)"
+      [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit)"
       SCRIPT_NAME="$2"; KEYARGS+=("$1" "$2"); shift 2 ;;
     *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --ids <id,…>, --email <address>, --apply, --i-checked-the-dry-run)" ;;
   esac
@@ -108,12 +111,13 @@ case "$SCRIPT_NAME" in
   push-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/push-audit.ts" ;;
   tier1-india-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/tier1-india-audit.ts" ;;
   ledger-backfill) SCRIPT_IN_IMAGE="apps/api/src/scripts/ledger-backfill.ts" ;;
-  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill)" ;;
+  trial-end-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/trial-end-audit.ts" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit)" ;;
 esac
 
 # [P26-2/P30-3] Read-only checks: nothing to apply, no args — refused here, before any AWS call.
 READ_ONLY=0
-if [ "$SCRIPT_NAME" = "kept-promise-check" ] || [ "$SCRIPT_NAME" = "stripe-mode-audit" ] || [ "$SCRIPT_NAME" = "subscription-periods" ] || [ "$SCRIPT_NAME" = "push-audit" ] || [ "$SCRIPT_NAME" = "tier1-india-audit" ]; then
+if [ "$SCRIPT_NAME" = "kept-promise-check" ] || [ "$SCRIPT_NAME" = "stripe-mode-audit" ] || [ "$SCRIPT_NAME" = "subscription-periods" ] || [ "$SCRIPT_NAME" = "push-audit" ] || [ "$SCRIPT_NAME" = "tier1-india-audit" ] || [ "$SCRIPT_NAME" = "trial-end-audit" ]; then
   READ_ONLY=1
   [ "$APPLY" -eq 0 ] || die "$SCRIPT_NAME is read-only — --apply is refused"
   [ "${#PASSTHROUGH[@]}" -eq 0 ] || die "$SCRIPT_NAME is read-only and takes no arguments"
