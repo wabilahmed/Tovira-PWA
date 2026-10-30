@@ -8,8 +8,8 @@ import { renderEmail, renderText, type EmailContent } from '../email/templates.j
  * template with a plain-text version:
  *  - "Sara Khan (Emaar) joined via your invite": an invited lead sent the form and was approved at once
  *  - "Sara Khan signed in for the first time": once per person
- *  - "Sara Khan imported their first chat" / "Sara Khan recorded their first voice note": once per person, whichever
- *    comes first (a typed note doesn't count)
+ *  - [P61-7] "Sara Khan added their first client": once per person, by a chat import, a voice note or a typed note,
+ *    whichever comes first
  * "Once" is the email log (one row per person per event); migration 0109 marks everyone already using Tovira, so no one
  * gets a late "first". Best-effort: a failed email never fails the rep's action.
  */
@@ -46,12 +46,12 @@ export class AdminEvents {
     await this.send(`${who.name} signed in for the first time`, [`${who.line} signed in to Tovira for the first time.`], '/admin/costs');
   }
 
-  /** A chat import or a voice note: only the person's first of either sends. */
-  async captured(userId: string, email: string, kind: 'chat' | 'voice'): Promise<void> {
+  /** [P61-7] The person's first client added: by a chat import, a voice note or a typed note, whichever comes first. */
+  async captured(userId: string, email: string, kind: 'chat' | 'voice' | 'typed'): Promise<void> {
     if (!(await this.deps.log.recordIfAbsent(userId, FIRST_CAPTURE_KEY))) return;
     const who = await this.who(userId, email);
-    const did = kind === 'chat' ? 'imported their first chat' : 'recorded their first voice note';
-    await this.send(`${who.name} ${did}`, [`${who.line} ${did}.`], '/admin/costs');
+    const how = kind === 'chat' ? 'a WhatsApp chat' : kind === 'voice' ? 'a voice note' : 'a typed note';
+    await this.send(`${who.name} added their first client`, [`${who.line} added their first client, with ${how}.`], '/admin/costs');
   }
 
   private async who(userId: string, email: string): Promise<{ name: string; line: string }> {
@@ -72,19 +72,19 @@ export class AdminEvents {
   }
 }
 
-/** [P60] The one place a chat import or a voice note is created (client page, bulk import, the share target): a note
+/** [P60] The one place a chat import, a voice note or [P61-7] a typed note is created (client page, bulk import, the share target): a note
  *  repository whose create() also tells the admin about a person's first one. The note is created first; the email is
  *  best-effort and never fails the capture. */
 export function notesWithFirstCapture<T extends { create(userId: string, note: { source: string }): Promise<unknown> }>(
   notes: T,
-  onCapture: (userId: string, kind: 'chat' | 'voice') => Promise<void>,
+  onCapture: (userId: string, kind: 'chat' | 'voice' | 'typed') => Promise<void>,
 ): T {
   return new Proxy(notes, {
     get(target, prop, receiver) {
       if (prop !== 'create') return Reflect.get(target, prop, receiver);
       return async (userId: string, note: { source: string }) => {
         const created = await target.create(userId, note);
-        const kind = note.source === 'voice' ? 'voice' : note.source === 'whatsapp_export' ? 'chat' : null;
+        const kind = note.source === 'voice' ? 'voice' : note.source === 'whatsapp_export' ? 'chat' : note.source === 'paste' ? 'typed' : null;
         if (kind) await onCapture(userId, kind).catch(() => undefined);
         return created;
       };

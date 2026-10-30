@@ -13,8 +13,9 @@ import { listenForTest } from '../test-support/listen.js';
 //  (2) an invited lead who submits and is approved at once: "Sara Khan (Emaar) joined via your invite" (it replaces the
 //      request email, which read as if it still needed approving)
 //  (3) the first sign-in after setting a password: "Sara Khan signed in for the first time", once per person
-//  (4) the first chat import or voice note: "Sara Khan imported their first chat" / "… recorded their first voice note",
-//      once per person (whichever comes first; a typed note doesn't count)
+//  (4) [P61-7 · owner] the first client added, by a chat import, a voice note or a typed note: "Sara Khan added their
+//      first client", once per person (was: chat or voice only, "imported their first chat" / "recorded their first
+//      voice note")
 let server: Server | null = null;
 afterEach(async () => { if (server) await new Promise<void>((r) => server!.close(() => r())); server = null; });
 const LEAD: HotLeadInput = { personId: 'p1', campaignId: 7, campaignName: 'c', name: 'Sara Khan', email: 'sara@emaar.example', jobTitle: 'Head of Leasing', companyName: 'Emaar', companyDomain: null, linkedinUrl: null, country: 'AE', phone: null, whyHot: 'yes', becameHotAt: Date.now(), erased: false };
@@ -69,21 +70,22 @@ describe('[P60] emails to ADMIN_EMAILS', () => {
     expect(subjects(deps).filter((s) => s.includes('signed in'))).toHaveLength(1);
   });
 
-  it('(4) the first voice note: "Sara Khan recorded their first voice note", once; a later chat import sends nothing', async () => {
+  it('(4) the first client, by a voice note: "Sara Khan added their first client", once; a later chat import sends nothing', async () => {
     const { base, deps } = await start();
     const { token } = await journey(base, deps);
     const H = { authorization: `Bearer ${token}` };
     const clientId = ((await (await fetch(`${base}/clients`, { method: 'POST', headers: { ...H, ...JSONH }, body: JSON.stringify({ name: 'Omar Haddad' }) })).json()) as { id: string }).id;
-    await fetch(`${base}/clients/${clientId}/notes/paste`, { method: 'POST', headers: { ...H, ...JSONH }, body: JSON.stringify({ text: 'Typed notes do not count.' }) });
-    expect(subjects(deps).some((s) => s.includes('their first'))).toBe(false); // a typed note doesn't count
+    expect(subjects(deps).some((s) => s.includes('first client'))).toBe(false); // creating a client by name is not adding one yet
     await fetch(`${base}/clients/${clientId}/notes/voice`, { method: 'POST', headers: { ...H, 'content-type': 'audio/webm' }, body: WEBM });
     await fetch(`${base}/clients/${clientId}/notes/voice`, { method: 'POST', headers: { ...H, 'content-type': 'audio/webm' }, body: WEBM });
     const chat = '13/07/2026, 9:00 am - Wabil: hi\n13/07/2026, 9:01 am - Omar Haddad: hello';
     await fetch(`${base}/clients/${clientId}/notes/import`, { method: 'POST', headers: { ...H, ...JSONH }, body: JSON.stringify({ firstImportAck: true, consent: true, content: chat }) });
-    expect(subjects(deps).filter((s) => s.includes('their first'))).toEqual(['Sara Khan recorded their first voice note']);
+    const firsts = toAdmin(deps).filter((m) => m.subject.includes('first client'));
+    expect(firsts.map((m) => m.subject)).toEqual(['Sara Khan added their first client']);
+    expect(firsts[0]!.text).toContain('with a voice note');
   });
 
-  it('(4) the first chat import: "Sara Khan imported their first chat"', async () => {
+  it('(4) by a chat import', async () => {
     const { base, deps } = await start();
     const { token } = await journey(base, deps);
     const H = { authorization: `Bearer ${token}`, ...JSONH };
@@ -91,23 +93,28 @@ describe('[P60] emails to ADMIN_EMAILS', () => {
     const chat = '13/07/2026, 9:00 am - Wabil: hi\n13/07/2026, 9:01 am - Omar Haddad: hello';
     const r = await fetch(`${base}/clients/${clientId}/notes/import`, { method: 'POST', headers: H, body: JSON.stringify({ firstImportAck: true, consent: true, content: chat }) });
     expect(r.status).toBeLessThan(300);
-    const first = toAdmin(deps).find((m) => m.subject === 'Sara Khan imported their first chat')!;
-    expect(first).toBeTruthy();
+    const first = toAdmin(deps).find((m) => m.subject === 'Sara Khan added their first client')!;
+    expect(first.text).toContain('with a WhatsApp chat');
     expect(first.html).toContain('Tovira · tovira.io'); // the standard footer ([P61-5 · owner] was the old tagline)
   });
 
-  it('NEGATIVE: a typed note alone never sends the first-capture email', async () => {
+  // [P61-7 · owner] was "NEGATIVE: a typed note alone never sends the first-capture email": a typed note counts now
+  it('(4) by a typed note', async () => {
     const { base, deps } = await start();
     const { token } = await journey(base, deps);
     const H = { authorization: `Bearer ${token}`, ...JSONH };
     const clientId = ((await (await fetch(`${base}/clients`, { method: 'POST', headers: H, body: JSON.stringify({ name: 'Omar Haddad' }) })).json()) as { id: string }).id;
-    await fetch(`${base}/clients/${clientId}/notes/paste`, { method: 'POST', headers: H, body: JSON.stringify({ text: 'Typed notes do not count.' }) });
-    expect(subjects(deps).some((s) => s.includes('their first'))).toBe(false);
+    await fetch(`${base}/clients/${clientId}/notes/paste`, { method: 'POST', headers: H, body: JSON.stringify({ text: 'Wants a quote by Friday.' }) });
+    const first = toAdmin(deps).find((m) => m.subject === 'Sara Khan added their first client')!;
+    expect(first.text).toContain('with a typed note');
   });
 
   it('existing users are marked as already notified (the migration), so nobody already using Tovira gets a "first" email', () => {
     const sql = readFileSync(new URL('../../migrations/0109_admin_event_backfill.sql', import.meta.url), 'utf8');
     expect(sql).toMatch(/'admin\.first_capture'[\s\S]*FROM notes[\s\S]*source IN \('voice', 'whatsapp_export'\)/);
+    // [P61-7] typed notes count now: everyone with one is marked too
+    const paste = readFileSync(new URL('../../migrations/0110_admin_first_client_typed.sql', import.meta.url), 'utf8');
+    expect(paste).toMatch(/'admin\.first_capture'[\s\S]*FROM notes[\s\S]*source = 'paste'[\s\S]*ON CONFLICT DO NOTHING/);
     expect(sql).toMatch(/'admin\.first_sign_in'[\s\S]*FROM users/);
     expect(sql).toMatch(/ON CONFLICT DO NOTHING/);
   });
