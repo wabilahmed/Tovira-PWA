@@ -57,3 +57,27 @@ describe('[P58-2] the shared template: existing emails are unchanged', () => {
     expect(html).toContain('<p style="margin:22px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:15px;color:#6b645d;">Tovira</p>');
   });
 });
+
+// [P61-3 · owner] The greeting is the lead's first name from the lead record, properly capitalised ("wabil" → "Wabil"),
+// never the email address; "Hi there," when there is no name. A name already mixed-case is kept as typed.
+describe('[P61-3] the greeting', () => {
+  const hi = (fullName: string | null) => leadInviteEmail({ fullName, personalLine: null, url: URL_ }).text.split('\n')[0];
+  it('capitalises a lower- or upper-case first name', () => {
+    expect(hi('wabil')).toBe('Hi Wabil,');
+    expect(hi('wabil ahmed')).toBe('Hi Wabil,');
+    expect(hi('SARA KHAN')).toBe('Hi Sara,');
+    expect(hi('  mohammed al kaabi ')).toBe('Hi Mohammed,');
+  });
+  it('keeps a mixed-case name as typed', () => {
+    expect(hi('McKenzie Ross')).toBe('Hi McKenzie,');
+    expect(hi('DeShawn Lee')).toBe('Hi DeShawn,');
+  });
+  it('NEGATIVE: no name → "Hi there,", never anything from an email address', () => {
+    expect(hi(null)).toBe('Hi there,');
+    expect(hi('')).toBe('Hi there,');
+    expect(hi('wabil@prospera-technologies.com')).toBe('Hi there,');
+  });
+  it('the default personal line, pinned', () => {
+    expect(leadInviteEmail({ fullName: 'Sara Khan', personalLine: null, url: URL_ }).text.split('\n\n')[1]).toBe('Thanks for your reply about Tovira.');
+  });
+});

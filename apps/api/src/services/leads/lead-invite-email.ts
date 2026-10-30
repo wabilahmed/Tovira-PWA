@@ -7,13 +7,23 @@ import { DEFAULT_TRIAL_DAYS } from '../../config.js';
  * set-password email), opened as a letter (no heading), signed by Wabil, with a plain-text version and no tracking.
  * The personal line is the admin's to edit before sending; empty falls back to the default.
  */
+/** [P61-3] The lead's first name, properly capitalised ("wabil" → "Wabil", "SARA" → "Sara"); a mixed-case name is kept as
+ *  typed ("McKenzie"). Null when there is no usable name (nothing is ever taken from an email address). */
+export function firstName(fullName: string | null): string | null {
+  const w = (fullName ?? '').trim().split(/\s+/)[0] ?? '';
+  if (!w || w.includes('@') || !/\p{L}/u.test(w)) return null;
+  const allLower = w === w.toLowerCase();
+  const allUpper = w === w.toUpperCase();
+  return allLower || allUpper ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w;
+}
+
 export const DEFAULT_PERSONAL_LINE = 'Thanks for your reply about Tovira.';
 export const LEAD_INVITE_SUBJECT = 'Your Tovira beta invite';
 
 export interface LeadInviteEmail { from: string; replyTo: string; subject: string; text: string; html: string }
 
 export function leadInviteEmail(i: { fullName: string | null; personalLine: string | null; url: string }): LeadInviteEmail {
-  const first = (i.fullName ?? '').trim().split(/\s+/)[0] || 'there';
+  const first = firstName(i.fullName) ?? 'there';
   const personal = i.personalLine?.trim() || DEFAULT_PERSONAL_LINE;
   const content = {
     intro: [
