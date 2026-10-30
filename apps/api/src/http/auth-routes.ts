@@ -30,7 +30,8 @@ export interface AuthRouteOptions {
   /** Public base URL of the app, for the reset link inside the email. */
   appBaseUrl: string;
   /** Called after a successful signup (starts the trial). */
-  onSignup?: (userId: string, email: string) => Promise<void>;
+  /** [P61-4] `via` 'invite' for an account activated from an invite: already verified, so no confirm link. */
+  onSignup?: (userId: string, email: string, via?: 'signup' | 'invite') => Promise<void>;
   /** Called after signup when a referral code was supplied (P5-6). Returns whether the code was
    *  CREDITED (true) or not (false — unknown/self/already-referred), so signup can report a clear
    *  outcome to the rep. Must never throw in a way that blocks signup (crediting is best-effort). */
@@ -191,7 +192,7 @@ export async function handleAuthRoute(
       // shared hook signup fires (billing.onSignup). Invite-accept is the ONLY prod account path (signup
       // is disabled), so without this every beta rep lands with no trial (entitled:false from minute one).
       const activated = await auth.getPublicUser(userId);
-      if (activated) await opts.onSignup?.(userId, activated.email);
+      if (activated) await opts.onSignup?.(userId, activated.email, 'invite');
       sendJson(res, 200, { ok: true });
       return true;
     }

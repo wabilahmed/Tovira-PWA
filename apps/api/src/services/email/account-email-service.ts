@@ -36,6 +36,8 @@ function stampDate(ms: number, timezone = 'UTC'): string {
 }
 
 const SIGNOFF = '\n\nTovira';
+/** [P61-4 · owner] Since P57 a rep can start by chat, voice or typing. */
+const WELCOME_START = 'Start with one client: import a WhatsApp chat, record a voice note after a call, or just type what you know.';
 
 /**
  * Transactional + lifecycle email (TASK EMAIL). Composes every account email in
@@ -170,10 +172,10 @@ export class AccountEmailService {
       : '';
     return this.once(userId, 'welcome', to, 'Welcome to Tovira',
       `Your Tovira trial has started. It runs until ${stampDate(trialEndsAt, tz)}.\n\n` +
-      `Export one WhatsApp chat to see what your book has been hiding. That is the whole setup.` +
+      WELCOME_START +
       (confirm || `\n\nOpen Tovira: ${this.links.open}`), {
         heading: 'Welcome to Tovira',
-        intro: [`Your Tovira trial has started. It runs until ${stampDate(trialEndsAt, tz)}.`, 'Export one WhatsApp chat to see what your book has been hiding. That is the whole setup.'],
+        intro: [`Your Tovira trial has started. It runs until ${stampDate(trialEndsAt, tz)}.`, WELCOME_START],
         ...(verifyUrl
           ? { button: { label: 'Confirm your email', url: verifyUrl }, outro: ['Confirming your email lets us reach you about your trial.'] }
           : { button: { label: 'Open Tovira', url: this.links.open } }), // [P22-4] never a link-less welcome

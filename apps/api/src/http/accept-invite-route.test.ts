@@ -155,3 +155,36 @@ describe('[BETA-8] POST /auth/invite/resend (expired-link recovery)', () => {
     expect(deps.emailSender.to('invitee@x.ae').length).toBe(sent); // nothing more sent
   });
 });
+
+// [P61-4 · owner] An invited person proved their address by opening the invite link: the account is verified on accept,
+// and the welcome email has no "Confirm your email" button. Everyone's welcome now says they can start by chat, voice or
+// typing. A self-serve signup still gets the confirm button.
+describe('[P61-4] the welcome email for an invited person', () => {
+  const START = 'Start with one client: import a WhatsApp chat, record a voice note after a call, or just type what you know.';
+  const welcomeTo = async (email: string) => {
+    for (let i = 0; i < 100; i++) {
+      const m = deps.emailSender.to(email).find((x) => x.subject === 'Welcome to Tovira');
+      if (m) return m;
+      await new Promise((r) => setTimeout(r, 10)); // the welcome is sent off the request path
+    }
+    throw new Error('no welcome email');
+  };
+  it('verified on accept; the welcome has no confirm button and says chat, voice or typing', async () => {
+    const token = await seedInvite();
+    await req('POST', '/auth/accept-invite', { token, password: 'password123', acceptTerms: true });
+    const login = (await (await req('POST', '/auth/login', { email: 'invitee@x.ae', password: 'password123' })).json()) as { token: string };
+    const me = (await (await fetch(`${base}/me`, { headers: { authorization: `Bearer ${login.token}` } })).json()) as { user: { emailVerified: boolean } };
+    expect(me.user.emailVerified).toBe(true);
+    const w = await welcomeTo('invitee@x.ae');
+    expect(w.text).toContain(START);
+    expect(w.text).not.toMatch(/confirm your email/i);
+    expect(w.html).not.toContain('Confirm your email');
+    expect(w.text).not.toContain('That is the whole setup');
+  });
+  it('NEGATIVE: a self-serve signup is unchanged: not verified until they confirm, and the welcome has the confirm button', async () => {
+    await req('POST', '/auth/signup', { email: 'self@x.ae', password: 'password123' });
+    const w = await welcomeTo('self@x.ae');
+    expect(w.html).toContain('Confirm your email');
+    expect(w.text).toContain(START);
+  });
+});

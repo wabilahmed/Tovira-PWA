@@ -282,6 +282,8 @@ export class AuthService {
     const passwordHash = await this.deps.hasher.hash(newPassword);
     const result = await this.deps.inviteActivation.activate({ tokenHash: hashToken(rawToken), now: this.now(), passwordHash, termsVersion, termsAcceptedIp });
     if (!result) throw new InvalidInviteTokenError();
+    // [P61-4 · owner] the invite link went to this address and was opened: the address is proved
+    await this.deps.users.markEmailVerified(result.userId);
     if (this.deps.onAccountActivated) {
       try {
         const u = await this.deps.users.findById(result.userId);

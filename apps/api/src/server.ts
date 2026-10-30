@@ -389,7 +389,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleAuthRoute(request, response, deps.auth, {
         cookieSecure,
         appBaseUrl: deps.appBaseUrl,
-        onSignup: async (userId, email) => {
+        onSignup: async (userId, email, via) => {
           await deps.billing.onSignup(userId, email, Date.now());
           // Best-effort welcome — never on the signup critical path (an email
           // must not slow signup or make its wall-clock timing depend on the
@@ -399,7 +399,8 @@ export function createApiServer(deps: ApiDeps): Server {
           void (async () => {
             const [ent, token] = await Promise.all([
               deps.billing.entitlement(userId, Date.now()),
-              deps.auth.createEmailVerification(userId).catch(() => undefined),
+              // [P61-4] an invited person is verified already: no confirm link
+              via === 'invite' ? Promise.resolve(undefined) : deps.auth.createEmailVerification(userId).catch(() => undefined),
             ]);
             const verifyUrl = token ? `${deps.appBaseUrl}/verify-email?token=${encodeURIComponent(token)}` : undefined;
             await deps.accountEmail.sendWelcome(userId, email, ent.trialEndsAt, verifyUrl, { timezone: await deps.auth.timezoneFor(userId), now: Date.now() }); // [P61-2]
