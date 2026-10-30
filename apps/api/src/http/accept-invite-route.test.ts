@@ -91,6 +91,18 @@ describe('[BETA-6] invite acceptance routes', () => {
     // if a stale/past grant were reused instead of a fresh one. 6d is below the 7d harness window.
     expect(status.trialEndsAt).toBeGreaterThan(before + 6 * 24 * 60 * 60 * 1000);
   });
+
+  // [P61-1 · owner] An invitee gets a fresh trial even when the same inbox (plus-tags folded) had one long ago.
+  it('a fresh trial on accept even when the inbox had an earlier trial', async () => {
+    await deps.billing.onSignup('someone-earlier', 'invitee+old@x.ae', Date.parse('2026-01-05T09:00:00Z')); // the same inbox, months ago
+    const token = await seedInvite();
+    const before = Date.now();
+    await req('POST', '/auth/accept-invite', { token, password: 'password123', acceptTerms: true });
+    const login = (await (await req('POST', '/auth/login', { email: 'invitee@x.ae', password: 'password123' })).json()) as { token: string; user?: { emailVerified?: boolean } };
+    const status = (await (await fetch(`${base}/billing/status`, { headers: { authorization: `Bearer ${login.token}` } })).json()) as { entitled: boolean; trialEndsAt: number };
+    expect(status.entitled).toBe(true);
+    expect(status.trialEndsAt).toBeGreaterThan(before + 6 * 24 * 60 * 60 * 1000);
+  });
 });
 
 describe('[BETA-8] POST /auth/invite/resend (expired-link recovery)', () => {
