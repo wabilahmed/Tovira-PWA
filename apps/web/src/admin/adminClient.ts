@@ -38,7 +38,9 @@ export interface HotLead {
   isTest?: boolean; inviteSentAt?: number | null; inviteResentAt?: number | null; inviteExpiresAt?: number | null; requestedAt?: number | null;
 }
 /** [P58] What "Send invite email" would send, and why it can't (null when it can). */
-export interface InvitePreview { to: string; from: string; replyTo: string; subject: string; html: string; text: string; refusal: { code: string; message: string } | null }
+export interface InvitePreview { to: string; from: string; replyTo: string; subject: string; html: string; text: string; refusal: { code: string; message: string } | null;
+  /** [P62-1] e.g. "This inbox's trial already ended on 6 Oct 2026." (the email then asks them to pick a plan) */
+  warning?: string | null }
 export interface LeadsView { leads: HotLead[]; newCount: number; countries: string[]; sync: { cursor: number | null; lastRunAt: number | null; lastStatus: string | null; banner: string | null } }
 export interface AuditEntry { adminEmail: string; action: string; target: string | null; detail: Record<string, unknown> | null; at: number }
 

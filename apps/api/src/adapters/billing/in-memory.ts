@@ -44,6 +44,9 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
 
 export class InMemoryTrialGrantRepository implements TrialGrantRepository {
   private grants = new Map<string, number>();
+  async find(email: string): Promise<number | null> {
+    return this.grants.get(email) ?? null;
+  }
   async grantOrGet(email: string, nowMs: number): Promise<number> {
     const existing = this.grants.get(email);
     if (existing !== undefined) return existing;

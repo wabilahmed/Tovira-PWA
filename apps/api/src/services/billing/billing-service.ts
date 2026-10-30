@@ -131,6 +131,15 @@ export class BillingService {
     await this.subs.create(userId, grantedAt + this.trialDays * DAY_MS);
   }
 
+  /** [P62-1] When this inbox's trial ended (one trial per inbox, plus-tags and Gmail dots folded), or null when it never
+   *  had one or it is still running. Read-only: it never records a grant. */
+  async inboxTrialEndedAt(email: string, nowMs: number): Promise<number | null> {
+    const granted = await this.trials.find(normalizeTrialEmailKey(email));
+    if (granted === null) return null;
+    const end = granted + this.trialDays * DAY_MS;
+    return end <= nowMs ? end : null;
+  }
+
   /** Grant one free month (P5-6 referral) by pushing the trial end out 30 days.
    *  Returns false if the account doesn't exist — so an invalid referrer credits
    *  no one. */

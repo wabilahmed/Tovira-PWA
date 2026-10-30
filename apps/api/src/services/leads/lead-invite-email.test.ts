@@ -81,3 +81,17 @@ describe('[P61-3] the greeting', () => {
     expect(leadInviteEmail({ fullName: 'Sara Khan', personalLine: null, url: URL_ }).text.split('\n\n')[1]).toBe('Thanks for your reply about Tovira.');
   });
 });
+
+// [P62-1 · owner] An invitee whose inbox already had a trial (one trial per inbox) is never promised 14 days free: the
+// invite line becomes "Join the beta and pick a plan to continue."
+describe('[P62-1] the invite for an inbox whose trial already ended', () => {
+  it('the line asks them to pick a plan; no "14 days free" anywhere', () => {
+    const e = leadInviteEmail({ fullName: 'Sara Khan', personalLine: null, url: URL_, trialEndedAt: Date.parse('2026-10-06T09:00:00Z') });
+    expect(e.text).toContain("Here's your beta invite. Join the beta and pick a plan to continue. The form takes a minute, and most of it is already filled in.");
+    expect(e.text).not.toMatch(/days free/);
+    expect(e.html).not.toMatch(/days free/);
+  });
+  it('NEGATIVE: a fresh inbox keeps the 14 days free', () => {
+    expect(leadInviteEmail({ fullName: 'Sara Khan', personalLine: null, url: URL_, trialEndedAt: null }).text).toContain('You get 14 days free, at no cost.');
+  });
+});

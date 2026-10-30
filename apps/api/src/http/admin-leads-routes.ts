@@ -93,7 +93,7 @@ export function adminLeadsRoute(deps: { store: HotLeadsStore; invites?: LeadInvi
       const personalLine = typeof body.personalLine === 'string' ? body.personalLine.slice(0, 500) : null;
       if (m[2] === '/invite-email/preview') {
         const refusal = await deps.invites.refusal(lead);
-        sendJson(res, 200, { ...deps.invites.preview(lead, personalLine), refusal });
+        sendJson(res, 200, { ...(await deps.invites.preview(lead, personalLine)), refusal });
         return true;
       }
       const resend = body.resend === true;

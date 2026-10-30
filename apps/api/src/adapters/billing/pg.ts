@@ -139,6 +139,11 @@ export class PgSubscriptionRepository implements SubscriptionRepository {
 
 export class PgTrialGrantRepository implements TrialGrantRepository {
   constructor(private readonly pool: Pool) {}
+  async find(email: string): Promise<number | null> {
+    const { rows } = await this.pool.query<{ granted_at: Date }>('SELECT granted_at FROM trial_grants WHERE email = $1', [email]);
+    return rows[0] ? rows[0].granted_at.getTime() : null;
+  }
+
   async grantOrGet(email: string, nowMs: number): Promise<number> {
     const { rows } = await this.pool.query<{ granted_at: Date }>(
       `INSERT INTO trial_grants (email, granted_at) VALUES ($1, to_timestamp($2 / 1000.0))

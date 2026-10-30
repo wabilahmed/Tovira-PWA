@@ -86,6 +86,8 @@ export interface SubscriptionRepository {
 export interface TrialGrantRepository {
   /** Returns the existing grant time for an email, or records now and returns it. */
   grantOrGet(email: string, nowMs: number): Promise<number>;
+  /** [P62-1] The grant time for an email (already normalised), or null when it never had a trial. Read-only. */
+  find(email: string): Promise<number | null>;
 }
 
 export interface WebhookEventRepository {

@@ -147,3 +147,24 @@ describe('[P58-4] a test lead', () => {
     expect((await fetch(`${base}/admin/leads/test`, { method: 'POST', headers: json(cookie), body: JSON.stringify({ name: 'W', email: 'not-an-email' }) })).status).toBe(400);
   });
 });
+
+describe('[P62-1] an invitee whose inbox already had a trial', () => {
+  it('the preview warns "This inbox\'s trial already ended on 6 Oct 2026."; the sent email asks them to pick a plan', async () => {
+    const { base, deps, lead, cookie, send } = await setup();
+    await deps.billing.onSignup('earlier', 'sara+old@emaar.example', Date.parse('2026-09-29T09:00:00Z')); // the same inbox; the harness trial is 7 days → ended 6 Oct
+    const p = (await (await fetch(`${base}/admin/leads/${lead.id}/invite-email/preview`, { method: 'POST', headers: json(cookie), body: '{}' })).json()) as { warning: string | null; text: string; refusal: unknown };
+    expect(p.warning).toBe('This inbox\'s trial already ended on 6 Oct 2026.');
+    expect(p.refusal).toBeNull(); // a warning, not a refusal: the invite can still go
+    expect(p.text).toContain('Join the beta and pick a plan to continue.');
+    expect((await send()).status).toBe(200);
+    const [m] = sentTo(deps, 'sara@emaar.example');
+    expect(m!.text).toContain('Join the beta and pick a plan to continue.');
+    expect(m!.text).not.toMatch(/days free/);
+  });
+  it('NEGATIVE: a fresh inbox: no warning, and the 14 days free', async () => {
+    const { base, lead, cookie } = await setup();
+    const p = (await (await fetch(`${base}/admin/leads/${lead.id}/invite-email/preview`, { method: 'POST', headers: json(cookie), body: '{}' })).json()) as { warning: string | null; text: string };
+    expect(p.warning).toBeNull();
+    expect(p.text).toMatch(/days free/);
+  });
+});

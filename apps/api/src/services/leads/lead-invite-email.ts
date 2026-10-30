@@ -22,14 +22,17 @@ export const LEAD_INVITE_SUBJECT = 'Your Tovira beta invite';
 
 export interface LeadInviteEmail { from: string; replyTo: string; subject: string; text: string; html: string }
 
-export function leadInviteEmail(i: { fullName: string | null; personalLine: string | null; url: string }): LeadInviteEmail {
+export function leadInviteEmail(i: { fullName: string | null; personalLine: string | null; url: string; /** [P62-1] when this inbox's trial already ended */ trialEndedAt?: number | null }): LeadInviteEmail {
   const first = firstName(i.fullName) ?? 'there';
   const personal = i.personalLine?.trim() || DEFAULT_PERSONAL_LINE;
   const content = {
     intro: [
       `Hi ${first},`,
       personal,
-      `Here's your beta invite. You get ${DEFAULT_TRIAL_DAYS} days free, at no cost. The form takes a minute, and most of it is already filled in.`,
+      // [P62-1 · owner] never promise free days to an inbox whose trial already ended
+      i.trialEndedAt != null
+        ? "Here's your beta invite. Join the beta and pick a plan to continue. The form takes a minute, and most of it is already filled in."
+        : `Here's your beta invite. You get ${DEFAULT_TRIAL_DAYS} days free, at no cost. The form takes a minute, and most of it is already filled in.`,
     ],
     button: { label: 'Join the Tovira beta', url: i.url },
     outro: ['Start with one client chat, or record a voice note after your next call.'],

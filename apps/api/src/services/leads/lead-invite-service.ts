@@ -23,7 +23,12 @@ export interface LeadInviteDeps {
   /** The app's public origin (https://tovira.io): the link is `${appBaseUrl}/request-access?invite=<token>`. */
   appBaseUrl: string;
   now?: () => number;
+  /** [P62-1] When the lead's inbox already had a trial that ended (one trial per inbox), or null. */
+  trialEndedFor?: (email: string) => Promise<number | null>;
 }
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const day = (ms: number): string => { const d = new Date(ms); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
 
 export class LeadInviteService {
   private readonly now: () => number;
@@ -40,9 +45,19 @@ export class LeadInviteService {
     return null;
   }
 
-  /** What would be sent, with a placeholder link: nothing is stored or sent. */
-  preview(lead: HotLead, personalLine: string | null): LeadInviteEmail & { to: string } {
-    return { to: lead.email ?? '', ...leadInviteEmail({ fullName: lead.name, personalLine, url: `${this.deps.appBaseUrl}/request-access?invite=PREVIEW` }) };
+  private async trialEndedAt(lead: HotLead): Promise<number | null> {
+    return lead.email && this.deps.trialEndedFor ? this.deps.trialEndedFor(lead.email.trim().toLowerCase()).catch(() => null) : null;
+  }
+
+  /** What would be sent, with a placeholder link: nothing is stored or sent. [P62-1] With a warning when the inbox's
+   *  trial already ended (the email then asks them to pick a plan instead of promising free days). */
+  async preview(lead: HotLead, personalLine: string | null): Promise<LeadInviteEmail & { to: string; warning: string | null }> {
+    const trialEndedAt = await this.trialEndedAt(lead);
+    return {
+      to: lead.email ?? '',
+      ...leadInviteEmail({ fullName: lead.name, personalLine, url: `${this.deps.appBaseUrl}/request-access?invite=PREVIEW`, trialEndedAt }),
+      warning: trialEndedAt != null ? `This inbox's trial already ended on ${day(trialEndedAt)}.` : null,
+    };
   }
 
   /** Send (or, with resend, re-send) the invite. The token is recorded first (a conditional write), then the email
@@ -63,7 +78,7 @@ export class LeadInviteService {
     const raw = randomBytes(32).toString('base64url');
     const updated = await this.deps.store.setInvite(lead.id, { tokenHash: hashInviteToken(raw), at, expiresAt: at + LEAD_INVITE_TTL_MS, resend });
     if (!updated) return { ok: false, refusal: { code: resend ? 'already_resent' : 'already_sent', message: resend ? 'The invite was already re-sent once.' : 'The invite was already sent.' } };
-    const e = leadInviteEmail({ fullName: lead.name, personalLine, url: `${this.deps.appBaseUrl}/request-access?invite=${encodeURIComponent(raw)}` });
+    const e = leadInviteEmail({ fullName: lead.name, personalLine, url: `${this.deps.appBaseUrl}/request-access?invite=${encodeURIComponent(raw)}`, trialEndedAt: await this.trialEndedAt(lead) });
     try {
       await this.deps.email.send({ to: lead.email!.trim(), subject: e.subject, text: e.text, html: e.html, from: e.from, replyTo: e.replyTo });
     } catch (err) {

@@ -735,7 +735,7 @@ async function main(): Promise<void> {
     accessRequestsForLeads: accessRequests,
     // [P58] the founder's invite email to a hot lead (from wabil@tovira.io), its prefilled form and auto-approval
     adminEvents, // [P60]
-    leadInvites: new LeadInviteService({ store: hotLeads, users: new PgUserRepository(appPool), email: createEmailSender(config), appBaseUrl: config.appBaseUrl }),
+    leadInvites: new LeadInviteService({ store: hotLeads, users: new PgUserRepository(appPool), email: createEmailSender(config), appBaseUrl: config.appBaseUrl, trialEndedFor: (e) => billing.inboxTrialEndedAt(e, Date.now()) }), // [P62-1]
     opsRoute: { tourFunnel, opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause,
       // [P44-2] the ops cost report; emails per id via auth (users-table access stays in the user repository)
       costReport: new CostReportService(costReportStore, async (id) => (await auth.getPublicUser(id))?.email ?? null, (u, p) => spend.capForPeriod(u, p)) },

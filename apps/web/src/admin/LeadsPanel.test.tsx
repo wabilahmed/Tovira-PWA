@@ -156,3 +156,20 @@ describe('[P58] Send invite email', () => {
     expect(await screen.findByTestId('lead-9')).toHaveTextContent('Test');
   });
 });
+
+// [P62-1 · owner] The preview warns when the invitee's inbox already had a trial; the invite can still be sent.
+describe('[P62-1] the preview warns about an inbox whose trial already ended', () => {
+  it('shows "This inbox\'s trial already ended on 6 Oct 2026." and Send stays on', async () => {
+    const a = api([lead()], null, { previewInvite: vi.fn(async () => ({ to: 'layla@acme.ae', from: 'x', replyTo: 'x', subject: 'Your Tovira beta invite', html: '<p>Join the beta and pick a plan to continue.</p>', text: '', refusal: null, warning: 'This inbox\'s trial already ended on 6 Oct 2026.' })) });
+    render(<LeadsPanel api={a} onSignedOut={vi.fn()} now={() => NOW} />);
+    await userEvent.click(within(await screen.findByTestId('lead-1')).getByRole('button', { name: 'Send invite email' }));
+    expect(await screen.findByTestId('invite-warning')).toHaveTextContent('This inbox\'s trial already ended on 6 Oct 2026.');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled());
+  });
+  it('NEGATIVE: no warning for a fresh inbox', async () => {
+    render(<LeadsPanel api={api([lead()])} onSignedOut={vi.fn()} now={() => NOW} />);
+    await userEvent.click(within(await screen.findByTestId('lead-1')).getByRole('button', { name: 'Send invite email' }));
+    await screen.findByTitle('Email preview');
+    expect(screen.queryByTestId('invite-warning')).toBeNull();
+  });
+});

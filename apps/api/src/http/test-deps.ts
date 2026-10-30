@@ -419,7 +419,7 @@ export function buildInMemoryDeps(
     hotLeads,
     accessRequestsForLeads: accessRequests,
     leadInviteClock,
-    leadInvites: new LeadInviteService({ store: hotLeads, users: authUsers, email: emailSender, appBaseUrl: 'https://tovira.io', now: () => Date.now() + leadInviteClock.offsetMs }),
+    leadInvites: new LeadInviteService({ store: hotLeads, users: authUsers, email: emailSender, appBaseUrl: 'https://tovira.io', now: () => Date.now() + leadInviteClock.offsetMs, trialEndedFor: (e) => billing.inboxTrialEndedAt(e, Date.now() + leadInviteClock.offsetMs) }),
     adminStore,
     adminAuth,
     adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },

@@ -136,6 +136,7 @@ function InviteSheet({ lead, resend, api, onClose, onSent, onSignedOut }: { lead
         </dl>
         <TextInput label="Personal line" value={line} maxLength={500} onChange={(e) => setLine(e.target.value)} />
         {preview?.refusal && <Banner tone="danger">{preview.refusal.message}</Banner>}
+        {preview?.warning && <Banner tone="warning" data-testid="invite-warning">{preview.warning}</Banner>}
         {problem && <Banner tone="danger">{problem}</Banner>}
         {preview ? (
           <iframe title="Email preview" sandbox="" srcDoc={preview.html} style={{ width: '100%', height: 560, border: '1px solid var(--hairline)', borderRadius: 8 }} />
