@@ -93,7 +93,7 @@ describe('[P60] emails to ADMIN_EMAILS', () => {
     expect(r.status).toBeLessThan(300);
     const first = toAdmin(deps).find((m) => m.subject === 'Sara Khan imported their first chat')!;
     expect(first).toBeTruthy();
-    expect(first.html).toContain('Your deal, our memory, instant success.');
+    expect(first.html).toContain('Tovira · tovira.io'); // the standard footer ([P61-5 · owner] was the old tagline)
   });
 
   it('NEGATIVE: a typed note alone never sends the first-capture email', async () => {

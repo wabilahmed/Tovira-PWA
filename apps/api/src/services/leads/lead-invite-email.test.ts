@@ -27,7 +27,7 @@ describe('[P58-2] the invite email', () => {
   });
   it('the HTML: the shared layout, one button to the link, the signature, no tracking pixel', () => {
     expect(e.html).toContain('<span style="color:#d14821;">T</span>o<span style="color:#d14821;">v</span>ira'); // the header wordmark
-    expect(e.html).toContain('Your deal, our memory, instant success.'); // the standard footer
+    expect(e.html).toContain('Tovira · tovira.io'); // the standard footer ([P61-5 · owner] was "Your deal, our memory, instant success.")
     expect(e.html).toContain(`href="${URL_}"`);
     expect(e.html).toContain('>Join the Tovira beta</a>');
     expect(e.html).toContain('Wabil Ahmed');

@@ -28,6 +28,9 @@ export interface EmailContent {
   postscript?: string[];
 }
 
+/** [P61-5 · owner] The company's legal line, as in the Terms. The footer of every email on this template. */
+export const LEGAL_LINE = 'Prospera Technologies FZ-LLC, licensed by RAKEZ, United Arab Emirates';
+
 const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escapeAttr = (s: string): string => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
@@ -78,7 +81,8 @@ export function renderEmail(c: EmailContent): string {
           ${(c.postscript ?? []).map((p) => `<p style="margin:18px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#8b847a;">${escapeHtml(p)}</p>`).join('')}
         </td></tr>
         <tr><td style="padding:16px 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#8b847a;">
-          Your deal, our memory, instant success.
+          Tovira · tovira.io<br>
+          ${LEGAL_LINE}
         </td></tr>
       </table>
     </td></tr>
