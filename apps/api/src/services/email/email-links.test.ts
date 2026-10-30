@@ -95,3 +95,36 @@ describe('[P22-4] email links', () => {
     expect(l.opsApprove('r1')).toBe('https://staging.tovira.io/api/ops/access-requests/r1/approve'); // via the API prefix
   });
 });
+
+// [P61-6 · owner] No tracking from our side: no email we render carries an image of any kind (a 1×1 open pixel is an
+// image), and the Resend request asks for no tracking. Open and click tracking are Resend domain settings, switched off in
+// the Resend dashboard, not anything this code turns on.
+describe('[P61-6] no tracking image in any email', () => {
+  const IMG = /<img\b|background(-image)?\s*[:=][^;"']*url\(/i;
+  for (const [name, send] of TEMPLATES) {
+    it(`${name}: no image`, async () => {
+      const { svc, sent } = capture();
+      await send(svc);
+      for (const m of sent) expect(m.html ?? '', name).not.toMatch(IMG);
+    });
+  }
+  it('the founder\'s invite and the admin emails: no image', async () => {
+    const { leadInviteEmail } = await import('../leads/lead-invite-email.js');
+    expect(leadInviteEmail({ fullName: 'Sara Khan', personalLine: null, url: `${APP}/request-access?invite=t` }).html).not.toMatch(IMG);
+    const { AdminEvents } = await import('../access/admin-events.js');
+    const sent: EmailMessage[] = [];
+    const ev = new AdminEvents({ email: { send: async (m) => { sent.push(m); } }, adminEmails: ['a@tovira.io'], log: new InMemoryEmailLogRepository(), requests: { findByLinkedUser: async () => null }, appBaseUrl: APP });
+    await ev.joinedViaInvite({ ...request, fullName: 'Sara Khan' } as AccessRequestRecord);
+    await ev.signedIn('u1', 's@x.test');
+    await ev.captured('u1', 's@x.test', 'chat');
+    expect(sent.length).toBe(3);
+    for (const m of sent) expect(m.html ?? '').not.toMatch(IMG);
+  });
+  it('the Resend request asks for no tracking (only from, reply_to, to, subject, text, html)', async () => {
+    const { ResendEmailSender } = await import('../../adapters/email/resend-email-sender.js');
+    const calls: Array<{ body: string }> = [];
+    const fetchImpl = (async (_u: string, init: { body: string }) => { calls.push(init); return new Response('{}', { status: 200 }); }) as unknown as typeof fetch;
+    await new ResendEmailSender({ apiKey: 'k', from: 'Tovira <hello@tovira.io>', fetchImpl }).send({ to: 'a@x.test', subject: 's', text: 't', html: '<p>h</p>' });
+    expect(Object.keys(JSON.parse(calls[0]!.body)).sort()).toEqual(['from', 'html', 'reply_to', 'subject', 'text', 'to']);
+  });
+});
