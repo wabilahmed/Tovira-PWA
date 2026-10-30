@@ -122,15 +122,13 @@ export class BillingService {
     return this.subs.listTrialing();
   }
 
-  async onSignup(userId: string, email: string, nowMs: number, opts: { invited?: boolean } = {}): Promise<void> {
+  async onSignup(userId: string, email: string, nowMs: number): Promise<void> {
     // [TRIAL-14] Reuse the original grant for this email → no fresh trial on re-signup. The trial is
     // a FLAT config.trialDays (14); there is no usage-gated extension — a rep gets exactly this window.
     // [TRIAL-FARM] Normalise the grant key (plus-tags, Gmail dots/googlemail) so wabil+1@, wabil+2@ and
     // w.abil@gmail — the same inbox — cannot each farm a fresh trial. The account email is unchanged.
     const grantedAt = await this.trials.grantOrGet(normalizeTrialEmailKey(email), nowMs);
-    // [P61-1 · owner] Someone the founder invited or approved gets a fresh trial from activation, as the emails promise;
-    // the inbox is still recorded above, so a later self-serve signup on it can't start another.
-    await this.subs.create(userId, (opts.invited ? nowMs : grantedAt) + this.trialDays * DAY_MS);
+    await this.subs.create(userId, grantedAt + this.trialDays * DAY_MS);
   }
 
   /** Grant one free month (P5-6 referral) by pushing the trial end out 30 days.

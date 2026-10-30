@@ -389,8 +389,8 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleAuthRoute(request, response, deps.auth, {
         cookieSecure,
         appBaseUrl: deps.appBaseUrl,
-        onSignup: async (userId, email, via) => {
-          await deps.billing.onSignup(userId, email, Date.now(), { invited: via === 'invite' }); // [P61-1]
+        onSignup: async (userId, email) => {
+          await deps.billing.onSignup(userId, email, Date.now());
           // Best-effort welcome — never on the signup critical path (an email
           // must not slow signup or make its wall-clock timing depend on the
           // mailer). Idempotent, so a missed one can be re-sent. Carries the
