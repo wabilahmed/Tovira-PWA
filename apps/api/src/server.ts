@@ -402,7 +402,7 @@ export function createApiServer(deps: ApiDeps): Server {
               deps.auth.createEmailVerification(userId).catch(() => undefined),
             ]);
             const verifyUrl = token ? `${deps.appBaseUrl}/verify-email?token=${encodeURIComponent(token)}` : undefined;
-            await deps.accountEmail.sendWelcome(userId, email, ent.trialEndsAt, verifyUrl);
+            await deps.accountEmail.sendWelcome(userId, email, ent.trialEndsAt, verifyUrl, { timezone: await deps.auth.timezoneFor(userId), now: Date.now() }); // [P61-2]
           })().catch(() => undefined);
         },
         onReferral: (code, userId, email) => deps.referral.apply(code, userId, email), // returns whether credited (REFERRAL-ENTRY)

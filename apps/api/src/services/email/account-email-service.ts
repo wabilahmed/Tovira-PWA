@@ -1,3 +1,4 @@
+import { zonedTodayIso } from '../time/zone.js';
 import type { EmailSender } from '../../ports/email.js';
 import type { EmailLogRepository } from '../../ports/email-log-repository.js';
 import type { AccessRequestRecord } from '../../ports/access-request-repository.js';
@@ -27,11 +28,11 @@ const VOLUME_LABEL: Record<string, string> = {
   under_50: 'Under 50', '50_200': '50–200', '200_500': '200–500', '500_plus': '500+',
 };
 
-/** Format an epoch-ms date as "14 Sep 2026" for email bodies (UTC, stable). */
-function stampDate(ms: number): string {
+/** Format an epoch-ms date as "14 Sep 2026" for email bodies: UTC by default, or [P61-2] the rep's local date. */
+function stampDate(ms: number, timezone = 'UTC'): string {
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const d = new Date(ms);
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  const [y, m, d] = zonedTodayIso(timezone, new Date(ms)).split('-').map(Number) as [number, number, number];
+  return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
 const SIGNOFF = '\n\nTovira';
@@ -153,16 +154,26 @@ export class AccountEmailService {
     return true;
   }
 
-  async sendWelcome(userId: string, to: string, trialEndsAt: number, verifyUrl?: string): Promise<boolean> {
+  async sendWelcome(userId: string, to: string, trialEndsAt: number, verifyUrl?: string, opts: { timezone?: string; now?: number } = {}): Promise<boolean> {
+    // [P61-2 · owner] the rep's own date; and a trial that already ended is never shown as if it were current
+    const tz = opts.timezone ?? 'UTC';
+    if (trialEndsAt <= (opts.now ?? Date.now())) {
+      const ended = `Your earlier trial ended on ${stampDate(trialEndsAt, tz)}. Pick a plan to continue.`;
+      return this.once(userId, 'welcome', to, 'Welcome to Tovira', `${ended}\n\nChoose a plan: ${this.links.billing}`, {
+        heading: 'Welcome to Tovira',
+        intro: [ended],
+        button: { label: 'Choose a plan', url: this.links.billing },
+      });
+    }
     const confirm = verifyUrl
       ? `\n\nWhen you have a moment, confirm your email so we can reach you about your trial:\n${verifyUrl}`
       : '';
     return this.once(userId, 'welcome', to, 'Welcome to Tovira',
-      `Your Tovira trial has started. It runs until ${stampDate(trialEndsAt)}.\n\n` +
+      `Your Tovira trial has started. It runs until ${stampDate(trialEndsAt, tz)}.\n\n` +
       `Export one WhatsApp chat to see what your book has been hiding. That is the whole setup.` +
       (confirm || `\n\nOpen Tovira: ${this.links.open}`), {
         heading: 'Welcome to Tovira',
-        intro: [`Your Tovira trial has started. It runs until ${stampDate(trialEndsAt)}.`, 'Export one WhatsApp chat to see what your book has been hiding. That is the whole setup.'],
+        intro: [`Your Tovira trial has started. It runs until ${stampDate(trialEndsAt, tz)}.`, 'Export one WhatsApp chat to see what your book has been hiding. That is the whole setup.'],
         ...(verifyUrl
           ? { button: { label: 'Confirm your email', url: verifyUrl }, outro: ['Confirming your email lets us reach you about your trial.'] }
           : { button: { label: 'Open Tovira', url: this.links.open } }), // [P22-4] never a link-less welcome
