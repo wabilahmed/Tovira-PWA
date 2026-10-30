@@ -14,7 +14,7 @@ export function AuthShell({ subtitle, children }: { subtitle?: string; children:
       <div className="auth__card">
         <a className="auth__home" href="/">← Back to home</a>
         <h1 className="auth__wordmark"><Wordmark /></h1>
-        <p className="auth__tagline">Your deal, Our memory, Instant success.</p>
+        <p className="auth__tagline">Memory for sales people whose clients stay for years.</p>
         {subtitle && <p className="auth__subtitle">{subtitle}</p>}
         {children}
       </div>
