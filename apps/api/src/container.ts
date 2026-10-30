@@ -332,7 +332,7 @@ export function createServices(config: AppConfig): Services {
 
 /** Build the auth service, selecting the user/session store from config. `invites`, when supplied,
  *  makes an invite-pending account unreachable by password reset (BETA-5). */
-export function createAuthService(config: AppConfig, pool?: Pool, invites?: InviteRepository, inviteActivation?: InviteActivationTx, onAccountActivated?: (email: string) => Promise<void>): AuthService {
+export function createAuthService(config: AppConfig, pool?: Pool, invites?: InviteRepository, inviteActivation?: InviteActivationTx, onAccountActivated?: (email: string) => Promise<void>, onSignedIn?: (userId: string, email: string) => Promise<void>): AuthService {
   let users: UserRepository;
   let sessions: SessionRepository;
   let passwordResets: PasswordResetRepository;
@@ -358,7 +358,7 @@ export function createAuthService(config: AppConfig, pool?: Pool, invites?: Invi
     sessionTtlMs: config.sessionTtlHours * 60 * 60 * 1000,
     invites,
     inviteActivation,
-    onAccountActivated, // [P45-3] a matching hot lead → Signed up
+    onAccountActivated, onSignedIn, // [P45-3] a matching hot lead → Signed up
   });
 }
 

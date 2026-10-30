@@ -23,6 +23,7 @@ import { BulkUpsellService } from './services/import/bulk-upsell.js';
 import { bulkConcurrency } from './services/import/bulk-extraction.js';
 import { PgUserRepository } from './adapters/auth/pg-user-repository.js';
 import { LeadInviteService } from './services/leads/lead-invite-service.js';
+import { AdminEvents, notesWithFirstCapture } from './services/access/admin-events.js';
 import { ScryptHasher } from './services/auth/password.js';
 import { createPool } from './db/pool.js';
 import { loadMigrations, runMigrations } from './db/migrate.js';
@@ -63,6 +64,7 @@ import {
   createAiAllowanceRepository,
   createAiPauseRepository,
   createEmailSender,
+  createEmailLogRepository,
   createOpsAlertRepository,
   createExtractionCounter,
   createModelCallEventStore,
@@ -200,12 +202,17 @@ async function main(): Promise<void> {
   const inviteActivation = new PgInviteActivationTx(appPool, new PgUserRepository(appPool));
   // [P45-3] hot leads (owner plane); an activated account with a lead's email marks that lead Signed up
   const hotLeads = createHotLeadsStore(config, migrationPool);
-  const auth = createAuthService(config, appPool, invites, inviteActivation, async (email) => { await hotLeads.markSignedUpByEmail(email, Date.now()); });
+  // [P60] short emails to ADMIN_EMAILS when someone joins and starts (first sign-in, first chat or voice note)
+  const adminEvents = new AdminEvents({ email: createEmailSender(config), adminEmails: config.adminEmails, log: createEmailLogRepository(config, appPool), requests: accessRequests, appBaseUrl: config.appBaseUrl });
+  const auth = createAuthService(config, appPool, invites, inviteActivation, async (email) => { await hotLeads.markSignedUpByEmail(email, Date.now()); }, (userId, email) => adminEvents.signedIn(userId, email));
   const accountEmail = createAccountEmailService(config, appPool);
   const emailFor = (userId: string): Promise<string | null> => auth.getPublicUser(userId).then((u) => u?.email ?? null);
   const clients = createClientRepository(config, appPool);
   const inventoryRepo = createInventoryRepository(config, appPool);
-  const notes = createNoteRepository(config, appPool);
+  const notes = notesWithFirstCapture(createNoteRepository(config, appPool), async (userId, kind) => {
+    const email = await emailFor(userId);
+    if (email) await adminEvents.captured(userId, email, kind);
+  });
   const storage = createStorage(config);
   const transcription = createTranscriptionService(config, notes, storage);
   const facts = createFactsRepository(config, appPool, migrationPool);
@@ -727,6 +734,7 @@ async function main(): Promise<void> {
     hotLeads,
     accessRequestsForLeads: accessRequests,
     // [P58] the founder's invite email to a hot lead (from wabil@tovira.io), its prefilled form and auto-approval
+    adminEvents, // [P60]
     leadInvites: new LeadInviteService({ store: hotLeads, users: new PgUserRepository(appPool), email: createEmailSender(config), appBaseUrl: config.appBaseUrl }),
     opsRoute: { tourFunnel, opsToken: config.opsToken, overrides: spendOverrides, spend, allUserIds: () => auth.allUserIds(), erasure, erasureRequests, modelCallEvents, accessApproval, aiPause,
       // [P44-2] the ops cost report; emails per id via auth (users-table access stays in the user repository)

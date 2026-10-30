@@ -103,6 +103,8 @@ export interface AuthServiceDeps {
   inviteActivation?: { activate(input: { tokenHash: string; now: number; passwordHash: string; termsVersion: string; termsAcceptedIp: string | null }): Promise<{ userId: string } | null> };
   /** [P45-3] An account became usable (invite accepted): e.g. a matching hot lead → Signed up. Best-effort. */
   onAccountActivated?: (email: string) => Promise<void>;
+  /** [P60] After every successful sign-in (best-effort; the admin hears about a person's first one). */
+  onSignedIn?: (userId: string, email: string) => Promise<void>;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -162,7 +164,9 @@ export class AuthService {
     // measurable enumeration oracle the response-shape design could not see).
     const ok = await this.deps.hasher.verify(password, user?.passwordHash ?? DUMMY_VERIFY_HASH);
     if (!user || !ok) throw new InvalidCredentialsError();
-    return this.issue(user);
+    const issued = await this.issue(user);
+    if (this.deps.onSignedIn) await this.deps.onSignedIn(user.id, user.email).catch(() => undefined); // [P60]
+    return issued;
   }
 
   async authenticate(token: string): Promise<Identity | null> {

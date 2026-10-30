@@ -18,6 +18,8 @@ export interface AccessRequestRouteOptions {
   autoApprove?: (requestId: string) => Promise<void>;
   /** [P58-5] the admin audit log */
   audit?: (e: AdminAuditEntry) => Promise<void>;
+  /** [P60] An invited lead approved at once: "joined via your invite" to the admins, in place of the request email. */
+  joined?: (record: AccessRequestRecord) => Promise<void>;
 }
 
 /** The hidden honeypot field name. A human never sees or fills it; a form-filling bot usually does.
@@ -98,7 +100,9 @@ export async function handleAccessRequestRoute(req: IncomingMessage, res: Server
       }
     }
     try {
-      await opts.notify?.(record);
+      // [P60] approved at once from an invite: "joined via your invite", never the "please approve" request email
+      if (approved && opts.joined) await opts.joined(record);
+      else await opts.notify?.(record);
     } catch (err) {
       console.warn('access-request owner notification failed; the request was still recorded', err);
     }

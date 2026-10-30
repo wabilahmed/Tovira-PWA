@@ -34,6 +34,8 @@ import { MatchingService } from '../services/inventory/matching-service.js';
 import { InMemoryStorage } from '../adapters/storage/in-memory.js';
 import { StubTranscriber } from '../adapters/transcription/stub.js';
 import { LeadInviteService } from '../services/leads/lead-invite-service.js';
+import { AdminEvents, notesWithFirstCapture } from '../services/access/admin-events.js';
+import { accessRequestNotifier } from '../services/access/admin-notify.js';
 import type { Transcriber } from '../ports/transcriber.js';
 import { TranscriptionService } from '../services/transcription/transcription-service.js';
 import { StubModelClient } from '../adapters/model/stub.js';
@@ -186,6 +188,7 @@ export function buildInMemoryDeps(
   const hasher = new ScryptHasher();
   const inviteActivation = new InMemoryInviteActivationTx(invites, authUsers, accessRequests);
   const hotLeads = new InMemoryHotLeadsStore(); // [P45-3]
+  let adminEvents: AdminEvents | null = null; // [P60] set once the email sender exists (below)
   const auth = new AuthService({
     users: authUsers,
     sessions: new InMemorySessionRepository(),
@@ -196,8 +199,13 @@ export function buildInMemoryDeps(
     invites, // [BETA-5] invite-pending accounts are unreachable by password reset
     inviteActivation, // [BETA-6] invite acceptance: consume + set password + accept terms, atomic
     onAccountActivated: async (email) => { await hotLeads.markSignedUpByEmail(email, Date.now()); }, // [P45-3]
+    onSignedIn: async (userId, email) => { await adminEvents?.signedIn(userId, email); }, // [P60]
   });
-  const notes = new InMemoryNoteRepository();
+  // [P60] a person's first chat import or voice note tells the admin (the one place such notes are created)
+  const notes = notesWithFirstCapture(new InMemoryNoteRepository(), async (userId, kind) => {
+    const u = await authUsers.findById(userId);
+    if (u && adminEvents) await adminEvents.captured(userId, u.email, kind);
+  });
   const storage = new InMemoryStorage();
   const clients = new InMemoryClientRepository();
   const inventoryRepo = new InMemoryInventoryRepository();
@@ -363,6 +371,7 @@ export function buildInMemoryDeps(
     await aiAllowance.reserve(userId, w.key, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, Date.now() + 3_600_000);
   };
   const emailSender = new StubEmailSender();
+  adminEvents = new AdminEvents({ email: emailSender, adminEmails: [TEST_ADMIN_EMAIL], log: new InMemoryEmailLogRepository(), requests: accessRequests, appBaseUrl: 'https://tovira.io' });
   const accountEmail = new AccountEmailService(emailSender, new InMemoryEmailLogRepository(), 'http://localhost:5173');
   const referral = new ReferralService(new InMemoryReferralRepository(), billing, (code) => auth.findUserIdByReferralCode(code));
   const accessApproval = new AccessApprovalService({
@@ -505,6 +514,9 @@ export function buildInMemoryDeps(
     jobRuns: new InMemoryJobRunStore(),
     modelMetrics: new ModelMetricsRegistry(),
     accessRequest: new AccessRequestService(accessRequests),
+    // [P60] what reaches ADMIN_EMAILS, as in production: the request email, and the join/start events
+    accessRequestNotify: accessRequestNotifier(accountEmail, [TEST_ADMIN_EMAIL], 'https://tovira.io'),
+    adminEvents: adminEvents!,
     accessRequests,
     accessApproval,
     invites,

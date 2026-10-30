@@ -80,6 +80,7 @@ import { handleOpsRoute, opsTokenOk, type OpsRouteDeps } from './http/ops-routes
 import { handleAdminRoute, type AdminRouteDeps } from './http/admin-routes.js';
 import { adminAccessRoute, adminCostsRoute } from './http/admin-console-routes.js';
 import type { LeadInviteService } from './services/leads/lead-invite-service.js';
+import type { AdminEvents } from './services/access/admin-events.js';
 import { adminLeadsRoute } from './http/admin-leads-routes.js';
 import type { HotLeadsStore } from './ports/hot-leads.js';
 import type { AccessRequestRepository } from './ports/access-request-repository.js';
@@ -249,6 +250,8 @@ export interface ApiDeps {
   accessRequestsForLeads?: Pick<AccessRequestRepository, 'create'>;
   /** [P58] the founder's invite email to a hot lead, its prefilled form, and its auto-approval */
   leadInvites?: LeadInviteService;
+  /** [P60] short emails to ADMIN_EMAILS when someone joins and starts */
+  adminEvents?: AdminEvents;
   cookieSecure?: boolean;
   /** Optional brute-force throttle for /auth/login (defaults to none in tests). */
   loginLimiter?: RateLimiter;
@@ -421,6 +424,7 @@ export function createApiServer(deps: ApiDeps): Server {
           leadInvites: deps.leadInvites,
           autoApprove: deps.opsRoute?.accessApproval ? async (id) => { await deps.opsRoute!.accessApproval!.approve(id, { createdBy: 'lead invite link' }); } : undefined,
           audit: deps.adminRoute ? (e) => deps.adminRoute!.store.audit(e) : undefined,
+          joined: deps.adminEvents ? (r) => deps.adminEvents!.joinedViaInvite(r) : undefined, // [P60]
         }))
       )
         return;
