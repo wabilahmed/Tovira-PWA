@@ -266,6 +266,8 @@ export interface ApiDeps {
   /** [BETA-3] Per-IP throttle for the access-request form. Counts EVERY request (a submit endpoint has
    *  no failed-vs-succeeded to key on), unlike loginLimiter which counts only failures. */
   accessRequestLimiter?: RateLimiter;
+  /** [P63-3] the invite prefill's own per-IP limit */
+  accessRequestPrefillLimiter?: RateLimiter;
   /** [BETA-3] Best-effort owner notification of a new request. The access_requests row is written FIRST
    *  and never depends on this; a throw here is logged and swallowed. */
   accessRequestNotify?: (record: AccessRequestRecord) => Promise<void>;
@@ -420,6 +422,7 @@ export function createApiServer(deps: ApiDeps): Server {
         (await handleAccessRequestRoute(request, response, {
           service: deps.accessRequest,
           limiter: deps.accessRequestLimiter,
+          prefillLimiter: deps.accessRequestPrefillLimiter, // [P63-3]
           notify: deps.accessRequestNotify,
           // [P58-5] the founder's invite link: prefill, locked email, auto-approval (the Access tab's own approval)
           leadInvites: deps.leadInvites,

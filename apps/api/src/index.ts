@@ -752,6 +752,7 @@ async function main(): Promise<void> {
     accessRequest: new AccessRequestService(accessRequests),
     accessApproval, // [BETA-8] public /auth/invite/resend
     accessRequestLimiter: new FixedWindowRateLimiter(5, 60 * 60 * 1000),
+    accessRequestPrefillLimiter: new FixedWindowRateLimiter(30, 60 * 60 * 1000), // [P63-3] opening an invite link, its own budget
     // [P46-6c.3] every address in ADMIN_EMAILS (one admin list): approve via /api, review on /admin/access
     accessRequestNotify: accessRequestNotifier(accountEmail, config.adminEmails, config.appBaseUrl),
   });

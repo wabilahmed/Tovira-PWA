@@ -108,4 +108,30 @@ describe('[BETA-3] POST /access-request', () => {
     expect(codes[3]).toBe(429); // the fourth is throttled — proves successes are counted
     expect(await deps.accessRequests.count()).toBe(3);
   });
+
+  // [P63-3 · owner] A person correcting the form (each attempt refused with a validation message) was spending the same
+  // 5-per-hour budget, shared with the invite prefill: a few corrections, or a few colleagues behind one office network,
+  // and they were locked out for an hour. Now a refused validation doesn't count, the prefill has its own limit, and the
+  // cap on real submissions (and on spam: trap hits and malformed bodies) stays.
+  it('[P63-3] a refused validation does not count: five corrections, then the request goes through', async () => {
+    const { base, deps } = await start({ accessRequestLimiter: new FixedWindowRateLimiter(3, 60_000) });
+    for (let i = 0; i < 5; i++) expect((await post(base, { ...VALID, workEmail: 'nope' })).status).toBe(400);
+    expect((await post(base, VALID)).status).toBe(201);
+    expect(await deps.accessRequests.count()).toBe(1);
+  });
+  it('[P63-3] NEGATIVE: spam still counts: trap hits and malformed bodies spend the budget', async () => {
+    const { base } = await start({ accessRequestLimiter: new FixedWindowRateLimiter(3, 60_000) });
+    expect((await post(base, { ...VALID, hp_trap_7: 'x' })).status).toBe(200);
+    expect((await fetch(`${base}/access-request`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{not json' })).status).toBe(400);
+    expect((await post(base, { ...VALID, hp_trap_7: 'x' })).status).toBe(200);
+    expect((await post(base, VALID)).status).toBe(429);
+  });
+  it('[P63-3] the invite prefill has its own limit: it never spends the submit budget', async () => {
+    const { base } = await start({ accessRequestLimiter: new FixedWindowRateLimiter(1, 60_000), accessRequestPrefillLimiter: new FixedWindowRateLimiter(2, 60_000) });
+    const prefill = () => fetch(`${base}/access-request/invite`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: 'x' }) });
+    expect((await prefill()).status).toBe(404);
+    expect((await prefill()).status).toBe(404);
+    expect((await prefill()).status).toBe(429); // its own cap
+    expect((await post(base, VALID)).status).toBe(201); // the submit budget untouched
+  });
 });

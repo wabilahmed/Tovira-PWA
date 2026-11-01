@@ -8,8 +8,11 @@ import type { AdminAuditEntry } from '../ports/admin.js';
 
 export interface AccessRequestRouteOptions {
   service: AccessRequestService;
-  /** Per-IP throttle; counts EVERY request. */
+  /** Per-IP throttle on submissions: counts real submissions and spam (trap hits, malformed bodies); [P63-3] a refused
+   *  validation does not count, so a person correcting the form is never locked out. */
   limiter?: RateLimiter;
+  /** [P63-3] Per-IP throttle on the invite prefill, separate: loading the form never spends the submit budget. */
+  prefillLimiter?: RateLimiter;
   /** Best-effort owner notification (the row is already written before this runs). */
   notify?: (record: AccessRequestRecord) => Promise<void>;
   /** [P58-5] the founder's invite link: its prefill, the locked email, and the token used once */
@@ -38,22 +41,25 @@ export async function handleAccessRequestRoute(req: IncomingMessage, res: Server
 
   const ip = clientIp(req);
 
-  // Rate limit FIRST, counting every request (not just failures) — a submit endpoint has no failed-vs-
-  // succeeded to key on, so counting only failures (the login-limiter semantic) would never throttle.
-  if (opts.limiter) {
-    const gate = opts.limiter.check(ip);
+  // Rate limit FIRST. [P63-3] The prefill has its own budget; a submission's is spent by everything except a refused
+  // validation (recorded below, once the outcome is known).
+  const limiter = prefillRoute ? opts.prefillLimiter : opts.limiter;
+  if (limiter) {
+    const gate = limiter.check(ip);
     if (gate.limited) {
       sendJson(res, 429, { error: 'rate_limited', message: 'Too many requests. Please wait a little and try again.' }, { 'retry-after': String(gate.retryAfterSec) });
       return true;
     }
-    opts.limiter.record(ip);
+    if (prefillRoute) limiter.record(ip);
   }
+  const spend = (): void => { if (!prefillRoute) opts.limiter?.record(ip); };
 
   let body: Record<string, unknown>;
   try {
     body = (await readJsonBody(req)) as Record<string, unknown>;
   } catch (err) {
     if (err instanceof BadJsonError) {
+      spend(); // malformed: spam, counted
       sendJson(res, 400, { error: 'bad_json', message: 'Could not read the submission.' });
       return true;
     }
@@ -74,6 +80,7 @@ export async function handleAccessRequestRoute(req: IncomingMessage, res: Server
   const trap = body[HONEYPOT_FIELD];
   if (typeof trap === 'string' && trap.trim() !== '') {
     console.info('[access-request] honeypot hit: dropped with a neutral 200'); // [P63-2] a count, never the content
+    spend(); // a bot: counted
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -88,6 +95,7 @@ export async function handleAccessRequestRoute(req: IncomingMessage, res: Server
     const raw = (lead ? { ...body, workEmail: lead.email!.trim().toLowerCase() } : body) as RawAccessRequest;
     // The row is written here. The notification below is best-effort and must never fail the request.
     const record = await opts.service.submit(raw, { sourceIp: ip, userAgent, invited: lead !== null }); // [P59-1]
+    spend(); // a real submission: counted (a refused validation throws above and is not)
     let approved = false;
     if (lead && token && opts.leadInvites && opts.autoApprove) {
       const claimed = await opts.leadInvites.claim(lead, token, record.id);
