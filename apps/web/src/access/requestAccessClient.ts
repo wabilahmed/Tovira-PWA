@@ -18,8 +18,8 @@ export interface AccessRequestPayload {
   confirmationAccepted: boolean;
   /** [BETA-3b] Referral code captured from the landing URL (?ref=), persisted for application at approval. */
   referralCode?: string | null;
-  /** Honeypot — always empty for a human; the hidden field is named to look real to a bot. */
-  company_url?: string;
+  /** Honeypot — always empty for a human. [P63-2] Named so autofill and password managers never fill it. */
+  hp_trap_7?: string;
   /** [P58-7] The founder's invite link token: the email is then the invited one, and the request is approved at once. */
   inviteToken?: string;
 }

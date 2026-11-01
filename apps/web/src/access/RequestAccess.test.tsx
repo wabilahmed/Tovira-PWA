@@ -74,7 +74,7 @@ describe('<RequestAccess>', () => {
       fullName: 'Dana Rep', workEmail: 'dana@brokerage.ae', ownership: 'owns_or_manages',
       tradeLicenceNumber: 'TL-123', conversationOwnership: 'brokerage_i_manage',
       conversationOwnershipOther: null, expectedVolume: '50_200', industry: 'insurance', industryOther: null, confirmationAccepted: true,
-      company_url: '',
+      hp_trap_7: '', // [P63-2] the trap's new name
     }));
     expect(await screen.findByText(/request has been recorded/i)).toBeTruthy();
     expect(screen.getByText(/within 2 business days/i)).toBeTruthy();
@@ -130,11 +130,18 @@ describe('<RequestAccess>', () => {
     expect(client.submit).not.toHaveBeenCalled();
   });
 
-  it('carries a hidden honeypot field a human never sees', () => {
+  // [P63-2 · owner] was "company_url" / "Company URL": autofill could fill it with the person's company. Now a name and
+  // label autofill and password managers never match.
+  it('carries a hidden honeypot field a human never sees, named so autofill never fills it', () => {
     render(<RequestAccess client={makeClient()} />);
-    const trap = document.querySelector('input[name="company_url"]') as HTMLInputElement | null;
+    const trap = document.querySelector('input[name="hp_trap_7"]') as HTMLInputElement | null;
     expect(trap).not.toBeNull();
     expect(trap!.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(trap!.getAttribute('autocomplete')).toBe('off');
+    expect(trap!.hasAttribute('data-lpignore')).toBe(true);
+    expect(trap!.hasAttribute('data-1p-ignore')).toBe(true);
+    expect(trap!.closest('label')!.textContent).not.toMatch(/company|url|website|email|name|phone/i);
+    expect(document.querySelector('input[name="company_url"]')).toBeNull();
   });
 
   // [INV-05] A ?ref= code from the landing URL is shown read-only AND sent with the request.

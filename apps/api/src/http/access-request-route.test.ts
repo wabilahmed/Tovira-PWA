@@ -74,13 +74,29 @@ describe('[BETA-3] POST /access-request', () => {
     expect(await deps.accessRequests.count()).toBe(0);
   });
 
-  it('silently drops a honeypot hit (bot filled the hidden field): fake 200, no row, no notification', async () => {
+  // [P63-2 · owner] the trap was "company_url", a name Chrome's autofill can fill with the person's company (so a real
+  // request could vanish behind a fake "Thank you"); it is "hp_trap_7" now, and every hit is logged (a count, no content)
+  it('silently drops a honeypot hit (bot filled the hidden field): fake 200, no row, no notification; logged', async () => {
     const notified: string[] = [];
     const { base, deps } = await start({ accessRequestNotify: async (rec) => { notified.push(rec.id); } });
-    const res = await post(base, { ...VALID, company_url: 'http://spam.example' });
-    expect(res.status).toBe(200);
+    const logs: string[] = [];
+    const orig = console.info;
+    console.info = (...a: unknown[]) => { logs.push(a.map(String).join(' ')); };
+    try {
+      const res = await post(base, { ...VALID, hp_trap_7: 'http://spam.example' });
+      expect(res.status).toBe(200);
+    } finally { console.info = orig; }
     expect(await deps.accessRequests.count()).toBe(0);
     expect(notified).toEqual([]);
+    expect(logs.some((l) => l.includes('[access-request] honeypot hit'))).toBe(true);
+    expect(logs.join('\n')).not.toContain('spam.example'); // a count, never the content
+  });
+
+  it('[P63-2] NEGATIVE: the old trap name, autofilled by a browser on an old copy of the form, no longer drops a real request', async () => {
+    const { base, deps } = await start();
+    const res = await post(base, { ...VALID, company_url: 'Meridian Real Estate' });
+    expect(res.status).toBe(201);
+    expect(await deps.accessRequests.count()).toBe(1);
   });
 
   it('rate-limits by IP counting EVERY request, not only failures (unlike the login limiter)', async () => {

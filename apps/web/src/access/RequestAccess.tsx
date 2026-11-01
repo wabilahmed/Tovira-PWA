@@ -67,7 +67,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
   const [expectedVolume, setExpectedVolume] = useState<'' | AccessRequestPayload['expectedVolume']>('');
   const [confirmed, setConfirmed] = useState(false);
   const [employerPermission, setEmployerPermission] = useState(false); // [P59-2]
-  const [honeypot, setHoneypot] = useState(''); // company_url — stays empty for a human
+  const [honeypot, setHoneypot] = useState(''); // [P63-2] hp_trap_7 — stays empty for a human (autofill never matches it)
   // [BETA-3b] Capture the referral code from the landing URL (?ref=) so it survives the approval delay.
   const [referralCode] = useState<string | null>(() => {
     try {
@@ -143,7 +143,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
         industryOther: industry === 'other' ? industryOther : null,
         confirmationAccepted: confirmed,
         referralCode,
-        company_url: honeypot,
+        hp_trap_7: honeypot,
       });
       setSubmitted({ employed: ownership === 'employed', approved: r.approved === true });
     } catch (err) {
@@ -223,7 +223,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
 
         {/* Honeypot — visually hidden, off the tab order, not autocompleted. A human never fills it. */}
         <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
-          <label>Company URL<input tabIndex={-1} autoComplete="off" name="company_url" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} /></label>
+          <label>Do not fill this in<input tabIndex={-1} autoComplete="off" data-lpignore="true" data-1p-ignore="true" name="hp_trap_7" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} /></label>
         </div>
 
         {/* Mandatory confirmation — exact product wording, do not change */}

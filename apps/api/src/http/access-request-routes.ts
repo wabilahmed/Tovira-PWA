@@ -24,7 +24,10 @@ export interface AccessRequestRouteOptions {
 
 /** The hidden honeypot field name. A human never sees or fills it; a form-filling bot usually does.
  *  Chosen to look like a real field a bot would complete. */
-const HONEYPOT_FIELD = 'company_url';
+// [P63-2 · owner] It was 'company_url' (labelled "Company URL"): Chrome's autofill can fill a field that reads like
+// "company" with the person's company, hidden or not, and a real request then vanished behind a fake "Thank you". The
+// name and label now mean nothing to autofill. The old name is ignored (an old cached form may still send it, filled).
+const HONEYPOT_FIELD = 'hp_trap_7';
 
 /** Handle POST /access-request (public, no session). Returns true if it handled the request. */
 export async function handleAccessRequestRoute(req: IncomingMessage, res: ServerResponse, opts: AccessRequestRouteOptions): Promise<boolean> {
@@ -70,6 +73,7 @@ export async function handleAccessRequestRoute(req: IncomingMessage, res: Server
   // bot what tripped it; write nothing and notify no one.
   const trap = body[HONEYPOT_FIELD];
   if (typeof trap === 'string' && trap.trim() !== '') {
+    console.info('[access-request] honeypot hit: dropped with a neutral 200'); // [P63-2] a count, never the content
     sendJson(res, 200, { ok: true });
     return true;
   }
