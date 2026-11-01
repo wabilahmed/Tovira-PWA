@@ -135,3 +135,33 @@ describe('[BETA-3] POST /access-request', () => {
     expect((await post(base, VALID)).status).toBe(201); // the submit budget untouched
   });
 });
+
+// [P63-4 · owner] The form's messages are plain English, never a code name ("fullName is required.").
+describe('[P63-4] plain-English messages', () => {
+  it('each missing field says what to enter', async () => {
+    const { base } = await start();
+    const cases: Array<[string, string]> = [
+      ['fullName', 'Please enter your full name.'],
+      ['workEmail', 'Please enter your work email.'],
+      ['phone', 'Please enter your phone number.'],
+      ['companyName', 'Please enter your company name.'],
+      ['roleTitle', 'Please enter your role or job title.'],
+    ];
+    for (const [field, message] of cases) {
+      const res = await post(base, { ...VALID, [field]: '' });
+      expect(res.status).toBe(400);
+      expect(await res.json(), field).toEqual({ error: 'validation', field, message });
+    }
+  });
+  it('too long says so in plain words', async () => {
+    const { base } = await start();
+    expect(await (await post(base, { ...VALID, fullName: 'x'.repeat(500) })).json()).toMatchObject({ message: 'Your full name is too long.' });
+  });
+  it('NEGATIVE: no message ever names a field by its code', async () => {
+    const { base } = await start();
+    for (const field of ['fullName', 'workEmail', 'phone', 'companyName', 'roleTitle']) {
+      const { message } = (await (await post(base, { ...VALID, [field]: '' })).json()) as { message: string };
+      expect(message).not.toMatch(/[a-z][A-Z]/); // camelCase
+    }
+  });
+});

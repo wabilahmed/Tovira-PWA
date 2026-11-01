@@ -51,18 +51,27 @@ const INDUSTRY: ReadonlySet<string> = new Set<Industry>(['insurance', 'wealth_pr
 const MAX_SHORT = 200;
 const MAX_TEXT = 2000;
 
+/** [P63-4 · owner] What each field is called in a message, in plain English (never its code name). */
+const FIELD_LABEL: Record<string, string> = {
+  fullName: 'your full name', workEmail: 'your work email', phone: 'your phone number', companyName: 'your company name',
+  roleTitle: 'your role or job title', tradeLicenceNumber: 'your trade licence number', conversationOwnershipOther: 'whose conversations',
+  industryOther: 'your industry', referralCode: 'the referral code',
+};
+const labelOf = (field: string): string => FIELD_LABEL[field] ?? 'this answer';
+const tooLong = (field: string): string => { const l = labelOf(field); return `${l.charAt(0).toUpperCase()}${l.slice(1)} is too long.`; };
+
 function reqStr(v: unknown, field: string, max = MAX_SHORT): string {
-  if (typeof v !== 'string' || v.trim() === '') throw new AccessRequestValidationError(field, `${field} is required.`);
+  if (typeof v !== 'string' || v.trim() === '') throw new AccessRequestValidationError(field, `Please enter ${labelOf(field)}.`);
   const s = v.trim();
-  if (s.length > max) throw new AccessRequestValidationError(field, `${field} is too long.`);
+  if (s.length > max) throw new AccessRequestValidationError(field, tooLong(field));
   return s;
 }
 
 function optStr(v: unknown, field: string, max = MAX_TEXT): string | null {
   if (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')) return null;
-  if (typeof v !== 'string') throw new AccessRequestValidationError(field, `${field} must be text.`);
+  if (typeof v !== 'string') throw new AccessRequestValidationError(field, `Please enter ${labelOf(field)} as text.`);
   const s = v.trim();
-  if (s.length > max) throw new AccessRequestValidationError(field, `${field} is too long.`);
+  if (s.length > max) throw new AccessRequestValidationError(field, tooLong(field));
   return s;
 }
 
