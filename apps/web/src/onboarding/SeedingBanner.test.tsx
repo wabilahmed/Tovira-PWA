@@ -38,7 +38,9 @@ describe('<SeedingBanner>', () => {
     expect(screen.getByRole('tab', { name: 'iPhone' })).toBeInTheDocument();
     expect(screen.getByText(/save to files/i)).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('tab', { name: 'Android' }));
-    expect(screen.getByText(/choose tovira from the share list/i)).toBeInTheDocument();
+    // [P64 · owner] was "Choose Tovira from the share list": nobody is told to share into Tovira until it is proven
+    expect(screen.getByText(/save to device/i)).toBeInTheDocument();
+    expect(screen.queryByText(/choose tovira from the share list/i)).toBeNull();
   });
 
   it('starts the multi-select import when the primary button is clicked', async () => {

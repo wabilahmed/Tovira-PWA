@@ -13,7 +13,7 @@ import { hapticTick } from '../haptics.js';
 
 // One controller per document, wired to the real window. Guarded so the module is
 // import-safe under SSR / jsdom (where `window` may be absent).
-const controller =
+export const controller =
   typeof window !== 'undefined'
     ? new InstallPromptController(window, detectStandalone(window as unknown as Parameters<typeof detectStandalone>[0]))
     : null;

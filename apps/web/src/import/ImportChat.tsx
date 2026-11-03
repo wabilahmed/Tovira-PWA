@@ -170,8 +170,9 @@ export function ImportChat({
       <ExportSteps />
       <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Then choose the file here (.zip or .txt), or paste the chat.</p>
 
+      {/* [P64] named as the steps above name it ("tap Choose the chat export below") */}
       <label>
-        Chat export (.zip or .txt)
+        Choose the chat export (.zip or .txt)
         <input
           type="file"
           accept="text/plain,application/zip,application/x-zip-compressed,application/octet-stream,.txt,.zip"
