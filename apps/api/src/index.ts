@@ -71,6 +71,7 @@ import {
   createCostReportStore,
   createAdminStore,
   createHotLeadsStore,
+  createFunnelSource,
   createSpendOverrideRepository,
   createBriefService,
   createCorrectionRepository,
@@ -732,6 +733,7 @@ async function main(): Promise<void> {
     opsAlerts,
     adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },
     hotLeads,
+    adminFunnel: { source: createFunnelSource(config, migrationPool) }, // [P63-6]
     accessRequestsForLeads: accessRequests,
     // [P58] the founder's invite email to a hot lead (from wabil@tovira.io), its prefilled form and auto-approval
     adminEvents, // [P60]

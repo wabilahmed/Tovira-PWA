@@ -100,7 +100,7 @@ import { NotFound } from './components/NotFound.js';
 // [BILL-13] The Stripe return paths are real app routes (not a 404): success/cancel land on the return
 // pages below; /billing is the Customer Portal return → the Billing (Settings) page.
 export const BILLING_RETURN_PATHS = ['/billing/success', '/billing/cancel', '/billing'] as const;
-export const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite', '/verify-email', '/request-access', '/ops/access', '/ops/costs', '/admin', '/admin/set-password', '/admin/leads', '/admin/access', '/admin/costs', '/admin/audit', ...BILLING_RETURN_PATHS]);
+export const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite', '/verify-email', '/request-access', '/ops/access', '/ops/costs', '/admin', '/admin/set-password', '/admin/leads', '/admin/funnel', '/admin/access', '/admin/costs', '/admin/audit', ...BILLING_RETURN_PATHS]);
 import { InstallBanner } from './pwa/InstallBanner.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';

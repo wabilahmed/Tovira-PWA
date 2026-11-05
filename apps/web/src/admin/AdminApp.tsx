@@ -3,17 +3,18 @@ import { AdminRequestError, AdminSignedOutError, type AdminApi, type AdminStage,
 import { AccessPanel } from './AccessPanel.js';
 import { CostsPanel } from './CostsPanel.js';
 import { LeadsPanel } from './LeadsPanel.js';
+import { FunnelPanel } from './FunnelPanel.js';
 import { Wordmark } from '../components/Wordmark.js';
 import { Banner, Button, EmptyState, Page, PageHeader, TextInput } from '../ui/index.js';
 
 /**
  * [P45-4 · owner] The admin console at /admin (phone-first, the P39 design system). Its own sign-in: password, then a
  * 6-digit code from an authenticator app (enrolled on first sign-in, with 10 recovery codes shown once). Then a small
- * nav: Leads · Access · Costs · Audit. The ops token is never asked for here.
+ * nav: Leads · Funnel · Access · Costs · Audit ([P63-6] Funnel). The ops token is never asked for here.
  */
-type Tab = 'leads' | 'access' | 'costs' | 'audit';
+type Tab = 'leads' | 'funnel' | 'access' | 'costs' | 'audit';
 const TABS: Array<{ tab: Tab; label: string }> = [
-  { tab: 'leads', label: 'Leads' }, { tab: 'access', label: 'Access' }, { tab: 'costs', label: 'Costs' }, { tab: 'audit', label: 'Audit' },
+  { tab: 'leads', label: 'Leads' }, { tab: 'funnel', label: 'Funnel' }, { tab: 'access', label: 'Access' }, { tab: 'costs', label: 'Costs' }, { tab: 'audit', label: 'Audit' },
 ];
 
 /** [P45-4] The former token pages now live in the console. */
@@ -63,6 +64,7 @@ export function AdminApp({ api }: { api: AdminApi }): JSX.Element {
         <Button variant="text" size="sm" onClick={() => void api.logout().catch(() => undefined).finally(() => setStage('signed_out'))}>Sign out</Button>
       </nav>
       {tab === 'leads' && <LeadsPanel api={api} onSignedOut={signedOut} />}
+      {tab === 'funnel' && <FunnelPanel api={api} onSignedOut={signedOut} />}
       {tab === 'access' && <AccessPanel api={api} onSignedOut={signedOut} />}
       {tab === 'costs' && <CostsPanel api={api} onSignedOut={signedOut} />}
       {tab === 'audit' && <AuditPanel api={api} onSignedOut={signedOut} />}

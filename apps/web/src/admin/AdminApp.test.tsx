@@ -22,6 +22,7 @@ function api(stage: AdminStage | null, over: Partial<AdminApi> = {}): AdminApi {
     audit: vi.fn(async () => [{ adminEmail: 'wabil@tovira.io', action: 'access.approve', target: 'dana@x.ae', detail: null, at: Date.parse('2026-10-26T10:00:00Z') }]),
     accessList: vi.fn(async () => []), approve: vi.fn(), reject: vi.fn(), reinvite: vi.fn(),
     costs: vi.fn(async () => ({ view: 'period' as const, ceilingAed: 67, voiceRecordedSince: null, rows: [], totals: [] })),
+    funnel: vi.fn(async () => ({ period: '30d' as const, since: null, rows: [], counts: { invitesSent: 0, linksOpened: 0, formsSubmitted: { invite: 0, public: 0, total: 0 }, approved: 0, passwordSet: 0, firstSignIn: 0, firstClient: 0 } })), // [P63-6]
     leads: vi.fn(async () => ({ leads: [], newCount: 0, countries: [], sync: { cursor: null, lastRunAt: null, lastStatus: null, banner: null } })),
     updateLead: vi.fn(), previewInvite: vi.fn(), sendInvite: vi.fn(), addTestLead: vi.fn(), downloadCsv: vi.fn(), // [P58 · owner] Invite to beta became the invite email
     ...over,
@@ -76,7 +77,8 @@ describe('[P45-4] the console', () => {
     const a = api('ok');
     render(<AdminApp api={a} />);
     const nav = await screen.findByRole('navigation', { name: 'Admin' });
-    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Leads', 'Access', 'Costs', 'Audit']);
+    // [P63-6 · owner] Admin → Funnel is a new tab, after Leads (was Leads · Access · Costs · Audit)
+    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Leads', 'Funnel', 'Access', 'Costs', 'Audit']);
     await userEvent.click(within(nav).getByRole('link', { name: 'Access' }));
     expect(window.location.pathname).toBe('/admin/access');
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));

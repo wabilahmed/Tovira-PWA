@@ -82,6 +82,8 @@ import { adminAccessRoute, adminCostsRoute } from './http/admin-console-routes.j
 import type { LeadInviteService } from './services/leads/lead-invite-service.js';
 import type { AdminEvents } from './services/access/admin-events.js';
 import { adminLeadsRoute } from './http/admin-leads-routes.js';
+import { adminFunnelRoute } from './http/admin-funnel-routes.js';
+import type { FunnelSource } from './services/funnel/funnel.js';
 import type { HotLeadsStore } from './ports/hot-leads.js';
 import type { AccessRequestRepository } from './ports/access-request-repository.js';
 import type { CostReportService } from './services/spend/cost-report-service.js';
@@ -244,6 +246,8 @@ export interface ApiDeps {
   adminRoute?: Omit<AdminRouteDeps, 'cookieSecure'>;
   /** [P45-2] the console's cost report (falls back to the ops one). */
   adminCosts?: Pick<CostReportService, 'report'>;
+  /** [P63-6] Admin → Funnel: the funnel's rows (owner plane). */
+  adminFunnel?: { source: FunnelSource; now?: () => number };
   /** [P45-3] hot leads (owner plane) for the console's Leads tab. */
   hotLeads?: HotLeadsStore;
   /** [P45-3] where Invite to beta writes the pending request. */
@@ -381,6 +385,7 @@ export function createApiServer(deps: ApiDeps): Server {
           ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval)] : []),
           ...(costs ? [adminCostsRoute(costs)] : []),
           ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, invites: deps.leadInvites })] : []),
+          ...(deps.adminFunnel ? [adminFunnelRoute(deps.adminFunnel)] : []),
         ];
         if (await handleAdminRoute(request, response, { ...deps.adminRoute, extra, cookieSecure })) return;
       }

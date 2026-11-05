@@ -19,6 +19,17 @@ export interface AccessRequest {
   createdAt: number; status: AccessStatus; reviewedAt: number | null; reviewedNote: string | null; linkedUserId: string | null;
 }
 export type CostView = 'period' | 'month';
+/** [P63-6] Admin → Funnel */
+export type FunnelPeriod = '7d' | '30d' | 'all';
+export interface FunnelPerson {
+  key: string; name: string | null; email: string | null; company: string | null; source: 'invite' | 'public' | 'admin'; isTest: boolean;
+  inviteSentAt: number | null; inviteOpenedAt: number | null; submittedAt: number | null; approvedAt: number | null;
+  passwordSetAt: number | null; firstSignInAt: number | null; firstClientAt: number | null;
+}
+export interface FunnelReport {
+  period: FunnelPeriod; since: number | null; rows: FunnelPerson[];
+  counts: { invitesSent: number; linksOpened: number; formsSubmitted: { invite: number; public: number; total: number }; approved: number; passwordSet: number; firstSignIn: number; firstClient: number };
+}
 export interface CostRow {
   userId: string; email: string; plan: string; key: string; periodLabel: string; group: string;
   claudeAed: number; calls: number; byClass: Record<string, number>;
@@ -58,6 +69,7 @@ export interface AdminApi {
   reject(id: string, note: string): Promise<AccessRequest>;
   reinvite(id: string): Promise<AccessRequest>;
   costs(view: CostView): Promise<CostReport>;
+  funnel(period: FunnelPeriod): Promise<FunnelReport>;
   leads(filter: { status?: LeadStatus; country?: string }): Promise<LeadsView>;
   updateLead(id: string, patch: { status?: LeadStatus; notes?: string | null }): Promise<HotLead>;
   previewInvite(id: string, personalLine: string): Promise<InvitePreview>;
@@ -103,6 +115,7 @@ export class HttpAdminClient implements AdminApi {
   async reject(id: string, note: string) { return (await this.call<{ request: AccessRequest }>('POST', `/access-requests/${encodeURIComponent(id)}/reject`, { note })).request; }
   async reinvite(id: string) { return (await this.call<{ request: AccessRequest }>('POST', `/access-requests/${encodeURIComponent(id)}/reinvite`, {})).request; }
   costs(view: CostView) { return this.call<CostReport>('GET', `/costs?view=${view}`); }
+  funnel(period: FunnelPeriod) { return this.call<FunnelReport>('GET', `/funnel?period=${period}`); }
   leads(f: { status?: LeadStatus; country?: string }) {
     const q = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as Array<[string, string]>).toString();
     return this.call<LeadsView>('GET', `/leads${q ? `?${q}` : ''}`);

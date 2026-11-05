@@ -1,3 +1,6 @@
+import { PgFunnelSource } from './adapters/funnel/pg-funnel-source.js';
+import { InMemoryFunnelSource } from './adapters/funnel/in-memory-funnel-source.js';
+import type { FunnelSource } from './services/funnel/funnel.js';
 import { PgHotLeadsStore } from './adapters/leads/pg-hot-leads-store.js';
 import { InMemoryHotLeadsStore } from './adapters/leads/in-memory-hot-leads-store.js';
 import type { HotLeadsStore } from './ports/hot-leads.js';
@@ -363,6 +366,15 @@ export function createAuthService(config: AppConfig, pool?: Pool, invites?: Invi
 }
 
 /** [P45-3] Hot leads (owner plane: personal data about prospects, admin console only). */
+/** [P63-6] Admin → Funnel's rows: our own tables (owner pool), or an empty in-memory source. */
+export function createFunnelSource(config: AppConfig, rootPool?: Pool): FunnelSource {
+  if (config.authStore === 'postgres') {
+    if (!rootPool) throw new Error('authStore=postgres requires a database pool');
+    return new PgFunnelSource(rootPool);
+  }
+  return new InMemoryFunnelSource();
+}
+
 export function createHotLeadsStore(config: AppConfig, rootPool?: Pool): HotLeadsStore {
   if (config.authStore === 'postgres') {
     if (!rootPool) throw new Error('authStore=postgres requires a database pool');
