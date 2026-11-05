@@ -31,7 +31,7 @@ const TITLES: Record<Step, string> = { menu: 'New client', type: 'Type it', reco
 const NOTES_PROMPT = 'What do you know? Needs, budget, dates, what you promised.';
 const INDUSTRIES = [{ value: '', label: 'Not set' }, ...INDUSTRY_OPTIONS.map((o) => ({ value: o.value as string, label: o.label }))];
 
-export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, onDone, onImportChat, onImportSeveral, drafts }: {
+export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, onDone, onSent, onImportChat, onImportSeveral, drafts }: {
   open: boolean;
   onClose: () => void;
   api: NewClientApi;
@@ -40,6 +40,8 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
   onSaveRecording: (clientId: string, blob: Blob, recordedAt: number) => Promise<void>;
   /** Open the client: the new one, or the existing one the rep added this to. */
   onDone: (clientId: string, created: ClientSummary | null) => void;
+  /** [P65] a voice note or a typed note was sent with it, so the app can say it is reading it */
+  onSent?: (client: { id: string; name: string }, kind: 'voice' | 'typed') => void;
   onImportChat: () => void;
   onImportSeveral: () => void;
   /** [P58-P1] Where an unconfirmed recording waits on the device (its own IndexedDB store, never the upload outbox). */
@@ -85,6 +87,8 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
   function close(): void { reset(); onClose(); }
   const set = (k: keyof Fields) => (v: string) => setFields((f) => ({ ...f, [k]: v }));
 
+  /** [P65] what attach() sends: a voice note, a typed note, or nothing */
+  const sentKind = (): 'voice' | 'typed' | null => (source === 'voice' && recording.current ? 'voice' : source === 'type' && notes.trim() ? 'typed' : null);
   async function attach(clientId: string): Promise<boolean> {
     try {
       if (source === 'voice' && recording.current) {
@@ -100,13 +104,14 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
   }
   async function finish(client: ClientSummary): Promise<void> {
     setCreated(client);
-    if (await attach(client.id)) { reset(); onDone(client.id, client); }
+    const kind = sentKind();
+    if (await attach(client.id)) { reset(); onDone(client.id, client); if (kind) onSent?.(client, kind); }
   }
   async function save(confirmDuplicate = false): Promise<void> {
     setError(null);
     setBusy(true);
     try {
-      if (created) { if (await attach(created.id)) { const c = created; reset(); onDone(c.id, c); } return; }
+      if (created) { const kind = sentKind(); if (await attach(created.id)) { const c = created; reset(); onDone(c.id, c); if (kind) onSent?.(c, kind); } return; }
       const r = await api.createNew({ ...fields, name: fields.name.trim(), confirmDuplicate });
       if (r.ok) { await finish(r.client); return; }
       if (r.duplicate) { setDuplicate({ ...r.duplicate, message: r.message }); setStep('duplicate'); return; }
@@ -119,7 +124,8 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
     if (!duplicate) return;
     setBusy(true);
     const d = duplicate;
-    if (await attach(d.id)) { reset(); onDone(d.id, null); } else setBusy(false);
+    const kind = sentKind();
+    if (await attach(d.id)) { reset(); onDone(d.id, null); if (kind) onSent?.(d, kind); } else setBusy(false);
   }
 
   async function startVoice(): Promise<void> {

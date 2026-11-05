@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 import { IconButton } from '../ui/Button.js';
 import { ListRow } from '../ui/ListRow.js';
+import { Badge } from '../ui/Badge.js';
 import type { ClientSummary } from './clientsClient.js';
 import { LeadStatusPill } from './LeadStatus.js';
 import { ago } from './page/clientPageClient.js';
@@ -44,12 +45,15 @@ export function ClientRow({
   onOpenStatus,
   match,
   summary,
+  processing,
 }: {
   client: ClientSummary;
   onOpen: () => void;
   onOpenStatus: () => void;
   match?: { field: MatchField; value: string; ranges: HlRange[] };
   summary?: RowSummary;
+  /** [P65] what Tovira is doing with what the rep sent for this client */
+  processing?: 'reading' | 'failed' | 'held';
 }): JSX.Element {
   const activity = rowActivity(summary, Date.now());
   return (
@@ -64,6 +68,12 @@ export function ClientRow({
       meta={activity || undefined}
       trailing={
         <>
+          {/* [P65 · owner] Reading… while Tovira reads what was sent; why, when it couldn't */}
+          {processing && (
+            <span data-testid={`processing-badge-${client.id}`}>
+              <Badge tone={processing === 'failed' ? 'danger' : processing === 'held' ? 'warning' : 'accent'}>{processing === 'reading' ? 'Reading…' : processing === 'failed' ? 'Couldn’t read' : 'Not read yet'}</Badge>
+            </span>
+          )}
           {/* [P36-6] A pill only for a real status — none on a row with no status. */}
           {client.leadStatus && (
             <span data-testid={`lead-pill-${client.id}`}>

@@ -1,5 +1,9 @@
 import { API_BASE } from './apiBase.js';
 import { sendVisit } from './marketing/visit.js';
+import { ProcessingClient, readingToast, readyToast, type CaptureKind, type ProcessingItem } from './processing/processingClient.js';
+import { useProcessing } from './processing/useProcessing.js';
+import { ProcessingCard, type SectionLink } from './processing/ProcessingCard.js';
+import { Toast } from './ui/feedback.js';
 import { AdminApp, opsRedirect } from './admin/AdminApp.js';
 import { HttpAdminClient } from './admin/adminClient.js';
 import { useEffect, useRef, useState } from 'react';
@@ -124,6 +128,7 @@ const auth = new AuthClient(API_BASE);
 const accessRequestApi = new HttpAccessRequestClient(API_BASE);
 const adminApi = new HttpAdminClient(API_BASE); // [P45-4] the admin console (/admin), its own session
 const clientsApi = new ClientsClient(API_BASE);
+const processingApi = new ProcessingClient(API_BASE); // [P65] what Tovira is doing with what the rep sent
 const clientPageApi = new HttpClientPageClient(API_BASE); // [P36-5]
 const tourApi = new HttpTourClient(API_BASE); // [P37]
 const onboardingApi = new OnboardingClient(API_BASE);
@@ -422,12 +427,40 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
     setSharedContentB64('');
     setOpen(c);
   };
+  // [P65 · owner] What Tovira is doing with what the rep sent, from the server: polled while something is working. A
+  // toast the moment something is sent; another when it is ready and the rep is not on that client's page.
+  const openRef = useRef<ClientSummary | null>(null);
+  openRef.current = open;
+  const [procToast, setProcToast] = useState<{ text: string; clientId?: string } | null>(null);
+  const processing = useProcessing(processingApi, {
+    onSettled: (i) => { if (openRef.current?.id !== i.clientId) setProcToast({ text: readyToast(i), clientId: i.clientId }); },
+  });
+  useEffect(() => {
+    if (!procToast) return;
+    const t = setTimeout(() => setProcToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [procToast]);
+  const announce = (kind: CaptureKind, name: string): void => { setProcToast({ text: readingToast(kind, name) }); processing.kick(); };
+  const itemsFor = (clientId: string): ProcessingItem[] => processing.status.items.filter((i) => i.clientId === clientId);
+  const rowProcessing = (clientId: string): 'reading' | 'failed' | 'held' | undefined => {
+    const its = itemsFor(clientId);
+    return its.some((i) => i.state === 'working') ? 'reading' : its.some((i) => i.state === 'failed') ? 'failed' : its.some((i) => i.state === 'held') ? 'held' : undefined;
+  };
+  function renderProcessingToast(): JSX.Element | null {
+    if (!procToast) return null;
+    const target = procToast.clientId ? clients.find((c) => c.id === procToast.clientId) : undefined;
+    return (
+      <Toast data-testid="processing-toast" action={target ? <Button variant="text" size="sm" onClick={() => { setProcToast(null); setOpen(target); }}>Open</Button> : undefined}>
+        {procToast.text}
+      </Toast>
+    );
+  }
   const openImportedClient = async (clientId: string): Promise<void> => {
     const list = await clientsApi.list();
     setClients(list);
     setClientsAction(null);
     const c = list.find((x) => x.id === clientId);
-    if (c) setOpen(c);
+    if (c) { setOpen(c); announce('chat', c.name); } // [P65] a chat for a new client: its page, and the toast
   };
   // [LEAD-STATUS] The active filter chip, remembered per device (not per account — it's a view
   // preference). Wrapped in try/catch: a private window or blocked storage falls back to "All".
@@ -642,10 +675,14 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
               onRenamed={applyRename}
               initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined}
               onOpenSubscription={openSubscription}
+              processing={itemsFor(open.id)}
+              onCaptured={(kind) => announce(kind, open.name)}
+              onRetry={async (noteId) => { const ok = await processingApi.retry(noteId); processing.kick(); return ok; }}
             />
             <LeadStatusSheet client={statusSheetFor} suggestion={statusSheetFor ? suggestions.get(statusSheetFor.id) ?? null : null} onClose={() => setStatusSheetFor(null)} onPick={(s, outcome) => void changeLeadStatus(statusSheetFor!, s, { outcome })} />
             <OutcomeSheet client={outcomeFor} onClose={() => setOutcomeFor(null)} onPick={(o) => { const c = outcomeFor!; setOutcomeFor(null); void setClientOutcome(c, o); }} />
             {renderLeadToast()}
+            {renderProcessingToast()}
           </>
         )}
       </PushView>
@@ -936,6 +973,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
           </div>
 
           {renderLeadToast()}
+          {renderProcessingToast()}
 
           {(search.active ? visibleHits.length === 0 : visibleClients.length === 0) ? (
             clients.length === 0 ? (
@@ -970,10 +1008,11 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
                       onOpenStatus={() => setStatusSheetFor(h.client)}
                       match={{ field: h.field, value: h.value, ranges: h.ranges }}
                       summary={rows[h.client.id]}
+                      processing={rowProcessing(h.client.id)}
                     />
                   ))
                 : visibleClients.map((c) => (
-                    <ClientRow key={c.id} client={c} summary={rows[c.id]} onOpen={() => setOpen(c)} onOpenStatus={() => setStatusSheetFor(c)} />
+                    <ClientRow key={c.id} client={c} summary={rows[c.id]} processing={rowProcessing(c.id)} onOpen={() => setOpen(c)} onOpenStatus={() => setStatusSheetFor(c)} />
                   ))}
             </ul>
           )}
@@ -987,6 +1026,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
             drafts={voiceDrafts}
             onSaveRecording={(clientId, blob, recordedAt) => outbox.enqueue({ id: randomId(), clientId, blob, createdAt: recordedAt }).then(() => undefined)}
             onDone={openAfterNewClient}
+            onSent={(c, kind) => announce(kind, c.name)} // [P65]
             onImportChat={() => setClientsAction('newFromChat')}
             onImportSeveral={() => setClientsAction('importSeveral')}
           />
@@ -1006,7 +1046,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
           {isDesktop && (
             <div className="tov-split__detail">
               {open ? (
-                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }} onRenamed={applyRename} initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined} onOpenSubscription={openSubscription} />
+                <ClientDetail client={open} clients={clients.map((c) => ({ id: c.id, name: c.name }))} onBack={() => setOpen(null)} onSubscribe={startCheckout} onOpenLeadSheet={() => setStatusSheetFor(open)} timeZone={session.user.timezone} billingStatus={billing?.status} onOpenClient={(id) => { const c = clients.find((x) => x.id === id); if (c) setOpen(c); }} onRenamed={applyRename} initialImport={sharedFor && sharedFor.clientId === open.id ? sharedFor : undefined} onOpenSubscription={openSubscription} processing={itemsFor(open.id)} onCaptured={(kind) => announce(kind, open.name)} onRetry={async (noteId) => { const ok = await processingApi.retry(noteId); processing.kick(); return ok; }} />
               ) : (
                 <p style={{ color: 'var(--text-secondary)' }}>Select a client to open their book.</p>
               )}
@@ -1040,7 +1080,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
   );
 }
 
-function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport, onOpenSubscription, onRenamed }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; /** [P39-8] where back goes ("Clients", "Find", "Today") */ backLabel?: string; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string }; /** [P37] */ onOpenSubscription?: () => void; /** [P49] the client was renamed (or the rename undone) */ onRenamed?: (c: ClientSummary) => void }): JSX.Element {
+function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport, onOpenSubscription, onRenamed, processing = [], onCaptured, onRetry }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; /** [P39-8] where back goes ("Clients", "Find", "Today") */ backLabel?: string; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string }; /** [P37] */ onOpenSubscription?: () => void; /** [P49] the client was renamed (or the rename undone) */ onRenamed?: (c: ClientSummary) => void; /** [P65] what Tovira is doing with this client's captures */ processing?: ProcessingItem[]; /** [P65] the rep just sent something */ onCaptured?: (kind: CaptureKind) => void; /** [P65] Try again */ onRetry?: (noteId: string) => Promise<boolean> }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
@@ -1131,6 +1171,7 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
     setRecStartedAt(null);
     await outbox.enqueue({ id: randomId(), clientId: client.id, blob, createdAt: Date.now() });
     hapticTick(); // the recording is captured — a commit
+    onCaptured?.('voice'); // [P65]
     setCapture(null);
     setAddOpen(false);
     refresh();
@@ -1143,6 +1184,7 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
     try {
       await clientsApi.createPasteNote(client.id, paste);
       hapticTick(); // the message is saved — a commit
+      onCaptured?.('typed'); // [P65]
       setPaste('');
       setCapture(null);
       setAddOpen(false);
@@ -1155,6 +1197,19 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
   // [P36-5] The page's summaries + people count, and which sections the rep keeps open (saved with the account).
   const nowMs = Date.now();
   const { open: sections, toggle } = useSections(clientPageApi);
+  // [P65 · owner] When something for this client finishes, the page reloads what was found (before, the details only
+  // appeared after reopening the client). A count in the summary opens its section.
+  const workingIds = processing.filter((i) => i.state === 'working').map((i) => i.noteId).join(',');
+  const prevWorking = useRef(workingIds);
+  useEffect(() => {
+    const was = prevWorking.current.split(',').filter(Boolean);
+    prevWorking.current = workingIds;
+    if (was.some((id) => !workingIds.split(',').includes(id))) refresh();
+  }, [workingIds]);
+  const openSection = (s: SectionLink): void => {
+    if (!sections[s]) toggle(s);
+    setTimeout(() => document.querySelector(`[data-testid="section-${s}"]`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 50);
+  };
   const people = stakeholders.length;
   const thingsToKeep = pointers.pointers.length;
   const recording = active !== null;
@@ -1234,6 +1289,7 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
                 setCapture(null);
                 setAddOpen(false);
                 refresh();
+                onCaptured?.('chat'); // [P65]
               }}
               onOpenClient={onOpenClient}
               initialContent={initialImport?.content}
@@ -1249,6 +1305,16 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
           </p>
         )}
       </ClientHeader>
+
+      {/* [P65 · owner] what Tovira is doing with what the rep sent here, and what it found */}
+      <ProcessingCard
+        items={processing}
+        onOpenSection={openSection}
+        onRetry={onRetry ?? (async () => false)}
+        onTopUp={onOpenSubscription}
+        onSubscribe={() => onSubscribe('monthly')}
+        onUpdatePayment={onOpenSubscription}
+      />
 
       <Accordion id="meeting" title="Before your next meeting" summary={thingsToKeep > 0 ? `${thingsToKeep} thing${thingsToKeep === 1 ? '' : 's'} to keep in mind` : null} open={sections.meeting} onToggle={() => toggle('meeting')}>
         {pointers.pointers.length > 0 && <PointersCard clientName={client.name} clientId={client.id} pointers={pointers.pointers} disclosure={pointers.disclosure} />}
