@@ -358,6 +358,7 @@ export function buildInMemoryDeps(
     // [P65-5 · owner] every kind; pushed only when the app is closed and reading took over 30 seconds
     kinds: ['chat', 'voice', 'typed'],
     shouldPush: (u, n) => (n.settledAt ?? Date.now()) - n.createdAt > 30_000 && !presence.isOpen(u),
+    onFailure: async (u, n, kind) => { const user = await authUsers.findById(u); if (user && adminEvents) await adminEvents.processingFailed(user.email, kind, n); }, // [P65-6] as index.ts
   });
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),

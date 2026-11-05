@@ -17,7 +17,7 @@ import type { PushableAlert } from '../push/push-dispatch-service.js';
  * chat with Anjali Mehra." (or your voice note / your note about …), for every kind the app wires (`kinds`). With
  * `shouldPush` wired, nothing is pushed while the app is open or for something done in 30 seconds or less: a chat is
  * then recorded in the in-app list only, and a voice or typed note not at all (the toast and the page say it). A push
- * goes only to a device the rep turned notifications on for.
+ * goes only to a device the rep turned notifications on for. [P65-6] A failure on our side also emails the admins.
  */
 export type SettledKind = 'chat' | 'voice' | 'typed';
 export interface ImportCompletionDeps {
@@ -32,6 +32,8 @@ export interface ImportCompletionDeps {
   kinds?: SettledKind[];
   /** [P65-5] Push only when this is true (the app is closed and it took over 30 seconds). Absent: always, as before. */
   shouldPush?: (userId: string, note: NoteRecord) => boolean;
+  /** [P65-6] A failure on our side: the admins are told (rep, path, error class; never content). Best-effort. */
+  onFailure?: (userId: string, note: NoteRecord, kind: SettledKind) => Promise<void>;
 }
 
 const TERMINAL: ReadonlySet<string> = new Set(['extracted', 'needs_review', 'import_failed', 'transcription_failed']);
@@ -55,6 +57,7 @@ export class ImportCompletionService {
     const kind = kindOf(note);
     if (!kind) return;
     const failed = note.status !== 'extracted';
+    if (failed && this.deps.onFailure) await this.deps.onFailure(userId, note, kind).catch(() => undefined); // [P65-6]
     // Only the kinds wired notify (chats only, by default).
     if (!(this.deps.kinds ?? ['chat']).includes(kind)) return;
 

@@ -16,6 +16,15 @@ import { renderEmail, renderText, type EmailContent } from '../email/templates.j
 export const FIRST_SIGN_IN_KEY = 'admin.first_sign_in';
 export const FIRST_CAPTURE_KEY = 'admin.first_capture';
 
+/** [P65-6] What kind of failure it was, for the admin's email (never the content). */
+export function failureClassOf(n: { status: string; source: string; rawText: string | null }): string {
+  if (n.status === 'transcription_failed') return 'recording missing';
+  if (n.status === 'import_failed') return 'import failed';
+  if (n.source === 'voice' && !n.rawText?.trim()) return 'transcription failed';
+  return 'extraction failed';
+}
+const PATH: Record<'chat' | 'voice' | 'typed', string> = { chat: 'WhatsApp chat', voice: 'voice note', typed: 'typed note' };
+
 export interface AdminEventsDeps {
   email: EmailSender;
   adminEmails: string[];
@@ -52,6 +61,12 @@ export class AdminEvents {
     const who = await this.who(userId, email);
     const how = kind === 'chat' ? 'a WhatsApp chat' : kind === 'voice' ? 'a voice note' : 'a typed note';
     await this.send(`${who.name} added their first client`, [`${who.line} added their first client, with ${how}.`], '/admin/costs');
+  }
+
+  /** [P65-6 · owner] Tovira couldn't read something on our side: the rep, the path and the error class. Never the
+   *  content (no note text, no client name). */
+  async processingFailed(email: string, kind: 'chat' | 'voice' | 'typed', note: { status: string; source: string; rawText: string | null }): Promise<void> {
+    await this.send(`Tovira couldn't read a ${PATH[kind]}`, [`Rep: ${email}`, `Path: ${PATH[kind]}`, `Error: ${failureClassOf(note)}`], '/admin/costs');
   }
 
   private async who(userId: string, email: string): Promise<{ name: string; line: string }> {
