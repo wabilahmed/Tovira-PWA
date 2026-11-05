@@ -100,6 +100,8 @@ export class LeadInviteService {
   /** What the form is prefilled with: the four fields the lead's record holds. */
   async prefill(rawToken: string): Promise<{ fullName: string; workEmail: string; companyName: string; roleTitle: string } | null> {
     const lead = await this.leadForToken(rawToken);
+    // [P63-5] the funnel's "invite link opened": the first load only; never fails the form
+    if (lead) await this.deps.store.markInviteOpened(lead.id, this.now()).catch(() => undefined);
     return lead ? { fullName: lead.name ?? '', workEmail: lead.email!.trim().toLowerCase(), companyName: lead.companyName ?? '', roleTitle: lead.jobTitle ?? '' } : null;
   }
 

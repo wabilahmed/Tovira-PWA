@@ -87,6 +87,11 @@ export class InMemoryHotLeadsStore implements HotLeadsStore {
     return { ...l };
   }
 
+  async markInviteOpened(id: string, at: number): Promise<void> {
+    const l = this.leads.find((x) => x.id === id);
+    if (l && l.inviteOpenedAt == null) l.inviteOpenedAt = at;
+  }
+
   async markSignedUpByEmail(email: string, at: number): Promise<number> {
     let n = 0;
     for (const l of this.leads) if (l.email && l.email.toLowerCase() === email.trim().toLowerCase() && l.status !== 'signed_up') { l.status = 'signed_up'; l.updatedAt = at; n++; }

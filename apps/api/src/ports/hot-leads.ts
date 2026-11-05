@@ -45,8 +45,10 @@ export interface HotLead {
   isTest?: boolean;
   /** [P58-3] the invite email: when sent, re-sent (once), when its link expires, when the lead submitted the form */
   inviteSentAt?: number | null; inviteResentAt?: number | null; inviteExpiresAt?: number | null; requestedAt?: number | null;
+  /** [P63-5] the first time the invite link's form loaded with its live token (recorded from P63 on) */
+  inviteOpenedAt?: number | null;
 }
-export type HotLeadInput = Omit<HotLead, 'id' | 'status' | 'notes' | 'accessRequestId' | 'firstSeenAt' | 'updatedAt' | 'isTest' | 'inviteSentAt' | 'inviteResentAt' | 'inviteExpiresAt' | 'requestedAt'>;
+export type HotLeadInput = Omit<HotLead, 'id' | 'status' | 'notes' | 'accessRequestId' | 'firstSeenAt' | 'updatedAt' | 'isTest' | 'inviteSentAt' | 'inviteResentAt' | 'inviteExpiresAt' | 'requestedAt' | 'inviteOpenedAt'>;
 
 export interface ExpleeSyncState { cursor: number | null; lastRunAt: number | null; lastStatus: string | null; banner: string | null }
 
@@ -73,6 +75,8 @@ export interface HotLeadsStore {
   findByInviteToken(tokenHash: string, at: number): Promise<HotLead | null>;
   /** [P58-3] The token is used once: the lead becomes Requested, linked to its access request. Null when already used. */
   markRequested(id: string, tokenHash: string, accessRequestId: string, at: number): Promise<HotLead | null>;
+  /** [P63-5] The invite link's form loaded: record the first time only. */
+  markInviteOpened(id: string, at: number): Promise<void>;
 }
 
 /** [P58-3] Minimum wait before an invite can be re-sent, and the link's lifetime. */

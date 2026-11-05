@@ -6,7 +6,7 @@ interface Row {
   id: string; person_id: string; campaign_id: number; campaign_name: string | null; name: string | null; email: string | null; job_title: string | null;
   company_name: string | null; company_domain: string | null; linkedin_url: string | null; country: string | null; phone: string | null; why_hot: string | null;
   became_hot_at: Date | null; erased: boolean; status: LeadStatus; notes: string | null; access_request_id: string | null; first_seen_at: Date; updated_at: Date;
-  is_test: boolean; invite_sent_at: Date | null; invite_resent_at: Date | null; invite_expires_at: Date | null; requested_at: Date | null;
+  is_test: boolean; invite_sent_at: Date | null; invite_resent_at: Date | null; invite_expires_at: Date | null; requested_at: Date | null; invite_opened_at: Date | null;
 }
 const toLead = (r: Row): HotLead => ({
   id: String(r.id), personId: r.person_id, campaignId: Number(r.campaign_id), campaignName: r.campaign_name, name: r.name, email: r.email, jobTitle: r.job_title,
@@ -14,9 +14,9 @@ const toLead = (r: Row): HotLead => ({
   becameHotAt: r.became_hot_at?.getTime() ?? null, erased: r.erased, status: r.status, notes: r.notes, accessRequestId: r.access_request_id,
   firstSeenAt: r.first_seen_at.getTime(), updatedAt: r.updated_at.getTime(),
   isTest: r.is_test, inviteSentAt: r.invite_sent_at?.getTime() ?? null, inviteResentAt: r.invite_resent_at?.getTime() ?? null,
-  inviteExpiresAt: r.invite_expires_at?.getTime() ?? null, requestedAt: r.requested_at?.getTime() ?? null,
+  inviteExpiresAt: r.invite_expires_at?.getTime() ?? null, requestedAt: r.requested_at?.getTime() ?? null, inviteOpenedAt: r.invite_opened_at?.getTime() ?? null,
 });
-const COLS = 'id, person_id, campaign_id, campaign_name, name, email, job_title, company_name, company_domain, linkedin_url, country, phone, why_hot, became_hot_at, erased, status, notes, access_request_id, first_seen_at, updated_at, is_test, invite_sent_at, invite_resent_at, invite_expires_at, requested_at';
+const COLS = 'id, person_id, campaign_id, campaign_name, name, email, job_title, company_name, company_domain, linkedin_url, country, phone, why_hot, became_hot_at, erased, status, notes, access_request_id, first_seen_at, updated_at, is_test, invite_sent_at, invite_resent_at, invite_expires_at, requested_at, invite_opened_at';
 const ts = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
 
 /**
@@ -141,6 +141,10 @@ export class PgHotLeadsStore implements HotLeadsStore {
     const { rows } = await this.pool.query<Row>(
       `SELECT ${COLS} FROM hot_leads WHERE invite_token_hash = $1 AND invite_used_at IS NULL AND invite_expires_at > $2`, [tokenHash, ts(at)]);
     return rows[0] ? toLead(rows[0]) : null;
+  }
+
+  async markInviteOpened(id: string, at: number): Promise<void> {
+    await this.pool.query('UPDATE hot_leads SET invite_opened_at = $2::timestamptz WHERE id = $1 AND invite_opened_at IS NULL', [id, new Date(at).toISOString()]);
   }
 
   async markRequested(id: string, tokenHash: string, accessRequestId: string, at: number): Promise<HotLead | null> {
