@@ -1,4 +1,5 @@
 import { API_BASE } from './apiBase.js';
+import { sendVisit } from './marketing/visit.js';
 import { AdminApp, opsRedirect } from './admin/AdminApp.js';
 import { HttpAdminClient } from './admin/adminClient.js';
 import { useEffect, useRef, useState } from 'react';
@@ -259,6 +260,13 @@ export function App(): JSX.Element {
       : null,
   );
 
+  // [P63-7] cookieless page views: request access and sign-in (the landing and privacy pages send their own)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/request-access') sendVisit('request_access');
+  }, []);
+  useEffect(() => {
+    if (!loading && !session && !resetToken && !inviteToken && !verifyToken && typeof window !== 'undefined' && (window.location.pathname === '/' || window.location.pathname === '/app')) sendVisit('sign_in');
+  }, [loading, session]);
   useEffect(() => {
     // On load / refresh: ask the server who we are. Cookie → still logged in.
     auth

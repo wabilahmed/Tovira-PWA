@@ -23,6 +23,8 @@ export interface AccessRequestRouteOptions {
   audit?: (e: AdminAuditEntry) => Promise<void>;
   /** [P60] An invited lead approved at once: "joined via your invite" to the admins, in place of the request email. */
   joined?: (record: AccessRequestRecord) => Promise<void>;
+  /** [P63-7] a real submission, for the visit counter's "share who submit" (the same cookieless day hash; best-effort) */
+  submitted?: (who: { ip: string; ua: string }) => Promise<unknown>;
 }
 
 /** The hidden honeypot field name. A human never sees or fills it; a form-filling bot usually does.
@@ -118,6 +120,7 @@ export async function handleAccessRequestRoute(req: IncomingMessage, res: Server
     } catch (err) {
       console.warn('access-request owner notification failed; the request was still recorded', err);
     }
+    await opts.submitted?.({ ip, ua: String(req.headers['user-agent'] ?? '') }).catch(() => undefined);
     sendJson(res, 201, { ok: true, id: record.id, approved });
     return true;
   } catch (err) {

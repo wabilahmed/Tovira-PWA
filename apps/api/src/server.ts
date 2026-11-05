@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type IncomingMessage } from 'node:http';
 import type { Pool } from 'pg';
 import { PROMPT_VERSION } from './services/extraction/prompt.js';
 import type { AuthService } from './services/auth/auth-service.js';
@@ -83,6 +83,8 @@ import type { LeadInviteService } from './services/leads/lead-invite-service.js'
 import type { AdminEvents } from './services/access/admin-events.js';
 import { adminLeadsRoute } from './http/admin-leads-routes.js';
 import { adminFunnelRoute } from './http/admin-funnel-routes.js';
+import { handleVisitRoute } from './http/visit-routes.js';
+import type { VisitService } from './services/visits/visits.js';
 import type { FunnelSource } from './services/funnel/funnel.js';
 import type { HotLeadsStore } from './ports/hot-leads.js';
 import type { AccessRequestRepository } from './ports/access-request-repository.js';
@@ -101,7 +103,7 @@ import { handleAllowanceRoute } from './http/allowance-routes.js';
 import type { AllowanceStatusService } from './services/spend/allowance-status.js';
 import { handleAccountRoute } from './http/account-routes.js';
 import { handleOnboardingRoute } from './http/onboarding-routes.js';
-import { sendJson, extractToken } from './http/helpers.js';
+import { sendJson, extractToken, clientIp } from './http/helpers.js';
 import { billingGateDecision, blockedBody } from './services/billing/billing-access.js';
 
 /**
@@ -246,6 +248,9 @@ export interface ApiDeps {
   adminRoute?: Omit<AdminRouteDeps, 'cookieSecure'>;
   /** [P45-2] the console's cost report (falls back to the ops one). */
   adminCosts?: Pick<CostReportService, 'report'>;
+  /** [P63-7] cookieless site visits (owner plane): POST /visit, and Admin → Funnel's visits. */
+  visits?: VisitService;
+  visitLimiter?: RateLimiter;
   /** [P63-6] Admin → Funnel: the funnel's rows (owner plane). */
   adminFunnel?: { source: FunnelSource; now?: () => number };
   /** [P45-3] hot leads (owner plane) for the console's Leads tab. */
@@ -381,6 +386,8 @@ export function createApiServer(deps: ApiDeps): Server {
       if (deps.adminRoute) {
         const costs = deps.adminCosts ?? deps.opsRoute?.costReport;
         const extra = [
+          // [P63-7] a signed-in admin's own visits today don't count (never handles the request)
+          ...(deps.visits ? [async (req: IncomingMessage) => { await deps.visits!.markAdmin({ ip: clientIp(req), ua: String(req.headers['user-agent'] ?? '') }).catch(() => undefined); return false; }] : []),
           ...(deps.adminRoute.extra ?? []),
           ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval)] : []),
           ...(costs ? [adminCostsRoute(costs)] : []),
@@ -421,6 +428,9 @@ export function createApiServer(deps: ApiDeps): Server {
         accessApproval: deps.accessApproval, // [BETA-8] self-serve expired-invite resend
       })) return;
 
+      // [P63-7] Public, cookieless page-view beacon (no session).
+      if (deps.visits && (await handleVisitRoute(request, response, { visits: deps.visits, limiter: deps.visitLimiter }))) return;
+
       // [BETA-3] Public beta access-request intake (no session). Served only when wired.
       if (
         deps.accessRequest &&
@@ -434,6 +444,7 @@ export function createApiServer(deps: ApiDeps): Server {
           autoApprove: deps.opsRoute?.accessApproval ? async (id) => { await deps.opsRoute!.accessApproval!.approve(id, { createdBy: 'lead invite link' }); } : undefined,
           audit: deps.adminRoute ? (e) => deps.adminRoute!.store.audit(e) : undefined,
           joined: deps.adminEvents ? (r) => deps.adminEvents!.joinedViaInvite(r) : undefined, // [P60]
+          submitted: deps.visits ? (w) => deps.visits!.submitted(w) : undefined, // [P63-7]
         }))
       )
         return;

@@ -90,6 +90,8 @@ import { FindService } from '../services/find/find-service.js';
 import { KeptSuggestionService } from '../services/promises/kept-suggestion-service.js';
 import { InMemoryKeptSuggestionRepository } from '../adapters/promises/in-memory-kept-suggestion-repository.js';
 import { BulkBatchNotifier } from '../services/import/bulk-batch-notifier.js';
+import { InMemoryVisitStore } from '../adapters/visits/in-memory-visit-store.js';
+import { VisitService } from '../services/visits/visits.js';
 import { ImportCompletionService } from '../services/notes/import-completion-service.js';
 import { InMemoryRecallSessionRepository } from '../adapters/recall/in-memory-recall-session-repository.js';
 import { AskCaptureService } from '../services/recall/ask-capture-service.js';
@@ -158,6 +160,8 @@ export interface TestDeps extends ApiDeps {
   modelCallEvents: InMemoryModelCallEventStore;
   /** [BETA-3] the in-memory access-request store, exposed so tests can assert persistence (.count()). */
   accessRequests: InMemoryAccessRequestRepository;
+  /** [P63-7] the cookieless visit counter's store (assert nothing personal is kept). */
+  visitStore: InMemoryVisitStore;
   /** [BETA-5] the approval/invite service + the invite store, exposed for ops + unusable-account tests. */
   accessApproval: AccessApprovalService;
   invites: InMemoryInviteRepository;
@@ -188,6 +192,7 @@ export function buildInMemoryDeps(
   const hasher = new ScryptHasher();
   const inviteActivation = new InMemoryInviteActivationTx(invites, authUsers, accessRequests);
   const hotLeads = new InMemoryHotLeadsStore(); // [P45-3]
+  const visitStore = new InMemoryVisitStore(); // [P63-7]
   let adminEvents: AdminEvents | null = null; // [P60] set once the email sender exists (below)
   const auth = new AuthService({
     users: authUsers,
@@ -417,6 +422,8 @@ export function buildInMemoryDeps(
   const leadInviteClock = { offsetMs: 0 };
   return {
     hotLeads,
+    visitStore,
+    visits: new VisitService(visitStore), // [P63-7]
     accessRequestsForLeads: accessRequests,
     leadInviteClock,
     leadInvites: new LeadInviteService({ store: hotLeads, users: authUsers, email: emailSender, appBaseUrl: 'https://tovira.io', now: () => Date.now() + leadInviteClock.offsetMs, trialEndedFor: (e) => billing.inboxTrialEndedAt(e, Date.now() + leadInviteClock.offsetMs) }),

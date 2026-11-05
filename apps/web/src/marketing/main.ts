@@ -13,6 +13,7 @@
  *     HttpOnly and is still validated by the app.
  */
 import './ref.js';
+import { sendVisit } from './visit.js';
 import { initMarketingMotion } from './reveal.js';
 
 const AUTH_HINT = 'tovira.authed';
@@ -28,6 +29,9 @@ function redirectIfAuthed(): void {
 }
 
 if (typeof location !== 'undefined' && typeof localStorage !== 'undefined') redirectIfAuthed();
+
+// [P63-7] the landing page's cookieless page view
+if (typeof location !== 'undefined' && (location.pathname === '/' || location.pathname === '/index.html')) sendVisit('landing');
 
 // Marketing motion (reveal-on-scroll, §4 frame swap, mobile CTA). Enhancement only.
 if (typeof document !== 'undefined') {

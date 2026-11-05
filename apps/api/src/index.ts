@@ -34,6 +34,7 @@ import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { PrioritiesService } from './services/hero/priorities-service.js';
 import { NoteSweepService, DEFAULT_MAX_SWEEP_ATTEMPTS, EXTRACTION_CLAIM_TIMEOUT_MS } from './services/notes/note-sweep-service.js';
 import { createClaimAndExtract } from './services/notes/claim-and-extract.js';
+import { VisitService } from './services/visits/visits.js';
 import { ImportCompletionService } from './services/notes/import-completion-service.js';
 import { TrialEmailService } from './services/email/trial-email-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
@@ -72,6 +73,7 @@ import {
   createAdminStore,
   createHotLeadsStore,
   createFunnelSource,
+  createVisitStore,
   createSpendOverrideRepository,
   createBriefService,
   createCorrectionRepository,
@@ -203,6 +205,7 @@ async function main(): Promise<void> {
   const inviteActivation = new PgInviteActivationTx(appPool, new PgUserRepository(appPool));
   // [P45-3] hot leads (owner plane); an activated account with a lead's email marks that lead Signed up
   const hotLeads = createHotLeadsStore(config, migrationPool);
+  const visits = new VisitService(createVisitStore(config, migrationPool)); // [P63-7]
   // [P60] short emails to ADMIN_EMAILS when someone joins and starts (first sign-in, first chat or voice note)
   const adminEvents = new AdminEvents({ email: createEmailSender(config), adminEmails: config.adminEmails, log: createEmailLogRepository(config, appPool), requests: accessRequests, appBaseUrl: config.appBaseUrl });
   const auth = createAuthService(config, appPool, invites, inviteActivation, async (email) => { await hotLeads.markSignedUpByEmail(email, Date.now()); }, (userId, email) => adminEvents.signedIn(userId, email));
@@ -586,6 +589,10 @@ async function main(): Promise<void> {
       // Without EXPLEE_API_KEY it logs "Explee key not configured" and does nothing.
       { name: 'hot-leads-sync', lockKey: 4711018, intervalMs: 10 * 60 * 1000,
         run: async () => { await hotLeadSync.run(); } },
+      // [P63-7] Close finished visit days: counts kept, hashes cleared, salts thrown away (lockKey 4711019: UNIQUE, next
+      // free after …018). Also done on the first visit of a new day.
+      { name: 'visit-days', lockKey: 4711019, intervalMs: 60 * 60 * 1000,
+        run: async () => { await visits.closeDays(); } },
     ],
   }, 15_000); // [ASYNC-EXTRACT] tick every 15s (was 30s) so the notes-sweep (15s interval) fires on
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs
@@ -734,6 +741,8 @@ async function main(): Promise<void> {
     adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },
     hotLeads,
     adminFunnel: { source: createFunnelSource(config, migrationPool) }, // [P63-6]
+    visits, // [P63-7]
+    visitLimiter: new FixedWindowRateLimiter(120, 60 * 60 * 1000), // [P63-7] one browser can't flood the counts
     accessRequestsForLeads: accessRequests,
     // [P58] the founder's invite email to a hot lead (from wabil@tovira.io), its prefilled form and auto-approval
     adminEvents, // [P60]

@@ -31,8 +31,9 @@ function discoveredRoutes(): string[] {
   }
   return [...out].filter((r) => !r.startsWith('/admin') && !r.startsWith('/ops')).sort();
 }
-// Public by design (no session at all) — they still must not show rep data.
-const PUBLIC = /^\/(version|health|healthz|legal|auth|access-request|billing\/webhook|invite|tour\/funnel)/;
+// Public by design (no session at all) — they still must not show rep data. [P63-7 · owner] /visit: the cookieless
+// page-view beacon (always 204, no body).
+const PUBLIC = /^\/(version|health|healthz|legal|auth|access-request|billing\/webhook|invite|tour\/funnel|visit$)/;
 
 beforeAll(async () => {
   deps = buildInMemoryDeps();
