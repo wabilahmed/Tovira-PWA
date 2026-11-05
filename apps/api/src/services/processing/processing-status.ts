@@ -76,7 +76,9 @@ export function toItem({ note: n, clientName, hold, found }: ItemInput): Process
   }
   if (s === 'failed') {
     const missing = n.status === 'transcription_failed';
-    return { ...base, state: 'failed', failure: { reason: missing ? 'recording_missing' : 'ours', canRetry: !missing }, ...(messageCount !== undefined ? { messageCount } : {}) };
+    // Try again reads it once more from what is stored: the text, or (a voice note with no transcript) the recording
+    const canRetry = !missing && (!!n.rawText?.trim() || (kind === 'voice' && !!n.audioKey));
+    return { ...base, state: 'failed', failure: { reason: missing ? 'recording_missing' : 'ours', canRetry }, ...(messageCount !== undefined ? { messageCount } : {}) };
   }
   return { ...base, state: 'done', found: found ?? { promises: 0, overduePromises: 0, dates: 0, requirements: 0, people: 0, needsAnswer: 0 }, ...(messageCount !== undefined ? { messageCount } : {}) };
 }

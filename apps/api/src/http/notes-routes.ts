@@ -713,6 +713,10 @@ export async function handleNoteRoute(
       const terminal = note.status === 'extracted' || note.status === 'needs_review';
       if (note.rawText && note.rawText.trim() && terminal) {
         await deps.notes.update(userId, noteId, { status: 'pending_extraction', sweepAttempts: 0 });
+      } else if (note.source === 'voice' && note.status === 'needs_review' && note.audioKey) {
+        // [P65-2 · owner] Try again on a voice note that failed before it had a transcript: transcribe the stored
+        // recording again (the rep never records it again).
+        await deps.notes.update(userId, noteId, { status: 'pending_transcription', sweepAttempts: 0 });
       }
       const queued = await deps.notes.findByIdForUser(userId, noteId);
       sendJson(res, 202, { note: queued ? noteWithReceipts(queued) : queued, status: 'queued' });
