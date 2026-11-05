@@ -6,7 +6,7 @@ interface Row {
   id: string; person_id: string; campaign_id: number; campaign_name: string | null; name: string | null; email: string | null; job_title: string | null;
   company_name: string | null; company_domain: string | null; linkedin_url: string | null; country: string | null; phone: string | null; why_hot: string | null;
   became_hot_at: Date | null; erased: boolean; status: LeadStatus; notes: string | null; access_request_id: string | null; first_seen_at: Date; updated_at: Date;
-  is_test: boolean; invite_sent_at: Date | null; invite_resent_at: Date | null; invite_expires_at: Date | null; requested_at: Date | null; invite_opened_at: Date | null;
+  is_test: boolean; invite_sent_at: Date | null; invite_resent_at: Date | null; invite_expires_at: Date | null; requested_at: Date | null; invite_opened_at: Date | null; invite_delivery: 'delivered' | 'bounced' | 'complained' | null; invite_delivery_at: Date | null;
 }
 const toLead = (r: Row): HotLead => ({
   id: String(r.id), personId: r.person_id, campaignId: Number(r.campaign_id), campaignName: r.campaign_name, name: r.name, email: r.email, jobTitle: r.job_title,
@@ -14,9 +14,9 @@ const toLead = (r: Row): HotLead => ({
   becameHotAt: r.became_hot_at?.getTime() ?? null, erased: r.erased, status: r.status, notes: r.notes, accessRequestId: r.access_request_id,
   firstSeenAt: r.first_seen_at.getTime(), updatedAt: r.updated_at.getTime(),
   isTest: r.is_test, inviteSentAt: r.invite_sent_at?.getTime() ?? null, inviteResentAt: r.invite_resent_at?.getTime() ?? null,
-  inviteExpiresAt: r.invite_expires_at?.getTime() ?? null, requestedAt: r.requested_at?.getTime() ?? null, inviteOpenedAt: r.invite_opened_at?.getTime() ?? null,
+  inviteExpiresAt: r.invite_expires_at?.getTime() ?? null, requestedAt: r.requested_at?.getTime() ?? null, inviteOpenedAt: r.invite_opened_at?.getTime() ?? null, inviteDelivery: r.invite_delivery ?? null, inviteDeliveryAt: r.invite_delivery_at?.getTime() ?? null,
 });
-const COLS = 'id, person_id, campaign_id, campaign_name, name, email, job_title, company_name, company_domain, linkedin_url, country, phone, why_hot, became_hot_at, erased, status, notes, access_request_id, first_seen_at, updated_at, is_test, invite_sent_at, invite_resent_at, invite_expires_at, requested_at, invite_opened_at';
+const COLS = 'id, person_id, campaign_id, campaign_name, name, email, job_title, company_name, company_domain, linkedin_url, country, phone, why_hot, became_hot_at, erased, status, notes, access_request_id, first_seen_at, updated_at, is_test, invite_sent_at, invite_resent_at, invite_expires_at, requested_at, invite_opened_at, invite_delivery, invite_delivery_at';
 const ts = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
 
 /**
@@ -123,7 +123,7 @@ export class PgHotLeadsStore implements HotLeadsStore {
     const vals: unknown[] = [id, i.tokenHash, ts(i.at), ts(i.expiresAt)];
     if (i.resend) vals.push(ts(i.at - LEAD_INVITE_RESEND_AFTER_MS)); // $5: the latest send that may be re-sent now
     const { rows } = await this.pool.query<Row>(
-      `UPDATE hot_leads SET invite_token_hash = $2, ${i.resend ? 'invite_resent_at' : 'invite_sent_at'} = $3::timestamptz, invite_expires_at = $4::timestamptz, invite_used_at = NULL,
+      `UPDATE hot_leads SET invite_token_hash = $2, ${i.resend ? 'invite_resent_at' : 'invite_sent_at'} = $3::timestamptz, invite_expires_at = $4::timestamptz, invite_used_at = NULL, invite_delivery = NULL, invite_delivery_at = NULL,
          status = CASE WHEN status IN ('new', 'contacted') THEN 'invited' ELSE status END, updated_at = $3::timestamptz
        WHERE id = $1 AND ${cond} RETURNING ${COLS}`,
       vals);
@@ -145,6 +145,16 @@ export class PgHotLeadsStore implements HotLeadsStore {
 
   async markInviteOpened(id: string, at: number): Promise<void> {
     await this.pool.query('UPDATE hot_leads SET invite_opened_at = $2::timestamptz WHERE id = $1 AND invite_opened_at IS NULL', [id, new Date(at).toISOString()]);
+  }
+
+  async setInviteDelivery(id: string, status: 'delivered' | 'bounced' | 'complained', at: number): Promise<void> {
+    if (!/^\d+$/.test(id)) return;
+    // [P63-9] a bounce or a spam mark is never replaced by a later delivered (rank: delivered 0 < bounced 1 < complained 2)
+    await this.pool.query(
+      `UPDATE hot_leads SET invite_delivery = $2, invite_delivery_at = $3::timestamptz
+        WHERE id = $1 AND (invite_delivery IS NULL OR
+          (CASE invite_delivery WHEN 'delivered' THEN 0 WHEN 'bounced' THEN 1 ELSE 2 END) < (CASE $2::text WHEN 'delivered' THEN 0 WHEN 'bounced' THEN 1 ELSE 2 END))`,
+      [id, status, new Date(at).toISOString()]);
   }
 
   async markRequested(id: string, tokenHash: string, accessRequestId: string, at: number): Promise<HotLead | null> {

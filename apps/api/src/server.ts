@@ -84,6 +84,7 @@ import type { AdminEvents } from './services/access/admin-events.js';
 import { adminLeadsRoute } from './http/admin-leads-routes.js';
 import { adminFunnelRoute } from './http/admin-funnel-routes.js';
 import { handleVisitRoute } from './http/visit-routes.js';
+import { handleResendWebhook } from './http/resend-webhook-routes.js';
 import type { VisitService } from './services/visits/visits.js';
 import type { FunnelSource } from './services/funnel/funnel.js';
 import type { HotLeadsStore } from './ports/hot-leads.js';
@@ -248,6 +249,8 @@ export interface ApiDeps {
   adminRoute?: Omit<AdminRouteDeps, 'cookieSecure'>;
   /** [P45-2] the console's cost report (falls back to the ops one). */
   adminCosts?: Pick<CostReportService, 'report'>;
+  /** [P63-9] Resend's webhook signing secret. Not wired in this push (key-first): absent, the webhook refuses every call. */
+  resendWebhookSecret?: string;
   /** [P63-7] cookieless site visits (owner plane): POST /visit, and Admin → Funnel's visits. */
   visits?: VisitService;
   visitLimiter?: RateLimiter;
@@ -391,7 +394,7 @@ export function createApiServer(deps: ApiDeps): Server {
           ...(deps.adminRoute.extra ?? []),
           ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval)] : []),
           ...(costs ? [adminCostsRoute(costs)] : []),
-          ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, invites: deps.leadInvites })] : []),
+          ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, invites: deps.leadInvites, deliveryConnected: !!deps.resendWebhookSecret })] : []),
           ...(deps.adminFunnel ? [adminFunnelRoute({ ...deps.adminFunnel, visits: deps.visits })] : []),
         ];
         if (await handleAdminRoute(request, response, { ...deps.adminRoute, extra, cookieSecure })) return;
@@ -427,6 +430,9 @@ export function createApiServer(deps: ApiDeps): Server {
         signupEnabled: deps.signupEnabled ?? false,
         accessApproval: deps.accessApproval, // [BETA-8] self-serve expired-invite resend
       })) return;
+
+      // [P63-9] Resend's delivery webhooks (public, signature-verified; refused while the secret isn't wired).
+      if (deps.hotLeads && (await handleResendWebhook(request, response, { secret: deps.resendWebhookSecret, leads: deps.hotLeads }))) return;
 
       // [P63-7] Public, cookieless page-view beacon (no session).
       if (deps.visits && (await handleVisitRoute(request, response, { visits: deps.visits, limiter: deps.visitLimiter }))) return;

@@ -80,7 +80,7 @@ export class LeadInviteService {
     if (!updated) return { ok: false, refusal: { code: resend ? 'already_resent' : 'already_sent', message: resend ? 'The invite was already re-sent once.' : 'The invite was already sent.' } };
     const e = leadInviteEmail({ fullName: lead.name, personalLine, url: `${this.deps.appBaseUrl}/request-access?invite=${encodeURIComponent(raw)}`, trialEndedAt: await this.trialEndedAt(lead) });
     try {
-      await this.deps.email.send({ to: lead.email!.trim(), subject: e.subject, text: e.text, html: e.html, from: e.from, replyTo: e.replyTo });
+      await this.deps.email.send({ to: lead.email!.trim(), subject: e.subject, text: e.text, html: e.html, from: e.from, replyTo: e.replyTo, tags: { lead: lead.id } }); // [P63-9] the delivery webhook finds the lead by this tag
     } catch (err) {
       console.warn('lead invite email failed; the send is undone so it can be tried again', err);
       await this.deps.store.restoreInvite(lead.id, { status: lead.status, inviteSentAt: lead.inviteSentAt ?? null, inviteResentAt: lead.inviteResentAt ?? null, inviteExpiresAt: lead.inviteExpiresAt ?? null }, this.now());

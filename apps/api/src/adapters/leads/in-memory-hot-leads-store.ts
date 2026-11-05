@@ -1,3 +1,4 @@
+import { nextDelivery } from '../../services/leads/resend-webhook.js';
 import type { ExpleeSyncState, HotLead, HotLeadInput, HotLeadsStore, LeadStatus } from '../../ports/hot-leads.js';
 import { LEAD_INVITE_RESEND_AFTER_MS } from '../../ports/hot-leads.js';
 
@@ -60,6 +61,7 @@ export class InMemoryHotLeadsStore implements HotLeadsStore {
     if (!ok) return null;
     if (i.resend) l.inviteResentAt = i.at; else l.inviteSentAt = i.at;
     l.inviteExpiresAt = i.expiresAt;
+    l.inviteDelivery = null; l.inviteDeliveryAt = null; // [P63-9] a new send has its own delivery
     if (l.status === 'new' || l.status === 'contacted') l.status = 'invited';
     l.updatedAt = i.at;
     this.invite.set(id, { hash: i.tokenHash, usedAt: null });
@@ -90,6 +92,13 @@ export class InMemoryHotLeadsStore implements HotLeadsStore {
   async markInviteOpened(id: string, at: number): Promise<void> {
     const l = this.leads.find((x) => x.id === id);
     if (l && l.inviteOpenedAt == null) l.inviteOpenedAt = at;
+  }
+
+  async setInviteDelivery(id: string, status: 'delivered' | 'bounced' | 'complained', at: number): Promise<void> {
+    const l = this.leads.find((x) => x.id === id);
+    if (!l) return;
+    const next = nextDelivery(l.inviteDelivery ?? null, status);
+    if (next !== l.inviteDelivery) Object.assign(l, { inviteDelivery: next, inviteDeliveryAt: at });
   }
 
   async markSignedUpByEmail(email: string, at: number): Promise<number> {

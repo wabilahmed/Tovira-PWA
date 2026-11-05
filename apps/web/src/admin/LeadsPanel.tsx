@@ -98,7 +98,7 @@ export function LeadsPanel({ api, onSignedOut, now = () => Date.now() }: { api: 
         <EmptyState title={status || country ? 'No leads match this filter.' : 'No hot leads yet.'} />
       ) : (
         <ul className="ui-stack ui-gap-3" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {view.leads.map((l) => <LeadCard key={l.id} lead={l} now={now()} onStatus={setLeadStatus} onNotes={saveNotes} onInvite={(lead, resend) => setCompose({ lead, resend })} />)}
+          {view.leads.map((l) => <LeadCard key={l.id} lead={l} now={now()} deliveryConnected={view.deliveryConnected === true} onStatus={setLeadStatus} onNotes={saveNotes} onInvite={(lead, resend) => setCompose({ lead, resend })} />)}
         </ul>
       )}
       {compose && <InviteSheet key={compose.lead.id} lead={compose.lead} resend={compose.resend} api={api} onClose={() => setCompose(null)} onSent={(l) => void sent(l)} onSignedOut={onSignedOut} />}
@@ -171,7 +171,7 @@ function TestLeadSheet({ open, onClose, onAdd }: { open: boolean; onClose: () =>
   );
 }
 
-function LeadCard({ lead: l, now, onStatus, onNotes, onInvite }: { lead: HotLead; now: number; onStatus: (l: HotLead, s: LeadStatus) => void; onNotes: (l: HotLead, n: string) => void; onInvite: (l: HotLead, resend: boolean) => void }): JSX.Element {
+function LeadCard({ lead: l, now, deliveryConnected, onStatus, onNotes, onInvite }: { lead: HotLead; now: number; deliveryConnected: boolean; onStatus: (l: HotLead, s: LeadStatus) => void; onNotes: (l: HotLead, n: string) => void; onInvite: (l: HotLead, resend: boolean) => void }): JSX.Element {
   const [notes, setNotes] = useState(l.notes ?? '');
   const role = [l.jobTitle, l.companyName].filter(Boolean).join(' at ');
   return (
@@ -212,6 +212,7 @@ function LeadCard({ lead: l, now, onStatus, onNotes, onInvite }: { lead: HotLead
         {l.accessRequestId && l.status !== 'requested' && l.status !== 'signed_up' && <span className="ui-caption">On the Access tab</span>}
       </div>
       <InviteTrail lead={l} />
+      <InviteDelivery lead={l} connected={deliveryConnected} />
       <label className="ui-field">
         <span className="ui-field__label">Notes</span>
         <textarea className="ui-input" aria-label="Notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -219,6 +220,19 @@ function LeadCard({ lead: l, now, onStatus, onNotes, onInvite }: { lead: HotLead
       <div><Button size="sm" onClick={() => onNotes(l, notes)} disabled={notes === (l.notes ?? '')}>Save notes</Button></div>
     </li>
   );
+}
+
+/** [P63-9 · owner] The invite email's delivery, from Resend's webhooks: delivered, bounced or marked spam (never opens
+ *  or clicks). Only for a lead who was sent the invite; until the webhook is connected, says so. */
+function InviteDelivery({ lead: l, connected }: { lead: HotLead; connected: boolean }): JSX.Element | null {
+  if (l.inviteSentAt == null) return null;
+  const text = !connected ? 'Delivery status is not connected yet'
+    : l.inviteDelivery === 'delivered' ? `Email delivered ${day(l.inviteDeliveryAt ?? l.inviteSentAt)}`
+    : l.inviteDelivery === 'bounced' ? `Email bounced ${day(l.inviteDeliveryAt ?? l.inviteSentAt)}`
+    : l.inviteDelivery === 'complained' ? `Marked as spam ${day(l.inviteDeliveryAt ?? l.inviteSentAt)}`
+    : 'Delivery not reported yet';
+  const bad = connected && (l.inviteDelivery === 'bounced' || l.inviteDelivery === 'complained');
+  return <p className="ui-caption" data-testid={`delivery-${l.id}`} style={{ margin: 0 }}>{bad ? <Badge tone="danger">{text}</Badge> : text}</p>;
 }
 
 /** [P58] Where the invite stands: Invited (and re-sent) → Requested → Signed up, with the dates. */

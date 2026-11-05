@@ -36,6 +36,7 @@ export class ResendEmailSender implements EmailSender {
         subject: message.subject,
         text: message.text,
         ...(message.html ? { html: message.html } : {}),
+        ...(message.tags ? { tags: Object.entries(message.tags).map(([name, value]) => ({ name, value })) } : {}), // [P63-9]
       }),
     });
     if (!res.ok) {

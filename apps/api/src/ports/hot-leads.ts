@@ -47,8 +47,11 @@ export interface HotLead {
   inviteSentAt?: number | null; inviteResentAt?: number | null; inviteExpiresAt?: number | null; requestedAt?: number | null;
   /** [P63-5] the first time the invite link's form loaded with its live token (recorded from P63 on) */
   inviteOpenedAt?: number | null;
+  /** [P63-9] the invite email's delivery from Resend's webhooks (never opens or clicks); cleared when it is re-sent */
+  inviteDelivery?: 'delivered' | 'bounced' | 'complained' | null;
+  inviteDeliveryAt?: number | null;
 }
-export type HotLeadInput = Omit<HotLead, 'id' | 'status' | 'notes' | 'accessRequestId' | 'firstSeenAt' | 'updatedAt' | 'isTest' | 'inviteSentAt' | 'inviteResentAt' | 'inviteExpiresAt' | 'requestedAt' | 'inviteOpenedAt'>;
+export type HotLeadInput = Omit<HotLead, 'id' | 'status' | 'notes' | 'accessRequestId' | 'firstSeenAt' | 'updatedAt' | 'isTest' | 'inviteSentAt' | 'inviteResentAt' | 'inviteExpiresAt' | 'requestedAt' | 'inviteOpenedAt' | 'inviteDelivery' | 'inviteDeliveryAt'>;
 
 export interface ExpleeSyncState { cursor: number | null; lastRunAt: number | null; lastStatus: string | null; banner: string | null }
 
@@ -77,6 +80,8 @@ export interface HotLeadsStore {
   markRequested(id: string, tokenHash: string, accessRequestId: string, at: number): Promise<HotLead | null>;
   /** [P63-5] The invite link's form loaded: record the first time only. */
   markInviteOpened(id: string, at: number): Promise<void>;
+  /** [P63-9] Record a delivery event: a bounce or a spam mark is never replaced by a later delivered. */
+  setInviteDelivery(id: string, status: 'delivered' | 'bounced' | 'complained', at: number): Promise<void>;
 }
 
 /** [P58-3] Minimum wait before an invite can be re-sent, and the link's lifetime. */

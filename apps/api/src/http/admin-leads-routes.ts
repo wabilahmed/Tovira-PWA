@@ -22,7 +22,7 @@ function leadsCsv(leads: HotLead[]): string {
   return `${[head, ...rows].join('\n')}\n`;
 }
 
-export function adminLeadsRoute(deps: { store: HotLeadsStore; invites?: LeadInviteService; now?: () => number }): AdminDataRoute {
+export function adminLeadsRoute(deps: { store: HotLeadsStore; invites?: LeadInviteService; now?: () => number; /** [P63-9] the delivery webhook is wired */ deliveryConnected?: boolean }): AdminDataRoute {
   const now = deps.now ?? (() => Date.now());
   return async (req, res, url, ctx) => {
     if (!url.pathname.startsWith('/admin/leads')) return false;
@@ -45,6 +45,7 @@ export function adminLeadsRoute(deps: { store: HotLeadsStore; invites?: LeadInvi
         newCount: all.filter((l) => l.status === 'new' && !l.isTest).length, // [P58] a test lead never counts
         countries: [...new Set(all.map((l) => l.country).filter((c): c is string => !!c))].sort(),
         sync: await deps.store.getState(),
+        deliveryConnected: deps.deliveryConnected === true, // [P63-9]
       });
       return true;
     }

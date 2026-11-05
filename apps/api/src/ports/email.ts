@@ -16,6 +16,8 @@ export interface EmailMessage {
   from?: string;
   /** [P58-1] Optional Reply-To for this one message; otherwise hello@tovira.io. On tovira.io only. */
   replyTo?: string;
+  /** [P63-9] Tags the provider echoes back in its delivery webhooks (Resend), e.g. { lead: <lead id> }. Never personal data. */
+  tags?: Record<string, string>;
 }
 
 export interface EmailSender {
