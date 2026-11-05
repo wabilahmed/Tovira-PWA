@@ -35,6 +35,8 @@ export interface PushableAlert {
   title: string;
   body: string;
   url?: string;
+  /** [P65-5] record it in the in-app list but do not push it (the app is open, or it was quick) */
+  inAppOnly?: boolean;
 }
 
 export interface DispatchResult {
@@ -67,7 +69,7 @@ export class PushDispatchService {
       });
     }
 
-    const pushable = candidates.filter((c) => TIME_CRITICAL.has(c.type));
+    const pushable = candidates.filter((c) => TIME_CRITICAL.has(c.type) && !c.inAppOnly);
     const heldForDigest = candidates.filter((c) => !TIME_CRITICAL.has(c.type));
 
     // [P46-2] One device at a time, each on its own: a dead subscription never stops the push to the others, and a

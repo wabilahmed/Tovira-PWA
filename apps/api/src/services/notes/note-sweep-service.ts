@@ -116,7 +116,8 @@ export class NoteSweepService {
       await this.deps.setAttempts(userId, note.id, note.sweepAttempts + 1);
       try {
         if (note.status === 'pending_transcription') {
-          await this.deps.transcribe(userId, note.id); // → pending_extraction (not terminal, no settle)
+          await this.deps.transcribe(userId, note.id); // → pending_extraction, or [P65-5] a terminal failure
+          await this.settle(userId, note.id); // a no-op unless the transcription ended it (the hook checks)
         } else if (note.status === 'pending_extraction') {
           await this.deps.extract(userId, note.id, todayIso); // → extracted | needs_review (terminal)
           await this.settle(userId, note.id);

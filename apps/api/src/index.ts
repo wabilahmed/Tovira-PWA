@@ -438,6 +438,9 @@ async function main(): Promise<void> {
     clients,
     dispatch: (userId, alerts, nowMs) => pushDispatch.dispatch(userId, alerts, nowMs),
     isBulkNote: bulkBatch.isBulkNote,
+    // [P65-5 · owner] every kind; pushed only when the app is closed and reading took over 30 seconds
+    kinds: ['chat', 'voice', 'typed'],
+    shouldPush: (u, n) => (n.settledAt ?? Date.now()) - n.createdAt > 30_000 && !appPresence.isOpen(u),
   });
   // [RULING 2 items 2/5/6] The single claim-then-extract path shared by the sweep and the bulk
   // orchestrator. It is the ONE call site that passes forceAllowance (inside createClaimAndExtract).
