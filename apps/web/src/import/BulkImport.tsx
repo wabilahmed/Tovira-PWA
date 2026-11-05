@@ -104,7 +104,9 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
 
   async function poll(): Promise<void> {
     for (;;) {
-      const s = await api.status(batchId);
+      // [P65-4] one failed status read (a dropped connection) no longer ends the progress silently: wait and ask again
+      let s: Awaited<ReturnType<typeof api.status>>;
+      try { s = await api.status(batchId); } catch { await new Promise((r) => setTimeout(r, Math.max(pollMs, 2000))); continue; }
       const ready = onClientReady ? Object.values(s.started ?? {})[0]?.clientId : undefined;
       if (ready) { onClientReady!(ready); return; }
       setJobs(s.jobs);

@@ -31,6 +31,12 @@ export function bulkSummaryLine(s: BulkSummary): string {
   return `Imported ${plural(s.chatsImported, 'chat')}. Found ${plural(s.promises, 'promise')}, ${plural(s.requirements, 'requirement')}.`;
 }
 
+/** [P65-4 · owner] "3 of 8 chats done": finished chats (imported or not) of all of them. */
+export function bulkProgressLine(jobs: BulkJob[]): string {
+  const finished = jobs.filter((j) => j.state !== 'queued' && j.state !== 'extracting').length;
+  return `${finished} of ${jobs.length} chat${jobs.length === 1 ? '' : 's'} done`;
+}
+
 export function BulkImportResult({ jobs, upsell, onOpenSubscription, onSubscribe, summary, onOpenBookScan }: {
   jobs: BulkJob[];
   upsell?: Upsell;
@@ -50,6 +56,9 @@ export function BulkImportResult({ jobs, upsell, onOpenSubscription, onSubscribe
           <p style={{ margin: 0 }}>{bulkSummaryLine(summary)}</p>
           {onOpenBookScan && <button type="button" className="tov-primary" onClick={onOpenBookScan}>Open Book Scan</button>}
         </div>
+      )}
+      {jobs.some((j) => j.state === 'queued' || j.state === 'extracting') && (
+        <p data-testid="bulk-progress" role="status" style={{ margin: 0 }}>{bulkProgressLine(jobs)}</p>
       )}
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 'var(--space-2)' }}>
         {jobs.map((j) => (
