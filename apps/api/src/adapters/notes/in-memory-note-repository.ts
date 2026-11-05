@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { NewNote, NotePatch, NoteRecord, NoteRepository, SimilarNote } from '../../ports/note-repository.js';
+import { SETTLED_STATUSES } from '../../ports/note-repository.js';
 
 function cosine(a: number[], b: number[]): number {
   let dot = 0;
@@ -50,6 +51,14 @@ export class InMemoryNoteRepository implements NoteRepository {
     // listByStatusForUser instead.
     return [...this.byId.values()]
       .filter((n) => n.userId === userId && n.clientId === clientId && n.status !== 'pending_confirmation')
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async listProcessingByUser(userId: string, settledSinceMs: number): Promise<NoteRecord[]> {
+    const todo = new Set(['pending_transcription', 'pending_extraction', 'extracting']);
+    return [...this.byId.values()]
+      .filter((n) => n.userId === userId && (todo.has(n.status) || (n.settledAt != null && n.settledAt >= settledSinceMs)))
+      .map((n) => ({ ...n }))
       .sort((a, b) => b.createdAt - a.createdAt);
   }
 
@@ -123,7 +132,10 @@ export class InMemoryNoteRepository implements NoteRepository {
     const note = this.byId.get(id);
     if (!note || note.userId !== userId) return;
     if (patch.rawText !== undefined) note.rawText = patch.rawText;
-    if (patch.status !== undefined) note.status = patch.status;
+    if (patch.status !== undefined) {
+      note.status = patch.status;
+      note.settledAt = SETTLED_STATUSES.includes(patch.status) ? Date.now() : null; // [P65-1]
+    }
     if (patch.sweepAttempts !== undefined) note.sweepAttempts = patch.sweepAttempts;
     if (patch.extracted !== undefined) note.extracted = patch.extracted;
     if (patch.messages !== undefined) note.messages = patch.messages;

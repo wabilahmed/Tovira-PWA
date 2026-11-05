@@ -84,6 +84,9 @@ import type { AdminEvents } from './services/access/admin-events.js';
 import { adminLeadsRoute } from './http/admin-leads-routes.js';
 import { adminFunnelRoute } from './http/admin-funnel-routes.js';
 import { handleVisitRoute } from './http/visit-routes.js';
+import { handleProcessingRoute } from './http/processing-routes.js';
+import type { ProcessingStatusService } from './services/processing/processing-status.js';
+import type { AppPresence } from './services/processing/presence.js';
 import { handleResendWebhook } from './http/resend-webhook-routes.js';
 import type { VisitService } from './services/visits/visits.js';
 import type { FunnelSource } from './services/funnel/funnel.js';
@@ -249,6 +252,8 @@ export interface ApiDeps {
   adminRoute?: Omit<AdminRouteDeps, 'cookieSecure'>;
   /** [P45-2] the console's cost report (falls back to the ops one). */
   adminCosts?: Pick<CostReportService, 'report'>;
+  /** [P65-1] the rep's processing status (GET /processing) and whether their app is open (P65-5). */
+  processing?: { status: Pick<ProcessingStatusService, 'status'>; presence?: AppPresence; now?: () => number };
   /** [P63-9] Resend's webhook signing secret. Not wired in this push (key-first): absent, the webhook refuses every call. */
   resendWebhookSecret?: string;
   /** [P63-7] cookieless site visits (owner plane): POST /visit, and Admin → Funnel's visits. */
@@ -581,6 +586,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (deps.find && (await handleFindRoute(request, response, { auth: deps.auth, billing: deps.billing, find: deps.find }))) return;
       if (await handleCorpusRoute(request, response, { auth: deps.auth, corpus: deps.corpus })) return;
       if (await handleMondayRoute(request, response, { auth: deps.auth, monday: deps.monday, billing: deps.billing })) return;
+      if (deps.processing && (await handleProcessingRoute(request, response, { auth: deps.auth, ...deps.processing }))) return; // [P65-1]
       if (await handleLedgerRoute(request, response, { auth: deps.auth, ledger: deps.ledger, clients: deps.clients, ...(deps.ledgerEntries ? { entries: deps.ledgerEntries } : {}), ...(deps.winBack ? { winBack: deps.winBack } : {}) })) return;
       if (await handleShareCardRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan })) return;
       if (await handleBillingRoute(request, response, { auth: deps.auth, billing: deps.billing, appBaseUrl: deps.appBaseUrl })) return;

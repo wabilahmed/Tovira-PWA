@@ -64,6 +64,7 @@ export const SURFACES: Record<string, Probe | string> = {
   '/inventory/matches': GET(() => '/inventory/matches'),
   '/inventory/by-client/:id': GET((i) => `/clients/${i.clientId}`.replace('/clients/', '/inventory/by-client/')),
   '/notes/pending': GET(() => '/notes/pending'),
+  '/processing': GET(() => '/processing'), // [P65-1 · owner] the rep's processing status (client names, counts, reasons)
   '/corpus-stats': GET(() => '/corpus-stats'),
   '/ledger': GET(() => '/ledger'),
   '/notes/:id/move-preview': GET((i) => `/notes/${i.noteId}/move-preview`),

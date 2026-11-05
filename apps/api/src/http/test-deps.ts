@@ -1,3 +1,7 @@
+import { ProcessingStatusService } from '../services/processing/processing-status.js';
+import { AppPresence } from '../services/processing/presence.js';
+import { extractionBlockReason } from './notes-routes.js';
+import { zonedTodayIso } from '../services/time/zone.js';
 import { InMemoryAdminStore } from '../adapters/admin/in-memory-admin-store.js';
 import { SamePersonService } from '../services/clients/same-person.js';
 import { InMemoryPersonLinkRepository } from '../adapters/clients/in-memory-person-link-repository.js';
@@ -174,6 +178,10 @@ export interface TestDeps extends ApiDeps {
   hotLeads: InMemoryHotLeadsStore;
   /** [P58-4] shifts the lead-invite clock (Resend after 3 days, the 14-day link) */
   leadInviteClock: { offsetMs: number };
+  /** [P65-1] shifts the processing status's clock ("a day later") */
+  processingClock: { offsetMs: number };
+  /** [P65-5] whether the rep's app is open (a recent status poll) */
+  presence: AppPresence;
   adminAuth: AdminAuthService;
 }
 
@@ -420,6 +428,8 @@ export function buildInMemoryDeps(
   const adminStore = new InMemoryAdminStore();
   const adminAuth = new AdminAuthService({ store: adminStore, hasher: new ScryptHasher(), adminEmails: [TEST_ADMIN_EMAIL], totpKey: TEST_ADMIN_TOTP_KEY, appBaseUrl: 'https://tovira.io', email: emailSender });
   const leadInviteClock = { offsetMs: 0 };
+  const processingClock = { offsetMs: 0 }; // [P65-1]
+  const presence = new AppPresence(); // [P65-5]
   return {
     hotLeads,
     visitStore,
@@ -496,6 +506,18 @@ export function buildInMemoryDeps(
     aiPaused: () => aiPause.getPaused(), // [AUDIT item 4] surfaced via /allowance/status
     allowanceStatus,
     allowanceExhausted: (u: string) => allowanceStatus.isExhausted(u),
+    processingClock,
+    presence,
+    // [P65-1] as index.ts wires it
+    processing: {
+      status: new ProcessingStatusService({
+        notes, clients, facts, requirements, meetings,
+        holdReason: (u) => extractionBlockReason({ billing, allowanceExhausted: (x: string) => allowanceStatus.isExhausted(x) } as never, u),
+        today: async (u, nowMs) => zonedTodayIso(await auth.timezoneFor(u), new Date(nowMs)),
+      }),
+      presence,
+      now: () => Date.now() + processingClock.offsetMs,
+    },
     modelCallEvents,
     importAck,
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),

@@ -1,3 +1,7 @@
+import { ProcessingStatusService } from './services/processing/processing-status.js';
+import { AppPresence } from './services/processing/presence.js';
+import { extractionBlockReason } from './http/notes-routes.js';
+import { zonedTodayIso } from './services/time/zone.js';
 import { fileURLToPath } from 'node:url';
 import { SamePersonService } from './services/clients/same-person.js';
 import { extractionAliasesFor } from './services/clients/extraction-aliases.js';
@@ -206,6 +210,7 @@ async function main(): Promise<void> {
   // [P45-3] hot leads (owner plane); an activated account with a lead's email marks that lead Signed up
   const hotLeads = createHotLeadsStore(config, migrationPool);
   const visits = new VisitService(createVisitStore(config, migrationPool)); // [P63-7]
+  const appPresence = new AppPresence(); // [P65-5]
   // [P60] short emails to ADMIN_EMAILS when someone joins and starts (first sign-in, first chat or voice note)
   const adminEvents = new AdminEvents({ email: createEmailSender(config), adminEmails: config.adminEmails, log: createEmailLogRepository(config, appPool), requests: accessRequests, appBaseUrl: config.appBaseUrl });
   const auth = createAuthService(config, appPool, invites, inviteActivation, async (email) => { await hotLeads.markSignedUpByEmail(email, Date.now()); }, (userId, email) => adminEvents.signedIn(userId, email));
@@ -687,6 +692,15 @@ async function main(): Promise<void> {
     repNames,
     importAck,
     allowanceExhausted: aiExhausted,
+    // [P65-1] the rep's processing status; [P65-5] whether their app is open
+    processing: {
+      status: new ProcessingStatusService({
+        notes, clients, facts, requirements, meetings,
+        holdReason: (u) => extractionBlockReason({ billing, allowanceExhausted: aiExhausted } as never, u),
+        today: async (u, nowMs) => zonedTodayIso(await auth.timezoneFor(u), new Date(nowMs)),
+      }),
+      presence: appPresence,
+    },
     allowanceStatus,
     aiPaused: () => pauseFlag.paused(), // [AUDIT item 4] ops kill switch → /allowance/status → in-app banner
     corrections,

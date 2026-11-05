@@ -59,6 +59,8 @@ export interface NoteRecord {
   /** [P57-2] When the rep captured it (ms): the recording's start, or the save of a typed note. Relative dates resolve
    *  from this moment in the rep's timezone. Null for older notes and imported chats (they anchor as before). */
   capturedAt?: number | null;
+  /** [P65-1] When processing finished (extracted or a terminal failure), ms; null while it is still to do. */
+  settledAt?: number | null;
   createdAt: number;
 }
 
@@ -97,6 +99,9 @@ export interface SimilarNote {
   similarity: number; // cosine similarity in [-1, 1]
 }
 
+/** [P65-1] The statuses that end processing: a note in one of these has a settledAt. */
+export const SETTLED_STATUSES: readonly string[] = ['extracted', 'needs_review', 'import_failed', 'transcription_failed'];
+
 export interface NoteRepository {
   create(userId: string, note: NewNote): Promise<NoteRecord>;
   listByClient(userId: string, clientId: string): Promise<NoteRecord[]>;
@@ -104,6 +109,9 @@ export interface NoteRepository {
    *  — the resume path so a pending note is never stuck if that client's screen
    *  is never reopened. */
   listPendingByUser(userId: string): Promise<NoteRecord[]>;
+  /** [P65-1] The rep's processing status: every note still to do (transcription, extraction, claimed), and every note
+   *  that finished at/after `settledSinceMs`. Across all their clients; never a pending-confirmation (Ask) note. */
+  listProcessingByUser(userId: string, settledSinceMs: number): Promise<NoteRecord[]>;
   /** Notes in a given status (e.g. 'pending_confirmation' for the Ask-capture queue), newest first. */
   listByStatusForUser(userId: string, status: string): Promise<NoteRecord[]>;
   /** MISFILE-POST (B2): notes across all the rep's clients that carry a pending move-suggestion. */

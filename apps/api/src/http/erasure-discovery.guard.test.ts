@@ -38,6 +38,7 @@ const NO_PERSON_TEXT: Record<string, string> = {
   '/allowance/status': 'usage numbers', '/share-card': 'counts only', '/push/config': 'the VAPID public key', '/onboarding/status': 'counts and flags',
   '/version': 'build info', '/health': 'liveness', '/healthz': 'liveness',
   // counts and gates
+  '/processing': '[P65-1 · owner] what Tovira is doing with each capture: client name, kind, stage, counts and a failure reason; never note or fact text',
   '/hero/status': 'counts (the insights gate)', '/corpus-stats': 'counts', '/notes/:id/move-preview': 'counts of what a move carries',
   '/import/bulk/:id/status': 'an import batch in progress: file names and counts',
   // what the rep entered, never a third party's words

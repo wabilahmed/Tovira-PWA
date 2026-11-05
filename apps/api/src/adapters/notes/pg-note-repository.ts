@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import type { ImportedMessage, MoveSuggestion, NewNote, NotePatch, NoteRecord, NoteRepository, NoteSource, SimilarNote } from '../../ports/note-repository.js';
+import { SETTLED_STATUSES } from '../../ports/note-repository.js';
 import { withTenant } from '../../db/tenant.js';
 
 interface NoteRow {
@@ -18,6 +19,7 @@ interface NoteRow {
   audio_expired_at: Date | null;
   claimed_at: Date | null;
   captured_at: Date | null;
+  settled_at?: Date | null;
   created_at: Date;
 }
 
@@ -38,11 +40,12 @@ function toRecord(row: NoteRow): NoteRecord {
     audioExpiredAt: row.audio_expired_at ? row.audio_expired_at.getTime() : null,
     claimedAt: row.claimed_at ? row.claimed_at.getTime() : null,
     capturedAt: row.captured_at ? row.captured_at.getTime() : null,
+    settledAt: row.settled_at ? row.settled_at.getTime() : null,
     createdAt: row.created_at.getTime(),
   };
 }
 
-const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, move_suggestion, transcribed_at, audio_expired_at, claimed_at, captured_at, created_at';
+const COLUMNS = 'id, user_id, client_id, source, raw_text, audio_key, status, sweep_attempts, extracted, messages, move_suggestion, transcribed_at, audio_expired_at, claimed_at, captured_at, settled_at, created_at';
 
 /** Postgres-backed note store; every method runs in a tenant tx (RLS enforced). */
 export class PgNoteRepository implements NoteRepository {
@@ -76,6 +79,19 @@ export class PgNoteRepository implements NoteRepository {
       const { rows } = await c.query(
         `SELECT ${COLUMNS} FROM notes WHERE client_id = $1 AND status <> 'pending_confirmation' ORDER BY created_at DESC`,
         [clientId],
+      );
+      return (rows as unknown as NoteRow[]).map(toRecord);
+    });
+  }
+
+  async listProcessingByUser(userId: string, settledSinceMs: number): Promise<NoteRecord[]> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS} FROM notes
+          WHERE status IN ('pending_transcription', 'pending_extraction', 'extracting')
+             OR settled_at >= to_timestamp($1::double precision / 1000)
+          ORDER BY created_at DESC`,
+        [settledSinceMs],
       );
       return (rows as unknown as NoteRow[]).map(toRecord);
     });
@@ -215,6 +231,8 @@ export class PgNoteRepository implements NoteRepository {
       if (patch.status !== undefined) {
         params.push(patch.status);
         sets.push(`status = $${params.length}`);
+        // [P65-1] finished now (extracted or a terminal failure), or still to do (queued again: cleared)
+        sets.push(`settled_at = CASE WHEN $${params.length}::text = ANY('{${SETTLED_STATUSES.join(',')}}'::text[]) THEN now() ELSE NULL END`);
       }
       if (patch.sweepAttempts !== undefined) {
         params.push(patch.sweepAttempts);
