@@ -392,7 +392,7 @@ export function createApiServer(deps: ApiDeps): Server {
           ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval)] : []),
           ...(costs ? [adminCostsRoute(costs)] : []),
           ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, invites: deps.leadInvites })] : []),
-          ...(deps.adminFunnel ? [adminFunnelRoute(deps.adminFunnel)] : []),
+          ...(deps.adminFunnel ? [adminFunnelRoute({ ...deps.adminFunnel, visits: deps.visits })] : []),
         ];
         if (await handleAdminRoute(request, response, { ...deps.adminRoute, extra, cookieSecure })) return;
       }

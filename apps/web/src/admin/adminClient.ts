@@ -26,8 +26,18 @@ export interface FunnelPerson {
   inviteSentAt: number | null; inviteOpenedAt: number | null; submittedAt: number | null; approvedAt: number | null;
   passwordSetAt: number | null; firstSignInAt: number | null; firstClientAt: number | null;
 }
+/** [P63-8] the cookieless site visits for the period */
+export interface VisitReport {
+  days: Array<{ day: string; views: number; uniques: number }>;
+  byPage: { landing: number; request_access: number; sign_in: number; privacy: number };
+  devices: { phone: number; desktop: number };
+  topReferrers: Array<{ domain: string; views: number }>;
+  utm: Array<{ source: string; campaign: string | null; views: number }>;
+  landingVisitors: number; reachedRequest: number; submitted: number;
+  reachedRequestShare: number | null; submittedShare: number | null;
+}
 export interface FunnelReport {
-  period: FunnelPeriod; since: number | null; rows: FunnelPerson[];
+  period: FunnelPeriod; since: number | null; rows: FunnelPerson[]; visits?: VisitReport;
   counts: { invitesSent: number; linksOpened: number; formsSubmitted: { invite: number; public: number; total: number }; approved: number; passwordSet: number; firstSignIn: number; firstClient: number };
 }
 export interface CostRow {

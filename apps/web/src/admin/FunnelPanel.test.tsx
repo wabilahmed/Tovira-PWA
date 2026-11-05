@@ -36,3 +36,23 @@ describe('[P63-6] the Funnel tab', () => {
     expect(stoppedAt({ ...base, source: 'public', submittedAt: T, approvedAt: T, passwordSetAt: T, firstSignInAt: T, firstClientAt: T })).toBeNull();
   });
 });
+
+describe('[P63-8] site visits in the Funnel tab', () => {
+  it('shows visits per day, unique visitors, top referrers, and the share who reach request access and submit', async () => {
+    const visits = { days: [{ day: '2026-11-04', views: 12, uniques: 7 }, { day: '2026-11-05', views: 5, uniques: 3 }], byPage: { landing: 10, request_access: 4, sign_in: 2, privacy: 1 }, devices: { phone: 11, desktop: 6 }, topReferrers: [{ domain: 'linkedin.com', views: 6 }], utm: [{ source: 'linkedin', campaign: 'dubai-brokers', views: 4 }], landingVisitors: 8, reachedRequest: 2, submitted: 1, reachedRequestShare: 0.25, submittedShare: 0.125 };
+    render(<FunnelPanel api={{ funnel: vi.fn(async (p: FunnelReport['period']) => ({ ...report(p), visits })) }} onSignedOut={() => undefined} />);
+    const v = await screen.findByTestId('funnel-visits');
+    expect(within(v).getByText('17 page views, 10 unique visitors')).toBeInTheDocument();
+    expect(within(v).getByText('5 Nov')).toBeInTheDocument();
+    expect(within(v).getByText('linkedin.com')).toBeInTheDocument();
+    expect(within(v).getByText('25% of landing-page visitors reached request access (2 of 8)')).toBeInTheDocument();
+    expect(within(v).getByText('13% submitted the form (1 of 8)')).toBeInTheDocument();
+    expect(within(v).getByText('Phone 11 · Desktop 6')).toBeInTheDocument();
+  });
+  it('NEGATIVE: with no landing visitors the shares say so, never a made-up 0%', async () => {
+    const visits = { days: [], byPage: { landing: 0, request_access: 0, sign_in: 0, privacy: 0 }, devices: { phone: 0, desktop: 0 }, topReferrers: [], utm: [], landingVisitors: 0, reachedRequest: 0, submitted: 0, reachedRequestShare: null, submittedShare: null };
+    render(<FunnelPanel api={{ funnel: vi.fn(async (p: FunnelReport['period']) => ({ ...report(p), visits })) }} onSignedOut={() => undefined} />);
+    const v = await screen.findByTestId('funnel-visits');
+    expect(within(v).getByText('No landing-page visitors in this period yet.')).toBeInTheDocument();
+  });
+});

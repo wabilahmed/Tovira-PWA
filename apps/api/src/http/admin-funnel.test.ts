@@ -103,3 +103,20 @@ describe('[P63-6] GET /admin/funnel', () => {
     expect(await rep.text()).not.toContain('Sara');
   });
 });
+
+// [P63-8 · owner] Admin → Funnel also shows the site visits for the period: visits per day, unique visitors, top
+// referrers, and the share of landing-page visitors who reach request access, and who submit.
+describe('[P63-8] visits in the funnel', () => {
+  it('the funnel answer carries the visit report for the same period', async () => {
+    const { url, deps } = await start();
+    const PHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1';
+    await fetch(`${url}/visit`, { method: 'POST', headers: { 'user-agent': PHONE, 'x-forwarded-for': '1.1.1.1' }, body: JSON.stringify({ page: 'landing', referrer: 'https://linkedin.com/feed' }) });
+    await fetch(`${url}/visit`, { method: 'POST', headers: { 'user-agent': PHONE, 'x-forwarded-for': '1.1.1.1' }, body: JSON.stringify({ page: 'request_access' }) });
+    const { cookie } = await signInAdmin(url, deps);
+    const body = (await (await fetch(`${url}/admin/funnel?period=7d`, { headers: { cookie } })).json()) as { visits: { days: Array<{ views: number; uniques: number }>; topReferrers: unknown; landingVisitors: number; reachedRequestShare: number } };
+    expect(body.visits.days.at(-1)).toMatchObject({ views: 2, uniques: 1 });
+    expect(body.visits.topReferrers).toEqual([{ domain: 'linkedin.com', views: 1 }]);
+    expect(body.visits.landingVisitors).toBe(1);
+    expect(body.visits.reachedRequestShare).toBe(1);
+  });
+});
