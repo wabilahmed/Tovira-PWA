@@ -20,7 +20,7 @@ export const BULK_MAX_UPLOAD_BYTES = 10_000_000;
 
 type Step = 'pick' | 'uploading' | 'review' | 'ack' | 'progress';
 
-export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, single = false, onClientReady, onOpenSubscription, title }: {
+export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, single = false, onClientReady, onOpenSubscription, title, stagedBatchId }: {
   api: BulkImportApi; pollMs?: number; onSubscribe?: (plan: Plan) => void; onOpenBookScan?: () => void;
   /** [P39] A heading, only where no PageHeader already names the screen (the first-run guide). */
   title?: string;
@@ -31,6 +31,9 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
   /** [P36-1] Called with the client a chat was filed under as soon as its import starts — the rep then
    *  lands on that client's page with the import running. */
   onClientReady?: (clientId: string) => void;
+  /** [P67] A chat sent to Tovira on WhatsApp, already staged by the server: open straight on its review (the confirm
+   *  step). Nothing has been read; the rep confirms who it's with here, exactly as after choosing the file. */
+  stagedBatchId?: string;
 }): JSX.Element {
   const [step, setStep] = useState<Step>('pick');
   const [chosen, setChosen] = useState<Array<{ name: string; size: number }>>([]);
@@ -53,6 +56,34 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
   useEffect(() => () => {
     if (batchIdRef.current && !importStartedRef.current) void api.abandon(batchIdRef.current);
   }, [api]);
+
+  // [P67] Opened from the WhatsApp reply: review the staged chat straight away.
+  useEffect(() => {
+    if (!stagedBatchId) return;
+    let cancelled = false;
+    setBatchId(stagedBatchId);
+    setStep('uploading');
+    void (async () => {
+      try {
+        const parsed = await api.parse(stagedBatchId);
+        if (cancelled) return;
+        if (parsed.result.rows.length === 0) {
+          setError('This chat is no longer waiting here. Send it to Tovira on WhatsApp again, or choose the file below.');
+          setBatchId('');
+          setStep('pick');
+          return;
+        }
+        setResult(parsed.result);
+        setUpsell(parsed.upsell);
+        setStep('review');
+      } catch {
+        if (cancelled) return;
+        setError('Something went wrong opening that chat. Try again.');
+        setStep('pick');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [stagedBatchId, api]);
 
   function onPick(list: FileList | null): void {
     setError(null);

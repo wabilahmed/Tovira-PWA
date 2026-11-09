@@ -658,6 +658,23 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
     }
   }, [deepClientId, clients, session]);
 
+  // [P67] The WhatsApp reply's link `/app?import=<batch>` opens the confirm step (New client from a chat) on the chat the
+  // rep sent to Tovira's number. Nothing has been read yet; the rep confirms who it's with there. The param is stripped.
+  const [stagedImport, setStagedImport] = useState<string | null>(() => {
+    try { const id = new URLSearchParams(window.location.search).get('import'); return id && /^[A-Za-z0-9_-]{1,100}$/.test(id) ? id : null; } catch { return null; }
+  });
+  useEffect(() => {
+    if (!stagedImport || !session) return;
+    setOpen(null);
+    setView('clients');
+    setClientsAction('newFromChat');
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('import');
+      window.history.replaceState({}, '', `${u.pathname}${u.search}`);
+    }
+  }, [stagedImport, session]);
+
   // Mobile pushes the client detail full-screen; desktop keeps it beside the
   // list rail (the §8 split view), so the push only happens off desktop.
   if (open && !isDesktop)
@@ -930,11 +947,12 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
             <Page testId="clients-action" label={clientsAction === 'newFromChat' ? 'New client from a chat' : 'Import several chats'}>
               <PageHeader
                 title={clientsAction === 'newFromChat' ? 'New client from a chat' : 'Import several chats'}
-                back={{ label: 'Clients', onBack: () => { setClientsAction(null); setOnboardingImport(false); } }}
+                back={{ label: 'Clients', onBack: () => { setClientsAction(null); setOnboardingImport(false); setStagedImport(null); } }}
               />
               {clientsAction === 'newFromChat'
                 ? <BulkImport
-                    key="single" api={bulkImportApi} single onSubscribe={startCheckout} onOpenSubscription={openSubscription}
+                    key={stagedImport ? `staged-${stagedImport}` : 'single'} api={bulkImportApi} single onSubscribe={startCheckout} onOpenSubscription={openSubscription}
+                    {...(stagedImport ? { stagedBatchId: stagedImport } : {})}
                     onOpenBookScan={() => { loadSeeding(); setClientsAction(null); setOnboardingImport(false); setView('bookscan'); }}
                     onClientReady={onboardingImport ? undefined : (id) => void openImportedClient(id)}
                   />
