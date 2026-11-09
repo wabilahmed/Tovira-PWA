@@ -95,6 +95,8 @@ import { enablePush } from './push/enablePush.js';
 import { NotificationSetup, type NotificationApi } from './push/NotificationSetup.js';
 import { ThemeToggle } from './settings/ThemeToggle.js';
 import { TimezoneSetting } from './settings/TimezoneSetting.js';
+import { WhatsAppSetting } from './whatsapp/WhatsAppSetting.js';
+import { WhatsAppClient } from './whatsapp/whatsappClient.js';
 import { DisclosureLine } from './settings/DisclosureLine.js';
 import { BriefOpenPromises } from './brief/BriefOpenPromises.js';
 import { AppShell } from './shell/AppShell.js';
@@ -128,6 +130,7 @@ const auth = new AuthClient(API_BASE);
 const accessRequestApi = new HttpAccessRequestClient(API_BASE);
 const adminApi = new HttpAdminClient(API_BASE); // [P45-4] the admin console (/admin), its own session
 const clientsApi = new ClientsClient(API_BASE);
+const whatsappApi = new WhatsAppClient(API_BASE); // [P67] send chats on WhatsApp (absent while switched off)
 const processingApi = new ProcessingClient(API_BASE); // [P65] what Tovira is doing with what the rep sent
 const clientPageApi = new HttpClientPageClient(API_BASE); // [P36-5]
 const tourApi = new HttpTourClient(API_BASE); // [P37]
@@ -879,6 +882,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
           <Section title="Appearance"><ThemeToggle /></Section>
           <Section title="Time zone"><TimezoneSetting current={session.user.timezone} api={auth} /></Section>
           <Section title="Notifications"><NotificationSetup state={readPushState()} api={notificationApi} /></Section>
+          <WhatsAppSetting api={whatsappApi} />
           <Section title="Tell clients you keep notes"><DisclosureLine /></Section>
         </Page>
       )}
