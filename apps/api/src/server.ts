@@ -51,6 +51,7 @@ import type { TourService } from './services/tour/tour-service.js';
 import type { ClientOverviewService } from './services/clients/client-overview.js';
 import { handleInventoryRoute } from './http/inventory-routes.js';
 import { handleNoteRoute } from './http/notes-routes.js';
+import { handleWhatsAppRoute } from './http/whatsapp-routes.js';
 import { handleBulkImportRoute } from './http/bulk-import-routes.js';
 import type { BulkImportService } from './services/import/bulk-import-service.js';
 import type { BulkUpsellService } from './services/import/bulk-upsell.js';
@@ -258,6 +259,8 @@ export interface ApiDeps {
   processing?: { status: Pick<ProcessingStatusService, 'status'>; presence?: AppPresence; now?: () => number };
   /** [P63-9] Resend's webhook signing secret. Not wired in this push (key-first): absent, the webhook refuses every call. */
   resendWebhookSecret?: string;
+  /** [P67] Send a chat export to Tovira's WhatsApp number. Absent = switched off (every route 404s). */
+  whatsapp?: import('./http/whatsapp-routes.js').WhatsAppRouteDeps['whatsapp'];
   /** [P63-7] cookieless site visits (owner plane): POST /visit, and Admin → Funnel's visits. */
   visits?: VisitService;
   visitLimiter?: RateLimiter;
@@ -439,6 +442,7 @@ export function createApiServer(deps: ApiDeps): Server {
       })) return;
 
       // [P63-9] Resend's delivery webhooks (public, signature-verified; refused while the secret isn't wired).
+      if (await handleWhatsAppRoute(request, response, { auth: deps.auth, whatsapp: deps.whatsapp })) return; // [P67]
       if (deps.hotLeads && (await handleResendWebhook(request, response, { secret: deps.resendWebhookSecret, leads: deps.hotLeads }))) return;
 
       // [P63-7] Public, cookieless page-view beacon (no session).

@@ -5,6 +5,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApiServer } from '../server.js';
+import { WhatsAppService } from '../services/whatsapp/whatsapp-service.js';
+import { InMemoryWhatsAppLinkStore } from '../adapters/whatsapp/in-memory-whatsapp-store.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { signInAdmin } from '../test-support/admin-session.js';
 import { listenForTest } from '../test-support/listen.js';
@@ -33,10 +35,17 @@ function discoveredRoutes(): string[] {
 }
 // Public by design (no session at all) — they still must not show rep data. [P63-7 · owner] /visit: the cookieless
 // page-view beacon (always 204, no body). [P63-9 · owner] /webhooks/resend: Resend's signed delivery webhooks.
-const PUBLIC = /^\/(version|health|healthz|legal|auth|access-request|billing\/webhook|invite|tour\/funnel|visit$|webhooks\/resend$)/;
+const PUBLIC = /^\/(version|health|healthz|legal|auth|access-request|billing\/webhook|invite|tour\/funnel|visit$|webhooks\/resend$|webhooks\/whatsapp$)/;
 
 beforeAll(async () => {
   deps = buildInMemoryDeps();
+  // [P67] The WhatsApp routes switched ON here, so this guard really calls them with an admin session (off, they 404).
+  deps.whatsapp = {
+    service: new WhatsAppService({ settings: { businessNumber: '+971500000001', appBaseUrl: 'https://tovira.io' }, store: new InMemoryWhatsAppLinkStore(), storage: deps.storage,
+      graph: { mediaUrl: async () => { throw new Error('none'); }, download: async () => new Uint8Array(), sendText: async () => undefined },
+      entitlement: async () => ({ entitled: true, status: 'active' }) }),
+    appSecret: 'guard-secret', verifyToken: 'guard-verify',
+  };
   server = createApiServer(deps);
   await listenForTest(server);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

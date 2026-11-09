@@ -49,6 +49,9 @@ const RLS_EXEMPT: Record<string, string> = {
   model_call_events: 'spend instrumentation; user_id is nullable (NULL = system call), written system-side on every model call and read cross-tenant by ops cost reports — never a rep query path',
   transcription_events: '[P44-2] cost accounting: one row per completed transcription, written system-side and read cross-tenant by the ops cost report only — never a rep query path',
   revenue_events: '[P44-2] cost accounting: one row per paid Stripe object, written by the billing webhook (no tenant session) and read by the ops cost report only',
+  whatsapp_links: '[P67] a rep\'s linked WhatsApp number; the signature-checked webhook matches an inbound sender by number BEFORE any tenant is known (like sessions); deleted with the user',
+  whatsapp_link_codes: '[P67] a hashed one-time link code (15 minutes, single use), consumed by a message from that number before any tenant is known (like password_resets); deleted with the user',
+  whatsapp_inbound: '[P67] Meta message ids already handled, so a repeat delivery is never handled twice (like webhook_events); no user_id, no content',
   // System / billing writers that carry NO tenant session.
   email_log: 'lifecycle-email idempotency log; written system-side by the mailer (no tenant context on sends)',
   referrals: 'spans TWO users (referrer + referred), keyed by referred_email; written at signup/approval — not single-tenant',
