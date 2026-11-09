@@ -4,6 +4,8 @@ import { detectStandalone } from './onboarding.js';
 import { controller as installController } from '../pwa/InstallBanner.js';
 import { Card } from '../ui/Card.js';
 import { Tabs } from '../ui/Tabs.js';
+import { useLinkedWhatsApp } from '../whatsapp/linkedNumber.js';
+import { displayPhone } from '../format/phone.js';
 
 /**
  * [P37] How to export a WhatsApp chat, for the rep's own phone only. The ONE source of these instructions —
@@ -85,12 +87,18 @@ export function ExportSteps({ nav, standalone, install }: { nav?: NavigatorLike;
   useEffect(() => prompt?.subscribe(setInstallState), [prompt]);
   // [P64 · owner] the home-screen tip: Android, in the browser, on the Android tab; never on an iPhone
   const showTip = detected === 'android' && !installed && platform === 'android';
+  const toviraWhatsApp = useLinkedWhatsApp(); // [P67] only for a rep with a linked number, only while it's switched on
   return (
     <Card data-testid="export-steps">
       <Tabs label="Your phone" tabs={(['ios', 'android'] as const).map((p) => ({ value: p, label: TAB_LABEL[p] }))} value={platform} onChange={setPlatform}>
         <ol className="ui-numbered">
           {stepsFor(platform, installed).map((line) => <li key={line}>{line}</li>)}
         </ol>
+        {toviraWhatsApp && (
+          <p data-testid="export-whatsapp" style={{ margin: 0 }}>
+            Or send the export to Tovira on WhatsApp: when it asks where to send it, choose WhatsApp, then Tovira ({displayPhone(toviraWhatsApp)}).
+          </p>
+        )}
         {showTip && (
           <div className="ui-cluster ui-gap-2" data-testid="install-tip" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
             <p className="ui-caption" style={{ margin: 0 }}>Tip: add Tovira to your home screen, and you can share chats straight from WhatsApp.</p>

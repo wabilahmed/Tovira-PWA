@@ -9,8 +9,9 @@ import { toviraVCard, type WhatsAppApi, type WhatsAppStatus } from './whatsappCl
  * theirs (no SMS). Once linked: Tovira's number to send exported chats to, Save Tovira's number, and Unlink.
  * Switched off (the server answers 404), the whole section is absent.
  */
-export function WhatsAppSetting({ api, pollMs = 4000 }: { api: WhatsAppApi; pollMs?: number }): JSX.Element | null {
-  const [status, setStatus] = useState<WhatsAppStatus | null | undefined>(undefined);
+export function WhatsAppSetting({ api, pollMs = 4000, onChange }: { api: WhatsAppApi; pollMs?: number; /** linked or unlinked */ onChange?: (s: WhatsAppStatus) => void }): JSX.Element | null {
+  const [status, setStatusState] = useState<WhatsAppStatus | null | undefined>(undefined);
+  const setStatus = (s: WhatsAppStatus | null | undefined): void => { setStatusState(s); if (s) onChange?.(s); };
   const [phone, setPhone] = useState('');
   const [pending, setPending] = useState<{ code: string; waLink: string; expiresAt: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
