@@ -30,6 +30,7 @@ export type ReviewRowState =
   | 'duplicate'
   | 'unparseable'
   | 'too_large'
+  | 'too_long'
   | 'needs_rep_id';
 
 export interface ReviewRow {
@@ -47,6 +48,9 @@ export interface ReviewRow {
   truncated?: boolean;
   duplicateOfFileName?: string;
   participants?: string[];
+  /** [P67-1] too_long: the messages that would be read, and the limit. */
+  messageCount?: number;
+  limit?: number;
 }
 
 export interface ReviewResult {
@@ -81,6 +85,11 @@ interface Choice {
   answer?: 'yes' | 'no';
   /** the name the rep settled on (new rename, confirmed intro, typed unsaved name, picked group member). */
   name?: string;
+}
+
+/** [P67-1] The server's too-long wording (services/import/long-chat.ts), for a row of the review. */
+export function tooLongLine(messages: number, limit: number): string {
+  return `This chat is too long to read in one go: ${messages.toLocaleString('en-US')} messages, and the limit for now is ${limit.toLocaleString('en-US')}. WhatsApp can't export part of a chat, so contact us at hello@tovira.io and we'll help.`;
 }
 
 /** Does this row require a human choice before Import can proceed? */
@@ -118,6 +127,7 @@ function decide(row: ReviewRow, choice: Choice | undefined, repName: string | nu
     case 'duplicate':
     case 'unparseable':
     case 'too_large':
+    case 'too_long':
       return null; // shown, never imported
   }
 }
@@ -351,6 +361,13 @@ function Row({ row, choice, onChoice, repResolved, repChoice }: {
       return (
         <div style={{ color: 'var(--text-secondary)' }}>
           <strong>{row.fileName}</strong> — Could not read this file. Excluded.
+        </div>
+      );
+
+    case 'too_long':
+      return (
+        <div style={{ color: 'var(--text-secondary)' }} data-testid="row-too-long">
+          <strong>{row.counterpart ?? row.fileName}</strong>: {tooLongLine(row.messageCount ?? 0, row.limit ?? 0)} Excluded.
         </div>
       );
 

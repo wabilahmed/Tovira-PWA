@@ -156,6 +156,7 @@ import { accessRequestNotifier, adminAlertSender } from './services/access/admin
 import { syncWonEntry } from './services/ledger/won-after-suggestion.js';
 import { WinBackService } from './services/ledger/win-back.js';
 import { PgGoingQuietAlertRepository } from './adapters/ledger/pg-going-quiet-alert-repository.js';
+import { longChatLimit } from './services/import/long-chat.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -640,6 +641,7 @@ async function main(): Promise<void> {
     isExhausted: aiExhausted,
     isPaused: () => pauseFlag.paused(),
     concurrency: bulkConcurrency(config.sweepConcurrency),
+    longChatLimit: longChatLimit(config.windowing.enabled), // [P67-1]
     allowanceAed: config.monthlyAiAllowanceAed,
     modelId: config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub',
     repNames,
@@ -696,6 +698,7 @@ async function main(): Promise<void> {
     aliases: contactAliases,
     repNames,
     importAck,
+    longChatLimit: longChatLimit(config.windowing.enabled), // [P67-1]
     allowanceExhausted: aiExhausted,
     // [P65-1] the rep's processing status; [P65-5] whether their app is open
     processing: {

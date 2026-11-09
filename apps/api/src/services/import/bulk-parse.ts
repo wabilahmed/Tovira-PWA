@@ -40,6 +40,7 @@ export type RowState =
   | 'group' // >2 senders → skipped by default (D4)
   | 'duplicate' // same chat as another file → shown once, not imported twice
   | 'unparseable' // could not read this file
+  | 'too_long' // [P67-1] more messages to read than one pass can take: refused before it is read
   | 'needs_rep_id'; // single file, rep can't be eliminated → "which of these is you?" (once)
 
 export interface BulkRow {
@@ -60,6 +61,9 @@ export interface BulkRow {
   newMessageCount?: number;
   /** [FOLLOW-UP 2] only the most recent part of a very long chat was imported. */
   truncated?: boolean;
+  /** [too_long] the messages that would be read, and the limit. */
+  messageCount?: number;
+  limit?: number;
   /** [duplicate] the file this is a duplicate of. */
   duplicateOfFileName?: string;
   /** [group / needs_rep_id] the distinct senders, so the rep can pick the client / pick themselves. */

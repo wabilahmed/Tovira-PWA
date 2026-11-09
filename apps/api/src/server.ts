@@ -204,6 +204,8 @@ export interface ApiDeps {
   repNames?: RepNameRepository;
   /** [PRIVACY-5] first-import acknowledgement store. */
   importAck: ImportAckRepository;
+  /** [P67-1] The most messages one chat may have to read (null = no limit: windowed extraction). */
+  longChatLimit?: number | null;
   corpus: CorpusStatsService;
   /** [USAGE-ALLOWANCE · D4] true when the rep is at 100% of the allowance → import refused, questions
    *  paused. Read-only status for the meter is `allowanceStatus`. Optional (local/old wiring). */
@@ -501,6 +503,7 @@ export function createApiServer(deps: ApiDeps): Server {
           allowanceExhausted: deps.allowanceExhausted,
           ...(deps.accessAnswers ? { answersRequired: (u: string) => deps.accessAnswers!.required(u) } : {}),
           restriction: deps.restriction,
+          longChatLimit: deps.longChatLimit,
         })
       )
         return;

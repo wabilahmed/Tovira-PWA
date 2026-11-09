@@ -21,6 +21,7 @@ import { assignSpeakerRoles } from './unanswered.js';
 import { redactMessages } from '../redaction/redact.js';
 import { screenPrecise } from '../screening/precise-screen.js';
 import { estimateBulkAed, percentOfAllowance } from './bulk-estimate.js';
+import { isTooLong } from './long-chat.js';
 import { BulkExtractionOrchestrator, type ChatJob } from './bulk-extraction.js';
 export type { ChatJob } from './bulk-extraction.js';
 
@@ -47,6 +48,8 @@ export interface BulkImportDeps {
   bulkNotes?: { add: (noteId: string) => void; remove: (noteId: string) => void };
   /** [P20-3 / BULK-08] Emit the ONE aggregate "Imported N chats …" notification at batch end. */
   onBatchComplete?: (userId: string, summary: BulkImportSummary) => Promise<void>;
+  /** [P67-1] The most messages one chat may have to read; null = no limit (windowed extraction). Absent = none. */
+  longChatLimit?: number | null;
 }
 
 /** [P20-3 / BULK-08] The one summary shown on the finished screen + in the aggregate notification. */
@@ -76,7 +79,7 @@ interface PlanItem {
   fresh: ImportedMessage[];
 }
 
-const NON_IMPORTABLE: ReadonlySet<RowState> = new Set<RowState>(['group', 'duplicate', 'unparseable']);
+const NON_IMPORTABLE: ReadonlySet<RowState> = new Set<RowState>(['group', 'duplicate', 'unparseable', 'too_long']);
 
 export class BulkImportService {
   constructor(private readonly deps: BulkImportDeps) {}
@@ -117,6 +120,13 @@ export class BulkImportService {
       }
       if (r.state === 'existing' && r.matchClientId) {
         r.newMessageCount = dedupeMessages(await storedFor(r.matchClientId), msgs).length;
+      }
+      // [P67-1] Refused before it is read: more messages to read than one pass can take.
+      const toRead = r.state === 'existing' ? (r.newMessageCount ?? msgs.length) : msgs.length;
+      if (!NON_IMPORTABLE.has(r.state) && isTooLong(toRead, this.deps.longChatLimit ?? null)) {
+        r.state = 'too_long';
+        r.messageCount = toRead;
+        r.limit = this.deps.longChatLimit!;
       }
       rows.push(r);
     }
@@ -184,6 +194,7 @@ export class BulkImportService {
       const prior = targetClientId ? await this.deps.notes.listByClient(userId, targetClientId) : [];
       const fresh = dedupeMessages(prior.flatMap((n) => n.messages ?? []), screened);
       if (fresh.length === 0) { skipped += 1; continue; } // nothing new — a duplicate upload
+      if (isTooLong(fresh.length, this.deps.longChatLimit ?? null)) { skipped += 1; continue; } // [P67-1] never read
 
       plan.push({ decision, fresh });
     }

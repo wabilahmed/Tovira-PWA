@@ -28,6 +28,7 @@ import { NO_RESTRICTION, type Restriction } from '../services/erasure/restrictio
 const RESTRICTION_NOTICE = 'Restricted while a privacy request is reviewed.';
 import { extractionState, aggregateExtractionStates } from '../services/notes/extraction-state.js';
 import { dedupeMessages, renderThread } from '../services/import/dedup.js';
+import { isTooLong, tooLongMessage } from '../services/import/long-chat.js';
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson, requireEntitled } from './helpers.js';
 import { redactSensitive, redactMessages } from '../services/redaction/redact.js';
 import { isAppRecordingContainer, looksLikeAudio, AUDIO_ELSEWHERE_MESSAGE, VOICE_TOO_LONG_MESSAGE } from '../services/media/sniff.js';
@@ -133,6 +134,8 @@ export interface NoteRouteDeps {
   /** [TASK 2] Active erasure-window restriction — in the rep's book, a note about a restricted
    *  counterparty shows a placeholder instead of the content (still stored, still exported). Optional. */
   restriction?: { forUser(userId: string): Promise<Restriction> };
+  /** [P67-1] The most messages one chat may have to read; null or absent = no limit (windowed extraction). */
+  longChatLimit?: number | null;
 }
 
 /** Ledger (P4-11): capturing a note for a client that a scan flagged (going cold
@@ -482,6 +485,11 @@ export async function handleNoteRoute(
       const fresh = dedupeMessages(existing, parsed.messages);
       if (fresh.length === 0) {
         sendJson(res, 200, { note: null, imported: 0, duplicate: true });
+        return true;
+      }
+      // [P67-1 · owner] Too long to read in one go: refused here, before anything is stored or read.
+      if (isTooLong(fresh.length, deps.longChatLimit ?? null)) {
+        sendJson(res, 413, { error: 'too_long', message: tooLongMessage(fresh.length, deps.longChatLimit!), messageCount: fresh.length, limit: deps.longChatLimit });
         return true;
       }
       // [ALIAS-COUNTERPART] Confirm the counterpart BEFORE extraction (the ordering rule). Identify

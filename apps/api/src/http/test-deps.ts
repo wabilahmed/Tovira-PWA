@@ -133,6 +133,7 @@ import { AccessAnswersService } from '../services/access/access-answers-service.
 import { syncWonEntry } from '../services/ledger/won-after-suggestion.js';
 import { WinBackService } from '../services/ledger/win-back.js';
 import { InMemoryGoingQuietAlertRepository } from '../adapters/ledger/in-memory-going-quiet-alert-repository.js';
+import { LONG_CHAT_MAX_MESSAGES } from '../services/import/long-chat.js';
 
 export interface TestDeps extends ApiDeps {
   /** [P47] the kept-suggestion store (the erasure guard seeds one). */
@@ -410,6 +411,7 @@ export function buildInMemoryDeps(
     isExhausted: (u) => allowanceStatus.isExhausted(u),
     isPaused: () => aiPause.getPaused(),
     concurrency: bulkConcurrency(5),
+    longChatLimit: LONG_CHAT_MAX_MESSAGES, // [P67-1] as in production (windowing off)
     allowanceAed: DEFAULT_MONTHLY_AI_ALLOWANCE_AED,
     modelId: 'stub',
     repNames,
@@ -524,6 +526,7 @@ export function buildInMemoryDeps(
     },
     modelCallEvents,
     importAck,
+    longChatLimit: LONG_CHAT_MAX_MESSAGES, // [P67-1] as in production (windowing off)
     activation: new ActivationService(new InMemoryActivationRepository(), new InMemoryAnalytics()),
     bookScan: new BookScanService({ clients, notes: surfacing.notes, facts: surfacing.facts }, { coldThresholdDays: 30, upcomingWindowDays: 30 }, keptSuggestions),
     keptSuggestions,

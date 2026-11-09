@@ -7,12 +7,14 @@ import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { MAX_IMPORT_UPLOAD_BYTES } from '../services/import/bulk-decode.js';
 import { listenForTest } from '../test-support/listen.js';
 
-/** A valid Android export grown to ~approxBytes (Wabil + the counterpart), for the large-file tests. */
+/** A valid Android export grown to ~approxBytes (Wabil + the counterpart), for the large-file tests.
+ *  [P67-1 · owner] Over 5,000 messages to read is now refused before reading; these tests are about file SIZE, so the
+ *  same megabytes are built from fewer, longer messages (~2,000 characters each). Every assertion is unchanged. */
 function bigChat(other: string, approxBytes: number): string {
   const out: string[] = [];
   let size = 0;
   for (let i = 0; size < approxBytes; i += 1) {
-    const line = `13/07/2019, 1:00 am - ${i % 2 === 0 ? 'Wabil' : other}: message ${i} ${'x'.repeat(120)}`;
+    const line = `13/07/2019, 1:00 am - ${i % 2 === 0 ? 'Wabil' : other}: message ${i} ${'x'.repeat(2_000)}`;
     out.push(line);
     size += line.length + 1;
   }

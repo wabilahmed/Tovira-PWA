@@ -514,11 +514,14 @@ describe('[FIX 1] single import — raw-binary upload', () => {
     const eocd = Buffer.concat([u32(0x06054b50), u16(0), u16(0), u16(1), u16(1), u32(cdr.length), u32(lfh.length), u16(0)]);
     return Buffer.concat([lfh, cdr, eocd]);
   }
+  // [P67-1 · owner] A chat with more than 5,000 messages to read is now refused before reading. These tests are about
+  // the file SIZE (transport and the character ceiling), so the same megabytes are built from fewer, longer messages
+  // (~2,000 characters each) and stay under the message limit; every assertion is unchanged.
   function bigChat(other: string, approxBytes: number): string {
     const out: string[] = [];
     let size = 0;
     for (let i = 0; size < approxBytes; i += 1) {
-      const line = `13/07/2019, 1:00 am - ${i % 2 === 0 ? 'Wabil' : other}: message ${i} ${'x'.repeat(120)}`;
+      const line = `13/07/2019, 1:00 am - ${i % 2 === 0 ? 'Wabil' : other}: message ${i} ${'x'.repeat(2_000)}`;
       out.push(line); size += line.length + 1;
     }
     return out.join('\n');

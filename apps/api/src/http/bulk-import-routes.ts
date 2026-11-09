@@ -56,7 +56,7 @@ function stateFromNote(note: { status: string; sweepAttempts?: number } | null):
   }
 }
 
-const NON_IMPORTABLE: ReadonlySet<RowState> = new Set<RowState>(['group', 'duplicate', 'unparseable']);
+const NON_IMPORTABLE: ReadonlySet<RowState> = new Set<RowState>(['group', 'duplicate', 'unparseable', 'too_long']);
 const STATUS_RE = /^\/import\/bulk\/([^/]+)\/status$/;
 const ABANDON_RE = /^\/import\/bulk\/([^/]+)$/; // DELETE — the rep left the review without importing
 const BATCH_ID_RE = /^[A-Za-z0-9_-]{1,100}$/;
