@@ -129,6 +129,24 @@ export class PgNoteRepository implements NoteRepository {
     });
   }
 
+  async claimForTranscription(userId: string, noteId: string, nowMs: number, staleMs: number): Promise<boolean> {
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `UPDATE notes SET claimed_at = to_timestamp($2::double precision / 1000)
+         WHERE id = $1 AND status = 'pending_transcription'
+           AND (claimed_at IS NULL OR claimed_at <= to_timestamp(($2::double precision - $3::double precision) / 1000)) RETURNING id`,
+        [noteId, nowMs, staleMs],
+      );
+      return rows.length > 0;
+    });
+  }
+
+  async releaseTranscriptionClaim(userId: string, noteId: string): Promise<void> {
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query(`UPDATE notes SET claimed_at = NULL WHERE id = $1 AND status = 'pending_transcription'`, [noteId]);
+    });
+  }
+
   async reclaimStaleExtracting(userId: string, nowMs: number, staleMs: number): Promise<number> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(

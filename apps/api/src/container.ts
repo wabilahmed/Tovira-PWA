@@ -87,6 +87,7 @@ import type { Transcriber } from './ports/transcriber.js';
 import { StubTranscriber } from './adapters/transcription/stub.js';
 import { GroqTranscriber } from './adapters/transcription/groq.js';
 import { TranscriptionService } from './services/transcription/transcription-service.js';
+import { DraftTranscriptCache } from './services/transcription/draft-transcripts.js';
 import type { FactsRepository } from './ports/facts-repository.js';
 import { InMemoryFactsRepository } from './adapters/facts/in-memory-facts-repository.js';
 import { PgFactsRepository } from './adapters/facts/pg-facts-repository.js';
@@ -521,7 +522,7 @@ export function createTranscriptionService(
   notes: NoteRepository,
   storage: Storage,
 ): TranscriptionService {
-  return new TranscriptionService(createTranscriber(config), notes, storage);
+  return new TranscriptionService(createTranscriber(config), notes, storage, undefined, new DraftTranscriptCache()); // [P67-2]
 }
 
 /** The extracted spine store (promises), RLS-backed on pg. */

@@ -78,6 +78,19 @@ export class InMemoryNoteRepository implements NoteRepository {
     return true;
   }
 
+  async claimForTranscription(userId: string, noteId: string, nowMs: number, staleMs: number): Promise<boolean> {
+    const n = this.byId.get(noteId);
+    if (!n || n.userId !== userId || n.status !== 'pending_transcription') return false;
+    if (n.claimedAt != null && n.claimedAt > nowMs - staleMs) return false;
+    n.claimedAt = nowMs;
+    return true;
+  }
+
+  async releaseTranscriptionClaim(userId: string, noteId: string): Promise<void> {
+    const n = this.byId.get(noteId);
+    if (n && n.userId === userId && n.status === 'pending_transcription') n.claimedAt = null;
+  }
+
   async reclaimStaleExtracting(userId: string, nowMs: number, staleMs: number): Promise<number> {
     let count = 0;
     for (const n of this.byId.values()) {

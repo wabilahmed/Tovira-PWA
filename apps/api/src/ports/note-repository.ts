@@ -126,6 +126,12 @@ export interface NoteRepository {
    *  note — the orchestrator and the background sweep can both drain the same queue with no double
    *  extraction. Returns true iff THIS call won the claim. */
   claimForExtraction(userId: string, noteId: string, nowMs: number): Promise<boolean>;
+  /** [P67-2] Atomically claim a voice note for transcription: still pending_transcription and not claimed in the last
+   *  `staleMs` (a claim older than that is a crashed attempt). Stamps claimedAt. Only ONE caller (the app's immediate
+   *  request or the sweep) wins, so a recording is never transcribed twice. True iff THIS call won. */
+  claimForTranscription(userId: string, noteId: string, nowMs: number, staleMs: number): Promise<boolean>;
+  /** [P67-2] Give the claim back after a transient failure, so the next attempt can retry at once. */
+  releaseTranscriptionClaim(userId: string, noteId: string): Promise<void>;
   /** [RULING 2 item 2] Crash recovery: flip this rep's notes stuck in 'extracting' with a claim older
    *  than staleMs back to pending_extraction, so the sweep re-drains them. Returns the count. */
   reclaimStaleExtracting(userId: string, nowMs: number, staleMs: number): Promise<number>;

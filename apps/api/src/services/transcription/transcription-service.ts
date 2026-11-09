@@ -1,3 +1,4 @@
+import { DraftTranscriptCache } from './draft-transcripts.js';
 import { redactSensitive } from '../redaction/redact.js';
 import type { Transcriber } from '../../ports/transcriber.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
@@ -6,7 +7,13 @@ import type { Storage } from '../../ports/storage.js';
 export interface TranscribeOutcome {
   status: string;
   retry?: boolean;
+  /** [P67-2] Another caller is transcribing this recording right now; nothing was done. */
+  inProgress?: boolean;
 }
+
+/** [P67-2] A transcription claim older than this is a crashed attempt and may be taken over (well above one
+ *  transcription of the longest recording the app allows, ~10 minutes of audio). */
+export const TRANSCRIBE_CLAIM_STALE_MS = 5 * 60_000;
 
 /** Terminal status when a voice note's recording is confirmed gone — distinct from the generic
  *  needs_review so the rep sees WHY (the UI renders a human reason for it). */
@@ -49,6 +56,8 @@ export class TranscriptionService {
     private readonly storage: Storage,
     /** Injectable clock — the retention clock ([AUDIO-RETENTION]) is stamped from here on success. */
     now: () => number = () => Date.now(),
+    /** [P67-2] The new-client draft's transcript, reused when the same recording becomes the first voice note. */
+    private readonly drafts?: DraftTranscriptCache,
   ) {
     this.now = now;
   }
@@ -57,13 +66,20 @@ export class TranscriptionService {
    *  Tier-1 blanked, and nothing stored. Throws when the transcriber fails; the caller keeps the recording. */
   async transcribeAudio(userId: string, audio: Uint8Array): Promise<{ text: string; quality?: 'ok' | 'low' }> {
     const result = await this.transcriber.transcribe(userId, audio);
-    return { text: redactSensitive(result.text ?? '').redacted, quality: result.quality };
+    const out = { text: redactSensitive(result.text ?? '').redacted, quality: result.quality };
+    this.drafts?.put(userId, audio, out);
+    return out;
   }
 
   async transcribeNote(userId: string, noteId: string): Promise<TranscribeOutcome> {
     const note = await this.notes.findByIdForUser(userId, noteId);
     if (!note) return { status: 'not_found' };
     if (note.source !== 'voice' || !note.audioKey) return { status: note.status };
+    // [P67-2] The app transcribes at once and the sweep picks up the same note: only the claim's winner transcribes.
+    if (note.status !== 'pending_transcription') return { status: note.status };
+    if (!(await this.notes.claimForTranscription(userId, noteId, this.now(), TRANSCRIBE_CLAIM_STALE_MS))) {
+      return { status: 'pending_transcription', inProgress: true };
+    }
 
     let audio: Uint8Array;
     try {
@@ -85,17 +101,20 @@ export class TranscriptionService {
         await this.notes.update(userId, noteId, { status: TRANSCRIPTION_FAILED_STATUS });
         return { status: TRANSCRIPTION_FAILED_STATUS };
       }
+      await this.notes.releaseTranscriptionClaim(userId, noteId);
       return { status: 'pending_transcription', retry: true };
     }
 
     let text: string;
     let quality: 'ok' | 'low' | undefined;
     try {
-      const result = await this.transcriber.transcribe(userId, audio);
+      // [P67-2] The same recording was already transcribed for the new-client confirm step: use that, don't call again.
+      const result = this.drafts?.take(userId, audio) ?? (await this.transcriber.transcribe(userId, audio));
       text = result.text ?? '';
       quality = result.quality;
     } catch {
       // API error/timeout → keep the note pending; a later run retries it.
+      await this.notes.releaseTranscriptionClaim(userId, noteId);
       return { status: 'pending_transcription', retry: true };
     }
 
