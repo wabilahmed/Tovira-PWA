@@ -9,7 +9,9 @@ import { AuthShell } from './AuthShell.js';
 describe('[P62-2] the tagline', () => {
   it('the sign-in and request-form header shows the new line', () => {
     render(<AuthShell subtitle="Request beta access"><p>x</p></AuthShell>);
-    expect(screen.getByText('Memory for sales people whose clients stay for years.')).toBeInTheDocument();
+    // [P69 · owner] memory is no longer the headline: the tagline is the promise
+    expect(screen.getByText('What each client cares about, in front of you when it matters.')).toBeInTheDocument();
+    expect(screen.queryByText(/memory for sales people/i)).toBeNull();
   });
   it('NEGATIVE: the old tagline appears nowhere in the web app\'s source or pages', () => {
     const root = join(process.cwd(), 'apps/web');

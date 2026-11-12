@@ -11,7 +11,8 @@ describe('PWA manifest', () => {
 
   // [P42-A5] The install description follows the P41 positioning.
   it('describes memory for sales people whose clients stay with them for years, not field sales', () => {
-    expect(manifest.description).toBe('Memory for sales people whose clients stay with them for years.');
+    // [P69 · owner] the install description is the landing page's line now
+    expect(manifest.description).toBe('Tovira analyses your client conversations and picks out what each client cares about, so you can close.');
   });
 
   it('has a start_url and an app-like display mode', () => {
