@@ -1,6 +1,7 @@
 import { renderEmail, renderText } from '../email/templates.js';
 import { FOUNDER_EMAIL, FOUNDER_FROM } from '../email/contact.js';
 import { DEFAULT_TRIAL_DAYS } from '../../config.js';
+import { INVITE_OPENER } from '../email/account-email-service.js';
 
 /**
  * [P58-2 · owner] The hot-lead beta invite, from the founder. The shared Tovira layout (renderEmail: the same as the
@@ -29,6 +30,7 @@ export function leadInviteEmail(i: { fullName: string | null; personalLine: stri
     intro: [
       `Hi ${first},`,
       personal,
+      INVITE_OPENER, // [P69 · owner] the promise, before the invite
       // [P62-1 · owner] never promise free days to an inbox whose trial already ended
       i.trialEndedAt != null
         ? "Here's your beta invite. Join the beta and pick a plan to continue. The form takes a minute, and most of it is already filled in."

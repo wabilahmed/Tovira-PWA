@@ -37,7 +37,10 @@ function stampDate(ms: number, timezone = 'UTC'): string {
 
 const SIGNOFF = '\n\nTovira';
 /** [P61-4 · owner] Since P57 a rep can start by chat, voice or typing. */
-const WELCOME_START = 'Start with one client: import a WhatsApp chat, record a voice note after a call, or just type what you know.';
+/** [P69 · owner] the welcome's first step: one client the rep is trying to close. */
+const WELCOME_START = "Start with one client you're trying to close: import the chat, record a voice note, or type what you know. Tovira will show you what they care about.";
+/** [P69 · owner] the invite emails open with the promise. */
+export const INVITE_OPENER = "Tovira analyses your client conversations and picks out what each client cares about, so it's in front of you when it matters. Plus every promise and date, so nothing slips.";
 
 /**
  * Transactional + lifecycle email (TASK EMAIL). Composes every account email in
@@ -136,13 +139,13 @@ export class AccountEmailService {
       to,
       subject: 'Your Tovira invitation',
       text:
-        `Your request for Tovira beta access has been approved.\n\n` +
+        `Your request for Tovira beta access has been approved.\n\n${INVITE_OPENER}\n\n` +
         `To finish setting up your account, open this link and choose a password:\n${inviteUrl}\n\n` +
         `You will also be asked to accept the Terms and Privacy Policy. The link is single-use and expires in ${INVITE_TTL_DAYS} days.` +
         SIGNOFF,
       html: renderEmail({
         heading: 'Set up your Tovira account',
-        intro: ['Your request for Tovira beta access has been approved.', 'Open the link below to choose a password and accept the Terms and Privacy Policy.'],
+        intro: ['Your request for Tovira beta access has been approved.', INVITE_OPENER, 'Open the link below to choose a password and accept the Terms and Privacy Policy.'],
         button: { label: 'Set up my account', url: inviteUrl },
         outro: [`The link is single-use and expires in ${INVITE_TTL_DAYS} days.`],
       }),

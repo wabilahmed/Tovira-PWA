@@ -160,7 +160,8 @@ describe('[BETA-8] POST /auth/invite/resend (expired-link recovery)', () => {
 // and the welcome email has no "Confirm your email" button. Everyone's welcome now says they can start by chat, voice or
 // typing. A self-serve signup still gets the confirm button.
 describe('[P61-4] the welcome email for an invited person', () => {
-  const START = 'Start with one client: import a WhatsApp chat, record a voice note after a call, or just type what you know.';
+  // [P69 · owner] the welcome's first step is now one client the rep is trying to close
+  const START = "Start with one client you're trying to close: import the chat, record a voice note, or type what you know. Tovira will show you what they care about.";
   const welcomeTo = async (email: string) => {
     for (let i = 0; i < 100; i++) {
       const m = deps.emailSender.to(email).find((x) => x.subject === 'Welcome to Tovira');

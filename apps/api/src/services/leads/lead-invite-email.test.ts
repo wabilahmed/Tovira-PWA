@@ -18,6 +18,8 @@ describe('[P58-2] the invite email', () => {
     expect(e.text).toBe([
       'Hi Sara,',
       'Thanks for your reply about Tovira.',
+      // [P69 · owner] the invite opens with the promise
+      "Tovira analyses your client conversations and picks out what each client cares about, so it's in front of you when it matters. Plus every promise and date, so nothing slips.",
       "Here's your beta invite. You get 14 days free, at no cost. The form takes a minute, and most of it is already filled in.",
       `Join the Tovira beta:\n${URL_}`,
       'Start with one client chat, or record a voice note after your next call.',
