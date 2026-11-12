@@ -24,7 +24,7 @@ import { formatBody } from '../format/dates.js';
  * built from static content: the tour never creates clients, notes or facts. The plan step uses the rep's
  * REAL trial date and usage, and prices from the same config the Subscription screen uses.
  */
-export const TOUR_STEP_COUNT = 9;
+export const TOUR_STEP_COUNT = 10; // [P69 · owner] + What they care about
 
 export interface TourProps {
   mode: 'required' | 'replay';
@@ -186,6 +186,15 @@ const EXAMPLE_RECEIPT: ReceiptSource = {
   ],
 };
 const exampleReceipts: ReceiptsApi = { source: async () => EXAMPLE_RECEIPT, thread: async () => EXAMPLE_RECEIPT };
+/** [P69] the client-detail example: the client's own message, outlined as the source. */
+const CARES_RECEIPT: ReceiptSource = {
+  kind: 'chat', noteId: null, repKnown: true, hasMore: false,
+  bubbles: [
+    { sender: 'Sara Khan', side: 'other', at: '2026-05-07T18:03', text: 'Honestly I love the beach, I go every morning before work', source: true },
+    { sender: 'You', side: 'rep', at: '2026-05-07T18:20', text: 'Noted!', source: false },
+  ],
+};
+const caresReceipts: ReceiptsApi = { source: async () => CARES_RECEIPT, thread: async () => CARES_RECEIPT };
 
 const HOME_STEPS = {
   ios: 'In Safari, tap Share, then Add to Home Screen.',
@@ -209,7 +218,8 @@ function buildSteps(c: {
   return [
     {
       title: 'Welcome to Tovira',
-      body: <p>Tovira remembers your clients from your WhatsApp chats and voice notes. Every answer shows the message it came from.</p>,
+      // [P69 · owner] the promise first; memory is the supporting line
+      body: <p>Tovira analyses your WhatsApp chats and voice notes and picks out what each client cares about. It never forgets a promise, either.</p>,
     },
     {
       title: 'Your clients',
@@ -261,6 +271,19 @@ function buildSteps(c: {
               <p style={{ margin: '0 0 var(--space-2)' }}><strong>Sara Khan</strong> : send the revised proposal by Thursday?</p>
               <div style={{ display: 'flex', gap: 'var(--space-2)' }}><span className="tov-tour__fake-btn">Confirm</span><span className="tov-tour__fake-btn">Not right</span></div>
             </div>
+          </Example>
+        </>
+      ),
+    },
+    {
+      // [P69 · owner] a client detail with the message it came from
+      title: 'What they care about',
+      body: (
+        <>
+          <p>What each client told you about themselves, on their page, in the brief and on Today.</p>
+          <Example>
+            <p className="tov-tour__fact" data-testid="tour-cares"><span className="tov-stamp">What they care about</span> Loves the beach</p>
+            <ReceiptsProvider api={caresReceipts}><ReceiptThread compact={false} refInfo={{ quote: 'Honestly I love the beach, I go every morning before work' }} /></ReceiptsProvider>
           </Example>
         </>
       ),

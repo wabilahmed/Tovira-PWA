@@ -46,7 +46,7 @@ describe('[P37] the tour on the account', () => {
   it('a fresh account must take it: 9 steps, from the start', async () => {
     const { token } = await signup('tour-new@example.com');
     expect(await tour(token)).toEqual({ required: true, step: 0, steps: TOUR_STEPS, version: TOUR_VERSION });
-    expect(TOUR_STEPS).toBe(9);
+    expect(TOUR_STEPS).toBe(10); // [P69 · owner] + What they care about
   });
 
   it('the step is saved, so another session (a reload, another phone) resumes there', async () => {
@@ -74,7 +74,7 @@ describe('[P37] the tour on the account', () => {
 
   it('NEGATIVE: an out-of-range step is refused', async () => {
     const { token } = await signup('tour-bad@example.com');
-    expect((await step(token, 9)).status).toBe(400);
+    expect((await step(token, 10)).status).toBe(400);
     expect((await step(token, -1)).status).toBe(400);
   });
 

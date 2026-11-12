@@ -30,30 +30,31 @@ function props(over: Partial<TourProps> = {}): TourProps {
 const next = () => userEvent.click(screen.getByRole('button', { name: 'Next' }));
 async function goTo(step: number): Promise<void> { for (let k = 1; k < step; k += 1) await next(); }
 
+// [P69 · owner] the tour is ten steps now (What they care about is step 6, before Today); the plan step is 9 and the last is 10.
 describe('[P37] the tour', () => {
-  it('nine steps, announced "Step N of 9"; Next and Back move between them', async () => {
+  it('nine steps, announced "Step N of 10"; Next and Back move between them', async () => {
     render(<Tour {...props()} />);
-    expect(TOUR_STEP_COUNT).toBe(9);
-    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 1 of 9');
+    expect(TOUR_STEP_COUNT).toBe(10); // [P69 · owner] + What they care about
+    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 1 of 10');
     expect(screen.getByRole('dialog')).toHaveAccessibleName('Welcome to Tovira');
     expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled();
     await next();
-    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 2 of 9');
+    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 2 of 10');
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 1 of 9');
-    await goTo(9);
-    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 9 of 9');
+    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 1 of 10');
+    await goTo(10);
+    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 10 of 10');
     expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Import your first chat' })).toBeInTheDocument();
   });
 
   it('is required: no Skip or Close anywhere, and Escape does nothing', async () => {
     render(<Tour {...props()} />);
-    for (let s = 1; s <= 9; s += 1) {
+    for (let s = 1; s <= 10; s += 1) {
       expect(screen.queryByRole('button', { name: /skip|close|dismiss|later|×/i })?.textContent ?? '').not.toMatch(/skip|close|dismiss|×/i);
       await userEvent.keyboard('{Escape}');
       expect(screen.getByTestId('tour')).toBeInTheDocument();
-      if (s < 9) await next();
+      if (s < 10) await next();
     }
   });
 
@@ -66,7 +67,7 @@ describe('[P37] the tour', () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
     screen.getByRole('heading', { name: 'Welcome to Tovira' }).focus();
     await userEvent.keyboard('{Enter}');
-    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 2 of 9');
+    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 2 of 10');
   });
 
   it('saves each step on the account; a replay saves nothing and never completes', async () => {
@@ -78,7 +79,7 @@ describe('[P37] the tour', () => {
     unmount();
     const r = props({ mode: 'replay' });
     render(<Tour {...r} />);
-    await goTo(9);
+    await goTo(10);
     await userEvent.click(screen.getByRole('button', { name: 'Import your first chat' }));
     expect(r.api.saveStep).not.toHaveBeenCalled();
     expect(r.api.complete).not.toHaveBeenCalled();
@@ -95,7 +96,7 @@ describe('[P37] the tour', () => {
 
   it('resumes at the saved step', () => {
     render(<Tour {...props({ startStep: 4 })} />);
-    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 5 of 9');
+    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 5 of 10');
   });
 
   it('step 2 shows the export steps for the rep\'s own phone only', async () => {
@@ -116,7 +117,7 @@ describe('[P37] the tour', () => {
   it('the plan step shows the REAL trial end date and usage, and prices from the Subscription config', async () => {
     const p = props({ usage: { status: vi.fn(async () => ({ percentUsed: 37, rawPercentUsed: 37, exhausted: false, resetAt: '2026-11-03T00:00:00.000Z', canTopUp: false, options: [], subscription: 'trialing', extraPercentLeft: 0 })) } });
     render(<Tour {...p} />);
-    await goTo(8);
+    await goTo(9);
     await waitFor(() => expect(screen.getByTestId('tour-trial')).toHaveTextContent('Your free trial ends on 3 Nov 2026 (14 days).'));
     expect(screen.getByTestId('tour-usage')).toHaveTextContent('37% used.');
     expect(screen.getByTestId('tour-prices')).toHaveTextContent(`Subscribe here any time: ${PLANS.monthly.price} or ${PLANS.annual.price}.`);
@@ -126,7 +127,7 @@ describe('[P37] the tour', () => {
 
   it('a subscriber replaying the tour is pointed at Buy more usage instead', async () => {
     render(<Tour {...props({ mode: 'replay', billing: { status: vi.fn(async () => ({ entitled: true, status: 'active', trialEndsAt: 0, renewsAt: Date.parse('2026-11-12T00:00:00Z') })) } })} />);
-    await goTo(8);
+    await goTo(9);
     expect(await screen.findByText('If you run low, tap Buy more usage here.')).toBeInTheDocument();
     expect(screen.queryByTestId('tour-prices')).toBeNull();
   });
@@ -134,7 +135,7 @@ describe('[P37] the tour', () => {
   it('notifications: the real permission prompt, or "Not now" — either way the rep can finish', async () => {
     const p = props();
     render(<Tour {...p} />);
-    await goTo(9);
+    await goTo(10);
     await userEvent.click(screen.getAllByRole('button', { name: 'Not now' })[1]!); // notifications
     await userEvent.click(screen.getByRole('button', { name: 'Not now' })); // home screen
     expect(p.notifications.enable).not.toHaveBeenCalled();
@@ -146,7 +147,7 @@ describe('[P37] the tour', () => {
   it('"Turn on notifications" triggers the real prompt', async () => {
     const p = props();
     render(<Tour {...p} />);
-    await goTo(9);
+    await goTo(10);
     await userEvent.click(screen.getByRole('button', { name: 'Turn on notifications' }));
     expect(p.notifications.enable).toHaveBeenCalled();
   });
@@ -158,12 +159,12 @@ describe('[P37] the tour', () => {
 
   it('no ISO date or internal enum label anywhere in the copy', async () => {
     render(<Tour {...props()} />);
-    for (let s = 1; s <= 9; s += 1) {
-      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 9`));
+    for (let s = 1; s <= 10; s += 1) {
+      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 10`));
       const text = screen.getByRole('dialog').textContent ?? '';
       expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}T|\d{4}-\d{2}-\d{2}\b/);
       expect(text).not.toMatch(/whatsapp_export|trialing|payment_failed|lost_inferred|lead_status|topup_\d/);
-      if (s < 9) await next();
+      if (s < 10) await next();
     }
   });
 
@@ -171,15 +172,15 @@ describe('[P37] the tour', () => {
   it('about 75 seconds of reading at most (≈ 250 words across the nine steps)', async () => {
     render(<Tour {...props()} />);
     let words = 0;
-    for (let s = 1; s <= 9; s += 1) {
-      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 9`));
+    for (let s = 1; s <= 10; s += 1) {
+      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 10`));
       // The prose a rep reads: the title and body, without the example screens, buttons and step counter.
       const body = screen.getByRole('dialog').cloneNode(true) as HTMLElement;
       body.querySelectorAll('figure, button, [data-testid="tour-count"]').forEach((n) => n.remove());
       words += (body.textContent ?? '').split(/\s+/).filter(Boolean).length;
-      if (s < 9) await next();
+      if (s < 10) await next();
     }
-    expect(words).toBeLessThanOrEqual(270); // ≈ 80 s at ~200 words a minute
+    expect(words).toBeLessThanOrEqual(300); // [P69 · owner] raised to 300 for the new step; ≈ 90 s at ~200 words a minute
   });
 });
 
@@ -202,10 +203,10 @@ describe('[P42-B1] the tour examples are neutral', () => {
 
   it('NEGATIVE: no property words in any of the nine steps', async () => {
     render(<Tour {...props()} />);
-    for (let s = 1; s <= 9; s += 1) {
-      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 9`));
+    for (let s = 1; s <= 10; s += 1) {
+      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 10`));
       expect(screen.getByRole('dialog').textContent).not.toMatch(/floor plans?|villa|Mirdif|\b\d+\s?BR\b|apartment|viewing|listing|bedroom/i);
-      if (s < 9) await next();
+      if (s < 10) await next();
     }
   });
 });
@@ -215,15 +216,15 @@ describe('[P42-B1] the tour examples are neutral', () => {
 describe('[P46-6] the Ledger in step 8', () => {
   async function toStep(n: number): Promise<void> {
     for (let s = 1; s < n; s += 1) {
-      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 9`));
+      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 10`));
       await next();
     }
-    await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${n} of 9`));
+    await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${n} of 10`));
   }
 
   it('step 8 says what The Ledger is, after the subscription lines', async () => {
     render(<Tour {...props()} />);
-    await toStep(8);
+    await toStep(9);
     const dialog = screen.getByRole('dialog');
     expect(screen.getByRole('heading', { name: 'Your plan and settings' })).toBeInTheDocument();
     const line = within(dialog).getByTestId('tour-ledger');
@@ -241,7 +242,7 @@ describe('[P46-6] the Ledger in step 8', () => {
     document.body.appendChild(more);
     try {
       render(<Tour {...props()} />);
-      await toStep(8);
+      await toStep(9);
       await waitFor(() => expect(document.querySelector('[data-testid="tour-spot-2"]')).not.toBeNull());
       // the card moves to the top, away from More at the bottom (it covered it when centred)
       expect(screen.getByRole('dialog')).toHaveClass('tov-tour__card--top');
@@ -252,10 +253,31 @@ describe('[P46-6] the Ledger in step 8', () => {
 
   it('NEGATIVE: still nine steps, and no step mentions referrals or a free month', async () => {
     render(<Tour {...props()} />);
-    for (let s = 1; s <= 9; s += 1) {
-      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 9`));
+    for (let s = 1; s <= 10; s += 1) {
+      await waitFor(() => expect(screen.getByTestId('tour-count')).toHaveTextContent(`Step ${s} of 10`));
       expect(screen.getByRole('dialog').textContent).not.toMatch(/referr|free month|you both get/i);
-      if (s < 9) await next();
+      if (s < 10) await next();
     }
+  });
+});
+
+// [P69 · owner] Step 1 leads with the promise; step 6 shows a client detail with the message it came from.
+describe('[P69] the tour leads with what each client cares about', () => {
+  it('step 1 says it', () => {
+    render(<Tour {...props()} />);
+    expect(screen.getByRole('dialog').textContent).toContain('Tovira analyses your WhatsApp chats and voice notes and picks out what each client cares about. It never forgets a promise, either.');
+  });
+  it('step 6: "Loves the beach", labelled Example, with its source message', async () => {
+    render(<Tour {...props()} />);
+    await goTo(6);
+    expect(screen.getByRole('heading', { name: 'What they care about' })).toBeInTheDocument();
+    expect(screen.getByTestId('tour-cares')).toHaveTextContent('Loves the beach');
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Example')).toBeInTheDocument();
+    await waitFor(() => expect(dialog.textContent).toContain('Honestly I love the beach, I go every morning before work'));
+  });
+  it('NEGATIVE: no step says Tovira "reads" or "remembers" as its promise', async () => {
+    render(<Tour {...props()} />);
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/\bremembers\b|\breads\b/);
   });
 });

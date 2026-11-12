@@ -3,6 +3,8 @@ import { render, screen, waitFor, configure } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
 
+// [P69 · owner] the tour is ten steps now.
+
 // App-level integration: the whole app renders per step, so allow for a busy machine (full-suite runs).
 configure({ asyncUtilTimeout: 5000 });
 vi.setConfig({ testTimeout: 30_000 });
@@ -33,7 +35,7 @@ function stub(opts: { tour?: { required: boolean; step: number }; loggedIn?: boo
     if (url.includes('/auth/invite')) return json(200, { valid: true, termsVersion: '1', privacyVersion: '1' });
     if (url.includes('/auth/accept-invite')) return json(200, { ok: true });
     if (url.includes('/auth/login')) { loggedIn = true; return json(200, SESSION); }
-    if (url.includes('/me/tour')) return json(200, { ...tour, steps: 9, version: 1 });
+    if (url.includes('/me/tour')) return json(200, { ...tour, steps: 10, version: 1 });
     if (url.endsWith('/me')) return loggedIn ? json(200, SESSION) : json(401, {});
     if (url.includes('onboarding')) return json(200, SEEDED);
     if (url.includes('/billing/status')) return json(200, { entitled: true, status: 'trialing', trialEndsAt: Date.now() + 14 * 86_400_000, renewsAt: null });
@@ -55,7 +57,7 @@ describe('[P37] the tour in the app', () => {
     await user.type(screen.getByLabelText(/password/i), 'password123');
     await user.click(screen.getByRole('button', { name: /log in/i }));
     expect(await screen.findByTestId('tour')).toBeInTheDocument();
-    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 1 of 9');
+    expect(screen.getByTestId('tour-count')).toHaveTextContent('Step 1 of 10');
   });
 
   it('an invited rep sees it right after setting their password (on first sign-in)', async () => {
@@ -76,7 +78,7 @@ describe('[P37] the tour in the app', () => {
   it('a reload mid-tour resumes at the saved step', async () => {
     stub({ tour: { required: true, step: 4 } });
     render(<App />);
-    expect(await screen.findByTestId('tour-count')).toHaveTextContent('Step 5 of 9');
+    expect(await screen.findByTestId('tour-count')).toHaveTextContent('Step 5 of 10');
   });
 
   it('a completed account (a second session) never sees it', async () => {
@@ -104,7 +106,7 @@ describe('[P37] the tour in the app', () => {
     await user.click(screen.getByRole('button', { name: /^more$/i }));
     await user.click(await screen.findByRole('button', { name: 'Take the tour again' }));
     expect(await screen.findByTestId('tour')).toBeInTheDocument();
-    for (let s = 1; s < 9; s += 1) await user.click(screen.getByRole('button', { name: 'Next' }));
+    for (let s = 1; s < 10; s += 1) await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: 'Import your first chat' }));
     await waitFor(() => expect(screen.queryByTestId('tour')).toBeNull());
     expect(tourWrites(calls)).toEqual([]);
@@ -115,7 +117,7 @@ describe('[P37] the tour in the app', () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByTestId('tour');
-    for (let s = 1; s < 9; s += 1) await user.click(screen.getByRole('button', { name: 'Next' }));
+    for (let s = 1; s < 10; s += 1) await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: 'Import your first chat' }));
     expect(await screen.findByLabelText(/choose the chat export/i /* [P39 · owner] the button reads "Choose the chat export (.zip or .txt)" */)).toBeInTheDocument(); // New client from a chat
     expect(screen.queryByTestId('tour')).toBeNull();

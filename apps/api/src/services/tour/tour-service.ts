@@ -3,7 +3,7 @@ import type { TourFunnelRepository } from '../../ports/tour-funnel-repository.js
 
 /** [P37] The required first-login tour. Bump TOUR_VERSION to require a new tour of every account. */
 export const TOUR_VERSION = 1;
-export const TOUR_STEPS = 9;
+export const TOUR_STEPS = 10; // [P69 · owner] + What they care about
 
 export interface TourState { required: boolean; step: number; steps: number; version: number }
 
