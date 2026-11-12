@@ -16,6 +16,8 @@ export interface HeroRouteDeps {
   clients?: Pick<ClientRepository, 'listByUser' | 'listRenamesByUser'>;
   /** [P47] Applies an erasure restriction opened after the cached list was computed. Optional for older wiring. */
   withholdRestricted?: (userId: string, actions: TodayAction[]) => Promise<TodayAction[]>;
+  /** [P69 · owner] One "Cares about" line per client (clientId → line). Optional: absent → no line. */
+  careLines?: (userId: string, clients: ReadonlyMap<string, string>) => Promise<Map<string, string>>;
 }
 
 const GET_PATHS = ['/hero/status', '/hero/patterns', '/hero/risk', '/today'];
@@ -78,7 +80,18 @@ export async function handleHeroRoute(
       } : a));
     }
     // [P47] the list may predate an erasure restriction: apply it now
-    const actions = deps.withholdRestricted ? await deps.withholdRestricted(userId, named) : named;
+    const kept = deps.withholdRestricted ? await deps.withholdRestricted(userId, named) : named;
+    // [P69 · owner] under each client, what they said they care about (computed now, from the current record)
+    let actions = kept;
+    if (deps.careLines) {
+      const ids = new Map<string, string>();
+      for (const a of kept) if (a.clientId && !ids.has(a.clientId)) ids.set(a.clientId, a.clientName ?? '');
+      const lines = ids.size > 0 ? await deps.careLines(userId, ids).catch(() => new Map<string, string>()) : new Map<string, string>();
+      actions = kept.map((a) => {
+        const line = a.clientId ? lines.get(a.clientId) : undefined;
+        return line ? { ...a, cares: line } : a;
+      });
+    }
     sendJson(res, 200, { actions, refreshesRemaining: await deps.priorities.refreshesRemaining(userId, now) });
   }
   return true;

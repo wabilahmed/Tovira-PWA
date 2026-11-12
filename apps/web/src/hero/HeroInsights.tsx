@@ -136,6 +136,8 @@ export function HeroInsights({ api, now = () => new Date(), top, needsAnswer }: 
                       {badge && <Badge tone={badge.tone} data-testid="due-badge">{badge.label}</Badge>}
                     </div>
                     {a.subline && <p className="ui-secondary">{a.subline}</p>}
+                    {/* [P69 · owner] what this client said they care about, under the action */}
+                    {a.cares && <p className="ui-secondary" data-testid="today-cares" dir="auto">Cares about: {aiText(a.cares)}</p>}
                     {/* [P34-7 → P35-3] where it came from, as the source chat bubble — tap for the conversation */}
                     <ReceiptThread
                       refInfo={a.receipt?.quote ? { noteId: a.receipt.noteId ?? null, clientId: a.clientId, span: a.receipt.quote, at: a.receipt.at, quote: a.receipt.quote, sender: a.receipt.source === 'capture' ? 'Your note' : a.clientName ?? null } : {}}

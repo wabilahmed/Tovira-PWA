@@ -97,3 +97,17 @@ describe('[P69] What they care about, first in the pre-meeting brief', () => {
     expect(brief.caresAbout.map((c) => c.text)).not.toContain('Collects watches');
   });
 });
+
+describe('[P69] Today: under each client, what they care about', () => {
+  it('a going-quiet client on Today carries "cares" from the current record; a restricted detail is not used', async () => {
+    const { token, userId, clientId } = await seed();
+    await deps.clients.setLastTouched(userId, clientId, Date.now() - 45 * DAY);
+    const today = async () => ((await (await fetch(`${base}/today`, { headers: auth(token) })).json()) as { actions: Array<{ clientId: string | null; cares?: string }> }).actions;
+    const card = (await today()).find((a) => a.clientId === clientId);
+    expect(card?.cares).toBe('Loves the beach, goes every morning before work');
+    const now = Date.now();
+    await deps.erasureRequests.create(userId, { requesterNames: ['Layla Haddad', 'Layla'], requestedAt: now, windowEndsAt: now + 10 * DAY });
+    const after = (await today()).find((a) => a.clientId === clientId);
+    expect(after?.cares ?? '').not.toMatch(/beach, goes every morning/);
+  });
+});

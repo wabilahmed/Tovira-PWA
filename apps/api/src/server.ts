@@ -585,6 +585,7 @@ export function createApiServer(deps: ApiDeps): Server {
           const names = new Map((await deps.clients.listByUser(uid)).map((c) => [c.id, c.name]));
           return withholdRestrictedActions(uid, actions, deps.restriction, deps.notes, (id) => names.get(id));
         },
+        ...(deps.clientOverview ? { careLines: (uid: string, ids: ReadonlyMap<string, string>) => deps.clientOverview!.careLines(uid, ids) } : {}), // [P69]
       })) return;
       if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan, billing: deps.billing })) return;
       if (deps.accessAnswers && (await handleAccessAnswersRoute(request, response, { auth: deps.auth, answers: deps.accessAnswers }))) return; // [P46-6c.2]

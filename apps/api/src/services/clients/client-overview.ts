@@ -7,7 +7,7 @@ import type { ContactAliasRepository } from '../../ports/contact-alias-repositor
 import { withReceipt } from '../receipts/receipt.js';
 import { isStalePromise } from '../facts/promise-lifecycle.js';
 import { summarizeRequirements } from './requirement-summary.js';
-import { caresAbout, type CareItem } from './cares-about.js';
+import { caresAbout, topCare, type CareItem } from './cares-about.js';
 
 /**
  * [P36-5] Everything the client page's header and sections summarise, read from the stored record — no model
@@ -134,6 +134,18 @@ export class ClientOverviewService {
       conversations,
       statusSuggestion: this.suggest(client, nowMs),
     };
+  }
+
+  /** [P69 · owner] The one "Cares about" line per client, for Today (read from the stored record, restriction-filtered
+   *  repos). Clients with nothing on file are absent. */
+  async careLines(userId: string, clients: ReadonlyMap<string, string>): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    for (const [clientId, clientName] of clients) {
+      const [notes, reqs] = await Promise.all([this.deps.notes.listByClient(userId, clientId), this.deps.requirements.listByClient(userId, clientId)]);
+      const line = topCare(caresAbout({ clientName, notes, requirements: reqs }));
+      if (line) out.set(clientId, line);
+    }
+    return out;
   }
 
   /** [P36-6] One line of facts per client for the Clients list: the wants line (stored requirements), the last

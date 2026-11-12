@@ -79,6 +79,8 @@ export interface TodayAction {
    *  ('message' = chat time, 'capture' = the rep's own note's date, 'none' = no span saved), or for a cooling
    *  client the last contact ('contact', date only). Absent on a list cached before this field existed. */
   receipt?: TodayReceipt;
+  /** [P69 · owner] What the client said they care about (one line), added when the list is served. */
+  cares?: string;
 }
 
 export interface TodayReceipt {

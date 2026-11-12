@@ -36,6 +36,8 @@ export interface TodayAction {
   clientId: string | null;
   /** A dated fact — the reason this is on the register (server-computed). */
   subline?: string;
+  /** [P69 · owner] What the client said they care about (one line, from the stored record); absent when nothing is on file. */
+  cares?: string;
   /** [P34-2] The client's name; null = genuinely no client ("Your note"); absent on older payloads. */
   clientName?: string | null;
   /** [P34-2] The bare action (no "Due soon:" prefix — the date is in the subline). */
