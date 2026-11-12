@@ -396,7 +396,7 @@ async function main(): Promise<void> {
   const followUp = createFollowUpService(config, notes, restriction);
   // [P40-2] read-only surfaces see the restricted views; the export and the erasure read the real repos.
   const surfacing = surfacingRepos({ notes, facts, meetings, requirements, clients }, restriction);
-  const brief = createBriefService(config, clients, notes, surfacing.facts, clientPointers, restriction, contactAliases);
+  const brief = createBriefService(config, clients, notes, surfacing.facts, clientPointers, restriction, contactAliases, surfacing.requirements);
   const meetingParser = createMeetingParser(config, clients);
   const notifications = createNotificationRepository(config, appPool);
   // [P40-2] alerts, nudges and their push/email are built from the restricted views

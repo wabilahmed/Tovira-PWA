@@ -1419,6 +1419,13 @@ export function BriefPanel({ brief, clientId, onChange }: { brief: Brief; client
     <section style={briefBox}>
       <h2 style={{ marginTop: 0, marginBottom: 'var(--space-1)' }}>{brief.clientName}</h2>
       <p className="tov-stamp" style={{ margin: '0 0 var(--space-2)' }}>Pre-meeting brief</p>
+      {/* [P69 · owner] first: what the client said they care about, each with its source (was "Personal notes", at the bottom) */}
+      {brief.caresAbout && brief.caresAbout.length > 0 && (
+        <div style={briefSection} data-testid="brief-cares">
+          <div className="tov-stamp">{CARES_TITLE}</div>
+          <div style={{ marginTop: 'var(--space-2)' }}><CaresAboutList items={brief.caresAbout} /></div>
+        </div>
+      )}
       {brief.pointers && brief.pointers.length > 0 && (
         <div style={briefSection}>
           <PointersCard clientName={brief.clientName} clientId={clientId} pointers={brief.pointers} disclosure={brief.pointersDisclosure ?? null} />
@@ -1466,7 +1473,8 @@ export function BriefPanel({ brief, clientId, onChange }: { brief: Brief; client
       {brief.concerns.length > 0 && (
         <div style={briefSection}><div className="tov-stamp">Concerns</div><ul>{brief.concerns.map((c, i) => <li key={i}>{aiText(c)}</li>)}</ul></div>
       )}
-      {brief.personalNotes.length > 0 && (
+      {/* [P69] personal notes now lead the brief inside "What they care about"; an older server without it still shows them here */}
+      {!brief.caresAbout && brief.personalNotes.length > 0 && (
         <div style={briefSection}><div className="tov-stamp">Personal notes</div><ul>{brief.personalNotes.map((f, i) => <li key={i}>{f.subject}: {aiText(f.fact)}</li>)}</ul></div>
       )}
       {brief.relatedNotes.length > 0 && (

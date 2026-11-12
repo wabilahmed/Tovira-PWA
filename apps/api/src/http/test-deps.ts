@@ -302,7 +302,7 @@ export function buildInMemoryDeps(
   const meetings = new InMemoryMeetingRepository();
   // [P40-2] read-only surfaces see the restricted views; the export and the erasure read the real repos.
   const surfacing = surfacingRepos({ notes, facts, meetings, requirements, clients }, restriction);
-  const brief = new BriefService(clients, notes, surfacing.facts, embedder, clientPointers, restriction, contactAliases);
+  const brief = new BriefService(clients, notes, surfacing.facts, embedder, clientPointers, restriction, contactAliases, surfacing.requirements);
   const followUp = new FollowUpService(new StubModelClient(), notes, restriction);
   const noteMove = new NoteMoveService(notes, facts, meetings, new InMemoryNoteMoveTx(notes, facts, meetings, clients, new InMemoryNoteMoveAuditRepository(), requirements, inventoryMatches));
   const meetingParser = new MeetingParser(new StubModelClient(), clients);

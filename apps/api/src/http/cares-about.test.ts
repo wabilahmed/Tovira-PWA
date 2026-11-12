@@ -75,3 +75,25 @@ describe('[P69] What they care about, on the client page', () => {
     expect((await cares(token, clientId)).filter((c) => c.kind === 'detail')).toEqual([]);
   });
 });
+
+describe('[P69] What they care about, first in the pre-meeting brief', () => {
+  it('the brief carries the same list, with sources, before anything else', async () => {
+    const { token, clientId, noteId } = await seed();
+    const brief = (await (await fetch(`${base}/clients/${clientId}/brief`, { headers: auth(token) })).json()) as { caresAbout: Array<Record<string, unknown>> };
+    expect(brief.caresAbout.map((c) => [c.kind, c.text, c.quote])).toEqual([
+      ['detail', 'Loves the beach, goes every morning before work', 'I love the beach, I go every morning before work'],
+      ['detail', 'Collects watches', 'Khalid collects watches'],
+      ['ask', 'A 2-bed near the beach', '2 bed ideally'],
+      ['worry', 'Service charges on the last place were too high', null],
+    ]);
+    expect(brief.caresAbout[0]!.noteId).toBe(noteId);
+  });
+
+  it('a restricted person is withheld from the brief too', async () => {
+    const { token, userId, clientId } = await seed();
+    const now = Date.now();
+    await deps.erasureRequests.create(userId, { requesterNames: ['Khalid'], requestedAt: now, windowEndsAt: now + 10 * DAY });
+    const brief = (await (await fetch(`${base}/clients/${clientId}/brief`, { headers: auth(token) })).json()) as { caresAbout: Array<{ text: string }> };
+    expect(brief.caresAbout.map((c) => c.text)).not.toContain('Collects watches');
+  });
+});

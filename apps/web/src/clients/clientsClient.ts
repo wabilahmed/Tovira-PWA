@@ -2,6 +2,7 @@ import type { SamePersonCard } from '../confirm/ConfirmChitQueue.js';
 import type { RenameResult } from './page/ClientNameMenu.js';
 import { LOCKED, type Locked } from '../billing/gated.js';
 import type { Pointer } from './PointersCard.js';
+import type { CareItem } from './page/CaresAbout.js';
 
 /** [LEAD-STATUS] The rep's manual pipeline label; null = Unsorted (the default). Only a rep changes it. */
 export type LeadStatus = 'warm' | 'cold' | 'done';
@@ -100,6 +101,8 @@ export interface Brief {
   needsConfirmation: Array<{ id: string; text: string }>;
   keyPeople: Array<{ name: string | null; role: string | null; decision_role: string }>;
   personalNotes: Array<{ subject: string; fact: string }>;
+  /** [P69] what the client said they care about, each with its source (absent from an older server). */
+  caresAbout?: CareItem[];
   concerns: string[];
   relatedNotes: Array<{ noteId: string; snippet: string }>;
   /** [POINTERS · D9] the client's current relationship/closing pointers + the retrospective disclosure. */

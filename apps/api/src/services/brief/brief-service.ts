@@ -11,6 +11,8 @@ import type { Extraction, ExtractedPerson, PersonalFact, Pointer } from '../extr
 import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
 import { presentableAsSettledFact, promiseNeedsConfirmation } from '../facts/confirmation.js';
 import { withReceipt, withExtractedReceipt, type FactReceipt } from '../receipts/receipt.js';
+import type { RequirementRepository } from '../../ports/requirement-repository.js';
+import { caresAbout, type CareItem } from '../clients/cares-about.js';
 
 const RELATED_THRESHOLD = 0.5;
 const EMPTY: Extraction = {
@@ -39,6 +41,8 @@ export interface RelatedNote {
 export interface Brief {
   clientName: string;
   empty: boolean;
+  /** [P69 · owner] What the client said they care about, each with its source: the brief's first section. */
+  caresAbout: CareItem[];
   recentContext: RecentItem[];
   openPromises: Array<PromiseRecord & { receipt: FactReceipt }>; // settled/certain only
   needsConfirmation: Array<PromiseRecord & { receipt: FactReceipt }>; // uncertain — shown as "to confirm", never as fact
@@ -77,6 +81,8 @@ export class BriefService {
     private readonly restriction?: { forUser(userId: string): Promise<Restriction> },
     /** [P36-5] learned per-client aliases — the client under another name is still not one of "People". */
     private readonly aliases?: { listByClient(userId: string, clientId: string): Promise<string[]> },
+    /** [P69] the client's asks, for "What they care about". Absent → details and worries only. */
+    private readonly requirements?: Pick<RequirementRepository, 'listByClient'>,
   ) {}
 
   async buildBrief(userId: string, clientId: string): Promise<Brief | null> {
@@ -129,9 +135,11 @@ export class BriefService {
       : [];
 
     const empty = rawNotes.length === 0 && promises.length === 0;
+    const reqs = this.requirements ? await this.requirements.listByClient(userId, clientId).catch(() => []) : [];
     return {
       clientName: client.name,
       empty,
+      caresAbout: caresAbout({ clientName: client.name, notes: rawNotes, requirements: reqs, restriction }),
       recentContext,
       openPromises,
       needsConfirmation,

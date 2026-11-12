@@ -989,8 +989,10 @@ export function createBriefService(
   restriction?: RestrictionService,
   /** [P36-5] learned aliases — the client is never one of the brief's People. */
   aliases?: ContactAliasRepository,
+  /** [P69] the client's asks, for "What they care about" (the restriction-filtered surfacing repo). */
+  requirements?: RequirementRepository,
 ): BriefService {
-  return new BriefService(clients, notes, facts, createEmbedder(config), pointers, restriction, aliases);
+  return new BriefService(clients, notes, facts, createEmbedder(config), pointers, restriction, aliases, requirements);
 }
 
 /** Transactional email: stub locally (records), AWS SES in prod. */
