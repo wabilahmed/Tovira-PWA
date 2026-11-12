@@ -489,6 +489,7 @@ async function main(): Promise<void> {
     timezoneFor: (userId) => auth.timezoneFor(userId),
     coldThresholdDays: config.coldThresholdDays,
     restriction, // [TASK 2] no nudge from a restricted counterparty's unanswered question
+    requirements: surfacing.requirements, // [P69] the "Cares about" line (a restricted person's asks withheld)
   });
   const meetingNudge = new MeetingNudgeService({
     allUserIds: () => auth.allUserIds(),

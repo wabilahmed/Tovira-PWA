@@ -6,6 +6,8 @@ import type { UnansweredQuestion } from '../import/unanswered.js';
 import { formatMeetingWhen, type NudgeSignals } from './nudge-content.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
+import type { RequirementRepository } from '../../ports/requirement-repository.js';
+import { caresAbout, topCare } from '../clients/cares-about.js';
 
 const DAY = 86_400_000;
 
@@ -18,6 +20,8 @@ export interface NudgeSignalsDeps {
   /** [TASK 2] Active erasure-window restriction — a restricted counterparty's unanswered question is
    *  never raised as a pre-meeting nudge. Absent → no restriction. */
   restriction?: { forUser(userId: string): Promise<Restriction> };
+  /** [P69] the client's asks, for the "Cares about" line. Absent → details and worries only. */
+  requirements?: Pick<RequirementRepository, 'listByClient'>;
 }
 
 /**
@@ -45,12 +49,17 @@ export class NudgeSignalsProvider {
     );
     const topPromise = pickPromise(promises)?.text;
 
+    const restriction = this.deps.restriction ? await this.deps.restriction.forUser(userId) : NO_RESTRICTION;
+    const rawNotes = await this.deps.notes.listByClient(userId, meeting.clientId); // newest-first
+    const notes = restriction.active ? rawNotes.map((n) => restrictNote(n, restriction)) : rawNotes;
+
+    // [P69 · owner] What the client said they care about leads the reminder.
+    const reqs = this.deps.requirements ? await this.deps.requirements.listByClient(userId, meeting.clientId).catch(() => []) : [];
+    const care = topCare(caresAbout({ clientName, notes: rawNotes, requirements: reqs, restriction })) ?? undefined;
+
     // 2. An unanswered client question (structural, from the chat-export extraction).
     let topQuestion: string | undefined;
     if (!topPromise) {
-      const restriction = this.deps.restriction ? await this.deps.restriction.forUser(userId) : NO_RESTRICTION;
-      const rawNotes = await this.deps.notes.listByClient(userId, meeting.clientId); // newest-first
-      const notes = restriction.active ? rawNotes.map((n) => restrictNote(n, restriction)) : rawNotes;
       for (const n of notes) {
         const qs = (n.extracted as { unanswered_questions?: UnansweredQuestion[] } | null)?.unanswered_questions ?? [];
         const q = qs.find((x) => x.question?.trim());
@@ -65,7 +74,7 @@ export class NudgeSignalsProvider {
       if (days >= this.deps.coldThresholdDays) silentDays = days;
     }
 
-    return { clientName, clientId: meeting.clientId, whenLabel, topPromise, topQuestion, silentDays };
+    return { clientName, clientId: meeting.clientId, whenLabel, topPromise, topQuestion, silentDays, ...(care ? { topCare: care } : {}) };
   }
 }
 

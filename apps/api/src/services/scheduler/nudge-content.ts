@@ -37,6 +37,8 @@ export interface NudgeSignals {
   topQuestion?: string;
   /** Days of silence, only when the client is past the cooling threshold (else 0/undefined). */
   silentDays?: number;
+  /** [P69 · owner] The top thing the client said they care about ("Loves the beach"), if any. */
+  topCare?: string;
 }
 
 export interface NudgeContent {
@@ -61,12 +63,20 @@ function topItem(s: NudgeSignals): string | null {
   return null;
 }
 
+/** [P69 · owner] What the client cares about leads the reminder (the core promise), then the one actionable item. */
+const CARE_CLIP = 80;
+function careLine(topCare: string | undefined): string | null {
+  const t = topCare?.trim().replace(/\s+/g, ' ');
+  if (!t) return null;
+  return `Cares about: ${t.length > CARE_CLIP ? `${t.slice(0, CARE_CLIP)}…` : t}`;
+}
+
 export function composeNudgeContent(s: NudgeSignals): NudgeContent {
-  const item = topItem(s);
+  const parts = [s.whenLabel, careLine(s.topCare), topItem(s)].filter((x): x is string => !!x);
   return {
     clientId: s.clientId,
     title: s.clientName,
-    body: item ? `${s.whenLabel} · ${item}` : s.whenLabel,
+    body: parts.join(' · '),
     url: `/app?client=${encodeURIComponent(s.clientId)}`,
   };
 }
