@@ -123,6 +123,8 @@ a:not(.cta) { color: var(--text-primary); }
 
 /* ── §6 use cases ── */
 .usecases { display: grid; gap: 1.25rem; margin-top: 1.5rem; }
+/* [P69] the three pillars: the use-case card, in their own grid (one column on a phone, three on desktop) */
+.pillars { display: grid; gap: 1.25rem; margin-top: 1.5rem; }
 /* §7 security assurances — same card as the use-cases, in a 2-up grid. */
 .assurances { display: grid; gap: 1.25rem; margin-top: 1.5rem; }
 .usecase { padding: 1.4rem; }
@@ -203,6 +205,7 @@ a:not(.cta) { color: var(--text-primary); }
 @media (min-width: 1024px) {
   .sec { padding-block: 3.5rem; }
   .usecases { grid-template-columns: repeat(3, 1fr); }
+  .pillars { grid-template-columns: repeat(3, 1fr); }
   /* Alternating two-column zigzag: copy left / visual right, then reversed. */
   .sec__grid { grid-template-columns: 1.05fr 0.95fr; gap: 4rem; align-items: center; }
   .sec--reverse .sec__copy { order: 2; }
