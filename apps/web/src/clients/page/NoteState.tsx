@@ -46,7 +46,7 @@ export function NoteSubscribe({ note: n, ceiling, onSubscribe }: { note: NoteSum
   if (ceiling || !inProgress || n.blockedReason !== 'subscribe' || !onSubscribe) return null;
   return (
     <div style={{ marginTop: 'var(--space-1)' }}>
-      <button type="button" className="tov-link" data-testid="note-subscribe" onClick={() => onSubscribe('monthly')}>Subscribe to read it</button>
+      <button type="button" className="tov-link" data-testid="note-subscribe" onClick={() => onSubscribe('monthly')}>Subscribe to analyse it</button>
     </div>
   );
 }

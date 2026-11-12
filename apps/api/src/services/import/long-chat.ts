@@ -20,5 +20,5 @@ export function isTooLong(messagesToRead: number, limit: number | null): boolean
 
 /** What the rep reads. WhatsApp can't export part of a chat, so the way out is to contact us. */
 export function tooLongMessage(messagesToRead: number, limit: number): string {
-  return `This chat is too long to read in one go: ${messagesToRead.toLocaleString('en-US')} messages, and the limit for now is ${limit.toLocaleString('en-US')}. WhatsApp can't export part of a chat, so contact us at hello@tovira.io and we'll help.`;
+  return `This chat is too long to analyse in one go: ${messagesToRead.toLocaleString('en-US')} messages, and the limit for now is ${limit.toLocaleString('en-US')}. WhatsApp can't export part of a chat, so contact us at hello@tovira.io and we'll help.`;
 }

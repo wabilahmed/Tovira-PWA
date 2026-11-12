@@ -4,6 +4,8 @@ import { useProcessing } from './useProcessing.js';
 import type { ProcessingApi, ProcessingItem, ProcessingStatus } from './processingClient.js';
 import { readingToast, readyToast } from './processingClient.js';
 
+// [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
+
 // [P65-3 · owner] The status is polled from the server every few seconds while something is working, only while the
 // app is visible, and polling stops when nothing is.
 const working: ProcessingItem = { noteId: 'n1', clientId: 'c1', clientName: 'Anjali Mehra', kind: 'chat', state: 'working', stage: 'reading', startedAt: 0, settledAt: null };
@@ -58,14 +60,14 @@ describe('[P65-3] polling', () => {
 });
 
 describe('[P65-3] the toasts', () => {
-  it('on submit: "Reading your chat with Anjali Mehra…" (or your voice note, your note)', () => {
-    expect(readingToast('chat', 'Anjali Mehra')).toBe('Reading your chat with Anjali Mehra…');
-    expect(readingToast('voice', 'Anjali Mehra')).toBe('Reading your voice note about Anjali Mehra…');
-    expect(readingToast('typed', 'Anjali Mehra')).toBe('Reading your note about Anjali Mehra…');
+  it('on submit: "Analysing your chat with Anjali Mehra…" (or your voice note, your note)', () => {
+    expect(readingToast('chat', 'Anjali Mehra')).toBe('Analysing your chat with Anjali Mehra…');
+    expect(readingToast('voice', 'Anjali Mehra')).toBe('Analysing your voice note about Anjali Mehra…');
+    expect(readingToast('typed', 'Anjali Mehra')).toBe('Analysing your note about Anjali Mehra…');
   });
   it('when ready: "Anjali Mehra is ready: 4 promises, 2 dates."; a failure says so', () => {
     expect(readyToast(done)).toBe('Anjali Mehra is ready: 4 promises, 2 dates.');
     expect(readyToast({ ...done, found: { promises: 1, overduePromises: 0, dates: 0, requirements: 0, people: 0, needsAnswer: 0 } })).toBe('Anjali Mehra is ready: 1 promise.');
-    expect(readyToast({ ...working, state: 'failed', failure: { reason: 'ours', canRetry: true } })).toBe("Tovira couldn't read your chat for Anjali Mehra.");
+    expect(readyToast({ ...working, state: 'failed', failure: { reason: 'ours', canRetry: true } })).toBe("Tovira couldn't analyse your chat for Anjali Mehra.");
   });
 });

@@ -8,7 +8,9 @@ import { AppPresence } from '../processing/presence.js';
 import type { PushSender } from '../../ports/push.js';
 import type { NoteRecord } from '../../ports/note-repository.js';
 
-// [P65-5 · owner] When the app is closed and reading took over 30 seconds, a push says so: "Tovira finished reading your
+// [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
+
+// [P65-5 · owner] When the app is closed and reading took over 30 seconds, a push says so: "Tovira finished analysing your
 // chat with Anjali Mehra." Only then: never while the app is open (it shows a toast instead), never for something that
 // was done in under 30 seconds, and only to a device the rep turned notifications on for. Chats, voice notes and typed
 // notes alike; a chat is still recorded in the in-app list as before.
@@ -35,14 +37,14 @@ async function make(n: NoteRecord, opts: { open?: boolean; device?: boolean } = 
 }
 
 describe('[P65-5] the push when it is done', () => {
-  it('app closed, took over 30 seconds, notifications on: "Tovira finished reading your chat with Anjali Mehra."', async () => {
+  it('app closed, took over 30 seconds, notifications on: "Tovira finished analysing your chat with Anjali Mehra."', async () => {
     const { svc, sender } = await make(note());
     await svc.onNoteSettled('u', 'n1');
     expect(sender.send).toHaveBeenCalledTimes(1);
-    expect((sender.send as ReturnType<typeof vi.fn>).mock.calls[0]![1]).toMatchObject({ title: 'Tovira finished reading your chat with Anjali Mehra.', url: '/app?client=c1' });
+    expect((sender.send as ReturnType<typeof vi.fn>).mock.calls[0]![1]).toMatchObject({ title: 'Tovira finished analysing your chat with Anjali Mehra.', url: '/app?client=c1' });
   });
   it('a voice note and a typed note too', async () => {
-    for (const [source, title] of [['voice', 'Tovira finished reading your voice note about Anjali Mehra.'], ['paste', 'Tovira finished reading your note about Anjali Mehra.']] as const) {
+    for (const [source, title] of [['voice', 'Tovira finished analysing your voice note about Anjali Mehra.'], ['paste', 'Tovira finished analysing your note about Anjali Mehra.']] as const) {
       const { svc, sender } = await make(note({ source, messages: null }));
       await svc.onNoteSettled('u', 'n1');
       expect((sender.send as ReturnType<typeof vi.fn>).mock.calls[0]![1]).toMatchObject({ title });
@@ -51,7 +53,7 @@ describe('[P65-5] the push when it is done', () => {
   it('a failure is pushed the same way, plainly', async () => {
     const { svc, sender } = await make(note({ status: 'needs_review', source: 'voice', messages: null }));
     await svc.onNoteSettled('u', 'n1');
-    expect((sender.send as ReturnType<typeof vi.fn>).mock.calls[0]![1]).toMatchObject({ title: "Tovira couldn't read your voice note about Anjali Mehra." });
+    expect((sender.send as ReturnType<typeof vi.fn>).mock.calls[0]![1]).toMatchObject({ title: "Tovira couldn't analyse your voice note about Anjali Mehra." });
   });
   it('NEGATIVE: the app is open: no push (the app shows a toast); a chat is still recorded in the in-app list', async () => {
     const { svc, sender, notifications } = await make(note(), { open: true });

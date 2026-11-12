@@ -6,8 +6,10 @@ import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { listenForTest } from '../test-support/listen.js';
 import { LONG_CHAT_MAX_MESSAGES, longChatLimit, tooLongMessage } from '../services/import/long-chat.js';
 
+// [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
+
 /**
- * [P67-1 · owner] A chat too long to read in one go is refused BEFORE it is read: nothing is stored, nothing is sent
+ * [P67-1 · owner] A chat too long to analyse in one go is refused BEFORE it is read: nothing is stored, nothing is sent
  * to the model, and the rep reads why. It applies to the single upload ("Choose the chat export" on a client) and to
  * the import review (one row refused, the others import). It counts what would be read: the new messages only.
  */
@@ -58,7 +60,7 @@ const upload = (token: string, batchId: string, index: number, name: string, tex
     body: Buffer.from(text),
   });
 
-describe('[P67-1] a chat too long to read in one go is refused before it is read', () => {
+describe('[P67-1] a chat too long to analyse in one go is refused before it is read', () => {
   it('the limit is 5,000 messages with windowing off, and none with it on', () => {
     expect(LONG_CHAT_MAX_MESSAGES).toBe(5_000);
     expect(longChatLimit(false)).toBe(5_000);
@@ -67,7 +69,7 @@ describe('[P67-1] a chat too long to read in one go is refused before it is read
 
   it('the message says how long, the limit, and the way out; no em-dash', () => {
     const m = tooLongMessage(6_240, 5_000);
-    expect(m).toBe("This chat is too long to read in one go: 6,240 messages, and the limit for now is 5,000. WhatsApp can't export part of a chat, so contact us at hello@tovira.io and we'll help.");
+    expect(m).toBe("This chat is too long to analyse in one go: 6,240 messages, and the limit for now is 5,000. WhatsApp can't export part of a chat, so contact us at hello@tovira.io and we'll help.");
     expect(m).not.toMatch(/—/);
   });
 

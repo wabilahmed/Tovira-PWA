@@ -180,7 +180,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
     return (
       <section aria-label="Import chats" data-testid="bulk-import" className="ui-stack ui-gap-3">
         {chosen.length > 0 && <p className="ui-secondary" data-testid="file-chosen">{chosen.map((f) => `${f.name} · ${formatSize(f.size)}`).join(', ')}</p>}
-        <p role="status" className="ui-body">{chosen.length === 1 ? 'Reading the chat…' : 'Uploading and reading your chats…'}</p>
+        <p role="status" className="ui-body">{chosen.length === 1 ? 'Analysing the chat…' : 'Uploading and analysing your chats…'}</p>
       </section>
     );
   }

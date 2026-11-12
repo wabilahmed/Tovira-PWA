@@ -47,9 +47,9 @@ export class ProcessingClient implements ProcessingApi {
 /** "chat", "voice note", "note" */
 export const NOUN: Record<CaptureKind, string> = { chat: 'chat', voice: 'voice note', typed: 'note' };
 
-/** The toast the moment something is sent: "Reading your chat with Anjali Mehra…" */
+/** The toast the moment something is sent: "Analysing your chat with Anjali Mehra…" */
 export function readingToast(kind: CaptureKind, clientName: string): string {
-  return kind === 'chat' ? `Reading your chat with ${clientName}…` : `Reading your ${NOUN[kind]} about ${clientName}…`;
+  return kind === 'chat' ? `Analysing your chat with ${clientName}…` : `Analysing your ${NOUN[kind]} about ${clientName}…`;
 }
 
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
@@ -59,7 +59,7 @@ export const foundNothing = (f: FoundCounts): boolean => f.promises + f.dates + 
 
 /** The toast when it is ready and the rep is elsewhere: "Anjali Mehra is ready: 4 promises, 2 dates." */
 export function readyToast(item: ProcessingItem): string {
-  if (item.state === 'failed' || item.state === 'held') return `Tovira couldn't read your ${NOUN[item.kind]} for ${item.clientName}.`;
+  if (item.state === 'failed' || item.state === 'held') return `Tovira couldn't analyse your ${NOUN[item.kind]} for ${item.clientName}.`;
   const f = item.found;
   if (!f || foundNothing(f)) return `${item.clientName} is ready.`;
   const parts = [f.promises ? plural(f.promises, 'promise') : null, f.dates ? plural(f.dates, 'date') : null].filter(Boolean);

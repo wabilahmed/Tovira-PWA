@@ -89,7 +89,7 @@ interface Choice {
 
 /** [P67-1] The server's too-long wording (services/import/long-chat.ts), for a row of the review. */
 export function tooLongLine(messages: number, limit: number): string {
-  return `This chat is too long to read in one go: ${messages.toLocaleString('en-US')} messages, and the limit for now is ${limit.toLocaleString('en-US')}. WhatsApp can't export part of a chat, so contact us at hello@tovira.io and we'll help.`;
+  return `This chat is too long to analyse in one go: ${messages.toLocaleString('en-US')} messages, and the limit for now is ${limit.toLocaleString('en-US')}. WhatsApp can't export part of a chat, so contact us at hello@tovira.io and we'll help.`;
 }
 
 /** Does this row require a human choice before Import can proceed? */

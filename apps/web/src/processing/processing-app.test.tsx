@@ -3,10 +3,12 @@ import { render, screen, waitFor, within, configure } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
 
+// [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
+
 configure({ asyncUtilTimeout: 8000 });
 vi.setConfig({ testTimeout: 40_000 });
 
-// [P65-3 · owner] In the app: the moment the rep saves a note, a toast says Tovira is reading it and the client page
+// [P65-3 · owner] In the app: the moment the rep saves a note, a toast says Tovira is analysing it and the client page
 // shows the status card; the Clients list row says "Reading…"; when the server says it is done, the card becomes the
 // summary. The status comes from the server (GET /processing), not from the page that sent it.
 function json(status: number, body: unknown): Response {
@@ -51,8 +53,8 @@ describe('[P65] the status in the app', () => {
     await user.click(screen.getByRole('button', { name: /^Type/ }));
     await user.type(screen.getByLabelText('Type a note'), 'I will send the floor plan by Friday.');
     await user.click(screen.getByRole('button', { name: 'Save note' }));
-    expect(await screen.findByTestId('processing-toast')).toHaveTextContent('Reading your note about Anjali Mehra…');
-    expect(await screen.findByText('Tovira is reading this note.')).toBeInTheDocument();
+    expect(await screen.findByTestId('processing-toast')).toHaveTextContent('Analysing your note about Anjali Mehra…');
+    expect(await screen.findByText('Tovira is analysing this note.')).toBeInTheDocument();
     state.phase = 'done';
     const summary = await screen.findByTestId('processing-n1', {}, { timeout: 10_000 }).then(async (el) => { await waitFor(() => expect(el).toHaveAttribute('data-state', 'done'), { timeout: 10_000 }); return el; });
     expect(summary).toHaveTextContent('Done. From this note Tovira found: 4 promises (1 overdue), 2 dates, 3 requirements, 2 people.');

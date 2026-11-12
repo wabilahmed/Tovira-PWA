@@ -12,7 +12,7 @@ import type { Plan } from './plans.js';
  *  invitation to start. A genuinely expired trial keeps the trial-ended wording; an ended/cancelled
  *  subscription is phrased as such. Default (unknown) stays the safe trial-ended line. */
 function lockCopy(status?: string): string {
-  if (status === 'none') return 'Subscribe to start reading your chats.';
+  if (status === 'none') return 'Subscribe to start analysing your conversations.';
   if (status === 'ended' || status === 'canceled') return 'Your subscription has ended. Subscribe to reopen your book.';
   return 'Your trial has ended. Subscribe to reopen your book.';
 }

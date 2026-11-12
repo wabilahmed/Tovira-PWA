@@ -232,7 +232,7 @@ export function NewClient({ open, onClose, api, startRecorder, onSaveRecording, 
             </div>
             <TextInput label={nameHeard ? 'Name' : 'Who is this client?'} value={fields.name} onChange={(e) => set('name')(e.target.value)} maxLength={80} required autoComplete="off" disabled={!!created} />
             {contactFields}
-            <p className="ui-secondary">Needs, dates and promises are read from your voice note once the client is created.</p>
+            <p className="ui-secondary">Tovira analyses your voice note for needs, dates and promises once the client is created.</p>
             {errorLine}
             <ActionRow>
               <Button type="submit" variant="primary" loading={busy} disabled={!fields.name.trim()}>{created ? 'Try saving the recording again' : 'Create client'}</Button>

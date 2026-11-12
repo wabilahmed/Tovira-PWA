@@ -83,7 +83,7 @@ export class ImportCompletionService {
         if (ex.key_dates?.length) found.push(plural(ex.key_dates.length, 'key date'));
         if (ex.people?.length) found.push(plural(ex.people.length, 'person').replace('persons', 'people'));
         const summary = found.length > 0 ? `found ${found.join(', ')}` : 'no new facts to surface';
-        title = `Tovira finished reading ${yourCapture(kind, name)}.`; // [P65-5 · owner] was "Import ready: <name>"
+        title = `Tovira finished analysing ${yourCapture(kind, name)}.`; // [P65-5 · owner] was "Import ready: <name>"
         body = `Processed ${messages.toLocaleString()} message${messages === 1 ? '' : 's'}. ${summary}. Open the Book Scan.`;
       } else {
         // needs_review / import_failed — say so; the rep is waiting and a silent failure is the worst case.
@@ -91,7 +91,7 @@ export class ImportCompletionService {
         body = `We couldn't finish reading that chat with ${name}. Open it to review or try again.`;
       }
     } else {
-      title = failed ? `Tovira couldn't read ${yourCapture(kind, name)}.` : `Tovira finished reading ${yourCapture(kind, name)}.`;
+      title = failed ? `Tovira couldn't analyse ${yourCapture(kind, name)}.` : `Tovira finished analysing ${yourCapture(kind, name)}.`;
       body = failed ? 'Open it to see why, or try again.' : `Open ${name} to see what it found.`;
     }
 

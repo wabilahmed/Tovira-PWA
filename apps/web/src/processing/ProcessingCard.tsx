@@ -24,7 +24,7 @@ export function minutesLine(eta: number | undefined): string {
 }
 export function stageLine(i: ProcessingItem): string {
   if (i.stage === 'transcribing') return 'Transcribing';
-  if (i.stage === 'reading') return i.kind === 'chat' && i.messageCount ? `Reading ${i.messageCount.toLocaleString('en-US')} messages` : 'Reading';
+  if (i.stage === 'reading') return i.kind === 'chat' && i.messageCount ? `Analysing ${i.messageCount.toLocaleString('en-US')} messages` : 'Analysing';
   return 'Waiting to start';
 }
 
@@ -44,9 +44,9 @@ const HOLD_REASON: Record<NonNullable<ProcessingItem['hold']>, string> = {
   payment: 'Your last payment didn’t go through.',
 };
 const HOLD_SAVED: Record<NonNullable<ProcessingItem['hold']>, string> = {
-  allowance: 'It’s saved. Tovira reads it as soon as you top up.',
-  subscribe: 'It’s saved. Tovira reads it once you subscribe.',
-  payment: 'It’s saved. Tovira reads it once your payment is updated.',
+  allowance: 'It’s saved. Tovira analyses it as soon as you top up.',
+  subscribe: 'It’s saved. Tovira analyses it once you subscribe.',
+  payment: 'It’s saved. Tovira analyses it once your payment is updated.',
 };
 
 export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubscribe, onUpdatePayment }: {
@@ -71,7 +71,7 @@ export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubsc
           return (
             <div key={i.noteId} className="ui-banner" role="status" data-testid={`processing-${i.noteId}`} data-state="working">
               <div>
-                <p className="ui-strong" style={{ margin: 0 }}>{`Tovira is reading ${what}.`}</p>
+                <p className="ui-strong" style={{ margin: 0 }}>{`Tovira is analysing ${what}.`}</p>
                 <p style={{ margin: 0 }}>{`${minutesLine(i.etaMinutes)} You can leave this page.`}</p>
                 <p className="ui-secondary" style={{ margin: 0 }} data-testid="processing-stage">{stageLine(i)}</p>
               </div>
@@ -85,7 +85,7 @@ export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubsc
           return (
             <div key={i.noteId} className="ui-banner ui-banner--warning" role="status" data-testid={`processing-${i.noteId}`} data-state="held">
               <div>
-                <p className="ui-strong" style={{ margin: 0 }}>{`Tovira couldn't read ${what}.`}</p>
+                <p className="ui-strong" style={{ margin: 0 }}>{`Tovira couldn't analyse ${what}.`}</p>
                 <p style={{ margin: 0 }}>{HOLD_REASON[i.hold ?? 'allowance']}</p>
                 <p className="ui-secondary" style={{ margin: 0 }}>{HOLD_SAVED[i.hold ?? 'allowance']}</p>
               </div>
@@ -98,7 +98,7 @@ export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubsc
           return (
             <div key={i.noteId} className="ui-banner ui-banner--danger" role="alert" data-testid={`processing-${i.noteId}`} data-state="failed">
               <div>
-                <p className="ui-strong" style={{ margin: 0 }}>{`Tovira couldn't read ${what}.`}</p>
+                <p className="ui-strong" style={{ margin: 0 }}>{`Tovira couldn't analyse ${what}.`}</p>
                 <p style={{ margin: 0 }}>{missing ? 'The recording was not found, so it couldn’t be transcribed.' : 'Something went wrong on our side.'}</p>
               </div>
               <div className="ui-cluster ui-gap-3">

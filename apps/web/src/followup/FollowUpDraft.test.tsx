@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { FollowUpDraft, type FollowUpApi } from './FollowUpDraft.js';
 import { LOCKED } from '../billing/gated.js';
 
+// [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
+
 const makeApi = (draft: string | null): FollowUpApi => ({ draftFollowUp: vi.fn().mockResolvedValue(draft) });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -28,7 +30,7 @@ describe('<FollowUpDraft>', () => {
     const user = userEvent.setup();
     render(<FollowUpDraft noteId="n1" api={{ draftFollowUp: vi.fn().mockResolvedValue(LOCKED) }} onSubscribe={vi.fn()} status="none" />);
     await user.click(screen.getByRole('button', { name: /draft follow-up/i }));
-    expect(await screen.findByText(/subscribe to start reading your chats/i)).toBeInTheDocument();
+    expect(await screen.findByText(/subscribe to start analysing your conversations/i)).toBeInTheDocument();
     expect(screen.queryByText(/your trial has ended/i)).not.toBeInTheDocument();
   });
 

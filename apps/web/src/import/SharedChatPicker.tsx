@@ -60,7 +60,7 @@ export function SharedChatPicker({
   return (
     <section aria-label="Choose the client" style={{ display: 'grid', gap: 'var(--space-3)', maxWidth: 480 }}>
       <h2 style={{ margin: 0 }}>Who's this chat with?</h2>
-      {reading && <p role="status" style={{ margin: 0, color: 'var(--text-secondary)' }}>Reading the chat…</p>}
+      {reading && <p role="status" style={{ margin: 0, color: 'var(--text-secondary)' }}>Analysing the chat…</p>}
       {suggested && (
         <div data-testid="shared-suggested" style={{ display: 'grid', gap: 'var(--space-1)' }}>
           <span id="shared-suggested-hint" className="tov-stamp">Suggested: the chat is with this client</span>

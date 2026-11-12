@@ -12,6 +12,8 @@ import { REPLY } from '../services/whatsapp/copy.js';
 import { FixedWindowRateLimiter } from '../services/security/rate-limiter.js';
 import { LONG_CHAT_MAX_MESSAGES } from '../services/import/long-chat.js';
 
+// [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
+
 /**
  * [P67 · owner] Send a chat export to Tovira's WhatsApp number (built dark). A rep links their number with a one-time
  * code sent FROM that number, then sends an exported chat as a file. Tovira downloads it, checks it with the same
@@ -331,7 +333,7 @@ describe('[P67] receiving a chat', () => {
     await linkNumber(token);
     const lines = Array.from({ length: LONG_CHAT_MAX_MESSAGES + 1 }, (_, i) => `15/01/2026, 09:${String(i % 60).padStart(2, '0')} - ${i % 2 ? 'Wabil' : 'Anjali Mehra'}: m${i}`);
     await document(REP_PHONE, 'WhatsApp Chat with Anjali Mehra.txt', new TextEncoder().encode(lines.join('\n')));
-    expect(sent[0]!.body).toMatch(/^This chat is too long to read in one go: 5,001 messages/);
+    expect(sent[0]!.body).toMatch(/^This chat is too long to analyse in one go: 5,001 messages/);
     expect(await staged(userId)).toEqual([]);
   });
 });

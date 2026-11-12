@@ -17,8 +17,8 @@ export const REPLY = {
   tooMany: 'You’ve sent a lot of chats in a short time. Wait an hour, then send the rest.',
   inactive: (status: string, appUrl: string): string =>
     status === 'trial_expired' || status === 'none'
-      ? `Your Tovira trial has ended, so Tovira can’t read chats right now. Choose a plan: ${appUrl}/app?view=subscription`
-      : `Tovira can’t read chats right now because your plan isn’t active. Check it here: ${appUrl}/app?view=subscription`,
+      ? `Your Tovira trial has ended, so Tovira can’t analyse chats right now. Choose a plan: ${appUrl}/app?view=subscription`
+      : `Tovira can’t analyse chats right now because your plan isn’t active. Check it here: ${appUrl}/app?view=subscription`,
   gotChat: (name: string | null, link: string): string =>
     `Got your chat${name ? ` with ${name}` : ''}. Tap to confirm who it’s with: ${link}`,
 } as const;
