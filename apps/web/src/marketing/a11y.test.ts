@@ -42,7 +42,8 @@ describe('[SITE-5] meta & SEO', () => {
   it('the English page carries title, description, canonical and hreflang alternates', () => {
     const d = parse(EN);
     expect(d.querySelector('title')?.textContent).toMatch(/Tovira/);
-    expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/WhatsApp/);
+    // [P69 · owner] the description is now the owner's line ("analyses your client conversations"), which doesn't name WhatsApp
+    expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/client conversations/);
     expect(d.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('/');
     const alternates = [...d.querySelectorAll('link[rel="alternate"][hreflang]')].map((l) => l.getAttribute('hreflang'));
     expect(alternates).toContain('en');

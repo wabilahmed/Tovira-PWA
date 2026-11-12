@@ -128,6 +128,9 @@ a:not(.cta) { color: var(--text-primary); }
 .usecase { padding: 1.4rem; }
 .usecase__label { font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brass); margin: 0 0 0.5rem; }
 .usecase p { color: var(--text-secondary); }
+/* [P69] what Tovira surfaces, inside a use-case or pillar line */
+.usecase p strong { color: var(--text-primary); font-weight: 600; }
+.pillar h3.usecase__label { font-size: 0.85rem; }
 
 /* ── §8 plans ── */
 .plans { display: grid; gap: 1.25rem; margin-top: 1.5rem; }

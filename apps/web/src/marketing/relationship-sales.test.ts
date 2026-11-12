@@ -13,8 +13,9 @@ describe('[P41-1] hero', () => {
   it('the eyebrow is "FOR RELATIONSHIP SALES"', () => {
     expect(text(d.querySelector('.hero .eyebrow'))).toBe('FOR RELATIONSHIP SALES');
   });
-  it('the headline is kept', () => {
-    expect(text(d.querySelector('#hero-h'))).toBe('Forty clients.Ten thousand details.One memory.');
+  // [P69 · owner] the headline is now "Your clients already told you how to win them." (pinned in p69-landing.test.ts)
+  it('the headline is the P69 one', () => {
+    expect(text(d.querySelector('#hero-h'))).toBe('Your clients already told you how to win them.');
   });
   it('the example card counts conversations', () => {
     expect(text(d.querySelector('.hero .device__meta'))).toBe('on file since MAR 2026 · 34 conversations');
@@ -25,25 +26,25 @@ describe('[P41-1] hero', () => {
   });
 });
 
-const CARDS = [
+const CARDS = [ // [P69 · owner] each body is what the client said and what Tovira surfaces (pinned in p69-landing.test.ts)
   { label: 'INSURANCE AND BROKERAGE',
-    body: 'Renewal dates are the business. Tovira tracks every one, along with the objection they raised last year and the claim that made them cautious.',
-    quote: '“renewal is in June, last year the excess was too high”', stamp: 'WHATSAPP · 20 JAN 2026' },
+    body: 'Said once, months ago. Tovira shows Travels to Europe often before the renewal.',
+    quote: '“I\'m in Europe most summers”', stamp: 'WHATSAPP · 20 JAN 2026' },
   { label: 'WEALTH AND PRIVATE BANKING',
-    body: 'Relationships measured in years, not quarters. The graduation, the new business, the football club. Those details are the relationship, and Tovira never loses one.',
-    quote: '“daughter graduates from LSE in July, he\'s flying over”', stamp: 'WHATSAPP · 03 MAR 2026' },
+    body: 'Said in passing. Tovira shows Daughter at LSE from September.',
+    quote: '“my daughter starts at LSE in September”', stamp: 'WHATSAPP · 03 MAR 2026' },
   { label: 'B2B AND KEY ACCOUNTS',
-    body: 'Ten people on every account, a buying cycle that runs for months, and a champion who might move on. Tovira remembers who signs off, what they pushed back on, and what you promised.',
-    quote: '“procurement wants the revised SLA before the board meets on the 14th”', stamp: 'WHATSAPP · 08 APR 2026' },
+    body: 'Buried in a long thread. Tovira shows Board meeting 14th, on their page and in the brief before it.',
+    quote: '“the board meets on the 14th”', stamp: 'WHATSAPP · 08 APR 2026' },
   { label: 'LUXURY AND CLIENT ADVISORS',
-    body: 'Sizes, tastes, anniversaries and the piece they asked you to hold. The details that make a client feel known, kept for every one of them.',
-    quote: '“her anniversary is in May, she loved the emerald set”', stamp: 'WHATSAPP · 17 FEB 2026' },
+    body: 'Two details in one message. Tovira shows Anniversary in May · loved the emerald set.',
+    quote: '“our anniversary is in May, she loved the emerald set”', stamp: 'WHATSAPP · 17 FEB 2026' },
   { label: 'RECRUITMENT AND EXECUTIVE SEARCH',
-    body: 'Candidates and clients you will place again in three years. What they want next, what they won\'t move for, and when to call.',
-    quote: '“not moving before my bonus in March, but call me after”', stamp: 'WHATSAPP · 12 JAN 2026' },
+    body: 'One line in a long chat. Tovira shows Wants hybrid.',
+    quote: '“after the baby I\'d want hybrid”', stamp: 'WHATSAPP · 12 JAN 2026' },
   { label: 'PROPERTY',
-    body: 'Every buyer\'s budget, community, school run, and the spouse with the real veto. Tovira holds each preference and remembers which listing belongs to whom.',
-    quote: '“somewhere in Arabian Ranches, budget 3.2M, near the school”', stamp: 'WHATSAPP · 11 FEB 2026' },
+    body: 'Her first message. Tovira shows Loves the beach · budget ~3.2M.',
+    quote: '“I love the beach, budget around 3.2M”', stamp: 'WHATSAPP · 11 FEB 2026' },
 ];
 
 describe('[P41-2] use cases: relationship sales, property one of six', () => {
@@ -101,8 +102,9 @@ describe('[P41-4] meta, OG and share descriptions name long-term client relation
     'og:description': d.querySelector('meta[property="og:description"]')?.getAttribute('content') ?? '',
     'twitter:description': d.querySelector('meta[name="twitter:description"]')?.getAttribute('content') ?? '',
   };
-  it.each(Object.entries(metas))('%s says the clients stay for years', (_name, content) => {
-    expect(content).toContain('sales people whose clients stay with them for years');
+  // [P69 · owner] the share text is now the owner's line: what each client cares about, so you can close
+  it.each(Object.entries(metas))('%s is the P69 line', (_name, content) => {
+    expect(content).toBe('Tovira analyses your client conversations and picks out what each client cares about, so you can close.');
   });
   it('NEGATIVE: no share text says field sales, property or real estate, and none has an em-dash', () => {
     for (const content of Object.values(metas)) {
@@ -116,7 +118,8 @@ describe('[P41-4] meta, OG and share descriptions name long-term client relation
 describe('[P42-A1] the language line claims only what the eval covers', () => {
   const step2 = text(d.querySelector('.step[data-step="1"] p:not(.step__n)'));
   it('step 02 names the four languages and English mixed with any of them', () => {
-    expect(step2).toBe('Promises, people, dates, concerns, personal details, pulled out and filed against the right client, even when that client is saved under one name in your phone and goes by another in the chat. Arabic, English, Hindi and Urdu, and English mixed with any of them in the same sentence.');
+    // [P69 · owner] step 02 leads with what each client cares about; the language line is unchanged
+    expect(step2).toBe('What each client cares about, and their promises, people, dates and concerns, picked out and filed against the right client, even when that client is saved under one name in your phone and goes by another in the chat. Arabic, English, Hindi and Urdu, and English mixed with any of them in the same sentence.');
   });
   it('NEGATIVE: no "all four in one sentence" claim, and no em-dash anywhere on the page', () => {
     expect(html).not.toMatch(/all four/i);

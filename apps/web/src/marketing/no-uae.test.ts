@@ -25,8 +25,9 @@ describe('[P51] no "UAE" on the landing page', () => {
     expect(text(d.querySelector('.site-foot p'))).toBe('Tovira · hello@tovira.io');
   });
 
-  it('the meta description keeps the price and drops the country', () => {
-    expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/Relationship sales\. AED 299\/month\.$/);
+  // [P69 · owner] the description is now the owner's one line, with no price (the price stays on the page); still no country
+  it('the meta description drops the country', () => {
+    expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).not.toMatch(/UAE|Emirates|Dubai/);
   });
 
   it('NEGATIVE: no other country is named instead, and AED prices and the language line stay', () => {

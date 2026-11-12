@@ -15,12 +15,13 @@ describe('[SITE2] the funnel is present, in order', () => {
 
   it('has exactly one h1 (the hero) and it leads', () => {
     expect(d.querySelectorAll('h1')).toHaveLength(1);
-    expect(headings[0]).toMatch(/Forty clients/);
+    expect(headings[0]).toMatch(/Your clients already told you how to win them/); // [P69 · owner] the new headline
   });
 
   it('runs hook → cost → turn → how → proof → use cases → security → plans → FAQ → close', () => {
-    const order = [
-      /Forty clients/,
+    const order = [ // [P69 · owner] the new hook, then the three pillars
+      /Your clients already told you how to win them/,
+      /What Tovira does/,
       /Forgetting is silent/,
       /What if the record kept itself/,
       /Three steps/,
