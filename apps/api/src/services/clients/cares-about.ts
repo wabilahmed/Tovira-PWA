@@ -107,6 +107,15 @@ export function caresAbout(input: {
   return [...details, ...dates, ...asks, ...worries];
 }
 
+/** [P69] How many things this one capture says the client cares about: its personal details (never a sensitive one), its
+ *  asks and its worries. (Its dates are counted as dates.) */
+export function careCount(extracted: unknown, requirementsForNote: number): number {
+  const e = (extracted && typeof extracted === 'object' ? extracted : {}) as { personal_facts?: unknown; concerns?: unknown };
+  const facts = Array.isArray(e.personal_facts) ? (e.personal_facts as Array<{ category?: unknown; fact?: unknown }>).filter((f) => typeof f?.fact === 'string' && !isSensitiveFact(f)).length : 0;
+  const worries = Array.isArray(e.concerns) ? e.concerns.filter((c) => typeof c === 'string' && c.trim()).length : 0;
+  return facts + requirementsForNote + worries;
+}
+
 /** The one line a reminder or the Today list shows: the newest personal detail, else the next date, else an ask, else a worry. */
 export function topCare(items: CareItem[]): string | null {
   const first = items[0];

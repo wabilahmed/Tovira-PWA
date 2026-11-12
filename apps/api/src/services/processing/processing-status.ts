@@ -18,7 +18,8 @@ export type CaptureKind = 'chat' | 'voice' | 'typed';
 export type ProcessingStage = 'waiting' | 'transcribing' | 'reading';
 export type FailureReason = 'ours' | 'recording_missing';
 export type HoldReason = 'allowance' | 'subscribe' | 'payment';
-export interface FoundCounts { promises: number; overduePromises: number; dates: number; requirements: number; people: number; needsAnswer: number }
+import { careCount } from '../clients/cares-about.js';
+export interface FoundCounts { /** [P69] things the client cares about (details, asks, worries) */ caresAbout: number; promises: number; overduePromises: number; dates: number; requirements: number; people: number; needsAnswer: number }
 export interface ProcessingItem {
   noteId: string;
   clientId: string;
@@ -80,7 +81,7 @@ export function toItem({ note: n, clientName, hold, found }: ItemInput): Process
     const canRetry = !missing && (!!n.rawText?.trim() || (kind === 'voice' && !!n.audioKey));
     return { ...base, state: 'failed', failure: { reason: missing ? 'recording_missing' : 'ours', canRetry }, ...(messageCount !== undefined ? { messageCount } : {}) };
   }
-  return { ...base, state: 'done', found: found ?? { promises: 0, overduePromises: 0, dates: 0, requirements: 0, people: 0, needsAnswer: 0 }, ...(messageCount !== undefined ? { messageCount } : {}) };
+  return { ...base, state: 'done', found: found ?? { caresAbout: 0, promises: 0, overduePromises: 0, dates: 0, requirements: 0, people: 0, needsAnswer: 0 }, ...(messageCount !== undefined ? { messageCount } : {}) };
 }
 
 export interface ProcessingStatusDeps {
@@ -108,11 +109,13 @@ export async function foundFor(deps: ProcessingStatusDeps, userId: string, n: No
   const live = promises.filter((p) => !(p as { deletedAt?: number | null }).deletedAt);
   const people = Array.isArray((n.extracted as { people?: unknown[] } | null)?.people) ? (n.extracted as { people: unknown[] }).people.length : 0;
   const toConfirm = (x: { dateStatus?: string | null }) => x.dateStatus === 'to_confirm';
+  const noteReqs = reqs.filter((r) => r.noteId === n.id).length;
   return {
+    caresAbout: careCount(n.extracted, noteReqs),
     promises: live.length,
     overduePromises: live.filter((p) => !p.done && p.dueDate !== null && p.dueDate < today).length,
     dates: keyDates.length + (meeting ? 1 : 0),
-    requirements: reqs.filter((r) => r.noteId === n.id).length,
+    requirements: noteReqs,
     people,
     needsAnswer: live.filter(toConfirm).length + (meeting && toConfirm(meeting) ? 1 : 0),
   };

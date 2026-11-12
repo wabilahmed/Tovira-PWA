@@ -3,7 +3,7 @@
  * the status is right whichever page sent it and after the app was closed.
  */
 export type CaptureKind = 'chat' | 'voice' | 'typed';
-export interface FoundCounts { promises: number; overduePromises: number; dates: number; requirements: number; people: number; needsAnswer: number }
+export interface FoundCounts { /** [P69] things the client cares about; absent from an older server */ caresAbout?: number; promises: number; overduePromises: number; dates: number; requirements: number; people: number; needsAnswer: number }
 export interface ProcessingItem {
   noteId: string;
   clientId: string;
@@ -55,14 +55,15 @@ export function readingToast(kind: CaptureKind, clientName: string): string {
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 /** Nothing worth showing was found: no promise, date, requirement or person. */
-export const foundNothing = (f: FoundCounts): boolean => f.promises + f.dates + f.requirements + f.people === 0;
+export const foundNothing = (f: FoundCounts): boolean => (f.caresAbout ?? 0) + f.promises + f.dates + f.requirements + f.people === 0;
 
 /** The toast when it is ready and the rep is elsewhere: "Anjali Mehra is ready: 4 promises, 2 dates." */
 export function readyToast(item: ProcessingItem): string {
   if (item.state === 'failed' || item.state === 'held') return `Tovira couldn't analyse your ${NOUN[item.kind]} for ${item.clientName}.`;
   const f = item.found;
   if (!f || foundNothing(f)) return `${item.clientName} is ready.`;
-  const parts = [f.promises ? plural(f.promises, 'promise') : null, f.dates ? plural(f.dates, 'date') : null].filter(Boolean);
+  // [P69 · owner] lead with what the client cares about
+  const parts = [f.caresAbout ? `${plural(f.caresAbout, 'thing')} they care about` : null, f.promises ? plural(f.promises, 'promise') : null, f.dates ? plural(f.dates, 'date') : null].filter(Boolean);
   if (parts.length === 0) parts.push(f.requirements ? plural(f.requirements, 'requirement') : plural(f.people, 'person', 'people'));
   return `${item.clientName} is ready: ${parts.join(', ')}.`;
 }

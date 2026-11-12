@@ -8,7 +8,7 @@ import { NOUN, foundNothing, type FoundCounts, type ProcessingItem } from './pro
  * found nothing, and why when it couldn't read it (with Try again, or the way to top up). A finished card can be
  * dismissed (remembered on this device); the status itself always comes from the server.
  */
-export type SectionLink = 'promises' | 'meetings' | 'wants' | 'people';
+export type SectionLink = 'cares' | 'promises' | 'meetings' | 'wants' | 'people';
 
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 const DISMISS_KEY = 'tovira.processing.dismissed';
@@ -29,11 +29,14 @@ export function stageLine(i: ProcessingItem): string {
 }
 
 /** "4 promises (1 overdue)", "2 dates", "3 requirements", "2 people": only what was found, each with its section. */
-export function foundParts(f: FoundCounts): Array<{ text: string; section: SectionLink }> {
+export function foundParts(f: FoundCounts, clientName = 'they'): Array<{ text: string; section: SectionLink }> {
   const out: Array<{ text: string; section: SectionLink }> = [];
+  // [P69 · owner] what the client cares about leads ("3 things Anjali Mehra cares about"); asks are counted in it
+  const cares = f.caresAbout ?? 0;
+  if (cares) out.push({ text: `${plural(cares, 'thing')} ${clientName} ${clientName === 'they' ? 'care' : 'cares'} about`, section: 'cares' });
   if (f.promises) out.push({ text: `${plural(f.promises, 'promise')}${f.overduePromises ? ` (${f.overduePromises} overdue)` : ''}`, section: 'promises' });
   if (f.dates) out.push({ text: plural(f.dates, 'date'), section: 'meetings' });
-  if (f.requirements) out.push({ text: plural(f.requirements, 'requirement'), section: 'wants' });
+  if (f.requirements && f.caresAbout === undefined) out.push({ text: plural(f.requirements, 'requirement'), section: 'wants' }); // an older server
   if (f.people) out.push({ text: plural(f.people, 'person', 'people'), section: 'people' });
   return out;
 }
@@ -122,12 +125,12 @@ export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubsc
             </div>
           );
         }
-        const parts = foundParts(f);
+        const parts = foundParts(f, i.clientName);
         return (
           <div key={i.noteId} className="ui-banner ui-banner--success" role="status" data-testid={`processing-${i.noteId}`} data-state="done">
             <div>
               <p style={{ margin: 0 }}>
-                <span className="ui-strong">{`Done. From ${what} Tovira found: `}</span>
+                <span className="ui-strong">{f.caresAbout ? 'Done. ' : `Done. From ${what} Tovira found: `}</span>
                 {parts.map((p, n) => (
                   <span key={p.section}>
                     <button type="button" className="tov-link" onClick={() => onOpenSection(p.section)}>{p.text}</button>

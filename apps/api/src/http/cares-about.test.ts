@@ -124,3 +124,11 @@ describe('[P69] their dates are part of what they care about', () => {
     expect(dates).toEqual([['Board meeting · the 14th', 'board meets on the 14th'], ['Anniversary · in May', 'our anniversary is in May']]);
   });
 });
+
+describe('[P69] the done summary counts what the client cares about', () => {
+  it('details (never a sensitive one) + this capture\'s asks + worries', async () => {
+    const { careCount } = await import('../services/clients/cares-about.js');
+    expect(careCount({ personal_facts: [{ fact: 'Loves the beach', category: 'hobby' }, { fact: 'Knee surgery', category: 'health' }], concerns: ['Service charges too high'] }, 1)).toBe(3);
+    expect(careCount(null, 0)).toBe(0);
+  });
+});

@@ -1,3 +1,4 @@
+import { careCount } from '../clients/cares-about.js';
 import type { NoteRecord, NoteRepository } from '../../ports/note-repository.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
 import type { PushableAlert } from '../push/push-dispatch-service.js';
@@ -76,10 +77,12 @@ export class ImportCompletionService {
         const ex = (note.extracted ?? {}) as {
           promises?: unknown[]; requirements?: unknown[]; key_dates?: unknown[]; people?: unknown[];
         };
+        // [P69 · owner] lead with what the client cares about (details, asks, worries)
+        const cares = careCount(note.extracted, ex.requirements?.length ?? 0);
         const found: string[] = [];
         const plural = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
+        if (cares) found.push(`${plural(cares, 'thing')} ${name} cares about`);
         if (ex.promises?.length) found.push(plural(ex.promises.length, 'promise'));
-        if (ex.requirements?.length) found.push(plural(ex.requirements.length, 'requirement'));
         if (ex.key_dates?.length) found.push(plural(ex.key_dates.length, 'key date'));
         if (ex.people?.length) found.push(plural(ex.people.length, 'person').replace('persons', 'people'));
         const summary = found.length > 0 ? `found ${found.join(', ')}` : 'no new facts to surface';
@@ -88,7 +91,7 @@ export class ImportCompletionService {
       } else {
         // needs_review / import_failed — say so; the rep is waiting and a silent failure is the worst case.
         title = `Import needs a look: ${name}`;
-        body = `We couldn't finish reading that chat with ${name}. Open it to review or try again.`;
+        body = `We couldn't finish analysing that chat with ${name}. Open it to review or try again.`;
       }
     } else {
       title = failed ? `Tovira couldn't analyse ${yourCapture(kind, name)}.` : `Tovira finished analysing ${yourCapture(kind, name)}.`;

@@ -63,7 +63,8 @@ describe('[IMPORT-DONE] completion notice', () => {
     expect(inApp).toHaveLength(1);
     expect(inApp[0]!.type).toBe('import_complete');
     expect(inApp[0]!.body).toMatch(/1,240 messages/);
-    expect(inApp[0]!.body).toMatch(/2 promises, 1 requirement, 1 person/); // what was found
+    // [P69 · owner] what the client cares about leads (the requirement is counted in it)
+    expect(inApp[0]!.body).toMatch(/1 thing .+ cares about, 2 promises, 1 person/); // what was found
     expect(sender.send).toHaveBeenCalledWith(sub, expect.objectContaining({ url: '/app?client=c1' }));
   });
 

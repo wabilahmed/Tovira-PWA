@@ -83,7 +83,8 @@ describe('[P65-1] done: what was found, from what was saved', () => {
     await deps.runSweep();
     const item = (await status(url, token)).items[0]!;
     expect(item.state).toBe('done');
-    expect(item.found).toEqual({ promises: 0, overduePromises: 0, dates: 0, requirements: 0, people: 0, needsAnswer: 0 });
+    // [P69 · owner] found now leads with caresAbout (details, asks, worries)
+    expect(item.found).toEqual({ caresAbout: 0, promises: 0, overduePromises: 0, dates: 0, requirements: 0, people: 0, needsAnswer: 0 });
   });
 });
 
