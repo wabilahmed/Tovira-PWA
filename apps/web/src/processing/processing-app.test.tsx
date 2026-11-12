@@ -64,7 +64,7 @@ describe('[P65] the status in the app', () => {
   it('the Clients list row shows "Reading…" while it is working (from the server, after a reload)', async () => {
     stub({ phase: 'working' });
     render(<App />);
-    expect(await screen.findByTestId('processing-badge-c1')).toHaveTextContent('Reading…');
+    expect(await screen.findByTestId('processing-badge-c1')).toHaveTextContent('Analysing…');
   });
 
   it('NEGATIVE: nothing processing: no badge, no card, and the status is read once, not polled', async () => {

@@ -13,9 +13,9 @@ function processingLabel(status: string): string {
 /** [IMP-17] A pending note that billing is holding reads as SAVED with the reason + the way out — never
  *  an endless "queued…". Copy mirrors the three lock reasons (subscribe / update card / top up). */
 function blockedMessage(reason: 'subscribe' | 'payment' | 'allowance'): string {
-  if (reason === 'payment') return 'Saved. It will be read once your payment is updated.';
-  if (reason === 'allowance') return 'Saved. It will be read once you top up.';
-  return 'Saved. It will be read once you subscribe.';
+  if (reason === 'payment') return 'Saved. It will be analysed once your payment is updated.';
+  if (reason === 'allowance') return 'Saved. It will be analysed once you top up.';
+  return 'Saved. It will be analysed once you subscribe.';
 }
 
 /** [P36-5] A note's pipeline state, inline after its stamp (queued / analysing / held by billing / failed).

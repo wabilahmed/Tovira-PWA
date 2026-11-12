@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { BookScan, type BookScanApi } from './BookScan.js';
 import type { BookScanReport } from './bookScanClient.js';
 
+// [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
+
 const api = (report: BookScanReport | null): BookScanApi => ({ scan: vi.fn().mockResolvedValue(report) });
 
 const FULL: BookScanReport = {
@@ -54,7 +56,7 @@ describe('<BookScan> streaming progress', () => {
     render(<BookScan api={api({ items: [], isEmpty: true, message: 'x', invitation: 'x', scanProgress: prog({ totalChats: 3, extractedChats: 1, pendingChats: 1, failedChats: 1 }) })} />);
     const bar = await screen.findByTestId('scan-progress');
     expect(bar).toHaveTextContent(/analysed 1 of 3/i); // failed still in the denominator (of 3)
-    expect(bar).toHaveTextContent(/1 couldn’t be read/i);
+    expect(bar).toHaveTextContent(/1 couldn’t be analysed/i);
   });
 });
 

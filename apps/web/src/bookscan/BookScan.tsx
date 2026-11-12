@@ -90,7 +90,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
             style={{ color: 'var(--amber)', position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface-base)', padding: 'var(--space-2) 0', borderBottom: '1px solid var(--hairline)' }}
           >
             Still scanning — analysed {progress.extractedChats} of {progress.totalChats} chat{progress.totalChats === 1 ? '' : 's'}
-            {progress.failedChats > 0 && <> · {progress.failedChats} couldn’t be read</>}
+            {progress.failedChats > 0 && <> · {progress.failedChats} couldn’t be analysed</>}
           </div>
         )}
       </header>

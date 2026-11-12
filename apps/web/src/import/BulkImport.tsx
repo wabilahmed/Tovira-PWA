@@ -153,7 +153,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
         {/* [P39 · owner] The intro, word for word; the export steps as iPhone | Android tabs in a card. */}
         <p className="ui-body">
           {single
-            ? "Export the chat from WhatsApp and choose it here. You confirm who it's with before anything is read."
+            ? "Export the chat from WhatsApp and choose it here. You confirm who it's with before anything is analysed."
             : `Export your chats from WhatsApp and choose up to ${BULK_MAX_FILES} at once.`}
         </p>
         <ExportSteps />

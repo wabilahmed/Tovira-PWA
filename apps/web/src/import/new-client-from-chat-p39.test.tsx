@@ -5,6 +5,8 @@ import { App } from '../App.js';
 import { BulkImport } from './BulkImport.js';
 import type { BulkImportApi } from './bulkImportClient.js';
 
+// [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
+
 configure({ asyncUtilTimeout: 5000 });
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -30,7 +32,7 @@ function stub(): void {
   }));
 }
 
-const INTRO = "Export the chat from WhatsApp and choose it here. You confirm who it's with before anything is read.";
+const INTRO = "Export the chat from WhatsApp and choose it here. You confirm who it's with before anything is analysed.";
 
 describe('[P39-4] New client from a chat', () => {
   it('a PageHeader with "← Clients" and the title once; the intro; tabs in a card; a styled file button', async () => {

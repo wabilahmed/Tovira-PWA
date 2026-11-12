@@ -71,7 +71,7 @@ export function ClientRow({
           {/* [P65 · owner] Reading… while Tovira reads what was sent; why, when it couldn't */}
           {processing && (
             <span data-testid={`processing-badge-${client.id}`}>
-              <Badge tone={processing === 'failed' ? 'danger' : processing === 'held' ? 'warning' : 'accent'}>{processing === 'reading' ? 'Reading…' : processing === 'failed' ? 'Couldn’t read' : 'Not read yet'}</Badge>
+              <Badge tone={processing === 'failed' ? 'danger' : processing === 'held' ? 'warning' : 'accent'}>{processing === 'reading' ? 'Analysing…' : processing === 'failed' ? 'Couldn’t analyse' : 'Not analysed yet'}</Badge>
             </span>
           )}
           {/* [P36-6] A pill only for a real status — none on a row with no status. */}

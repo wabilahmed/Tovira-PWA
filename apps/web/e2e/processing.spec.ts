@@ -1,6 +1,8 @@
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
 import { stubApi } from './fixtures/app-api.js';
 
+// [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
+
 /**
  * [P65 · owner] Showing the rep that Tovira is working, and what it found, at 390px, light and dark: the toast, the status
  * card in progress, the summary, nothing found, a failure, and the Clients list badge. [P63 · owner] Admin → Funnel too.
@@ -46,13 +48,13 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.getByLabel('Type a note').fill('Called Sara: she wants the floor plan by Friday.');
     await page.getByRole('button', { name: 'Save note' }).click();
     await expect(page.getByTestId('processing-toast')).toBeVisible();
-    await expect(page.getByText('Tovira is reading this note.')).toBeVisible();
+    await expect(page.getByText('Tovira is analysing this note.')).toBeVisible();
     await shot(page, `p65-1-toast-and-card-${scheme}`);
 
     state.kind = 'chat';
     await page.reload();
     await page.getByRole('button', { name: 'Open Sara Khan' }).click();
-    await expect(page.getByText('Tovira is reading this chat.')).toBeVisible();
+    await expect(page.getByText('Tovira is analysing this chat.')).toBeVisible();
     await shot(page, `p65-1b-chat-in-progress-${scheme}`);
 
     state.phase = 'done';
@@ -73,7 +75,7 @@ for (const scheme of ['light', 'dark'] as const) {
 
     state.phase = 'working';
     await page.reload();
-    await expect(page.getByTestId('processing-badge-c1')).toHaveText('Reading…');
+    await expect(page.getByTestId('processing-badge-c1')).toHaveText('Analysing…');
     await shot(page, `p65-5-list-badge-${scheme}`);
   });
 
