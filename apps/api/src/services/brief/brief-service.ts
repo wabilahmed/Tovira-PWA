@@ -139,7 +139,7 @@ export class BriefService {
     return {
       clientName: client.name,
       empty,
-      caresAbout: caresAbout({ clientName: client.name, notes: rawNotes, requirements: reqs, restriction }),
+      caresAbout: caresAbout({ clientName: client.name, notes: rawNotes, requirements: reqs, keyDates: (await this.facts.listKeyDatesByUser(userId).catch(() => [])).filter((d) => d.clientId === clientId), restriction }),
       recentContext,
       openPromises,
       needsConfirmation,

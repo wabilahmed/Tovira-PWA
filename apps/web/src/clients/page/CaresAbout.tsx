@@ -7,7 +7,7 @@ import { aiText } from '../../format/aiText.js';
  * of the client page and of the pre-meeting brief.
  */
 export interface CareItem {
-  kind: 'detail' | 'ask' | 'worry';
+  kind: 'detail' | 'date' | 'ask' | 'worry';
   text: string;
   /** Someone other than the client (e.g. "Layla" at Marina Estates); null when it is the client. */
   subject: string | null;

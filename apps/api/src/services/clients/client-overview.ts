@@ -77,11 +77,12 @@ export class ClientOverviewService {
   async forClient(userId: string, clientId: string, nowMs: number): Promise<ClientOverview | null> {
     const client = await this.deps.clients.findByIdForUser(userId, clientId);
     if (!client) return null;
-    const [notes, reqs, promisesAll, meetingsAll] = await Promise.all([
+    const [notes, reqs, promisesAll, meetingsAll, keyDatesAll] = await Promise.all([
       this.deps.notes.listByClient(userId, clientId),
       this.deps.requirements.listByClient(userId, clientId),
       this.deps.facts.listPromisesByUser(userId),
       this.deps.meetings ? this.deps.meetings.listByUser(userId) : Promise.resolve([]),
+      this.deps.facts.listKeyDatesByUser(userId),
     ]);
 
     // Last message: the latest timed message in any of the client's chats (either side); else the latest note.
@@ -118,7 +119,7 @@ export class ClientOverviewService {
       .sort((a, b) => a.datetime.localeCompare(b.datetime))[0];
 
     return {
-      caresAbout: caresAbout({ clientName: client.name, notes, requirements: reqs }),
+      caresAbout: caresAbout({ clientName: client.name, notes, requirements: reqs, keyDates: keyDatesAll.filter((d) => d.clientId === clientId), nowMs }),
       lastMessageAt,
       openPromises: active.length,
       overduePromises: active.filter((p) => p.overdue).length,
@@ -140,9 +141,10 @@ export class ClientOverviewService {
    *  repos). Clients with nothing on file are absent. */
   async careLines(userId: string, clients: ReadonlyMap<string, string>): Promise<Map<string, string>> {
     const out = new Map<string, string>();
+    const keyDatesAll = await this.deps.facts.listKeyDatesByUser(userId);
     for (const [clientId, clientName] of clients) {
       const [notes, reqs] = await Promise.all([this.deps.notes.listByClient(userId, clientId), this.deps.requirements.listByClient(userId, clientId)]);
-      const line = topCare(caresAbout({ clientName, notes, requirements: reqs }));
+      const line = topCare(caresAbout({ clientName, notes, requirements: reqs, keyDates: keyDatesAll.filter((d) => d.clientId === clientId) }));
       if (line) out.set(clientId, line);
     }
     return out;

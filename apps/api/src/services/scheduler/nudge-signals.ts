@@ -13,7 +13,7 @@ const DAY = 86_400_000;
 
 export interface NudgeSignalsDeps {
   clients: Pick<ClientRepository, 'findByIdForUser'>;
-  facts: Pick<FactsRepository, 'listPromisesByUser'>;
+  facts: Pick<FactsRepository, 'listPromisesByUser'> & Partial<Pick<FactsRepository, 'listKeyDatesByUser'>>;
   notes: Pick<NoteRepository, 'listByClient'>;
   timezoneFor: (userId: string) => Promise<string>;
   coldThresholdDays: number;
@@ -55,7 +55,8 @@ export class NudgeSignalsProvider {
 
     // [P69 · owner] What the client said they care about leads the reminder.
     const reqs = this.deps.requirements ? await this.deps.requirements.listByClient(userId, meeting.clientId).catch(() => []) : [];
-    const care = topCare(caresAbout({ clientName, notes: rawNotes, requirements: reqs, restriction })) ?? undefined;
+    const keyDates = this.deps.facts.listKeyDatesByUser ? (await this.deps.facts.listKeyDatesByUser(userId).catch(() => [])).filter((d) => d.clientId === meeting.clientId) : [];
+    const care = topCare(caresAbout({ clientName, notes: rawNotes, requirements: reqs, keyDates, restriction, nowMs })) ?? undefined;
 
     // 2. An unanswered client question (structural, from the chat-export extraction).
     let topQuestion: string | undefined;

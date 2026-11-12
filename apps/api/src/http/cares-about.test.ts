@@ -111,3 +111,16 @@ describe('[P69] Today: under each client, what they care about', () => {
     expect(after?.cares ?? '').not.toMatch(/beach, goes every morning/);
   });
 });
+
+describe('[P69] their dates are part of what they care about', () => {
+  it('an upcoming date, as they said it, with its source; a past one drops off', async () => {
+    const { token, userId, clientId, noteId } = await seed();
+    await deps.facts.saveExtraction(userId, { noteId, clientId, promises: [], keyDates: [
+      { description: 'Board meeting', date: '2099-03-14', date_raw: 'the 14th', type: 'deadline', source_span: 'board meets on the 14th', source_message_at: '2026-11-10T18:06' },
+      { description: 'Anniversary', date: null, date_raw: 'in May', type: 'anniversary', source_span: 'our anniversary is in May', source_message_at: '2026-11-10T18:07' },
+      { description: 'Old launch', date: '2020-01-01', date_raw: 'January', type: 'launch', source_span: 'launch in January', source_message_at: null },
+    ] as never });
+    const dates = (await cares(token, clientId)).filter((c) => c.kind === 'date').map((c) => [c.text, c.quote]);
+    expect(dates).toEqual([['Board meeting · the 14th', 'board meets on the 14th'], ['Anniversary · in May', 'our anniversary is in May']]);
+  });
+});
