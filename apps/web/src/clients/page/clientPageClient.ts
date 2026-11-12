@@ -1,13 +1,14 @@
 import type { FactReceipt } from '../clientsClient.js';
+import type { CareItem } from './CaresAbout.js';
 
 /**
  * [P36-5] The client page's data: one deterministic overview (GET /clients/:id/overview) and the rep's saved
  * section state (GET/PUT /me/ui-prefs — stored with the account, so it follows the rep across devices).
  */
-export type SectionKey = 'meeting' | 'wants' | 'promises' | 'meetings' | 'people' | 'conversations';
-export const SECTION_KEYS: readonly SectionKey[] = ['meeting', 'wants', 'promises', 'meetings', 'people', 'conversations'];
-/** Defaults: the three a rep needs before a meeting open; the rest closed. */
-export const DEFAULT_OPEN: Record<SectionKey, boolean> = { meeting: true, wants: true, promises: true, meetings: false, people: false, conversations: false };
+export type SectionKey = 'cares' | 'meeting' | 'wants' | 'promises' | 'meetings' | 'people' | 'conversations';
+export const SECTION_KEYS: readonly SectionKey[] = ['cares', 'meeting', 'wants', 'promises', 'meetings', 'people', 'conversations'];
+/** Defaults: what they care about and the three a rep needs before a meeting open; the rest closed. */
+export const DEFAULT_OPEN: Record<SectionKey, boolean> = { cares: true, meeting: true, wants: true, promises: true, meetings: false, people: false, conversations: false };
 
 export interface OverviewPromise {
   id: string;
@@ -27,6 +28,8 @@ export interface OverviewPromise {
 export interface ConversationEntry { noteId: string; kind: 'whatsapp' | 'voice' | 'paste' | 'note'; messageCount: number | null; lastAt: string | null; createdAt: number }
 export interface StatusSuggestion { status: 'cold' | 'done'; outcome?: 'lost'; reason: string }
 export interface ClientOverview {
+  /** [P69] what the client said they care about, each with its source (absent from an older server). */
+  caresAbout?: CareItem[];
   lastMessageAt: string | null;
   openPromises: number;
   overduePromises: number;

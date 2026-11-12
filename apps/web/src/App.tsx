@@ -32,6 +32,7 @@ import { Conversations, conversationsSummary } from './clients/page/Conversation
 import { WantsSection, wantsSummary, PromisesSection, promisesSummary, MeetingsSection, meetingsSummary } from './clients/page/Sections.js';
 import { useSections } from './clients/page/useSections.js';
 import { PointersCard, type Pointer } from './clients/PointersCard.js';
+import { CaresAboutList, caresSummary, CARES_TITLE } from './clients/page/CaresAbout.js';
 import { LeadStatusFilterBar, LeadStatusSheet, OutcomeSheet, leadStatusCounts, matchesLeadFilter, leadStatusLabel, type LeadFilter, type StatusSuggestion } from './clients/LeadStatus.js';
 import { searchClients } from './clients/searchClients.js';
 import { ClientRow, type RowSummary } from './clients/ClientRow.js';
@@ -1349,6 +1350,11 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
         onSubscribe={() => onSubscribe('monthly')}
         onUpdatePayment={onOpenSubscription}
       />
+
+      {/* [P69 · owner] the core promise, first on the page: what the client said they care about, each with its source */}
+      <Accordion id="cares" title={CARES_TITLE} summary={caresSummary(overview?.caresAbout)} open={sections.cares} onToggle={() => toggle('cares')}>
+        {overview ? <CaresAboutList items={overview.caresAbout ?? []} /> : <p className="tov-muted">Loading…</p>}
+      </Accordion>
 
       <Accordion id="meeting" title="Before your next meeting" summary={thingsToKeep > 0 ? `${thingsToKeep} thing${thingsToKeep === 1 ? '' : 's'} to keep in mind` : null} open={sections.meeting} onToggle={() => toggle('meeting')}>
         {pointers.pointers.length > 0 && <PointersCard clientName={client.name} clientId={client.id} pointers={pointers.pointers} disclosure={pointers.disclosure} />}

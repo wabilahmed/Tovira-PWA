@@ -7,6 +7,7 @@ import type { ContactAliasRepository } from '../../ports/contact-alias-repositor
 import { withReceipt } from '../receipts/receipt.js';
 import { isStalePromise } from '../facts/promise-lifecycle.js';
 import { summarizeRequirements } from './requirement-summary.js';
+import { caresAbout, type CareItem } from './cares-about.js';
 
 /**
  * [P36-5] Everything the client page's header and sections summarise, read from the stored record — no model
@@ -49,6 +50,8 @@ export interface StatusSuggestion {
 export interface ClientRowSummary { listLine: string | null; lastMessageAt: string | null; overduePromises: number; aliases: string[] }
 
 export interface ClientOverview {
+  /** [P69 · owner] What the client has said they care about (details, asks, worries), each with its source. */
+  caresAbout: CareItem[];
   lastMessageAt: string | null;
   openPromises: number;
   overduePromises: number;
@@ -115,6 +118,7 @@ export class ClientOverviewService {
       .sort((a, b) => a.datetime.localeCompare(b.datetime))[0];
 
     return {
+      caresAbout: caresAbout({ clientName: client.name, notes, requirements: reqs }),
       lastMessageAt,
       openPromises: active.length,
       overduePromises: active.filter((p) => p.overdue).length,

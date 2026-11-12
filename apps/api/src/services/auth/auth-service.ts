@@ -366,7 +366,7 @@ function normalizeEmail(email: string): string {
 }
 
 /** [P36-5] The client page's accordion sections, in page order. */
-export const CLIENT_SECTIONS = ['meeting', 'wants', 'promises', 'meetings', 'people', 'conversations'] as const;
+export const CLIENT_SECTIONS = ['cares', 'meeting', 'wants', 'promises', 'meetings', 'people', 'conversations'] as const;
 export type ClientSection = (typeof CLIENT_SECTIONS)[number];
 export interface UiPrefs { clientSections: Partial<Record<ClientSection, boolean>> }
 
