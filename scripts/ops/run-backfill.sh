@@ -27,6 +27,9 @@
 #   funnel-diagnose  apps/api/src/scripts/funnel-diagnose.ts  [P63-1] READ-ONLY: the last 14 days, per invited lead and per
 #                  request, where people stop; Resend delivered/bounced/spam counts (no opens). No args, refuses --apply.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script funnel-diagnose
+#   pregnancy-purge  apps/api/src/scripts/pregnancy-purge.ts  [P69-15] stored pregnancy details, all accounts, cut the way the
+#                  store-time block cuts them. Dry run prints counts only; --apply deletes/cuts in one transaction.
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script pregnancy-purge
 #   push-audit    apps/api/src/scripts/push-audit.ts  [P46-2] reps with no stored push subscription; counts only, refuses --apply.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script push-audit
 #   tier1-india-audit apps/api/src/scripts/tier1-india-audit.ts  [P53-5] stored values the Indian Tier-1 rules would now blank; counts only, refuses --apply.
@@ -116,7 +119,8 @@ case "$SCRIPT_NAME" in
   ledger-backfill) SCRIPT_IN_IMAGE="apps/api/src/scripts/ledger-backfill.ts" ;;
   trial-end-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/trial-end-audit.ts" ;;
   funnel-diagnose) SCRIPT_IN_IMAGE="apps/api/src/scripts/funnel-diagnose.ts" ;;
-  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit | funnel-diagnose)" ;;
+  pregnancy-purge) SCRIPT_IN_IMAGE="apps/api/src/scripts/pregnancy-purge.ts" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit | funnel-diagnose | pregnancy-purge)" ;;
 esac
 
 # [P26-2/P30-3] Read-only checks: nothing to apply, no args — refused here, before any AWS call.
