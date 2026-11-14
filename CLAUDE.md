@@ -37,6 +37,9 @@ non-trivial work.** Decisions there are LOCKED — do not re-litigate them.
 - **Tenant isolation is enforced at the DB (Postgres RLS)**, not just in app code.
 - **Capture friction kills the product.** Protect the speed of the capture path.
 - **Never present an unconfirmed guess as a fact.**
+- **Tovira may remove words for safety, never add or change them.** (Owner, P69-14.) A store-time
+  safety block may cut a clause or drop a whole item, and blank a receipt quote with the redaction
+  marker; it never adds, rewords or reorders a word.
 - **Prompt caching:** the cacheable prefix must be byte-identical every call.
   Today's date and client names go in the VARIABLE part, never the cached prefix.
 

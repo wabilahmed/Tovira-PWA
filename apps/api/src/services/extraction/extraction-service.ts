@@ -14,6 +14,7 @@ import type { ClientRecord } from '../../ports/client-repository.js';
 import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
 import { checkPointers } from './pointer-postcheck.js';
 import { dropNonVerbatimSpans, dropSensitiveSpans } from './receipt-postcheck.js';
+import { cutPregnancy, cutPregnancyPointers } from '../privacy/pregnancy-cut.js';
 import { POINTER_SYSTEM_PROMPT, POINTER_MAX_TOKENS, buildPointerUserMessage, parsePointers } from './pointer-prompt.js';
 import { zonedWallClockToInstant, zonedTodayIso } from '../time/zone.js';
 import { buildGlossary } from './glossary.js';
@@ -478,7 +479,16 @@ export class ExtractionService {
       // [P18-8] Deterministic write-time backstop: a receipt span must be a VERBATIM excerpt of the text
       // the model saw. Drop any span that isn't (a paraphrased/fabricated receipt is as serious as a
       // fabricated fact, Rule 9) — the fact is kept, only its unverifiable span is nulled.
-      const droppedSpans = dropNonVerbatimSpans(extraction, safeText) + dropSensitiveSpans(extraction); // [P55-3] + no sensitive quote
+      // [P69-14 · owner] Pregnancy is health data whatever category the model gives it: cut it out of facts, asks, dates
+      // and worries (an item left with nothing meaningful is dropped) and blank it in every receipt quote. It runs after
+      // the verbatim check, because a blanked quote is no longer verbatim. (A message that says "pregnant" outright is
+      // already held from the model by the capture screen; this catches the indirect wording, "after the baby".)
+      const nonVerbatim = dropNonVerbatimSpans(extraction, safeText);
+      const pregnancy = cutPregnancy(extraction);
+      if (pregnancy.dropped + pregnancy.cut + pregnancy.quotesBlanked > 0) {
+        console.info(`[pregnancy-block] note ${noteId}: dropped ${pregnancy.dropped}, cut ${pregnancy.cut}, blanked ${pregnancy.quotesBlanked} quote(s) at write time`);
+      }
+      const droppedSpans = nonVerbatim + dropSensitiveSpans(extraction); // [P55-3] + no sensitive quote
       if (droppedSpans > 0) console.info(`[receipt-verbatim] note ${noteId}: dropped ${droppedSpans} non-verbatim receipt span(s)`);
       // [P25-1] Write-time OWNER check: a promise whose (verbatim) receipt traces uniquely to a first-person
       // commitment takes the owner of whoever sent it (the rep's own voice/paste → rep). Corrects owner only;
@@ -672,7 +682,9 @@ export class ExtractionService {
       });
       // [D8] The client thread shows a single card rendered from this stored set — it appears once
       // pointers first exist and updates in place on later voice/paste extractions (silently).
-      await this.pointers.save(userId, note.clientId, { pointers: checked.pointers, retrospectiveDisclosure: checked.retrospectiveDisclosure }, this.now());
+      // [P69-14] the same pregnancy block on the stored pointer set
+      const safe = cutPregnancyPointers(checked.pointers);
+      await this.pointers.save(userId, note.clientId, { pointers: safe.pointers, retrospectiveDisclosure: checked.retrospectiveDisclosure }, this.now());
     } catch (err) {
       console.warn(`[pointers] generation failed for note ${note.id} — set unchanged`, err);
     }
