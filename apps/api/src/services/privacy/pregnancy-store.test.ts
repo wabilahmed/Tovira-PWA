@@ -101,4 +101,18 @@ describe('[P69-14] pregnancy is blocked at store time — the Recruitment card f
     expect(set!.pointers.map((p) => p.text)).toEqual(['Offer a hybrid role']);
     expect(set!.pointers[0]!.receipts[0]!.source_span).toBe("[health detail redacted] I'd want hybrid");
   });
+
+  it('[P69-17] a promise is stored with its pregnancy clause blanked, in the note and in the promises table', async () => {
+    const clients = new InMemoryClientRepository();
+    const notes = new InMemoryNoteRepository();
+    const facts = new InMemoryFactsRepository();
+    const client = await clients.create('u', RECRUITMENT_CLIENT);
+    const note = await notes.create('u', { clientId: client.id, source: 'paste', rawText: RECRUITMENT_CHAT, audioKey: null, status: 'pending_extraction' });
+    const ex = { ...RECRUITMENT_RUNS[0]!, promises: [{ text: 'Send flowers when the baby arrives', owner: 'rep', due_date: null, due_raw: null, confidence: 'high' }] };
+    const svc = new ExtractionService(models(JSON.stringify(ex)), clients, notes, facts, new StubEmbedder(8), new InMemoryExtractionLogRepository(), 'stub');
+    await svc.extractNote('u', note.id, '2026-11-12');
+    const stored = (await notes.findByIdForUser('u', note.id))!.extracted as { promises: Array<{ text: string }> };
+    expect(stored.promises.map((p) => p.text)).toEqual(['Send flowers [health detail redacted]']);
+    expect((await facts.listPromisesByUser('u')).map((p) => p.text)).toEqual(['Send flowers [health detail redacted]']);
+  });
 });

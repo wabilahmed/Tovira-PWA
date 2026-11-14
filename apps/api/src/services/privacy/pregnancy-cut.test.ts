@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cutText, blankQuote, cutPregnancy, cutPregnancyPointers, mentionsPregnancy, HEALTH_MARKER } from './pregnancy-cut.js';
+import { cutText, blankQuote, cutPregnancy, cutPregnancyPointers, mentionsPregnancy, isPregnancyDueDate, HEALTH_MARKER } from './pregnancy-cut.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { NARROW_SURFACE, CERT_SURFACE, GATE_ENTRY_FILES } from '../../eval/extraction-fingerprint.js';
@@ -89,7 +89,7 @@ describe('[P69-14] cutPregnancy on an extraction', () => {
     const counts = cutPregnancy(ex);
     expect(ex.key_dates).toEqual([anniversary]);
     expect(ex.personal_facts[0]!.source_span).toBe(`she loved the emerald set, ${HEALTH_MARKER}`);
-    expect(counts).toEqual({ dropped: 1, cut: 0, quotesBlanked: 1 });
+    expect(counts).toEqual({ dropped: 1, cut: 0, quotesBlanked: 1, promisesBlanked: 0 }); // [P69-17] + promisesBlanked
   });
 
   it('drops a fact whose subject is the pregnancy', () => {
@@ -117,5 +117,31 @@ describe('[P69-14] the block lives outside the certified surfaces', () => {
     // and the block does not reach into a certified file either
     const self = readFileSync(fileURLToPath(new URL('./pregnancy-cut.ts', import.meta.url)), 'utf8');
     expect(self).not.toMatch(/from '\.\.\/extraction\//);
+  });
+});
+
+describe('[P69-17 · owner] promise text is blanked, a bare "Due date" is a pregnancy date', () => {
+  it('blanks the pregnancy clause in a promise with the marker; never drops or shortens the commitment', () => {
+    const ex = { promises: [
+      { text: 'Send flowers when the baby arrives', source_span: null },
+      { text: 'Send the proposal by Friday', source_span: null },
+    ] };
+    const counts = cutPregnancy(ex);
+    expect(ex.promises.map((p) => p.text)).toEqual([`Send flowers ${HEALTH_MARKER}`, 'Send the proposal by Friday']);
+    expect(counts.promisesBlanked).toBe(1);
+  });
+
+  it.each([
+    ['Due date', 'other', true], ['due date', 'birthday', true], ["Her due date", 'other', true], ["The baby's due date", 'other', true],
+    ['Due date', 'deadline', false], ['Due date', 'launch', false], ['Payment due date', 'other', false], ['Invoice due date', 'deadline', false], ['Due date for the deposit', 'other', false],
+  ])('%s (%s) → %s', (d, t, out) => {
+    expect(isPregnancyDueDate(d, t)).toBe(out);
+  });
+
+  it('drops a personal "Due date" key date and keeps a deadline one', () => {
+    const deadline = { description: 'Due date', date: null, date_raw: 'the 30th', type: 'deadline' };
+    const ex = { key_dates: [{ description: 'Due date', date: null, date_raw: 'March', type: 'other' }, deadline] };
+    cutPregnancy(ex);
+    expect(ex.key_dates).toEqual([deadline]);
   });
 });

@@ -16,8 +16,12 @@
  *   - A receipt quote is blanked with the redaction marker in place of the clause, never dropped, so the fact keeps
  *     its receipt. The marker is the only text ever inserted, and only into a quote.
  *   - Applies to personal facts, asks (requirements), key dates, worries (concerns), people's roles, pointers, and
- *     every receipt quote. Promise text, next steps and the summary are left as they are (cutting a promise's
- *     condition would change the commitment). Their receipt quotes are still blanked.
+ *     every receipt quote.
+ *   - [P69-17 · owner] Promise text is BLANKED, not cut: the pregnancy clause becomes the marker, so the commitment is
+ *     never shortened into a different one ("Send flowers when the baby arrives" → "Send flowers [health detail
+ *     redacted]") and a promise is never dropped. Next steps and the summary are left as they are.
+ *   - [P69-17 · owner] A key date that is just "Due date" (optionally "her/the baby's due date") on a personal date is a
+ *     pregnancy due date and is dropped. A deadline or launch date, or "Payment due date", is left alone.
  *
  * Deliberately OUTSIDE the certified surfaces: this file is not in CERT_SURFACE or NARROW_SURFACE, and the gate does
  * not import it. It only removes stored content after the certified extraction has run, so what the gate scores is
@@ -134,16 +138,23 @@ export function blankQuote(quote: string): string {
   return mentionsPregnancy(quote) ? remove(quote, HEALTH_MARKER) : quote;
 }
 
-export interface PregnancyCutCounts { dropped: number; cut: number; quotesBlanked: number }
+export interface PregnancyCutCounts { dropped: number; cut: number; quotesBlanked: number; promisesBlanked: number }
+
+const DUE_DATE = /^\s*(?:(?:the|her|his|their|our|my)\s+)?(?:baby'?s?\s+)?due\s+date\s*$/i;
+const BUSINESS_DATE_TYPES = new Set(['deadline', 'launch']);
+/** A bare "Due date" on a personal key date: a pregnancy due date. */
+export function isPregnancyDueDate(description: unknown, type: unknown): boolean {
+  return typeof description === 'string' && DUE_DATE.test(description) && !(typeof type === 'string' && BUSINESS_DATE_TYPES.has(type.trim().toLowerCase()));
+}
 
 type Spanned = { source_span?: string | null };
 type Ex = {
   personal_facts?: Array<{ subject?: string | null; fact?: string } & Spanned>;
-  key_dates?: Array<{ description?: string; date_raw?: string | null } & Spanned>;
+  key_dates?: Array<{ description?: string; date_raw?: string | null; type?: string } & Spanned>;
   requirements?: Array<{ text?: string; requirement_raw?: string }>;
   concerns?: unknown[];
   people?: Array<{ name?: string | null; role?: string | null } & Spanned>;
-  promises?: Spanned[];
+  promises?: Array<{ text?: string } & Spanned>;
   meeting?: Spanned | null;
 };
 
@@ -152,7 +163,7 @@ type Ex = {
  * meaningful is left); every receipt quote is blanked. Returns counts only, never content.
  */
 export function cutPregnancy(ex: Ex): PregnancyCutCounts {
-  const c: PregnancyCutCounts = { dropped: 0, cut: 0, quotesBlanked: 0 };
+  const c: PregnancyCutCounts = { dropped: 0, cut: 0, quotesBlanked: 0, promisesBlanked: 0 };
   const quote = (h: Spanned | null | undefined): void => {
     if (h && typeof h.source_span === 'string' && mentionsPregnancy(h.source_span)) { h.source_span = blankQuote(h.source_span); c.quotesBlanked += 1; }
   };
@@ -180,6 +191,7 @@ export function cutPregnancy(ex: Ex): PregnancyCutCounts {
     return true;
   });
   ex.key_dates = keep(ex.key_dates, (d) => {
+    if (isPregnancyDueDate(d.description, d.type)) return false;
     if (!field(d, 'description')) return false;
     if (typeof d.date_raw === 'string' && mentionsPregnancy(d.date_raw)) { d.date_raw = blankQuote(d.date_raw); c.quotesBlanked += 1; }
     quote(d);
@@ -206,14 +218,17 @@ export function cutPregnancy(ex: Ex): PregnancyCutCounts {
     if (typeof p.role === 'string' && mentionsPregnancy(p.role)) { const r = cutText(p.role); p.role = r; c.cut += 1; }
     quote(p);
   }
-  for (const p of ex.promises ?? []) quote(p);
+  for (const p of ex.promises ?? []) {
+    if (typeof p.text === 'string' && mentionsPregnancy(p.text)) { p.text = blankQuote(p.text); c.promisesBlanked += 1; }
+    quote(p);
+  }
   quote(ex.meeting);
   return c;
 }
 
 /** The pointer set: a pointer is cut like a fact (dropped when nothing meaningful is left); its quotes are blanked. */
 export function cutPregnancyPointers<P extends { text: string; receipts: Array<{ source_span: string }> }>(pointers: P[]): { pointers: P[]; counts: PregnancyCutCounts } {
-  const counts: PregnancyCutCounts = { dropped: 0, cut: 0, quotesBlanked: 0 };
+  const counts: PregnancyCutCounts = { dropped: 0, cut: 0, quotesBlanked: 0, promisesBlanked: 0 };
   const out: P[] = [];
   for (const p of pointers) {
     const text = cutText(p.text);
