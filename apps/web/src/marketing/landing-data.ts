@@ -2,6 +2,8 @@
  * [P70 · owner] The landing page's data, copied verbatim from renderVals() in the approved design
  * (plan/tovira-landing-reference.dc.html). The six industries, the five game chats, the chat wall, the marquee and
  * the star field. Change nothing here without the owner: every "Tovira caught" line is a claim the product must keep.
+ * Owner changes from the design (P70): no country named (P51: "the UAE" and "SZR" removed), and the Europe line in chat
+ * 2 says the need ("so the cover has to work there too"), because the drawn line was caught only 3/5.
  */
 export const ACCENT = '#E8643A';
 
@@ -9,7 +11,7 @@ export interface World { label: string; before: string; buried: string; after: s
 
 export const WORLDS: World[] = [
   { label: 'Property', before: 'Saturday is hard, kids have football. Honestly ', buried: "we're at the beach every weekend", after: ', can we do Sunday?', source: 'WhatsApp · 12 Mar', caught: 'Loves the beach. Every weekend, with the kids.', move: 'Lead with the sea-view units.' },
-  { label: 'Insurance', before: "Can we sign after I'm back from Munich? ", buried: "I'm in Europe most months for work", after: ', the travel is killing me.', source: 'Voice note · 4 Feb', caught: 'Travels to Europe most months.', move: 'Bring a policy that covers the UAE and Europe.' },
+  { label: 'Insurance', before: "Can we sign after I'm back from Munich? ", buried: "I'm in Europe most months for work", after: ', the travel is killing me.', source: 'Voice note · 4 Feb', caught: 'Travels to Europe most months.', move: 'Bring a policy that covers him in Europe too.' },
   { label: 'Wealth', before: 'All good this side. ', buried: 'Our daughter starts at LSE in September', after: ', so we want to keep things liquid this year.', source: 'WhatsApp · 20 Jan', caught: 'Daughter at LSE from September. Wants liquidity.', move: 'Raise education funding before September.' },
   { label: 'B2B accounts', before: 'Our MD will sign, but ', buried: 'honestly the CFO makes the call', after: '. Send it before the board on the 14th.', source: 'WhatsApp · 8 Apr', caught: 'The CFO really decides. Board meets on the 14th.', move: 'Get the revised SLA to the CFO by the 13th.' },
   { label: 'Luxury', before: 'Thank you for last time! ', buried: 'She still talks about that emerald set', after: ". Our anniversary's in May.", source: 'WhatsApp · 17 Feb', caught: 'Anniversary in May. She loved the emerald set.', move: 'Call in early May about emeralds.' },
@@ -31,7 +33,7 @@ export const ROUNDS: Round[] = [
   ] },
   { name: 'Insurance client', initials: '2', level: 'WARMING UP', tag: 'Voice note · one detail tucked inside a question', spare: 1, pts: 150, msgs: [
     { t: 'Got the quote, thanks for sending' },
-    { t: "can we sign after I'm back? I'm in Europe most months for work", sig: 'Travels to Europe most months', why: "A policy that only covers the UAE won't fit his life. Cover for Europe is what makes your offer the right one." },
+    { t: "can we sign after I'm back? I'm in Europe most months for work, so the cover has to work there too", sig: 'Travels to Europe most months', why: "A policy that only covers home won't fit his life. Cover for Europe is what makes your offer the right one." },
     { t: 'haha long week' },
     { t: 'send me the pdf when you can' },
     { t: 'by the way my current policy renews on 1 March', sig: 'Renewal on 1 March', why: 'A hard deadline. Miss it and he rolls over with his current insurer by default.' },
@@ -58,7 +60,7 @@ export const ROUNDS: Round[] = [
   ] },
   { name: 'Luxury client', initials: '5', level: 'EXPERT · NO SPARE TAPS', tag: 'WhatsApp · everything said in passing', spare: 0, pts: 500, msgs: [
     { t: 'Thank you for last time!' },
-    { t: 'the traffic on SZR was insane haha' },
+    { t: 'the traffic was insane haha' },
     { t: 'she still talks about that emerald set', sig: 'She loved the emerald set', why: "She's already picked what she wants. Show the emerald set and you're not selling, you're reminding." },
     { t: 'my brother just bought a watch, so expensive' },
     { t: "can't believe it's ten years in May", sig: 'Tenth anniversary in May', why: 'A milestone anniversary with a month attached. Call in April, not after it has passed.' },

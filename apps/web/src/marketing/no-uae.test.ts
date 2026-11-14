@@ -33,6 +33,12 @@ describe('[P51] no "UAE" on the landing page', () => {
     expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).not.toMatch(/UAE|Emirates|Dubai/);
   });
 
+  // [P70 · owner] the tabs and the game render more copy in the browser than the HTML ships: none of it names the UAE
+  it('NEGATIVE: the industry tabs and the game name no country or UAE road either', () => {
+    const data = readFileSync(resolve(process.cwd(), 'apps/web/src/marketing/landing-data.ts'), 'utf8');
+    expect(data.slice(data.indexOf('export const'))).not.toMatch(/\bUAE\b|united arab emirates|Dubai|Abu Dhabi|\bSZR\b|Sheikh Zayed/i);
+  });
+
   it('NEGATIVE: no other country is named instead, and AED prices and the language line stay', () => {
     expect(html).not.toMatch(/\b(Saudi|KSA|Qatar|Oman|Bahrain|Kuwait|India|Pakistan|GCC|Middle East)\b/);
     expect(html).toMatch(/AED 299/);
