@@ -44,9 +44,10 @@ describe('[P69-15] pregnancy-purge', () => {
     expect(sent[0]!.sql).toBe('BEGIN TRANSACTION READ ONLY');
     expect(sent.at(-1)!.sql).toBe('ROLLBACK');
     expect(writes()).toEqual([]);
-    // notes: runs 1-4 drop "Expecting a baby" and cut the ask (its quote blanked); run 5 cuts the fact (quote blanked).
-    // Rows: the key date and ask r2 are deleted; ask r1 is cut (quote blanked); the promise quote and the pointer.
-    expect(r).toEqual({ accounts: 2, notes: 5, dropped: 6, cut: 7, quotesBlanked: 8 });
+    // [P69-17 · owner] counts are now by kind, each item once (a date/ask/promise is counted on its row, not its JSON copy).
+    // Details (JSON): runs 1-4 delete "Expecting a baby", run 5 cuts its fact and blanks its quote. Rows: ask r1 cut (quote
+    // blanked), ask r2 deleted, key date k1 deleted, promise p1 quote blanked, the pointer cut (quote blanked).
+    expect(r).toEqual({ accounts: 2, notes: 5, detailsDeleted: 4, detailsCut: 1, asksDeleted: 1, asksCut: 1, datesDeleted: 1, datesCut: 0, promisesBlanked: 0, quotesBlanked: 4, pointersDeleted: 0, pointersCut: 1 });
   });
 
   it('--apply leaves no pregnancy word in anything it writes, in one transaction', async () => {
@@ -83,7 +84,7 @@ describe('[P69-15] pregnancy-purge', () => {
 
   it('leaves rows that only matched the loose SQL prefilter untouched', async () => {
     const { db, writes } = fakeDb({ notes: [{ id: 'n', user_id: U, extracted: { personal_facts: [{ subject: 'A', fact: 'Expecting the proposal by Friday', category: 'preference' }] } }], requirements: [{ id: 'r', user_id: U, text: 'Has a baby daughter, wants a garden', requirement_raw: 'we have a baby daughter' }] });
-    expect(await runPregnancyPurge(db, { apply: true })).toEqual({ accounts: 0, notes: 0, dropped: 0, cut: 0, quotesBlanked: 0 });
+    expect(await runPregnancyPurge(db, { apply: true })).toEqual({ accounts: 0, notes: 0, detailsDeleted: 0, detailsCut: 0, asksDeleted: 0, asksCut: 0, datesDeleted: 0, datesCut: 0, promisesBlanked: 0, quotesBlanked: 0, pointersDeleted: 0, pointersCut: 0 });
     expect(writes()).toEqual([]);
   });
 

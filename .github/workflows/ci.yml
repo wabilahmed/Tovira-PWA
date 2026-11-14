@@ -72,6 +72,12 @@ jobs:
         env:
           MIGRATIONS_TEST_DB_URL: postgres://tovira:tovira@localhost:5432/tovira
         run: npx vitest run apps/api/src/db/migrations-real-postgres.test.ts
+      # [P69-17] The pregnancy purge, against planted data in real Postgres (its own database), so a dry run that finds
+      # nothing in prod is proven to mean nothing is there, not that the purge is blind.
+      - name: Pregnancy purge finds planted data in real Postgres
+        env:
+          MIGRATIONS_TEST_DB_URL: postgres://tovira:tovira@localhost:5432/tovira
+        run: npx vitest run apps/api/src/scripts/pregnancy-purge-real-postgres.test.ts
 
   # The P1-9 extraction quality gate (Sonnet vs Haiku). It needs a real model
   # key, so it self-activates: a no-op until ANTHROPIC_API_KEY is in the repo
