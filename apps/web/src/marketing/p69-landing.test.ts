@@ -11,53 +11,39 @@ import { resolve } from 'node:path';
 const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8');
 const d = new DOMParser().parseFromString(html, 'text/html');
 const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-const DESC = 'Tovira analyses your client conversations and picks out what each client cares about, so you can close.';
+// [P70 · owner] The landing page was rebuilt from the owner's approved design. The P69 promise stays ("helps you close":
+// it analyses your conversations and catches what you missed), now worded by the new page; its copy is pinned in
+// landing-p70.test.ts. The P69 rules below still hold on the rebuilt page.
+const DESC = 'Tovira analyses your client conversations and voice notes, catches the details a busy rep misses, and puts them in front of you before the meeting that matters.';
 
 describe('[P69] the hero', () => {
-  it('eyebrow, headline and subhead', () => {
-    expect(text(d.querySelector('.hero .eyebrow'))).toBe('FOR RELATIONSHIP SALES');
-    expect(text(d.querySelector('#hero-h'))).toBe('Your clients already told you how to win them.');
-    expect(text(d.querySelector('.hero .lede'))).toBe('Tovira analyses your conversations and voice notes, picks out what each client cares about, and reminds you before every meeting. It never forgets a promise, either.');
+  it('eyebrow, headline and subhead (the P70 wording of the P69 promise)', () => {
+    expect(text(d.querySelector('#top .tv-up'))).toBe('FOR RELATIONSHIP SALES');
+    expect(text(d.querySelector('#hero-h'))).toBe('The detail that wins the deal is already in your chats.You just scrolled past it.');
+    expect(text(d.querySelector('#hero-h + p'))).toBe(DESC);
   });
-  it('the hero card shows what the client cares about, each with its message', () => {
-    const screen = d.querySelector('.hero .device__screen')!;
-    expect(text(screen.querySelector('.device__label'))).toBe('What they care about');
-    expect([...screen.querySelectorAll('.tov-receipt__label')].map(text)).toEqual(['Loves the beach', 'Budget around 3.2M']);
-    expect([...screen.querySelectorAll('.tov-receipt__q')].map(text)).toEqual(['“honestly I love the beach”', '“budget around 3.2M, 2 bed ideally”']);
+  it('every example names what the client said and what Tovira caught, linked to the message', () => {
+    expect(text(d.querySelector('[role="tabpanel"]'))).toContain('WHAT THE CLIENT SAID');
+    expect(text(d.querySelector('[role="tabpanel"]'))).toContain('Linked to the message it came from.');
   });
 });
 
-describe('[P69] the three pillars, in order', () => {
-  const pillars = [...d.querySelectorAll('.pillars > .pillar')];
-  it('spots what they care about, shows it when it matters, keeps every promise', () => {
-    expect(pillars.map((p) => [text(p.querySelector('h3')), text(p.querySelector('p'))])).toEqual([
-      ['Spots what they care about', 'She mentioned once that she loves the beach. Tovira picks it out: “Loves the beach.” Every detail links to the message it came from.'],
-      ['Shows it when it matters', 'A brief before every meeting, and each morning, the clients to call and what they care about.'],
-      ['Keeps every promise', "Every date and commitment, yours and theirs, on your list before it's due."],
-    ]);
-  });
-  it('they come straight after the hero', () => {
-    const headings = [...d.querySelectorAll('h1, h2')].map(text);
-    expect(headings.slice(0, 2)).toEqual(['Your clients already told you how to win them.', 'What Tovira does']);
+describe('[P69] what Tovira does, in order (now the three "How it works" steps)', () => {
+  it('give it the conversation, it analyses every line, it speaks up at the right time', () => {
+    expect([...d.querySelectorAll('#how h3')].map(text)).toEqual(['Give it the conversation', 'Tovira analyses every line', 'It speaks up at the right time']);
+    expect(text(d.querySelector('#how'))).toContain('Each morning, who to call and what they care about. And it never forgets a promise, yours or theirs.');
   });
 });
 
-const CARDS: Array<[string, string, string]> = [
-  ['INSURANCE AND BROKERAGE', 'Said once, months ago. Tovira shows Travels to Europe often before the renewal.', '“I\'m in Europe most summers”'],
-  ['WEALTH AND PRIVATE BANKING', 'Said in passing. Tovira shows Daughter at LSE from September.', '“my daughter starts at LSE in September”'],
-  ['B2B AND KEY ACCOUNTS', 'Buried in a long thread. Tovira shows Board meeting 14th, on their page and in the brief before it.', '“the board meets on the 14th”'],
-  ['LUXURY AND CLIENT ADVISORS', 'Two details in one message. Tovira shows Anniversary in May · loved the emerald set.', '“our anniversary is in May, she loved the emerald set”'],
-  ['RECRUITMENT AND EXECUTIVE SEARCH', 'One line in a long chat. Tovira shows Wants hybrid.', '“With the school run I\'d want hybrid, three days in the office max”' /* [P69-16 · owner] was the pregnancy line: health data, never on the landing */],
-  ['PROPERTY', 'Her first message. Tovira shows Loves the beach · budget ~3.2M.', '“I love the beach, budget around 3.2M”'],
-];
-
-describe('[P69] the six use-case cards: what the client said, and what Tovira surfaces', () => {
-  const cards = [...d.querySelectorAll('section[aria-labelledby="use-h"] .usecases > .usecase')];
-  it('label, body, quote, in order', () => {
-    expect(cards.map((c) => [text(c.querySelector('.usecase__label')).toUpperCase(), text(c.querySelector('.usecase__label + p')), text(c.querySelector('.tov-receipt__q'))])).toEqual(CARDS);
+describe('[P69] the six industries: what the client said, and what Tovira caught', () => {
+  it('six tabs, each with a caught line', () => {
+    expect([...d.querySelectorAll('[role="tab"]')].map(text)).toEqual(['Property', 'Insurance', 'Wealth', 'B2B accounts', 'Luxury', 'Recruitment']);
   });
-  it('NEGATIVE: no card advises what to sell or show, and no invented results', () => {
-    for (const c of cards) expect(text(c)).not.toMatch(/\b(show (them|her|him)|offer|pitch|sell|recommend|suggest)\b/i);
+  // [P70 · owner] "Your move" now suggests the rep's next step ("Lead with the sea-view units."), labelled as the
+  // rep's decision ("You decide. Tovira just makes sure you saw it."). What Tovira caught still never advises.
+  it('NEGATIVE: no caught line advises what to sell or show, and no invented results', () => {
+    expect(text(d.querySelector('[data-world="caught"]'))).not.toMatch(/\b(show (them|her|him)|offer|pitch|sell|recommend|suggest)\b/i);
+    expect(html).toContain('You decide. Tovira just makes sure you saw it.');
     expect(html).not.toMatch(/\d+\s?% (more|faster|higher)|close \d+/i);
   });
 });

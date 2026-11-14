@@ -36,7 +36,8 @@ describe('[LANDING-REVERT] carried-forward facts', () => {
   it('states no retired claim: no "training records", and voice is in-app only', () => {
     expect(html).not.toMatch(/training records/i);
     // any mention of training is the negative promise, never a retention claim
-    if (/\btrain(ing|s|ed)?\b/i.test(html)) expect(html).toMatch(/do not use .*to train|not .*train/i);
+    // [P70 · owner] the rebuilt page says it as "Never used to train AI.", the same negative promise
+    if (/\btrain(ing|s|ed)?\b/i.test(html)) expect(html).toMatch(/do not use .*to train|not .*train|never used to train/i);
     // in-app capture only — no claim of importing an external audio file
     expect(html).not.toMatch(/upload (an? )?(audio|voice) (file|note|recording)/i);
   });
@@ -60,11 +61,13 @@ describe('[LANDING-REVERT] carried-forward facts', () => {
     expect(d.querySelector('section header, article header, aside header, nav header, main header')).toBeNull();
   });
 
-  it('the annual plan, FAQ, security band and mobile CTA are all present', () => {
-    expect(html).toMatch(/\/ year/);                       // annual plan
-    expect(d.querySelectorAll('details.faq__item').length).toBeGreaterThanOrEqual(3); // FAQ
-    expect(d.querySelector('.sec--band')).not.toBeNull();  // security band
-    expect(d.querySelector('[data-mobile-cta]')).not.toBeNull(); // mobile sticky CTA
+  // [P70 · owner] the rebuilt page keeps the annual plan, the FAQ and the trust points ("It shows its work" replaces the
+  // security band); the sticky mobile CTA was removed on purpose, so its absence is now the contract.
+  it('the annual plan, FAQ and trust points are present, and there is no sticky mobile CTA', () => {
+    expect(html).toMatch(/per year/);                      // annual plan
+    expect(d.querySelectorAll('details').length).toBeGreaterThanOrEqual(3); // FAQ
+    expect(d.querySelector('section[aria-labelledby="trust-h"]')).not.toBeNull(); // trust points
+    expect(d.querySelector('[data-mobile-cta]')).toBeNull(); // no sticky bottom CTA
   });
 });
 

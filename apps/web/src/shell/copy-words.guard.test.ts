@@ -77,10 +77,11 @@ describe('[P39-9] rep-facing copy', () => {
     expect([...app, ...server]).toEqual([]);
   });
 
-  it('the landing page: "Cancel anytime from Settings → Subscription" and "One plan. No tiers, no seats to count."', () => {
+  // [P70 · owner] the rebuilt landing page words these two lines as the approved design does
+  it('the landing page: "Cancel any time in Settings." and "One plan" with no tiers or seats', () => {
     const html = readFileSync(join(ROOT, 'apps/web/index.html'), 'utf8');
-    expect(html).toContain('Cancel anytime from Settings → Subscription.');
-    expect(html).toContain('One plan. No tiers, no seats to count.');
+    expect(html).toContain('14 days free. No tiers, no seats. Cancel any time in Settings.');
+    expect(html).toContain('One plan. Pays for itself with one detail.');
     expect(html).not.toContain('Cancel anytime from Billing');
     expect(html).not.toContain('no add-ons');
   });

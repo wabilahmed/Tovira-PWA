@@ -2,35 +2,36 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// [SITE2] Regression + a11y for the story-funnel landing. Runs against the REAL
-// shipped HTML/CSS, so a dropped section or a broken CTA fails here.
+// [SITE2] Regression + a11y for the landing funnel. Runs against the REAL shipped HTML, so a dropped section or a
+// broken CTA fails here.
+// [P70 · owner] The landing page was rebuilt from the owner's approved design: new sections and order, four FAQ
+// questions (none open by default), "It shows its work" in place of the security band, no sticky mobile bar (removed on
+// purpose), and its styles inline in index.html (site.css now serves only Privacy and Terms). The contracts are kept.
 const read = (p: string): string => readFileSync(resolve(process.cwd(), p), 'utf8');
-const doc = (p: string): Document => new DOMParser().parseFromString(read(p), 'text/html');
 const EN = 'apps/web/index.html';
-const CSS = 'apps/web/src/marketing/site.css';
+const html = read(EN);
+const d = new DOMParser().parseFromString(html, 'text/html');
+const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
 
 describe('[SITE2] the funnel is present, in order', () => {
-  const d = doc(EN);
   const headings = [...d.querySelectorAll('h1, h2')].map((h) => (h.textContent ?? '').trim());
 
   it('has exactly one h1 (the hero) and it leads', () => {
     expect(d.querySelectorAll('h1')).toHaveLength(1);
-    expect(headings[0]).toMatch(/Your clients already told you how to win them/); // [P69 · owner] the new headline
+    expect(headings[0]).toMatch(/The detail that wins the deal is already in your chats/);
   });
 
-  it('runs hook → cost → turn → how → proof → use cases → security → plans → FAQ → close', () => {
-    const order = [ // [P69 · owner] the new hook, then the three pillars
-      /Your clients already told you how to win them/,
-      /What Tovira does/,
-      /Forgetting is silent/,
-      /What if the record kept itself/,
-      /Three steps/,
-      /never tells you something it cannot show/,
-      /Built for people whose deals are relationships/,
-      /It is your book\. It stays yours/,
-      /One price\. Everything included/,
+  it('runs hook → game → problem → industries → how → trust → plans → FAQ → close', () => {
+    const order = [
+      /The detail that wins the deal/,
+      /Would you have caught it/,
+      /Your clients tell you how to win them/,
+      /See what Tovira would catch/,
+      /Send it a chat/,
+      /No guesses\. Every detail has a receipt/,
+      /One plan\. Pays for itself/,
       /Questions/,
-      /Your client book is an asset/,
+      /Your next client has already told you/,
     ];
     let i = 0;
     for (const re of order) {
@@ -40,87 +41,65 @@ describe('[SITE2] the funnel is present, in order', () => {
     }
   });
 
-  // Audit fill: the daily ranked "who to contact today" list is a core surface that was
-  // absent from §4; and alias resolution (one client under several names) is the accuracy
-  // capability that was nowhere on the page. Both are approved source copy for shipped features.
-  it('the "how" section names the daily ranked priorities surface and alias resolution', () => {
+  it('the "how" section names the morning list and what each client cares about', () => {
     const how = d.querySelector('#how')?.textContent ?? '';
-    // [P42 · owner] the approved line is "The day's follow-ups in order…" (the list ranks follow-ups, not clients),
-    // so "in order" names the same surface.
-    expect(how, 'daily ranked priorities surface').toMatch(/who needs you|ranked|follow-ups in order/i);
-    expect(how, 'one client under several names (alias resolution)').toMatch(/name/i);
+    expect(how).toMatch(/Each morning, who to call/);
+    expect(how).toMatch(/what they care about/);
   });
 
-  it('every CTA is a plain link to the beta request form (works with no JS) and there is a sticky mobile bar', () => {
+  it('every CTA is a plain link to the beta request form (works with no JS), and there is no sticky bottom bar', () => {
     const ctas = [...d.querySelectorAll<HTMLAnchorElement>('[data-cta]')];
-    expect(ctas.length).toBeGreaterThanOrEqual(4); // nav, hero, plans, close, mobile bar
-    // BETA-4: self-registration replaced by request-and-invite; CTAs route to /request-access.
+    expect(ctas.length).toBeGreaterThanOrEqual(3); // header, hero, close (the game's end screen adds one)
     for (const a of ctas) expect(a.getAttribute('href')).toBe('/request-access');
-    expect(d.querySelector('[data-mobile-cta]')).not.toBeNull();
+    expect(d.querySelector('[data-mobile-cta]')).toBeNull();
   });
 
-  it('plans: two prices in mono, a quiet "two months free" marker, no urgency/discount patterns', () => {
-    const plans = d.querySelector('.plans')!;
-    expect(plans.querySelectorAll('.plan')).toHaveLength(2);
+  it('plans: two prices, a quiet "two months free" marker, no urgency/discount patterns', () => {
+    const plans = d.querySelector('#pricing')!;
     expect(plans.textContent).toContain('AED 299');
     expect(plans.textContent).toContain('AED 2,990');
     expect(plans.textContent).toMatch(/two months free/);
-    expect(read(EN)).not.toMatch(/most popular|only today|countdown|was AED|<s>|strike/i);
+    expect(html).not.toMatch(/most popular|only today|countdown|was AED|<s>|strike/i);
   });
 
-  it('FAQ has all six questions and opens the first by default', () => {
-    const items = [...d.querySelectorAll('.faq details')];
-    expect(items).toHaveLength(6);
-    expect(items[0]!.hasAttribute('open')).toBe(true);
+  it('FAQ has the four questions, as native disclosures', () => {
+    expect(d.querySelectorAll('details > summary')).toHaveLength(4);
   });
 
-  // Decision (owner): the "Who is it not for?" answer keeps the recorded-video-call exclusion
-  // but leads with WHO it is for (in-person / relationship sellers) and drops the
-  // "good tools already exist" framing that positioned Tovira as the leftover option.
   it('the "not for" FAQ leads with who it is for, not a leftover-tool framing', () => {
-    const items = [...d.querySelectorAll<HTMLDetailsElement>('.faq details')];
-    const notFor = items.find((el) => /who is it not for/i.test(el.querySelector('summary')?.textContent ?? ''));
-    expect(notFor, 'the "Who is it not for?" FAQ is present').toBeTruthy();
+    const notFor = [...d.querySelectorAll('details')].find((el) => /who is it not for/i.test(el.querySelector('summary')?.textContent ?? ''));
+    expect(notFor).toBeTruthy();
     const answer = notFor!.querySelector('p')?.textContent ?? '';
     expect(answer).not.toMatch(/good tools already exist/i);
-    expect(answer).toMatch(/in person|relationship/i);
-    expect(answer).toMatch(/recorded video/i); // the exclusion itself stays
+    expect(answer).toMatch(/clients stay with them for years/i);
+    expect(answer).toMatch(/recorded/i); // the exclusion itself stays
   });
 
-  it('security makes no claim beyond the four sanctioned ones', () => {
-    const sec = d.querySelector('.sec--band')!.textContent ?? '';
-    expect(sec).toMatch(/encrypted in transit and at rest/i);
-    expect(sec).not.toMatch(/bank-grade|military-grade|SOC ?2|ISO ?27001|compliance|certified/i);
+  it('trust points make no claim beyond what is shipped', () => {
+    const trust = d.querySelector('section[aria-labelledby="trust-h"]')!.textContent ?? '';
+    expect(trust).toMatch(/Never used to train AI/);
+    expect(html).not.toMatch(/bank-grade|military-grade|SOC ?2|ISO ?27001|compliance|certified/i);
   });
 
-  it('decorative visuals are labelled (role=img + aria-label) or hidden (aria-hidden)', () => {
-    for (const el of d.querySelectorAll('.device')) {
-      const labelled = el.getAttribute('role') === 'img' && (el.getAttribute('aria-label') ?? '').trim().length > 0;
-      const hidden = el.closest('[aria-hidden="true"]') !== null || el.getAttribute('aria-hidden') === 'true';
-      expect(labelled || hidden, 'a phone frame is neither labelled nor hidden').toBe(true);
+  it('decorative visuals are hidden (aria-hidden)', () => {
+    for (const sel of ['.tv-orb', '.tv-star', '.tv-wall', '.tv-marq']) {
+      for (const el of d.querySelectorAll(sel)) expect(el.closest('[aria-hidden="true"]'), sel).not.toBeNull();
     }
   });
 });
 
 describe('[SITE2] motion is a progressive enhancement (no-JS + reduced-motion safe)', () => {
-  const css = read(CSS);
-
-  it('reveal hidden states are gated on .js — with no JS, content is visible', () => {
-    // Every rule that sets opacity:0 for a reveal target is scoped under `.js`.
-    for (const m of css.matchAll(/([^{}]*\[data-(?:reveal|stagger-item|deal-item)\][^{}]*)\{[^}]*opacity:\s*0/g)) {
-      expect(m[1]).toMatch(/\.js\b/);
-    }
+  it('nothing is hidden waiting for JS: reveals are CSS-only, inside @supports', () => {
+    expect(d.querySelector('[data-reveal]')).toBeNull();
+    expect(style).toMatch(/@supports \(animation-timeline: view\(\)\)\{\s*\.tv-rv\{/);
   });
 
-  it('reduced-motion collapses every reveal to its final, untransformed state', () => {
-    const block = css.slice(css.indexOf('prefers-reduced-motion'));
-    expect(block).toMatch(/\[data-reveal\][\s\S]*opacity:\s*1\s*!important/);
-    expect(block).toMatch(/transform:\s*none\s*!important/);
+  it('reduced motion stops every animation', () => {
+    expect(style).toMatch(/@media \(prefers-reduced-motion: reduce\)\{[^\n]*\.tv-rv[^\n]*animation:none !important/);
   });
 
   it('the FAQ is keyboard-navigable native disclosure (details/summary) and focus is visible', () => {
-    expect(doc(EN).querySelectorAll('.faq details > summary').length).toBe(6);
-    expect(css).toMatch(/:focus-visible/);
-    expect(css).toMatch(/outline:\s*2px solid var\(--brass\)/);
+    expect(d.querySelectorAll('details > summary').length).toBe(4);
+    expect(style).toMatch(/:focus-visible\{outline:2px solid #E8643A/);
   });
 });

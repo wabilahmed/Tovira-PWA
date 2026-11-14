@@ -14,7 +14,8 @@
  */
 import './ref.js';
 import { sendVisit } from './visit.js';
-import { initMarketingMotion } from './reveal.js';
+import { mountGame } from './game.js';
+import { mountWorlds } from './worlds.js';
 
 const AUTH_HINT = 'tovira.authed';
 
@@ -33,8 +34,16 @@ if (typeof location !== 'undefined' && typeof localStorage !== 'undefined') redi
 // [P63-7] the landing page's cookieless page view
 if (typeof location !== 'undefined' && (location.pathname === '/' || location.pathname === '/index.html')) sendVisit('landing');
 
-// Marketing motion (reveal-on-scroll, §4 frame swap, mobile CTA). Enhancement only.
+// [P70 · owner] The only page script beyond the referral pass-through and the visit beacon: the game and the industry
+// tabs. Every animation is CSS (index.html); there is no scroll or reveal script.
+function mountLanding(): void {
+  const card = document.querySelector<HTMLElement>('[data-game]');
+  if (card) mountGame(card);
+  const tabs = document.querySelector<HTMLElement>('[data-worlds]');
+  const panel = document.querySelector<HTMLElement>('[data-world-panel]');
+  if (tabs && panel) mountWorlds(tabs, panel);
+}
 if (typeof document !== 'undefined') {
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => initMarketingMotion());
-  else initMarketingMotion();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountLanding);
+  else mountLanding();
 }
