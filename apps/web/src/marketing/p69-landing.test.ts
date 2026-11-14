@@ -47,7 +47,7 @@ const CARDS: Array<[string, string, string]> = [
   ['WEALTH AND PRIVATE BANKING', 'Said in passing. Tovira shows Daughter at LSE from September.', '“my daughter starts at LSE in September”'],
   ['B2B AND KEY ACCOUNTS', 'Buried in a long thread. Tovira shows Board meeting 14th, on their page and in the brief before it.', '“the board meets on the 14th”'],
   ['LUXURY AND CLIENT ADVISORS', 'Two details in one message. Tovira shows Anniversary in May · loved the emerald set.', '“our anniversary is in May, she loved the emerald set”'],
-  ['RECRUITMENT AND EXECUTIVE SEARCH', 'One line in a long chat. Tovira shows Wants hybrid.', '“after the baby I\'d want hybrid”'],
+  ['RECRUITMENT AND EXECUTIVE SEARCH', 'One line in a long chat. Tovira shows Wants hybrid.', '“With the school run I\'d want hybrid, three days in the office max”' /* [P69-16 · owner] was the pregnancy line: health data, never on the landing */],
   ['PROPERTY', 'Her first message. Tovira shows Loves the beach · budget ~3.2M.', '“I love the beach, budget around 3.2M”'],
 ];
 

@@ -41,7 +41,7 @@ const CARDS = [ // [P69 · owner] each body is what the client said and what Tov
     quote: '“our anniversary is in May, she loved the emerald set”', stamp: 'WHATSAPP · 17 FEB 2026' },
   { label: 'RECRUITMENT AND EXECUTIVE SEARCH',
     body: 'One line in a long chat. Tovira shows Wants hybrid.',
-    quote: '“after the baby I\'d want hybrid”', stamp: 'WHATSAPP · 12 JAN 2026' },
+    quote: '“With the school run I\'d want hybrid, three days in the office max”' /* [P69-16 · owner] was the pregnancy line: health data, never on the landing */, stamp: 'WHATSAPP · 12 JAN 2026' },
   { label: 'PROPERTY',
     body: 'Her first message. Tovira shows Loves the beach · budget ~3.2M.',
     quote: '“I love the beach, budget around 3.2M”', stamp: 'WHATSAPP · 11 FEB 2026' },
