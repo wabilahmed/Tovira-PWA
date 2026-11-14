@@ -16,10 +16,16 @@ const runOf = (j: Job) => j.steps.map((s) => s.run ?? '').join('\n');
 const append = readFileSync(join(ROOT, 'scripts/ops/append-fab-ledger.sh'), 'utf8');
 
 describe('[P52] CI: the gate fails closed and records its verdict', () => {
-  it('NEGATIVE: a missing ANTHROPIC_API_KEY fails the gate job, whatever changed (never "skipped", never exit 0)', () => {
+  // [P70 · owner] was "whatever changed": a push that leaves the API image unchanged now carries its ancestor's verdict
+  // forward instead of running the gate (inherit-verdict.test.ts). Whenever the gate does run, a missing key still fails it.
+  it('NEGATIVE: a missing ANTHROPIC_API_KEY fails the gate job whenever the gate runs (never "skipped", never exit 0)', () => {
     const gate = ci.jobs.gate!;
     const keyChecks = gate.steps.filter((s) => (s.run ?? '').includes('if [ -z "$ANTHROPIC_API_KEY" ]'));
     expect(keyChecks.length).toBeGreaterThan(0);
+    const inherit = gate.steps.find((s) => (s.run ?? '').includes('scripts/ops/inherit-verdict.ts'))!;
+    expect(inherit, 'the carry-forward step').toBeDefined();
+    for (const s of gate.steps.filter((x) => /npm run gate|fab-started/.test(x.run ?? ''))) expect(s.if, s.name).toBe("steps.inherit.outputs.inherited != '1'");
+    expect(gate.steps.indexOf(inherit)).toBeLessThan(gate.steps.indexOf(keyChecks[0]!));
     for (const s of keyChecks) {
       const block = s.run!.slice(s.run!.indexOf('if [ -z "$ANTHROPIC_API_KEY" ]'), s.run!.indexOf('fi', s.run!.indexOf('if [ -z "$ANTHROPIC_API_KEY" ]')));
       expect(block, s.name).toMatch(/exit 1/);

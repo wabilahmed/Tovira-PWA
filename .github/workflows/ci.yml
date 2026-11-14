@@ -91,6 +91,9 @@ jobs:
   # serialised so each one reads the ledger after the previous run's record has landed.
   # [P26-3] The job first appends a "started" record; a start with no result (a job cancelled or killed
   # before it scored) counts as a FAILURE while it is in the window.
+  # [P70 · owner] A push that changes nothing the API image is built from (package.json, package-lock.json, apps/api/**,
+  # apps/web/package.json) since its nearest verdicted ancestor carries that verdict forward and skips the gate (no
+  # model spend): extraction is byte for byte the same. Anything else, or any doubt, runs the gate as before.
   gate:
     needs: [verify, migrations-pg]
     if: github.ref == 'refs/heads/main'
@@ -102,12 +105,26 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # [P70] the verdict carry-forward compares this commit with its verdicted ancestor
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Carry the verdict forward when the API image is unchanged (frontend-only push)
+        id: inherit
+        env:
+          LEDGER_FILE: ${{ runner.temp }}/deploy-ledger-in.jsonl
+          OUT: ${{ runner.temp }}/verdict.jsonl
+          SHA: ${{ github.sha }}
+        run: |
+          if git fetch --no-tags --depth=1 origin gate-ledger && git cat-file -e FETCH_HEAD:deploy-ledger.jsonl 2>/dev/null; then
+            git show FETCH_HEAD:deploy-ledger.jsonl > "$LEDGER_FILE"
+          fi
+          npx tsx scripts/ops/inherit-verdict.ts
       - name: Record that this gate run started (before any model call)
+        if: steps.inherit.outputs.inherited != '1'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MODEL_PROVIDER: anthropic
@@ -121,6 +138,7 @@ jobs:
           npx tsx apps/api/src/eval/fab-started.ts > "$RUNNER_TEMP/fab-started.jsonl"
           scripts/ops/append-fab-ledger.sh "$RUNNER_TEMP/fab-started.jsonl" "gate started: ${GITHUB_SHA::7} run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}"
       - name: Run the extraction gate (only when a key is configured)
+        if: steps.inherit.outputs.inherited != '1'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MODEL_PROVIDER: anthropic
@@ -144,7 +162,7 @@ jobs:
           if git cat-file -e FETCH_HEAD:deploy-ledger.jsonl 2>/dev/null; then git show FETCH_HEAD:deploy-ledger.jsonl > "$GATE_DEPLOY_LEDGER_FILE"; else : > "$GATE_DEPLOY_LEDGER_FILE"; fi
           npm run gate
       - name: Append this run to the fabrication ledger (whatever the verdict)
-        if: always()
+        if: always() && steps.inherit.outputs.inherited != '1'
         env:
           RECORD: ${{ runner.temp }}/fab-record.jsonl
         run: |
