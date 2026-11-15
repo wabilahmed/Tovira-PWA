@@ -44,7 +44,8 @@ describe('[SITE-5] meta & SEO', () => {
     expect(d.querySelector('title')?.textContent).toMatch(/Tovira/);
     // [P69 · owner] the description is now the owner's line ("analyses your client conversations"), which doesn't name WhatsApp
     expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/client conversations/);
-    expect(d.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('/');
+    // [P70-4 · owner] P30 decided: the canonical is absolute on tovira.io (was relative '/')
+    expect(d.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://tovira.io/');
     const alternates = [...d.querySelectorAll('link[rel="alternate"][hreflang]')].map((l) => l.getAttribute('hreflang'));
     expect(alternates).toContain('en');
     expect(alternates).toContain('x-default');

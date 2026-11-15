@@ -98,7 +98,7 @@ export function wall(lines: WallLine[]): Array<{ text: string; cls: string; colo
 
 /** The marquee: each row twice, coloured in a repeating muted / accent / text pattern. */
 export function marq(items: string[]): Array<{ t: string; color: string }> {
-  return items.concat(items).map((t, i) => ({ t, color: i % 3 === 1 ? '#E8643A' : (i % 3 === 2 ? '#F2EDE4' : '#4A423B') }));
+  return items.concat(items).map((t, i) => ({ t, color: i % 3 === 1 ? '#E8643A' : (i % 3 === 2 ? '#F2EDE4' : '#7D736A') }));
 }
 
 /** The 28 stars, from the design's seeded generator (same seed, same sky). About 1 in 5 is gold. */

@@ -50,7 +50,8 @@ is left to the owner:
     day-first rep, mark `resolution:'explicit'`. Risk: a month-first (US) rep's export mis-resolves.
 Recommendation: Option B gated on a stored, explicit rep locale (not inferred), else Option A.
 
-## [P30] Landing canonical: relative "/" (pinned by [SITE-5]) vs absolute https://tovira.io/ — owner call
+## [P30] RESOLVED (owner, 2026-11-15, P70-4): Option B. Canonical and hreflang are absolute: https://tovira.io/ on the landing page, https://tovira.io/privacy and https://tovira.io/terms on the legal pages; [SITE-5] now pins the absolute URL
+_Original entry, kept for the record:_ Landing canonical: relative "/" (pinned by [SITE-5]) vs absolute https://tovira.io/
 `apps/web/index.html` has `<link rel="canonical" href="/">`, and `apps/web/src/marketing/a11y.test.ts`
 ([SITE-5]) pins exactly `'/'`. After the move to tovira.io, staging.tovira.io keeps serving the same page
 (old invite links), and a relative canonical makes each host canonical to itself — so search engines may

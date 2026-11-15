@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { decideInherit, touchesApiImage } from '../scripts/ops/inherit-verdict.js';
 import { parseDeployLedger, type VerdictRecord } from '../apps/api/src/eval/deploy-ledger.js';
+import { decideDeploy } from '../apps/api/src/eval/deploy-decision.js';
 
 /**
  * [P70 · owner] "since this will be only a frontend deploy do not run the 12 aed gate". A push that changes nothing the
@@ -55,6 +56,27 @@ describe('[P70] carrying a verdict forward', () => {
   it('the base\'s latest verdict is the one carried', () => {
     const d = decideInherit({ ...base, ledger: [verdict('base000', { deployGate: 'FAIL', at: '1' }), verdict('base000', { deployGate: 'PASS', at: '2', runId: '2' })], ancestors: ['base000'], changedSince: () => [] });
     expect(d.inherit && d.record.deployGate).toBe('PASS');
+  });
+});
+
+describe('[P70-4] a carried PROVISIONAL gets no more than a fresh one', () => {
+  // Owner asked: does carrying forward a PROVISIONAL let anything through that a full PASS wouldn't? No: the deploy
+  // decision re-checks it at deploy time against the latest full certification of the same CERT_SURFACE, exactly as
+  // it does for a PROVISIONAL the gate wrote itself.
+  const carried = (ledger: VerdictRecord[]) => {
+    const d = decideInherit({ ...base, ledger, ancestors: ['base000'], changedSince: () => ['apps/web/index.html'] });
+    if (!d.inherit) throw new Error('expected a carry');
+    return [...ledger, d.record];
+  };
+  const deploy = (ledger: VerdictRecord[]) => decideDeploy({ trigger: 'auto', sha: 'head000', ledger, policy: 'pass-required', ciConclusion: 'success', emailConfigured: true, certFingerprint: 'fp1' });
+  it('allowed only while the latest certification of the surface is a PASS', () => {
+    const cert = (c: 'PASS' | 'FAIL', at: string) => verdict('cert000', { mode: 'full-cert', certification: c, at });
+    const prov = verdict('base000', { certification: 'PROVISIONAL', at: '2026-11-14T11:00:00Z' });
+    expect(deploy(carried([cert('PASS', '2026-11-01T00:00:00Z'), prov])).allow).toBe(true);
+    const r = deploy(carried([cert('PASS', '2026-11-01T00:00:00Z'), cert('FAIL', '2026-11-02T00:00:00Z'), prov]));
+    expect(r.allow).toBe(false);
+    expect(r.reason).toMatch(/PROVISIONAL .* policy requires PASS/);
+    expect(deploy(carried([prov])).allow).toBe(false); // no certification on record
   });
 });
 
