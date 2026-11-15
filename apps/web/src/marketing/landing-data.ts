@@ -11,7 +11,7 @@ export interface World { label: string; before: string; buried: string; after: s
 
 export const WORLDS: World[] = [
   { label: 'Property', before: 'Saturday is hard, kids have football. Honestly ', buried: "we're at the beach every weekend", after: ', can we do Sunday?', source: 'WhatsApp · 12 Mar', caught: 'Loves the beach. Every weekend, with the kids.', move: 'Lead with the sea-view units.' },
-  { label: 'Insurance', before: "Can we sign after I'm back from Munich? ", buried: "I'm in Europe most months for work", after: ', the travel is killing me.', source: 'Voice note · 4 Feb', caught: 'Travels to Europe most months.', move: 'Bring a policy that covers him in Europe too.' },
+  { label: 'Insurance', before: "Can we sign after I'm back from Munich? ", buried: "I'm in Europe most months for work", after: ', the travel is killing me.', source: 'Voice note · 4 Feb', caught: 'Travels to Europe most months.', move: 'Bring a policy that covers Europe too.' },
   { label: 'Wealth', before: 'All good this side. ', buried: 'Our daughter starts at LSE in September', after: ', so we want to keep things liquid this year.', source: 'WhatsApp · 20 Jan', caught: 'Daughter at LSE from September. Wants liquidity.', move: 'Raise education funding before September.' },
   { label: 'B2B accounts', before: 'Our MD will sign, but ', buried: 'honestly the CFO makes the call', after: '. Send it before the board on the 14th.', source: 'WhatsApp · 8 Apr', caught: 'The CFO really decides. Board meets on the 14th.', move: 'Get the revised SLA to the CFO by the 13th.' },
   { label: 'Luxury', before: 'Thank you for last time! ', buried: 'She still talks about that emerald set', after: ". Our anniversary's in May.", source: 'WhatsApp · 17 Feb', caught: 'Anniversary in May. She loved the emerald set.', move: 'Call in early May about emeralds.' },
@@ -37,7 +37,7 @@ export const ROUNDS: Round[] = [
     { t: 'haha long week' },
     { t: 'send me the pdf when you can' },
     { t: 'by the way my current policy renews on 1 March', sig: 'Renewal on 1 March', why: 'A hard deadline. Miss it and he rolls over with his current insurer by default.' },
-    { t: 'will call you tomorrow' },
+    { t: 'thanks again' },
   ] },
   { name: 'Wealth client', initials: '3', level: 'TRICKY', tag: 'WhatsApp · details hidden in small talk', spare: 1, pts: 200, msgs: [
     { t: 'Thanks for the call earlier' },
@@ -48,13 +48,13 @@ export const ROUNDS: Round[] = [
     { t: 'send me the usual report' },
     { t: 'cheers' },
   ] },
-  { name: 'B2B account', initials: '4', level: 'HARD', tag: 'WhatsApp · the real decision-maker is never named', spare: 1, pts: 300, msgs: [
+  { name: 'B2B account', initials: '4', level: 'HARD', tag: 'WhatsApp · the key details hide between the small talk', spare: 1, pts: 300, msgs: [
     { t: 'Thanks for the call today' },
     { t: 'overall the proposal looks good' },
-    { t: 'our MD will sign, but honestly the CFO makes the call', sig: 'The CFO really decides', why: 'The person you have been pitching is not the one who decides. Win over the CFO, or the signature never comes.' },
+    { t: "our last vendor's support was painfully slow", sig: 'Worried about slow support', why: 'This is their real objection. Answer it before they raise it and the biggest reason to say no is gone.' },
     { t: 'ok sent you our deck as well' },
-    { t: "she's been burned by slow support before", sig: 'Worried about slow support', why: 'This is her real objection. Answer it before she raises it and the biggest reason to say no is gone.' },
-    { t: 'the office is chaos this week' },
+    { t: "we'd need a named account manager in the SLA this time", sig: 'Wants a named account manager', why: 'A requirement said once, in passing. Put it in the proposal and you have answered a no before they say it.' },
+    { t: 'noted' },
     { t: 'send the revised SLA before the board on the 14th', sig: 'Board meets on the 14th', why: 'A deadline you did not set. Get it in late and the decision slips to next quarter.' },
     { t: 'talk soon' },
   ] },
@@ -89,7 +89,7 @@ export const WALL_C: WallLine[] = [
 ];
 
 export const MARQ_A = ['Loves the beach', 'The CFO really decides', 'Board meets on the 14th', 'Travels to Europe most months', 'Anniversary in May', 'Wants hybrid'];
-export const MARQ_B = ['Daughter at LSE from September', 'Loved the emerald set', 'Renewal on 1 March', 'Worried about slow support', 'Husband signs off over 3M', 'Wants liquidity', 'Wears gold, never silver'];
+export const MARQ_B = ['Daughter at LSE from September', 'Loved the emerald set', 'Renewal on 1 March', 'Worried about slow support', 'Husband signs off over 3M', 'Wants liquidity', 'Wears gold, never silver', 'Wants a named account manager'];
 
 /** The chat wall: each column twice, so the -50% rise loops seamlessly. Missed lines glow. */
 export function wall(lines: WallLine[]): Array<{ text: string; cls: string; color: string }> {

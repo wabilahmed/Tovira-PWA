@@ -60,3 +60,16 @@ The share tags (og:url, og:image, twitter:image) were made absolute (not pinned 
   - Option A (keep): relative canonical; accept staging may be indexed until it is retired.
   - Option B: absolute `https://tovira.io/`, update [SITE-5] to pin that instead.
 Recommendation: B (staging is a legacy alias now; tovira.io is the one public host).
+
+## [P70-3] Next certification batch: "who really decides" is unreliable inside longer chats (logged, not fixed)
+Owner, 2026-11-15: log for the next certification batch, don't fix now. The landing claim check (real model,
+Sonnet 5, shipped prompt) caught "the CFO makes the call" (MD signs, CFO decides) as follows:
+  - alone, one message (the B2B tab): 5/5.
+  - inside an 8-message B2B chat, three versions: 2/5 (support worry said "she" right after it, so the two
+    merged), 4/5 (reordered, with "the office is chaos this week"), 0/5 (same, with "noted").
+It is only ever stored as a concern; there is no decision-maker field, so in a longer chat it is dropped.
+The landing page no longer claims it inside a chat (game chat 4 now uses "Wants a named account manager";
+"How it works" drops "who really decides"); the B2B tab and marquee keep "The CFO really decides" (5/5 alone).
+  - To do in the next cert batch: add an eval fixture for it in apps/api/src/eval/eval-set.ts (CERT_SURFACE),
+    next to the guessed-details / vague-date fixture ('unresolved-vague-date'): the 8-message chat above,
+    expecting the decider captured. That changes the certified surface, so it needs the full certification run.
