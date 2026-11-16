@@ -43,6 +43,14 @@ describe('[P71] the game data', () => {
   });
 });
 
+describe('[P71] claim-check rewordings (owner)', () => {
+  it('Property chat 4: "we\'d pay cash" was caught 3/5, so it is now a firm statement', () => {
+    const c = GAMES[0]!.chats[3]!;
+    expect(c).toContainEqual({ t: "we're paying cash, we won't need a mortgage", sig: 'Paying cash', why: 'A cash buyer can move fast. That changes which sellers you call first and how hard you can negotiate.' });
+    expect(c.map((m) => m.t)).not.toContain("we'd pay cash, no mortgage");
+  });
+});
+
 describe('[P71] the hero shows the new game', () => {
   const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8');
   const d = new DOMParser().parseFromString(html, 'text/html');

@@ -52,7 +52,7 @@ export const GAMES: Game[] = [
       { t: "nice" },
       { t: "my mother lives with us, so a ground-floor bedroom matters", sig: "Needs a ground-floor bedroom", why: "Any home without one is a no, however nice it is. It is also a sign of how much family shapes this decision." },
       { t: "haha" },
-      { t: "we'd pay cash, no mortgage", sig: "Paying cash", why: "A cash buyer can move fast. That changes which sellers you call first and how hard you can negotiate." },
+      { t: "we're paying cash, we won't need a mortgage", sig: "Paying cash", why: "A cash buyer can move fast. That changes which sellers you call first and how hard you can negotiate." },
       { t: "ok" },
       { t: "thanks!" },
     ],
