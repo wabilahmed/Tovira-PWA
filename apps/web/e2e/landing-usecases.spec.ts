@@ -82,6 +82,8 @@ for (const width of [390, 1440]) {
   test(`${width}px: pick Property, a perfect chat, a failed chat reveals and locks, the end screen, try another`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+    const events: Array<Record<string, unknown>> = []; // [P71-T] the cookieless game beacons
+    await page.route('**/api/game-event', async (r) => { events.push(JSON.parse(r.request().postData() ?? '{}')); await r.fulfill({ status: 204, body: '' }); });
     await page.goto('/#game');
     const card = page.locator('[data-game]');
     await expect(card.getByRole('button')).toHaveCount(6);
@@ -120,5 +122,11 @@ for (const width of [390, 1440]) {
     await noSideScroll(page);
     await card.getByRole('button', { name: 'Try another industry' }).click();
     await expect(card.locator('[data-act="start"]')).toHaveCount(6);
+    // [P71-T] one event per action, nothing else in them
+    await expect.poll(() => events.map((e) => e.event)).toEqual(['game_view', 'game_start', 'chat_done', 'chat_done', 'chat_done', 'chat_done', 'chat_done', 'game_done', 'game_switch']);
+    expect(events[1]).toEqual({ event: 'game_start', industry: 'Property' });
+    expect(events[2]).toEqual({ event: 'chat_done', industry: 'Property', chat: 1, caught: 1, details: 1, wrong: false });
+    expect(events[3]).toEqual({ event: 'chat_done', industry: 'Property', chat: 2, caught: 0, details: 2, wrong: true });
+    expect(events[7]).toEqual({ event: 'game_done', industry: 'Property', bucket: '0-3' });
   });
 }

@@ -35,7 +35,8 @@ function discoveredRoutes(): string[] {
 }
 // Public by design (no session at all) — they still must not show rep data. [P63-7 · owner] /visit: the cookieless
 // page-view beacon (always 204, no body). [P63-9 · owner] /webhooks/resend: Resend's signed delivery webhooks.
-const PUBLIC = /^\/(version|health|healthz|legal|auth|access-request|billing\/webhook|invite|tour\/funnel|visit$|webhooks\/resend$|webhooks\/whatsapp$)/;
+// [P71-T · owner] /game-event: the cookieless landing-game beacon (always 204, no body).
+const PUBLIC = /^\/(version|health|healthz|legal|auth|access-request|billing\/webhook|invite|tour\/funnel|visit$|game-event$|webhooks\/resend$|webhooks\/whatsapp$)/;
 
 beforeAll(async () => {
   deps = buildInMemoryDeps();

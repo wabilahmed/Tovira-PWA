@@ -14,6 +14,7 @@
  */
 import './ref.js';
 import { sendVisit } from './visit.js';
+import { trackGame } from './game-track.js';
 import { mountGame } from './game.js';
 import { mountWorlds } from './worlds.js';
 
@@ -38,7 +39,9 @@ if (typeof location !== 'undefined' && (location.pathname === '/' || location.pa
 // tabs. Every animation is CSS (index.html); there is no scroll or reveal script.
 function mountLanding(): void {
   const card = document.querySelector<HTMLElement>('[data-game]');
-  if (card) mountGame(card);
+  // [P71-T] cookieless game counts: game_view when the box is first on screen, then one event per action
+  const box = document.getElementById('game');
+  if (card) mountGame(card, box ? trackGame(box, card).onChange : undefined);
   const tabs = document.querySelector<HTMLElement>('[data-worlds]');
   const panel = document.querySelector<HTMLElement>('[data-world-panel]');
   if (tabs && panel) mountWorlds(tabs, panel);

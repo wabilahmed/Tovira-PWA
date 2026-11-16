@@ -45,6 +45,7 @@ const RLS_EXEMPT: Record<string, string> = {
   visit_salts: '[P63-7] admin plane: the day\'s random salt, thrown away after its day, owner pool only',
   visit_excluded: '[P63-7] admin plane: a signed-in admin\'s hash for the day, so their own visits don\'t count; cleared after the day',
   visit_days: '[P63-7] admin plane: each finished day\'s visit counts (numbers only), owner pool only',
+  game_events: '[P71-T] admin plane: cookieless landing-game counts (event, day, industry, chat, score bucket; no IP, no hash, no person), owner pool only',
   hot_lead_tombstones: '[P46-6c.4] admin plane: person_id + campaign_id of leads erased at the outreach platform (no personal fields), owner pool only',
   model_call_events: 'spend instrumentation; user_id is nullable (NULL = system call), written system-side on every model call and read cross-tenant by ops cost reports — never a rep query path',
   transcription_events: '[P44-2] cost accounting: one row per completed transcription, written system-side and read cross-tenant by the ops cost report only — never a rep query path',

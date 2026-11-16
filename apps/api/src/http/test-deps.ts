@@ -97,6 +97,7 @@ import { InMemoryKeptSuggestionRepository } from '../adapters/promises/in-memory
 import { BulkBatchNotifier } from '../services/import/bulk-batch-notifier.js';
 import { InMemoryVisitStore } from '../adapters/visits/in-memory-visit-store.js';
 import { VisitService } from '../services/visits/visits.js';
+import { GameEvents } from '../services/visits/game-events.js';
 import { ImportCompletionService } from '../services/notes/import-completion-service.js';
 import { InMemoryRecallSessionRepository } from '../adapters/recall/in-memory-recall-session-repository.js';
 import { AskCaptureService } from '../services/recall/ask-capture-service.js';
@@ -203,6 +204,7 @@ export function buildInMemoryDeps(
   const inviteActivation = new InMemoryInviteActivationTx(invites, authUsers, accessRequests);
   const hotLeads = new InMemoryHotLeadsStore(); // [P45-3]
   const visitStore = new InMemoryVisitStore(); // [P63-7]
+  const visitService = new VisitService(visitStore);
   let adminEvents: AdminEvents | null = null; // [P60] set once the email sender exists (below)
   const auth = new AuthService({
     users: authUsers,
@@ -440,7 +442,8 @@ export function buildInMemoryDeps(
   return {
     hotLeads,
     visitStore,
-    visits: new VisitService(visitStore), // [P63-7]
+    visits: visitService, // [P63-7]
+    games: new GameEvents(visitStore, visitService), // [P71-T]
     accessRequestsForLeads: accessRequests,
     leadInviteClock,
     leadInvites: new LeadInviteService({ store: hotLeads, users: authUsers, email: emailSender, appBaseUrl: 'https://tovira.io', now: () => Date.now() + leadInviteClock.offsetMs, trialEndedFor: (e) => billing.inboxTrialEndedAt(e, Date.now() + leadInviteClock.offsetMs) }),

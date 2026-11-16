@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type { DayRollup, PageView, VisitStore } from '../../services/visits/visits.js';
 import { rollupOf } from '../../services/visits/visits.js';
+import type { GameEventRow } from '../../services/visits/game-events.js';
 
 /** [P63-7] Site visits in Postgres (OWNER pool; never granted to the app role). See migration 0112. */
 const day = (v: unknown): string => (v instanceof Date ? `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}` : String(v).slice(0, 10));
@@ -19,6 +20,17 @@ export class PgVisitStore implements VisitStore {
   async exclude(d: string, hash: string): Promise<void> {
     await this.pool.query('INSERT INTO visit_excluded (day, visitor_hash) VALUES ($1::date, $2) ON CONFLICT DO NOTHING', [d, hash]);
     await this.pool.query('DELETE FROM page_views WHERE day = $1::date AND visitor_hash = $2', [d, hash]);
+  }
+  /** [P71-T] game_events (migration 0116). */
+  async addGame(r: GameEventRow): Promise<void> {
+    await this.pool.query(
+      'INSERT INTO game_events (day, event, industry, chat, caught, details, wrong, bucket) VALUES ($1::date, $2, $3, $4, $5, $6, $7, $8)',
+      [r.day, r.event, r.industry, r.chat, r.caught, r.details, r.wrong, r.bucket],
+    );
+  }
+  async gamesSince(sinceDay: string): Promise<GameEventRow[]> {
+    const { rows } = await this.pool.query('SELECT day::text AS day, event, industry, chat, caught, details, wrong, bucket FROM game_events WHERE day >= $1::date', [sinceDay]);
+    return rows.map((x) => ({ day: day(x.day), event: x.event, industry: x.industry, chat: x.chat, caught: x.caught, details: x.details, wrong: x.wrong, bucket: x.bucket }));
   }
   async add(v: PageView): Promise<void> {
     await this.pool.query(

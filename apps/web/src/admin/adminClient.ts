@@ -36,8 +36,16 @@ export interface VisitReport {
   landingVisitors: number; reachedRequest: number; submitted: number;
   reachedRequestShare: number | null; submittedShare: number | null;
 }
+/** [P71-T] The landing game funnel (see apps/api/src/services/visits/game-events.ts). */
+export interface GameStep { key: 'view' | 'start' | 'chat1' | 'chat5' | 'end' | 'cta' | 'signup'; label: string; n: number; dropPct: number | null }
+export interface GameWindow {
+  steps: GameStep[];
+  byIndustry: Array<{ industry: string; steps: GameStep[] }>;
+  wrongShare: Array<{ chat: number; chats: number; wrong: number; pct: number | null }>;
+}
+export type GameFunnel = Record<'7d' | '30d', GameWindow>;
 export interface FunnelReport {
-  period: FunnelPeriod; since: number | null; rows: FunnelPerson[]; visits?: VisitReport;
+  period: FunnelPeriod; since: number | null; rows: FunnelPerson[]; visits?: VisitReport; game?: GameFunnel;
   counts: { invitesSent: number; linksOpened: number; formsSubmitted: { invite: number; public: number; total: number }; approved: number; passwordSet: number; firstSignIn: number; firstClient: number };
 }
 export interface CostRow {

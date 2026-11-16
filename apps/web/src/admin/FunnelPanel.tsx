@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AdminSignedOutError, type AdminApi, type FunnelPeriod, type FunnelPerson, type FunnelReport, type VisitReport } from './adminClient.js';
 import { Badge, Banner, Chip, ChipGroup, PageHeader } from '../ui/index.js';
+import { GameFunnelCard } from './GameFunnel.js';
 
 /**
  * [P63-6 · owner] Admin → Funnel: where invited leads and public requests stop. For a period, the count at each step,
@@ -119,6 +120,7 @@ export function FunnelPanel({ api, onSignedOut }: { api: Pick<AdminApi, 'funnel'
             ))}
           </ol>
           {report.visits && <VisitsSection visits={report.visits} />}
+          {report.game && <GameFunnelCard game={report.game} />}{/* [P71-T] next to the site visits */}
           <h2 style={{ fontSize: 'var(--text-title-size)', margin: 'var(--space-4) 0 var(--space-2)' }}>Each lead</h2>
           {report.rows.length === 0 ? <p className="ui-secondary">No one entered the funnel in this period.</p> : (
             <ul className="ui-stack ui-gap-3" style={{ listStyle: 'none', padding: 0, margin: 0 }}>

@@ -37,6 +37,8 @@ const OWNER_PLANE = new Set<string>([
   'hot_leads', 'explee_sync_state', 'hot_lead_tombstones',
   // [P63-7] index.ts createVisitStore(config, migrationPool) — cookieless site visits, admin console only
   'page_views', 'visit_salts', 'visit_excluded', 'visit_days',
+  // [P71-T] the same visit store — cookieless landing-game counts, admin console only
+  'game_events',
 ]);
 
 function createdTables(sql: string): string[] {

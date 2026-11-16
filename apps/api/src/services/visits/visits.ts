@@ -17,7 +17,9 @@ export type Device = 'phone' | 'desktop';
 export interface PageView { day: string; page: VisitEvent; referrerDomain: string | null; utmSource: string | null; utmCampaign: string | null; device: Device; visitorHash: string | null }
 export interface DayRollup { day: string; views: number; uniques: number; landingUniques: number; reachedRequest: number; submitted: number }
 
-export interface VisitStore {
+import type { GameEventStore } from './game-events.js';
+
+export interface VisitStore extends GameEventStore {
   /** The day's salt: created once for that day (random), the same for every call that day. */
   saltFor(day: string, fresh: () => string): Promise<string>;
   isExcluded(day: string, hash: string): Promise<boolean>;
@@ -76,6 +78,12 @@ export class VisitService {
 
   /** Close every finished day: write its counts, clear its hashes, throw away its salt (the daily job). */
   async closeDays(): Promise<number> { return this.store.rollupBefore(utcDay(this.now())); }
+
+  /** [P71-T] Is this browser marked as a signed-in admin today? (Nothing is stored by asking.) */
+  async isAdminToday(i: { ip: string; ua: string }): Promise<boolean> {
+    const day = utcDay(this.now());
+    return this.store.isExcluded(day, await this.hash(day, i.ip, i.ua));
+  }
 
   /** A signed-in admin's request: this browser's visits today don't count. */
   async markAdmin(i: { ip: string; ua: string }): Promise<void> {

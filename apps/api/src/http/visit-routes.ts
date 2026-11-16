@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { VisitService } from '../services/visits/visits.js';
+import type { GameEvents } from '../services/visits/game-events.js';
 import type { RateLimiter } from '../services/security/rate-limiter.js';
 import { clientIp, readJsonBody } from './helpers.js';
 
@@ -20,6 +21,28 @@ export async function handleVisitRoute(req: IncomingMessage, res: ServerResponse
   if (body && typeof body === 'object') {
     await deps.visits.hit({ page: body.page, referrer: body.referrer, utmSource: body.utmSource, utmCampaign: body.utmCampaign, ip, ua: String(req.headers['user-agent'] ?? '') })
       .catch((e: unknown) => console.warn('[visits] not recorded', e instanceof Error ? e.message : 'error'));
+  }
+  done();
+  return true;
+}
+
+/**
+ * [P71-T · owner] POST /game-event { event, industry?, chat?, caught?, details?, wrong?, bucket? }: one landing-game action.
+ * Public, always 204 with no body, never a cookie; the same per-IP limit as /visit. Nothing but the allowed fields is
+ * stored (see GameEvents).
+ */
+export async function handleGameEventRoute(req: IncomingMessage, res: ServerResponse, deps: { games: GameEvents; limiter?: RateLimiter }): Promise<boolean> {
+  if ((req.method ?? 'GET') !== 'POST' || (req.url ?? '').split('?')[0] !== '/game-event') return false;
+  const done = (): void => { res.writeHead(204, { 'cache-control': 'no-store' }); res.end(); };
+  const ip = clientIp(req);
+  if (deps.limiter) {
+    if (deps.limiter.check(ip).limited) { done(); return true; }
+    deps.limiter.record(ip);
+  }
+  const body = (await readJsonBody(req).catch(() => null)) as Record<string, unknown> | null;
+  if (body && typeof body === 'object') {
+    await deps.games.record(body, { ip, ua: String(req.headers['user-agent'] ?? '') })
+      .catch((e: unknown) => console.warn('[game-events] not recorded', e instanceof Error ? e.message : 'error'));
   }
   done();
   return true;

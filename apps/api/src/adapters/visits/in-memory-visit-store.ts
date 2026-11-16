@@ -1,4 +1,5 @@
 import type { DayRollup, PageView, VisitStore } from '../../services/visits/visits.js';
+import type { GameEventRow } from '../../services/visits/game-events.js';
 import { rollupOf } from '../../services/visits/visits.js';
 
 /** [P63-7] Test/dev visit store, with the same day rules as the pg one. */
@@ -7,6 +8,9 @@ export class InMemoryVisitStore implements VisitStore {
   readonly excluded = new Set<string>();
   readonly list: PageView[] = [];
   readonly days: DayRollup[] = [];
+  readonly games: GameEventRow[] = []; // [P71-T]
+  async addGame(row: GameEventRow): Promise<void> { this.games.push({ ...row }); }
+  async gamesSince(sinceDay: string): Promise<GameEventRow[]> { return this.games.filter((g) => g.day >= sinceDay).map((g) => ({ ...g })); }
   async saltFor(day: string, fresh: () => string): Promise<string> {
     if (!this.salts.has(day)) this.salts.set(day, fresh());
     return this.salts.get(day)!;

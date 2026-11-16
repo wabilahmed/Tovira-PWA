@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type JSX, useEffect } from 'react';
+import { gameSignedUp } from '../marketing/game-track.js';
 import { AccessRequestError, type AccessRequestClient, type AccessRequestPayload } from './requestAccessClient.js';
 import { AuthShell } from '../auth/AuthShell.js';
 
@@ -146,6 +147,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
         hp_trap_7: honeypot,
       });
       setSubmitted({ employed: ownership === 'employed', approved: r.approved === true });
+      gameSignedUp(); // [P71-T] counts once as a game sign-up if the game's CTA was tapped in this tab
     } catch (err) {
       setError(err instanceof AccessRequestError ? err.message : 'Something went wrong. Please try again.');
     } finally {

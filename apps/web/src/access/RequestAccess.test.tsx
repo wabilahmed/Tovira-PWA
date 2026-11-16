@@ -191,4 +191,36 @@ describe('<RequestAccess>', () => {
       window.history.replaceState({}, '', '/');
     }
   });
+
+  // [P71-T · owner] A request submitted in the same tab after the game's CTA counts once as a game sign-up (a
+  // sessionStorage flag set by the CTA tap; no cookie). Without the flag, nothing is sent.
+  it('a submit after a game CTA tap sends one game_signup beacon; without the flag, none', async () => {
+    const beacons: string[] = [];
+    const readBlob = (b: Blob) => new Promise<string>((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.readAsText(b); });
+    Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: (_u: string, b: Blob) => { void readBlob(b).then((t) => beacons.push(t)); return true; } });
+    const submitOnce = async () => {
+      const user = userEvent.setup();
+      const client = makeClient();
+      const { unmount } = render(<RequestAccess client={client} />);
+      await fillBase(user);
+      await user.click(screen.getByLabelText('I own or manage it'));
+      await user.type(screen.getByLabelText('Trade licence number'), 'TL-123');
+      await user.click(screen.getByLabelText('Clients of the company I own or manage.'));
+      await user.click(screen.getByLabelText('50–200'));
+      await user.click(screen.getByLabelText('Insurance'));
+      await user.click(screen.getByRole('checkbox'));
+      await user.click(screen.getByRole('button', { name: /request access/i }));
+      await screen.findByText(/request has been recorded/i);
+      unmount();
+    };
+    sessionStorage.clear();
+    await submitOnce();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(beacons).toEqual([]);
+    sessionStorage.setItem('tovira.gameCta', JSON.stringify({ industry: 'Luxury', bucket: '7-9' }));
+    await submitOnce();
+    await waitFor(() => expect(beacons).toHaveLength(1));
+    expect(JSON.parse(beacons[0]!)).toEqual({ event: 'game_signup', industry: 'Luxury', bucket: '7-9' });
+    expect(sessionStorage.getItem('tovira.gameCta')).toBeNull();
+  });
 });

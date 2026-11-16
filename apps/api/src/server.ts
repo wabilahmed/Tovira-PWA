@@ -84,7 +84,8 @@ import type { LeadInviteService } from './services/leads/lead-invite-service.js'
 import type { AdminEvents } from './services/access/admin-events.js';
 import { adminLeadsRoute } from './http/admin-leads-routes.js';
 import { adminFunnelRoute } from './http/admin-funnel-routes.js';
-import { handleVisitRoute } from './http/visit-routes.js';
+import { handleVisitRoute, handleGameEventRoute } from './http/visit-routes.js';
+import type { GameEvents } from './services/visits/game-events.js';
 import { handleProcessingRoute } from './http/processing-routes.js';
 import type { ProcessingStatusService } from './services/processing/processing-status.js';
 import type { AppPresence } from './services/processing/presence.js';
@@ -264,6 +265,8 @@ export interface ApiDeps {
   /** [P63-7] cookieless site visits (owner plane): POST /visit, and Admin → Funnel's visits. */
   visits?: VisitService;
   visitLimiter?: RateLimiter;
+  /** [P71-T] cookieless landing-game counts (owner plane): POST /game-event, and Admin → Funnel's game funnel. */
+  games?: GameEvents;
   /** [P63-6] Admin → Funnel: the funnel's rows (owner plane). */
   adminFunnel?: { source: FunnelSource; now?: () => number };
   /** [P45-3] hot leads (owner plane) for the console's Leads tab. */
@@ -405,7 +408,7 @@ export function createApiServer(deps: ApiDeps): Server {
           ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval)] : []),
           ...(costs ? [adminCostsRoute(costs)] : []),
           ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, invites: deps.leadInvites, deliveryConnected: !!deps.resendWebhookSecret })] : []),
-          ...(deps.adminFunnel ? [adminFunnelRoute({ ...deps.adminFunnel, visits: deps.visits })] : []),
+          ...(deps.adminFunnel ? [adminFunnelRoute({ ...deps.adminFunnel, visits: deps.visits, games: deps.games })] : []),
         ];
         if (await handleAdminRoute(request, response, { ...deps.adminRoute, extra, cookieSecure })) return;
       }
@@ -447,6 +450,8 @@ export function createApiServer(deps: ApiDeps): Server {
 
       // [P63-7] Public, cookieless page-view beacon (no session).
       if (deps.visits && (await handleVisitRoute(request, response, { visits: deps.visits, limiter: deps.visitLimiter }))) return;
+      // [P71-T] Public, cookieless landing-game beacon (no session).
+      if (deps.games && (await handleGameEventRoute(request, response, { games: deps.games, limiter: deps.visitLimiter }))) return;
 
       // [BETA-3] Public beta access-request intake (no session). Served only when wired.
       if (
