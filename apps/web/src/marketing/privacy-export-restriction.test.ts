@@ -18,8 +18,13 @@ describe('[P48] Privacy says a restricted person may be held back from the rep\'
     expect(promise.nextElementSibling!.textContent).toBe(LINE);
   });
 
-  it('the page is dated and versioned 27 October 2026', () => {
-    expect(read('apps/web/privacy/index.html')).toContain('Last updated: 27 October 2026 · Version 2026-10-27');
+  // [P71-T · owner] The P48 version (27 October 2026) is now archived; the page moved to 2026-11-16 for the game-counts
+  // line (legal-privacy-p71.test.ts). The P48 line is in both.
+  it('the P48 version, 27 October 2026, is archived with this line; the live page keeps it', () => {
+    const archived = read('legal-archive/2026-10-27/privacy.html');
+    expect(archived).toContain('Last updated: 27 October 2026 · Version 2026-10-27');
+    expect(archived).toContain(LINE);
+    expect(read('apps/web/privacy/index.html')).toContain(LINE);
   });
 
   it('NEGATIVE: the line appears once, and the Terms are unchanged by it', () => {

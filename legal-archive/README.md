@@ -9,8 +9,12 @@ drifts from its constant.
 
 ## Contents
 
-- `2026-10-27/`: the current **published Privacy** (owner-approved, lawyer-approved line, P48). New Privacy
-  acceptances record this `PRIVACY_VERSION`. Adds one line to section 13, word for word: "While a privacy request
+- `2026-11-16/`: the current **published Privacy** (owner-approved, lawyer-approved line, P71). New Privacy
+  acceptances record this `PRIVACY_VERSION`. Adds one line, word for word, straight after "We keep anonymous
+  statistics about how the product is used.": "We count anonymous game interactions to improve the page." Nothing
+  else changed. Terms unchanged (`2026-10-21`).
+- `2026-10-27/`: the prior published Privacy (owner-approved, lawyer-approved line, P48). Privacy
+  acceptances recorded this `PRIVACY_VERSION` until 2026-11-16. Adds one line to section 13, word for word: "While a privacy request
   about someone else is being reviewed, data about that person may be held back from your copy. It is not deleted."
   Nothing else changed. Terms unchanged (`2026-10-21`).
 - `2026-10-21/` — the current **published Terms** (owner-approved, P38). New acceptances record this
