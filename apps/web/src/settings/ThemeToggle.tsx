@@ -14,8 +14,8 @@ const OPTIONS: Array<{ value: ThemeChoice; label: string }> = [
 const SEG_SPRING = { damping: 0.9, response: 0.35 } as const;
 
 /**
- * The two materials, chosen by hand (docs/tovira-brand.md §1, §11). brand v1.2:
- * Ledger (light paper) is the default; Vault is the low-light option; System
+ * The two materials, chosen by hand (docs/tovira-brand.md §1, §11). [P71-D · owner]
+ * Dark (Vault) is the default; Light (Ledger) is the paper option; Auto (System)
  * follows the device. The brass selection SLIDES between segments (spring-driven
  * x/width, the same pattern as the tab bar) instead of teleporting — the label
  * colour transitions in step so text never flashes over bare paper. Placed
@@ -131,7 +131,7 @@ export function ThemeToggle(): JSX.Element {
         })}
       </div>
       <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-caption-size)', marginBottom: 0 }}>
-        Light is the default. Dark suits low light; Auto follows your device.
+        Dark is the default. Auto follows your device.
       </p>
     </section>
   );

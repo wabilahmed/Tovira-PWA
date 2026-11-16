@@ -20,4 +20,12 @@ describe('[P46-2] Appearance', () => {
     expect(document.documentElement.dataset.theme ?? localStorage.getItem('tovira.theme')).toMatch(/vault|dark/);
     expect(localStorage.getItem('tovira.theme')).toBe('vault');
   });
+
+  // [P71-D · owner] Dark is the default for anyone who never chose: the picker shows it selected and says so.
+  it('with no saved choice, Dark is selected and the help line says Dark is the default', () => {
+    const { container } = render(<ThemeToggle />);
+    expect(screen.getByRole('button', { name: 'Dark' }).getAttribute('aria-pressed')).toBe('true');
+    expect(container.textContent).toContain('Dark is the default. Auto follows your device.');
+    expect(container.textContent).not.toContain('Light is the default');
+  });
 });
