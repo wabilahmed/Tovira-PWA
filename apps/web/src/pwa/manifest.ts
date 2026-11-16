@@ -10,10 +10,10 @@ export const manifest = {
   scope: '/',
   display: 'standalone',
   orientation: 'portrait',
-  // brand v1.2 light-first: the install splash + OS chrome use the Ledger canvas,
-  // not a stray blue. (Dark-mode chrome is handled by the <meta> theme-color.)
-  background_color: '#f4f1ea',
-  theme_color: '#f4f1ea',
+  // [P71-D · owner] Dark is the default theme, so the install splash and OS chrome start on the dark page colour.
+  // Once the app is open, the <meta> theme-color follows the theme in use (theme.ts), so Light users get #f4f1ea.
+  background_color: '#171412',
+  theme_color: '#171412',
   icons: [
     { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
     { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

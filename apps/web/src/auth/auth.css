@@ -59,7 +59,7 @@
   font-size: var(--text-body-size);
   color: var(--text-primary);
   background: var(--surface-base);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--hairline-control); /* [P71-D] a field's edge clears 3:1 in dark */
   border-radius: var(--radius-card);
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }

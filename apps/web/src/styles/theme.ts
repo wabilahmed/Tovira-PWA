@@ -1,9 +1,8 @@
 /**
- * Theme control for the two materials (docs/tovira-brand.md §1, §11). brand v1.2:
- * **Ledger (light) is the default**; Vault (dark) is the equal low-light option.
- * With no explicit choice we follow the system preference (handled in CSS —
- * light by default, dark when the device prefers dark); a manual choice is pinned
- * on <html data-theme> and remembered in localStorage.
+ * Theme control for the two materials (docs/tovira-brand.md §1, §11). A manual choice is pinned on <html data-theme>
+ * and remembered in localStorage; Auto follows the device (handled in CSS).
+ * [P71-D · owner] Anyone who has never chosen gets Dark (Vault, now the landing page's palette); a stored Light, Dark
+ * or Auto is kept. The browser's theme-color (the address bar, the installed app's status bar) follows the theme in use.
  */
 export type ThemeChoice = 'system' | 'vault' | 'ledger';
 
@@ -16,9 +15,22 @@ function root(): HTMLElement | null {
 export function getTheme(): ThemeChoice {
   try {
     const v = localStorage.getItem(KEY);
-    return v === 'vault' || v === 'ledger' || v === 'system' ? v : 'ledger';
+    return v === 'vault' || v === 'ledger' || v === 'system' ? v : 'vault';
   } catch {
-    return 'ledger'; // first run defaults to Ledger (light), even on a dark device
+    return 'vault'; // [P71-D · owner] first run defaults to Dark, even on a light device
+  }
+}
+
+export const THEME_COLOR = { dark: '#171412', light: '#f4f1ea' } as const;
+
+/** [P71-D] Point every theme-color meta at the theme in use. Auto: a meta with a media query keeps its own scheme. */
+function syncThemeColor(choice: ThemeChoice): void {
+  if (typeof document === 'undefined') return;
+  const deviceDark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
+  for (const m of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+    const media = m.getAttribute('media') ?? '';
+    const dark = choice === 'vault' || (choice === 'system' && (media ? media.includes('dark') : deviceDark));
+    m.setAttribute('content', dark ? THEME_COLOR.dark : THEME_COLOR.light);
   }
 }
 
@@ -27,12 +39,13 @@ export function applyTheme(choice: ThemeChoice): void {
   if (!el) return;
   if (choice === 'system') el.removeAttribute('data-theme');
   else el.setAttribute('data-theme', choice);
+  syncThemeColor(choice);
 }
 
 export function setTheme(choice: ThemeChoice): void {
   try {
     // Store every choice (including 'system') so "no key" unambiguously means
-    // first-run → Ledger (light), not "the user picked System".
+    // first-run → Dark (P71-D), not "the user picked System".
     localStorage.setItem(KEY, choice);
   } catch {
     /* private mode — the choice just won't persist */

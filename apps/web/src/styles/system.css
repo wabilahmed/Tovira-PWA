@@ -52,6 +52,7 @@
   --color-raised: var(--surface-raised);
   --color-sunken: var(--surface-elevated);
   --color-border: var(--hairline);
+  --color-border-control: var(--hairline-control); /* [P71-D] a form field's edge (3:1+ in dark) */
   --color-text: var(--text-primary);
   --color-muted: var(--text-secondary);
   --color-faint: var(--text-tertiary);

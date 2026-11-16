@@ -11,6 +11,22 @@
     <link rel="alternate" hreflang="en" href="https://tovira.io/privacy" />
     <link rel="alternate" hreflang="x-default" href="https://tovira.io/privacy" />
     <link rel="stylesheet" href="/src/marketing/site.css" />
+    <script>
+      // [P71-D · owner] Pin the theme before first paint. No saved choice: Dark. A saved Light, Dark or Auto is kept.
+      // The theme-color (address bar, installed app's status bar) follows it: #171412 dark, #f4f1ea light.
+      (function () {
+        var t = 'vault';
+        try { var s = localStorage.getItem('tovira.theme'); if (s === 'ledger' || s === 'vault' || s === 'system') t = s; } catch (e) {}
+        if (t !== 'system') document.documentElement.setAttribute('data-theme', t);
+        var deviceDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var metas = document.querySelectorAll('meta[name="theme-color"]');
+        for (var i = 0; i < metas.length; i++) {
+          var media = metas[i].getAttribute('media') || '';
+          var dark = t === 'vault' || (t === 'system' && (media ? media.indexOf('dark') !== -1 : deviceDark));
+          metas[i].setAttribute('content', dark ? '#171412' : '#f4f1ea');
+        }
+      })();
+    </script>
     <script type="module" src="/src/marketing/visit-privacy.ts"></script>
   </head>
   <body>

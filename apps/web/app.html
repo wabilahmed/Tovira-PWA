@@ -6,20 +6,24 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1b1512" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#171412" media="(prefers-color-scheme: dark)" />
     <title>Tovira</title>
-    <!-- The Private Vault typeface system (Fraunces + IBM Plex Sans/Arabic/Mono)
-         is self-hosted via @fontsource and imported in main.tsx — no CDN. -->
-    <!-- Pin the saved theme before first paint to avoid a flash. -->
+    <!-- The site's fonts (Fraunces, Inter, JetBrains Mono; IBM Plex Sans Arabic for Arabic) are self-hosted and
+         imported in main.tsx, no CDN (P71-F). -->
     <script>
+      // [P71-D · owner] Pin the theme before first paint. No saved choice: Dark. A saved Light, Dark or Auto is kept.
+      // The theme-color (address bar, installed app's status bar) follows it: #171412 dark, #f4f1ea light.
       (function () {
-        try {
-          var t = localStorage.getItem('tovira.theme');
-          if (t === 'vault' || t === 'ledger') document.documentElement.setAttribute('data-theme', t);
-          // First run (no saved choice) defaults to Ledger (light), even on a dark
-          // device. Only an explicit 'system' choice follows the OS.
-          else if (t !== 'system') document.documentElement.setAttribute('data-theme', 'ledger');
-        } catch (e) {}
+        var t = 'vault';
+        try { var s = localStorage.getItem('tovira.theme'); if (s === 'ledger' || s === 'vault' || s === 'system') t = s; } catch (e) {}
+        if (t !== 'system') document.documentElement.setAttribute('data-theme', t);
+        var deviceDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var metas = document.querySelectorAll('meta[name="theme-color"]');
+        for (var i = 0; i < metas.length; i++) {
+          var media = metas[i].getAttribute('media') || '';
+          var dark = t === 'vault' || (t === 'system' && (media ? media.indexOf('dark') !== -1 : deviceDark));
+          metas[i].setAttribute('content', dark ? '#171412' : '#f4f1ea');
+        }
       })();
     </script>
   </head>

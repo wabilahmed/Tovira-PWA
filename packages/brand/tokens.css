@@ -15,6 +15,7 @@
   --surface-raised: #faf7ef;    /* tovira.io brand-card — cards, panels */
   --surface-elevated: #ede8dc;  /* one banded step deeper (sheets, row banding) */
   --hairline: #d6cfbd;          /* tovira.io brand-line */
+  --hairline-control: #d6cfbd;  /* [P71-D] form-field edges (light: the same as the hairline, unchanged) */
 
   --text-primary: #1c1917;      /* tovira.io brand-ink (AAA on paper) */
   --text-secondary: #6b645d;    /* tovira.io brand-muted #78716c, DARKENED for AA
@@ -58,32 +59,35 @@
    it reads as the same colour, off-white text (never pure #fff). Shared by the
    system-dark auto-switch and the manual override. */
 
-/* ---- Vault (dark) — auto when the system prefers dark, unless forced Ledger */
+/* ---- Vault (dark) — auto when the system prefers dark, unless forced Ledger.
+   [P71-D · owner] The landing page's palette (page #171412, cards #1F1B18, deeper #120F0D, text #F2EDE4 / #CFC6BA /
+   #A79E92, accent #E8643A); status colours re-picked to differ in lightness (red L*73, green L*64, amber L*82, accent L*59). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='ledger']) {
-    --surface-base: #1b1512;      /* warm near-black, terracotta-tinted */
-    --surface-raised: #241d18;    /* cards */
-    --surface-elevated: #2e2620;  /* sheets, modals */
-    --hairline: #3d332a;          /* borders */
+    --surface-base: #171412;      /* warm near-black, terracotta-tinted */
+    --surface-raised: #1F1B18;    /* cards */
+    --surface-elevated: #120F0D;  /* [P71-D · owner] the landing palette: deeper areas (the sunken token) */
+    --hairline: #332D28;          /* borders */
+    --hairline-control: #7D736A;  /* [P71-D] form-field edges: 3.7:1+ on every dark surface */
 
-    --text-primary: #f4f1ea;      /* the light theme's paper, as text (AAA on base) */
-    --text-secondary: #b8ab9c;
-    --text-tertiary: #8a7f72;
+    --text-primary: #F2EDE4;      /* the light theme's paper, as text (AAA on base) */
+    --text-secondary: #CFC6BA;
+    --text-tertiary: #A79E92;
 
-    --brass: #e8724a;             /* the terracotta, lifted for a dark surface */
-    --brass-strong: #f08a63;
-    --brass-ink: #1b1512;         /* dark ink on the lighter terracotta fill */
-    --brass-surface: rgba(232, 114, 74, 0.16);
+    --brass: #E8643A;             /* the terracotta, lifted for a dark surface */
+    --brass-strong: #F28A63;
+    --brass-ink: #171412;         /* dark ink on the lighter terracotta fill */
+    --brass-surface: rgba(232, 100, 58, 0.16);
 
-    --claret: #d9766d;            /* action needed — legible on dark */
+    --claret: #F49A92;            /* action needed — legible on dark */
     --claret-line: #7a2e28;
     --claret-surface: rgba(158, 59, 51, 0.20);
 
-    --green: #7fa98c;
+    --green: #76A684;
     --green-line: #3c5344;
     --green-surface: rgba(74, 124, 89, 0.18);
 
-    --amber: #dba75a;
+    --amber: #EDC67F;
     --amber-line: #6e5326;
     --amber-surface: rgba(219, 167, 90, 0.16);
 
@@ -95,29 +99,30 @@
 
 /* ---- Manual override: force Vault regardless of system preference ---------- */
 :root[data-theme='vault'] {
-  --surface-base: #1b1512;
-  --surface-raised: #241d18;
-  --surface-elevated: #2e2620;
-  --hairline: #3d332a;
+  --surface-base: #171412;
+  --surface-raised: #1F1B18;
+  --surface-elevated: #120F0D;
+  --hairline: #332D28;
+  --hairline-control: #7D736A;
 
-  --text-primary: #f4f1ea;
-  --text-secondary: #b8ab9c;
-  --text-tertiary: #8a7f72;
+  --text-primary: #F2EDE4;
+  --text-secondary: #CFC6BA;
+  --text-tertiary: #A79E92;
 
-  --brass: #e8724a;
-  --brass-strong: #f08a63;
-  --brass-ink: #1b1512;
-  --brass-surface: rgba(232, 114, 74, 0.16);
+  --brass: #E8643A;
+  --brass-strong: #F28A63;
+  --brass-ink: #171412;
+  --brass-surface: rgba(232, 100, 58, 0.16);
 
-  --claret: #d9766d;
+  --claret: #F49A92;
   --claret-line: #7a2e28;
   --claret-surface: rgba(158, 59, 51, 0.20);
 
-  --green: #7fa98c;
+  --green: #76A684;
   --green-line: #3c5344;
   --green-surface: rgba(74, 124, 89, 0.18);
 
-  --amber: #dba75a;
+  --amber: #EDC67F;
   --amber-line: #6e5326;
   --amber-surface: rgba(219, 167, 90, 0.16);
 
@@ -132,6 +137,7 @@
   --surface-raised: #faf7ef;
   --surface-elevated: #ede8dc;
   --hairline: #d6cfbd;
+  --hairline-control: #d6cfbd;
 
   --text-primary: #1c1917;
   --text-secondary: #6b645d;
