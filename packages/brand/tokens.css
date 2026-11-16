@@ -78,6 +78,7 @@
     --brass-strong: #F28A63;
     --brass-ink: #171412;         /* dark ink on the lighter terracotta fill */
     --brass-surface: rgba(232, 100, 58, 0.16);
+    --highlight-text: #FFD9C9;    /* [P71-D] words highlighted on the accent fill (the client-search match) */
 
     --claret: #F49A92;            /* action needed — legible on dark */
     --claret-line: #7a2e28;
@@ -113,6 +114,7 @@
   --brass-strong: #F28A63;
   --brass-ink: #171412;
   --brass-surface: rgba(232, 100, 58, 0.16);
+  --highlight-text: #FFD9C9;
 
   --claret: #F49A92;
   --claret-line: #7a2e28;

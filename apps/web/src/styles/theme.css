@@ -495,7 +495,7 @@
 }
 .clients-search__clear:hover { color: var(--text-primary); background: var(--surface-elevated); }
 /* The matched slice — a quiet brass wash, legible in both themes (never a flat yellow). */
-.lead-mark { background: var(--brass-surface); color: inherit; border-radius: 2px; padding: 0 0; }
+.lead-mark { background: var(--brass-surface); color: var(--highlight-text, inherit); /* [P71-D] dark only; light keeps inherit */ border-radius: 2px; padding: 0 0; }
 
 /* [UI-01] Client-picker <select>s must never grow to the longest client name and push siblings
    off-screen at 390px. max-width caps them at the container; min-width:0 lets them shrink inside a

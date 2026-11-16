@@ -77,6 +77,20 @@ describe('[P71-D] the dark palette', () => {
   });
 });
 
+describe('[P71-D] highlighted words (owner: only where the app already highlights words)', () => {
+  // The one place the app highlights words is a client-search match (<mark class="lead-mark">). It gets the highlight
+  // text #FFD9C9 on the accent fill in dark; light has no highlight-text token, so its mark is unchanged.
+  it('dark: --highlight-text #FFD9C9 clears 4.5:1 on the accent fill over every surface; light: no token', () => {
+    for (const t of dark) expect(t['--highlight-text']?.toUpperCase()).toBe('#FFD9C9');
+    for (const t of light) expect(t['--highlight-text']).toBeUndefined();
+    const fill = (bg: string) => '#' + [1, 3, 5].map((i) => Math.round(parseInt('E8643A'.slice(i - 1, i + 1), 16) * 0.16 + parseInt(bg.slice(i, i + 2), 16) * 0.84).toString(16).padStart(2, '0')).join('');
+    for (const bg of ['#171412', '#1F1B18', '#120F0D']) expect(ratio('#FFD9C9', fill(bg)), bg).toBeGreaterThanOrEqual(4.5);
+  });
+  it('the search match uses it, keeping its colour in light', () => {
+    expect(read('./theme.css')).toMatch(/\.lead-mark \{ background: var\(--brass-surface\); color: var\(--highlight-text, inherit\);/);
+  });
+});
+
 describe('[P71-D] Dark is the default for anyone who never chose', () => {
   beforeEach(() => { localStorage.clear(); document.documentElement.removeAttribute('data-theme'); document.head.innerHTML = '<meta name="theme-color" content="#f4f1ea">'; });
   it('no stored choice: Dark', () => {
