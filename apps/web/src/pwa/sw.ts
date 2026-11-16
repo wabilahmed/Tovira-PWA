@@ -7,7 +7,7 @@
  * the .txt here; a static PWA has no server to catch it, so the worker does:
  * it stashes the chat and redirects into the app, which imports it on load.
  */
-import { precacheAndRoute, cleanupOutdatedCaches, matchPrecache } from 'workbox-precaching';
+import { precache, addRoute, cleanupOutdatedCaches, matchPrecache } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { NetworkFirst } from 'workbox-strategies';
 import { readSharedChat, idbSharedChatStore } from './sharedChat.js';
@@ -15,7 +15,10 @@ import { resubscribeOnChange } from './resubscribe.js';
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> };
 
-precacheAndRoute(self.__WB_MANIFEST);
+// [P71-SW] Precache now, but register the precache ROUTE last (addRoute at the bottom). Workbox answers with the first
+// matching route, and the precache route maps "/" to index.html and "/app" to app.html, cache-first: registered first,
+// it served the old landing page and the old app shell after a deploy, and the network-first routes below never ran.
+precache(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
 // The prerendered marketing routes (`/`, `/privacy`, `/terms`, `/ar` + Arabic
@@ -24,7 +27,12 @@ cleanupOutdatedCaches();
 const MARKETING = /^\/(privacy|terms|ar(\/(privacy|terms))?)?$/;
 const isMarketingNav = ({ request, url }: { request: Request; url: URL }): boolean =>
   request.mode === 'navigate' && MARKETING.test(url.pathname.replace(/\/$/, '') || '/');
-registerRoute(isMarketingNav, new NetworkFirst({ cacheName: 'tovira-marketing' }));
+const marketingFirst = new NetworkFirst({ cacheName: 'tovira-marketing' });
+// Offline with no runtime copy yet: fall back to the precached page (what the precache route used to serve).
+const precachedPage = (pathname: string): string => { const p = pathname.replace(/^\/|\/$/g, ''); return p ? `${p}/index.html` : 'index.html'; };
+registerRoute(isMarketingNav, async (opts) => {
+  try { return await marketingFirst.handle(opts); } catch { return (await matchPrecache(precachedPage(opts.url.pathname))) ?? Response.error(); }
+});
 
 // SPA: every OTHER navigation serves the app shell (app.html) — the marketing
 // pages own `/`, so the shell moved off it. Never fire for the share-target POST,
@@ -46,6 +54,10 @@ const appShellNav = async (): Promise<Response> => {
 registerRoute(
   new NavigationRoute(appShellNav, { denylist: [/^\/api\//, /^\/share-target/, MARKETING] }),
 );
+
+// [P71-SW] The precache route, LAST: it still serves the hashed assets, icons and the manifest cache-first, but every
+// navigation above reaches the network first.
+addRoute();
 
 // Update model: PROMPT, not auto. The app holds unsaved state (an in-progress voice recording /
 // outbox), so a new worker must NOT silently skipWaiting + reload underneath the rep — that could
