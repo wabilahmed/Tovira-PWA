@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { FRAGMENTS, fragmentsIn } from './landing-render.js';
-import { WORLDS, ROUNDS, MARQ_A, MARQ_B, WALL_A, WALL_B, WALL_C } from './landing-data.js';
+import { WORLDS, GAMES, MARQ_A, MARQ_B, WALL_A, WALL_B, WALL_C } from './landing-data.js';
 import { mountWorlds, keyTarget } from './worlds.js';
 
 /**
@@ -37,10 +37,10 @@ describe('[P70] the hero', () => {
     expect(ctas.slice(0, 2)).toEqual([['Try free for 14 days', '/request-access'], ['Play the game', '#game']]);
     expect(html).toContain('Then AED 299 a month. Tovira never connects to your WhatsApp account.');
   });
-  it('the game sits in the hero\'s right column, headed "Would you have caught it?" with "5 CHATS · 12 DETAILS"', () => {
+  it('the game sits in the hero\'s right column, headed "Would you have caught it?" with "A 2-MINUTE TEST" (P71 · owner)', () => {
     const game = d.querySelector('#top #game')!;
     expect(text(game.querySelector('h2'))).toBe('Would you have caught it?');
-    expect(text(game)).toContain('5 CHATS · 12 DETAILS');
+    expect(text(game)).toContain('A 2-MINUTE TEST');
     expect(game.querySelector('[data-game]')).not.toBeNull();
   });
   it('28 stars (about 1 in 5 gold) and two orbs; the old chat demo is gone', () => {
@@ -232,7 +232,7 @@ describe('[P70] accessibility', () => {
 describe('[P70] the claims rule and the wording rules', () => {
   it('NEGATIVE: no people\'s names anywhere on the page (clients are "Property client", "the CFO")', () => {
     expect(html).not.toMatch(/\b(Sara|Sarah|Khan|Priya|Khalid|Omar|Sana|Iqbal)\b/);
-    expect(ROUNDS.map((r) => r.name)).toEqual(['Property client', 'Insurance client', 'Wealth client', 'B2B account', 'Luxury client']);
+    expect(GAMES.map((g) => g.label)).toEqual(['Property', 'Insurance', 'Wealth', 'B2B accounts', 'Luxury', 'Recruitment']); // [P71 · owner] shown as "[Industry] client"
   });
   it('NEGATIVE: no em-dash, no health word, no domain we do not own', () => {
     expect(html).not.toContain('—');

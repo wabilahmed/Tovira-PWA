@@ -432,26 +432,40 @@ a{color:#E8643A}a:hover{color:#F28A63}
 <div id="game" class="tv-up" style="flex: 1 1 440px; min-width: 0; max-width: 580px; display: flex; flex-direction: column; gap: 14px; animation-delay: .3s; scroll-margin-top: 84px">
 <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px">
 <h2 id="game-h" style="margin: 0; font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: clamp(24px, 2.6vw, 30px); line-height: 1.1">Would you have caught it?</h2>
-<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.14em; color: {{accent}}">5 CHATS · 12 DETAILS</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.14em; color: {{accent}}">A 2-MINUTE TEST</div>
 </div>
-<p style="margin: 0; font-size: 15px; line-height: 1.55; color: #CFC6BA">Tap every message that would help you close. Each chat is harder than the last. Tovira gets them all, every time.</p>
 <div style="background: #1F1B18; border: 1px solid #332D28; border-radius: 28px; padding: clamp(16px, 3vw, 28px); display: flex; flex-direction: column; gap: 18px; box-shadow: 0 30px 80px rgba(0,0,0,0.45)">
 
-<sc-if value="{{playing}}" hint-placeholder-val="{{ true }}">
+<sc-if value="{{isPick}}" hint-placeholder-val="{{ true }}">
 <div style="display: flex; flex-direction: column; gap: 18px">
-<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px">
-<div style="display: flex; align-items: center; gap: 12px">
-<div style="width: 42px; height: 42px; border-radius: 50%; background: #3A332D; display: flex; align-items: center; justify-content: center; font-weight: 600">{{chat.initials}}</div>
-<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-weight: 600; font-size: 16px">{{chat.name}}</div><div style="font-size: 12px; color: #A79E92">{{chat.tag}}</div></div>
+<p style="margin: 0; font-size: 16px; line-height: 1.55; color: #F2EDE4">Your clients drop details that win deals. Most reps scroll right past them. Let's see how many you catch.</p>
+<div style="background: #171412; border: 1px solid #332D28; border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.14em; color: #A79E92">HOW TO PLAY</div>
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.5; color: #CFC6BA">
+<li>Pick your industry. You get <strong style="color: #F2EDE4">5 short client chats</strong>.</li>
+<li>Tap every message that hides a detail that would help you close: a preference, a budget, a deadline, a worry.</li>
+<li><strong style="color: #F2EDE4">A chat can have more than one detail.</strong> You won't know how many.</li>
+<li>Tap a message with nothing useful in it and that chat ends. We'll show you what you missed.</li>
+</ol>
+<div style="font-size: 14px; color: #A79E92">One point for every detail you catch.</div>
 </div>
-<div style="display: flex; gap: 8px; flex-wrap: wrap; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.08em">
-<span style="border: 1px solid #3A332D; border-radius: 999px; padding: 7px 12px; color: #CFC6BA">CHAT {{roundNo}}/5 · {{level}}</span>
-<span style="border: 1px solid #3A332D; border-radius: 999px; padding: 7px 12px; color: #CFC6BA">TAPS LEFT {{tapsLeft}}</span>
-<span style="background: {{accent}}; color: #171412; border-radius: 999px; padding: 7px 12px; font-weight: 600">{{points}} PTS</span>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.14em; color: #A79E92">CHOOSE YOUR INDUSTRY</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{industries}}" as="ind" hint-placeholder-count="6">
+<button class="tv-btn tv-msg" type="button" onClick="{{ind.start}}" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 16px; padding: 14px 16px; min-height: 56px; font-size: 16px; font-weight: 600; text-align: left">{{ind.label}}</button>
+</sc-for>
 </div>
+</div>
+</sc-if>
+
+<sc-if value="{{isPlay}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-weight: 600; font-size: 16px">{{industryLabel}} client · chat {{roundNo}} of 5</div><div style="font-size: 12px; color: #A79E92">Tap every message with a useful detail. There may be more than one.</div></div>
+<span style="background: {{accent}}; color: #171412; border-radius: 999px; padding: 7px 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.08em; font-weight: 600">SCORE {{score}}</span>
 </div>
 <div style="display: flex; gap: 6px" aria-hidden="true">
-<sc-for list="{{dots}}" as="d" hint-placeholder-count="12"><div style="{{d.style}}"></div></sc-for>
+<sc-for list="{{roundDots}}" as="d" hint-placeholder-count="5"><div style="{{d.style}}"></div></sc-for>
 </div>
 <div style="display: flex; flex-direction: column; gap: 10px">
 <sc-for list="{{msgs}}" as="m" hint-placeholder-count="6">
@@ -463,9 +477,9 @@ a{color:#E8643A}a:hover{color:#F28A63}
 </sc-for>
 </div>
 <div aria-live="polite" style="min-height: 24px">
-<sc-if value="{{over}}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{done}}" hint-placeholder-val="{{ false }}">
 <div class="tv-pop" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; border-top: 1px solid #332D28; padding-top: 18px">
-<div style="display: flex; flex-direction: column; gap: 4px"><div style="font-weight: 600; font-size: 17px">{{roundLine}}</div><div style="font-size: 14px; color: #A79E92">Tovira caught {{sigCount}} of {{sigCount}}. Every one linked to the message.</div></div>
+<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 240px; min-width: 0"><div style="font-weight: 600; font-size: 17px">{{roundLine}}</div><div style="font-size: 14px; color: #A79E92">{{roundSub}}</div></div>
 <button class="tv-btn" type="button" onClick="{{next}}" style="background: #F2EDE4; color: #171412; border: 0; border-radius: 999px; padding: 14px 22px; font-weight: 600; font-size: 16px; min-height: 48px">{{nextLabel}}</button>
 </div>
 </sc-if>
@@ -473,17 +487,17 @@ a{color:#E8643A}a:hover{color:#F28A63}
 </div>
 </sc-if>
 
-<sc-if value="{{ended}}" hint-placeholder-val="{{ false }}">
-<div class="tv-pop" style="display: flex; flex-direction: column; gap: 20px; align-items: center; text-align: center; padding: 12px 0">
-<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.16em; color: #A79E92">YOUR SCORE</div>
-<div style="font-family: Fraunces, Georgia, serif; font-size: clamp(72px, 14vw, 120px); line-height: 1; font-weight: 600; color: {{accent}}">{{total}}/12</div>
-<div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.12em; color: #CFC6BA">{{points}} POINTS</div>
-<div style="display: flex; gap: 6px; width: 100%; max-width: 480px" aria-hidden="true"><sc-for list="{{dots}}" as="d" hint-placeholder-count="12"><div style="{{d.style}}"></div></sc-for></div>
+<sc-if value="{{isEnd}}" hint-placeholder-val="{{ false }}">
+<div class="tv-pop" style="display: flex; flex-direction: column; gap: 18px; align-items: center; text-align: center; padding: 8px 0">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.16em; color: #A79E92">YOUR SCORE · {{industryUpper}}</div>
+<div style="font-family: Fraunces, Georgia, serif; font-size: clamp(72px, 14vw, 120px); line-height: 1; font-weight: 600; color: {{accent}}">{{score}}/{{maxScore}}</div>
+<div style="display: flex; gap: 4px; width: 100%; max-width: 480px" aria-hidden="true"><sc-for list="{{scoreDots}}" as="d" hint-placeholder-count="12"><div style="{{d.style}}"></div></sc-for></div>
 <div style="font-family: Fraunces, Georgia, serif; font-size: clamp(26px, 3.4vw, 34px); font-weight: 600">{{rank}}</div>
 <p style="margin: 0; font-size: 17px; line-height: 1.6; color: #CFC6BA; max-width: 520px">{{rankLine}}</p>
 <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center">
 <a class="tv-cta" href="#start" style="background: {{accent}}; color: #171412; text-decoration: none; font-weight: 600; font-size: 17px; padding: 16px 26px; border-radius: 999px">Let Tovira catch them for you</a>
 <button class="tv-btn" type="button" onClick="{{replay}}" style="background: transparent; color: #F2EDE4; border: 1px solid #4A423B; border-radius: 999px; padding: 15px 22px; font-weight: 500; font-size: 17px; min-height: 48px">Play again</button>
+<button class="tv-btn" type="button" onClick="{{switchInd}}" style="background: transparent; color: #F2EDE4; border: 1px solid #4A423B; border-radius: 999px; padding: 15px 22px; font-weight: 500; font-size: 17px; min-height: 48px">Try another industry</button>
 </div>
 </div>
 </sc-if>
@@ -637,7 +651,7 @@ a{color:#E8643A}a:hover{color:#F28A63}
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { picked: 0, round: 0, tapped: [], history: [], historyPts: [], ended: false, shakeAt: -1 };
+    this.state = { picked: 0, gi: -1, phase: 'pick', round: 0, tapped: [], results: [], shakeAt: -1 };
   }
   wall(lines) {
     const all = lines.concat(lines);
@@ -672,126 +686,125 @@ class Component extends DCLogic {
       };
     });
 
-    // Game: 5 chats, 12 details, each chat harder than the last (more chatter, subtler details, fewer spare taps, more points).
-    // Every "sig" must be something Tovira really catches (P70 claim check). "why" explains why the detail helps close.
-    const rounds = [
-      { name: 'Property client', initials: '1', level: 'EASY', tag: 'WhatsApp · details said plainly', spare: 2, pts: 100, msgs: [
-        { t: 'Hi! Saw the listing you sent, thanks' },
-        { t: 'we love the beach, we go every single weekend', sig: 'Loves the beach', why: "It's how she wants to live, not just where. Homes near the water will feel right to her before she even visits." },
-        { t: 'can we do Sunday evening?' },
-        { t: 'my husband signs off on anything over 3M', sig: 'Husband signs off over 3M', why: 'You now know the budget ceiling and who else has to say yes. Bring him into the viewing, or the deal stalls later.' },
-        { t: 'perfect, see you then' }
+    // Game: pick an industry, play its 5 chats. Each chat has a different number of details (1 to 4), harder as you go.
+    // A wrong tap ends the chat and reveals every detail. Finding them all reveals the chatter. Score = details caught / details in the set.
+    // Every detail (2nd item) must be something Tovira really catches (claim check). Chatter must carry no content Tovira could store.
+    const games = [
+      { label: 'Property', chats: [
+        [['Hi! Thanks for sending the listings'], ['we need at least 3 bedrooms, the kids share a room right now', 'Needs 3+ bedrooms', "Anything smaller is a wasted viewing. Now you know what to filter out before you send a single listing."], ['sounds good'], ['talk soon']],
+        [['ok thanks'], ['we love the beach, we go every single weekend', 'Loves the beach', "It's how she wants to live, not just where. Homes near the water will feel right before she even visits."], ['haha yes'], ['my husband signs off on anything over 3M', 'Husband signs off over 3M', 'You now know the budget ceiling and who else has to say yes. Bring him into the viewing, or the deal stalls later.'], ['perfect']],
+        [['Thanks for showing us around'], ['honestly the commute is what kills me, I want to be near the office', 'Wants a short commute', 'Lead with location, not finishes. The right address matters more to him than the kitchen.'], ['sure'], ["we're selling our current place first", 'Selling current home first', 'His timing depends on a sale. Ask how it is going, and you will know when he can actually buy.'], ['noted'], ['ideally we move before the school year starts in September', 'Wants to move before September', 'A deadline he set himself. Show what can be ready by then and you remove the biggest risk.']],
+        [['Hi'], ['nice'], ['my mother lives with us, so a ground-floor bedroom matters', 'Needs a ground-floor bedroom', 'Any home without one is a no, however nice it is. It is also a sign of how much family shapes this decision.'], ['haha'], ["we'd pay cash, no mortgage", 'Paying cash', 'A cash buyer can move fast. That changes which sellers you call first and how hard you can negotiate.'], ['ok'], ['thanks!']],
+        [['thanks for the coffee haha'], ['my brother bought in the same tower, he loves it', 'Brother owns in the same tower', 'Proof from someone she trusts. Mention it, and you might even win the brother as a referral.'], ['anyway'], ['the kids keep asking for a pool', 'Kids want a pool', 'The kids get a vote. A pool could be what tips the family from maybe to yes.'], ['ok'], ['I work from home, so a study is a must', 'Needs a study (works from home)', 'A must, not a nice-to-have. Homes without a real study are out.'], ['lol'], ['and nothing facing west, my wife hates the afternoon heat', 'No west-facing homes', 'One detail that rules out half the options. Skip west-facing units and every viewing counts.'], ['talk soon']]
       ] },
-      { name: 'Insurance client', initials: '2', level: 'WARMING UP', tag: 'Voice note · one detail tucked inside a question', spare: 1, pts: 150, msgs: [
-        { t: 'Got the quote, thanks for sending' },
-        { t: "can we sign after I'm back? I'm in Europe most months for work, so the cover has to work there too", sig: 'Travels to Europe most months', why: "A policy that only covers home won't fit his life. Cover for Europe is what makes your offer the right one." },
-        { t: 'haha long week' },
-        { t: 'send me the pdf when you can' },
-        { t: 'by the way my current policy renews on 1 March', sig: 'Renewal on 1 March', why: 'A hard deadline. Miss it and he rolls over with his current insurer by default.' },
-        { t: 'thanks again' }
+      { label: 'Insurance', chats: [
+        [['Got the quote, thanks'], ['my current policy renews on 1 March', 'Renewal on 1 March', 'A hard deadline. Miss it and he rolls over with his current insurer by default.'], ['ok'], ['thanks']],
+        [['Hi'], ["can we sign after I'm back? I'm in Europe most months for work, so the cover has to work there too", 'Travels to Europe most months', "A policy that only covers home won't fit his life. Cover for Europe is what makes your offer the right one."], ['sure'], ['my wife and two kids need to be on it too', 'Wife and two kids to be covered', 'This is a family policy, not a single one. Quote for four and you are in the right conversation.'], ['noted'], ['my last insurer took four months to pay a claim', 'Worried about slow claims', 'His real objection. Show how fast your claims are paid and the biggest doubt is gone.']],
+        [['thanks for the call'], ['I do a lot of scuba diving, is that covered?', 'Goes scuba diving', 'If diving is excluded, the policy is useless to him. Check it before he finds out the hard way.'], ['ok cool'], ['budget is around 800 a month', 'Budget about 800 a month', 'Now you know what to quote. Going far above it wastes both your time.'], ['haha'], ['talk soon']],
+        [['Hi again'], ['my daughter just got her licence and will drive my car', 'Daughter now drives his car', 'A new young driver changes the cover he needs. Raise it before a claim does.'], ['ok'], ["I'm self-employed, so I need income cover", 'Self-employed, wants income cover', 'No employer is protecting his income. That is the product he actually needs.'], ['sure'], ['the company car goes back in June', 'Company car returned in June', 'In June he needs his own car insurance. A date to call him, before anyone else does.'], ['noted'], ["I'd rather pay yearly than monthly", 'Prefers to pay yearly', 'Small, but quote it his way and the yes is easier.']],
+        [['thanks!'], ['lol the traffic'], ['my parents are moving in with us next year', 'Parents moving in next year', 'Two more people in the home next year. Home and family cover both need to change.'], ['sure'], ['haha true'], ['honestly I just want one person to call when something goes wrong', 'Wants one point of contact', 'He is not buying a policy, he is buying you. Make it clear you are that one person.'], ['ok'], ['bye']]
       ] },
-      { name: 'Wealth client', initials: '3', level: 'TRICKY', tag: 'WhatsApp · details hidden in small talk', spare: 1, pts: 200, msgs: [
-        { t: 'Thanks for the call earlier' },
-        { t: 'hope the family is well' },
-        { t: 'all good this side, our daughter starts at LSE in September', sig: 'Daughter at LSE from September', why: 'University fees in pounds start in September. Education planning just became urgent, and you know the date.' },
-        { t: 'did you watch the match last night?' },
-        { t: "so we'd rather keep things liquid this year", sig: 'Wants liquidity', why: "Anything that locks money away is a no this year. Flexible options are the only ones he'll say yes to." },
-        { t: 'send me the usual report' },
-        { t: 'cheers' }
+      { label: 'Wealth', chats: [
+        [['thanks for the report'], ['our daughter starts at LSE in September', 'Daughter at LSE from September', 'University fees in pounds start in September. Education planning just became urgent, and you know the date.'], ['ok'], ["so we'd rather keep things liquid this year", 'Wants liquidity', "Anything that locks money away is a no this year. Flexible options are the only ones he'll say yes to."], ['cheers']],
+        [['hope all is good'], ['I want to retire at 55', 'Wants to retire at 55', 'His real goal, in one line. Every plan you show should answer: does this get him there?'], ['noted'], ['thanks']],
+        [['thanks for the call'], ["I don't want anything I can't explain to my wife", 'Wants products he can explain simply', 'Complex products lose him, however good they are. Keep it simple enough to explain at dinner.'], ['haha'], ['my bonus lands in March', 'Bonus in March', 'Money arrives in March. Call before then, not after it is already spent.'], ['ok'], ["and nothing in tobacco, it's a principle thing", 'No tobacco investments', 'Break this rule once and you lose his trust. Screen it out of every portfolio you show.'], ['cheers']],
+        [['hi'], ['sure'], ['my father is passing the family business to me', 'Taking over the family business', 'A big change in wealth and in what he needs from you: succession, tax and cash flow.'], ['ok'], ['lol'], ["we're also thinking of buying a holiday home in a couple of years", 'Plans a holiday home in a couple of years', 'A goal with a rough timeline. Plan for the deposit now and you are part of the dream.'], ['talk soon']],
+        [['thanks!'], ['the match last night was something'], ['the last advisor kept pushing products on me, I hated that', 'Dislikes being sold to', 'Pitch hard and you become the last advisor. Ask questions, and let him choose.'], ['anyway'], ['my son wants to study medicine', 'Son wants to study medicine', 'Medicine is a long, expensive degree. Education planning starts now.'], ['haha'], ["I'd like to give more to charity every year", 'Wants to give to charity yearly', 'A value he cares about. Building giving into his plan shows you listened.'], ['my wife handles our joint account, loop her in', 'Wife manages the joint account', 'Leave her out and the plan stalls. Invite her to the next meeting.'], ['ok bye']]
       ] },
-      { name: 'B2B account', initials: '4', level: 'HARD', tag: 'WhatsApp · the key details hide between the small talk', spare: 1, pts: 300, msgs: [
-        { t: 'Thanks for the call today' },
-        { t: 'overall the proposal looks good' },
-        { t: "our last vendor's support was painfully slow", sig: 'Worried about slow support', why: 'This is their real objection. Answer it before they raise it and the biggest reason to say no is gone.' },
-        { t: 'ok sent you our deck as well' },
-        { t: "we'd need a named account manager in the SLA this time", sig: 'Wants a named account manager', why: 'A requirement said once, in passing. Put it in the proposal and you have answered a no before they say it.' },
-        { t: 'noted' },
-        { t: 'send the revised SLA before the board on the 14th', sig: 'Board meets on the 14th', why: 'A deadline you did not set. Get it in late and the decision slips to next quarter.' },
-        { t: 'talk soon' }
+      { label: 'B2B accounts', chats: [
+        [['thanks for the demo'], ['we need it live before our busy season in October', 'Must go live before October', 'Their deadline, not yours. A plan that lands after October is a no.'], ['ok'], ['talk soon']],
+        [['hi'], ['procurement needs three quotes before anything is signed', 'Needs three quotes', 'You are being compared, whatever they say. Make sure your quote is the easiest one to say yes to.'], ['noted'], ['send the revised SLA before the board on the 14th', 'Board meets on the 14th', 'A deadline you did not set. Get it in late and the decision slips to next quarter.'], ['thanks']],
+        [['thanks for the call today'], ['overall looks good'], ["our last vendor's support was painfully slow", 'Worried about slow support', 'This is their real objection. Answer it before they raise it and the biggest reason to say no is gone.'], ['ok'], ["we'd need a named account manager in the SLA this time", 'Wants a named account manager', 'A requirement said once, in passing. Put it in the proposal and you have answered a no before they say it.'], ['noted'], ["we're 40 people now, maybe 60 next year", 'Team of 40, growing to 60', 'Price for 60, not 40. Growth is your next upsell.']],
+        [['hi'], ['haha yes'], ['budget is fixed this year, but it resets in January', 'Budget resets in January', 'Not a no, a not yet. Call in January.'], ['ok'], ['we use Microsoft for everything, it has to plug into that', 'Must work with Microsoft', 'If it does not connect, nothing else matters. Lead with the integration.'], ['sure'], ['bye']],
+        [['thanks!'], ['haha'], ['if it saves us one hire, it pays for itself', 'Measures value as one hire saved', 'They told you how to justify the price. Show the hire it saves.'], ['noted'], ['we got burned on a three-year contract before, so one year to start', 'Wants a one-year contract to start', 'Push a long contract and you lose the deal. Offer a year.'], ['ok'], ['our financial year ends in March', 'Financial year ends in March', 'Budgets get spent or lost before March. A date that can speed up the yes.'], ['and all our data has to stay in the region', 'Needs data kept in the region', 'A hard requirement. Confirm where the data lives before legal asks.'], ['talk soon']]
       ] },
-      { name: 'Luxury client', initials: '5', level: 'EXPERT · NO SPARE TAPS', tag: 'WhatsApp · everything said in passing', spare: 0, pts: 500, msgs: [
-        { t: 'Thank you for last time!' },
-        { t: 'the traffic was insane haha' },
-        { t: 'she still talks about that emerald set', sig: 'She loved the emerald set', why: "She's already picked what she wants. Show the emerald set and you're not selling, you're reminding." },
-        { t: 'my brother just bought a watch, so expensive' },
-        { t: "can't believe it's ten years in May", sig: 'Tenth anniversary in May', why: 'A milestone anniversary with a month attached. Call in April, not after it has passed.' },
-        { t: 'sorry for the late reply' },
-        { t: 'she only wears gold anyway, never silver', sig: 'She wears gold, never silver', why: 'It rules out half the options before you start. Show only gold and every piece you bring is one she could say yes to.' },
-        { t: 'thanks again for everything' },
-        { t: 'ok bye!' }
+      { label: 'Luxury', chats: [
+        [['thank you for last time!'], ['she still talks about that emerald set', 'She loved the emerald set', "She's already picked what she wants. Show the emerald set and you're not selling, you're reminding."], ['haha'], ["can't believe it's ten years in May", 'Tenth anniversary in May', 'A milestone anniversary with a month attached. Call in April, not after it has passed.'], ['bye!']],
+        [['hi!'], ['she only wears gold, never silver', 'She wears gold, never silver', 'It rules out half the options before you start. Show only gold and every piece you bring is one she could say yes to.'], ['ok'], ['thanks']],
+        [['lovely to see you'], ['my daughter graduates in June', 'Daughter graduates in June', 'A gift moment with a date. Reach out in May with ideas.'], ['haha'], ['she wants something she can wear every day, nothing flashy', 'Wants an everyday piece, nothing flashy', 'Bring statement pieces and you miss. Understated and wearable is the brief.'], ['ok'], ['my budget is around 20k', 'Budget about 20k', 'Now you know what to show. Stay near it and the choice feels easy.'], ['thanks']],
+        [['hi'], ['the traffic was insane haha'], ["my wife's birthday is on 3 April", "Wife's birthday 3 April", 'A date to remember for him. Call in March and you have solved his problem.'], ['noted'], ['she has small wrists, the last bracelet kept sliding off', 'Wife has small wrists', 'Show pieces sized for her and you look like you know her.'], ['sure'], ['bye']],
+        [['thank you!'], ['sorry for the late reply'], ['I collect vintage watches, mostly from the 60s', 'Collects 1960s vintage watches', 'A passion, not a purchase. Call when a 60s piece comes in.'], ['haha'], ['my son turns 18 in August', 'Son turns 18 in August', 'A big birthday with a month. A watch for his 18th is an easy yes.'], ['anyway'], ['I prefer to see pieces privately, not in the store', 'Prefers private viewings', 'Invite him to a private viewing. Asking him into the store works against you.'], ['ok'], ['and I always pay by bank transfer', 'Pays by bank transfer', 'Have the transfer details ready and the sale closes on the spot.']]
+      ] },
+      { label: 'Recruitment', chats: [
+        [['happy to talk'], ["Honestly, I'd only move for hybrid, three days in the office max", 'Wants hybrid, three office days max', 'Anything more in the office is a no. Shortlist hybrid roles first.'], ['ok'], ['thanks']],
+        [['hi'], ['my notice period is three months', 'Three-month notice period', 'Clients need to know before they make an offer. Say it upfront and avoid a late surprise.'], ['sure'], ["I won't go below my current package", "Won't take a pay cut", 'Roles that pay less are a waste of everyone’s time. Filter them out now.'], ['thanks']],
+        [['thanks for the call'], ['I want to lead a team in my next role', 'Wants to lead a team', 'A step up, not a sideways move. Only show roles with people to manage.'], ['haha'], ['no more startups, I want stability', 'Wants stability, no startups', 'Rule out early-stage companies. Established names will land better.'], ['noted'], ['my bonus pays out in April, I would move after that', 'Bonus in April, moves after', 'Start dates before April will fail. Plan the process to land after it.'], ['talk soon']],
+        [['hi'], ['sure'], ["I'm finishing my MBA in December", 'Finishing an MBA in December', 'New skills from December. Roles that use them will interest him most.'], ['ok'], ['lol'], ["I'd relocate for the right role", 'Open to relocating', 'Your pool of roles just got much bigger.'], ['bye']],
+        [['thanks!'], ['haha'], ["my manager left last month and it's not the same", 'Unsettled since the manager left', 'Why he is really looking. A strong manager in the new role is your best pitch.'], ['anyway'], ["I've always wanted to work in fintech", 'Wants to move into fintech', 'His dream sector. A fintech role will get his attention before any other.'], ['ok'], ['a four-day week would be a dream', 'Would love a four-day week', 'Not a must, but a role that offers it will stand out instantly.'], ['my partner works in banking, so no roles at the big banks', 'Avoids roles at the big banks', 'Send a big-bank role and he will wonder if you listened. Leave them out.'], ['talk soon']]
       ] }
     ];
-    const totalSigs = rounds.reduce((a, rr) => a + rr.msgs.filter((m) => m.sig).length, 0);
-    const r = rounds[Math.min(s.round, rounds.length - 1)];
-    const sigCount = r.msgs.filter((m) => m.sig).length;
-    const limit = sigCount + r.spare;
-    const found = s.tapped.filter((i) => r.msgs[i].sig).length;
-    const over = !s.ended && (s.tapped.length >= limit || found === sigCount);
-    const prev = s.history.reduce((a, b) => a + b, 0);
-    const prevPts = s.historyPts.reduce((a, b) => a + b, 0);
-    const total = prev + (s.ended ? 0 : found);
-    const points = prevPts + (s.ended ? 0 : found * r.pts);
+
+    const industries = games.map((g, i) => ({ label: g.label, start: () => this.setState({ gi: i, phase: 'play', round: 0, tapped: [], results: [], shakeAt: -1 }) }));
+    const gi = Math.max(0, s.gi);
+    const game = games[gi];
+    const maxScore = game.chats.reduce((a, c) => a + c.filter((m) => m[1]).length, 0);
+    const chat = game.chats[Math.min(s.round, 4)];
+    const sigCount = chat.filter((m) => m[1]).length;
+    const found = s.tapped.filter((i) => chat[i][1]).length;
+    const wrong = s.tapped.some((i) => !chat[i][1]);
+    const done = s.phase === 'play' && (wrong || found === sigCount);
+    const prevScore = s.results.reduce((a, r) => a + r, 0);
+    const score = prevScore + (s.phase === 'play' ? found : 0);
 
     const base = 'display:block;width:100%;min-height:52px;padding:12px 16px;border-radius:16px 16px 16px 4px;';
     const mono = 'display:inline-block;margin-top:8px;font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.06em;';
-    const msgs = r.msgs.map((m, i) => {
+    const msgs = chat.map((m, i) => {
       const tapped = s.tapped.indexOf(i) !== -1;
+      const isSig = !!m[1];
       let st = 'idle';
-      if (tapped && m.sig) st = 'hit';
-      else if (tapped) st = 'miss';
-      else if (over && m.sig) st = 'missed';
+      if (tapped && isSig) st = 'hit';
+      else if (tapped) st = 'wrong';
+      else if (done && isSig) st = 'missed';
+      else if (done) st = 'chatter';
       const styles = {
         idle: base + 'background:#2A2521;color:#F2EDE4;border:1px solid #332D28',
         hit: base + 'background:rgba(232,100,58,.16);color:#FFD9C9;border:1px solid ' + accent + ';box-shadow:0 0 28px rgba(232,100,58,.25)',
-        miss: base + 'background:#1A1714;color:#6F675E;border:1px solid #2A2521',
-        missed: base + 'background:#2A2521;color:#F2EDE4;border:1px dashed ' + accent
+        wrong: base + 'background:#1A1714;color:#8A8076;border:1px solid #5A2A1E',
+        missed: base + 'background:#2A2521;color:#F2EDE4;border:1px dashed ' + accent,
+        chatter: base + 'background:#1A1714;color:#6F675E;border:1px solid #2A2521'
       };
-      const tags = { idle: '', hit: '+' + r.pts + ' · ' + m.sig, miss: 'Just chatter. Nothing here helps you close.', missed: 'You missed it: ' + m.sig };
+      const tags = { idle: '', hit: '+1 · ' + m[1], wrong: 'Your tap: just chatter. That ended this chat.', missed: 'You missed it: ' + m[1], chatter: 'Chatter' };
       const tagStyles = {
+        idle: '',
         hit: mono + 'background:' + accent + ';color:#171412;border-radius:999px;padding:4px 10px;font-weight:600',
-        miss: mono + 'color:#6F675E',
-        missed: mono + 'color:' + accent,
-        idle: ''
+        wrong: mono + 'color:#E8643A',
+        missed: mono + 'color:' + accent + ';font-weight:600',
+        chatter: mono + 'color:#6F675E'
       };
       return {
-        t: m.t,
-        style: styles[st],
-        tag: tags[st],
-        tagStyle: tagStyles[st],
-        hasTag: st !== 'idle',
-        why: m.why || '',
-        hasWhy: st === 'hit' || st === 'missed',
-        anim: st === 'miss' && s.shakeAt === i ? 'tv-shake' : '',
+        t: m[0], style: styles[st], tag: tags[st], tagStyle: tagStyles[st], hasTag: st !== 'idle',
+        why: m[2] || '', hasWhy: st === 'hit' || st === 'missed',
+        anim: st === 'wrong' && s.shakeAt === i ? 'tv-shake' : '',
         pressed: tapped ? 'true' : 'false',
-        disabled: tapped || over,
-        tap: () => {
-          if (tapped || over) return;
-          this.setState({ tapped: s.tapped.concat([i]), shakeAt: m.sig ? -1 : i });
-        }
+        disabled: tapped || done,
+        tap: () => { if (tapped || done) return; this.setState({ tapped: s.tapped.concat([i]), shakeAt: isSig ? -1 : i }); }
       };
     });
 
-    const dots = [];
-    for (let i = 0; i < totalSigs; i++) {
-      const on = i < total;
-      dots.push({ style: 'flex:1 1 0;min-width:0;height:6px;border-radius:999px;background:' + (on ? accent : '#3A332D') + ';transition:background .3s' });
-    }
+    const missedN = sigCount - found;
+    const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+    let roundLine = 'You caught ' + (sigCount === 1 ? 'it' : (sigCount === 2 ? 'both' : 'all ' + sigCount)) + '.';
+    if (wrong) roundLine = found === 0 ? 'You missed ' + (sigCount === 1 ? 'it' : (sigCount === 2 ? 'both' : 'all ' + sigCount)) + '.' : 'You caught ' + found + ' of ' + sigCount + ', and missed ' + plural(missedN, 'detail') + '.';
+    const roundSub = 'This chat had ' + plural(sigCount, 'useful detail') + '. ' + (sigCount === 1 ? 'Tovira caught it, linked to the message it came from.' : 'Tovira caught all ' + sigCount + ', each linked to the message it came from.');
 
-    const last = s.round >= rounds.length - 1;
+    const roundDots = [0, 1, 2, 3, 4].map((i) => ({ style: 'flex:1 1 0;min-width:0;height:6px;border-radius:999px;background:' + (i < s.round || (i === s.round && done) ? accent : (i === s.round ? '#7D736A' : '#3A332D')) }));
+    const scoreDots = [];
+    for (let i = 0; i < maxScore; i++) scoreDots.push({ style: 'flex:1 1 0;min-width:0;height:6px;border-radius:999px;background:' + (i < score ? accent : '#3A332D') });
+
+    const last = s.round >= 4;
     const next = () => {
-      const history = s.history.concat([found]);
-      const historyPts = s.historyPts.concat([found * r.pts]);
-      if (last) this.setState({ history: history, historyPts: historyPts, ended: true, tapped: [], shakeAt: -1 });
-      else this.setState({ history: history, historyPts: historyPts, round: s.round + 1, tapped: [], shakeAt: -1 });
+      const results = s.results.concat([found]);
+      if (last) this.setState({ results: results, phase: 'end', tapped: [], shakeAt: -1 });
+      else this.setState({ results: results, round: s.round + 1, tapped: [], shakeAt: -1 });
     };
-    const replay = () => this.setState({ round: 0, tapped: [], history: [], historyPts: [], ended: false, shakeAt: -1 });
+    const replay = () => this.setState({ phase: 'play', round: 0, tapped: [], results: [], shakeAt: -1 });
+    const switchInd = () => this.setState({ phase: 'pick', round: 0, tapped: [], results: [], shakeAt: -1 });
 
+    const missedTotal = maxScore - score;
     let rank = 'Eagle eye.';
-    let rankLine = 'You caught all ' + totalSigs + '. Now do it across 200 chats a week, before every meeting, without getting tired. Tovira does.';
-    if (total >= 9 && total < totalSigs) { rank = 'Sharp.'; rankLine = 'You missed ' + (totalSigs - total) + ', and the hard ones are the ones that win deals. Tovira caught all ' + totalSigs + '.'; }
-    else if (total < 9) { rank = 'Like most busy reps.'; rankLine = 'You caught ' + total + ' of ' + totalSigs + ', reading carefully, in five short chats. Real chats are longer. Tovira caught all ' + totalSigs + ', and it never gets tired.'; }
-
-    const roundLine = found === sigCount ? (sigCount === 2 ? 'You caught both. Nice.' : 'You caught all ' + sigCount + '. Nice.') : 'You caught ' + found + ' of ' + sigCount + '.';
+    let rankLine = 'You caught all ' + maxScore + '. Now do it across hundreds of chats a week, before every meeting, without getting tired. Tovira does.';
+    if (score < maxScore && score >= Math.ceil(maxScore * 0.75)) { rank = 'Sharp, but not perfect.'; rankLine = 'You missed ' + plural(missedTotal, 'detail') + ' that would have helped you close, in five short chats. A real week has hundreds. Tovira caught all ' + maxScore + '.'; }
+    else if (score < Math.ceil(maxScore * 0.75)) { rank = 'Like most busy reps.'; rankLine = 'You missed ' + plural(missedTotal, 'detail') + ' that would have helped you close, while reading carefully, in five short chats. Real chats are longer and you are busier. Tovira caught all ' + maxScore + '.'; }
 
     const wallA = this.wall([
       { t: 'ok thanks' }, { t: 'see you tmrw' }, { t: 'my wife decides on these things', m: true }, { t: 'sent' },
@@ -821,10 +834,10 @@ class Component extends DCLogic {
 
     return {
       accent, stars, worlds, cur: data[picked], wallA, wallB, wallC, marqA, marqB,
-      playing: !s.ended, ended: s.ended, chat: r, roundNo: s.round + 1,
-      tapsLeft: Math.max(0, limit - s.tapped.length), points, level: r.level,
-      msgs, dots, over, sigCount, roundLine, next, nextLabel: last ? 'See your score' : 'Next chat →',
-      replay, total, rank, rankLine
+      isPick: s.phase === 'pick', isPlay: s.phase === 'play', isEnd: s.phase === 'end',
+      industries, industryLabel: game.label, industryUpper: game.label.toUpperCase(), roundNo: s.round + 1,
+      msgs, done, roundLine, roundSub, roundDots, scoreDots, score, maxScore, next, nextLabel: last ? 'See your score' : 'Next chat →',
+      replay, switchInd, rank, rankLine
     };
   }
 }
