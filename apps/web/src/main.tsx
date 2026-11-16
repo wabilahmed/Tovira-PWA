@@ -8,16 +8,10 @@ import { UpdatePrompt } from './pwa/UpdatePrompt.js';
 // Self-hosted brand typefaces (offline-capable, no CDN). Fraunces uses the
 // variable wght+opsz axes; SOFT/WONK stay at their 0 defaults per the guideline.
 import '@fontsource-variable/fraunces/standard.css';
-import '@fontsource/ibm-plex-sans/latin-400.css';
-import '@fontsource/ibm-plex-sans/latin-500.css';
-import '@fontsource/ibm-plex-sans/latin-600.css';
-import '@fontsource/ibm-plex-sans/latin-ext-400.css';
 import '@fontsource/ibm-plex-sans-arabic/arabic-400.css';
 import '@fontsource/ibm-plex-sans-arabic/arabic-500.css';
 import '@fontsource/ibm-plex-sans-arabic/arabic-600.css';
-import '@fontsource/ibm-plex-mono/latin-400.css';
-import '@fontsource/ibm-plex-mono/latin-500.css';
-import '@fontsource/ibm-plex-mono/latin-600.css';
+import './styles/site-fonts.css'; // [P71-F · owner] Inter + JetBrains Mono, the landing's fonts
 import './styles/theme.css';
 import { initTheme } from './styles/theme.js';
 

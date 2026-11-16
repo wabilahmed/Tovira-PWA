@@ -1,0 +1,14 @@
+/* [P71-F · owner] The site's body and label fonts, the landing page's own: Inter 400/500/600 and JetBrains Mono, self-
+ * hosted (vendored with their OFL licences in ../marketing/fonts, so the shared lockfile, an input of the API image, is
+ * untouched), latin only, font-display: swap, each with a metric-matched local fallback so text doesn't shift when the
+ * font arrives. Loaded by the landing (landing-fonts.css), the app (main.tsx) and Privacy and Terms (packages/brand/
+ * fonts.css). JetBrains Mono ships one weight (500); it is declared for 400 to 600 so labels never get a faked bold.
+ * Fraunces (headings) is loaded alongside by each page; Arabic text keeps IBM Plex Sans Arabic (Inter has no Arabic). */
+@font-face { font-family: Inter; font-style: normal; font-display: swap; font-weight: 400; src: url('../marketing/fonts/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: Inter; font-style: normal; font-display: swap; font-weight: 500; src: url('../marketing/fonts/inter-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: Inter; font-style: normal; font-display: swap; font-weight: 600; src: url('../marketing/fonts/inter-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-display: swap; font-weight: 400 600; src: url('../marketing/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2'); }
+
+@font-face { font-family: 'Fraunces Fallback'; src: local('Georgia'); size-adjust: 116.26%; ascent-override: 84.12%; descent-override: 21.93%; line-gap-override: 0%; }
+@font-face { font-family: 'Inter Fallback'; src: local('Arial'); size-adjust: 107.34%; ascent-override: 90.25%; descent-override: 22.47%; line-gap-override: 0%; }
+@font-face { font-family: 'JetBrains Mono Fallback'; src: local('Courier New'); size-adjust: 99.98%; ascent-override: 102.02%; descent-override: 30%; line-gap-override: 0%; }

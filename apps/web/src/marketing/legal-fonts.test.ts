@@ -24,9 +24,9 @@ describe('[TASK 4] legal pages do not ship fonts they never render', () => {
 
   it('the shared brand loader still carries the families the legal pages use', () => {
     expect(brand).toMatch(/@fontsource-variable\/fraunces/); // --font-display
-    expect(brand).toMatch(/ibm-plex-sans\/latin-400/); //      --font-sans
+    // [P71-F · owner] --font-sans and --font-mono are now the landing's Inter and JetBrains Mono, from site-fonts.css
+    expect(brand).toMatch(/site-fonts\.css/); //                 --font-sans, --font-mono
     expect(brand).toMatch(/ibm-plex-sans-arabic\/arabic-400/); // --font-arabic
-    expect(brand).toMatch(/ibm-plex-mono\/latin-400/); //      --font-mono
   });
 
   it('the Starfield landing keeps loading its own three families (unchanged)', () => {
