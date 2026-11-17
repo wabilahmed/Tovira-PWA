@@ -41,7 +41,7 @@ export function AccountControls({ api, onDeleted }: { api: AccountApi; onDeleted
 
       {/* [DELETE-EXPORT-FIRST] Deletion is immediate + permanent (AccountService.deleteAccount purges at
           once, no grace window), so steer the rep to export BEFORE they delete, with the export action
-          right here above the delete control — matches Terms 12.4. */}
+          right here above the delete control — matches Terms 13.4. */}
       <p style={{ color: 'var(--text-secondary)' }}>
         <strong>Export your data first.</strong> Deleting your account is immediate and permanent —
         everything is removed right away and cannot be recovered.

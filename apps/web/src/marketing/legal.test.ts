@@ -77,8 +77,9 @@ describe('[SITE / LEGAL] Privacy & Terms are published, not drafts', () => {
 
   it('[LEGAL-REVIEW] terms section 10 is renumbered and the deleted clauses are gone', () => {
     const t = read(TERMS);
-    expect(t).toMatch(/10\.5 Basis of the bargain/); // renumbered from 10.6
-    expect(t).not.toMatch(/10\.6/); // no clause 10.6 remains
+    // [P71-L · owner] Liability is section 11 since the AI-generated information section went in as 9
+    expect(t).toMatch(/11\.5 Basis of the bargain/); // renumbered from 10.6 (then 10.5)
+    expect(t).not.toMatch(/11\.6/); // no clause after it remains
     expect(t).not.toMatch(/10\.5 Time limit/i); // the twelve-month claim bar is deleted
     expect(t).not.toMatch(/must be brought within .{0,20}twelve months/i);
     expect(t).not.toMatch(/incidental to a message you could not reasonably separate/i); // 4.4(f) exception deleted

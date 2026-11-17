@@ -28,7 +28,8 @@ describe('[P38] Terms: one rule for refunding extra usage', () => {
     expect(html).toContain("<p><strong>6.10</strong> Extra usage you buy doesn't expire while your account exists. It is used only after your monthly allowance, works only while you have an active subscription, can't be refunded or exchanged for cash, and is lost if you delete your account.</p>");
   });
 
-  it('the page says it was last updated on 21 October 2026', () => {
-    expect(html).toContain('Last updated: 21 October 2026 · Version 2026-10-21');
+  it('the 2026-10-21 version says it was last updated on 21 October 2026', () => {
+    // [P71-L · owner] the live page moved to 2026-11-17; the 21 October text stays frozen in the archive
+    expect(readFileSync(resolve(process.cwd(), 'legal-archive/2026-10-21/terms.html'), 'utf8')).toContain('Last updated: 21 October 2026 · Version 2026-10-21');
   });
 });

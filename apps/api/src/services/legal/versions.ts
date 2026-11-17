@@ -10,12 +10,16 @@
  * one source of truth, not three.
  */
 
-/** Terms of Service version. Derivation: matches "Last updated: 21 October 2026" on the published Terms
+/** Terms of Service version. [P71-L · owner] 2026-11-17 added the lawyer-approved section "9. AI-generated information",
+ *  word for word, straight after section 8; the old sections 9 to 15 became 10 to 16, with the cross-references inside
+ *  the Terms that point at them. Nothing else changed (prior published version: legal-archive/2026-10-21/). A bump asks
+ *  no one to re-accept: the version is only recorded when someone accepts.
+ *  Earlier derivation: matches "Last updated: 21 October 2026" on the published Terms
  *  page (apps/web/terms/index.html) — the last time the Terms wording changed (the 2026-10-21 revision, P38,
  *  removed the unnumbered top-up paragraph under 6.9 that contradicted 6.10 on refunds; 2026-10-20 added 6.10).
  *  The reconcile guard proves the page and this constant agree. Prior published versions are archived under
  *  legal-archive/ (2026-10-20, 2026-10-05, 2026-10-03, 2026-10-02, 2026-09-22). PRIVACY_VERSION is unchanged. */
-export const TERMS_VERSION = '2026-10-21';
+export const TERMS_VERSION = '2026-11-17';
 
 /** Privacy Policy version. [P71-T · owner] 2026-11-16 added the lawyer-approved line straight after "We keep anonymous
  *  statistics about how the product is used.": "We count anonymous game interactions to improve the page." Nothing else

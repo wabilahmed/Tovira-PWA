@@ -9,6 +9,12 @@ drifts from its constant.
 
 ## Contents
 
+- `2026-11-17/`: the current **published Terms** (owner-approved, lawyer-approved wording, P71). New acceptances record
+  this `TERMS_VERSION`. Adds section "9. AI-generated information", word for word, straight after section 8 (Accuracy,
+  output, and no reliance). The old sections 9 to 15 became 10 to 16; their clause numbers and the five cross-references
+  inside the Terms that point at them moved with them (10.1 → 11.1 twice, 10.2 → 11.2, 12.2/12.3 → 13.2/13.3, and the
+  survival list "4, 8, 9, 10, 13, and 14" → "4, 8, 10, 11, 14, and 15"). Nothing else changed. Privacy unchanged
+  (`2026-11-16`).
 - `2026-11-16/`: the current **published Privacy** (owner-approved, lawyer-approved line, P71). New Privacy
   acceptances record this `PRIVACY_VERSION`. Adds one line, word for word, straight after "We keep anonymous
   statistics about how the product is used.": "We count anonymous game interactions to improve the page." Nothing
@@ -17,8 +23,8 @@ drifts from its constant.
   acceptances recorded this `PRIVACY_VERSION` until 2026-11-16. Adds one line to section 13, word for word: "While a privacy request
   about someone else is being reviewed, data about that person may be held back from your copy. It is not deleted."
   Nothing else changed. Terms unchanged (`2026-10-21`).
-- `2026-10-21/` — the current **published Terms** (owner-approved, P38). New acceptances record this
-  `TERMS_VERSION`. Removes the unnumbered top-up paragraph under 6.9 ("…non-refundable once any of it has
+- `2026-10-21/` — the prior published Terms (owner-approved, P38). Terms acceptances recorded this
+  `TERMS_VERSION` until 2026-11-17. Removes the unnumbered top-up paragraph under 6.9 ("…non-refundable once any of it has
   been used"), which contradicted 6.10, and adds 14.8 (the lawyer-approved consumer-rights sentence, word
   for word); nothing renumbered. Privacy unchanged (`2026-10-05`).
 - `2026-10-20/` — the prior published Terms (P37): added clause 6.10, the lawyer-verified extra-usage

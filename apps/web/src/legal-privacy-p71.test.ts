@@ -24,7 +24,7 @@ describe('[P71-T] the Privacy page names the game counts', () => {
   it('is version 2026-11-16, last updated 16 November 2026; the Terms version is unchanged', () => {
     expect(PRIVACY_VERSION).toBe('2026-11-16');
     expect(page).toContain('data-doc-version="2026-11-16">Last updated: 16 November 2026 · Version 2026-11-16</p>');
-    expect(TERMS_VERSION).toBe('2026-10-21');
+    expect(TERMS_VERSION).toBe('2026-11-17'); // [P71-L · owner] the Terms moved on separately (AI-generated information)
   });
   it('only that line (and the date and version) changed from the 2026-10-27 wording, which stays archived', () => {
     const before = read('legal-archive/2026-10-27/privacy.html');
