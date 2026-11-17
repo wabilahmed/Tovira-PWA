@@ -87,7 +87,7 @@ export const GAMES: Game[] = [
       { t: "thanks for the call" },
       { t: "I do a lot of scuba diving, is that covered?", sig: "Goes scuba diving", why: "If diving is excluded, the policy is useless to him. Check it before he finds out the hard way." },
       { t: "ok cool" },
-      { t: "budget is around 800 a month", sig: "Budget about 800 a month", why: "Now you know what to quote. Going far above it wastes both your time." },
+      { t: "I'm looking for a policy around 800 a month", sig: "Budget about 800 a month", why: "Now you know what to quote. Going far above it wastes both your time." },
       { t: "haha" },
       { t: "talk soon" },
     ],
@@ -146,7 +146,7 @@ export const GAMES: Game[] = [
     ],
     [
       { t: "thanks!" },
-      { t: "the match last night was something" },
+      { t: "haha true" },
       { t: "the last advisor kept pushing products on me, I hated that", sig: "Dislikes being sold to", why: "Pitch hard and you become the last advisor. Ask questions, and let him choose." },
       { t: "anyway" },
       { t: "my son wants to study medicine", sig: "Son wants to study medicine", why: "Medicine is a long, expensive degree. Education planning starts now." },
@@ -172,12 +172,12 @@ export const GAMES: Game[] = [
     ],
     [
       { t: "thanks for the call today" },
-      { t: "overall looks good" },
+      { t: "ok great" },
       { t: "our last vendor's support was painfully slow", sig: "Worried about slow support", why: "This is their real objection. Answer it before they raise it and the biggest reason to say no is gone." },
       { t: "ok" },
       { t: "we'd need a named account manager in the SLA this time", sig: "Wants a named account manager", why: "A requirement said once, in passing. Put it in the proposal and you have answered a no before they say it." },
       { t: "noted" },
-      { t: "we're 40 people now, maybe 60 next year", sig: "Team of 40, growing to 60", why: "Price for 60, not 40. Growth is your next upsell." },
+      { t: "we need it to work for 40 people now, and 60 next year", sig: "Needs it for 40 now, 60 next year", why: "Price for 60, not 40. Growth is your next upsell." },
     ],
     [
       { t: "hi" },
@@ -191,7 +191,7 @@ export const GAMES: Game[] = [
     [
       { t: "thanks!" },
       { t: "haha" },
-      { t: "if it saves us one hire, it pays for itself", sig: "Measures value as one hire saved", why: "They told you how to justify the price. Show the hire it saves." },
+      { t: "honestly the price worries us, it has to save us at least one hire", sig: "Price worry: must save one hire", why: "They told you how to justify the price. Show the hire it saves." },
       { t: "noted" },
       { t: "we got burned on a three-year contract before, so one year to start", sig: "Wants a one-year contract to start", why: "Push a long contract and you lose the deal. Offer a year." },
       { t: "ok" },
@@ -210,7 +210,7 @@ export const GAMES: Game[] = [
     ],
     [
       { t: "hi!" },
-      { t: "she only wears gold, never silver", sig: "She wears gold, never silver", why: "It rules out half the options before you start. Show only gold and every piece you bring is one she could say yes to." },
+      { t: "my wife only wears gold, never silver", sig: "Wife wears gold, never silver", why: "It rules out half the options before you start. Show only gold and every piece you bring is one she could say yes to." },
       { t: "ok" },
       { t: "thanks" },
     ],
@@ -220,7 +220,7 @@ export const GAMES: Game[] = [
       { t: "haha" },
       { t: "she wants something she can wear every day, nothing flashy", sig: "Wants an everyday piece, nothing flashy", why: "Bring statement pieces and you miss. Understated and wearable is the brief." },
       { t: "ok" },
-      { t: "my budget is around 20k", sig: "Budget about 20k", why: "Now you know what to show. Stay near it and the choice feels easy." },
+      { t: "I'm looking for something around 20k", sig: "Budget about 20k", why: "Now you know what to show. Stay near it and the choice feels easy." },
       { t: "thanks" },
     ],
     [
@@ -308,7 +308,7 @@ export const WALL_C: WallLine[] = [
 ];
 
 export const MARQ_A = ['Loves the beach', 'The CFO really decides', 'Board meets on the 14th', 'Travels to Europe most months', 'Anniversary in May', 'Wants hybrid'];
-export const MARQ_B = ['Daughter at LSE from September', 'Loved the emerald set', 'Renewal on 1 March', 'Worried about slow support', 'Husband signs off over 3M', 'Wants liquidity', 'Wears gold, never silver', 'Wants a named account manager'];
+export const MARQ_B = ['Daughter at LSE from September', 'Loved the emerald set', 'Renewal on 1 March', 'Worried about slow support', 'Husband signs off over 3M', 'Wants liquidity', 'Wife wears gold, never silver', 'Wants a named account manager'];
 
 /** The chat wall: each column twice, so the -50% rise loops seamlessly. Missed lines glow. */
 export function wall(lines: WallLine[]): Array<{ text: string; cls: string; color: string }> {

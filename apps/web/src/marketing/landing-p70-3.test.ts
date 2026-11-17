@@ -51,7 +51,8 @@ describe('[P70-3] the design file matches the live page', () => {
     expect(games.map((g) => ({ label: g.label, chats: g.chats.map((c) => c.map(([t, sig, why]) => (sig ? { t, sig, why } : { t }))) }))).toEqual(GAMES);
     for (const w of WORLDS) for (const s of [w.before, w.buried, w.after, w.caught, w.move]) expect(ref, s).toContain(s);
     expect(ref).toContain("What they care about, what they're worried about, every date and promise.");
-    expect(ref).toContain("'Wears gold, never silver', 'Wants a named account manager']");
+    // [P71 · owner] the marquee entry now reads "Wife wears gold, never silver", to match Luxury chat 2
+    expect(ref).toContain("'Wife wears gold, never silver', 'Wants a named account manager']");
   });
   it('NEGATIVE: neither file names a Gulf place or a country', () => {
     const bad = /\bUAE\b|united arab emirates|emirates|Dubai|Abu Dhabi|Sharjah|\bSZR\b|Sheikh Zayed|\b(India|Pakistan|Saudi|Qatar|Oman|Bahrain|Kuwait|Egypt|Germany|France|Spain|Italy|England|Britain|United Kingdom|United States|America|Canada|China|Japan|Russia)\b/i;

@@ -74,3 +74,21 @@ The landing page no longer claims it inside a chat (game chat 4 now uses "Wants 
   - To do in the next cert batch: add an eval fixture for it in apps/api/src/eval/eval-set.ts (CERT_SURFACE),
     next to the guessed-details / vague-date fixture ('unresolved-vague-date'): the 8-message chat above,
     expecting the decider captured. That changes the certified surface, so it needs the full certification run.
+
+## [P71] Next certification batch: a bare budget is dropped (logged, not fixed)
+Owner, 2026-11-17: log for the next certification batch, don't fix now. Budgets are one of the most useful things a
+rep can know, so a bare budget should be stored. The landing claim check (real model, Sonnet 5, shipped prompt):
+  - "budget is around 800 a month", inside a 6-message insurance chat: 0/5. Nothing about the budget was stored in
+    any run (only the scuba-diving fact and its next step).
+  - Cause: prompt rule 8 stores a requirement only when it is something the client wants found, so a budget not tied
+    to a product is dropped. Tied to one, it is kept ("my husband signs off on anything over 3M": 5/5).
+The landing game now ties both budgets to what the client wants ("I'm looking for a policy around 800 a month",
+"I'm looking for something around 20k").
+  - To do in the next cert batch: add an eval fixture with a bare budget in apps/api/src/eval/eval-set.ts
+    (CERT_SURFACE), next to the decision-maker fixture above and the guessed-details / vague-date fixture
+    ('unresolved-vague-date'): the insurance chat above with "budget is around 800 a month", expecting the budget
+    stored. Rule 8 (prompt.ts, also CERT_SURFACE) would change with it, so it needs the full certification run.
+  - Same pattern seen later in the same check (evidence for that fixture, nothing else to do): a plain company fact
+    ("we're 40 people now, maybe 60 next year": 0/5) and a condition ("if it saves us one hire, it pays for itself":
+    0/5) were never stored; stated as a need or a worry they were 5/5. A fact about "she" with no one named
+    ("she only wears gold, never silver": 0/5) was never stored either; "my wife only wears gold, never silver" was 5/5.
