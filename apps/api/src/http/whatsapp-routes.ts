@@ -5,8 +5,9 @@ import { validHubSignature, verifyHandshake } from '../services/whatsapp/signatu
 import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
 
 /**
- * [P67 · owner] Send a chat export to Tovira's WhatsApp number. BUILT DARK: without `whatsapp` (WHATSAPP_INGEST_ENABLED
- * off, or its keys not set) every path here is a 404 and nothing is visible.
+ * [P67 · owner] Send a chat export to Tovira's WhatsApp number. BUILT DARK: without `whatsapp` (its keys not set)
+ * every path here is a 404 and nothing is visible. [P72-1] With the keys set but WHATSAPP_INGEST_ENABLED off, only
+ * Meta's verify check answers and deliveries are dropped; the Settings routes need ingest on AND the allowlist.
  *
  *   GET    /webhooks/whatsapp   Meta's subscribe handshake (verify token).                     public
  *   POST   /webhooks/whatsapp   inbound messages; X-Hub-Signature-256 checked with the app secret. public, signed
@@ -19,7 +20,8 @@ import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from 
  */
 export interface WhatsAppRouteDeps {
   auth: AuthService;
-  whatsapp?: { service: WhatsAppService; appSecret: string; verifyToken: string };
+  /** [P72-1] `enabled` = WHATSAPP_INGEST_ENABLED; `allowed` = the allowlist (who may see or link it while testing). */
+  whatsapp?: { service: WhatsAppService; appSecret: string; verifyToken: string; enabled: boolean; allowed: (email: string | null) => boolean };
 }
 
 /** Meta batches up to 1,000 updates in one POST, at most 3 MB. */
@@ -50,15 +52,19 @@ export async function handleWhatsAppRoute(req: IncomingMessage, res: ServerRespo
     }
     let body: unknown;
     try { body = JSON.parse(raw.toString('utf8')); } catch { sendJson(res, 400, { error: 'bad_request' }); return true; }
-    wa.service.accept(body); // handled in the background; Meta gets its 200 at once
+    // [P72-1] ingest off: the webhook exists only so Meta can verify it; a delivery is acknowledged and dropped
+    // (nothing stored, no reply, nothing downloaded).
+    if (wa.enabled) wa.service.accept(body); // handled in the background; Meta gets its 200 at once
     sendJson(res, 200, { ok: true });
     return true;
   }
 
-  // Settings (the rep)
+  // Settings (the rep). [P72-1] Off, or not on the allowlist: the same 404 as switched off, so nothing is shown.
+  if (!wa.enabled) { sendJson(res, 404, { error: 'not_found' }); return true; }
   const identity = await deps.auth.authenticate(extractToken(req));
   if (!identity) { sendJson(res, 401, { error: 'unauthorized' }); return true; }
   const userId = identity.userId;
+  if (!wa.allowed((await deps.auth.getPublicUser(userId))?.email ?? null)) { sendJson(res, 404, { error: 'not_found' }); return true; }
   if (method === 'GET') { sendJson(res, 200, await wa.service.status(userId)); return true; }
   if (method === 'DELETE') { await wa.service.unlink(userId); sendJson(res, 200, await wa.service.status(userId)); return true; }
   if (method === 'POST') {

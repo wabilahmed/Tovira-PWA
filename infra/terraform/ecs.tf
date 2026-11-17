@@ -63,6 +63,13 @@ resource "aws_ecs_task_definition" "api" {
       # adapter; the app fails loud at boot if this is unset in a deployed env (assertDeployReady).
       { name = "STORAGE_BACKEND", value = "s3" },
       { name = "S3_REGION", value = var.region },
+      # [P72-1 · owner] WhatsApp: nothing switches on until the owner says so. MODE picks the test or real number;
+      # INGEST_ENABLED=false keeps the webhook to Meta's verify check only; only the allowlist sees it in Settings.
+      { name = "WHATSAPP_MODE", value = "test" },
+      { name = "WHATSAPP_INGEST_ENABLED", value = "false" },
+      { name = "WHATSAPP_ALLOWED_EMAILS", value = "wabil@tovira.io" },
+      { name = "WHATSAPP_TEST_DISPLAY_NUMBER", value = "+15556347941" },
+      { name = "WHATSAPP_REAL_DISPLAY_NUMBER", value = "+971527949661" },
     ]
     secrets = [
       { name = "DATABASE_URL", valueFrom = "${aws_secretsmanager_secret.app.arn}:DATABASE_URL::" },
@@ -95,6 +102,14 @@ resource "aws_ecs_task_definition" "api" {
       # [P46-6c.1] The dedicated key that seals admin 2FA secrets (never OPS_TOKEN). Unset: admin sign-in refuses.
       # Same TRAP: the key must EXIST in the secret before this is applied.
       { name = "ADMIN_TOTP_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:ADMIN_TOTP_KEY::" },
+      # [P72-1 · owner] WhatsApp (Meta Cloud API). The owner added all seven keys to the secret before this mapping.
+      { name = "WHATSAPP_ACCESS_TOKEN", valueFrom = "${aws_secretsmanager_secret.app.arn}:WHATSAPP_ACCESS_TOKEN::" },
+      { name = "WHATSAPP_APP_SECRET", valueFrom = "${aws_secretsmanager_secret.app.arn}:WHATSAPP_APP_SECRET::" },
+      { name = "WHATSAPP_VERIFY_TOKEN", valueFrom = "${aws_secretsmanager_secret.app.arn}:WHATSAPP_VERIFY_TOKEN::" },
+      { name = "WHATSAPP_TEST_NUMBER_ID", valueFrom = "${aws_secretsmanager_secret.app.arn}:WHATSAPP_TEST_NUMBER_ID::" },
+      { name = "WHATSAPP_TEST_BUSINESS_ID", valueFrom = "${aws_secretsmanager_secret.app.arn}:WHATSAPP_TEST_BUSINESS_ID::" },
+      { name = "WHATSAPP_REAL_NUMBER_ID", valueFrom = "${aws_secretsmanager_secret.app.arn}:WHATSAPP_REAL_NUMBER_ID::" },
+      { name = "WHATSAPP_REAL_BUSINESS_ID", valueFrom = "${aws_secretsmanager_secret.app.arn}:WHATSAPP_REAL_BUSINESS_ID::" },
     ]
     healthCheck = {
       command     = ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]

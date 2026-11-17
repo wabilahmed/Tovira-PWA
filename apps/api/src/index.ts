@@ -157,6 +157,8 @@ import { accessRequestNotifier, adminAlertSender } from './services/access/admin
 import { syncWonEntry } from './services/ledger/won-after-suggestion.js';
 import { WinBackService } from './services/ledger/win-back.js';
 import { PgGoingQuietAlertRepository } from './adapters/ledger/pg-going-quiet-alert-repository.js';
+import { buildWhatsApp } from './whatsapp-wiring.js';
+import { PgWhatsAppLinkStore } from './adapters/whatsapp/pg-whatsapp-store.js';
 import { longChatLimit } from './services/import/long-chat.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -681,6 +683,16 @@ async function main(): Promise<void> {
   // [P37] the required first-login tour: state on the users row, anonymous funnel counts in tour_funnel.
   const tourFunnel = new PgTourFunnelRepository(appPool);
   const tour = new TourService({ users: new PgUserRepository(appPool), funnel: tourFunnel });
+  // [P72-1] WhatsApp: built only when its three keys are set. Ingest stays off until WHATSAPP_INGEST_ENABLED=true; the
+  // Settings section is shown only to WHATSAPP_ALLOWED_EMAILS. One non-secret line says which state it is in.
+  const whatsapp = buildWhatsApp(config.whatsapp, {
+    store: new PgWhatsAppLinkStore(appPool), storage, appBaseUrl: config.appBaseUrl,
+    entitlement: (uid, now) => billing.entitlement(uid, now).then((e) => ({ entitled: e.entitled, status: e.status })),
+    longChatLimit: longChatLimit(config.windowing.enabled),
+  });
+  const waAllow = config.whatsapp.allowedEmails;
+  console.log(`[whatsapp] ${whatsapp ? `webhook ready · mode ${config.whatsapp.mode} · ingest ${config.whatsapp.enabled ? 'ON' : 'off'} · allowlist ${waAllow === '*' ? 'everyone' : `${waAllow.length} account(s)`}` : 'not configured (all routes 404)'}`);
+
   const server = createApiServer({
     tour,
     // [P36-5] the client page's summaries — deterministic, no model call.
@@ -703,6 +715,7 @@ async function main(): Promise<void> {
     repNames,
     importAck,
     longChatLimit: longChatLimit(config.windowing.enabled), // [P67-1]
+    whatsapp, // [P72-1]
     allowanceExhausted: aiExhausted,
     // [P65-1] the rep's processing status; [P65-5] whether their app is open
     processing: {

@@ -5,6 +5,7 @@
  * actionable error — never a silent crash or a half-up service.
  */
 
+import { whatsappConfigFrom, whatsappProblems, type WhatsAppConfig } from './services/whatsapp/whatsapp-config.js';
 import { EFFORTS, type Effort, type ThinkingMode } from './adapters/model/capabilities.js';
 import type { CacheTtl } from './ports/model.js';
 import { CONTACT_EMAIL } from './services/email/contact.js';
@@ -284,6 +285,8 @@ export interface AppConfig {
   sesRegion: string;
   /** Public base URL of the app (for links inside emails, e.g. password reset). */
   appBaseUrl: string;
+  /** [P72-1] WhatsApp: the seven keys, WHATSAPP_MODE, WHATSAPP_INGEST_ENABLED and the allowlist. Never logged. */
+  whatsapp: WhatsAppConfig;
 }
 
 type Env = Record<string, string | undefined>;
@@ -394,6 +397,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     resendApiKey: isBlank(env.RESEND_API_KEY) ? undefined : env.RESEND_API_KEY!.trim(),
     sesRegion: env.SES_REGION?.trim() || env.BEDROCK_REGION?.trim() || 'us-east-1',
     appBaseUrl,
+    whatsapp: whatsappConfigFrom(env), // [P72-1]
   };
 }
 
@@ -498,6 +502,9 @@ export function assertDeployReady(config: AppConfig, env: Env = process.env): vo
   const FOREIGN_DOMAIN = new RegExp(['tovira', 'com'].join('\\.') + '\\b', 'i');
   need(FOREIGN_DOMAIN.test(config.appBaseUrl), 'APP_BASE_URL (points at a domain we do not own — use our own app URL)');
   need(FOREIGN_DOMAIN.test(config.emailFrom), 'EMAIL_FROM (a sender on a domain we do not own — use hello@tovira.io)');
+
+  // --- [P72-1] WhatsApp: a bad mode always; with ingest on, every key and the current mode's number ---
+  for (const p of whatsappProblems(config.whatsapp)) need(true, p);
 
   if (missing.length > 0) {
     throw new ConfigError(

@@ -51,6 +51,14 @@ resource "aws_secretsmanager_secret_version" "app" {
     EXPLEE_API_KEY = "REPLACE_ME"
     # [P46-6c.1] Generate with `openssl rand -hex 32`; on prod add the real key manually FIRST.
     ADMIN_TOTP_KEY = "REPLACE_ME"
+    # [P72-1] WhatsApp, seeded EMPTY (not a guessable placeholder): with no keys the webhook isn't built (404).
+    WHATSAPP_ACCESS_TOKEN     = ""
+    WHATSAPP_APP_SECRET       = ""
+    WHATSAPP_VERIFY_TOKEN     = ""
+    WHATSAPP_TEST_NUMBER_ID   = ""
+    WHATSAPP_TEST_BUSINESS_ID = ""
+    WHATSAPP_REAL_NUMBER_ID   = ""
+    WHATSAPP_REAL_BUSINESS_ID = ""
   })
 
   lifecycle {

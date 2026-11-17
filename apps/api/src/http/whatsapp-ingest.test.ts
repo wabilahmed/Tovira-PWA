@@ -51,7 +51,8 @@ function wire(on = true): void {
     perRep: new FixedWindowRateLimiter(30, 3_600_000),
     now: () => now,
   });
-  deps.whatsapp = on ? { service, appSecret: APP_SECRET, verifyToken: VERIFY } : undefined;
+  // [P72-1] the P67 behaviour is ingest on, everyone allowed; the off and allowlist cases are in whatsapp-p72.test.ts
+  deps.whatsapp = on ? { service, appSecret: APP_SECRET, verifyToken: VERIFY, enabled: true, allowed: () => true } : undefined;
 }
 beforeEach(async () => {
   sent.length = 0; media.clear(); modelCalls = 0; inactive.clear(); now = Date.UTC(2026, 10, 9, 10, 0, 0);

@@ -46,6 +46,7 @@ beforeAll(async () => {
       graph: { mediaUrl: async () => { throw new Error('none'); }, download: async () => new Uint8Array(), sendText: async () => undefined },
       entitlement: async () => ({ entitled: true, status: 'active' }) }),
     appSecret: 'guard-secret', verifyToken: 'guard-verify',
+    enabled: true, allowed: () => true, // [P72-1] on and open to all, so the guard still reaches every route
   };
   server = createApiServer(deps);
   await listenForTest(server);
