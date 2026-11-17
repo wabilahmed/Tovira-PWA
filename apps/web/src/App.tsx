@@ -111,6 +111,7 @@ import { NotFound } from './components/NotFound.js';
 export const BILLING_RETURN_PATHS = ['/billing/success', '/billing/cancel', '/billing'] as const;
 export const KNOWN_SPA_PATHS = new Set(['/', '/app', '/reset-password', '/invite', '/verify-email', '/request-access', '/ops/access', '/ops/costs', '/admin', '/admin/set-password', '/admin/leads', '/admin/funnel', '/admin/access', '/admin/costs', '/admin/audit', ...BILLING_RETURN_PATHS]);
 import { InstallBanner } from './pwa/InstallBanner.js';
+import { isAppPath, setPublicSurface, setSignedInHint } from './styles/theme.js';
 import { PushView } from './shell/PushView.js';
 import type { View } from './shell/nav.js';
 import { isView, VIEW_LABEL } from './shell/nav.js';
@@ -302,6 +303,17 @@ export function App(): JSX.Element {
     void auth.signupEnabled().then(setSignupEnabled);
     void auth.referralsEnabled().then(setReferralsEnabled);
   }, []);
+
+  // [P74 · owner] Every page a signed-out visitor can reach is always Dark; the saved theme applies only in the signed-in
+  // app (the screen at the bottom of this component). Decided once the session check is done, so a signed-in rep never
+  // sees a flash; the hint lets the next boot paint the app in the saved theme before the check.
+  const pathNow = typeof window !== 'undefined' ? window.location.pathname : '/app';
+  const inApp = !!session && isAppPath(pathNow) && !inviteToken && !resetToken && !verifyToken;
+  useEffect(() => {
+    if (loading) return;
+    setPublicSurface(!inApp);
+    if (isAppPath(pathNow)) setSignedInHint(!!session);
+  }, [loading, inApp, session, pathNow]);
 
   // Public, pre-auth: the beta access-request form (reached from the landing page). Like /reset-password
   // and /verify-email, it is served by the SPA before the session gate (no infra route needed).

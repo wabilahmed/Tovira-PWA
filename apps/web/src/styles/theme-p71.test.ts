@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { getTheme, initTheme, setTheme, applyTheme } from './theme.js';
+import { getTheme, initTheme, setTheme, applyTheme, setPublicSurface } from './theme.js';
 
 /**
  * [P71-D · owner] Dark mode everywhere uses the landing palette, mapped onto the existing tokens: page #171412, deeper
@@ -92,7 +92,9 @@ describe('[P71-D] highlighted words (owner: only where the app already highlight
 });
 
 describe('[P71-D] Dark is the default for anyone who never chose', () => {
-  beforeEach(() => { localStorage.clear(); document.documentElement.removeAttribute('data-theme'); document.head.innerHTML = '<meta name="theme-color" content="#f4f1ea">'; });
+  // [P74 · owner] These are the signed-in app's rules: a public page is always Dark whatever is saved (pinned in
+  // theme-public.test.ts), so each test here starts inside the app, with someone signed in on this browser.
+  beforeEach(() => { localStorage.clear(); localStorage.setItem('tovira.signedIn', '1'); window.history.replaceState({}, '', '/app'); setPublicSurface(false); document.documentElement.removeAttribute('data-theme'); document.head.innerHTML = '<meta name="theme-color" content="#f4f1ea">'; });
   it('no stored choice: Dark', () => {
     expect(getTheme()).toBe('vault');
     initTheme();
@@ -101,13 +103,15 @@ describe('[P71-D] Dark is the default for anyone who never chose', () => {
   it('a stored Light, Dark or Auto is kept', () => {
     for (const v of ['ledger', 'vault', 'system'] as const) { localStorage.setItem('tovira.theme', v); expect(getTheme()).toBe(v); }
   });
-  it('the boot scripts in app.html, Privacy and Terms default to Dark and keep a stored choice', () => {
-    for (const p of ['../../app.html', '../../privacy/index.html', '../../terms/index.html']) {
+  // [P74 · owner] Privacy and Terms no longer read a stored choice: they are always Dark (theme-public.test.ts). The
+  // app's boot script keeps a stored choice in the signed-in app, as before.
+  it('the app boot script (app.html) defaults to Dark and keeps a stored choice in the signed-in app', () => {
+    for (const p of ['../../app.html']) {
       const src = read(p);
       const script = /<script>([\s\S]*?tovira\.theme[\s\S]*?)<\/script>/.exec(src)?.[1];
       expect(script, p).toBeTruthy();
       for (const [stored, want] of [[null, 'vault'], ['ledger', 'ledger'], ['vault', 'vault'], ['system', null]] as const) {
-        localStorage.clear(); document.documentElement.removeAttribute('data-theme');
+        localStorage.clear(); localStorage.setItem('tovira.signedIn', '1'); document.documentElement.removeAttribute('data-theme');
         if (stored) localStorage.setItem('tovira.theme', stored);
         new Function(script!)();
         expect(document.documentElement.getAttribute('data-theme'), `${p} ${stored}`).toBe(want);

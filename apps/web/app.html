@@ -12,10 +12,19 @@
          imported in main.tsx, no CDN (P71-F). -->
     <script>
       // [P71-D · owner] Pin the theme before first paint. No saved choice: Dark. A saved Light, Dark or Auto is kept.
+      // [P74 · owner] ...but only inside the signed-in app: every page a signed-out visitor can reach is always Dark
+      // (request access, reset password, invite, verify email, the admin console, the billing pages, a 404, and the
+      // sign-in, i.e. /app until someone has signed in on this browser). Same decision as initTheme() in theme.ts.
       // The theme-color (address bar, installed app's status bar) follows it: #171412 dark, #f4f1ea light.
       (function () {
         var t = 'vault';
-        try { var s = localStorage.getItem('tovira.theme'); if (s === 'ledger' || s === 'vault' || s === 'system') t = s; } catch (e) {}
+        try {
+          var p = location.pathname;
+          if ((p === '/app' || p === '/') && localStorage.getItem('tovira.signedIn') === '1') {
+            var s = localStorage.getItem('tovira.theme');
+            if (s === 'ledger' || s === 'vault' || s === 'system') t = s;
+          }
+        } catch (e) {}
         if (t !== 'system') document.documentElement.setAttribute('data-theme', t);
         var deviceDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
         var metas = document.querySelectorAll('meta[name="theme-color"]');
