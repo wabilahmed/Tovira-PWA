@@ -11,6 +11,8 @@ export interface Entitlement {
   billingState?: 'active' | 'payment_failed' | 'suspended' | 'ended';
   /** [BILLING-DUNNING] Stripe hosted page to pay the open invoice + do 3DS; the banner links to it. */
   hostedInvoiceUrl?: string | null;
+  /** [P72-2] free access given in Admin (no Stripe subscription behind it) */
+  freeAccess?: boolean;
 }
 
 // [TRIAL-14] The usage-gated trial-extension incentive is removed — the trial is a flat 14 days, so

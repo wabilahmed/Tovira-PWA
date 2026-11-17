@@ -31,14 +31,24 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     return [...this.byUser.values()].find((s) => s.stripeCustomerId === customerId) ?? null;
   }
 
+  // [P72-2] a free-access row is left out of every billing job's list
+  private billed(): SubscriptionRecord[] {
+    return [...this.byUser.values()].filter((s) => s.freeAccessSince == null);
+  }
   async listTrialing(): Promise<Array<{ userId: string; trialEndsAt: number }>> {
-    return [...this.byUser.values()].filter((s) => s.status === 'trialing').map((s) => ({ userId: s.userId, trialEndsAt: s.trialEndsAt }));
+    return this.billed().filter((s) => s.status === 'trialing').map((s) => ({ userId: s.userId, trialEndsAt: s.trialEndsAt }));
   }
   async listInDunning(): Promise<SubscriptionRecord[]> {
-    return [...this.byUser.values()].filter((s) => s.billingState === 'payment_failed' || s.billingState === 'suspended');
+    return this.billed().filter((s) => s.billingState === 'payment_failed' || s.billingState === 'suspended');
   }
   async listEnded(): Promise<SubscriptionRecord[]> {
-    return [...this.byUser.values()].filter((s) => s.billingState === 'ended');
+    return this.billed().filter((s) => s.billingState === 'ended');
+  }
+  async listFreeAccess(): Promise<Array<{ userId: string; since: number; by: string }>> {
+    return [...this.byUser.values()]
+      .filter((s) => s.freeAccessSince != null)
+      .map((s) => ({ userId: s.userId, since: s.freeAccessSince!, by: s.freeAccessBy ?? '' }))
+      .sort((a, b) => a.since - b.since);
   }
 }
 

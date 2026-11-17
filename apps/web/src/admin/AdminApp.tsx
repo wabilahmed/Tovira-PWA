@@ -4,6 +4,7 @@ import { AccessPanel } from './AccessPanel.js';
 import { CostsPanel } from './CostsPanel.js';
 import { LeadsPanel } from './LeadsPanel.js';
 import { FunnelPanel } from './FunnelPanel.js';
+import { FreeAccessPanel } from './FreeAccessPanel.js';
 import { Wordmark } from '../components/Wordmark.js';
 import { Banner, Button, EmptyState, Page, PageHeader, TextInput } from '../ui/index.js';
 
@@ -65,7 +66,7 @@ export function AdminApp({ api }: { api: AdminApi }): JSX.Element {
       </nav>
       {tab === 'leads' && <LeadsPanel api={api} onSignedOut={signedOut} />}
       {tab === 'funnel' && <FunnelPanel api={api} onSignedOut={signedOut} />}
-      {tab === 'access' && <AccessPanel api={api} onSignedOut={signedOut} />}
+      {tab === 'access' && <><AccessPanel api={api} onSignedOut={signedOut} /><FreeAccessPanel api={api} onSignedOut={signedOut} /></>}
       {tab === 'costs' && <CostsPanel api={api} onSignedOut={signedOut} />}
       {tab === 'audit' && <AuditPanel api={api} onSignedOut={signedOut} />}
     </AdminFrame>
@@ -184,6 +185,8 @@ const ACTION_LABEL: Record<string, string> = {
   'lead.requested': 'Sent the request form from the invite', 'access.auto_approve': 'Approved access automatically (invite link)',
   'admin.sign_in': 'Signed in', 'admin.sign_in_password': 'Password accepted', 'admin.sign_in_recovery_code': 'Signed in with a recovery code',
   'admin.2fa_enrolled': 'Turned on two-factor', 'admin.created': 'Admin account created', 'admin.reinvited': 'Admin link re-sent',
+  // [P72-2]
+  'free_access.grant': 'Gave free access', 'free_access.revoke': 'Revoked free access',
 };
 
 function AuditPanel({ api, onSignedOut }: { api: Pick<AdminApi, 'audit'>; onSignedOut: () => void }): JSX.Element {

@@ -66,7 +66,7 @@ resource "aws_ecs_task_definition" "api" {
       # [P72-1 · owner] WhatsApp: nothing switches on until the owner says so. MODE picks the test or real number;
       # INGEST_ENABLED=false keeps the webhook to Meta's verify check only; only the allowlist sees it in Settings.
       { name = "WHATSAPP_MODE", value = "test" },
-      { name = "WHATSAPP_INGEST_ENABLED", value = "false" },
+      { name = "WHATSAPP_INGEST_ENABLED", value = "true" },
       { name = "WHATSAPP_ALLOWED_EMAILS", value = "wabil@tovira.io" },
       { name = "WHATSAPP_TEST_DISPLAY_NUMBER", value = "+15556347941" },
       { name = "WHATSAPP_REAL_DISPLAY_NUMBER", value = "+971527949661" },

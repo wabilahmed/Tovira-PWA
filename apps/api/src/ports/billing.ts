@@ -46,6 +46,10 @@ export interface SubscriptionRecord {
   /** Billing name + optional company synced to the Stripe customer (INVOICE-DATA). Null until set. */
   billingName: string | null;
   billingCompany: string | null;
+  /** [P72-2 · owner] Admin "Give free access": when it was given (epoch ms) and by which admin. Null/absent = none.
+   *  Paid until revoked, with no Stripe subscription behind it; a paid, healthy Stripe subscription takes over. */
+  freeAccessSince?: number | null;
+  freeAccessBy?: string | null;
 }
 
 export interface SubscriptionPatch {
@@ -67,6 +71,8 @@ export interface SubscriptionPatch {
   currentPeriodStart?: number | null;
   billingName?: string | null;
   billingCompany?: string | null;
+  freeAccessSince?: number | null;
+  freeAccessBy?: string | null;
 }
 
 export interface SubscriptionRepository {
@@ -81,6 +87,9 @@ export interface SubscriptionRepository {
   listInDunning(): Promise<SubscriptionRecord[]>;
   /** [D8] Ended subscriptions — drives the 90-day retention deletion + its two warning emails. */
   listEnded(): Promise<SubscriptionRecord[]>;
+  /** [P72-2] Every account with free access, oldest first. listTrialing, listInDunning and listEnded leave these
+   *  out, so no trial email, failed-payment step or 90-day deletion ever acts on one. */
+  listFreeAccess(): Promise<Array<{ userId: string; since: number; by: string }>>;
 }
 
 export interface TrialGrantRepository {

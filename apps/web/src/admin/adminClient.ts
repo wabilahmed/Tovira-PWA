@@ -77,6 +77,8 @@ export interface LeadsView { leads: HotLead[]; newCount: number; countries: stri
   deliveryConnected?: boolean }
 export interface AuditEntry { adminEmail: string; action: string; target: string | null; detail: Record<string, unknown> | null; at: number }
 
+/** [P72-2] An account with free access from Admin (paid until revoked). */
+export interface FreeAccessAccount { email: string; since: number; by: string }
 export interface AdminApi {
   me(): Promise<{ email: string; stage: AdminStage } | null>;
   login(email: string, password: string): Promise<AdminStage>;
@@ -99,6 +101,10 @@ export interface AdminApi {
   addTestLead(t: { name: string; email: string; companyName?: string; jobTitle?: string }): Promise<HotLead>;
   /** Fetches a CSV with the admin cookie and saves it (costs or leads). */
   downloadCsv(path: string, filename: string): Promise<void>;
+  /** [P72-2] Give free access */
+  freeAccessList(): Promise<FreeAccessAccount[]>;
+  grantFreeAccess(email: string): Promise<FreeAccessAccount>;
+  revokeFreeAccess(email: string): Promise<void>;
 }
 
 /** A request failed with a message for the admin (e.g. "That code is not right."). */
@@ -147,6 +153,9 @@ export class HttpAdminClient implements AdminApi {
   previewInvite(id: string, personalLine: string) { return this.call<InvitePreview>('POST', `/leads/${encodeURIComponent(id)}/invite-email/preview`, { personalLine }); }
   async sendInvite(id: string, personalLine: string, resend: boolean) { return (await this.call<{ lead: HotLead }>('POST', `/leads/${encodeURIComponent(id)}/invite-email`, { personalLine, resend })).lead; }
   async addTestLead(t: { name: string; email: string; companyName?: string; jobTitle?: string }) { return (await this.call<{ lead: HotLead }>('POST', '/leads/test', t)).lead; }
+  async freeAccessList() { return (await this.call<{ accounts: FreeAccessAccount[] }>('GET', '/free-access')).accounts; }
+  async grantFreeAccess(email: string) { return (await this.call<{ account: FreeAccessAccount }>('POST', '/free-access', { email })).account; }
+  async revokeFreeAccess(email: string) { await this.call('POST', '/free-access/revoke', { email }); }
   async downloadCsv(path: string, filename: string): Promise<void> {
     const res = await fetch(`${this.baseUrl}/admin${path}`, { credentials: 'include' });
     if (res.status === 401) throw new AdminSignedOutError();

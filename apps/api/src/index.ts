@@ -780,6 +780,7 @@ async function main(): Promise<void> {
     adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },
     hotLeads,
     adminFunnel: { source: createFunnelSource(config, migrationPool) }, // [P63-6]
+    adminFreeAccessUsers: new PgUserRepository(appPool), // [P72-2] Admin → Give free access
     visits, // [P63-7]
     games, // [P71-T]
     visitLimiter: new FixedWindowRateLimiter(120, 60 * 60 * 1000), // [P63-7] one browser can't flood the counts

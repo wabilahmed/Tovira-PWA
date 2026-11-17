@@ -68,7 +68,10 @@ export function Billing({
   return (
     <section aria-label="Your plan">
       <h3 style={{ marginTop: 0 }}>Your plan</h3>
-      {status === 'active' ? (
+      {ent?.freeAccess === true && status === 'active' ? (
+        /* [P72-2 · owner] Free access from Admin: active, with no renewal date and no Manage (no Stripe subscription). */
+        <p data-testid="free-access">Free access from Tovira</p>
+      ) : status === 'active' ? (
         <>
           <p>You're subscribed. Thank you for keeping your book with Tovira.</p>
           {ent?.renewsAt != null && (
@@ -96,7 +99,7 @@ export function Billing({
       {error && <p role="alert" style={{ color: 'var(--claret)' }}>{error}</p>}
 
       {/* A failed payment updates its card (above) — subscribing again would start a second subscription. */}
-      {status !== 'active' && status !== 'past_due' && status !== 'payment_failed' && (
+      {status !== 'active' && status !== 'past_due' && status !== 'payment_failed' && ent?.freeAccess !== true && (
         <>
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="tov-primary" data-tour="subscribe" onClick={() => void subscribe('monthly')} disabled={busy}>

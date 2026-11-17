@@ -12,6 +12,7 @@ import type {
 import type { InvoiceTaxRepository } from '../../ports/invoice-tax-repository.js';
 import type { VatPolicy } from './vat.js';
 import { normalizeTrialEmailKey } from './trial-email-key.js';
+import { allowanceWindow } from '../spend/ai-period.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -47,6 +48,9 @@ export interface Entitlement {
   /** [BILLING-DUNNING · ruling 2] The Stripe hosted invoice page to pay the open invoice + do 3DS —
    *  the link every failed-payment banner/email uses. Null when there's nothing to pay. */
   hostedInvoiceUrl: string | null;
+  /** [P72-2] Set only while the account has free access from Admin (no Stripe subscription behind it): the
+   *  Subscription page says "Free access from Tovira" and offers no renewal date, Manage or Subscribe. */
+  freeAccess?: true;
 }
 
 /**
@@ -140,6 +144,25 @@ export class BillingService {
     return end <= nowMs ? end : null;
   }
 
+  /** [P72-2 · owner] Admin "Give free access": paid until revoked. Giving it again keeps the first date and giver.
+   *  An account with no subscription row gets one (its trial already over), so revoking leaves it unpaid. */
+  async grantFreeAccess(userId: string, by: string): Promise<void> {
+    const now = this.now();
+    const s = (await this.subs.get(userId)) ?? (await this.subs.create(userId, now));
+    if (s.freeAccessSince != null) return;
+    await this.subs.update(userId, { freeAccessSince: now, freeAccessBy: by });
+  }
+
+  /** [P72-2] Revoke: the account goes back to exactly what its Stripe or trial state says. */
+  async revokeFreeAccess(userId: string): Promise<void> {
+    await this.subs.update(userId, { freeAccessSince: null, freeAccessBy: null });
+  }
+
+  /** [P72-2] Who has free access, since when and who gave it (oldest first). */
+  async listFreeAccess(): Promise<Array<{ userId: string; since: number; by: string }>> {
+    return this.subs.listFreeAccess();
+  }
+
   /** Grant one free month (P5-6 referral) by pushing the trial end out 30 days.
    *  Returns false if the account doesn't exist — so an invalid referrer credits
    *  no one. */
@@ -153,6 +176,14 @@ export class BillingService {
   async entitlement(userId: string, nowMs: number): Promise<Entitlement> {
     const s = await this.subs.get(userId);
     if (!s) return { entitled: false, status: 'none', trialEndsAt: 0, renewsAt: null, periodStart: null, billingState: 'active', hostedInvoiceUrl: null };
+    // [P72-2 · owner] Free access from Admin: paid until revoked. A paid, healthy Stripe subscription takes over (it
+    // is shown as itself); anything else (a trial, an ended trial, a failed, suspended or ended subscription) is
+    // lifted while it lasts. The spend-cap and allowance month start on the day it was given and move on monthly,
+    // exactly like a monthly subscriber's (periodStart = the start of this month's window, never one period forever).
+    if (s.freeAccessSince != null && !(s.status === 'active' && s.billingState === 'active')) {
+      const periodStart = allowanceWindow({ status: 'active', trialEndsAt: null, renewsAt: null, periodStart: s.freeAccessSince }, nowMs).startMs;
+      return { entitled: true, status: 'active', trialEndsAt: s.trialEndsAt, renewsAt: null, periodStart, billingState: 'active', hostedInvoiceUrl: null, freeAccess: true };
+    }
     const renewsAt = s.currentPeriodEnd;
     const periodStart = s.currentPeriodStart;
     const base = { trialEndsAt: s.trialEndsAt, renewsAt, periodStart, billingState: s.billingState, hostedInvoiceUrl: s.hostedInvoiceUrl };

@@ -25,6 +25,7 @@ function api(stage: AdminStage | null, over: Partial<AdminApi> = {}): AdminApi {
     funnel: vi.fn(async () => ({ period: '30d' as const, since: null, rows: [], counts: { invitesSent: 0, linksOpened: 0, formsSubmitted: { invite: 0, public: 0, total: 0 }, approved: 0, passwordSet: 0, firstSignIn: 0, firstClient: 0 } })), // [P63-6]
     leads: vi.fn(async () => ({ leads: [], newCount: 0, countries: [], sync: { cursor: null, lastRunAt: null, lastStatus: null, banner: null } })),
     updateLead: vi.fn(), previewInvite: vi.fn(), sendInvite: vi.fn(), addTestLead: vi.fn(), downloadCsv: vi.fn(), // [P58 · owner] Invite to beta became the invite email
+    freeAccessList: vi.fn(async () => []), grantFreeAccess: vi.fn(), revokeFreeAccess: vi.fn(), // [P72-2]
     ...over,
   };
 }
@@ -91,6 +92,25 @@ describe('[P45-4] the console', () => {
     render(<AdminApp api={api('ok')} />);
     const row = await screen.findByTestId('audit-0');
     for (const t of ['wabil@tovira.io', 'Approved access', 'dana@x.ae']) expect(row).toHaveTextContent(t);
+  });
+
+  // [P72-2 · owner] Give free access lives on the Access tab, under the access requests.
+  it('the Access tab also shows Free access (give by email, list, revoke)', async () => {
+    window.history.replaceState({}, '', '/admin/access');
+    render(<AdminApp api={api('ok')} />);
+    expect(await screen.findByRole('region', { name: 'Free access' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Give free access' })).toBeInTheDocument();
+  });
+
+  it('the Audit tab names a free-access grant and revoke', async () => {
+    window.history.replaceState({}, '', '/admin/audit');
+    const at = Date.parse('2026-11-17T10:00:00Z');
+    render(<AdminApp api={api('ok', { audit: vi.fn(async () => [
+      { adminEmail: 'wabil@tovira.io', action: 'free_access.grant', target: 'dana@x.ae', detail: null, at },
+      { adminEmail: 'wabil@tovira.io', action: 'free_access.revoke', target: 'dana@x.ae', detail: null, at },
+    ]) })} />);
+    expect(await screen.findByTestId('audit-0')).toHaveTextContent('Gave free access');
+    expect(screen.getByTestId('audit-1')).toHaveTextContent('Revoked free access');
   });
 
   it('/admin opens Leads', async () => {

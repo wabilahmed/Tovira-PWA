@@ -450,6 +450,7 @@ export function buildInMemoryDeps(
     adminStore,
     adminAuth,
     adminRoute: { auth: adminAuth, store: adminStore, limiter: newAdminLimiter() },
+    adminFreeAccessUsers: authUsers, // [P72-2]
     clientOverview: new ClientOverviewService({ clients, ...surfacing, aliases: contactAliases, coldThresholdDays: 30, promiseStaleThresholdDays: 90 }),
     pool: stubPool,
     auth,

@@ -125,6 +125,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.decide.outputs.sha }}
+          fetch-depth: 0 # [P72-2] the reuse decision diffs the running image's commit with this one
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -135,6 +136,27 @@ jobs:
       - name: Log in to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
+
+      # [P72-2 · owner] Settings-only deploys ("no API image rebuild"): when nothing the API image is built from changed
+      # since the image the service is running, put this commit's tag on that same image (no build) and roll the latest
+      # task definition (the new settings) with it. Any doubt builds as before (scripts/ops/reuse-api-image.ts).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Reuse the running image when the API image is unchanged (settings-only change)
+        id: reuse
+        env:
+          SHA: ${{ env.IMAGE_SHA }}
+        run: |
+          TD=$(aws ecs describe-services --cluster "tovira-${DEPLOY_ENV}" --services "tovira-${DEPLOY_ENV}-api" --query 'services[0].taskDefinition' --output text 2>/dev/null || true)
+          RUNNING_IMAGE=""
+          if [ -n "$TD" ] && [ "$TD" != "None" ]; then
+            RUNNING_IMAGE=$(aws ecs describe-task-definition --task-definition "$TD" --query 'taskDefinition.containerDefinitions[0].image' --output text 2>/dev/null || true)
+          fi
+          echo "running image: ${RUNNING_IMAGE:-none}"
+          RUNNING_IMAGE="$RUNNING_IMAGE" npx tsx scripts/ops/reuse-api-image.ts
 
       # The ECS task runs on ARM64 (Graviton), so the image must be arm64. The
       # runner is amd64, so cross-build with QEMU + buildx.
@@ -151,6 +173,16 @@ jobs:
           # yet (makes re-runs of the same commit safe). No 'latest' tag.
           if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="${IMAGE_SHA}" >/dev/null 2>&1; then
             echo "image ${IMAGE_SHA} already in ECR — reusing it"
+          elif [ "${{ steps.reuse.outputs.reuse }}" = "1" ] && [ -n "${{ steps.reuse.outputs.from }}" ]; then
+            # [P72-2] same image, new tag: copy the running image's manifest (index or single) under this commit's tag.
+            FROM="${{ steps.reuse.outputs.from }}"
+            TYPES='["application/vnd.oci.image.index.v1+json","application/vnd.docker.distribution.manifest.list.v2+json","application/vnd.oci.image.manifest.v1+json","application/vnd.docker.distribution.manifest.v2+json"]'
+            aws ecr batch-get-image --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$FROM" --accepted-media-types "$TYPES" --output json > manifest.json
+            MANIFEST=$(jq -r '.images[0].imageManifest' manifest.json)
+            MEDIA=$(jq -r '.images[0].imageManifestMediaType' manifest.json)
+            if [ -z "$MANIFEST" ] || [ "$MANIFEST" = "null" ]; then echo "::error::could not read the running image ${FROM}"; exit 1; fi
+            aws ecr put-image --repository-name "$ECR_REPOSITORY" --image-tag "${IMAGE_SHA}" --image-manifest "$MANIFEST" --image-manifest-media-type "$MEDIA" >/dev/null
+            echo "image ${FROM} retagged as ${IMAGE_SHA} (no build)"
           else
             docker buildx build --platform linux/arm64 -f docker/api.prod.Dockerfile -t "$IMAGE" --push .
           fi

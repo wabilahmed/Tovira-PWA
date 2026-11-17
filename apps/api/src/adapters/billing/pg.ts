@@ -33,10 +33,12 @@ interface SubRow {
   deletion_warned_30d: boolean;
   deletion_warned_7d: boolean;
   ended_at: Date | null;
+  free_access_since: Date | null;
+  free_access_by: string | null;
 }
 // [TRIAL-14] trial_extended is intentionally NOT selected/written — the usage-gated extension is gone
 // (flat 14-day trial). The column is left in the DB (orphaned, reported), so this list simply omits it.
-const SUB_COLS = 'user_id, status, trial_ends_at, stripe_customer_id, stripe_subscription_id, current_period_end, current_period_start, billing_name, billing_company, billing_state, first_failed_at, last_retry_at, open_invoice_id, hosted_invoice_url, hard_decline_count, auth_required_count, deletion_warned_30d, deletion_warned_7d, ended_at';
+const SUB_COLS = 'user_id, status, trial_ends_at, stripe_customer_id, stripe_subscription_id, current_period_end, current_period_start, billing_name, billing_company, billing_state, first_failed_at, last_retry_at, open_invoice_id, hosted_invoice_url, hard_decline_count, auth_required_count, deletion_warned_30d, deletion_warned_7d, ended_at, free_access_since, free_access_by';
 const ms = (d: Date | null): number | null => (d ? d.getTime() : null);
 function toSub(r: SubRow): SubscriptionRecord {
   return {
@@ -59,6 +61,8 @@ function toSub(r: SubRow): SubscriptionRecord {
     deletionWarned30d: r.deletion_warned_30d,
     deletionWarned7d: r.deletion_warned_7d,
     endedAt: ms(r.ended_at),
+    freeAccessSince: ms(r.free_access_since),
+    freeAccessBy: r.free_access_by,
   };
 }
 
@@ -109,6 +113,8 @@ export class PgSubscriptionRepository implements SubscriptionRepository {
     if (patch.deletionWarned30d !== undefined) push('deletion_warned_30d = $?', patch.deletionWarned30d);
     if (patch.deletionWarned7d !== undefined) push('deletion_warned_7d = $?', patch.deletionWarned7d);
     if (patch.endedAt !== undefined) push(patch.endedAt === null ? 'ended_at = $?' : 'ended_at = to_timestamp($? / 1000.0)', patch.endedAt);
+    if (patch.freeAccessSince !== undefined) push(patch.freeAccessSince === null ? 'free_access_since = $?' : 'free_access_since = to_timestamp($? / 1000.0)', patch.freeAccessSince);
+    if (patch.freeAccessBy !== undefined) push('free_access_by = $?', patch.freeAccessBy);
     if (sets.length === 0) return;
     params.push(userId);
     await this.pool.query(`UPDATE subscriptions SET ${sets.join(', ')} WHERE user_id = $${params.length}`, params);
@@ -116,7 +122,7 @@ export class PgSubscriptionRepository implements SubscriptionRepository {
 
   async listTrialing(): Promise<Array<{ userId: string; trialEndsAt: number }>> {
     const { rows } = await this.pool.query<{ user_id: string; trial_ends_at: Date }>(
-      `SELECT user_id, trial_ends_at FROM subscriptions WHERE status = 'trialing'`,
+      `SELECT user_id, trial_ends_at FROM subscriptions WHERE status = 'trialing' AND free_access_since IS NULL`,
     );
     return rows.map((r) => ({ userId: r.user_id, trialEndsAt: r.trial_ends_at.getTime() }));
   }
@@ -127,13 +133,20 @@ export class PgSubscriptionRepository implements SubscriptionRepository {
   }
 
   async listInDunning(): Promise<SubscriptionRecord[]> {
-    const { rows } = await this.pool.query<SubRow>(`SELECT ${SUB_COLS} FROM subscriptions WHERE billing_state IN ('payment_failed', 'suspended')`);
+    const { rows } = await this.pool.query<SubRow>(`SELECT ${SUB_COLS} FROM subscriptions WHERE billing_state IN ('payment_failed', 'suspended') AND free_access_since IS NULL`);
     return rows.map(toSub);
   }
 
   async listEnded(): Promise<SubscriptionRecord[]> {
-    const { rows } = await this.pool.query<SubRow>(`SELECT ${SUB_COLS} FROM subscriptions WHERE billing_state = 'ended'`);
+    const { rows } = await this.pool.query<SubRow>(`SELECT ${SUB_COLS} FROM subscriptions WHERE billing_state = 'ended' AND free_access_since IS NULL`);
     return rows.map(toSub);
+  }
+
+  async listFreeAccess(): Promise<Array<{ userId: string; since: number; by: string }>> {
+    const { rows } = await this.pool.query<{ user_id: string; free_access_since: Date; free_access_by: string | null }>(
+      'SELECT user_id::text AS user_id, free_access_since, free_access_by FROM subscriptions WHERE free_access_since IS NOT NULL ORDER BY free_access_since',
+    );
+    return rows.map((r) => ({ userId: r.user_id, since: r.free_access_since.getTime(), by: r.free_access_by ?? '' }));
   }
 }
 

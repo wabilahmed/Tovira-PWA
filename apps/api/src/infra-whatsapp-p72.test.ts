@@ -19,9 +19,11 @@ describe('[P72-1] ecs.tf', () => {
   it('maps all seven keys from the app secret, by these exact names', () => {
     for (const k of SEVEN) expect(ecs, k).toContain(`{ name = "${k}", valueFrom = "\${aws_secretsmanager_secret.app.arn}:${k}::" }`);
   });
-  it('sets WHATSAPP_MODE=test and WHATSAPP_INGEST_ENABLED=false as plain settings (nothing switches on)', () => {
+  // [P72-2 · owner] Switch 1: "WHATSAPP_INGEST_ENABLED = true, allowlist still only me" (was false in P72-1, when
+  // nothing was switched on). The mode stays test; the allowlist pin below is unchanged.
+  it('sets WHATSAPP_MODE=test and WHATSAPP_INGEST_ENABLED=true as plain settings (switch 1: ingest on, test number)', () => {
     expect(plain('WHATSAPP_MODE')).toBe('test');
-    expect(plain('WHATSAPP_INGEST_ENABLED')).toBe('false');
+    expect(plain('WHATSAPP_INGEST_ENABLED')).toBe('true');
   });
   it("the allowlist is the owner's account only", () => {
     expect(plain('WHATSAPP_ALLOWED_EMAILS')).toBe('wabil@tovira.io');
@@ -31,7 +33,7 @@ describe('[P72-1] ecs.tf', () => {
     const test = whatsappConfigFrom(env);
     expect(activeNumber(test).displayNumber).toMatch(/^\+1555\d{7}$/);
     expect(activeNumber(whatsappConfigFrom({ ...env, WHATSAPP_MODE: 'real' })).displayNumber).toMatch(/^\+971\d{8,9}$/);
-    expect(test.enabled).toBe(false);
+    expect(test.enabled).toBe(true);
     expect(whatsappAllowed(test, 'wabil@tovira.io')).toBe(true);
     expect(whatsappAllowed(test, 'someone@example.com')).toBe(false);
   });

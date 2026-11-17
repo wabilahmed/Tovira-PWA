@@ -30,6 +30,7 @@ import type { ImageRepository } from './ports/image-repository.js';
 import type { HeroService } from './services/hero/hero-service.js';
 import type { PrioritiesService } from './services/hero/priorities-service.js';
 import type { BillingService } from './services/billing/billing-service.js';
+import type { UserRepository } from './ports/user-repository.js';
 import type { AccountService } from './services/account/account-service.js';
 import type { ActivationService } from './services/analytics/activation-service.js';
 import { handleAuthRoute } from './http/auth-routes.js';
@@ -84,6 +85,7 @@ import type { LeadInviteService } from './services/leads/lead-invite-service.js'
 import type { AdminEvents } from './services/access/admin-events.js';
 import { adminLeadsRoute } from './http/admin-leads-routes.js';
 import { adminFunnelRoute } from './http/admin-funnel-routes.js';
+import { adminFreeAccessRoute } from './http/admin-free-access-routes.js';
 import { handleVisitRoute, handleGameEventRoute } from './http/visit-routes.js';
 import type { GameEvents } from './services/visits/game-events.js';
 import { handleProcessingRoute } from './http/processing-routes.js';
@@ -269,6 +271,8 @@ export interface ApiDeps {
   games?: GameEvents;
   /** [P63-6] Admin → Funnel: the funnel's rows (owner plane). */
   adminFunnel?: { source: FunnelSource; now?: () => number };
+  /** [P72-2] Admin → Give free access: looks an account up by email (and back, for the list). */
+  adminFreeAccessUsers?: Pick<UserRepository, 'findByEmail' | 'findById'>;
   /** [P45-3] hot leads (owner plane) for the console's Leads tab. */
   hotLeads?: HotLeadsStore;
   /** [P45-3] where Invite to beta writes the pending request. */
@@ -409,6 +413,7 @@ export function createApiServer(deps: ApiDeps): Server {
           ...(costs ? [adminCostsRoute(costs)] : []),
           ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, invites: deps.leadInvites, deliveryConnected: !!deps.resendWebhookSecret })] : []),
           ...(deps.adminFunnel ? [adminFunnelRoute({ ...deps.adminFunnel, visits: deps.visits, games: deps.games })] : []),
+          ...(deps.adminFreeAccessUsers ? [adminFreeAccessRoute({ billing: deps.billing, users: deps.adminFreeAccessUsers })] : []),
         ];
         if (await handleAdminRoute(request, response, { ...deps.adminRoute, extra, cookieSecure })) return;
       }
