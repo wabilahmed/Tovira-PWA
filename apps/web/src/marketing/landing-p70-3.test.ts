@@ -14,6 +14,9 @@ import { WORLDS, GAMES, MARQ_A, MARQ_B } from './landing-data.js';
  * really decides", and the marquee gains the new detail.
  * [P71 · owner] The 5-chat game is replaced by the pick-your-industry game (30 chats). The old chat-by-chat pins move
  * to its B2B, Insurance and Luxury chats where the lines carried over; the design-file match now covers all 30 chats.
+ * [P73 · owner] Every message is in sentence case, so the carried-over lines start with a capital; the traffic line in
+ * Luxury chat 4 is now the trap "The traffic was insane on the way back" (small talk, with its reason). The design's
+ * data now starts with the five trap reasons, so the parse reads from there.
  */
 const chat = (label: string, n: number) => GAMES.find((g) => g.label === label)!.chats[n]!;
 const ref = readFileSync(resolve(process.cwd(), 'plan/tovira-landing-reference.dc.html'), 'utf8');
@@ -22,13 +25,13 @@ const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8')
 describe('[P70-3] the owner\'s game edits, as carried into the P71 game', () => {
   it('the B2B lines carry over word for word (B2B chats 2 and 3)', () => {
     const c = chat('B2B accounts', 2);
-    expect(c).toContainEqual({ t: "our last vendor's support was painfully slow", sig: 'Worried about slow support', why: 'This is their real objection. Answer it before they raise it and the biggest reason to say no is gone.' });
-    expect(c).toContainEqual({ t: "we'd need a named account manager in the SLA this time", sig: 'Wants a named account manager', why: 'A requirement said once, in passing. Put it in the proposal and you have answered a no before they say it.' });
-    expect(chat('B2B accounts', 1)).toContainEqual({ t: 'send the revised SLA before the board on the 14th', sig: 'Board meets on the 14th', why: 'A deadline you did not set. Get it in late and the decision slips to next quarter.' });
+    expect(c).toContainEqual({ t: "Our last vendor's support was painfully slow", sig: 'Worried about slow support', why: 'This is their real objection. Answer it before they raise it and the biggest reason to say no is gone.' });
+    expect(c).toContainEqual({ t: "We'd need a named account manager in the SLA this time", sig: 'Wants a named account manager', why: 'A requirement said once, in passing. Put it in the proposal and you have answered a no before they say it.' });
+    expect(chat('B2B accounts', 1)).toContainEqual({ t: 'Send the revised SLA before the board on the 14th', sig: 'Board meets on the 14th', why: 'A deadline you did not set. Get it in late and the decision slips to next quarter.' });
   });
   it('no promise is shown as chatter, and the Europe line carries over (Insurance chat 2)', () => {
     for (const g of GAMES) for (const c of g.chats) expect(c.filter((m) => !m.sig).map((m) => m.t).join(' ')).not.toMatch(/will call|call you/i);
-    expect(chat('Insurance', 1)[1]).toEqual({ t: "can we sign after I'm back? I'm in Europe most months for work, so the cover has to work there too", sig: 'Travels to Europe most months', why: "A policy that only covers home won't fit his life. Cover for Europe is what makes your offer the right one." });
+    expect(chat('Insurance', 1)[0]).toEqual({ t: "Can we sign after I'm back? I'm in Europe most months for work, so the cover has to work there too", sig: 'Travels to Europe most months', why: "A policy that only covers home won't fit his life. Cover for Europe is what makes your offer the right one." });
   });
   it('no hidden decision-maker in the game: How it works and the marquee say so', () => {
     for (const g of GAMES) for (const c of g.chats) expect(c.map((m) => m.t)).not.toContain('our MD will sign, but honestly the CFO makes the call');
@@ -39,16 +42,16 @@ describe('[P70-3] the owner\'s game edits, as carried into the P71 game', () => 
   });
   it('the Insurance tab move and the traffic chatter', () => {
     expect(WORLDS.find((w) => w.label === 'Insurance')!.move).toBe('Bring a policy that covers Europe too.');
-    expect(chat('Luxury', 3)[1]).toEqual({ t: 'the traffic was insane haha' });
+    expect(chat('Luxury', 3)[0]).toEqual({ t: 'The traffic was insane on the way back', why: 'Small talk. Nothing to act on.' });
   });
 });
 
 describe('[P70-3] the design file matches the live page', () => {
   it('every game chat (all 30), detail and reason, and every tab line, is in the design file word for word', () => {
     // [P71] all 30 chats, in order: the design's games array, parsed, is exactly the page's data
-    const i = ref.indexOf('const games = [');
-    const games = new Function(ref.slice(i, ref.indexOf('\n    ];', i) + 7) + '; return games;')() as Array<{ label: string; chats: string[][][] }>;
-    expect(games.map((g) => ({ label: g.label, chats: g.chats.map((c) => c.map(([t, sig, why]) => (sig ? { t, sig, why } : { t }))) }))).toEqual(GAMES);
+    const i = ref.indexOf('const POL = '); // [P73] the five trap reasons come first
+    const games = new Function(ref.slice(i, ref.indexOf('\n    ];', ref.indexOf('const games = [', i)) + 7) + '; return games;')() as Array<{ label: string; chats: Array<Array<string | null>>[] }>;
+    expect(games.map((g) => ({ label: g.label, chats: g.chats.map((c) => c.map(([t, sig, why]) => (sig ? { t, sig, why } : { t, why }))) }))).toEqual(GAMES);
     for (const w of WORLDS) for (const s of [w.before, w.buried, w.after, w.caught, w.move]) expect(ref, s).toContain(s);
     expect(ref).toContain("What they care about, what they're worried about, every date and promise.");
     // [P71 · owner] the marquee entry now reads "Wife wears gold, never silver", to match Luxury chat 2

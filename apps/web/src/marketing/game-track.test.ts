@@ -30,6 +30,8 @@ const mount = () => {
 const click = (card: HTMLElement, sel: string) => card.querySelector<HTMLElement>(sel)!.click();
 const pick = (card: HTMLElement, label: string) => [...card.querySelectorAll<HTMLElement>('[data-act="start"]')].find((b) => b.textContent === label)!.click();
 const sigIdx = (gi: number, r: number) => GAMES[gi]!.chats[r]!.flatMap((m, i) => (m.sig ? [i] : []));
+// [P73] a chat's first trap (message 1 is no longer always chatter)
+const trapIdx = (gi: number, r: number) => GAMES[gi]!.chats[r]!.findIndex((m) => !m.sig);
 const ALLOWED = ['event', 'industry', 'chat', 'caught', 'details', 'wrong', 'bucket'];
 
 describe('[P71-T] game events fire once per action', () => {
@@ -49,7 +51,7 @@ describe('[P71-T] game events fire once per action', () => {
     // chat 1: one detail of two, then a wrong tap
     click(card, `.tv-msg[data-i="${sigIdx(2, 0)[0]}"]`);
     expect(sent).toHaveLength(1); // a correct tap is not an event
-    click(card, '.tv-msg[data-i="0"]');
+    click(card, `.tv-msg[data-i="${trapIdx(2, 0)}"]`);
     expect(sent.at(-1)).toEqual({ event: 'chat_done', industry: 'Wealth', chat: 1, caught: 1, details: 2, wrong: true });
     click(card, '[data-act="next"]');
     for (let r = 1; r < 5; r++) {
@@ -67,7 +69,7 @@ describe('[P71-T] game events fire once per action', () => {
     expect(JSON.parse(sessionStorage.getItem(GAME_CTA_KEY)!)).toEqual({ industry: 'Wealth', bucket: '10-11' });
     click(card, '[data-act="replay"]');
     expect(sent.at(-1)).toEqual({ event: 'game_replay', industry: 'Wealth' });
-    for (let r = 0; r < 5; r++) { click(card, '.tv-msg[data-i="0"]'); click(card, '[data-act="next"]'); }
+    for (let r = 0; r < 5; r++) { click(card, `.tv-msg[data-i="${trapIdx(2, r)}"]`); click(card, '[data-act="next"]'); }
     expect(sent.at(-1)).toEqual({ event: 'game_done', industry: 'Wealth', bucket: '0-3' });
     click(card, '[data-act="switch"]');
     expect(sent.at(-1)).toEqual({ event: 'game_switch' });

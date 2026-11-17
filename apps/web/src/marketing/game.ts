@@ -1,7 +1,9 @@
 /**
  * [P71 · owner] "Would you have caught it?": the pick-your-industry landing game, ported from renderVals() in the
  * approved design (plan/tovira-landing-reference.dc.html). Pick an industry, play its 5 chats. A wrong tap ends the chat
- * and reveals every missed detail; finding every detail ends it too. Score = details caught, out of the industry's 12.
+ * and reveals every missed detail; finding every detail ends it too. Score = details caught, out of the industry's total.
+ * [P73 · owner] 5 messages per chat, 1 to 3 details; a wrong tap says "Not a buying signal" with its "Why not" reason,
+ * the other traps "Not a signal"; HOW IT WORKS in 5 steps; a smaller card (Blocks A and C of the design, word for word).
  * Pure state logic plus HTML-string views, so the same code renders the prerendered pick screen in index.html (pinned
  * by a test) and every state after it in the browser. No libraries.
  */
@@ -52,15 +54,15 @@ export function rankFor(score: number, max: number): { rank: string; rankLine: s
 }
 
 export type MsgState = 'idle' | 'hit' | 'wrong' | 'missed' | 'chatter';
-export interface MsgView { t: string; st: MsgState; style: string; tag: string; tagStyle: string; hasTag: boolean; why: string; hasWhy: boolean; anim: string; pressed: 'true' | 'false'; disabled: boolean }
+export interface MsgView { t: string; st: MsgState; style: string; tag: string; tagStyle: string; hasTag: boolean; why: string; whyLabel: string; hasWhy: boolean; anim: string; pressed: 'true' | 'false'; disabled: boolean }
 export interface GameView {
   phase: Phase; industries: string[]; industryLabel: string; industryUpper: string; header: string; roundNo: number;
   msgs: MsgView[]; done: boolean; roundLine: string; roundSub: string; roundDots: string[]; scoreDots: string[];
   score: number; maxScore: number; nextLabel: string; rank: string; rankLine: string;
 }
 
-const BASE = 'display:block;width:100%;min-height:52px;padding:12px 16px;border-radius:16px 16px 16px 4px;';
-const MONO = 'display:inline-block;margin-top:8px;font-family:"JetBrains Mono","JetBrains Mono Fallback",monospace;font-size:12px;letter-spacing:.06em;';
+const BASE = 'display:block;width:100%;min-height:46px;padding:10px 14px;border-radius:14px 14px 14px 4px;';
+const MONO = 'display:inline-block;margin-top:6px;font-family:"JetBrains Mono","JetBrains Mono Fallback",monospace;font-size:12px;letter-spacing:.06em;';
 const MSG_STYLES: Record<MsgState, string> = {
   idle: BASE + 'background:#2A2521;color:#F2EDE4;border:1px solid #332D28',
   hit: BASE + 'background:rgba(232,100,58,.16);color:#FFD9C9;border:1px solid ' + ACCENT + ';box-shadow:0 0 28px rgba(232,100,58,.25)',
@@ -93,10 +95,10 @@ export function view(s: GameState): GameView {
     else if (tapped) st = 'wrong';
     else if (done && m.sig) st = 'missed';
     else if (done) st = 'chatter';
-    const tags: Record<MsgState, string> = { idle: '', hit: '+1 · ' + m.sig, wrong: 'Your tap: just chatter. That ended this chat.', missed: 'You missed it: ' + m.sig, chatter: 'Chatter' };
+    const tags: Record<MsgState, string> = { idle: '', hit: '+1 · ' + m.sig, wrong: 'Not a buying signal. That ended this chat.', missed: 'You missed it: ' + m.sig, chatter: 'Not a signal' };
     return {
       t: m.t, st, style: MSG_STYLES[st], tag: tags[st], tagStyle: TAG_STYLES[st], hasTag: st !== 'idle', why: m.why ?? '',
-      hasWhy: st === 'hit' || st === 'missed', anim: st === 'wrong' && s.shakeAt === i ? 'tv-shake' : '', pressed: tapped ? 'true' : 'false', disabled: tapped || done,
+      whyLabel: m.sig ? 'Why it counts: ' : 'Why not: ', hasWhy: st === 'hit' || st === 'missed' || st === 'wrong', anim: st === 'wrong' && s.shakeAt === i ? 'tv-shake' : '', pressed: tapped ? 'true' : 'false', disabled: tapped || done,
     };
   });
   const all = (n: number) => (n === 1 ? 'it' : n === 2 ? 'both' : 'all ' + n);
@@ -120,29 +122,31 @@ const MONO_FAMILY = "'JetBrains Mono', 'JetBrains Mono Fallback', monospace";
 const SERIF_FAMILY = "Fraunces, 'Fraunces Fallback', Georgia, serif";
 
 export function pickHtml(v: GameView): string {
-  return `<div style="display: flex; flex-direction: column; gap: 18px">`
-    + `<p style="margin: 0; font-size: 16px; line-height: 1.55; color: #F2EDE4">Your clients drop details that win deals. Most reps scroll right past them. Let's see how many you catch.</p>`
-    + `<div style="background: #171412; border: 1px solid #332D28; border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">`
-    + `<div style="font-family: ${MONO_FAMILY}; font-size: 12px; letter-spacing: 0.14em; color: #A79E92">HOW TO PLAY</div>`
-    + `<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.5; color: #CFC6BA">`
-    + `<li>Pick your industry. You get <strong style="color: #F2EDE4">5 short client chats</strong>.</li>`
-    + `<li>Tap every message that hides a detail that would help you close: a preference, a budget, a deadline, a worry.</li>`
-    + `<li><strong style="color: #F2EDE4">A chat can have more than one detail.</strong> You won't know how many.</li>`
-    + `<li>Tap a message with nothing useful in it and that chat ends. We'll show you what you missed.</li>`
+  const b = 'style="color: #F2EDE4"';
+  return `<div style="display: flex; flex-direction: column; gap: 14px">`
+    + `<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #F2EDE4">A quick test of how well you read client chats. Clients drop details that win deals, usually between the small talk. Most reps scroll right past them.</p>`
+    + `<div style="background: #171412; border: 1px solid #332D28; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">`
+    + `<div style="font-family: ${MONO_FAMILY}; font-size: 11px; letter-spacing: 0.14em; color: #A79E92">HOW IT WORKS</div>`
+    + `<ol style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.45; color: #CFC6BA">`
+    + `<li>Choose your industry. You get <strong ${b}>5 client chats</strong>, each with <strong ${b}>5 messages</strong>.</li>`
+    + `<li>Tap every message with a detail that would help you close: something specific to this client, like what they love, their budget, a deadline, a worry or who else has a say.</li>`
+    + `<li>Skip the rest. Polite replies, scheduling and things every client says don't count, however good they sound.</li>`
+    + `<li><strong ${b}>Every chat has at least one useful detail, and some have up to three.</strong> You won't know how many.</li>`
+    + `<li><strong ${b}>One wrong tap ends that chat.</strong> We then show every detail you missed, and why each one matters.</li>`
     + `</ol>`
-    + `<div style="font-size: 14px; color: #A79E92">One point for every detail you catch.</div>`
+    + `<div style="font-size: 13px; color: #A79E92">One point per detail caught. Your score shows at the end.</div>`
     + `</div>`
-    + `<div style="font-family: ${MONO_FAMILY}; font-size: 12px; letter-spacing: 0.14em; color: #A79E92">CHOOSE YOUR INDUSTRY</div>`
-    + `<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">`
-    + v.industries.map((label, i) => `<button class="tv-btn tv-msg" type="button" data-act="start" data-gi="${i}" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 16px; padding: 14px 16px; min-height: 56px; font-size: 16px; font-weight: 600; text-align: left">${esc(label)}</button>`).join('')
+    + `<div style="font-family: ${MONO_FAMILY}; font-size: 11px; letter-spacing: 0.14em; color: #A79E92">CHOOSE YOUR INDUSTRY</div>`
+    + `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px">`
+    + v.industries.map((label, i) => `<button class="tv-btn tv-msg" type="button" data-act="start" data-gi="${i}" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">${esc(label)}</button>`).join('')
     + `</div>`
     + `</div>`;
 }
 
 export function msgInner(m: MsgView): string {
-  return `<span style="display: block; font-size: 16px; line-height: 1.45">${esc(m.t)}</span>`
+  return `<span style="display: block; font-size: 15px; line-height: 1.4">${esc(m.t)}</span>`
     + (m.hasTag ? `<span class="tv-pop" style="${esc(m.tagStyle)}">${esc(m.tag)}</span>` : '')
-    + (m.hasWhy ? `<span class="tv-pop" style="display: block; margin-top: 8px; font-size: 14px; line-height: 1.5; color: #CFC6BA"><span style="font-weight: 600; color: #F2EDE4">Why it counts: </span>${esc(m.why)}</span>` : '');
+    + (m.hasWhy ? `<span class="tv-pop" style="display: block; margin-top: 6px; font-size: 13px; line-height: 1.5; color: #CFC6BA"><span style="font-weight: 600; color: #F2EDE4">${esc(m.whyLabel)}</span>${esc(m.why)}</span>` : '');
 }
 
 export function msgButton(m: MsgView, i: number): string {
@@ -158,13 +162,13 @@ export function resultHtml(v: GameView): string {
 }
 
 export function playHtml(v: GameView): string {
-  return `<div style="display: flex; flex-direction: column; gap: 16px">`
+  return `<div style="display: flex; flex-direction: column; gap: 12px">`
     + `<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px">`
-    + `<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-weight: 600; font-size: 16px">${esc(v.header)}</div><div style="font-size: 12px; color: #A79E92">Tap every message with a useful detail. There may be more than one.</div></div>`
+    + `<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-weight: 600; font-size: 15px">${esc(v.header)}</div><div style="font-size: 12px; color: #A79E92">Tap every useful detail. At least one, maybe more.</div></div>`
     + `<span data-g="score" style="background: ${ACCENT}; color: #171412; border-radius: 999px; padding: 7px 12px; font-family: ${MONO_FAMILY}; font-size: 12px; letter-spacing: 0.08em; font-weight: 600">SCORE ${v.score}</span>`
     + `</div>`
     + `<div data-g="dots" style="display: flex; gap: 6px" aria-hidden="true">${v.roundDots.map((d) => `<div style="${d}"></div>`).join('')}</div>`
-    + `<div data-g="msgs" style="display: flex; flex-direction: column; gap: 10px">${v.msgs.map(msgButton).join('')}</div>`
+    + `<div data-g="msgs" style="display: flex; flex-direction: column; gap: 8px">${v.msgs.map(msgButton).join('')}</div>`
     + `<div data-g="result" aria-live="polite" style="min-height: 24px">${resultHtml(v)}</div>`
     + `</div>`;
 }

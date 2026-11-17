@@ -77,7 +77,25 @@ test('reduced motion: nothing is animating', async ({ page }) => {
 });
 
 // [P71 · owner] The pick-your-industry game: pick Property, play chat 1 perfectly, fail chat 2 on purpose (the reveal and
-// the lock), finish, then Try another industry. Property's details, from landing-data.ts: chat 1 [1], chat 2 [1, 3].
+// the lock), finish, then Try another industry.
+// [P73 · owner] 5 messages per chat, believable traps. Property's details, from landing-data.ts: chat 1 [1], chat 2 [0, 2];
+// message 1 is a trap in chats 2 to 5. A wrong tap says "Not a buying signal" and "Why not:"; the other traps "Not a signal".
+test('[P73] 1440x900: the pick screen fits inside the hero without scrolling', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' }); // the screenshot shows the settled page, not the fade-in
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  const game = await page.locator('#game').boundingBox();
+  const hero = await page.locator('#top').boundingBox();
+  expect(game!.y).toBeGreaterThanOrEqual(0);
+  expect(game!.y + game!.height).toBeLessThanOrEqual(900);
+  expect(game!.y + game!.height).toBeLessThanOrEqual(hero!.y + hero!.height);
+  expect(game!.width).toBeLessThanOrEqual(500);
+  await expect(page.locator('[data-game] [data-act="start"]')).toHaveCount(6);
+  const cols = await page.locator('[data-game] [data-act="start"]').evaluateAll((bs) => new Set(bs.map((b) => Math.round(b.getBoundingClientRect().x))).size);
+  expect(cols).toBe(3); // 3 columns on desktop
+  await shot(page, 'p73-pick-1440-viewport');
+});
+
 for (const width of [390, 1440]) {
   test(`${width}px: pick Property, a perfect chat, a failed chat reveals and locks, the end screen, try another`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -87,38 +105,41 @@ for (const width of [390, 1440]) {
     await page.goto('/#game');
     const card = page.locator('[data-game]');
     await expect(card.getByRole('button')).toHaveCount(6);
-    await shot(page, `p71-pick-${width}`, { el: card });
+    await shot(page, `p73-pick-${width}`, { el: card });
     await card.getByRole('button', { name: 'Property' }).click();
     await expect(card).toContainText('Property client · chat 1 of 5');
+    await expect(card).toContainText('Tap every useful detail. At least one, maybe more.');
     const msgs = card.locator('button.tv-msg');
+    await expect(msgs).toHaveCount(5);
     await msgs.nth(1).click();
     await expect(msgs.nth(1)).toHaveAttribute('aria-pressed', 'true');
     await expect(msgs.nth(1)).toContainText('+1 · Needs 3+ bedrooms');
     await expect(msgs.nth(1)).toContainText('Why it counts:');
-    await shot(page, `p71-correct-tap-${width}`, { el: card });
+    await shot(page, `p73-correct-tap-${width}`, { el: card });
     await expect(card.locator('[aria-live="polite"]')).toContainText('You caught it.');
-    for (const i of [0, 2, 3]) { await expect(msgs.nth(i)).toContainText('Chatter'); await expect(msgs.nth(i)).toBeDisabled(); }
+    for (const i of [0, 2, 3, 4]) { await expect(msgs.nth(i)).toContainText('Not a signal'); await expect(msgs.nth(i)).toBeDisabled(); }
     await card.locator('[data-act="next"]').click();
     await expect(card).toContainText('Property client · chat 2 of 5');
-    await msgs.nth(2).click(); // "haha yes": chatter ends the chat
-    await expect(msgs.nth(2)).toContainText('Your tap: just chatter. That ended this chat.');
-    for (const i of [1, 3]) { await expect(msgs.nth(i)).toContainText('You missed it:'); await expect(msgs.nth(i)).toContainText('Why it counts:'); }
-    await expect(msgs.nth(0)).toContainText('Chatter');
+    await msgs.nth(1).click(); // "Can we move the viewing to 6pm instead?": a logistics trap ends the chat
+    await expect(msgs.nth(1)).toContainText('Not a buying signal. That ended this chat.');
+    await expect(msgs.nth(1)).toContainText('Why not: Logistics. Handle it, but it will not change what you offer.');
+    for (const i of [0, 2]) { await expect(msgs.nth(i)).toContainText('You missed it:'); await expect(msgs.nth(i)).toContainText('Why it counts:'); }
+    for (const i of [3, 4]) { await expect(msgs.nth(i)).toContainText('Not a signal'); await expect(msgs.nth(i)).not.toContainText('Why not:'); }
     for (let i = 0; i < 5; i++) await expect(msgs.nth(i)).toBeDisabled();
     await expect(card.locator('[aria-live="polite"]')).toContainText('You missed both.');
     await expect(card.locator('[aria-live="polite"]')).toContainText('This chat had 2 useful details. Tovira caught all 2, each linked to the message it came from.');
-    await shot(page, `p71-wrong-tap-reveal-${width}`, { el: card });
+    await shot(page, `p73-wrong-tap-reveal-${width}`, { el: card });
     for (let r = 2; r < 5; r++) {
       await card.locator('[data-act="next"]').click();
       await expect(card).toContainText(`chat ${r + 1} of 5`);
-      await msgs.nth(0).click(); // every Property chat opens with chatter
+      await msgs.nth(1).click(); // message 2 of Property chats 2 to 5 is a trap
     }
     await expect(card.locator('[data-act="next"]')).toHaveText('See your score');
     await card.locator('[data-act="next"]').click();
     await expect(card).toContainText('YOUR SCORE · PROPERTY');
-    await expect(card).toContainText('1/12');
+    await expect(card).toContainText('1/11');
     await expect(card).toContainText('Like most busy reps.');
-    await shot(page, `p71-end-${width}`, { el: card });
+    await shot(page, `p73-end-${width}`, { el: card });
     await noSideScroll(page);
     await card.getByRole('button', { name: 'Try another industry' }).click();
     await expect(card.locator('[data-act="start"]')).toHaveCount(6);
