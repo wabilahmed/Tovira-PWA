@@ -53,13 +53,13 @@ export const GAMES: Game[] = [
     [
       { t: "My mother lives with us, so a ground-floor bedroom matters", sig: "Needs a ground-floor bedroom", why: "Any home without one is a no, however nice it is. It also shows how much family shapes this decision." },
       { t: "We'd like a good deal, like everyone", why: "Every client says this. It tells you nothing about this one." },
-      { t: "We're paying cash, we won't need a mortgage", sig: "Paying cash", why: "A cash buyer can move fast. That changes which sellers you call first and how hard you can negotiate." },
+      { t: "We're paying cash, so we need a seller who can move quickly", sig: "Paying cash, needs a quick sale", why: "A cash buyer can move fast. That changes which sellers you call first and how hard you can negotiate." },
       { t: "Could you resend the brochure? I lost it", why: "Logistics. Handle it, but it will not change what you offer." },
       { t: "Let me think it over and get back to you", why: "Every maybe sounds like this. There is nothing specific to act on." },
     ],
     [
       { t: "The kids keep asking for a pool", sig: "Kids want a pool", why: "The kids get a vote. A pool could be what tips the family from maybe to yes." },
-      { t: "The traffic on the way back was terrible", why: "Small talk. Nothing to act on." },
+      { t: "Sorry, it's been a long day", why: "Small talk. Nothing to act on." },
       { t: "I work from home, so a study is a must", sig: "Needs a study (works from home)", why: "A must, not a nice-to-have. Homes without a real study are out." },
       { t: "Your team has been really helpful so far", why: "Polite, but it tells you nothing about what they want." },
       { t: "And nothing facing west, my wife hates the afternoon heat", sig: "No west-facing homes", why: "One detail that rules out half the options. Skip west-facing units and every viewing counts." },
@@ -70,7 +70,7 @@ export const GAMES: Game[] = [
       { t: "Got the quote, thanks for sending it so quickly", why: "Polite, but it tells you nothing about what they want." },
       { t: "My current policy renews on 1 March", sig: "Renewal on 1 March", why: "A hard deadline. Miss it and he rolls over with his current insurer by default." },
       { t: "Can you call me after 5? I'm in meetings all day", why: "Logistics. Handle it, but it will not change what you offer." },
-      { t: "We just want good cover at a fair price", why: "Every client says this. It tells you nothing about this one." },
+      { t: "We're keen to get this sorted", why: "Every client says this. It tells you nothing about this one." },
       { t: "I'll read it properly tonight", why: "Every maybe sounds like this. There is nothing specific to act on." },
     ],
     [
@@ -98,7 +98,7 @@ export const GAMES: Game[] = [
       { t: "My parents are moving in with us next year", sig: "Parents moving in next year", why: "Two more people in the home next year. Home and family cover both need to change." },
       { t: "The traffic was crazy today", why: "Small talk. Nothing to act on." },
       { t: "Honestly I just want one person to call when something goes wrong", sig: "Wants one point of contact", why: "He is not buying a policy, he is buying you. Make it clear you are that one person." },
-      { t: "Insurance is so confusing, isn't it", why: "Every client says this. It tells you nothing about this one." },
+      { t: "That all sounds sensible", why: "Every client says this. It tells you nothing about this one." },
       { t: "Talk soon, have a good weekend", why: "Polite, but it tells you nothing about what they want." },
     ],
   ] },
@@ -114,7 +114,7 @@ export const GAMES: Game[] = [
       { t: "Hope all is well with you", why: "Polite, but it tells you nothing about what they want." },
       { t: "I want to retire at 55", sig: "Wants to retire at 55", why: "His real goal, in one line. Every plan you show should answer: does this get him there?" },
       { t: "Can you send the statement as a PDF?", why: "Logistics. Handle it, but it will not change what you offer." },
-      { t: "Sounds sensible, let me think about it", why: "Every maybe sounds like this. There is nothing specific to act on." },
+      { t: "Let me get back to you on that", why: "Every maybe sounds like this. There is nothing specific to act on." },
       { t: "Sorry for the late reply", why: "Small talk. Nothing to act on." },
     ],
     [
@@ -126,7 +126,7 @@ export const GAMES: Game[] = [
     ],
     [
       { t: "My father is passing the family business to me", sig: "Taking over the family business", why: "A big change in wealth and in what he needs from you: succession, tax and cash flow." },
-      { t: "We want low risk and good returns", why: "Every client says this. It tells you nothing about this one." },
+      { t: "Sounds good so far", why: "Every client says this. It tells you nothing about this one." },
       { t: "We're thinking of buying a holiday home in a couple of years", sig: "Plans a holiday home in a couple of years", why: "A goal with a rough timeline. Plan for the deposit now and you are part of the dream." },
       { t: "Could you resend the login for the portal?", why: "Logistics. Handle it, but it will not change what you offer." },
       { t: "Talk soon", why: "Polite, but it tells you nothing about what they want." },
@@ -144,7 +144,7 @@ export const GAMES: Game[] = [
       { t: "Thanks for the demo, the team enjoyed it", why: "Polite, but it tells you nothing about what they want." },
       { t: "We need it live before our busy season in October", sig: "Must go live before October", why: "Their deadline, not yours. A plan that lands after October is a no." },
       { t: "Can you send the slides from today?", why: "Logistics. Handle it, but it will not change what you offer." },
-      { t: "We want a solution that just works", why: "Every client says this. It tells you nothing about this one." },
+      { t: "Sounds promising overall", why: "Every client says this. It tells you nothing about this one." },
       { t: "Let's catch up again soon", why: "Every maybe sounds like this. There is nothing specific to act on." },
     ],
     [
@@ -182,13 +182,13 @@ export const GAMES: Game[] = [
       { t: "My wife still talks about that emerald set", sig: "Wife loved the emerald set", why: "She's already picked what she wants. Show the emerald set and you're not selling, you're reminding." },
       { t: "Is the boutique open late on Thursdays?", why: "Logistics. Handle it, but it will not change what you offer." },
       { t: "Can't believe it's ten years in May", sig: "Tenth anniversary in May", why: "A milestone anniversary with a month attached. Call in April, not after it has passed." },
-      { t: "We want something special, of course", why: "Every client says this. It tells you nothing about this one." },
+      { t: "That all sounds lovely", why: "Every client says this. It tells you nothing about this one." },
     ],
     [
       { t: "Hi! Hope you're well", why: "Polite, but it tells you nothing about what they want." },
       { t: "My wife only wears gold, never silver", sig: "Wife wears gold, never silver", why: "It rules out half the options before you start. Show only gold and every piece you bring is one she could say yes to." },
       { t: "Can you send me a few photos on WhatsApp?", why: "Logistics. Handle it, but it will not change what you offer." },
-      { t: "Something elegant would be nice", why: "Every client says this. It tells you nothing about this one." },
+      { t: "Everything looked nice, honestly", why: "Every client says this. It tells you nothing about this one." },
       { t: "Thanks, speak soon", why: "Polite, but it tells you nothing about what they want." },
     ],
     [
@@ -201,7 +201,7 @@ export const GAMES: Game[] = [
     [
       { t: "The traffic was insane on the way back", why: "Small talk. Nothing to act on." },
       { t: "My wife's birthday is on 3 April", sig: "Wife's birthday 3 April", why: "A date to remember for him. Call in March and you have solved his problem." },
-      { t: "We want quality, that's the main thing", why: "Every client says this. It tells you nothing about this one." },
+      { t: "Everything you showed looked great", why: "Every client says this. It tells you nothing about this one." },
       { t: "She has small wrists, the last bracelet kept sliding off", sig: "Wife has small wrists", why: "Show pieces sized for her and you look like you know her." },
       { t: "Thanks for the coffee", why: "Polite, but it tells you nothing about what they want." },
     ],
@@ -218,7 +218,7 @@ export const GAMES: Game[] = [
       { t: "Happy to have a chat", why: "Polite, but it tells you nothing about what they want." },
       { t: "Honestly, I'd only move for hybrid, three days in the office max", sig: "Wants hybrid, three office days max", why: "Anything more in the office is a no. Shortlist hybrid roles first." },
       { t: "Can we talk after 6? I'm at work all day", why: "Logistics. Handle it, but it will not change what you offer." },
-      { t: "I want a good company with a good culture", why: "Every client says this. It tells you nothing about this one." },
+      { t: "Sounds interesting overall", why: "Every client says this. It tells you nothing about this one." },
       { t: "Thanks for reaching out", why: "Polite, but it tells you nothing about what they want." },
     ],
     [
@@ -237,7 +237,7 @@ export const GAMES: Game[] = [
     ],
     [
       { t: "I'm finishing my MBA in December", sig: "Finishing an MBA in December", why: "New skills from December. Roles that use them will interest him most." },
-      { t: "I want a role where I can grow", why: "Every client says this. It tells you nothing about this one." },
+      { t: "I'm keen to see what you have", why: "Every client says this. It tells you nothing about this one." },
       { t: "I'd relocate for the right role", sig: "Open to relocating", why: "Your pool of roles just got much bigger." },
       { t: "Can we do the call on Teams?", why: "Logistics. Handle it, but it will not change what you offer." },
       { t: "Thanks for being so quick", why: "Polite, but it tells you nothing about what they want." },

@@ -37,9 +37,11 @@ describe('[P71] the game data', () => {
 });
 
 describe('[P71] claim-check rewordings (owner)', () => {
+  // [P73 · owner] the P73 claim check caught "We're paying cash, we won't need a mortgage" only 3/5 in the new chat, so
+  // (standing approval) it is tied to what the client needs; the new line is pinned in landing-p73.test.ts.
   it('Property chat 4: "we\'d pay cash" was caught 3/5, so it is now a firm statement', () => {
     const c = GAMES[0]!.chats[3]!;
-    expect(c).toContainEqual({ t: "We're paying cash, we won't need a mortgage", sig: 'Paying cash', why: 'A cash buyer can move fast. That changes which sellers you call first and how hard you can negotiate.' });
+    expect(c).toContainEqual({ t: "We're paying cash, so we need a seller who can move quickly", sig: 'Paying cash, needs a quick sale', why: 'A cash buyer can move fast. That changes which sellers you call first and how hard you can negotiate.' });
     expect(c.map((m) => m.t)).not.toContain("we'd pay cash, no mortgage");
   });
   // [P71 · owner] Tovira stores a budget only when it is tied to what the client wants found (logged for the next cert).

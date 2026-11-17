@@ -58,6 +58,35 @@ describe('[P73] the game data', () => {
   });
 });
 
+describe('[P73] claim-check changes (owner standing approval)', () => {
+  const ts = all.map((m) => m.t);
+  it('Property chat 4: the cash detail is tied to what the client needs', () => {
+    expect(GAMES[0]!.chats[3]).toContainEqual(expect.objectContaining({ t: "We're paying cash, so we need a seller who can move quickly", sig: 'Paying cash, needs a quick sale' }));
+    expect(ts).not.toContain("We're paying cash, we won't need a mortgage");
+  });
+  it('the traps Tovira stored as a requirement or a worry are swapped for traps of the same kind', () => {
+    const swaps: [number, number, string, string, string][] = [
+      [0, 4, 'The traffic on the way back was terrible', "Sorry, it's been a long day", 'Small talk. Nothing to act on.'],
+      [1, 0, 'We just want good cover at a fair price', "We're keen to get this sorted", 'Every client says this. It tells you nothing about this one.'],
+      [1, 4, "Insurance is so confusing, isn't it", 'That all sounds sensible', 'Every client says this. It tells you nothing about this one.'],
+      // Wealth chat 4: the first swap, "We're keen to get this right", was stored as a worry 1 run in 5, so swapped again.
+      [2, 3, 'We want low risk and good returns', 'Sounds good so far', 'Every client says this. It tells you nothing about this one.'],
+      [2, 3, "We're keen to get this right", 'Sounds good so far', 'Every client says this. It tells you nothing about this one.'],
+      [2, 1, 'Sounds sensible, let me think about it', 'Let me get back to you on that', 'Every maybe sounds like this. There is nothing specific to act on.'],
+      [3, 0, 'We want a solution that just works', 'Sounds promising overall', 'Every client says this. It tells you nothing about this one.'],
+      [4, 0, 'We want something special, of course', 'That all sounds lovely', 'Every client says this. It tells you nothing about this one.'],
+      [4, 1, 'Something elegant would be nice', 'Everything looked nice, honestly', 'Every client says this. It tells you nothing about this one.'],
+      [4, 3, "We want quality, that's the main thing", 'Everything you showed looked great', 'Every client says this. It tells you nothing about this one.'],
+      [5, 0, 'I want a good company with a good culture', 'Sounds interesting overall', 'Every client says this. It tells you nothing about this one.'],
+      [5, 3, 'I want a role where I can grow', "I'm keen to see what you have", 'Every client says this. It tells you nothing about this one.'],
+    ];
+    for (const [g, c, old, now, why] of swaps) {
+      expect(GAMES[g]!.chats[c], now).toContainEqual({ t: now, why });
+      expect(ts, old).not.toContain(old);
+    }
+  });
+});
+
 describe('[P73] the design file and the page', () => {
   const ref = readFileSync(resolve(process.cwd(), 'plan/tovira-landing-reference.dc.html'), 'utf8');
   it('the design file carries Block A (the 500px box, HOW IT WORKS in 5 steps, the auto-fit industry grid)', () => {

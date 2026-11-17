@@ -92,3 +92,14 @@ The landing game now ties both budgets to what the client wants ("I'm looking fo
     ("we're 40 people now, maybe 60 next year": 0/5) and a condition ("if it saves us one hire, it pays for itself":
     0/5) were never stored; stated as a need or a worry they were 5/5. A fact about "she" with no one named
     ("she only wears gold, never silver": 0/5) was never stored either; "my wife only wears gold, never silver" was 5/5.
+
+## [P73] Next API batch: game score buckets as percentages (logged, not changed)
+Owner, 2026-11-17: log for the next API batch, don't change it now. The landing game's score bucket (Admin → Funnel,
+the game_done / game_cta / game_signup events) is fixed to a 12-detail game: '0-3', '4-6', '7-9', '10-11', '12'
+(apps/web/src/marketing/game-track.ts bucketOf, apps/api/src/services/visits/game-events.ts bucketOf, and the CHECK in
+migration 0116_game_events.sql). Since P73 an industry has 10 or 11 details, so a perfect score lands in '10-11' and '12'
+can't be reached.
+  - To do: change the buckets to percentages of that industry's total: '0-25%', '26-50%', '51-75%', '76-99%', '100%', so
+    they work whatever the totals are. The page sends the bucket from score and total; the API accepts the new five;
+    a new migration replaces the CHECK (keep the old values readable, or map them, for the rows already stored); the
+    Funnel card's bucket labels follow. Tests first, as usual.
