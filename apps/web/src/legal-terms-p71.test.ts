@@ -62,7 +62,7 @@ describe('[P71-L] Terms: the AI-generated information section', () => {
   it('is version 2026-11-17, last updated 17 November 2026; Privacy is unchanged', () => {
     expect(TERMS_VERSION).toBe('2026-11-17');
     expect(page).toContain('data-doc-version="2026-11-17">Last updated: 17 November 2026 · Version 2026-11-17</p>');
-    expect(PRIVACY_VERSION).toBe('2026-11-16');
+    expect(PRIVACY_VERSION).toBe('2026-11-18'); // [P75 · owner] Privacy moved on separately (the WhatsApp line); the Terms did not
   });
 
   it('everything else is the archived 2026-10-21 wording, word for word, renumbered only', () => {

@@ -267,7 +267,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
         )}
 
         <p className="auth__hint">
-          We use the details above only to review your request. See our <a href="/privacy">Privacy Policy</a> for how we handle your personal data.
+          {/* [P75 · owner] lawyer-approved, word for word */}We use the details above to review your request and, if it's approved, to verify your WhatsApp number. See our <a href="/privacy">Privacy Policy</a> for how we handle your personal data.
         </p>
 
         {error && <p className="auth__error" role="alert">{error}</p>}

@@ -15,8 +15,15 @@ drifts from its constant.
   inside the Terms that point at them moved with them (10.1 → 11.1 twice, 10.2 → 11.2, 12.2/12.3 → 13.2/13.3, and the
   survival list "4, 8, 9, 10, 13, and 14" → "4, 8, 10, 11, 14, and 15"). Nothing else changed. Privacy unchanged
   (`2026-11-16`).
-- `2026-11-16/`: the current **published Privacy** (owner-approved, lawyer-approved line, P71). New Privacy
-  acceptances record this `PRIVACY_VERSION`. Adds one line, word for word, straight after "We keep anonymous
+- `2026-11-18/`: the current **published Privacy** (owner-approved, lawyer-approved line, P75). New Privacy
+  acceptances record this `PRIVACY_VERSION`. Adds one line, word for word, straight after the anonymous statistics lines
+  ("We keep anonymous statistics about how the product is used. We count anonymous game interactions to improve the
+  page."): "When you request beta access, we ask for your WhatsApp number. Once your request is approved, we use it to
+  verify that the number is yours and to link it to your Tovira account, so you can send chat exports to Tovira on
+  WhatsApp. Messages and files you send to Tovira's WhatsApp number pass through Meta's WhatsApp Business Platform, which
+  acts as our service provider, before they reach us." Nothing else changed. Terms unchanged (`2026-11-17`).
+- `2026-11-16/`: the prior published Privacy (owner-approved, lawyer-approved line, P71). Privacy acceptances recorded
+  this `PRIVACY_VERSION` until 2026-11-18. Adds one line, word for word, straight after "We keep anonymous
   statistics about how the product is used.": "We count anonymous game interactions to improve the page." Nothing
   else changed. Terms unchanged (`2026-10-21`).
 - `2026-10-27/`: the prior published Privacy (owner-approved, lawyer-approved line, P48). Privacy

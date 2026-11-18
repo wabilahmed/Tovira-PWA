@@ -11,11 +11,16 @@ import { decideDeploy } from '../apps/api/src/eval/deploy-decision.js';
 /**
  * [P70 · owner] "since this will be only a frontend deploy do not run the 12 aed gate". A push that changes nothing the
  * API image is built from carries forward its nearest verdicted ancestor's verdict; anything else runs the gate.
+ * [P75 · owner] Pins moved with the owner's new rule: the gate runs when something the gate SCORES changed (its runtime
+ * import graph, the fixed list, a model setting), not on any API-image change (test/gate-graph.test.ts). decideInherit
+ * now takes the graph (gateFiles); apps/web/package.json is no longer on the list; the script test's small repo has an
+ * eval/ folder so the graph can be read, and its "API change" is a change to a file the gate imports. touchesApiImage
+ * still decides image reuse and keeps its own pins below.
  */
 const verdict = (sha: string, o: Partial<VerdictRecord> = {}): VerdictRecord => ({
   type: 'verdict', sha, runId: '1', attempt: 1, at: '2026-11-14T10:00:00Z', mode: 'normal', deployGate: 'PASS', certification: 'PROVISIONAL', counters: { fab: 0 }, certFingerprint: 'fp1', ...o,
 });
-const base = { sha: 'head000', runId: '99', attempt: 1, now: '2026-11-14T12:00:00Z' };
+const base = { sha: 'head000', runId: '99', attempt: 1, now: '2026-11-14T12:00:00Z', gateFiles: () => new Set(['apps/api/src/services/extraction/extraction-service.ts']) };
 
 describe('[P70] the API image inputs', () => {
   it.each(['package.json', 'package-lock.json', 'apps/web/package.json', 'apps/api/src/server.ts', 'apps/api/migrations/0120_x.sql'])('%s needs the gate', (p) => {
@@ -41,7 +46,7 @@ describe('[P70] carrying a verdict forward', () => {
     expect(parseDeployLedger(JSON.stringify(d.record))).toHaveLength(1); // the deploy ledger accepts it
   });
   it('NEGATIVE: an API-image change runs the gate', () => {
-    for (const p of ['apps/api/src/services/extraction/extraction-service.ts', 'package-lock.json', 'apps/web/package.json']) {
+    for (const p of ['apps/api/src/services/extraction/extraction-service.ts', 'package-lock.json']) { // [P75] apps/web/package.json left the list
       const d = decideInherit({ ...base, ledger: [verdict('base000')], ancestors: ['base000'], changedSince: () => ['apps/web/index.html', p] });
       expect(d.inherit, p).toBe(false);
     }
@@ -86,8 +91,10 @@ describe('[P70] the script, on a real git history (fails closed)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'inherit-'));
     const g = (...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' }).trim();
     g('init', '-q'); g('config', 'user.email', 't@example.invalid'); g('config', 'user.name', 't');
-    mkdirSync(join(dir, 'apps/web'), { recursive: true }); mkdirSync(join(dir, 'apps/api'), { recursive: true });
-    writeFileSync(join(dir, 'apps/api/a.ts'), '1'); writeFileSync(join(dir, 'apps/web/index.html'), '1');
+    mkdirSync(join(dir, 'apps/web'), { recursive: true }); mkdirSync(join(dir, 'apps/api/src/eval'), { recursive: true });
+    // [P75] the gate's code imports a.ts, so changing it needs the gate
+    writeFileSync(join(dir, 'apps/api/src/eval/gate.ts'), "import { a } from '../a.js';\nexport const g = a;\n");
+    writeFileSync(join(dir, 'apps/api/src/a.ts'), 'export const a = 1;\n'); writeFileSync(join(dir, 'apps/web/index.html'), '1');
     g('add', '.'); g('commit', '-qm', 'base');
     return { dir, g, sha: () => g('rev-parse', 'HEAD') };
   };
@@ -106,7 +113,7 @@ describe('[P70] the script, on a real git history (fails closed)', () => {
     expect(web.gh).toBe('inherited=1\n');
     expect(web.out).toContain('GATE SKIPPED');
     expect(JSON.parse(readFileSync(join(dir, 'verdict.jsonl'), 'utf8')).inheritedFrom).toBe(b);
-    writeFileSync(join(dir, 'apps/api/a.ts'), '2'); g('commit', '-qam', 'api');
+    writeFileSync(join(dir, 'apps/api/src/a.ts'), 'export const a = 2;\n'); g('commit', '-qam', 'api');
     const api = run(dir, sha(), JSON.stringify(verdict(b)) + '\n');
     expect(api.gh).toBe('inherited=0\n');
     expect(api.out).toContain('GATE RUNS');
