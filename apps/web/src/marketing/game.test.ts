@@ -33,22 +33,15 @@ describe('[P71] the pick screen', () => {
     expect(v.phase).toBe('pick');
     expect(v.industries).toEqual(['Property', 'Insurance', 'Wealth', 'B2B accounts', 'Luxury', 'Recruitment']);
   });
-  it('[P73] the pick screen: the hook, HOW IT WORKS in 5 steps (steps 4 and 5 in bold), and 6 real buttons of 48px in an auto-fit grid', () => {
+  // [P78 · owner] "Nobody reads the instructions": HOW IT WORKS and the intro go, the pick screen is one line (this pin
+  // moves with that note; the 6 buttons of 48px in the auto-fit grid stay). landing-p78.test.ts pins the full screen.
+  it('[P73→P78] the pick screen: one line, and 6 real buttons of 48px in an auto-fit grid', () => {
     document.body.innerHTML = cardHtml(initialState());
-    expect(document.body.textContent).toContain('A quick test of how well you read client chats. Clients drop details that win deals, usually between the small talk. Most reps scroll right past them.');
-    expect(document.body.textContent).toContain('HOW IT WORKS');
+    expect(document.body.textContent).toContain('Clients drop details that win deals. Can you spot them? Pick your industry to start.');
+    expect(document.body.textContent).not.toContain('HOW IT WORKS');
     expect(document.body.textContent).not.toContain('HOW TO PLAY');
-    const steps = [...document.querySelectorAll('ol li')].map((li) => li.textContent);
-    expect(steps).toEqual([
-      'Choose your industry. You get 5 client chats, each with 5 messages.',
-      'Tap every message with a detail that would help you close: something specific to this client, like what they love, their budget, a deadline, a worry or who else has a say.',
-      "Skip the rest. Polite replies, scheduling and things every client says don't count, however good they sound.",
-      "Every chat has at least one useful detail, and some have up to three. You won't know how many.",
-      'One wrong tap ends that chat. We then show every detail you missed, and why each one matters.',
-    ]);
-    expect(document.querySelectorAll('ol li')[3]!.querySelector('strong')!.textContent).toBe('Every chat has at least one useful detail, and some have up to three.');
-    expect(document.querySelectorAll('ol li')[4]!.querySelector('strong')!.textContent).toBe('One wrong tap ends that chat.');
-    expect(document.body.textContent).toContain('One point per detail caught. Your score shows at the end.');
+    expect(document.querySelectorAll('ol li')).toHaveLength(0);
+    expect(document.body.textContent).not.toContain('One point per detail caught'); // [P78] it was inside HOW IT WORKS
     expect(document.body.innerHTML).toContain('grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px');
     const btns = [...document.querySelectorAll<HTMLButtonElement>('button[data-act="start"]')];
     expect(btns.map((b) => b.textContent)).toEqual(view(initialState()).industries);
@@ -126,7 +119,9 @@ describe('[P71] game rules', () => {
     const wrongBtn = document.querySelectorAll('.tv-msg')[chatterIdx(0, 1)[0]!]!;
     expect(wrongBtn.textContent).toContain('Not a buying signal. That ended this chat.');
     expect(wrongBtn.textContent).toContain('Why not: ' + GAMES[0]!.chats[1]![chatterIdx(0, 1)[0]!]!.why);
-    expect(document.body.textContent).toContain('Tap every useful detail. At least one, maybe more.');
+    // [P78 · owner] the small header line is replaced by the rule lines (pin moved with that note)
+    expect(document.body.textContent).toContain('Pick a wrong one and you fail this chat.');
+    expect(document.body.textContent).not.toContain('Tap every useful detail');
   });
 
   it('the chat summary lines, singular and plural', () => {
