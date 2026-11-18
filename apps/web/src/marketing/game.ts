@@ -192,6 +192,30 @@ export function endHtml(v: GameView): string {
 /** The card's whole content for a state (the prerendered first state in index.html is this, for initialState()). */
 export const cardHtml = (s: GameState): string => { const v = view(s); return v.phase === 'pick' ? pickHtml(v) : v.phase === 'end' ? endHtml(v) : playHtml(v); };
 
+/** [P76 · owner] The hero stacks the game under the copy below 900px (index.html's .tv-hero rule says the same). */
+export const STACKED_QUERY = '(max-width: 899px)';
+/**
+ * [P76 · owner] On mobile (the game stacked), when a new chat or a new game starts and the card's top isn't fully on
+ * screen (hidden under the sticky header, above it, or below the screen), scroll so the card's top sits just below the
+ * header: smooth, or instant with reduced motion. Desktop never scrolls (the game is beside the copy). True if it scrolled.
+ */
+export function bringCardIntoView(card: HTMLElement, win: Window = window): boolean {
+  if (!cardTopHidden(card, win)) return false;
+  scrollToCardTop(card, win);
+  return true;
+}
+/** Is the game stacked (mobile) with the card's top not fully on screen (under the header, above it, or below the screen)? */
+export function cardTopHidden(card: HTMLElement, win: Window = window): boolean {
+  if (!win.matchMedia?.(STACKED_QUERY).matches) return false;
+  const top = card.getBoundingClientRect().top;
+  return !(top >= headerBottom(win) && top < win.innerHeight);
+}
+function scrollToCardTop(card: HTMLElement, win: Window): void {
+  const reduced = win.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  win.scrollTo({ top: win.scrollY + card.getBoundingClientRect().top - headerBottom(win) - 12, behavior: reduced ? 'instant' : 'smooth' });
+}
+const headerBottom = (win: Window): number => win.document.querySelector('body > header')?.getBoundingClientRect().bottom ?? 0;
+
 /**
  * Mount the game on its card. Within a chat it patches in place (so a tag already shown doesn't pop again, as in the
  * design); a new screen or a new chat re-renders the card. Keyboard focus follows the play: after a tap, to the next
@@ -223,9 +247,13 @@ export function mountGame(card: HTMLElement, onChange?: (s: GameState, prev: Gam
     const keyboard = e.detail === 0;
     if (el.dataset.i !== undefined) { const i = Number(el.dataset.i); set(tap(s, i), keyboard, i); }
     else if (el.dataset.act === 'start') set(start(s, Number(el.dataset.gi)), keyboard);
-    else if (el.dataset.act === 'next') set(next(s), keyboard);
-    else if (el.dataset.act === 'replay') set(replay(s), keyboard);
-    else if (el.dataset.act === 'switch') set(switchIndustry(s), keyboard);
+    else if (el.dataset.act === 'next' || el.dataset.act === 'replay' || el.dataset.act === 'switch') {
+      // [P76] on mobile, the new chat or screen starts at the card's top. Decided before the card re-renders: the browser's
+      // scroll anchoring can move the page while the card's content is swapped.
+      const hidden = cardTopHidden(card);
+      set(el.dataset.act === 'next' ? next(s) : el.dataset.act === 'replay' ? replay(s) : switchIndustry(s), keyboard);
+      if (hidden) scrollToCardTop(card, window);
+    }
   });
   return { state: () => s };
 }

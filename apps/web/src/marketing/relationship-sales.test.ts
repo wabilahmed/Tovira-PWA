@@ -12,8 +12,10 @@ const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace
 // [P70 · owner] The landing page was rebuilt from the owner's approved design. The P41/P42 rules are kept below and
 // re-pointed to the new page; where the owner's design changed a rule, the test says so.
 describe('[P41-1] hero', () => {
-  it('the eyebrow is "FOR RELATIONSHIP SALES"', () => {
-    expect(text(d.querySelector('#top .tv-up'))).toBe('FOR RELATIONSHIP SALES');
+  // [P76 · owner] the eyebrow is removed (pinned in landing-p76.test.ts): the hero opens straight on the headline
+  it('NEGATIVE: no eyebrow above the headline', () => {
+    expect(html).not.toMatch(/FOR RELATIONSHIP SALES/i);
+    expect(d.querySelector('#hero-h')!.previousElementSibling).toBeNull();
   });
   it('the headline is the P70 one', () => {
     expect(text(d.querySelector('#hero-h'))).toBe('The detail that wins the deal is already in your chats.You just scrolled past it.');
@@ -40,12 +42,17 @@ describe('[P41-2] six relationship-sales industries, property one of six', () =>
 describe('[P41-3] FAQ speaks to relationship sales', () => {
   const answer = (q: string) => text([...d.querySelectorAll('details')].find((x) => text(x.querySelector('summary')) === q)?.querySelector('p'));
   // [P70 · owner] the FAQ answers are the approved design's
-  it('"Who is it not for?" is framed by clients who stay for years, and keeps the recorded-calls exclusion', () => {
-    expect(answer('Who is it not for?')).toBe('Call-centre teams on recorded calls. Tovira is for people whose clients stay with them for years.');
+  // [P76 · owner] the owner replaced all four questions with five (pinned word for word in landing-p76.test.ts):
+  // "Who is it not for?" and "Is it a CRM?" are gone; "Why not just ask ChatGPT?" stays with the owner's new answer,
+  // still the same point (Tovira files every detail under the right client, linked to the message, without you asking).
+  it('NEGATIVE: "Who is it not for?" and "Is it a CRM?" are gone', () => {
+    expect(answer('Who is it not for?')).toBe('');
+    expect(answer('Is it a CRM?')).toBe('');
   });
-  it('"Is it a CRM?" and "Why not just ask ChatGPT?"', () => {
-    expect(answer('Is it a CRM?')).toBe("No. A CRM holds what you type into it. Tovira finds what your clients said that you didn't write down.");
-    expect(answer('Why not just ask ChatGPT?')).toBe('ChatGPT answers when you ask. Tovira files every detail under the right client, links it to the message, and brings it up before the meeting, without you asking.');
+  it('"Why not just ask ChatGPT?": files it under the right client, linked to the message, without you asking', () => {
+    const a = answer('Why not just ask ChatGPT?');
+    expect(a).toContain('files it under the right client, linked to the exact message');
+    expect(a).toContain('without you asking');
   });
   it('NEGATIVE: no FAQ answer assumes in-person selling or commission, and none has an em-dash', () => {
     const faq = [...d.querySelectorAll('details')].map(text).join(' ');

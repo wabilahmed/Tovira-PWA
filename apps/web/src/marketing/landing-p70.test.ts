@@ -28,8 +28,9 @@ describe('[P70] meta and share', () => {
 });
 
 describe('[P70] the hero', () => {
-  it('eyebrow, headline, subhead, CTAs and the price line', () => {
-    expect(text(d.querySelector('#top .tv-up'))).toBe('FOR RELATIONSHIP SALES');
+  // [P76 · owner] the eyebrow is removed (pinned in landing-p76.test.ts); the hero's Play the game is still the second CTA (P76: shown only on mobile)
+  it('headline, subhead, CTAs and the price line', () => {
+    expect(html).not.toContain('FOR RELATIONSHIP SALES');
     expect(text(d.querySelector('h1'))).toBe('The detail that wins the deal is already in your chats.You just scrolled past it.');
     expect([...d.querySelectorAll('h1 > span')].map(text)).toEqual(['The detail that wins the deal is already in your chats.', 'You just scrolled past it.']);
     expect(text(d.querySelector('h1 + p'))).toBe(DESC);
@@ -63,7 +64,7 @@ describe('[P70] the sections, in order', () => {
       'Your clients tell you how to win them. Once. In passing.',
       'See what Tovira would catch in your chats.',
       'Send it a chat. It finds what you missed.',
-      'No guesses. Every detail has a receipt.',
+      'It shows its work, then puts it to work.', // [P76 · owner] the new heading
       'One plan. Pays for itself with one detail.',
       'Questions',
       'Your next client has already told you something important.',
@@ -158,17 +159,21 @@ describe('[P70] how it works, trust, pricing, FAQ, close, footer', () => {
     expect([...d.querySelectorAll('#how h3')].map(text)).toEqual(['Give it the conversation', 'Tovira analyses every line', 'It speaks up at the right time']);
     expect(text(d.querySelector('#how'))).toContain('Each morning, who to call and what they care about.');
   });
+  // [P76 · owner] "Not connected to your WhatsApp" and "Private by design" are replaced by two features (word for word in
+  // landing-p76.test.ts); the hero still says Tovira never connects to your WhatsApp account
   it('four trust points', () => {
     const t = d.querySelector('section[aria-labelledby="trust-h"]')!;
-    expect([...t.querySelectorAll('.tv-rv > div:first-child')].map(text).slice(1)).toEqual(['Linked to the message', 'Never invents a date', 'Not connected to your WhatsApp', 'Private by design']);
+    // [P76 · owner] the section's label is removed too, so there is no label to skip
+    expect([...t.querySelectorAll('.tv-rv > div:first-child')].map(text)).toEqual(['Linked to the message', 'Never invents a date', 'A brief before every meeting', 'Every promise, on time']);
   });
   it('prices: AED 299 monthly, AED 2,990 yearly with two months free', () => {
     const plans = [...d.querySelectorAll('#pricing .tv-rv > div')].map((c) => [...c.children].map(text));
     expect(plans).toEqual([['Monthly', 'AED 299', 'per month'], ['Yearly · two months free', 'AED 2,990', 'per year']]);
     expect(text(d.querySelector('#pricing'))).toContain('14 days free. No tiers, no seats. Cancel any time in Settings.');
   });
-  it('the four FAQ questions, as <details>', () => {
-    expect([...d.querySelectorAll('details > summary')].map(text)).toEqual(['Is it a CRM?', 'Do I have to connect my WhatsApp?', 'Why not just ask ChatGPT?', 'Who is it not for?']);
+  // [P76 · owner] the owner's five questions replace the four (answers word for word in landing-p76.test.ts)
+  it('the five FAQ questions, as <details>', () => {
+    expect([...d.querySelectorAll('details > summary')].map(text)).toEqual(['What does Tovira pick up from a chat?', 'How do I get my chats into Tovira?', 'What does Tovira do with what it finds?', 'Does it work in Arabic, Hindi or Urdu?', 'Why not just ask ChatGPT?']);
   });
   it('the close and the footer', () => {
     expect(text(d.querySelector('#start a.tv-cta'))).toBe('Try free for 14 days');

@@ -17,8 +17,9 @@ const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace
 const DESC = 'Tovira analyses your client conversations and voice notes, catches the details a busy rep misses, and puts them in front of you before the meeting that matters.';
 
 describe('[P69] the hero', () => {
-  it('eyebrow, headline and subhead (the P70 wording of the P69 promise)', () => {
-    expect(text(d.querySelector('#top .tv-up'))).toBe('FOR RELATIONSHIP SALES');
+  // [P76 · owner] the eyebrow is removed (pinned in landing-p76.test.ts)
+  it('headline and subhead (the P70 wording of the P69 promise)', () => {
+    expect(html).not.toContain('FOR RELATIONSHIP SALES');
     expect(text(d.querySelector('#hero-h'))).toBe('The detail that wins the deal is already in your chats.You just scrolled past it.');
     expect(text(d.querySelector('#hero-h + p'))).toBe(DESC);
   });

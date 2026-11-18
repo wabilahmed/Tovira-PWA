@@ -17,8 +17,10 @@ describe('[P51] no "UAE" on the landing page', () => {
     for (const m of d.querySelectorAll('meta')) expect(m.getAttribute('content') ?? '', m.outerHTML).not.toMatch(/\bUAE\b|_AE\b|Dubai/i);
   });
 
-  it('the eyebrow is "FOR RELATIONSHIP SALES"', () => {
-    expect(text(d.querySelector('#top .tv-up'))).toBe('FOR RELATIONSHIP SALES'); // [P70 · owner] the rebuilt hero
+  // [P76 · owner] the eyebrow is removed; the hero opens on the headline, which names no place either
+  it('NEGATIVE: no eyebrow, and the headline names no place', () => {
+    expect(html).not.toContain('FOR RELATIONSHIP SALES');
+    expect(text(d.querySelector('#hero-h'))).not.toMatch(/UAE|Dubai|Emirates/i);
   });
 
   // [P70 · owner] the footer is now the company line; the contact address sits under the closing CTA. Still no location.

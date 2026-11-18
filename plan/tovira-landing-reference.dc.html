@@ -394,6 +394,14 @@ a{color:#E8643A}a:hover{color:#F28A63}
 .tv-rv{animation:tvUp linear both;animation-timeline:view();animation-range:entry 0% entry 55%}
 }
 @media (max-width: 640px){.tv-navlink{display:none}.tv-wall{height:360px !important}.tv-hdcta{padding:10px 14px !important;font-size:14px !important}}
+/* [P76 · owner] From 900px the game sits beside the copy (no wrap) and the hero's Play the game hides. The headline's
+   first line and "Would you have caught it?" share an INK top: both boxes start level, and the game moves down by the
+   difference between where each font's ink starts in its line (half the leading plus ascent minus cap/ascender
+   height): 0.125 of the headline size, 0.14 of the game heading size (Fraunces, measured in Chromium). */
+@media (min-width: 900px){.tv-hero{flex-wrap:nowrap !important}.tv-mobplay{display:none}.tv-hero-l{padding-top:0 !important}#game{margin-top:calc(clamp(34px, 4.4vw, 58px) * 0.125 - clamp(22px, 2.2vw, 26px) * 0.14)}}
+html{scroll-behavior:smooth}
+#how,#pricing{scroll-margin-top:72px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
 @media (prefers-reduced-motion: reduce){.tv-star{animation:none !important;opacity:.5}.tv-col,.tv-missed,.tv-orb,.tv-marq,.tv-up,.tv-rv,.tv-pop,.tv-shake,.tv-fade{animation:none !important}}
 </style>
 </helmet>
@@ -416,15 +424,14 @@ a{color:#E8643A}a:hover{color:#F28A63}
 <div class="tv-orb" aria-hidden="true" style="width: 520px; height: 520px; right: -80px; top: -60px; background: rgba(232,100,58,0.22)"></div>
 <div class="tv-orb" aria-hidden="true" style="width: 380px; height: 380px; left: -120px; bottom: -120px; background: rgba(242,184,75,0.10); animation-delay: -7s"></div>
 <div aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none"><sc-for list="{{stars}}" as="st" hint-placeholder-count="28"><div class="tv-star" style="{{st.style}}"></div></sc-for></div>
-<div style="position: relative; max-width: 1200px; margin: 0 auto; padding: clamp(40px, 7vw, 80px) 20px clamp(56px, 8vw, 96px); display: flex; flex-wrap: wrap; gap: 40px 56px; align-items: flex-start">
+<div class="tv-hero" style="position: relative; max-width: 1200px; margin: 0 auto; padding: clamp(40px, 7vw, 80px) 20px clamp(56px, 8vw, 96px); display: flex; flex-wrap: wrap; gap: 40px 56px; align-items: flex-start">
 
-<div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 24px; padding-top: clamp(0px, 3vw, 40px)">
-<div class="tv-up" style="font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.16em; color: #A79E92">FOR RELATIONSHIP SALES</div>
-<h1 style="margin: 0; font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: clamp(40px, 6vw, 78px); line-height: 1.02; letter-spacing: -0.025em"><span class="tv-up" style="display: block; animation-delay: .08s">The detail that wins the deal is already in your chats.</span><span class="tv-up" style="display: block; color: {{accent}}; animation-delay: .32s">You just scrolled past it.</span></h1>
+<div class="tv-hero-l" style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 24px; padding-top: clamp(0px, 3vw, 40px)">
+<h1 style="margin: 0; font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.4vw, 58px); line-height: 1.02; letter-spacing: -0.025em"><span class="tv-up" style="display: block; animation-delay: .08s">The detail that wins the deal is already in your chats.</span><span class="tv-up" style="display: block; color: {{accent}}; animation-delay: .32s">You just scrolled past it.</span></h1>
 <p class="tv-up" style="margin: 0; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.6; color: #CFC6BA; max-width: 560px; animation-delay: .5s">Tovira analyses your client conversations and voice notes, catches the details a busy rep misses, and puts them in front of you before the meeting that matters.</p>
 <div class="tv-up" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; animation-delay: .64s">
 <a class="tv-cta" href="#start" style="background: {{accent}}; color: #171412; text-decoration: none; font-weight: 600; font-size: 17px; padding: 16px 26px; border-radius: 999px">Try free for 14 days</a>
-<a class="tv-cta" href="#game" style="color: #F2EDE4; text-decoration: none; font-weight: 500; font-size: 17px; padding: 16px 22px; border-radius: 999px; border: 1px solid #4A423B">Play the game</a>
+<a class="tv-cta tv-mobplay" href="#game" style="color: #F2EDE4; text-decoration: none; font-weight: 500; font-size: 17px; padding: 16px 22px; border-radius: 999px; border: 1px solid #4A423B">Play the game</a>
 </div>
 <div class="tv-up" style="font-size: 14px; color: #A79E92; animation-delay: .76s">Then AED 299 a month. Tovira never connects to your WhatsApp account.</div>
 </div>
@@ -598,14 +605,13 @@ a{color:#E8643A}a:hover{color:#F28A63}
 <section aria-labelledby="trust-h">
 <div class="tv-sec" style="max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start">
 <div class="tv-rv" style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
-<div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.16em; color: #A79E92">IT SHOWS ITS WORK</div>
-<h2 id="trust-h" style="margin: 0; font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: clamp(32px, 4.2vw, 54px); line-height: 1.06; letter-spacing: -0.02em">No guesses. Every detail has a receipt.</h2>
+<h2 id="trust-h" style="margin: 0; font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: clamp(32px, 4.2vw, 54px); line-height: 1.06; letter-spacing: -0.02em">It shows its work, then puts it to work.</h2>
 </div>
 <div style="flex: 1 1 500px; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px">
 <div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">Linked to the message</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">Tap any detail to see exactly where the client said it.</div></div>
 <div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">Never invents a date</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">If "next week sometime" isn't clear, it asks you instead of guessing.</div></div>
-<div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">Not connected to your WhatsApp</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">You choose which chats to send. It can't read or send your messages.</div></div>
-<div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">Private by design</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">ID and bank numbers removed before analysis. Never used to train AI.</div></div>
+<div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">A brief before every meeting</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">What they care about, what you promised and what's due, in one screen before you walk in.</div></div>
+<div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">Every promise, on time</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">Every date and commitment, yours and theirs, on your list before it's due.</div></div>
 </div>
 </div>
 </section>
@@ -624,10 +630,11 @@ a{color:#E8643A}a:hover{color:#F28A63}
 <section aria-labelledby="faq-h">
 <div class="tv-sec" style="max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px">
 <h2 id="faq-h" style="margin: 0 0 16px; font-family: Fraunces, Georgia, serif; font-weight: 500; font-size: 36px">Questions</h2>
-<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">Is it a CRM?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">No. A CRM holds what you type into it. Tovira finds what your clients said that you didn't write down.</p></details>
-<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">Do I have to connect my WhatsApp?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">No. You export a chat yourself and send Tovira the file. It never touches your WhatsApp account.</p></details>
-<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">Why not just ask ChatGPT?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">ChatGPT answers when you ask. Tovira files every detail under the right client, links it to the message, and brings it up before the meeting, without you asking.</p></details>
-<details style="border-top: 1px solid #3A332D; border-bottom: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">Who is it not for?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">Call-centre teams on recorded calls. Tovira is for people whose clients stay with them for years.</p></details>
+<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">What does Tovira pick up from a chat?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">The things that help you close: what the client loves, what they're looking for and at what price, deadlines, worries, family occasions, and every promise and date, yours and theirs. Every detail is linked to the exact message it came from, so you can check it in one tap.</p></details>
+<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">How do I get my chats into Tovira?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">Export a WhatsApp chat and add it in Tovira, record a short voice note after a call or meeting, or just type what you know. Tovira files everything under the right client.</p></details>
+<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">What does Tovira do with what it finds?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">It puts it in front of you when it matters. Each client has a page showing what they care about. Before a meeting you get a brief. Each morning, Today shows who to call and why. And you're reminded before any promise is due.</p></details>
+<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">Does it work in Arabic, Hindi or Urdu?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">Yes. Chats and voice notes in English, Arabic, Hindi and Urdu all work, even when a client mixes languages in one message.</p></details>
+<details style="border-top: 1px solid #3A332D; border-bottom: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">Why not just ask ChatGPT?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">ChatGPT is great at answering what you ask, about what you paste in. But you have to remember to ask, and you have to know what you're looking for. Tovira works the other way round. It reads every chat you give it, picks out what each client cares about, and files it under the right client, linked to the exact message. It never makes up a date it can't find. Then it brings the right detail to you, before the meeting and in your morning list, without you asking. ChatGPT helps when you remember. Tovira is for the details you didn't know you'd forgotten.</p></details>
 </div>
 </section>
 
@@ -799,13 +806,28 @@ class Component extends DCLogic {
     for (let i = 0; i < maxScore; i++) scoreDots.push({ style: 'flex:1 1 0;min-width:0;height:6px;border-radius:999px;background:' + (i < score ? accent : '#3A332D') });
 
     const last = s.round >= 4;
+    // [P76 · owner] On mobile (the game stacked under the copy, below 900px), a new chat, Play again or Try another
+    // industry brings the card's top just below the sticky header if it isn't fully on screen: smooth, instant with
+    // reduced motion. Desktop doesn't scroll.
+    const toCard = () => {
+      if (!window.matchMedia('(max-width: 899px)').matches) return;
+      const card = document.querySelector('#game > div:last-child');
+      const header = document.querySelector('header');
+      if (!card) return;
+      const hb = () => (header ? header.getBoundingClientRect().bottom : 0);
+      const top = card.getBoundingClientRect().top; // decided before the card re-renders
+      if (top >= hb() && top < window.innerHeight) return;
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setTimeout(() => window.scrollTo({ top: window.scrollY + card.getBoundingClientRect().top - hb() - 12, behavior: reduced ? 'instant' : 'smooth' }), 0);
+    };
     const next = () => {
       const results = s.results.concat([found]);
+      toCard();
       if (last) this.setState({ results: results, phase: 'end', tapped: [], shakeAt: -1 });
       else this.setState({ results: results, round: s.round + 1, tapped: [], shakeAt: -1 });
     };
-    const replay = () => this.setState({ phase: 'play', round: 0, tapped: [], results: [], shakeAt: -1 });
-    const switchInd = () => this.setState({ phase: 'pick', round: 0, tapped: [], results: [], shakeAt: -1 });
+    const replay = () => { toCard(); this.setState({ phase: 'play', round: 0, tapped: [], results: [], shakeAt: -1 }); };
+    const switchInd = () => { toCard(); this.setState({ phase: 'pick', round: 0, tapped: [], results: [], shakeAt: -1 }); };
 
     const missedTotal = maxScore - score;
     let rank = 'Eagle eye.';
