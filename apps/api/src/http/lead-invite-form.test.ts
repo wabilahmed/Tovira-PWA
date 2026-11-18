@@ -17,7 +17,8 @@ afterEach(async () => { if (server) await new Promise<void>((r) => server!.close
 const DAY = 86_400_000;
 const LEAD: HotLeadInput = { personId: 'p1', campaignId: 7, campaignName: 'Dubai brokers', name: 'Sara Khan', email: 'Sara@Emaar.example', jobTitle: 'Head of Leasing', companyName: 'Emaar', companyDomain: 'emaar.example', linkedinUrl: 'https://linkedin.com/in/sk', country: 'AE', phone: '+971501112222', whyHot: 'Yes, tell me more', becameHotAt: Date.now() - 3_600_000, erased: false };
 // [P59-1 · owner] an employed invitee must also tick the employer's permission (employer-permission.test.ts)
-const ANSWERS = { phone: '+971 50 123 4567', ownership: 'employed', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'property', confirmationAccepted: true, employerPermissionAccepted: true };
+// [P75 · owner] The request form now requires a WhatsApp number (E.164); the fixture carries one (pin moved with the owner's new rule).
+const ANSWERS = { phone: '+971 50 123 4567', ownership: 'employed', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'property', confirmationAccepted: true, whatsappNumber: '+971 50 123 4567', employerPermissionAccepted: true };
 const JSONH = { 'content-type': 'application/json' };
 
 async function invited(): Promise<{ base: string; deps: TestDeps; leadId: string; token: string; cookie: string }> {

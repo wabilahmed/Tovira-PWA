@@ -97,8 +97,11 @@ import { NotificationSetup, type NotificationApi } from './push/NotificationSetu
 import { ThemeToggle } from './settings/ThemeToggle.js';
 import { TimezoneSetting } from './settings/TimezoneSetting.js';
 import { WhatsAppSetting } from './whatsapp/WhatsAppSetting.js';
+import { WhatsAppStatusProvider } from './whatsapp/useWhatsApp.js';
+import { WhatsAppBanner } from './whatsapp/WhatsAppBanner.js';
+import { WhatsAppFirstStep } from './whatsapp/WhatsAppFirstStep.js';
 import { WhatsAppClient } from './whatsapp/whatsappClient.js';
-import { LinkedWhatsAppContext, useSetLinkedWhatsApp } from './whatsapp/linkedNumber.js';
+import { LinkedWhatsAppContext } from './whatsapp/linkedNumber.js';
 import { DisclosureLine } from './settings/DisclosureLine.js';
 import { BriefOpenPromises } from './brief/BriefOpenPromises.js';
 import { AppShell } from './shell/AppShell.js';
@@ -252,13 +255,9 @@ export function App(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   // [P67] Tovira's WhatsApp number for the export steps, only once the rep's own number is linked (switched off: never set).
+  // [P75] read from the one shared WhatsApp status (WhatsAppStatusProvider below), which Settings, the Today banner and
+  // the first sign-in step use too.
   const [linkedWhatsApp, setLinkedWhatsApp] = useState<string | null>(null);
-  useEffect(() => {
-    if (!session) return;
-    let live = true;
-    void whatsappApi.status().then((s) => { if (live) setLinkedWhatsApp(s?.linked ? s.businessNumber : null); });
-    return () => { live = false; };
-  }, [session]);
   // Reached via the emailed reset link (/reset-password?token=…), before auth.
   const [resetToken, setResetToken] = useState<string | null>(() =>
     typeof window !== 'undefined' && window.location.pathname === '/reset-password'
@@ -346,7 +345,8 @@ export function App(): JSX.Element {
         auth={auth}
         token={inviteToken}
         onDone={() => {
-          if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
+          // [P75 · owner] the first sign-in opens on "Verify your WhatsApp" (skipped when WhatsApp is off for the rep)
+          if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app?verify=whatsapp');
           setInviteToken(null);
         }}
       />
@@ -390,9 +390,11 @@ export function App(): JSX.Element {
   // [P46-6c.2] A rep approved from a hot lead answers the blank questions and ticks the confirmation before Clients.
   return (
     <LinkedWhatsAppContext.Provider value={{ number: linkedWhatsApp, set: setLinkedWhatsApp }}>
-      <AnswersGate api={accessAnswersApi}>
-        <ClientsScreen session={session} referralsEnabled={referralsEnabled} onLogout={() => void auth.logout().then(() => setSession(null))} />
-      </AnswersGate>
+      <WhatsAppStatusProvider api={whatsappApi} onChange={(s) => setLinkedWhatsApp(s?.linked ? s.businessNumber : null)}>
+        <AnswersGate api={accessAnswersApi}>
+          <ClientsScreen session={session} referralsEnabled={referralsEnabled} onLogout={() => void auth.logout().then(() => setSession(null))} />
+        </AnswersGate>
+      </WhatsAppStatusProvider>
     </LinkedWhatsAppContext.Provider>
   );
 }
@@ -404,6 +406,13 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
   // [P37] The required first-login tour: shown whenever the account hasn't completed it (resuming at its saved
   // step), before anything else; "Take the tour again" (More) replays it without touching the record.
   const [tour, setTour] = useState<{ mode: 'required' | 'replay'; start: number } | null>(null);
+  // [P75 · owner] The first sign-in step "Verify your WhatsApp" (after the invite, or from the invite email's button,
+  // /app?verify=whatsapp): before the tour; Do it later leaves the Today banner and Settings → WhatsApp.
+  const [waStep, setWaStep] = useState(() => { try { return new URLSearchParams(window.location.search).get('verify') === 'whatsapp'; } catch { return false; } });
+  const closeWaStep = (): void => {
+    setWaStep(false);
+    try { const u = new URL(window.location.href); u.searchParams.delete('verify'); window.history.replaceState({}, '', `${u.pathname}${u.search}`); } catch { /* no history */ }
+  };
   useEffect(() => {
     if (typeof window !== 'undefined' && (window.location.pathname.startsWith('/ops') || window.location.pathname.startsWith('/admin'))) return; // never on /ops/* or /admin
     void tourApi.state().then((t) => { if (t?.required) { setOpen(null); setTour({ mode: 'required', start: t.step }); } });
@@ -682,7 +691,6 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
     }
   }, [deepClientId, clients, session]);
 
-  const setLinkedWhatsApp = useSetLinkedWhatsApp();
   // [P67] The WhatsApp reply's link `/app?import=<batch>` opens the confirm step (New client from a chat) on the chat the
   // rep sent to Tovira's number. Nothing has been read yet; the rep confirms who it's with there. The param is stripped.
   const [stagedImport, setStagedImport] = useState<string | null>(() => {
@@ -846,6 +854,8 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
           <HeroInsights
             api={heroApi}
             top={<>
+              {/* [P75 · owner] until the rep's WhatsApp is verified: one compact line, never dismissed */}
+              <WhatsAppBanner />
               {/* [P37] 80 / 95 / 100% of the allowance → a banner that opens Settings → Subscription. */}
               <UsageBanner api={usageApi} onOpenSubscription={openSubscription} />
               <MoveSuggestions api={noteMoveApi} clients={clients.map((c) => ({ id: c.id, name: c.name }))} />
@@ -924,7 +934,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
           <Section title="Appearance"><ThemeToggle /></Section>
           <Section title="Time zone"><TimezoneSetting current={session.user.timezone} api={auth} /></Section>
           <Section title="Notifications"><NotificationSetup state={readPushState()} api={notificationApi} /></Section>
-          <WhatsAppSetting api={whatsappApi} onChange={(s) => setLinkedWhatsApp(s.linked ? s.businessNumber : null)} />
+          <WhatsAppSetting />
           <Section title="Tell clients you keep notes"><DisclosureLine /></Section>
         </Page>
       )}
@@ -1104,7 +1114,8 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
         </div>
       )}
       </ErrorBoundary>
-      {tour && (
+      {waStep && <WhatsAppFirstStep onDone={closeWaStep} />}
+      {tour && !waStep && (
         <Tour
           mode={tour.mode}
           startStep={tour.start}

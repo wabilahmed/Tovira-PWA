@@ -21,7 +21,8 @@ async function start(): Promise<{ base: string; deps: TestDeps }> {
   await listenForTest(server!);
   return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, deps };
 }
-const REQ = { fullName: 'Dana Rep', workEmail: 'dana@example.ae', phone: '+971 50 123 4567', companyName: 'Meridian', roleTitle: 'Advisor', ownership: 'employed', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'insurance', confirmationAccepted: true };
+// [P75 · owner] The request form now requires a WhatsApp number (E.164); the fixture carries one (pin moved with the owner's new rule).
+const REQ = { fullName: 'Dana Rep', workEmail: 'dana@example.ae', phone: '+971 50 123 4567', companyName: 'Meridian', roleTitle: 'Advisor', ownership: 'employed', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'insurance', confirmationAccepted: true, whatsappNumber: '+971 50 123 4567' };
 async function pending(base: string): Promise<string> {
   await fetch(`${base}/access-request`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(REQ) });
   return '';

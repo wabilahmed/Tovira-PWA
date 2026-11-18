@@ -141,7 +141,8 @@ describe('[P63-7] POST /visit', () => {
   });
   it('a submitted request form is recorded for the share who submit', async () => {
     const { url, deps } = await start();
-    const REQ = { fullName: 'Dana Rep', workEmail: 'dana@brokerage.ae', phone: '+971 50 123 4567', companyName: 'Meridian Real Estate', roleTitle: 'Senior Broker', ownership: 'owns_or_manages', tradeLicenceNumber: 'TL-998877', conversationOwnership: 'brokerage_i_manage', expectedVolume: '50_200', industry: 'property', confirmationAccepted: true };
+    // [P75 · owner] The request form now requires a WhatsApp number (E.164); the fixture carries one (pin moved with the owner's new rule).
+    const REQ = { fullName: 'Dana Rep', workEmail: 'dana@brokerage.ae', phone: '+971 50 123 4567', companyName: 'Meridian Real Estate', roleTitle: 'Senior Broker', ownership: 'owns_or_manages', tradeLicenceNumber: 'TL-998877', conversationOwnership: 'brokerage_i_manage', expectedVolume: '50_200', industry: 'property', confirmationAccepted: true, whatsappNumber: '+971 50 123 4567' };
     const r = await fetch(`${url}/access-request`, { method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': PHONE, 'x-forwarded-for': '6.6.6.6' }, body: JSON.stringify(REQ) });
     expect(r.status).toBe(201);
     expect(deps.visitStore.list.map((x) => x.page)).toEqual(['submitted']);

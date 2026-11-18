@@ -5,6 +5,7 @@ export class InMemoryWhatsAppLinkStore implements WhatsAppLinkStore {
   private readonly links = new Map<string, WhatsAppLink>();
   private readonly codes = new Map<string, { phone: string; codeHash: string; expiresAt: number; attempts: number }>();
   private readonly seen = new Set<string>();
+  private readonly confirms = new Map<string, { phone: string; waUserId: string | null; expiresAt: number }>();
 
   async get(userId: string): Promise<WhatsAppLink | null> { return this.links.get(userId) ?? null; }
   async byPhone(phone: string): Promise<WhatsAppLink | null> { return [...this.links.values()].find((l) => l.phone === phone) ?? null; }
@@ -32,7 +33,27 @@ export class InMemoryWhatsAppLinkStore implements WhatsAppLinkStore {
     return { ok: true };
   }
 
-  async unlink(userId: string): Promise<void> { this.links.delete(userId); this.codes.delete(userId); }
+  async unlink(userId: string): Promise<void> { this.links.delete(userId); this.codes.delete(userId); this.confirms.delete(userId); }
+
+  async codeInUse(codeHash: string): Promise<boolean> { return [...this.codes.values()].some((c) => c.codeHash === codeHash); }
+  async consumeCodeAnyNumber(codeHash: string, nowMs: number): Promise<ConsumeResult> {
+    const hit = [...this.codes.entries()].find(([, c]) => c.codeHash === codeHash && c.attempts < 5);
+    if (!hit) return { ok: false, reason: 'no_code' };
+    const [userId, c] = hit;
+    this.codes.delete(userId);
+    return c.expiresAt <= nowMs ? { ok: false, reason: 'expired' } : { ok: true, userId };
+  }
+  async putConfirm(userId: string, phone: string, waUserId: string | null, expiresAt: number): Promise<void> { this.confirms.set(userId, { phone, waUserId, expiresAt }); }
+  async getConfirm(userId: string, nowMs: number): Promise<{ phone: string; waUserId: string | null } | null> {
+    const c = this.confirms.get(userId);
+    return c && c.expiresAt > nowMs ? { phone: c.phone, waUserId: c.waUserId } : null;
+  }
+  async takeConfirm(userId: string, nowMs: number): Promise<{ phone: string; waUserId: string | null } | null> {
+    const c = await this.getConfirm(userId, nowMs);
+    this.confirms.delete(userId);
+    return c;
+  }
+  async clearConfirm(userId: string): Promise<void> { this.confirms.delete(userId); }
 
   async firstDelivery(messageId: string): Promise<boolean> {
     if (this.seen.has(messageId)) return false;

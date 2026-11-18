@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AdminSignedOutError, type AccessRequest, type AccessStatus, type AdminApi } from './adminClient.js';
 import { Badge, Banner, Button, Chip, ChipGroup, EmptyState, PageHeader } from '../ui/index.js';
+import { displayPhone } from '../format/phone.js';
+
+/** [P75] "Verified 18 Nov 2026", with the number when it is not the one on the request. */
+function whatsappStatus(r: AccessRequest): string | null {
+  const w = r.whatsapp;
+  if (!w) return null;
+  if (!w.verified || w.verifiedAt == null) return 'Not verified';
+  const day = new Date(w.verifiedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `Verified ${day}${w.phone && w.phone !== r.whatsappNumber ? ` on ${displayPhone(w.phone)}` : ''}`;
+}
 
 /**
  * [P33 → P45-4] The beta access requests, in the admin console (admin session; no ops token). Unchanged behaviour:
@@ -84,6 +94,11 @@ export function AccessPanel({ api, onSignedOut }: { api: Pick<AdminApi, 'accessL
               <p style={{ margin: 'var(--space-2) 0' }}>{[r.roleTitle, r.companyName].filter(Boolean).join(', ')}</p>
               <p data-testid="industry" style={{ margin: 'var(--space-1) 0' }}>Industry: {r.industry ? (INDUSTRY[r.industry] ?? r.industry) : 'Not given'}{r.industryOther ? ` (${r.industryOther})` : ''}</p>
               <p style={{ margin: 'var(--space-1) 0' }}><a href={`mailto:${r.workEmail}`}>{r.workEmail}</a>{r.phone ? <> · <a href={`tel:${r.phone}`}>{r.phone}</a></> : null}</p>
+              {/* [P75] the WhatsApp number from the request, and the account's status once there is one */}
+              <p data-testid="whatsapp" style={{ margin: 'var(--space-1) 0' }}>
+                WhatsApp: {r.whatsappNumber ? displayPhone(r.whatsappNumber) : 'Not given'}
+                {whatsappStatus(r) && <> · <span data-testid="whatsapp-status">{whatsappStatus(r)}</span></>}
+              </p>
               <p className="ui-secondary" style={{ margin: 'var(--space-1) 0' }}>
                 {r.ownership ? (OWNERSHIP[r.ownership] ?? r.ownership) : `Ownership: ${NOT_ASKED}`}{r.tradeLicenceNumber ? ` · trade licence ${r.tradeLicenceNumber}` : ''} · conversations: {r.conversationOwnership ? (CONVERSATIONS[r.conversationOwnership] ?? r.conversationOwnership) : NOT_ASKED}
                 {r.conversationOwnershipOther ? ` (${r.conversationOwnershipOther})` : ''} · volume: {r.expectedVolume ? (VOLUME[r.expectedVolume] ?? r.expectedVolume) : NOT_ASKED}

@@ -17,14 +17,24 @@ import type { AdminDataRoute } from './admin-routes.js';
  */
 const STATUSES: ReadonlySet<string> = new Set<AccessRequestStatus>(['pending', 'approved', 'rejected', 'invited', 'activated']);
 
-export function adminAccessRoute(svc: Pick<AccessApprovalService, 'list' | 'get' | 'approve' | 'reject' | 'reissueByRequestId'>): AdminDataRoute {
+/** [P75] An account's WhatsApp, for Admin → Access: verified (with the date and number) or not. */
+export type WhatsAppOf = (userId: string) => Promise<{ phone: string; linkedAt: number } | null>;
+
+export function adminAccessRoute(svc: Pick<AccessApprovalService, 'list' | 'get' | 'approve' | 'reject' | 'reissueByRequestId'>, whatsappOf?: WhatsAppOf): AdminDataRoute {
   return async (req, res, url, ctx) => {
     if (!url.pathname.startsWith('/admin/access-requests')) return false;
     const method = req.method ?? 'GET';
     if (method === 'GET' && url.pathname === '/admin/access-requests') {
       const status = url.searchParams.get('status');
       if (status && !STATUSES.has(status)) { sendJson(res, 400, { error: 'validation', message: 'Unknown status.' }); return true; }
-      sendJson(res, 200, { requests: await svc.list((status as AccessRequestStatus) ?? undefined) });
+      const list = await svc.list((status as AccessRequestStatus) ?? undefined);
+      // [P75] each account's WhatsApp status (a request with no account yet has none)
+      const requests = await Promise.all(list.map(async (r) => {
+        if (!whatsappOf || !r.linkedUserId) return { ...r, whatsapp: null };
+        const l = await whatsappOf(r.linkedUserId);
+        return { ...r, whatsapp: l ? { verified: true, phone: l.phone, verifiedAt: l.linkedAt } : { verified: false, phone: null, verifiedAt: null } };
+      }));
+      sendJson(res, 200, { requests });
       return true;
     }
     const m = /^\/admin\/access-requests\/([^/]+)\/(approve|reject|reinvite)$/.exec(url.pathname);

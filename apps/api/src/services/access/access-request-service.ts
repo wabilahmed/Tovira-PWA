@@ -7,6 +7,20 @@ import type {
   Ownership,
 } from '../../ports/access-request-repository.js';
 import { CONFIRMATION_TEXT_VERSION } from '../legal/versions.js';
+import { canonicalPhone } from '../clients/phone.js';
+
+/** [P75 · owner] The WhatsApp number's messages. No country is named or assumed: the form has a country-code picker. */
+export const WHATSAPP_REQUIRED = 'Please choose your country code and enter your WhatsApp number.';
+export const WHATSAPP_INVALID = 'That doesn’t look like a WhatsApp number. Check the country code and the number.';
+
+/** [P75] A WhatsApp number in E.164, or a field error. A number without a country code is refused, never guessed. */
+export function whatsappE164(v: unknown): string {
+  if (typeof v !== 'string' || v.trim() === '') throw new AccessRequestValidationError('whatsappNumber', WHATSAPP_REQUIRED);
+  if (v.length > MAX_SHORT) throw new AccessRequestValidationError('whatsappNumber', WHATSAPP_INVALID);
+  const p = canonicalPhone(v);
+  if (!p.ok) throw new AccessRequestValidationError('whatsappNumber', /country code/.test(p.message) ? WHATSAPP_REQUIRED : WHATSAPP_INVALID);
+  return p.phone;
+}
 
 /** A field-level validation failure — never a silent pass (a wrong row is worse than a rejected one). */
 export class AccessRequestValidationError extends Error {
@@ -38,6 +52,8 @@ export interface RawAccessRequest {
   /** [BETA-3b] Referral code captured from the landing URL (?ref=). Optional, opaque, persisted for
    *  application at approval. Never blocks submission. */
   referralCode?: unknown;
+  /** [P75 · owner] Required: the rep's WhatsApp number, with its country code (the form's picker sends E.164). */
+  whatsappNumber?: unknown;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -159,6 +175,7 @@ export class AccessRequestService {
     const phone = reqStr(raw.phone, 'phone');
     const companyName = reqStr(raw.companyName, 'companyName');
     const roleTitle = reqStr(raw.roleTitle, 'roleTitle');
+    const whatsappNumber = whatsappE164(raw.whatsappNumber); // [P75]
 
     const answers = validateAnswers(raw);
     const employerPermission = meta.invited === true && answers.ownership === 'employed';
@@ -190,6 +207,7 @@ export class AccessRequestService {
       industryOther: answers.industryOther,
       employerPermissionAcceptedAt: employerPermission ? this.now() : null,
       employerPermissionText: employerPermission ? EMPLOYER_PERMISSION_TEXT : null,
+      whatsappNumber,
     });
   }
 }

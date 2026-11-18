@@ -12,6 +12,9 @@ async function fillBase(user: ReturnType<typeof userEvent.setup>): Promise<void>
   await user.type(screen.getByLabelText('Full name'), 'Dana Rep');
   await user.type(screen.getByLabelText('Work email'), 'dana@brokerage.ae');
   await user.type(screen.getByLabelText('Phone'), '+971 50 123 4567');
+  // [P75 · owner] the form now requires a WhatsApp number with its country code (pin moved with the owner's new rule)
+  await user.selectOptions(screen.getByLabelText('Country code'), 'AE');
+  await user.type(screen.getByLabelText('WhatsApp number'), '050 123 4567');
   await user.type(screen.getByLabelText('Company name'), 'Meridian');
   await user.type(screen.getByLabelText('Role / job title'), 'Broker');
 }

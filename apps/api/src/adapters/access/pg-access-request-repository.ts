@@ -31,6 +31,8 @@ export interface Row {
   /** [P59-1] migration 0108 */
   employer_permission_accepted_at?: Date | null;
   employer_permission_text?: string | null;
+  /** [P75] migration 0118 */
+  whatsapp_e164?: string | null;
 }
 
 export function rowToAccessRequest(r: Row): AccessRequestRecord {
@@ -65,11 +67,12 @@ function toRecord(r: Row): AccessRequestRecord {
     source: r.source ?? 'form',
     employerPermissionAcceptedAt: r.employer_permission_accepted_at ? r.employer_permission_accepted_at.getTime() : null,
     employerPermissionText: r.employer_permission_text ?? null,
+    whatsappNumber: r.whatsapp_e164 ?? null,
   };
 }
 
 const COLS =
-  'id, created_at, status, full_name, work_email, phone, company_name, role_title, ownership, trade_licence_number, conversation_ownership, conversation_ownership_other, expected_volume, confirmation_accepted_at, confirmation_text_version, source_ip, user_agent, reviewed_at, reviewed_note, linked_user_id, referral_code, industry, industry_other, source, employer_permission_accepted_at, employer_permission_text';
+  'id, created_at, status, full_name, work_email, phone, company_name, role_title, ownership, trade_licence_number, conversation_ownership, conversation_ownership_other, expected_volume, confirmation_accepted_at, confirmation_text_version, source_ip, user_agent, reviewed_at, reviewed_note, linked_user_id, referral_code, industry, industry_other, source, employer_permission_accepted_at, employer_permission_text, whatsapp_e164';
 
 /** Postgres-backed access-request store (pre-tenant; no RLS, granted to tovira_app — see 0073). */
 export class PgAccessRequestRepository implements AccessRequestRepository {
@@ -81,16 +84,16 @@ export class PgAccessRequestRepository implements AccessRequestRepository {
          (full_name, work_email, phone, company_name, role_title, ownership, trade_licence_number,
           conversation_ownership, conversation_ownership_other, expected_volume,
           confirmation_accepted_at, confirmation_text_version, source_ip, user_agent, referral_code, industry, industry_other, source,
-          employer_permission_accepted_at, employer_permission_text)
+          employer_permission_accepted_at, employer_permission_text, whatsapp_e164)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, CASE WHEN $11::double precision IS NULL THEN NULL ELSE to_timestamp($11 / 1000.0) END, $12, $13, $14, $15, $16, $17, $18,
-          CASE WHEN $19::double precision IS NULL THEN NULL ELSE to_timestamp($19 / 1000.0) END, $20)
+          CASE WHEN $19::double precision IS NULL THEN NULL ELSE to_timestamp($19 / 1000.0) END, $20, $21)
        RETURNING ${COLS}`,
       [
         input.fullName, input.workEmail, input.phone, input.companyName, input.roleTitle,
         input.ownership, input.tradeLicenceNumber, input.conversationOwnership, input.conversationOwnershipOther,
         input.expectedVolume, input.confirmationAcceptedAt, input.confirmationTextVersion, input.sourceIp, input.userAgent, input.referralCode,
         input.industry ?? null, input.industryOther ?? null, input.source ?? 'form',
-        input.employerPermissionAcceptedAt ?? null, input.employerPermissionText ?? null,
+        input.employerPermissionAcceptedAt ?? null, input.employerPermissionText ?? null, input.whatsappNumber ?? null,
       ],
     );
     return toRecord(rows[0]!);

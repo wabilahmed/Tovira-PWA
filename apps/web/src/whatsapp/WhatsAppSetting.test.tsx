@@ -2,16 +2,22 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { WhatsAppSetting } from './WhatsAppSetting.js';
+import { WhatsAppStatusProvider } from './useWhatsApp.js';
 import { toviraVCard, type WhatsAppApi, type WhatsAppStatus } from './whatsappClient.js';
 
-/** [P67 · owner] Settings › Send chats on WhatsApp: link with a code sent from WhatsApp; linked shows Tovira's number. */
-const OFF: WhatsAppApi = { status: async () => null, startLink: async () => ({ ok: false, message: 'x' }), unlink: async () => null };
-const unlinked: WhatsAppStatus = { linked: null, businessNumber: '+971500000001' };
-const linked: WhatsAppStatus = { linked: { phone: '+971501234567', linkedAt: 1 }, businessNumber: '+971500000001' };
+/** [P67 · owner] Settings › Send chats on WhatsApp: link with a code sent from WhatsApp; linked shows Tovira's number.
+ *  [P75 · owner] Pins moved with the owner's new Settings → WhatsApp (status, the number, Verify now, Change number):
+ *  the section reads the shared status (WhatsAppStatusProvider) instead of its own `api` prop; "Get a code" is "Get my
+ *  code", the number field is "WhatsApp number" behind Change number (pre-filled from the request when there is one),
+ *  and "Linked: <number>." is the status "Verified on <date>" with the number. Each test keeps what it checked. */
+const OFF: WhatsAppApi = { status: async () => null, startLink: async () => ({ ok: false, message: 'x' }), unlink: async () => null, confirm: async () => null };
+const unlinked: WhatsAppStatus = { linked: null, businessNumber: '+971500000001', requestedNumber: null, awaitingConfirm: null };
+const linked: WhatsAppStatus = { linked: { phone: '+971501234567', linkedAt: Date.UTC(2026, 10, 9) }, businessNumber: '+971500000001', requestedNumber: null, awaitingConfirm: null };
+const ui = (api: WhatsAppApi, pollMs?: number) => <WhatsAppStatusProvider api={api} {...(pollMs ? { pollMs } : {})}><WhatsAppSetting /></WhatsAppStatusProvider>;
 
 describe('<WhatsAppSetting>', () => {
   it('switched off: nothing is shown at all', async () => {
-    const { container } = render(<WhatsAppSetting api={OFF} />);
+    const { container } = render(ui(OFF));
     await new Promise((r) => setTimeout(r, 20));
     expect(container).toBeEmptyDOMElement();
     expect(screen.queryByText(/whatsapp/i)).toBeNull();
@@ -23,35 +29,41 @@ describe('<WhatsAppSetting>', () => {
       status: vi.fn(async () => s),
       startLink: vi.fn(async () => ({ ok: true as const, code: '482193', phone: '+971501234567', waLink: 'https://wa.me/971500000001?text=LINK%20482193', expiresAt: Date.now() + 900_000 })),
       unlink: async () => unlinked,
+      confirm: async () => null,
     };
-    render(<WhatsAppSetting api={api} pollMs={10} />);
-    await userEvent.type(await screen.findByLabelText('Your WhatsApp number'), '+971 50 123 4567');
-    await userEvent.click(screen.getByRole('button', { name: 'Get a code' }));
+    render(ui(api, 10));
+    await userEvent.click(await screen.findByRole('button', { name: 'Verify now' }));
+    await userEvent.type(screen.getByLabelText('WhatsApp number'), '+971 50 123 4567');
+    await userEvent.click(screen.getByRole('button', { name: 'Get my code' }));
     expect(api.startLink).toHaveBeenCalledWith('+971 50 123 4567');
     expect(screen.getByTestId('whatsapp-pending')).toHaveTextContent('Your code is 482193.');
     expect(screen.getByRole('link', { name: 'Open WhatsApp' })).toHaveAttribute('href', 'https://wa.me/971500000001?text=LINK%20482193');
     s = linked; // the message arrived from that number
     await waitFor(() => expect(screen.getByTestId('whatsapp-linked')).toBeInTheDocument());
+    expect(screen.getByTestId('whatsapp-status')).toHaveTextContent('Verified on 9 Nov 2026');
   });
 
   it('linked: Tovira\'s number in international format, Save Tovira\'s number (vCard), and Unlink', async () => {
-    const api: WhatsAppApi = { status: async () => linked, startLink: async () => ({ ok: false, message: '' }), unlink: vi.fn(async () => unlinked) };
-    render(<WhatsAppSetting api={api} />);
+    const api: WhatsAppApi = { status: async () => linked, startLink: async () => ({ ok: false, message: '' }), unlink: vi.fn(async () => unlinked), confirm: async () => null };
+    render(ui(api));
     const box = await screen.findByTestId('whatsapp-linked');
-    expect(box).toHaveTextContent('Linked: +971 50 123 4567. Send any exported chat to Tovira on WhatsApp: +971 50 000 0001');
+    expect(screen.getByTestId('whatsapp-number')).toHaveTextContent('+971 50 123 4567');
+    expect(box).toHaveTextContent('Send any exported chat to Tovira on WhatsApp: +971 50 000 0001');
     const save = screen.getByRole('link', { name: 'Save Tovira’s number' });
     expect(save).toHaveAttribute('download', 'Tovira.vcf');
     expect(decodeURIComponent(save.getAttribute('href')!.split(',')[1]!)).toBe(toviraVCard('+971500000001'));
     await userEvent.click(screen.getByRole('button', { name: 'Unlink' }));
     expect(api.unlink).toHaveBeenCalled();
-    expect(await screen.findByTestId('whatsapp-start')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('whatsapp-status')).toHaveTextContent('Not verified'));
+    expect(screen.getByRole('button', { name: 'Verify now' })).toBeInTheDocument();
   });
 
   it('a refused number shows the server\'s reason', async () => {
-    const api: WhatsAppApi = { status: async () => unlinked, startLink: async () => ({ ok: false, message: 'This number is linked to another Tovira account.' }), unlink: async () => unlinked };
-    render(<WhatsAppSetting api={api} />);
-    await userEvent.type(await screen.findByLabelText('Your WhatsApp number'), '+971501234567');
-    await userEvent.click(screen.getByRole('button', { name: 'Get a code' }));
+    const api: WhatsAppApi = { status: async () => unlinked, startLink: async () => ({ ok: false, message: 'This number is linked to another Tovira account.' }), unlink: async () => unlinked, confirm: async () => null };
+    render(ui(api));
+    await userEvent.click(await screen.findByRole('button', { name: 'Verify now' }));
+    await userEvent.type(screen.getByLabelText('WhatsApp number'), '+971501234567');
+    await userEvent.click(screen.getByRole('button', { name: 'Get my code' }));
     expect(screen.getByRole('alert')).toHaveTextContent('This number is linked to another Tovira account.');
   });
 });

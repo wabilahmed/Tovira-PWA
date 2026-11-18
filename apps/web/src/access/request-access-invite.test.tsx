@@ -15,6 +15,9 @@ function client(prefill: typeof PREFILL | null, approved = true): AccessRequestC
 }
 async function complete(): Promise<void> {
   await userEvent.type(screen.getByLabelText('Phone'), '+971 50 123 4567');
+  // [P75 · owner] the form now requires a WhatsApp number with its country code (pin moved with the owner's new rule)
+  await userEvent.selectOptions(screen.getByLabelText('Country code'), 'AE');
+  await userEvent.type(screen.getByLabelText('WhatsApp number'), '050 123 4567');
   await userEvent.click(screen.getByRole('radio', { name: 'Property' }));
   await userEvent.click(screen.getByRole('radio', { name: /I am employed/i }));
   await userEvent.click(screen.getByRole('radio', { name: /My own clients/ }));

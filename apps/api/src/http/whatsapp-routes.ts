@@ -14,6 +14,7 @@ import { BadJsonError, extractToken, readJsonBody, readRawBody, sendJson } from 
  *   GET    /whatsapp/link       Settings: the linked number (or none) and Tovira's number.       rep
  *   POST   /whatsapp/link       { phone } → a one-time code and the wa.me link that sends it.   rep
  *   DELETE /whatsapp/link       unlink.                                                          rep
+ *   POST   /whatsapp/link/confirm { accept } [P75] a code came from a different number: link THAT number, or not.  rep
  *
  * The webhook is the only unauthenticated route, and nothing it receives is processed without a valid signature. A
  * failed check is logged as a failure only (never the body).
@@ -30,7 +31,7 @@ const MAX_WEBHOOK_BYTES = 3_000_000;
 export async function handleWhatsAppRoute(req: IncomingMessage, res: ServerResponse, deps: WhatsAppRouteDeps): Promise<boolean> {
   const method = req.method ?? 'GET';
   const [path, query = ''] = (req.url ?? '/').split('?');
-  if (path !== '/webhooks/whatsapp' && path !== '/whatsapp/link') return false;
+  if (path !== '/webhooks/whatsapp' && path !== '/whatsapp/link' && path !== '/whatsapp/link/confirm') return false;
   const wa = deps.whatsapp;
   if (!wa) { sendJson(res, 404, { error: 'not_found' }); return true; } // switched off: the feature does not exist
 
@@ -65,6 +66,20 @@ export async function handleWhatsAppRoute(req: IncomingMessage, res: ServerRespo
   if (!identity) { sendJson(res, 401, { error: 'unauthorized' }); return true; }
   const userId = identity.userId;
   if (!wa.allowed((await deps.auth.getPublicUser(userId))?.email ?? null)) { sendJson(res, 404, { error: 'not_found' }); return true; }
+  if (path === '/whatsapp/link/confirm') {
+    if (method !== 'POST') { sendJson(res, 405, { error: 'method_not_allowed' }); return true; }
+    let body: { accept?: unknown };
+    try { body = (await readJsonBody(req)) as { accept?: unknown }; } catch (err) {
+      if (err instanceof BadJsonError) { sendJson(res, 400, { error: 'validation' }); return true; }
+      throw err;
+    }
+    if (typeof body.accept !== 'boolean') { sendJson(res, 400, { error: 'validation' }); return true; }
+    const r = await wa.service.confirm(userId, body.accept);
+    if (!r.ok && r.reason === 'gone') { sendJson(res, 410, { error: 'gone', message: 'That has expired. Tap Verify now for a new code.' }); return true; }
+    if (!r.ok) { sendJson(res, 409, { error: 'taken', message: 'This number is linked to another Tovira account.' }); return true; }
+    sendJson(res, 200, await wa.service.status(userId));
+    return true;
+  }
   if (method === 'GET') { sendJson(res, 200, await wa.service.status(userId)); return true; }
   if (method === 'DELETE') { await wa.service.unlink(userId); sendJson(res, 200, await wa.service.status(userId)); return true; }
   if (method === 'POST') {

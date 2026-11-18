@@ -19,7 +19,8 @@ const VALID = {
   expectedVolume: '50_200',
   // [P42 · owner] Industry is required on new requests.
   industry: 'property',
-  confirmationAccepted: true,
+  // [P75 · owner] The request form now requires a WhatsApp number (E.164); the fixture carries one (pin moved with the owner's new rule).
+  confirmationAccepted: true, whatsappNumber: '+971 50 123 4567',
 };
 
 let server: Server | null = null;

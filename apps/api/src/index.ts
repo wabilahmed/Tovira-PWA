@@ -671,7 +671,9 @@ async function main(): Promise<void> {
     requests: accessRequests,
     tx: new PgAccessApprovalTx(appPool, new PgUserRepository(appPool)),
     hasher: new ScryptHasher(),
-    sendInvite: (to, inviteUrl) => accountEmail.sendInvite(to, inviteUrl),
+    sendInvite: (to, inviteUrl, extra) => accountEmail.sendInvite(to, inviteUrl, extra),
+    // [P75] the invite carries "Verify your WhatsApp" only when WhatsApp is open to this rep (read at send time)
+    whatsappOffered: (email) => !!whatsapp && whatsapp.enabled && whatsapp.allowed(email),
     applyReferral: (code, userId, email) => referral.apply(code, userId, email),
     appBaseUrl: config.appBaseUrl,
     invites, // [BETA-8] read/re-issue invites for the expired-link resend flow
@@ -689,6 +691,7 @@ async function main(): Promise<void> {
     store: new PgWhatsAppLinkStore(appPool), storage, appBaseUrl: config.appBaseUrl,
     entitlement: (uid, now) => billing.entitlement(uid, now).then((e) => ({ entitled: e.entitled, status: e.status })),
     longChatLimit: longChatLimit(config.windowing.enabled),
+    requestedNumber: async (uid) => (await accessRequests.findByLinkedUser(uid))?.whatsappNumber ?? null, // [P75]
   });
   const waAllow = config.whatsapp.allowedEmails;
   console.log(`[whatsapp] ${whatsapp ? `webhook ready · mode ${config.whatsapp.mode} · ingest ${config.whatsapp.enabled ? 'ON' : 'off'} · allowlist ${waAllow === '*' ? 'everyone' : `${waAllow.length} account(s)`}` : 'not configured (all routes 404)'}`);

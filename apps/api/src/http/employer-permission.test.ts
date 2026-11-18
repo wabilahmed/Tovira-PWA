@@ -17,7 +17,8 @@ import { InMemoryEmailLogRepository } from '../adapters/email/in-memory-email-lo
 let server: Server | null = null;
 afterEach(async () => { if (server) await new Promise<void>((r) => server!.close(() => r())); server = null; });
 const LEAD: HotLeadInput = { personId: 'p1', campaignId: 7, campaignName: 'c', name: 'Sara Khan', email: 'sara@emaar.example', jobTitle: 'Head of Leasing', companyName: 'Emaar', companyDomain: null, linkedinUrl: null, country: 'AE', phone: null, whyHot: 'yes', becameHotAt: Date.now(), erased: false };
-const FORM = { fullName: 'Sara Khan', workEmail: 'sara@emaar.example', phone: '+971 50 123 4567', companyName: 'Emaar', roleTitle: 'Head of Leasing', conversationOwnership: 'brokerage_employs_me', expectedVolume: '50_200', industry: 'property', confirmationAccepted: true };
+// [P75 · owner] The request form now requires a WhatsApp number (E.164); the fixture carries one (pin moved with the owner's new rule).
+const FORM = { fullName: 'Sara Khan', workEmail: 'sara@emaar.example', phone: '+971 50 123 4567', companyName: 'Emaar', roleTitle: 'Head of Leasing', conversationOwnership: 'brokerage_employs_me', expectedVolume: '50_200', industry: 'property', confirmationAccepted: true, whatsappNumber: '+971 50 123 4567' };
 const JSONH = { 'content-type': 'application/json' };
 
 async function invited(): Promise<{ base: string; deps: TestDeps; token: string; cookie: string }> {

@@ -45,7 +45,21 @@ export interface WhatsAppServiceDeps {
   helpReplies?: RateLimiter;
   /** Chats per rep per hour. */
   perRep?: RateLimiter;
+  /** [P75] The number the rep gave on their access request (E.164), to pre-fill the verify step; null when none. */
+  requestedNumber?: (userId: string) => Promise<string | null>;
+  /** [P75] A sender's tries at a code made for another number (5 an hour), so a code can't be guessed from a stranger's phone. */
+  linkGuesses?: RateLimiter;
   now?: () => number;
+}
+
+const TAKEN = 'This number is linked to another Tovira account.';
+
+/** [P75] What Settings, the first sign-in step and the Today banner read. */
+export interface WhatsAppStatus {
+  linked: { phone: string; linkedAt: number } | null;
+  businessNumber: string;
+  requestedNumber: string | null;
+  awaitingConfirm: { phone: string } | null;
 }
 
 const hashCode = (code: string): string => createHash('sha256').update(`tovira-wa-link:${code}`).digest('hex');
@@ -58,9 +72,23 @@ export class WhatsAppService {
 
   // ---------- Settings (the rep, signed in) ----------
 
-  async status(userId: string): Promise<{ linked: { phone: string; linkedAt: number } | null; businessNumber: string }> {
+  /** [P75] `linked` is the verified number (verified on `linkedAt`); `requestedNumber` the one from the access request;
+   *  `awaitingConfirm` a number a code arrived from that the rep has not confirmed yet (never linked until they do). */
+  async status(userId: string): Promise<WhatsAppStatus> {
     const l = await this.deps.store.get(userId);
-    return { linked: l ? { phone: l.phone, linkedAt: l.linkedAt } : null, businessNumber: this.deps.settings.businessNumber };
+    const waiting = await this.deps.store.getConfirm(userId, this.now());
+    return {
+      linked: l ? { phone: l.phone, linkedAt: l.linkedAt } : null,
+      businessNumber: this.deps.settings.businessNumber,
+      requestedNumber: (await this.deps.requestedNumber?.(userId)) ?? null,
+      awaitingConfirm: waiting ? { phone: waiting.phone } : null,
+    };
+  }
+
+  /** [P75] The verified number only (Admin → Access). */
+  async verifiedOf(userId: string): Promise<{ phone: string; linkedAt: number } | null> {
+    const l = await this.deps.store.get(userId);
+    return l ? { phone: l.phone, linkedAt: l.linkedAt } : null;
   }
 
   async startLink(userId: string, rawPhone: string): Promise<{ ok: true; code: string; phone: string; waLink: string; expiresAt: number } | { ok: false; status: number; message: string }> {
@@ -68,14 +96,28 @@ export class WhatsAppService {
     if (!p.ok) return { ok: false, status: 400, message: p.message };
     const other = await this.deps.store.byPhone(p.phone);
     if (other && other.userId !== userId) return { ok: false, status: 409, message: 'This number is linked to another Tovira account.' };
-    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    // [P75] a code names one rep: drawn again if another rep's pending code has the same digits
+    let code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    for (let i = 0; i < 5 && (await this.deps.store.codeInUse(hashCode(code))); i++) code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const expiresAt = this.now() + LINK_CODE_TTL_MS;
+    // [P75] A new code replaces the old one (one per rep) and voids a number waiting for confirmation.
     await this.deps.store.putCode(userId, p.phone, hashCode(code), expiresAt);
+    await this.deps.store.clearConfirm(userId);
     const digits = this.deps.settings.businessNumber.replace(/\D/g, '');
     return { ok: true, code, phone: p.phone, waLink: `https://wa.me/${digits}?text=${encodeURIComponent(`LINK ${code}`)}`, expiresAt };
   }
 
   async unlink(userId: string): Promise<void> { await this.deps.store.unlink(userId); }
+
+  /** [P75] The rep's answer to "Your code came from <number>": yes links THAT number (the one the message came from),
+   *  no forgets it. Nothing waiting (or expired) = 'gone'. */
+  async confirm(userId: string, accept: boolean): Promise<{ ok: true } | { ok: false; reason: 'gone' | 'taken' }> {
+    const waiting = await this.deps.store.takeConfirm(userId, this.now());
+    if (!waiting) return { ok: false, reason: 'gone' };
+    if (!accept) return { ok: true };
+    const linked = await this.deps.store.link(userId, waiting.phone, waiting.waUserId, this.now());
+    return linked.ok ? { ok: true } : { ok: false, reason: 'taken' };
+  }
 
   // ---------- The webhook (Meta, signature already checked) ----------
 
@@ -132,10 +174,22 @@ export class WhatsAppService {
   private async handleLinkCode(m: InboundMessage, code: string): Promise<void> {
     if (!m.phone) { await this.reply(m, REPLY.wrongCode); return; } // no number shared: nothing to prove
     const r = await this.deps.store.consumeCode(m.phone, hashCode(code), this.now());
-    if (!r.ok) { await this.reply(m, REPLY.wrongCode); return; }
-    const linked = await this.deps.store.link(r.userId, m.phone, m.waUserId, this.now());
-    if (!linked.ok) await this.reply(m, 'This number is linked to another Tovira account.');
-    // Linked: no reply (essential replies only). The app's Settings shows "Linked" on its next check.
+    if (r.ok) {
+      const linked = await this.deps.store.link(r.userId, m.phone, m.waUserId, this.now());
+      if (!linked.ok) await this.reply(m, TAKEN);
+      return; // Linked: no reply (essential replies only). The app shows "Verified" on its next check.
+    }
+    if (r.reason === 'expired') { await this.reply(m, REPLY.wrongCode); return; }
+    // [P75 · owner] Not a code for this number: maybe the rep's code sent from a different number. That links NOTHING;
+    // the number it came from waits for the rep to confirm it in the app. A sender gets 5 such tries an hour.
+    if (this.limited(this.deps.linkGuesses, keyOf(m))) { await this.reply(m, REPLY.wrongCode); return; }
+    const any = await this.deps.store.consumeCodeAnyNumber(hashCode(code), this.now());
+    if (!any.ok) { await this.reply(m, REPLY.wrongCode); return; }
+    const owner = await this.deps.store.byPhone(m.phone);
+    if (owner && owner.userId !== any.userId) { await this.reply(m, TAKEN); return; }
+    if (owner && owner.userId === any.userId) return; // already this rep's verified number: nothing to ask
+    await this.deps.store.putConfirm(any.userId, m.phone, m.waUserId, this.now() + LINK_CODE_TTL_MS);
+    await this.reply(m, REPLY.confirmInApp);
   }
 
   private async handleDocument(m: InboundMessage, userId: string): Promise<void> {

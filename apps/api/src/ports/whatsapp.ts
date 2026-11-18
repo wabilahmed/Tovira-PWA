@@ -27,6 +27,18 @@ export interface WhatsAppLinkStore {
   /** Link the number to the rep (replacing the rep's previous number). Refused when the number is linked to another account. */
   link(userId: string, phone: string, waUserId: string | null, nowMs: number): Promise<{ ok: true } | { ok: false; reason: 'taken' }>;
   unlink(userId: string): Promise<void>;
+  /** [P75] True when a pending code already has this hash (a new code is drawn again, so a code names one rep). */
+  codeInUse(codeHash: string): Promise<boolean>;
+  /** [P75] A "LINK <code>" from a number that is NOT the one the code was made for: the code, whichever number it was
+   *  for, taken once (deleted). Expired = refused. */
+  consumeCodeAnyNumber(codeHash: string, nowMs: number): Promise<ConsumeResult>;
+  /** [P75] The number a code came from, waiting for the rep to confirm it (replaces any earlier one). */
+  putConfirm(userId: string, phone: string, waUserId: string | null, expiresAt: number): Promise<void>;
+  /** [P75] The waiting number, if it has not expired. */
+  getConfirm(userId: string, nowMs: number): Promise<{ phone: string; waUserId: string | null } | null>;
+  /** [P75] Take the waiting number once (deleted), if it has not expired. */
+  takeConfirm(userId: string, nowMs: number): Promise<{ phone: string; waUserId: string | null } | null>;
+  clearConfirm(userId: string): Promise<void>;
   /** True the first time a Meta message id is seen; false for a repeat delivery. */
   firstDelivery(messageId: string, nowMs: number): Promise<boolean>;
 }

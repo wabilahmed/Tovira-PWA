@@ -85,7 +85,8 @@ describe('[P72-1] ingest ON, allowlist = the owner only', () => {
     const t = await rep(OWNER);
     const s = await fetch(`${base}/whatsapp/link`, { headers: auth(t) });
     expect(s.status).toBe(200);
-    expect(await s.json()).toEqual({ linked: null, businessNumber: '+15550100000' });
+    // [P75 · owner] the status also carries the number from the access request and a number waiting for confirmation
+    expect(await s.json()).toEqual({ linked: null, businessNumber: '+15550100000', requestedNumber: null, awaitingConfirm: null });
     const l = await fetch(`${base}/whatsapp/link`, { method: 'POST', headers: auth(t), body: JSON.stringify({ phone: '+971501234567' }) });
     expect(l.status).toBe(200);
     expect(((await l.json()) as { waLink: string }).waLink).toMatch(/^https:\/\/wa\.me\/15550100000\?text=LINK%20\d{6}$/);

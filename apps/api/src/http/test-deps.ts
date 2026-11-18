@@ -401,7 +401,7 @@ export function buildInMemoryDeps(
     hasher,
     invites, // [BETA-8] the resend flow reads/re-issues invites
     resendLimiter: new FixedWindowRateLimiter(INVITE_RESEND_MAX_PER_DAY, 24 * 60 * 60 * 1000),
-    sendInvite: (to, url) => accountEmail.sendInvite(to, url),
+    sendInvite: (to, url, extra) => accountEmail.sendInvite(to, url, extra),
     applyReferral: (code, userId, email) => referral.apply(code, userId, email),
     appBaseUrl: 'http://localhost:5173',
   });

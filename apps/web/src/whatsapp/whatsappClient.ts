@@ -2,7 +2,14 @@
  * [P67 · owner] Send chats on WhatsApp: the rep's linked number. GET /whatsapp/link answers 404 while the feature is
  * switched off, and then nothing about it is shown anywhere.
  */
-export interface WhatsAppStatus { linked: { phone: string; linkedAt: number } | null; businessNumber: string }
+/** [P75] `linked` = verified (on `linkedAt`); `requestedNumber` = the number from the access request (pre-fills the
+ *  verify step); `awaitingConfirm` = a code came from a different number, waiting for the rep to confirm it. */
+export interface WhatsAppStatus {
+  linked: { phone: string; linkedAt: number } | null;
+  businessNumber: string;
+  requestedNumber: string | null;
+  awaitingConfirm: { phone: string } | null;
+}
 export type StartLink = { ok: true; code: string; phone: string; waLink: string; expiresAt: number } | { ok: false; message: string };
 
 export interface WhatsAppApi {
@@ -10,13 +17,20 @@ export interface WhatsAppApi {
   status(): Promise<WhatsAppStatus | null>;
   startLink(phone: string): Promise<StartLink>;
   unlink(): Promise<WhatsAppStatus | null>;
+  /** [P75] Yes / No to "Your code came from <number>". null = it had expired (or failed). */
+  confirm(accept: boolean): Promise<WhatsAppStatus | null>;
 }
 
 /** Only a real answer (Tovira's number present) turns the section on; anything else reads as switched off. */
 function statusOf(b: unknown): WhatsAppStatus | null {
   const o = b as Partial<WhatsAppStatus> | null;
   if (!o || typeof o.businessNumber !== 'string' || !o.businessNumber) return null;
-  return { businessNumber: o.businessNumber, linked: o.linked && typeof o.linked.phone === 'string' ? o.linked : null };
+  return {
+    businessNumber: o.businessNumber,
+    linked: o.linked && typeof o.linked.phone === 'string' ? o.linked : null,
+    requestedNumber: typeof o.requestedNumber === 'string' ? o.requestedNumber : null,
+    awaitingConfirm: o.awaitingConfirm && typeof o.awaitingConfirm.phone === 'string' ? { phone: o.awaitingConfirm.phone } : null,
+  };
 }
 
 export class WhatsAppClient implements WhatsAppApi {
@@ -34,6 +48,12 @@ export class WhatsAppClient implements WhatsAppApi {
       if (res.status === 200 && 'code' in b) return { ok: true, code: b.code!, phone: b.phone!, waLink: b.waLink!, expiresAt: b.expiresAt! };
       return { ok: false, message: b.message ?? 'Couldn’t start linking just now. Try again.' };
     } catch { return { ok: false, message: 'Couldn’t start linking just now. Try again.' }; }
+  }
+  async confirm(accept: boolean): Promise<WhatsAppStatus | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/whatsapp/link/confirm`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ accept }) });
+      return res.status === 200 ? statusOf(await res.json()) : null;
+    } catch { return null; }
   }
   async unlink(): Promise<WhatsAppStatus | null> {
     try {
