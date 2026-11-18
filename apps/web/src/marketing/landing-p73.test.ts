@@ -89,14 +89,16 @@ describe('[P73] claim-check changes (owner standing approval)', () => {
 
 describe('[P73] the design file and the page', () => {
   const ref = readFileSync(resolve(process.cwd(), 'plan/tovira-landing-reference.dc.html'), 'utf8');
-  it('the design file carries Block A (the 500px box, HOW IT WORKS in 5 steps, the auto-fit industry grid)', () => {
+  it('the design file carries Block A (the 500px box, the auto-fit industry grid; [P78] no HOW IT WORKS)', () => {
     expect(ref).toContain('<div id="game" class="tv-up" style="flex: 1 1 400px; min-width: 0; max-width: 500px; display: flex; flex-direction: column; gap: 12px; animation-delay: .3s; scroll-margin-top: 84px">');
-    expect(ref).toContain('>HOW IT WORKS</div>');
+    // [P78 · owner] HOW IT WORKS is gone from the design too (pin moved with that note)
+    expect(ref).not.toContain('HOW IT WORKS');
     expect(ref).not.toContain('HOW TO PLAY');
     expect(ref).toContain('<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px">');
     expect(ref).toContain("const POL = 'Polite, but it tells you nothing about what they want.';");
     expect(ref).toContain("whyLabel: isSig ? 'Why it counts: ' : 'Why not: '");
-    expect(ref).toContain('Tap every useful detail. At least one, maybe more.');
+    // [P78 · owner] the small header line is replaced by the rule lines (pin moved with that note)
+    expect(ref).toContain('Pick a wrong one and you fail this chat.');
     expect(ref).toContain('{{m.whyLabel}}');
   });
   it('the page: the game column is 500px at most, the card padding is tighter', () => {

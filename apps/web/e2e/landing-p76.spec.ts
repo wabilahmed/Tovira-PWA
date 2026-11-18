@@ -123,7 +123,7 @@ test('390px: Next chat, Play again and Try another industry bring the card\'s to
   await expect(card).toContainText('YOUR SCORE · PROPERTY');
   await check('[data-act="replay"]', 'chat 1 of 5');
   await toEnd(page);
-  await check('[data-act="switch"]', 'CHOOSE YOUR INDUSTRY');
+  await check('[data-act="switch"]', 'Pick your industry to start.'); // [P78 · owner] the CHOOSE YOUR INDUSTRY label went with HOW IT WORKS
 });
 
 test('390px, reduced motion: Next chat jumps to the card at once', async ({ page }) => {
@@ -182,7 +182,9 @@ for (const reduced of [false, true]) {
       await nav.getByRole('link', { name }).evaluate((a) => (a as HTMLElement).click());
       const first = await page.evaluate(() => scrollY);
       const target = await page.evaluate((i) => scrollY + document.getElementById(i)!.getBoundingClientRect().top - parseFloat(getComputedStyle(document.getElementById(i)!).scrollMarginTop), id);
-      if (reduced) expect(first, name).toBeCloseTo(target, 0);
+      // [P78] the browser scrolls in whole pixels: the jump lands on the pixel nearest the target (P78's shorter pick
+      // screen put #pricing at a half pixel, 3191.5, and the page lands on 3192)
+      if (reduced) expect(first, name).toBe(Math.round(target));
       else expect(first, `${name}: smooth, not a jump`).toBeLessThan(target - 50);
       const hb = await headerBottom(page);
       const top = () => page.evaluate((i) => document.getElementById(i)!.getBoundingClientRect().top, id);

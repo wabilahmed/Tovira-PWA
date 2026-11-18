@@ -400,7 +400,8 @@ a{color:#E8643A}a:hover{color:#F28A63}
    first line and "Would you have caught it?" share an INK top: both boxes start level, and the game moves down by the
    difference between where each font's ink starts in its line (half the leading plus ascent minus cap/ascender
    height): 0.125 of the headline size, 0.14 of the game heading size (Fraunces, measured in Chromium). */
-@media (min-width: 900px){.tv-hero{flex-wrap:nowrap !important}.tv-mobplay{display:none}.tv-hero-l{padding-top:0 !important}#game{margin-top:calc(clamp(34px, 4.4vw, 58px) * 0.125 - clamp(22px, 2.2vw, 26px) * 0.14)}}
+.tv-rule{font-size:17px}
+@media (min-width: 900px){.tv-hero{flex-wrap:nowrap !important}.tv-mobplay{display:none}.tv-hero-l{padding-top:0 !important}#game{margin-top:calc(clamp(34px, 4.4vw, 58px) * 0.125 - clamp(22px, 2.2vw, 26px) * 0.14)}.tv-rule{font-size:18px}}
 html{scroll-behavior:smooth;overflow-anchor:none}
 #how,#pricing{scroll-margin-top:72px}
 @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
@@ -422,7 +423,7 @@ html{scroll-behavior:smooth;overflow-anchor:none}
 </div>
 </header>
 
-<section id="top" style="position: relative; overflow: hidden">
+<section id="top" style="position: relative; overflow: clip">
 <div class="tv-orb" aria-hidden="true" style="width: 520px; height: 520px; right: -80px; top: -60px; background: rgba(232,100,58,0.22)"></div>
 <div class="tv-orb" aria-hidden="true" style="width: 380px; height: 380px; left: -120px; bottom: -120px; background: rgba(242,184,75,0.10); animation-delay: -7s"></div>
 <div aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none"><sc-for list="{{stars}}" as="st" hint-placeholder-count="28"><div class="tv-star" style="{{st.style}}"></div></sc-for></div>
@@ -447,19 +448,7 @@ html{scroll-behavior:smooth;overflow-anchor:none}
 
 <sc-if value="{{isPick}}" hint-placeholder-val="{{ true }}">
 <div style="display: flex; flex-direction: column; gap: 14px">
-<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #F2EDE4">A quick test of how well you read client chats. Clients drop details that win deals, usually between the small talk. Most reps scroll right past them.</p>
-<div style="background: #171412; border: 1px solid #332D28; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
-<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: #A79E92">HOW IT WORKS</div>
-<ol style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.45; color: #CFC6BA">
-<li>Choose your industry. You get <strong style="color: #F2EDE4">5 client chats</strong>, each with <strong style="color: #F2EDE4">5 messages</strong>.</li>
-<li>Tap every message with a detail that would help you close: something specific to this client, like what they love, their budget, a deadline, a worry or who else has a say.</li>
-<li>Skip the rest. Polite replies, scheduling and things every client says don't count, however good they sound.</li>
-<li><strong style="color: #F2EDE4">Every chat has at least one useful detail, and some have up to three.</strong> You won't know how many.</li>
-<li><strong style="color: #F2EDE4">One wrong tap ends that chat.</strong> We then show every detail you missed, and why each one matters.</li>
-</ol>
-<div style="font-size: 13px; color: #A79E92">One point per detail caught. Your score shows at the end.</div>
-</div>
-<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: #A79E92">CHOOSE YOUR INDUSTRY</div>
+<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #F2EDE4">Clients drop details that win deals. Can you spot them? Pick your industry to start.</p>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px">
 <sc-for list="{{industries}}" as="ind" hint-placeholder-count="6">
 <button class="tv-btn tv-msg" type="button" onClick="{{ind.start}}" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">{{ind.label}}</button>
@@ -470,9 +459,15 @@ html{scroll-behavior:smooth;overflow-anchor:none}
 
 <sc-if value="{{isPlay}}" hint-placeholder-val="{{ false }}">
 <div style="display: flex; flex-direction: column; gap: 12px">
-<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px">
-<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-weight: 600; font-size: 15px">{{industryLabel}} client · chat {{roundNo}} of 5</div><div style="font-size: 12px; color: #A79E92">Tap every useful detail. At least one, maybe more.</div></div>
-<span style="background: {{accent}}; color: #171412; border-radius: 999px; padding: 7px 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.08em; font-weight: 600">SCORE {{score}}</span>
+<!-- [P78 · owner] the rules sit on top, big and bold, every chat; the chat label and score are smaller -->
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div class="tv-rule" style="font-weight: 700; line-height: 1.3; color: #F2EDE4">{{findLine}}</div>
+<div style="font-weight: 700; font-size: 15px; line-height: 1.35; color: {{accent}}">Pick a wrong one and you fail this chat.</div>
+<div style="margin-top: 2px; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: #CFC6BA">{{counter}}</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px">
+<div style="font-size: 12px; color: #A79E92">{{industryLabel}} client · chat {{roundNo}} of 5</div>
+<span style="background: {{accent}}; color: #171412; border-radius: 999px; padding: 4px 10px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; font-weight: 600">SCORE {{score}}</span>
 </div>
 <div style="display: flex; gap: 6px" aria-hidden="true">
 <sc-for list="{{roundDots}}" as="d" hint-placeholder-count="5"><div style="{{d.style}}"></div></sc-for>
@@ -750,7 +745,7 @@ class Component extends DCLogic {
       ] }
     ];
 
-    const industries = games.map((g, i) => ({ label: g.label, start: () => this.setState({ gi: i, phase: 'play', round: 0, tapped: [], results: [], shakeAt: -1 }) }));
+    const industries = games.map((g, i) => ({ label: g.label, start: () => { toCard(); this.setState({ gi: i, phase: 'play', round: 0, tapped: [], results: [], shakeAt: -1 }); } })); // [P78] toCard: the rules start on screen
     const gi = Math.max(0, s.gi);
     const game = games[gi];
     const maxScore = game.chats.reduce((a, c) => a + c.filter((m) => m[1]).length, 0);
@@ -808,7 +803,7 @@ class Component extends DCLogic {
     for (let i = 0; i < maxScore; i++) scoreDots.push({ style: 'flex:1 1 0;min-width:0;height:6px;border-radius:999px;background:' + (i < score ? accent : '#3A332D') });
 
     const last = s.round >= 4;
-    // [P76 · owner] On mobile (the game stacked under the copy, below 900px), a new chat, Play again or Try another
+    // [P76 · owner] On mobile (the game stacked under the copy, below 900px), picking an industry [P78], a new chat, Play again or Try another
     // industry brings the card's top just below the sticky header if it isn't fully on screen: smooth, instant with
     // reduced motion. Desktop doesn't scroll.
     const toCard = () => {
@@ -880,6 +875,8 @@ class Component extends DCLogic {
       accent, stars, worlds, cur: data[picked], wallA, wallB, wallC, marqA, marqB,
       isPick: s.phase === 'pick', isPlay: s.phase === 'play', isEnd: s.phase === 'end',
       industries, industryLabel: game.label, industryUpper: game.label.toUpperCase(), roundNo: s.round + 1,
+      findLine: sigCount === 1 ? 'Find the 1 message that helps you close the deal.' : 'Find the ' + sigCount + ' messages that help you close the deal.',
+      counter: found + ' of ' + sigCount + ' found',
       msgs, done, roundLine, roundSub, roundDots, scoreDots, score, maxScore, next, nextLabel: last ? 'See your score' : 'Next chat →',
       replay, switchInd, rank, rankLine
     };

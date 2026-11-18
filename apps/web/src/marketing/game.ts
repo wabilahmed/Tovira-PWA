@@ -6,6 +6,9 @@
  * the other traps "Not a signal"; HOW IT WORKS in 5 steps; a smaller card (Blocks A and C of the design, word for word).
  * Pure state logic plus HTML-string views, so the same code renders the prerendered pick screen in index.html (pinned
  * by a test) and every state after it in the browser. No libraries.
+ * [P78 · owner] Clarity: the pick screen is one line, then the industries (HOW IT WORKS is gone, nobody read it). Every
+ * chat starts with its rules, big and bold: "Find the N messages that help you close the deal." (N from the data) and
+ * "Pick a wrong one and you fail this chat.", then a live "x of N found" counter; the chat label and score are smaller.
  */
 import { ACCENT, GAMES, type Msg } from './landing-data.js';
 
@@ -57,6 +60,7 @@ export type MsgState = 'idle' | 'hit' | 'wrong' | 'missed' | 'chatter';
 export interface MsgView { t: string; st: MsgState; style: string; tag: string; tagStyle: string; hasTag: boolean; why: string; whyLabel: string; hasWhy: boolean; anim: string; pressed: 'true' | 'false'; disabled: boolean }
 export interface GameView {
   phase: Phase; industries: string[]; industryLabel: string; industryUpper: string; header: string; roundNo: number;
+  findLine: string; counter: string;
   msgs: MsgView[]; done: boolean; roundLine: string; roundSub: string; roundDots: string[]; scoreDots: string[];
   score: number; maxScore: number; nextLabel: string; rank: string; rankLine: string;
 }
@@ -111,6 +115,8 @@ export function view(s: GameState): GameView {
   return {
     phase: s.phase, industries: GAMES.map((g) => g.label), industryLabel: game.label, industryUpper: game.label.toUpperCase(),
     header: game.label + ' client · chat ' + (s.round + 1) + ' of 5', roundNo: s.round + 1,
+    findLine: sigCount === 1 ? 'Find the 1 message that helps you close the deal.' : 'Find the ' + sigCount + ' messages that help you close the deal.',
+    counter: found + ' of ' + sigCount + ' found',
     msgs, done, roundLine, roundSub, roundDots, scoreDots, score, maxScore, nextLabel: s.round >= 4 ? 'See your score' : 'Next chat →', ...rankFor(score, maxScore),
   };
 }
@@ -121,22 +127,12 @@ export const esc = (v: string): string => v.replace(/&/g, '&amp;').replace(/</g,
 const MONO_FAMILY = "'JetBrains Mono', 'JetBrains Mono Fallback', monospace";
 const SERIF_FAMILY = "Fraunces, 'Fraunces Fallback', Georgia, serif";
 
+export const PICK_LINE = 'Clients drop details that win deals. Can you spot them? Pick your industry to start.';
+export const WARN_LINE = 'Pick a wrong one and you fail this chat.';
+
 export function pickHtml(v: GameView): string {
-  const b = 'style="color: #F2EDE4"';
   return `<div style="display: flex; flex-direction: column; gap: 14px">`
-    + `<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #F2EDE4">A quick test of how well you read client chats. Clients drop details that win deals, usually between the small talk. Most reps scroll right past them.</p>`
-    + `<div style="background: #171412; border: 1px solid #332D28; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">`
-    + `<div style="font-family: ${MONO_FAMILY}; font-size: 11px; letter-spacing: 0.14em; color: #A79E92">HOW IT WORKS</div>`
-    + `<ol style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.45; color: #CFC6BA">`
-    + `<li>Choose your industry. You get <strong ${b}>5 client chats</strong>, each with <strong ${b}>5 messages</strong>.</li>`
-    + `<li>Tap every message with a detail that would help you close: something specific to this client, like what they love, their budget, a deadline, a worry or who else has a say.</li>`
-    + `<li>Skip the rest. Polite replies, scheduling and things every client says don't count, however good they sound.</li>`
-    + `<li><strong ${b}>Every chat has at least one useful detail, and some have up to three.</strong> You won't know how many.</li>`
-    + `<li><strong ${b}>One wrong tap ends that chat.</strong> We then show every detail you missed, and why each one matters.</li>`
-    + `</ol>`
-    + `<div style="font-size: 13px; color: #A79E92">One point per detail caught. Your score shows at the end.</div>`
-    + `</div>`
-    + `<div style="font-family: ${MONO_FAMILY}; font-size: 11px; letter-spacing: 0.14em; color: #A79E92">CHOOSE YOUR INDUSTRY</div>`
+    + `<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #F2EDE4">${PICK_LINE}</p>`
     + `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px">`
     + v.industries.map((label, i) => `<button class="tv-btn tv-msg" type="button" data-act="start" data-gi="${i}" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">${esc(label)}</button>`).join('')
     + `</div>`
@@ -163,9 +159,14 @@ export function resultHtml(v: GameView): string {
 
 export function playHtml(v: GameView): string {
   return `<div style="display: flex; flex-direction: column; gap: 12px">`
-    + `<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px">`
-    + `<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-weight: 600; font-size: 15px">${esc(v.header)}</div><div style="font-size: 12px; color: #A79E92">Tap every useful detail. At least one, maybe more.</div></div>`
-    + `<span data-g="score" style="background: ${ACCENT}; color: #171412; border-radius: 999px; padding: 7px 12px; font-family: ${MONO_FAMILY}; font-size: 12px; letter-spacing: 0.08em; font-weight: 600">SCORE ${v.score}</span>`
+    + `<div style="display: flex; flex-direction: column; gap: 4px">`
+    + `<div data-g="rule" class="tv-rule" style="font-weight: 700; line-height: 1.3; color: #F2EDE4">${esc(v.findLine)}</div>`
+    + `<div data-g="warn" style="font-weight: 700; font-size: 15px; line-height: 1.35; color: ${ACCENT}">${WARN_LINE}</div>`
+    + `<div data-g="counter" style="margin-top: 2px; font-family: ${MONO_FAMILY}; font-size: 12px; letter-spacing: 0.06em; color: #CFC6BA">${esc(v.counter)}</div>`
+    + `</div>`
+    + `<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px">`
+    + `<div data-g="meta" style="font-size: 12px; color: #A79E92">${esc(v.header)}</div>`
+    + `<span data-g="score" style="background: ${ACCENT}; color: #171412; border-radius: 999px; padding: 4px 10px; font-family: ${MONO_FAMILY}; font-size: 11px; letter-spacing: 0.08em; font-weight: 600">SCORE ${v.score}</span>`
     + `</div>`
     + `<div data-g="dots" style="display: flex; gap: 6px" aria-hidden="true">${v.roundDots.map((d) => `<div style="${d}"></div>`).join('')}</div>`
     + `<div data-g="msgs" style="display: flex; flex-direction: column; gap: 8px">${v.msgs.map(msgButton).join('')}</div>`
@@ -268,12 +269,13 @@ export function mountGame(card: HTMLElement, onChange?: (s: GameState, prev: Gam
     if (!el || !card.contains(el)) return;
     const keyboard = e.detail === 0;
     if (el.dataset.i !== undefined) { const i = Number(el.dataset.i); set(tap(s, i), keyboard, i); }
-    else if (el.dataset.act === 'start') set(start(s, Number(el.dataset.gi)), keyboard);
-    else if (el.dataset.act === 'next' || el.dataset.act === 'replay' || el.dataset.act === 'switch') {
+    else if (el.dataset.act === 'start' || el.dataset.act === 'next' || el.dataset.act === 'replay' || el.dataset.act === 'switch') {
       // [P76] on mobile, the new chat or screen starts at the card's top. Decided before the card re-renders: the browser's
-      // scroll anchoring can move the page while the card's content is swapped.
+      // scroll anchoring can move the page while the card's content is swapped. [P78 · owner] Picking an industry too, so
+      // the first chat's rules are on screen.
       const hidden = cardTopHidden(card);
-      set(el.dataset.act === 'next' ? next(s) : el.dataset.act === 'replay' ? replay(s) : switchIndustry(s), keyboard);
+      const act = el.dataset.act;
+      set(act === 'start' ? start(s, Number(el.dataset.gi)) : act === 'next' ? next(s) : act === 'replay' ? replay(s) : switchIndustry(s), keyboard);
       if (hidden) scrollToCardTop(card, window);
     }
   });
@@ -283,6 +285,7 @@ export function mountGame(card: HTMLElement, onChange?: (s: GameState, prev: Gam
 function patch(card: HTMLElement, v: GameView): void {
   const q = (k: string): HTMLElement => card.querySelector<HTMLElement>(`[data-g="${k}"]`)!;
   q('score').textContent = `SCORE ${v.score}`;
+  q('counter').textContent = v.counter;
   ([...q('dots').children] as HTMLElement[]).forEach((d, i) => d.setAttribute('style', v.roundDots[i]!));
   const buttons = [...q('msgs').querySelectorAll<HTMLButtonElement>('.tv-msg')];
   v.msgs.forEach((m, i) => {

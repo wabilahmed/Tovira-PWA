@@ -108,7 +108,7 @@ for (const width of [390, 1440]) {
     await shot(page, `p73-pick-${width}`, { el: card });
     await card.getByRole('button', { name: 'Property' }).click();
     await expect(card).toContainText('Property client · chat 1 of 5');
-    await expect(card).toContainText('Tap every useful detail. At least one, maybe more.');
+    await expect(card).toContainText('Pick a wrong one and you fail this chat.'); // [P78 · owner] replaces the small header line
     const msgs = card.locator('button.tv-msg');
     await expect(msgs).toHaveCount(5);
     await msgs.nth(1).click();
