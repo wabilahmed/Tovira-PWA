@@ -19,7 +19,8 @@ import { listenForTest } from '../test-support/listen.js';
 let server: Server | null = null;
 afterEach(async () => { if (server) await new Promise<void>((r) => server!.close(() => r())); server = null; });
 const LEAD: HotLeadInput = { personId: 'p1', campaignId: 7, campaignName: 'c', name: 'Sara Khan', email: 'sara@emaar.example', jobTitle: 'Head of Leasing', companyName: 'Emaar', companyDomain: null, linkedinUrl: null, country: 'AE', phone: null, whyHot: 'yes', becameHotAt: Date.now(), erased: false };
-const FORM = { fullName: 'Sara Khan', workEmail: 'sara@emaar.example', phone: '+971 50 123 4567', companyName: 'Emaar', roleTitle: 'Head of Leasing', ownership: 'owns_or_manages', tradeLicenceNumber: 'TL-1', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'property', confirmationAccepted: true };
+// [P75 · owner] The request form now requires a WhatsApp number (E.164); the fixture carries one (pin moved with the owner's new rule).
+const FORM = { fullName: 'Sara Khan', workEmail: 'sara@emaar.example', phone: '+971 50 123 4567', companyName: 'Emaar', roleTitle: 'Head of Leasing', ownership: 'owns_or_manages', tradeLicenceNumber: 'TL-1', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'property', confirmationAccepted: true, whatsappNumber: '+971 50 123 4567' };
 const JSONH = { 'content-type': 'application/json' };
 const WEBM = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 5, 6, 7, 8]);
 

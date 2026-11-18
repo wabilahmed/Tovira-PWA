@@ -64,6 +64,11 @@
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .auth__field input:focus { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px var(--brass-surface); }
+/* [P75] WhatsApp number: the country-code picker, then the number (stacked on a phone, one row from 480px). */
+.auth__phone { display: grid; grid-template-columns: 1fr; gap: var(--space-2); }
+@media (min-width: 480px) { .auth__phone { grid-template-columns: minmax(9rem, 13rem) 1fr; } }
+.auth__phone select { width: 100%; min-width: 0; height: 100%; box-sizing: border-box; background-color: var(--surface-base); border: 1px solid var(--hairline-control); border-radius: var(--radius-card); }
+.auth__phone select:focus { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px var(--brass-surface); }
 
 .auth__consent { display: flex; gap: var(--space-2); align-items: flex-start; font-size: var(--text-secondary-size); color: var(--text-secondary); }
 /* A radio/checkbox is NOT a touch-target text input — clear the global min-height:44px floor so the

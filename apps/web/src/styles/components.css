@@ -158,3 +158,16 @@ textarea.ui-input { padding: var(--space-3); min-height: var(--space-7); resize:
   background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
 }
 .ui-native-select:focus-visible { outline: var(--border-2); outline-offset: 2px; }
+
+/* [P75] WhatsApp: the Today banner (one line on desktop, two at most at 390px; never dismissed), the first sign-in
+   step, and the Settings status rows. */
+.wa-banner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); border-radius: var(--radius-2); border: 1px solid var(--color-accent); background: var(--color-raised); color: var(--color-text); font-size: var(--text-secondary-size); line-height: var(--text-secondary-lh); }
+.wa-banner__text { min-width: 0; }
+.wa-banner .ui-btn { flex: none; }
+.wa-first { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: var(--space-4); background: var(--color-surface); overflow-y: auto; }
+.wa-first__card { width: 100%; max-width: 30rem; padding: var(--space-5); }
+.wa-num { white-space: nowrap; }
+.wa-status { display: grid; gap: var(--space-2); margin: 0; }
+.wa-status > div { display: flex; gap: var(--space-3); }
+.wa-status dt { min-width: 4.5rem; color: var(--color-muted); }
+.wa-status dd { margin: 0; font-weight: 500; }

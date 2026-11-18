@@ -40,6 +40,8 @@ const SIGNOFF = '\n\nTovira';
 /** [P69 · owner] the welcome's first step: one client the rep is trying to close. */
 const WELCOME_START = "Start with one client you're trying to close: import the chat, record a voice note, or type what you know. Tovira will show you what they care about.";
 /** [P69 · owner] the invite emails open with the promise. */
+/** [P75 · owner] the invite's WhatsApp line (only when WhatsApp is open to the rep). */
+export const INVITE_WHATSAPP_LINE = 'After you set your password, verify your WhatsApp so you can send chats straight to Tovira. It takes a minute: one message from your phone.';
 export const INVITE_OPENER = "Tovira analyses your client conversations and picks out what each client cares about, so it's in front of you when it matters. Plus every promise and date, so nothing slips.";
 
 /**
@@ -134,7 +136,9 @@ export class AccountEmailService {
 
   /** [BETA-5] The invite to set a password + accept the terms. Carries the one-time link (raw token in
    *  the URL). NOT idempotency-logged — the operator can re-approve to resend a fresh link. */
-  async sendInvite(to: string, inviteUrl: string): Promise<void> {
+  async sendInvite(to: string, inviteUrl: string, extra: { verifyWhatsAppUrl?: string } = {}): Promise<void> {
+    // [P75 · owner] "Verify your WhatsApp": a second, quieter button to the app's verify step (after the password).
+    const wa = extra.verifyWhatsAppUrl;
     await this.email.send({
       to,
       subject: 'Your Tovira invitation',
@@ -142,12 +146,14 @@ export class AccountEmailService {
         `Your request for Tovira beta access has been approved.\n\n${INVITE_OPENER}\n\n` +
         `To finish setting up your account, open this link and choose a password:\n${inviteUrl}\n\n` +
         `You will also be asked to accept the Terms and Privacy Policy. The link is single-use and expires in ${INVITE_TTL_DAYS} days.` +
+        (wa ? `\n\n${INVITE_WHATSAPP_LINE}\nVerify your WhatsApp: ${wa}` : '') +
         SIGNOFF,
       html: renderEmail({
         heading: 'Set up your Tovira account',
         intro: ['Your request for Tovira beta access has been approved.', INVITE_OPENER, 'Open the link below to choose a password and accept the Terms and Privacy Policy.'],
         button: { label: 'Set up my account', url: inviteUrl },
-        outro: [`The link is single-use and expires in ${INVITE_TTL_DAYS} days.`],
+        ...(wa ? { secondary: { label: 'Verify your WhatsApp', url: wa } } : {}),
+        outro: [`The link is single-use and expires in ${INVITE_TTL_DAYS} days.`, ...(wa ? [INVITE_WHATSAPP_LINE] : [])],
       }),
     });
   }

@@ -14,6 +14,8 @@ export const REPLY = {
   tooLarge: 'That export is too large. The limit is 10 MB. Export without media, or upload it in Tovira instead.',
   couldNotDownload: 'Tovira couldn’t download that file. Send it again in a minute.',
   wrongCode: 'That code isn’t right or has expired. Get a new one in Tovira › Settings › Send chats on WhatsApp.',
+  /** [P75] A code from a different number than the rep entered: nothing is linked until they confirm it in the app. */
+  confirmInApp: 'This isn’t the number you entered in Tovira. Open Tovira to confirm you want to use this one.',
   tooMany: 'You’ve sent a lot of chats in a short time. Wait an hour, then send the rest.',
   inactive: (status: string, appUrl: string): string =>
     status === 'trial_expired' || status === 'none'

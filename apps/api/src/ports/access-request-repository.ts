@@ -46,6 +46,9 @@ export interface AccessRequestInput {
   /** [P59-1] An employed invitee's "I have my employer's permission…" tick: when, and the exact wording. Null otherwise. */
   employerPermissionAcceptedAt?: number | null;
   employerPermissionText?: string | null;
+  /** [P75 · owner] The rep's WhatsApp number in E.164 (required on the form from P75; null on older requests and on
+   *  requests made from a hot lead). Pre-fills the verify step after approval; never linked until verified. */
+  whatsappNumber?: string | null;
 }
 
 export interface AccessRequestRecord extends AccessRequestInput {
@@ -59,6 +62,7 @@ export interface AccessRequestRecord extends AccessRequestInput {
   industry: Industry | null;
   industryOther: string | null;
   source: 'form' | 'hot_lead';
+  whatsappNumber: string | null;
 }
 
 /** A review-outcome patch applied to a request (BETA-5). */

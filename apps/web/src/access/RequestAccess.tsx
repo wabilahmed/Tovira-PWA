@@ -2,6 +2,10 @@ import { useState, type FormEvent, type JSX, useEffect } from 'react';
 import { gameSignedUp } from '../marketing/game-track.js';
 import { AccessRequestError, type AccessRequestClient, type AccessRequestPayload } from './requestAccessClient.js';
 import { AuthShell } from '../auth/AuthShell.js';
+import { countryCodeOptions, toE164 } from './whatsappNumber.js';
+
+/** [P75] Built once: every country by name with its code. */
+const COUNTRY_CODES = countryCodeOptions();
 
 /** The confirmation sentence is a PRODUCT DECISION — do not reword, expand, or add a second clause.
  *  Its version lives in the API constants module (CONFIRMATION_TEXT_VERSION), stored with each request. */
@@ -57,6 +61,9 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
   const [fullName, setFullName] = useState('');
   const [workEmail, setWorkEmail] = useState('');
   const [phone, setPhone] = useState('');
+  // [P75 · owner] Required: the WhatsApp number, with a country-code picker. No country is chosen for the rep.
+  const [waCountry, setWaCountry] = useState('');
+  const [waNumber, setWaNumber] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [roleTitle, setRoleTitle] = useState('');
   const [industry, setIndustry] = useState<'' | AccessRequestPayload['industry']>('');
@@ -121,6 +128,11 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
       setError('Please complete every question.');
       return;
     }
+    const wa = toE164(waCountry, waNumber);
+    if (!wa.ok) {
+      setError(wa.message);
+      return;
+    }
     if (!confirmed) {
       setError('Please tick the confirmation box to submit.');
       return;
@@ -135,6 +147,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
         ...(invitedEmail && inviteToken ? { inviteToken } : {}),
         ...(askPermission ? { employerPermissionAccepted: employerPermission } : {}),
         fullName, workEmail, phone, companyName, roleTitle,
+        whatsappNumber: wa.e164,
         ownership,
         tradeLicenceNumber: ownership === 'owns_or_manages' ? tradeLicenceNumber : null,
         conversationOwnership,
@@ -169,6 +182,18 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
         <label className="auth__field"><span>Work email</span><input type="email" value={workEmail} onChange={(e) => setWorkEmail(e.target.value)} readOnly={invitedEmail !== null} aria-describedby={invitedEmail ? 'invite-email-note' : undefined} required /></label>
         {invitedEmail && <p className="auth__hint" id="invite-email-note">This invite is for {invitedEmail}.</p>}
         <label className="auth__field"><span>Phone</span><input value={phone} onChange={(e) => setPhone(e.target.value)} required /></label>
+        {/* [P75 · owner] WhatsApp number: the country code, then the number. Verified on WhatsApp once approved. */}
+        <div className="auth__field">
+          <span id="wa-number-label">WhatsApp number</span>
+          <div className="auth__phone">
+            <select className="ui-native-select" aria-label="Country code" value={waCountry} onChange={(e) => setWaCountry(e.target.value)} required>
+              <option value="">Country code</option>
+              {COUNTRY_CODES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+            <input aria-labelledby="wa-number-label" type="tel" inputMode="tel" autoComplete="tel-national" placeholder="Your number" value={waNumber} onChange={(e) => setWaNumber(e.target.value)} required />
+          </div>
+        </div>
+        <p className="auth__hint" data-testid="whatsapp-hint">Once you’re approved, you’ll verify this number with one WhatsApp message, so you can send chats straight to Tovira.</p>
         {/* 2. Company */}
         <label className="auth__field"><span>Company name</span><input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required /></label>
         {/* 3. Role */}
@@ -242,7 +267,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
         )}
 
         <p className="auth__hint">
-          We use the details above only to review your request. See our <a href="/privacy">Privacy Policy</a> for how we handle your personal data.
+          {/* [P75 · owner] lawyer-approved, word for word */}We use the details above to review your request and, if it's approved, to verify your WhatsApp number. See our <a href="/privacy">Privacy Policy</a> for how we handle your personal data.
         </p>
 
         {error && <p className="auth__error" role="alert">{error}</p>}

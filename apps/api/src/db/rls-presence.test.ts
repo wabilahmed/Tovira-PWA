@@ -52,6 +52,7 @@ const RLS_EXEMPT: Record<string, string> = {
   revenue_events: '[P44-2] cost accounting: one row per paid Stripe object, written by the billing webhook (no tenant session) and read by the ops cost report only',
   whatsapp_links: '[P67] a rep\'s linked WhatsApp number; the signature-checked webhook matches an inbound sender by number BEFORE any tenant is known (like sessions); deleted with the user',
   whatsapp_link_codes: '[P67] a hashed one-time link code (15 minutes, single use), consumed by a message from that number before any tenant is known (like password_resets); deleted with the user',
+  whatsapp_link_confirms: '[P75] a link code that arrived from a different number: that number, waiting 15 minutes for the rep to confirm it; written by the signature-checked webhook before any tenant is known (like whatsapp_link_codes); deleted with the user',
   whatsapp_inbound: '[P67] Meta message ids already handled, so a repeat delivery is never handled twice (like webhook_events); no user_id, no content',
   // System / billing writers that carry NO tenant session.
   email_log: 'lifecycle-email idempotency log; written system-side by the mailer (no tenant context on sends)',

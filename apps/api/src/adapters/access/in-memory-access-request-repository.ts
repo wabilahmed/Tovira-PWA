@@ -14,6 +14,7 @@ export class InMemoryAccessRequestRepository implements AccessRequestRepository 
       source: input.source ?? 'form',
       employerPermissionAcceptedAt: input.employerPermissionAcceptedAt ?? null,
       employerPermissionText: input.employerPermissionText ?? null,
+      whatsappNumber: input.whatsappNumber ?? null,
       id: randomUUID(),
       createdAt: Date.now() + this.seq++, // strictly increasing so list() ordering is deterministic in tests
       status: 'pending',

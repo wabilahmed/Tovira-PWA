@@ -6,6 +6,8 @@ import { stubApi } from './fixtures/app-api.js';
  * Settings once linked, and the confirm step opened from the WhatsApp reply's link. None scrolls sideways. With
  * SHOTS_DIR set each screen is saved as a PNG there (for review; not committed). Switched off, the stub answers 404 and
  * nothing appears (every other spec runs that way).
+ * [P75 · owner] Pins moved with the owner's new Settings → WhatsApp: the status carries requestedNumber and
+ * awaitingConfirm; linking starts at Verify now, the field is "WhatsApp number" and the button "Get my code".
  */
 test.use({ serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
 
@@ -26,7 +28,7 @@ async function stubWhatsApp(context: BrowserContext, state: { linked: boolean })
   await context.route((u) => u.pathname === '/api/whatsapp/link', (route) => {
     const m = route.request().method();
     if (m === 'POST') return route.fulfill(json({ ok: true, code: '482193', phone: '+971501234567', waLink: 'https://wa.me/971500000001?text=LINK%20482193', expiresAt: Date.now() + 900_000 }));
-    return route.fulfill(json({ linked: state.linked ? { phone: '+971501234567', linkedAt: Date.now() } : null, businessNumber: '+971500000001' }));
+    return route.fulfill(json({ linked: state.linked ? { phone: '+971501234567', linkedAt: Date.now() } : null, businessNumber: '+971500000001', requestedNumber: null, awaitingConfirm: null }));
   });
 }
 
@@ -37,9 +39,10 @@ for (const scheme of ['light', 'dark'] as const) {
     await theme(page, context, scheme);
     await page.goto('/app?view=settings');
     await page.getByTestId('whatsapp-setting').scrollIntoViewIfNeeded();
-    await page.getByLabel('Your WhatsApp number').fill('+971 50 123 4567');
+    await page.getByRole('button', { name: 'Verify now' }).first().click();
+    await page.getByLabel('WhatsApp number').fill('+971 50 123 4567');
     await shot(page, `p67-1-settings-start-${scheme}`);
-    await page.getByRole('button', { name: 'Get a code' }).click();
+    await page.getByRole('button', { name: 'Get my code' }).click();
     await expect(page.getByTestId('whatsapp-pending')).toContainText('Your code is 482193.');
     await expect(page.getByRole('link', { name: 'Open WhatsApp' })).toHaveAttribute('href', 'https://wa.me/971500000001?text=LINK%20482193');
     await page.getByTestId('whatsapp-setting').scrollIntoViewIfNeeded();

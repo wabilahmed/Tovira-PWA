@@ -63,7 +63,8 @@ describe('[P45-3] admin leads', () => {
     const { base, deps } = await start();
     const [l] = await deps.hotLeads.saveBatch([L(1, { email: 'Lead1@X.io' })], Date.now());
     const { cookie } = await signInAdmin(base, deps);
-    const form = { fullName: 'Lead 1', workEmail: 'lead1@x.io', phone: '+971 50 123 4567', companyName: 'Acme', roleTitle: 'Head of Sales', ownership: 'employed', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'insurance', confirmationAccepted: true };
+    // [P75 · owner] The request form now requires a WhatsApp number (E.164); the fixture carries one (pin moved with the owner's new rule).
+    const form = { fullName: 'Lead 1', workEmail: 'lead1@x.io', phone: '+971 50 123 4567', companyName: 'Acme', roleTitle: 'Head of Sales', ownership: 'employed', conversationOwnership: 'own_clients', expectedVolume: '50_200', industry: 'insurance', confirmationAccepted: true, whatsappNumber: '+971 50 123 4567' };
     const { id } = (await (await fetch(`${base}/access-request`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(form) })).json()) as { id: string };
     await fetch(`${base}/admin/access-requests/${id}/approve`, { method: 'POST', headers: json(cookie), body: '{}' });
     const invite = /token=([A-Za-z0-9_-]+)/.exec(deps.emailSender.sent.filter((m) => m.to === 'lead1@x.io').at(-1)!.text)![1]!;

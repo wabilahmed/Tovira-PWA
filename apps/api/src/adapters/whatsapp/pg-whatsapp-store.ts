@@ -65,6 +65,41 @@ export class PgWhatsAppLinkStore implements WhatsAppLinkStore {
   async unlink(userId: string): Promise<void> {
     await this.pool.query('DELETE FROM whatsapp_links WHERE user_id = $1', [userId]);
     await this.pool.query('DELETE FROM whatsapp_link_codes WHERE user_id = $1', [userId]);
+    await this.pool.query('DELETE FROM whatsapp_link_confirms WHERE user_id = $1', [userId]);
+  }
+
+  // [P75] migration 0118
+  async codeInUse(codeHash: string): Promise<boolean> {
+    return (await this.pool.query('SELECT 1 FROM whatsapp_link_codes WHERE code_hash = $1 LIMIT 1', [codeHash])).rows.length > 0;
+  }
+  async consumeCodeAnyNumber(codeHash: string, nowMs: number): Promise<ConsumeResult> {
+    const { rows } = await this.pool.query(
+      `DELETE FROM whatsapp_link_codes WHERE user_id = (SELECT user_id FROM whatsapp_link_codes WHERE code_hash = $1 AND attempts < 5 LIMIT 1)
+       RETURNING user_id, expires_at`,
+      [codeHash],
+    );
+    const r = rows[0];
+    if (!r) return { ok: false, reason: 'no_code' };
+    return toMs(r.expires_at as Date) <= nowMs ? { ok: false, reason: 'expired' } : { ok: true, userId: String(r.user_id) };
+  }
+  async putConfirm(userId: string, phone: string, waUserId: string | null, expiresAt: number): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO whatsapp_link_confirms (user_id, phone_e164, wa_user_id, expires_at) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id) DO UPDATE SET phone_e164 = EXCLUDED.phone_e164, wa_user_id = EXCLUDED.wa_user_id, expires_at = EXCLUDED.expires_at, created_at = now()`,
+      [userId, phone, waUserId, ts(expiresAt)],
+    );
+  }
+  async getConfirm(userId: string, nowMs: number): Promise<{ phone: string; waUserId: string | null } | null> {
+    const r = (await this.pool.query('SELECT phone_e164, wa_user_id FROM whatsapp_link_confirms WHERE user_id = $1 AND expires_at > $2', [userId, ts(nowMs)])).rows[0];
+    return r ? { phone: String(r.phone_e164), waUserId: (r.wa_user_id as string | null) ?? null } : null;
+  }
+  async takeConfirm(userId: string, nowMs: number): Promise<{ phone: string; waUserId: string | null } | null> {
+    const r = (await this.pool.query('DELETE FROM whatsapp_link_confirms WHERE user_id = $1 RETURNING phone_e164, wa_user_id, expires_at', [userId])).rows[0];
+    if (!r || toMs(r.expires_at as Date) <= nowMs) return null;
+    return { phone: String(r.phone_e164), waUserId: (r.wa_user_id as string | null) ?? null };
+  }
+  async clearConfirm(userId: string): Promise<void> {
+    await this.pool.query('DELETE FROM whatsapp_link_confirms WHERE user_id = $1', [userId]);
   }
 
   async firstDelivery(messageId: string, nowMs: number): Promise<boolean> {

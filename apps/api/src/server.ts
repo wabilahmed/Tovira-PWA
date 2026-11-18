@@ -409,7 +409,7 @@ export function createApiServer(deps: ApiDeps): Server {
           // [P63-7] a signed-in admin's own visits today don't count (never handles the request)
           ...(deps.visits ? [async (req: IncomingMessage) => { await deps.visits!.markAdmin({ ip: clientIp(req), ua: String(req.headers['user-agent'] ?? '') }).catch(() => undefined); return false; }] : []),
           ...(deps.adminRoute.extra ?? []),
-          ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval)] : []),
+          ...(deps.opsRoute?.accessApproval ? [adminAccessRoute(deps.opsRoute.accessApproval, deps.whatsapp ? (u) => deps.whatsapp!.service.verifiedOf(u) : undefined)] : []),
           ...(costs ? [adminCostsRoute(costs)] : []),
           ...(deps.hotLeads && deps.accessRequestsForLeads ? [adminLeadsRoute({ store: deps.hotLeads, invites: deps.leadInvites, deliveryConnected: !!deps.resendWebhookSecret })] : []),
           ...(deps.adminFunnel ? [adminFunnelRoute({ ...deps.adminFunnel, visits: deps.visits, games: deps.games })] : []),

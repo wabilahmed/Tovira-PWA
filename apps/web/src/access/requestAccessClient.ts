@@ -4,6 +4,8 @@ export interface AccessRequestPayload {
   fullName: string;
   workEmail: string;
   phone: string;
+  /** [P75 · owner] Required, E.164 (the form's country-code picker + the number). */
+  whatsappNumber: string;
   companyName: string;
   roleTitle: string;
   ownership: 'owns_or_manages' | 'employed';

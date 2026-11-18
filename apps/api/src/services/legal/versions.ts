@@ -21,7 +21,11 @@
  *  legal-archive/ (2026-10-20, 2026-10-05, 2026-10-03, 2026-10-02, 2026-09-22). PRIVACY_VERSION is unchanged. */
 export const TERMS_VERSION = '2026-11-17';
 
-/** Privacy Policy version. [P71-T · owner] 2026-11-16 added the lawyer-approved line straight after "We keep anonymous
+/** Privacy Policy version. [P75 · owner] 2026-11-18 added the lawyer-approved WhatsApp line, word for word, straight
+ *  after the anonymous statistics lines ("…We count anonymous game interactions to improve the page."): "When you
+ *  request beta access, we ask for your WhatsApp number. …" Nothing else changed (prior published version:
+ *  legal-archive/2026-11-16/). A bump asks no one to re-accept: the version is only recorded when someone accepts.
+ *  [P71-T · owner] 2026-11-16 added the lawyer-approved line straight after "We keep anonymous
  *  statistics about how the product is used.": "We count anonymous game interactions to improve the page." Nothing else
  *  changed (prior published version: legal-archive/2026-10-27/). A bump asks no one to re-accept: the version is only
  *  recorded when someone accepts.
@@ -32,7 +36,7 @@ export const TERMS_VERSION = '2026-11-17';
  *  added the recording-retention and access-request disclosures, and the image-storage statement.
  *  Tracked separately from TERMS so the two can diverge when only one document changes; today they are
  *  the same date. Prior published version: legal-archive/2026-09-22/. */
-export const PRIVACY_VERSION = '2026-11-16';
+export const PRIVACY_VERSION = '2026-11-18';
 
 /** Version of the access-request confirmation checkbox wording (BETA-3). Derivation: the date that
  *  exact confirmation sentence was fixed — authored in this batch, 2026-10-01. It is NOT terms

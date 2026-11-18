@@ -112,7 +112,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Carry the verdict forward when the API image is unchanged (frontend-only push)
+      - name: Carry the verdict forward when nothing the gate scores changed (P75 · scripts/ops/gate-graph.ts)
         id: inherit
         env:
           LEDGER_FILE: ${{ runner.temp }}/deploy-ledger-in.jsonl

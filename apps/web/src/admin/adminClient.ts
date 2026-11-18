@@ -17,6 +17,10 @@ export interface AccessRequest {
   /** [P59] an employed invitee's employer-permission tick: when, and the wording */
   employerPermissionAcceptedAt?: number | null; employerPermissionText?: string | null;
   createdAt: number; status: AccessStatus; reviewedAt: number | null; reviewedNote: string | null; linkedUserId: string | null;
+  /** [P75] the WhatsApp number from the request (E.164), null on older requests */
+  whatsappNumber?: string | null;
+  /** [P75] the account's WhatsApp (null = no account yet) */
+  whatsapp?: { verified: boolean; phone: string | null; verifiedAt: number | null } | null;
 }
 export type CostView = 'period' | 'month';
 /** [P63-6] Admin → Funnel */

@@ -42,7 +42,10 @@ export interface AccessApprovalDeps {
   resendLimiter?: RateLimiter;
   /** Deliver the invite link (set password + accept terms). Best-effort; a failure never rolls back
    *  the already-committed approval. */
-  sendInvite: (to: string, inviteUrl: string) => Promise<void>;
+  sendInvite: (to: string, inviteUrl: string, extra?: { verifyWhatsAppUrl?: string }) => Promise<void>;
+  /** [P75] WhatsApp is open to this rep (switched on, and on the allowlist while testing): the invite then carries
+   *  "Verify your WhatsApp". */
+  whatsappOffered?: (email: string) => boolean;
   /** Apply a persisted referral code at approval, via the existing ReferralService. Best-effort: a
    *  referral failure must never fail the approval (same rule as signup). Returns whether it credited. */
   applyReferral?: (code: string, userId: string, email: string) => Promise<boolean>;
@@ -99,7 +102,7 @@ export class AccessApprovalService {
       }
     }
     try {
-      await this.deps.sendInvite(req.workEmail, `${this.deps.appBaseUrl}/invite?token=${encodeURIComponent(rawToken)}`);
+      await this.invite(req.workEmail, `${this.deps.appBaseUrl}/invite?token=${encodeURIComponent(rawToken)}`);
     } catch (err) {
       console.warn('invite email failed; approval stands (resend to deliver the link)', err);
     }
@@ -150,13 +153,19 @@ export class AccessApprovalService {
     return req;
   }
 
+  /** [P75] The invite, with "Verify your WhatsApp" when WhatsApp is open to this rep (the same call as before otherwise). */
+  private invite(to: string, url: string): Promise<void> {
+    if (this.deps.whatsappOffered?.(to)) return this.deps.sendInvite(to, url, { verifyWhatsAppUrl: `${this.deps.appBaseUrl}/app?verify=whatsapp` });
+    return this.deps.sendInvite(to, url);
+  }
+
   /** Mint a fresh token, invalidate earlier links for the request, and email the new link to `email` —
    *  always the ORIGINAL invited address, never a caller-supplied one. */
   private async freshInvite(accessRequestId: string, userId: string, email: string, createdBy: string): Promise<void> {
     const rawToken = randomBytes(32).toString('base64url');
     await this.deps.invites!.reissue({ accessRequestId, userId, tokenHash: hashToken(rawToken), expiresAt: this.now() + INVITE_TTL_DAYS * DAY_MS, createdBy });
     try {
-      await this.deps.sendInvite(email, `${this.deps.appBaseUrl}/invite?token=${encodeURIComponent(rawToken)}`);
+      await this.invite(email, `${this.deps.appBaseUrl}/invite?token=${encodeURIComponent(rawToken)}`);
     } catch (err) {
       console.warn('invite resend email failed; the new link is valid and can be resent', err);
     }

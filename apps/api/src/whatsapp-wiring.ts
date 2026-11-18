@@ -17,6 +17,8 @@ export interface WhatsAppParts {
   appBaseUrl: string;
   entitlement: (userId: string, nowMs: number) => Promise<{ entitled: boolean; status: string }>;
   longChatLimit: number | null;
+  /** [P75] the number from the rep's access request, to pre-fill the verify step */
+  requestedNumber?: (userId: string) => Promise<string | null>;
   fetchImpl?: typeof fetch;
 }
 
@@ -43,6 +45,9 @@ export function buildWhatsApp(cfg: WhatsAppConfig, parts: WhatsAppParts): BuiltW
     unlinkedReplies: new FixedWindowRateLimiter(1, 24 * HOUR),
     helpReplies: new FixedWindowRateLimiter(3, HOUR),
     perRep: new FixedWindowRateLimiter(30, HOUR),
+    // [P75] a code made for another number: 5 tries per sender an hour
+    linkGuesses: new FixedWindowRateLimiter(5, HOUR),
+    ...(parts.requestedNumber ? { requestedNumber: parts.requestedNumber } : {}),
   });
   return { service, graph, appSecret: cfg.appSecret, verifyToken: cfg.verifyToken, enabled: cfg.enabled, allowed: (email) => whatsappAllowed(cfg, email) };
 }
