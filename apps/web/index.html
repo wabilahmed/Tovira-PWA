@@ -61,12 +61,14 @@ a{color:#E8643A}a:hover{color:#F28A63}
 .tv-rv{animation:tvUp linear both;animation-timeline:view();animation-range:entry 0% entry 55%}
 }
 @media (max-width: 640px){.tv-navlink{display:none}.tv-wall{height:360px !important}.tv-hdcta{padding:10px 14px !important;font-size:14px !important}}
+/* [P76 · owner] No scroll anchoring on this page: swapping the game card's content let the browser move the page (and
+   cancel the card scroll on mobile); the fonts have metric-matched fallbacks, so nothing above shifts as they load. */
 /* [P76 · owner] From 900px the game sits beside the copy (no wrap) and the hero's Play the game hides. The headline's
    first line and "Would you have caught it?" share an INK top: both boxes start level, and the game moves down by the
    difference between where each font's ink starts in its line (half the leading plus ascent minus cap/ascender
    height): 0.125 of the headline size, 0.14 of the game heading size (Fraunces, measured in Chromium). */
 @media (min-width: 900px){.tv-hero{flex-wrap:nowrap !important}.tv-mobplay{display:none}.tv-hero-l{padding-top:0 !important}#game{margin-top:calc(clamp(34px, 4.4vw, 58px) * 0.125 - clamp(22px, 2.2vw, 26px) * 0.14)}}
-html{scroll-behavior:smooth}
+html{scroll-behavior:smooth;overflow-anchor:none}
 #how,#pricing{scroll-margin-top:72px}
 @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
 @media (prefers-reduced-motion: reduce){.tv-star{animation:none !important;opacity:.5}.tv-col,.tv-missed,.tv-orb,.tv-marq,.tv-up,.tv-rv,.tv-pop,.tv-shake,.tv-fade{animation:none !important}}

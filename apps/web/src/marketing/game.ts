@@ -211,8 +211,30 @@ export function cardTopHidden(card: HTMLElement, win: Window = window): boolean 
   return !(top >= headerBottom(win) && top < win.innerHeight);
 }
 function scrollToCardTop(card: HTMLElement, win: Window): void {
-  const reduced = win.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  win.scrollTo({ top: win.scrollY + card.getBoundingClientRect().top - headerBottom(win) - 12, behavior: reduced ? 'instant' : 'smooth' });
+  const target = (): number => win.scrollY + card.getBoundingClientRect().top - headerBottom(win) - 12;
+  if (win.matchMedia('(prefers-reduced-motion: reduce)').matches) win.scrollTo({ top: target(), behavior: 'instant' });
+  else smoothScrollTo(win, target);
+}
+/**
+ * [P76] A smooth scroll run frame by frame (ease-out, SMOOTH_MS). The browser's own smooth scroll is cancelled by the 1px
+ * adjustment it makes after the card's content is swapped, which left the card where it was; this one isn't. The target
+ * is measured again on every frame, so a late layout shift above the card can't leave it a few pixels off. It stops as
+ * soon as the page is scrolled by anything else (the visitor's finger), so it never fights them.
+ */
+export const SMOOTH_MS = 420;
+function smoothScrollTo(win: Window, target: () => number): void {
+  const from = win.scrollY;
+  let start = -1;
+  let last = from;
+  const step = (now: number): void => {
+    if (start < 0) start = now;
+    if (Math.abs(win.scrollY - last) > 2) return; // scrolled by someone else: stop here
+    const k = Math.min(1, (now - start) / SMOOTH_MS);
+    last = from + (target() - from) * (1 - Math.pow(1 - k, 3));
+    win.scrollTo({ top: last, behavior: 'instant' });
+    if (k < 1) win.requestAnimationFrame(step);
+  };
+  win.requestAnimationFrame(step);
 }
 const headerBottom = (win: Window): number => win.document.querySelector('body > header')?.getBoundingClientRect().bottom ?? 0;
 

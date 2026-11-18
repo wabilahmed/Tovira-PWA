@@ -107,7 +107,7 @@ test('390px: Next chat, Play again and Try another industry bring the card\'s to
     await hideCardTop(page, sel);
     const startY = await page.evaluate(() => scrollY);
     const right = await page.evaluate((s) => { (document.querySelector(s) as HTMLElement).click(); return scrollY; }, sel);
-    expect(right, `${sel}: smooth, not a jump`).toBe(startY);
+    expect(Math.abs(right - startY), `${sel}: smooth, not a jump`).toBeLessThanOrEqual(2); // the browser may nudge 1px as the card changes
     await expect(card).toContainText(then);
     const hb = await headerBottom(page);
     await expect.poll(() => cardTop(page), { message: sel }).toBeGreaterThanOrEqual(hb + 10);
