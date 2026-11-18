@@ -28,7 +28,7 @@ describe('[SITE2] the funnel is present, in order', () => {
       /Your clients tell you how to win them/,
       /See what Tovira would catch/,
       /Send it a chat/,
-      /No guesses\. Every detail has a receipt/,
+      /It shows its work, then puts it to work/, // [P76 · owner] the trust section's new heading
       /One plan\. Pays for itself/,
       /Questions/,
       /Your next client has already told you/,
@@ -62,22 +62,24 @@ describe('[SITE2] the funnel is present, in order', () => {
     expect(html).not.toMatch(/most popular|only today|countdown|was AED|<s>|strike/i);
   });
 
-  it('FAQ has the four questions, as native disclosures', () => {
-    expect(d.querySelectorAll('details > summary')).toHaveLength(4);
+  // [P76 · owner] five questions now (the owner's, word for word in landing-p76.test.ts)
+  it('FAQ has the five questions, as native disclosures', () => {
+    expect(d.querySelectorAll('details > summary')).toHaveLength(5);
   });
 
-  it('the "not for" FAQ leads with who it is for, not a leftover-tool framing', () => {
-    const notFor = [...d.querySelectorAll('details')].find((el) => /who is it not for/i.test(el.querySelector('summary')?.textContent ?? ''));
-    expect(notFor).toBeTruthy();
-    const answer = notFor!.querySelector('p')?.textContent ?? '';
-    expect(answer).not.toMatch(/good tools already exist/i);
-    expect(answer).toMatch(/clients stay with them for years/i);
-    expect(answer).toMatch(/recorded/i); // the exclusion itself stays
+  // [P76 · owner] "Who is it not for?" is removed with the owner's new FAQ; what stays checked is that no answer
+  // falls back on a leftover-tool framing
+  it('NEGATIVE: the "not for" FAQ is gone, and no answer uses a leftover-tool framing', () => {
+    expect([...d.querySelectorAll('details > summary')].some((el) => /who is it not for/i.test(el.textContent ?? ''))).toBe(false);
+    expect([...d.querySelectorAll('details')].map((el) => el.textContent ?? '').join(' ')).not.toMatch(/good tools already exist/i);
   });
 
   it('trust points make no claim beyond what is shipped', () => {
     const trust = d.querySelector('section[aria-labelledby="trust-h"]')!.textContent ?? '';
-    expect(trust).toMatch(/Never used to train AI/);
+    // [P76 · owner] "Private by design" (with "Never used to train AI") is replaced by two features the product has:
+    // the brief before a meeting and promises on your list before they're due
+    expect(trust).toMatch(/A brief before every meeting/);
+    expect(trust).toMatch(/Every promise, on time/);
     expect(html).not.toMatch(/bank-grade|military-grade|SOC ?2|ISO ?27001|compliance|certified/i);
   });
 
@@ -99,7 +101,7 @@ describe('[SITE2] motion is a progressive enhancement (no-JS + reduced-motion sa
   });
 
   it('the FAQ is keyboard-navigable native disclosure (details/summary) and focus is visible', () => {
-    expect(d.querySelectorAll('details > summary').length).toBe(4);
+    expect(d.querySelectorAll('details > summary').length).toBe(5); // [P76 · owner] five questions
     expect(style).toMatch(/:focus-visible\{outline:2px solid #E8643A/);
   });
 });

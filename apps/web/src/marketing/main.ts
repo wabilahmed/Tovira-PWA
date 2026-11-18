@@ -36,7 +36,8 @@ if (typeof location !== 'undefined' && typeof localStorage !== 'undefined') redi
 if (typeof location !== 'undefined' && (location.pathname === '/' || location.pathname === '/index.html')) sendVisit('landing');
 
 // [P70 · owner] The only page script beyond the referral pass-through and the visit beacon: the game and the industry
-// tabs. Every animation is CSS (index.html); there is no scroll or reveal script.
+// tabs. Every animation is CSS (index.html); there is no reveal script. [P76 · owner] The game's only scroll: on mobile, a
+// new chat or game brings its card's top just below the header (game.ts).
 function mountLanding(): void {
   const card = document.querySelector<HTMLElement>('[data-game]');
   // [P71-T] cookieless game counts: game_view when the box is first on screen, then one event per action
