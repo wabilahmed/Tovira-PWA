@@ -145,6 +145,24 @@ describe('[P21-C] run-backfill.sh — choosing the backfill', () => {
   });
 
   // [P45] create-admin: dry run first (the shared guard), --email passed through
+  // [P77 · owner] delete-accounts: --keep goes to the container; --apply needs that dry run first and --expect is passed through
+  it('--script delete-accounts --keep runs delete-accounts.ts as a dry run; --apply after it passes --expect', () => {
+    const refused = run(['--script', 'delete-accounts', '--keep', 'bhavesh@mlbjewels.com', '--apply', '--expect', '3']);
+    expect(refused.status).not.toBe(0);
+    expect(runTaskLine(refused.calls)).toBe('');
+    const dry = runTaskLine(run(['--script', 'delete-accounts', '--keep', 'bhavesh@mlbjewels.com']).calls);
+    expect(dry).toContain('delete-accounts.ts');
+    expect(dry).toContain('bhavesh@mlbjewels.com');
+    expect(dry).not.toContain('--apply');
+    const apply = run(['--script', 'delete-accounts', '--keep', 'bhavesh@mlbjewels.com', '--apply', '--expect', '3']);
+    expect(apply.status).toBe(0);
+    expect(runTaskLine(apply.calls)).toContain('--expect');
+    expect(runTaskLine(apply.calls)).toContain('--apply');
+    // NEGATIVE: a dry run with a different --keep never authorises this --apply
+    const other = run(['--script', 'delete-accounts', '--keep', 'someone@else.com', '--apply', '--expect', '3']);
+    expect(other.status).not.toBe(0);
+  });
+
   it('--script create-admin --email runs create-admin.ts as a dry run, and --apply needs that dry run first', () => {
     const refused = run(['--script', 'create-admin', '--email', 'wabil@tovira.io', '--apply']);
     expect(refused.status).not.toBe(0);

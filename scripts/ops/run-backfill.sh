@@ -34,6 +34,11 @@
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script push-audit
 #   tier1-india-audit apps/api/src/scripts/tier1-india-audit.ts  [P53-5] stored values the Indian Tier-1 rules would now blank; counts only, refuses --apply.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script tier1-india-audit
+#   delete-accounts  apps/api/src/scripts/delete-accounts.ts  [P77 · owner] delete every account except --keep <email,…>, through
+#                  the Settings deletion path (audio, images, cascades; no email). Skips accounts with a live Stripe
+#                  subscription. Dry run lists them and the count; --apply needs --expect <that count>.
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script delete-accounts --keep bhavesh@mlbjewels.com
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script delete-accounts --keep bhavesh@mlbjewels.com --apply --expect <n>
 #   qa-data-audit       apps/api/src/scripts/qa-data-audit.ts       [P39-10] QA/test clients, access requests and
 #                  sold-out items (id, name, created, why) + contradictory requirement summaries, and the DELETE it
 #                  would run. [P40-5] --ids <id,…> dry-runs deleting exactly those; --ids … --apply deletes them
@@ -91,6 +96,14 @@ while [ "$#" -gt 0 ]; do
       # [P45] create-admin: the admin address (must be listed in ADMIN_EMAILS in the app secret)
       [ "$#" -ge 2 ] || die "--email needs an address"
       PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); shift 2 ;;
+    --keep)
+      # [P77] delete-accounts: the addresses that stay (part of the guard key: a dry run with other --keep never authorises --apply)
+      [ "$#" -ge 2 ] || die "--keep needs a comma-separated list of email addresses"
+      PASSTHROUGH+=("$1" "$2"); KEYARGS+=("$1" "$2"); shift 2 ;;
+    --expect)
+      # [P77] delete-accounts --apply: the count the dry run printed (apply-only, so not part of the guard key)
+      [ "$#" -ge 2 ] || die "--expect needs a number"
+      PASSTHROUGH+=("$1" "$2"); shift 2 ;;
     --ids)
       # [P40-5] qa-data-audit: delete (or dry-run) exactly these ids
       [ "$#" -ge 2 ] || die "--ids needs a comma-separated list of ids"
@@ -100,7 +113,7 @@ while [ "$#" -gt 0 ]; do
       # backfill never authorises --apply of another
       [ "$#" -ge 2 ] || die "--script needs a name (trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit | funnel-diagnose)"
       SCRIPT_NAME="$2"; KEYARGS+=("$1" "$2"); shift 2 ;;
-    *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --ids <id,…>, --email <address>, --apply, --i-checked-the-dry-run)" ;;
+    *) die "unknown argument: $1 (expected --script <name>, --only <userId>, --only-user <userId>, --ids <id,…>, --email <address>, --keep <email,…>, --expect <n>, --apply, --i-checked-the-dry-run)" ;;
   esac
 done
 
@@ -120,7 +133,8 @@ case "$SCRIPT_NAME" in
   trial-end-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/trial-end-audit.ts" ;;
   funnel-diagnose) SCRIPT_IN_IMAGE="apps/api/src/scripts/funnel-diagnose.ts" ;;
   pregnancy-purge) SCRIPT_IN_IMAGE="apps/api/src/scripts/pregnancy-purge.ts" ;;
-  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit | funnel-diagnose | pregnancy-purge)" ;;
+  delete-accounts) SCRIPT_IN_IMAGE="apps/api/src/scripts/delete-accounts.ts" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit | funnel-diagnose | pregnancy-purge | delete-accounts)" ;;
 esac
 
 # [P26-2/P30-3] Read-only checks: nothing to apply, no args — refused here, before any AWS call.
