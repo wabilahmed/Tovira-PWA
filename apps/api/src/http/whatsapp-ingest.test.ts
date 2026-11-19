@@ -11,6 +11,7 @@ import { WhatsAppService, LINK_CODE_TTL_MS } from '../services/whatsapp/whatsapp
 import { REPLY } from '../services/whatsapp/copy.js';
 import { FixedWindowRateLimiter } from '../services/security/rate-limiter.js';
 import { LONG_CHAT_MAX_MESSAGES } from '../services/import/long-chat.js';
+import { buildZip, iphoneZipWithMedia, iphoneZipWithoutMedia, IPHONE_CHAT } from '../services/whatsapp/__fixtures__/iphone-export-zip.js';
 
 // [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
 
@@ -92,6 +93,9 @@ function document(from: string, fileName: string, bytes: Uint8Array, id?: string
 async function linkNumber(token: string, phone = REP_PHONE): Promise<void> {
   const r = (await (await fetch(`${base}/whatsapp/link`, { method: 'POST', headers: { ...auth(token), 'content-type': 'application/json' }, body: JSON.stringify({ phone }) })).json()) as { code: string };
   await text(phone, `LINK ${r.code}`);
+  // [P79 · owner] linking now replies "Linked" in WhatsApp (was no reply); the tests below look at what comes after it
+  expect(sent.at(-1)?.body).toBe(REPLY.linked);
+  sent.length = 0;
 }
 const status = async (token: string) => (await (await fetch(`${base}/whatsapp/link`, { headers: auth(token) })).json()) as { linked: { phone: string } | null; businessNumber: string };
 
@@ -146,7 +150,8 @@ describe('[P67] the webhook signature', () => {
 });
 
 describe('[P67] linking a number (no SMS)', () => {
-  it('the right code from that number links it; Settings shows it; no reply is sent', async () => {
+  // [P79 · owner] "Should Tovira reply Linked in WhatsApp? I think it should." The pin moves from no reply to "Linked".
+  it('the right code from that number links it; Settings shows it; Tovira replies "Linked"', async () => {
     const { token } = await rep();
     const start = (await (await fetch(`${base}/whatsapp/link`, { method: 'POST', headers: { ...auth(token), 'content-type': 'application/json' }, body: JSON.stringify({ phone: '+971 50 123 4567' }) })).json()) as { code: string; waLink: string; phone: string };
     expect(start.phone).toBe(REP_PHONE);
@@ -154,7 +159,8 @@ describe('[P67] linking a number (no SMS)', () => {
     expect(start.waLink).toBe(`https://wa.me/971500000001?text=LINK%20${start.code}`);
     await text(REP_PHONE, `LINK ${start.code}`);
     expect((await status(token)).linked?.phone).toBe(REP_PHONE);
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([{ to: REP_PHONE, body: REPLY.linked }]);
+    expect(REPLY.linked).toBe('Linked. You can now send chat exports to this number.');
   });
 
   it('a wrong code does not link, and says so', async () => {
@@ -348,5 +354,91 @@ describe('[P67] switched off', () => {
     expect((await fetch(`${base}/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=${VERIFY}&hub.challenge=1`)).status).toBe(404);
     expect((await fetch(`${base}/whatsapp/link`, { headers: auth(token) })).status).toBe(404);
     expect(sent).toEqual([]);
+  });
+});
+
+// [P79 · owner] An iPhone export sent as a document was refused: "That doesn't look like a WhatsApp chat export." An export
+// with media failed the in-app zip reader (one media file over 5 MB, a .docx inside, or more than 128 files rejected the
+// whole zip). Now: decided by the bytes whatever MIME type Meta labels it, only the chat text is opened, media is never
+// read, a zip over the limit gets the owner's "too big" line, and nothing is stored for anything refused.
+describe('[P79] iPhone zips sent on WhatsApp', () => {
+  const ALL_STORED = async () => deps.storage.list('');
+  function sendDoc(fileName: string | null, mime: string | null, bytes: Uint8Array): Promise<Response> {
+    const mediaId = `p79m${++seq}`;
+    media.set(mediaId, bytes);
+    return deliver(payload(REP_PHONE, { type: 'document', document: { id: mediaId, ...(fileName ? { filename: fileName } : {}), ...(mime ? { mime_type: mime } : {}), sha256: 'x' } }));
+  }
+  const stagedText = async (userId: string) => {
+    const [k] = await staged(userId);
+    return (JSON.parse(new TextDecoder().decode(await deps.storage.get(k!))) as { content: string }).content;
+  };
+
+  for (const mime of ['application/zip', 'application/octet-stream', 'application/x-zip-compressed', 'text/plain', null]) {
+    for (const [label, zip] of [['without media', iphoneZipWithoutMedia], ['with media', iphoneZipWithMedia]] as const) {
+      it(`${label}, labelled ${mime ?? 'with no MIME type'}: staged with only the chat text, and the reply names the chat`, async () => {
+        const { token, userId } = await rep();
+        await linkNumber(token);
+        await sendDoc('WhatsApp Chat - Anjali Mehra.zip', mime, zip());
+        expect(sent).toHaveLength(1);
+        expect(sent[0]!.body).toBe(REPLY.gotChat('Anjali Mehra', `https://tovira.io/app?import=${batchFromReply(sent[0]!.body)}`));
+        expect(await stagedText(userId)).toBe(IPHONE_CHAT); // the chat text, nothing of the media
+        const stored = await ALL_STORED();
+        expect(stored).toHaveLength(2); // the one staged file and its creation marker
+        expect(modelCalls).toBe(0);
+      });
+    }
+  }
+
+  it('with and without media stage exactly the same thing', async () => {
+    const a = await rep('a@example.com'); await linkNumber(a.token, '+971501111111');
+    const b = await rep('b@example.com'); await linkNumber(b.token, '+971502222222');
+    for (const [phone, zip] of [['+971501111111', iphoneZipWithMedia], ['+971502222222', iphoneZipWithoutMedia]] as const) {
+      const mediaId = `p79eq${++seq}`; media.set(mediaId, zip());
+      await deliver(payload(phone, { type: 'document', document: { id: mediaId, filename: 'WhatsApp Chat - Anjali Mehra.zip', mime_type: 'application/zip' } }));
+    }
+    expect(await stagedText(a.userId)).toBe(await stagedText(b.userId));
+  });
+
+  it('no file name from Meta: still read', async () => {
+    const { token, userId } = await rep();
+    await linkNumber(token);
+    await sendDoc(null, 'application/octet-stream', iphoneZipWithoutMedia());
+    expect(await stagedText(userId)).toBe(IPHONE_CHAT);
+  });
+
+  it('a zip over the size limit: "That file is too big. Export the chat Without media and send it again." Nothing stored', async () => {
+    const { token } = await rep();
+    await linkNumber(token);
+    await sendDoc('WhatsApp Chat - Anjali Mehra.zip', 'application/zip', new Uint8Array(10_000_001));
+    expect(sent.map((s) => s.body)).toEqual(['That file is too big. Export the chat Without media and send it again.']);
+    expect(REPLY.tooLarge).toBe('That file is too big. Export the chat Without media and send it again.');
+    expect(await ALL_STORED()).toEqual([]);
+  });
+
+  it('NEGATIVE: a zip of media with no chat, a photo, a web page instead of the file: refused, nothing stored', async () => {
+    const { token } = await rep();
+    await linkNumber(token);
+    await sendDoc('WhatsApp Chat - Anjali Mehra.zip', 'application/zip', new Uint8Array(buildZip([{ name: 'IMG.jpg', data: Buffer.alloc(500, 0), deflate: false }])));
+    await sendDoc('IMG.jpg', 'image/jpeg', new Uint8Array([0xff, 0xd8, 0xff, 0, 0, 0]));
+    await sendDoc('WhatsApp Chat - Anjali Mehra.zip', 'application/zip', new TextEncoder().encode('<!DOCTYPE html><html><body>error</body></html>'));
+    expect(sent.map((s) => s.body)).toEqual([REPLY.notAnExport, REPLY.notAnExport, REPLY.couldNotDownload]);
+    expect(await ALL_STORED()).toEqual([]);
+  });
+
+  it('the log says what arrived in metadata only: MIME type, extension, sizes, what was in the zip; no names, no chat', async () => {
+    const lines: string[] = [];
+    const orig = console.info;
+    console.info = (...a: unknown[]) => { lines.push(a.map(String).join(' ')); };
+    try {
+      const { token } = await rep();
+      await linkNumber(token);
+      await sendDoc('WhatsApp Chat - Anjali Mehra.zip', 'application/zip', iphoneZipWithMedia());
+      await sendDoc('WhatsApp Chat - Anjali Mehra.zip', 'application/zip', new Uint8Array(buildZip([{ name: 'IMG.jpg', data: Buffer.alloc(500, 0), deflate: false }])));
+    } finally { console.info = orig; }
+    const doc = lines.filter((l) => l.startsWith('[whatsapp] document:'));
+    expect(doc).toHaveLength(2);
+    expect(doc[0]).toMatch(/^\[whatsapp\] document: mime application\/zip · ext \.zip · \d+ bytes · kind zip · entries 7 \(txt 1, other 6\) · chat _chat\.txt · chat text \d+ bytes · result staged$/);
+    expect(doc[1]).toMatch(/entries 1 \(txt 0, other 1\) · chat none · result not_export \(no chat \.txt in the zip\)$/);
+    for (const l of doc) for (const w of ['Anjali', 'Mehra', 'quote', 'IMG']) expect(l).not.toContain(w);
   });
 });
