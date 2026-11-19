@@ -39,6 +39,10 @@
 #                  subscription. Dry run lists them and the count; --apply needs --expect <that count>.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script delete-accounts --keep bhavesh@mlbjewels.com
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script delete-accounts --keep bhavesh@mlbjewels.com --apply --expect <n>
+#   discard-import   apps/api/src/scripts/discard-import.ts  [P79-EMERGENCY · owner] discard one import completely (the note
+#                    via import undo, its now-empty client, its staged batch) and print the check:
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script discard-import --only-user <userId> --ids <noteId>,<batchId>
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script discard-import --only-user <userId> --ids <noteId>,<batchId> --apply
 #   qa-data-audit       apps/api/src/scripts/qa-data-audit.ts       [P39-10] QA/test clients, access requests and
 #                  sold-out items (id, name, created, why) + contradictory requirement summaries, and the DELETE it
 #                  would run. [P40-5] --ids <id,…> dry-runs deleting exactly those; --ids … --apply deletes them
@@ -134,7 +138,8 @@ case "$SCRIPT_NAME" in
   funnel-diagnose) SCRIPT_IN_IMAGE="apps/api/src/scripts/funnel-diagnose.ts" ;;
   pregnancy-purge) SCRIPT_IN_IMAGE="apps/api/src/scripts/pregnancy-purge.ts" ;;
   delete-accounts) SCRIPT_IN_IMAGE="apps/api/src/scripts/delete-accounts.ts" ;;
-  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit | funnel-diagnose | pregnancy-purge | delete-accounts)" ;;
+  discard-import) SCRIPT_IN_IMAGE="apps/api/src/scripts/discard-import.ts" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit | funnel-diagnose | pregnancy-purge | delete-accounts | discard-import)" ;;
 esac
 
 # [P26-2/P30-3] Read-only checks: nothing to apply, no args — refused here, before any AWS call.
