@@ -148,3 +148,61 @@ export function unzipTextEntries(buf: Buffer, caps: ZipCaps = DEFAULT_ZIP_CAPS):
 
   return { ok: true, entries };
 }
+
+/**
+ * [P79 · owner] The central directory only: every entry's name and sizes, nothing decompressed. Used by the WhatsApp
+ * path, which reads ONE entry (the chat text) and never opens the media. Fails closed on a malformed directory or more
+ * than `maxEntries` records (an export with media can hold hundreds of photos, so the caller picks a higher cap than
+ * the in-app reader's; walking the directory costs nothing, and nothing in it is inflated).
+ */
+export interface ZipDirEntry { name: string; method: number; compSize: number; uncompSize: number; localOffset: number }
+
+export function listZipEntries(buf: Buffer, maxEntries: number): { ok: true; entries: ZipDirEntry[] } | { ok: false } {
+  if (!isZip(buf)) return { ok: false };
+  const eocd = findEocd(buf);
+  if (eocd < 0) return { ok: false };
+  const total = buf.readUInt16LE(eocd + 10);
+  const cdOffset = buf.readUInt32LE(eocd + 16);
+  if (total > maxEntries || cdOffset >= buf.length) return { ok: false };
+  const entries: ZipDirEntry[] = [];
+  let p = cdOffset;
+  for (let i = 0; i < total; i++) {
+    if (p + 46 > buf.length || buf.readUInt32LE(p) !== SIG_CDH) return { ok: false };
+    const nameLen = buf.readUInt16LE(p + 28);
+    entries.push({
+      name: buf.toString('utf8', p + 46, p + 46 + nameLen),
+      method: buf.readUInt16LE(p + 10),
+      compSize: buf.readUInt32LE(p + 20),
+      uncompSize: buf.readUInt32LE(p + 24),
+      localOffset: buf.readUInt32LE(p + 42),
+    });
+    p += 46 + nameLen + buf.readUInt16LE(p + 30) + buf.readUInt16LE(p + 32);
+  }
+  return { ok: true, entries };
+}
+
+/**
+ * [P79] Decompress ONE entry, capped at maxBytes (a lying declared size throws in zlib, it never balloons). Returns
+ * 'too_large' past the cap, null when it can't be read (bad header, unsupported method, corrupt data), and the text
+ * when it is text; a binary entry or a nested archive is null (never a transcript).
+ */
+export function readZipTextEntry(buf: Buffer, e: ZipDirEntry, maxBytes: number): string | 'too_large' | null {
+  if (e.uncompSize > maxBytes) return 'too_large';
+  const lo = e.localOffset;
+  if (lo + 30 > buf.length || buf.readUInt32LE(lo) !== SIG_LFH) return null;
+  const dataStart = lo + 30 + buf.readUInt16LE(lo + 26) + buf.readUInt16LE(lo + 28);
+  const dataEnd = dataStart + e.compSize;
+  if (dataEnd > buf.length) return null;
+  const compressed = buf.subarray(dataStart, dataEnd);
+  let raw: Buffer;
+  if (e.method === 0) {
+    if (compressed.length > maxBytes) return 'too_large';
+    raw = Buffer.from(compressed);
+  } else if (e.method === 8) {
+    try { raw = inflateRawSync(compressed, { maxOutputLength: maxBytes }); } catch (err) {
+      return (err as { code?: string }).code === 'ERR_BUFFER_TOO_LARGE' ? 'too_large' : null;
+    }
+  } else return null;
+  if (isZip(raw) || !looksTextual(raw)) return null;
+  return raw.toString('utf8');
+}

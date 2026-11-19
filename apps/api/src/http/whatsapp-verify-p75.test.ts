@@ -123,7 +123,8 @@ describe('[P75] verifying: the number from the request is pre-filled', () => {
     expect(await status(token)).toMatchObject({ linked: null, requestedNumber: REQUESTED, awaitingConfirm: null });
   });
 
-  it('a same-number verify: the code from the requested number links it, verified with the date, no reply sent', async () => {
+  // [P79 · owner] linking now replies "Linked" in WhatsApp (was no reply): the pins below move with this note.
+  it('a same-number verify: the code from the requested number links it, verified with the date, and replies "Linked"', async () => {
     const { token } = await approvedRep();
     const v = await verifyNow(token);
     expect(v.waLink).toBe(`https://wa.me/971500000001?text=LINK%20${v.code}`);
@@ -133,7 +134,7 @@ describe('[P75] verifying: the number from the request is pre-filled', () => {
     const s = await status(token);
     expect(s.linked).toEqual({ phone: REQUESTED, linkedAt: now });
     expect(s.awaitingConfirm).toBeNull();
-    expect(sent).toEqual([]);
+    expect(sent.map((m) => m.body)).toEqual([REPLY.linked]);
   });
 
   it('a different-number confirm: nothing is linked until the rep confirms, and then ONLY the number they sent from', async () => {
@@ -208,7 +209,7 @@ describe('[P75] verifying: the number from the request is pre-filled', () => {
     const s = await status(token);
     expect(s.linked?.phone).toBe(REQUESTED);
     expect(s.awaitingConfirm).toBeNull();
-    expect(sent.map((m) => m.body)).toEqual([REPLY.wrongCode, REPLY.wrongCode]);
+    expect(sent.map((m) => m.body)).toEqual([REPLY.linked, REPLY.wrongCode, REPLY.wrongCode]); // [P79] the first one links
   });
 
   it('NEGATIVE: tapping Verify now again makes a new code and voids the old one', async () => {

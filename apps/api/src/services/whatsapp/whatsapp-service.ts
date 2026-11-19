@@ -3,9 +3,10 @@ import type { Storage } from '../../ports/storage.js';
 import { MediaTooLargeError, type WhatsAppGraph, type WhatsAppLink, type WhatsAppLinkStore } from '../../ports/whatsapp.js';
 import type { RateLimiter } from '../security/rate-limiter.js';
 import { canonicalPhone } from '../clients/phone.js';
-import { decodeBulkFileBytes, MAX_IMPORT_UPLOAD_BYTES } from '../import/bulk-decode.js';
+import { MAX_IMPORT_UPLOAD_BYTES } from '../import/bulk-decode.js';
 import { putBatchFile } from '../import/bulk-batch-store.js';
 import { parseWhatsAppExport } from '../import/whatsapp.js';
+import { readChatExport, exportLogLine } from './export-file.js';
 import { counterpartFromFileName } from '../import/misfile.js';
 import { isTooLong, tooLongMessage } from '../import/long-chat.js';
 import { inboundMessages, linkCodeOf, type InboundMessage } from './payload.js';
@@ -17,8 +18,8 @@ import { REPLY } from './copy.js';
  * Linking (no SMS): the rep enters their number in Settings and gets a one-time code; a wa.me link opens WhatsApp with
  * "LINK 482193" typed to Tovira's number. That message arriving FROM that number proves they own it. 15 minutes, once.
  *
- * Receiving: a linked rep's exported chat is downloaded at once, decoded and checked by the same code as "Choose the
- * chat export" (decodeBulkFileBytes, the same parser), and staged exactly like a one-file upload in the import review's
+ * Receiving: a linked rep's exported chat is downloaded at once, its chat text found (readChatExport [P79]: a zip opens
+ * only the chat text, media is never read), checked by the same parser as "Choose the chat export", and staged exactly like a one-file upload in the import review's
  * holding area. Tovira replies with a link to the confirm step; NOTHING is read until the rep confirms who it's with.
  * Anything else stores nothing and gets a one-line reply (essential replies only: owner, 9 Nov).
  */
@@ -176,8 +177,9 @@ export class WhatsAppService {
     const r = await this.deps.store.consumeCode(m.phone, hashCode(code), this.now());
     if (r.ok) {
       const linked = await this.deps.store.link(r.userId, m.phone, m.waUserId, this.now());
-      if (!linked.ok) await this.reply(m, TAKEN);
-      return; // Linked: no reply (essential replies only). The app shows "Verified" on its next check.
+      // [P79 · owner] "Linked" in WhatsApp too (was no reply: the rep sent the code and heard nothing back).
+      await this.reply(m, linked.ok ? REPLY.linked : TAKEN);
+      return;
     }
     if (r.reason === 'expired') { await this.reply(m, REPLY.wrongCode); return; }
     // [P75 · owner] Not a code for this number: maybe the rep's code sent from a different number. That links NOTHING;
@@ -194,25 +196,38 @@ export class WhatsAppService {
 
   private async handleDocument(m: InboundMessage, userId: string): Promise<void> {
     const doc = m.document!;
+    const ext = /\.([a-z0-9]{1,8})$/i.exec(doc.fileName ?? '')?.[0]?.toLowerCase() ?? '';
+    const log = (bytes: number, result: string, meta: Parameters<typeof exportLogLine>[1] = { kind: 'binary' }) =>
+      console.info(exportLogLine({ mime: doc.mimeType, ext, bytes, result }, meta));
     let bytes: Uint8Array;
     try {
       const media = await this.deps.graph.mediaUrl(doc.mediaId);
-      if (media.fileSize !== null && media.fileSize > MAX_IMPORT_UPLOAD_BYTES) { await this.reply(m, REPLY.tooLarge); return; }
+      if (media.fileSize !== null && media.fileSize > MAX_IMPORT_UPLOAD_BYTES) { log(media.fileSize, 'too large (declared)'); await this.reply(m, REPLY.tooLarge); return; }
       bytes = await this.deps.graph.download(media.url, MAX_IMPORT_UPLOAD_BYTES);
     } catch (err) {
-      await this.reply(m, err instanceof MediaTooLargeError ? REPLY.tooLarge : REPLY.couldNotDownload);
+      const big = err instanceof MediaTooLargeError;
+      log(0, big ? 'too large (download)' : 'download failed');
+      await this.reply(m, big ? REPLY.tooLarge : REPLY.couldNotDownload);
       return;
     }
-    // The same decode and parser as "Choose the chat export": a .zip (iPhone) or a .txt (Android), media dropped unread.
+    // [P79 · owner] Decided by the bytes, never the MIME type Meta gives it: a zip (iPhone, with or without media) opens
+    // ONLY its chat text; media is never decompressed. Nothing is written anywhere unless it is a chat; the downloaded
+    // bytes live in this function's memory only and are dropped when it returns.
     const fileName = doc.fileName ?? 'WhatsApp Chat.txt';
-    const file = decodeBulkFileBytes(fileName, bytes);
-    const parsed = file.content ? parseWhatsAppExport(file.content) : null;
-    if (!parsed || !parsed.ok || parsed.messages.length === 0) { await this.reply(m, REPLY.notAnExport); return; } // nothing stored
+    const r = readChatExport(fileName, bytes);
+    if (!r.ok) {
+      log(bytes.length, r.reason, r.meta);
+      await this.reply(m, r.reason === 'too_large' ? REPLY.tooLarge : r.reason === 'web_page' ? REPLY.couldNotDownload : REPLY.notAnExport);
+      return; // nothing stored
+    }
+    const parsed = parseWhatsAppExport(r.file.content);
+    if (!parsed.ok || parsed.messages.length === 0) { log(bytes.length, 'not_export', r.meta); await this.reply(m, REPLY.notAnExport); return; }
     const limit = this.deps.longChatLimit ?? null;
-    if (isTooLong(parsed.messages.length, limit)) { await this.reply(m, tooLongMessage(parsed.messages.length, limit!)); return; }
+    if (isTooLong(parsed.messages.length, limit)) { log(bytes.length, 'too long', r.meta); await this.reply(m, tooLongMessage(parsed.messages.length, limit!)); return; }
 
     const batchId = `wa-${randomUUID()}`;
-    await putBatchFile(this.deps.storage, userId, batchId, 0, file, this.now());
+    await putBatchFile(this.deps.storage, userId, batchId, 0, r.file, this.now());
+    log(bytes.length, 'staged', r.meta);
     console.info(`[whatsapp] chat staged for rep ${userId} (batch ${batchId}); nothing read until the rep confirms`);
     const link = `${this.deps.settings.appBaseUrl}/app?import=${encodeURIComponent(batchId)}`;
     await this.reply(m, REPLY.gotChat(counterpartFromFileName(fileName), link));
