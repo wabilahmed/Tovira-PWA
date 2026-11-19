@@ -10,7 +10,7 @@ import { InMemoryWhatsAppLinkStore } from '../adapters/whatsapp/in-memory-whatsa
 import { WhatsAppService, LINK_CODE_TTL_MS } from '../services/whatsapp/whatsapp-service.js';
 import { REPLY } from '../services/whatsapp/copy.js';
 import { FixedWindowRateLimiter } from '../services/security/rate-limiter.js';
-import { LONG_CHAT_MAX_MESSAGES } from '../services/import/long-chat.js';
+import { EMERGENCY_MAX_MESSAGES } from '../services/import/long-chat.js';
 import { buildZip, iphoneZipWithMedia, iphoneZipWithoutMedia, IPHONE_CHAT } from '../services/whatsapp/__fixtures__/iphone-export-zip.js';
 
 // [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
@@ -335,12 +335,13 @@ describe('[P67] receiving a chat', () => {
     expect(await staged(userId)).toHaveLength(1);
   });
 
-  it('with windowing off, the long-chat rule applies here too: refused, nothing stored', async () => {
+  // [P79-EMERGENCY · owner, 19 Nov] "refuse any import over 3,000 messages after the date cut, with the message 'This chat is too long for now. We're working on it. Try a shorter chat.'" Until P68, windowed or not. The pin moves with this note.
+  it('[P79-EMERGENCY] the long-chat rule applies here too: over 3,000 refused with the owner\'s line, nothing stored', async () => {
     const { token, userId } = await rep();
     await linkNumber(token);
-    const lines = Array.from({ length: LONG_CHAT_MAX_MESSAGES + 1 }, (_, i) => `15/01/2026, 09:${String(i % 60).padStart(2, '0')} - ${i % 2 ? 'Wabil' : 'Anjali Mehra'}: m${i}`);
+    const lines = Array.from({ length: EMERGENCY_MAX_MESSAGES + 1 }, (_, i) => `15/01/2026, 09:${String(i % 60).padStart(2, '0')} - ${i % 2 ? 'Wabil' : 'Anjali Mehra'}: m${i}`);
     await document(REP_PHONE, 'WhatsApp Chat with Anjali Mehra.txt', new TextEncoder().encode(lines.join('\n')));
-    expect(sent[0]!.body).toMatch(/^This chat is too long to analyse in one go: 5,001 messages/);
+    expect(sent[0]!.body).toBe("This chat is too long for now. We're working on it. Try a shorter chat.");
     expect(await staged(userId)).toEqual([]);
   });
 });

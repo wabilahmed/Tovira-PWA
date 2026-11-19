@@ -3,10 +3,12 @@
  * the background sweep and the bulk orchestrator.
  *
  * It first CLAIMS the note atomically (pending_extraction → extracting). Only the winner of the claim
- * extracts, so the two drainers racing the same queue never double-extract a note (item 2). A claimed
- * note is now 'extracting' — a STARTED chat — so its extraction runs with forceAllowance: once started
- * it always finishes, and the gate absorbs any overshoot (item 6). This is the SINGLE call site that
- * sets forceAllowance; the lockdown guard (item 5) enforces that nothing else does.
+ * extracts, so the two drainers racing the same queue never double-extract a note (item 2).
+ *
+ * [P79-EMERGENCY · owner, 19 Nov] "Remove the allowance exemption for chats that have started." A started chat used to
+ * run with forceAllowance (it always finished, past the cap); a 28,357-message chat then ran for hours past the
+ * AED 45 cap. Now nothing passes forceAllowance: a chat that reaches the cap stops at its next model call and waits.
+ * And a note over the emergency limit (`tooLong`) is never claimed or read: it is set to needs_review, no model call.
  */
 import type { ExtractOutcome } from '../extraction/extraction-service.js';
 
@@ -17,13 +19,20 @@ export interface ClaimAndExtractDeps {
    *  'extracting' when forceAllowance is passed (item 5b holds by construction). */
   extract: (userId: string, noteId: string, today: string, opts?: { forceAllowance?: boolean }) => Promise<ExtractOutcome>;
   now?: () => number;
+  /** [P79-EMERGENCY] True when the note has more messages than may be read; it is then set aside, never read. */
+  tooLong?: (userId: string, noteId: string) => Promise<boolean>;
+  setAside?: (userId: string, noteId: string) => Promise<void>;
 }
 
 export function createClaimAndExtract(deps: ClaimAndExtractDeps) {
   const now = deps.now ?? ((): number => Date.now());
   return async function claimAndExtract(userId: string, noteId: string, today: string): Promise<ExtractOutcome> {
+    if (deps.tooLong && (await deps.tooLong(userId, noteId))) {
+      await deps.setAside?.(userId, noteId);
+      return { status: 'too_long' };
+    }
     const claimed = await deps.claim(userId, noteId, now());
     if (!claimed) return { status: 'claimed_elsewhere' }; // another worker has it — do nothing
-    return deps.extract(userId, noteId, today, { forceAllowance: true });
+    return deps.extract(userId, noteId, today);
   };
 }

@@ -159,7 +159,7 @@ import { WinBackService } from './services/ledger/win-back.js';
 import { PgGoingQuietAlertRepository } from './adapters/ledger/pg-going-quiet-alert-repository.js';
 import { buildWhatsApp } from './whatsapp-wiring.js';
 import { PgWhatsAppLinkStore } from './adapters/whatsapp/pg-whatsapp-store.js';
-import { longChatLimit } from './services/import/long-chat.js';
+import { longChatLimit, EMERGENCY_MAX_MESSAGES } from './services/import/long-chat.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = resolve(here, '..', 'migrations');
@@ -455,6 +455,15 @@ async function main(): Promise<void> {
   const claimAndExtract = createClaimAndExtract({
     claim: (u, id, now) => notes.claimForExtraction(u, id, now),
     extract: (u, id, today, opts) => extraction.extractNote(u, id, today, opts),
+    // [P79-EMERGENCY · owner] a stored note over the emergency limit is never read (no model call), wherever it came from
+    tooLong: async (u, id) => {
+      const n = await notes.findByIdForUser(u, id);
+      return (n?.messages ?? []).filter((m) => !m.excluded).length > EMERGENCY_MAX_MESSAGES;
+    },
+    setAside: async (u, id) => {
+      await notes.update(u, id, { status: 'needs_review' });
+      console.info(`[extract] note ${id} set aside: over the ${EMERGENCY_MAX_MESSAGES}-message emergency limit, not read`);
+    },
   });
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),

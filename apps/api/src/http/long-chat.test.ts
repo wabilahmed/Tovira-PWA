@@ -5,6 +5,9 @@ import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
 import { listenForTest } from '../test-support/listen.js';
 import { LONG_CHAT_MAX_MESSAGES, longChatLimit, tooLongMessage } from '../services/import/long-chat.js';
+// [P79-EMERGENCY · owner, 19 Nov] The route tests below use the limit production wires (longChatLimit(true): 3,000, was
+// 5,000 with windowing off); the test server now uses it too. Numbers move with this note: the behaviour does not.
+const LIMIT = longChatLimit(true)!;
 
 // [P69 · owner] "Reading…" → "Analysing…" everywhere (one voice): the pinned wording below changed by owner decision.
 
@@ -61,55 +64,56 @@ const upload = (token: string, batchId: string, index: number, name: string, tex
   });
 
 describe('[P67-1] a chat too long to analyse in one go is refused before it is read', () => {
-  it('the limit is 5,000 messages with windowing off, and none with it on', () => {
-    expect(LONG_CHAT_MAX_MESSAGES).toBe(5_000);
-    expect(longChatLimit(false)).toBe(5_000);
-    expect(longChatLimit(true)).toBeNull();
+  // [P79-EMERGENCY · owner, 19 Nov] "refuse any import over 3,000 messages after the date cut, with the message 'This chat is too long for now. We're working on it. Try a shorter chat.'" Until P68, windowed or not. The pin moves with this note.
+  it('[P79-EMERGENCY] the limit is 3,000 messages, with windowing on or off', () => {
+    expect(LONG_CHAT_MAX_MESSAGES).toBe(5_000); // the P67-1 number, kept for P68
+    expect(longChatLimit(false)).toBe(3_000);
+    expect(longChatLimit(true)).toBe(3_000);
   });
 
-  it('the message says how long, the limit, and the way out; no em-dash', () => {
-    const m = tooLongMessage(6_240, 5_000);
-    expect(m).toBe("This chat is too long to analyse in one go: 6,240 messages, and the limit for now is 5,000. WhatsApp can't export part of a chat, so contact us at hello@tovira.io and we'll help.");
+  it('[P79-EMERGENCY] the message is the owner\'s wording; no em-dash', () => {
+    const m = tooLongMessage(6_240, 3_000);
+    expect(m).toBe("This chat is too long for now. We're working on it. Try a shorter chat.");
     expect(m).not.toMatch(/—/);
   });
 
   it('single upload: over the limit is refused (413) and stores nothing', async () => {
     const token = await signup('long-single@example.com');
     const cid = await createClient(token, 'Layla');
-    const res = await importRaw(token, cid, chat('Layla', LONG_CHAT_MAX_MESSAGES + 1));
+    const res = await importRaw(token, cid, chat('Layla', LIMIT + 1));
     expect(res.status).toBe(413);
     const body = (await res.json()) as { error: string; message: string; messageCount: number; limit: number };
     expect(body.error).toBe('too_long');
-    expect(body.messageCount).toBe(LONG_CHAT_MAX_MESSAGES + 1);
-    expect(body.message).toBe(tooLongMessage(LONG_CHAT_MAX_MESSAGES + 1, LONG_CHAT_MAX_MESSAGES));
+    expect(body.messageCount).toBe(LIMIT + 1);
+    expect(body.message).toBe(tooLongMessage(LIMIT + 1, LIMIT));
     expect(await notesOf(token, cid)).toEqual([]);
   });
 
   it('single upload: exactly the limit is read as before', async () => {
     const token = await signup('long-single-ok@example.com');
     const cid = await createClient(token, 'Layla');
-    const res = await importRaw(token, cid, chat('Layla', LONG_CHAT_MAX_MESSAGES));
+    const res = await importRaw(token, cid, chat('Layla', LIMIT));
     expect(res.status).toBe(202);
   });
 
   it('a re-export counts only the new messages', async () => {
     const token = await signup('long-reexport@example.com');
     const cid = await createClient(token, 'Layla');
+    expect((await importRaw(token, cid, chat('Layla', 2_000))).status).toBe(202);
+    // 4,000 messages in the file, 2,000 of them new: read
     expect((await importRaw(token, cid, chat('Layla', 4_000))).status).toBe(202);
-    // 6,000 messages in the file, 2,000 of them new: read
-    expect((await importRaw(token, cid, chat('Layla', 6_000))).status).toBe(202);
   });
 
   it('import review: the long chat is a "too_long" row, never imported; the other chat imports', async () => {
     const token = await signup('long-bulk@example.com');
-    expect((await upload(token, 'lb1', 0, 'long.txt', chat('Layla', LONG_CHAT_MAX_MESSAGES + 1))).status).toBe(200);
+    expect((await upload(token, 'lb1', 0, 'long.txt', chat('Layla', LIMIT + 1))).status).toBe(200);
     expect((await upload(token, 'lb1', 1, 'short.txt', chat('Omar', 20))).status).toBe(200);
     const parsed = await post('/import/bulk/parse', token, { batchId: 'lb1', repName: 'Wabil' });
     const rows = ((await parsed.json()) as { result: { rows: Array<{ fileName: string; state: string; messageCount?: number; limit?: number }> } }).result.rows;
     const long = rows.find((r) => r.fileName === 'long.txt')!;
     expect(long.state).toBe('too_long');
-    expect(long.messageCount).toBe(LONG_CHAT_MAX_MESSAGES + 1);
-    expect(long.limit).toBe(LONG_CHAT_MAX_MESSAGES);
+    expect(long.messageCount).toBe(LIMIT + 1);
+    expect(long.limit).toBe(LIMIT);
     expect(rows.find((r) => r.fileName === 'short.txt')!.state).toBe('new');
 
     // Even if a client sends a decision for it, the long chat is never read or stored.

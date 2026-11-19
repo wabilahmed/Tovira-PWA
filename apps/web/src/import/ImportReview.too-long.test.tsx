@@ -7,7 +7,8 @@ import { ImportReview, type ReviewResult } from './ImportReview.js';
 
 /** [P67-1 · owner] A chat too long to analyse in one go shows why on its row and is never imported; the rest import. */
 describe('<ImportReview> a too-long chat', () => {
-  it('says how long, the limit and the way out, and is left out of the import', async () => {
+  // [P79-EMERGENCY · owner, 19 Nov] "refuse any import over 3,000 messages after the date cut, with the message 'This chat is too long for now. We're working on it. Try a shorter chat.'" Until P68, windowed or not. The pin moves with this note.
+  it('says the owner\'s too-long line, and is left out of the import', async () => {
     const onImport = vi.fn();
     const result: ReviewResult = { repName: 'Wabil', needsRepId: false, rows: [
       { fileName: 'long.txt', platform: 'android', state: 'too_long', counterpart: 'Anjali Mehra', messageCount: 6240, limit: 5000 },
@@ -16,7 +17,7 @@ describe('<ImportReview> a too-long chat', () => {
     render(<ImportReview result={result} onImport={onImport} />);
     const rowEl = screen.getByTestId('review-row-long.txt');
     expect(within(rowEl).getByTestId('row-too-long')).toHaveTextContent(
-      "Anjali Mehra: This chat is too long to analyse in one go: 6,240 messages, and the limit for now is 5,000. WhatsApp can't export part of a chat, so contact us at hello@tovira.io and we'll help. Excluded.",
+      "Anjali Mehra: This chat is too long for now. We're working on it. Try a shorter chat. Excluded.",
     );
     await userEvent.click(screen.getByRole('button', { name: /^import/i }));
     expect(onImport).toHaveBeenCalledWith([{ fileName: 'b.txt', action: 'new', name: 'Omar' }]);

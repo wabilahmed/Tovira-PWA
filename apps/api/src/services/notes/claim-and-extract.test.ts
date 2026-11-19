@@ -3,6 +3,7 @@ import { createClaimAndExtract } from './claim-and-extract.js';
 import { NoteSweepService } from './note-sweep-service.js';
 import { InMemoryNoteRepository } from '../../adapters/notes/in-memory-note-repository.js';
 import type { ExtractOutcome } from '../extraction/extraction-service.js';
+import { EMERGENCY_MAX_MESSAGES } from '../import/long-chat.js';
 
 async function seedPending(notes: InMemoryNoteRepository, n: number): Promise<string[]> {
   const ids: string[] = [];
@@ -84,12 +85,47 @@ describe('[BULK-IMPORT] single-chat import: only the start is gated', () => {
     expect(seen.status).toBeUndefined(); // extraction never started
   });
 
-  it('once started the chat is claimed (extracting) and runs with forceAllowance — it finishes', async () => {
+  // [P79-EMERGENCY · owner, 19 Nov] "Remove the allowance exemption for chats that have started." A started chat no
+  // longer runs with forceAllowance (a 28,357-message chat ran for hours past the AED 45 cap). The pin moves with this note.
+  it('once started the chat is claimed (extracting) and runs WITHOUT the allowance exemption', async () => {
     const { notes, sweep, seen } = harness(true);
     const n = await notes.create('u', { clientId: 'c', source: 'whatsapp_export', rawText: 'hi', audioKey: null, status: 'pending_extraction' });
     await sweep.sweep('2026-10-04');
     expect(seen.status).toBe('extracting'); // claimed BEFORE extraction — a started chat
-    expect(seen.force).toBe(true); // runs with the allowance bypass so it completes
+    expect(seen.force).not.toBe(true); // [P79-EMERGENCY] no allowance bypass: the cap stops it at its next call
     expect((await notes.findByIdForUser('u', n.id))?.status).toBe('extracted');
+  });
+});
+
+// [P79-EMERGENCY · owner, 19 Nov] A stored import over the emergency limit (the parked 28,357-message chat, or anything
+// re-queued by "Try again") is never claimed or read: set aside (needs_review) with no model call, every time.
+describe('[P79-EMERGENCY] a stored note over the limit is set aside, never read', () => {
+  function guarded(count: number) {
+    const notes = new InMemoryNoteRepository();
+    const calls: string[] = [];
+    const claimAndExtract = createClaimAndExtract({
+      claim: async (u, id, now) => { calls.push('claim'); return notes.claimForExtraction(u, id, now); },
+      extract: async () => { calls.push('extract'); return { status: 'extracted' }; },
+      tooLong: async () => count > EMERGENCY_MAX_MESSAGES,
+      setAside: async (u, id) => { calls.push('setAside'); await notes.update(u, id, { status: 'needs_review' }); },
+    });
+    return { notes, calls, claimAndExtract };
+  }
+  it('over the limit: set aside, never claimed, no extraction (no model call)', async () => {
+    const { notes, calls, claimAndExtract } = guarded(EMERGENCY_MAX_MESSAGES + 1);
+    const n = await notes.create('u', { clientId: 'c', source: 'whatsapp_export', rawText: 'x', audioKey: null, status: 'pending_extraction' });
+    expect(await claimAndExtract('u', n.id, '2026-11-19')).toEqual({ status: 'too_long' });
+    expect(calls).toEqual(['setAside']);
+    expect((await notes.findByIdForUser('u', n.id))?.status).toBe('needs_review');
+    // re-queued (Try again), it is set aside again: still never read
+    await notes.update('u', n.id, { status: 'pending_extraction', sweepAttempts: 0 });
+    await claimAndExtract('u', n.id, '2026-11-19');
+    expect(calls).toEqual(['setAside', 'setAside']);
+  });
+  it('NEGATIVE: exactly the limit is claimed and read as before', async () => {
+    const { notes, calls, claimAndExtract } = guarded(EMERGENCY_MAX_MESSAGES);
+    const n = await notes.create('u', { clientId: 'c', source: 'whatsapp_export', rawText: 'x', audioKey: null, status: 'pending_extraction' });
+    await claimAndExtract('u', n.id, '2026-11-19');
+    expect(calls).toEqual(['claim', 'extract']);
   });
 });

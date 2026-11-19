@@ -23,9 +23,11 @@ const rel = (f: string): string => f.slice(SRC.length);
 describe('[RULING 2 item 5a] the allowance bypass has exactly one call site', () => {
   const files = sourceFiles(SRC);
 
-  it('only claim-and-extract.ts passes forceAllowance: true', () => {
+  // [P79-EMERGENCY · owner, 19 Nov] "Remove the allowance exemption for chats that have started": its one call site is
+  // gone, so NO production source passes it now. The pin moves from one call site to none, with this note.
+  it('no production source passes forceAllowance: true (the started-chat exemption is removed)', () => {
     const hits = files.filter((f) => /forceAllowance:\s*true/.test(readFileSync(f, 'utf8'))).map(rel);
-    expect(hits).toEqual(['services/notes/claim-and-extract.ts']);
+    expect(hits).toEqual([]);
   });
 
   it('no production source sets forceReserve: true directly (the gate derives it from the request)', () => {
