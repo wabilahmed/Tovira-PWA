@@ -146,7 +146,7 @@ export interface AppConfig {
   extractionCacheTtl: CacheTtl;
   /** [P23-B4 / EXT-10] Windowed extraction for long imported chats. OFF by default (EXTRACT_WINDOWED);
    *  over `threshold` messages a chat is read in windows of `size` overlapping by `overlap`. */
-  windowing: { enabled: boolean; threshold: number; size: number; overlap: number };
+  windowing: { enabled: boolean; threshold: number; size: number; overlap: number; concurrency: number };
   storageDir: string;
   /** [STORAGE] Blob backend: 's3' (production — the provisioned media bucket) or 'fs' (local dev).
    *  EXPLICIT, not inferred, so production can never silently fall back to ephemeral container-local
@@ -573,7 +573,10 @@ function parseWindowing(env: Env): AppConfig['windowing'] {
   const overlapRaw = env.EXTRACT_WINDOW_OVERLAP?.trim();
   const overlap = overlapRaw ? Number(overlapRaw) : 20;
   if (!Number.isInteger(overlap) || overlap < 0 || overlap >= size) throw new ConfigError(`Invalid EXTRACT_WINDOW_OVERLAP: "${overlapRaw ?? overlap}". Expected a whole number ≥ 0 and smaller than EXTRACT_WINDOW_SIZE (${size}).`);
-  return { enabled: raw === '1' || raw === 'true', threshold: parsePositive(env.EXTRACT_WINDOW_THRESHOLD, 150, 'EXTRACT_WINDOW_THRESHOLD'), size, overlap };
+  // [P68-3 · owner] pieces of one chat read in parallel. 4: the concurrency the 19 Nov cost test ran at on the same key
+  // with no rate-limit error; a refused or failed call is retried once per piece, so a brief limit doesn't fail a chat.
+  const concurrency = Math.floor(parsePositive(env.EXTRACT_WINDOW_CONCURRENCY, 4, 'EXTRACT_WINDOW_CONCURRENCY'));
+  return { enabled: raw === '1' || raw === 'true', threshold: parsePositive(env.EXTRACT_WINDOW_THRESHOLD, 150, 'EXTRACT_WINDOW_THRESHOLD'), size, overlap, concurrency };
 }
 
 function parsePositive(raw: string | undefined, fallback: number, name: string): number {

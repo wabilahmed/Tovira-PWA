@@ -22,7 +22,7 @@ import { resolveExtractionDates } from './resolve-date.js';
 import { factsProjection, trustedMeetingDatetime } from './date-policy.js';
 import type { ModelRouter } from './model-router.js';
 import type { ExtractionLimiter } from './limiter.js';
-import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, EXTRACTION_MAX_TOKENS, buildUserMessage } from './prompt.js';
+import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './prompt.js';
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
@@ -68,6 +68,15 @@ function countFacts(ex: Extraction): number {
     (e.meeting ? 1 : 0)
   );
 }
+
+/**
+ * [P68-1 · owner] "Thinking budget always below max output, so no starved pieces." Sonnet 5 takes no thinking budget
+ * (adaptive thinking; budget_tokens is a 400), so the output ceiling is raised instead: 32,000, above the most thinking
+ * measured in one call (19,994 on 19 Nov, which starved a piece at the old 20,000 and failed a 1,000-message chat).
+ * The ceiling costs nothing unless it is used (billing is per token produced). Set here, not in prompt.ts
+ * (EXTRACTION_MAX_TOKENS), which is part of the certified surface; the prompt bytes are unchanged.
+ */
+export const OUTPUT_CEILING = 32_000;
 
 export interface ExtractOutcome {
   status: string;
@@ -380,39 +389,58 @@ export class ExtractionService {
     const visible = (rnote.messages ?? []).filter((m) => !m.excluded);
     const windows = this.windowing?.enabled && note.source === 'whatsapp_export' ? planWindows(visible.length, this.windowing) : null;
     if (windows) {
-      const parts: Extraction[] = [];
-      for (const [from, to] of windows) {
+      // [P68-2/3 · owner] Pieces are read in parallel (up to windowing.concurrency at once), each finished piece is
+      // kept, a failed piece (unreadable or starved) is tried once more, and one piece that still fails never fails
+      // the chat: the other pieces are merged, and the piece left out is logged. Every piece failing = needs_review.
+      // The usage gate refusing a call (the cap, or the AI pause) still stops the chat whole: nothing new starts,
+      // the pieces in flight finish, nothing is saved, and the note goes back in the queue (as before).
+      const parts: Array<Extraction | null> = windows.map(() => null);
+      const failed: number[] = [];
+      const stop: { refusedAt: [number, number] | null } = { refusedAt: null }; // set inside the lanes
+      const readPiece = async (w: number): Promise<void> => {
+        const [from, to] = windows[w]!;
         const windowMessage = buildUserMessage({ today: referenceDate, clientName: client?.name ?? 'Unknown', source: note.source, text: renderThread(visible.slice(from, to)), glossary });
         let part: Extraction | null = null;
-        for (let attempt = 0; attempt < 2 && !part; attempt++) {
-          last = await this.call(route.model, windowMessage, userId, spendClass, honourForce);
-          if (last.refused) break;
+        for (let attempt = 0; attempt < 2 && !part && !stop.refusedAt; attempt++) {
+          const a = await this.call(route.model, windowMessage, userId, spendClass, honourForce);
+          last = a;
+          if (a.refused) { stop.refusedAt = stop.refusedAt ?? [from, to]; return; }
           spend.calls += 1;
-          spend.input += last.inputTokens;
-          spend.output += last.outputTokens;
-          spend.thinking += last.thinkingTokens;
-          spend.cacheWrite += last.cacheCreationTokens;
-          spend.cacheRead += last.cacheReadTokens;
-          part = last.parsed ? asExtraction(last.parsed) : null;
-          if (last.starved) {
-            console.error(`[extract] OUTPUT_STARVED note=${noteId} window=${from}-${to} model=${route.modelId} — max_tokens exhausted by reasoning`);
+          spend.input += a.inputTokens;
+          spend.output += a.outputTokens;
+          spend.thinking += a.thinkingTokens;
+          spend.cacheWrite += a.cacheCreationTokens;
+          spend.cacheRead += a.cacheReadTokens;
+          part = a.parsed ? asExtraction(a.parsed) : null;
+          if (a.starved) {
+            console.error(`[extract] OUTPUT_STARVED note=${noteId} window=${from}-${to} model=${route.modelId} attempt=${attempt + 1} — max_tokens exhausted by reasoning`);
             this.health?.recordStarvedOutput();
-            break;
           }
         }
-        if (last.refused) {
-          // Allowance ran out (or the kill switch is on) mid-chat: stop cleanly. Nothing from the windows
-          // already read is saved — the note goes back in the queue whole and re-extracts later.
-          if (spend.calls > 0) await this.limiter?.record?.(userId);
-          await this.notes.update(userId, noteId, { status: 'pending_extraction' });
-          console.info(`[extract] windowed note ${noteId}: usage gate refused window ${from}-${to} — re-queued, nothing saved`);
-          return { status: 'spend_capped', flagged: true };
-        }
-        if (!part) { parts.length = 0; break; } // a window that can't be read fails the whole note (needs_review), never a partial merge
-        parts.push(part);
+        if (part) parts[w] = part;
+        else if (!stop.refusedAt) failed.push(w);
+      };
+      let nextPiece = 0;
+      const lanes = Math.max(1, Math.min(this.windowing?.concurrency ?? 1, windows.length));
+      await Promise.all(Array.from({ length: lanes }, async () => {
+        while (nextPiece < windows.length && !stop.refusedAt) await readPiece(nextPiece++);
+      }));
+      if (stop.refusedAt) {
+        const [from, to] = stop.refusedAt;
+        // Allowance ran out (or the kill switch is on) mid-chat: stop cleanly. Nothing from the windows
+        // already read is saved — the note goes back in the queue whole and re-extracts later.
+        if (spend.calls > 0) await this.limiter?.record?.(userId);
+        await this.notes.update(userId, noteId, { status: 'pending_extraction' });
+        console.info(`[extract] windowed note ${noteId}: usage gate refused window ${from}-${to} — re-queued, nothing saved`);
+        return { status: 'spend_capped', flagged: true };
       }
-      if (parts.length === windows.length) {
-        extraction = mergeWindowExtractions(parts);
+      const read = parts.filter((x): x is Extraction => x !== null);
+      if (failed.length > 0) {
+        const ranges = failed.sort((a, b) => a - b).map((w) => `${windows[w]![0]}-${windows[w]![1]}`).join(', ');
+        console.error(`[extract] windowed note ${noteId}: ${failed.length} of ${windows.length} piece(s) unreadable after a retry (messages ${ranges}); ${read.length > 0 ? `the other ${read.length} merged` : 'nothing to merge'}`);
+      }
+      if (read.length > 0) {
+        extraction = mergeWindowExtractions(read);
       }
       // The log row carries the whole extraction's tokens, not the last window's.
       last = { ...last, inputTokens: spend.input, outputTokens: spend.output, cacheCreationTokens: spend.cacheWrite, cacheReadTokens: spend.cacheRead, thinkingTokens: spend.thinking };
@@ -725,7 +753,7 @@ export class ExtractionService {
         cacheSystemPrompt: true,
         cacheTtl: this.cacheTtl,
         messages: [{ role: 'user', content: userMessage }],
-        maxTokens: EXTRACTION_MAX_TOKENS, // reasoning + text share this budget (EXTRACT-MAXTOKENS)
+        maxTokens: OUTPUT_CEILING, // reasoning + text share this budget (EXTRACT-MAXTOKENS); [P68-1] see OUTPUT_CEILING
         userId,
         spendClass, // 'import' for a chat import, 'extraction' for a daily note (SPEND-CAP)
         forceReserve, // [RULING 2] a started bulk chat is never refused for the allowance (overshoot absorbed)
