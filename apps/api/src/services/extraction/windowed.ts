@@ -31,6 +31,8 @@ export interface WindowConfig {
   size: number;
   /** Messages shared by consecutive windows. */
   overlap: number;
+  /** [P68-3] Pieces read at once (default 1 = one after another). */
+  concurrency?: number;
 }
 
 /** [start, end) message ranges, or null when the chat is at/below the threshold (single pass). */
