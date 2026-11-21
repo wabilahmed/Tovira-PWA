@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { messagesToRead, readingEstimate, readingLine } from '../services/import/reading-estimate.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
@@ -321,7 +322,11 @@ export async function handleNoteRoute(
       // [USAGE-ALLOWANCE · D4] At 100% of the allowance, a chat import is REFUSED up front — not parsed,
       // not queued — because it is the heaviest AI operation. The rep adds usage (or subscribes, in trial)
       // and retries. Everything else about the account still works.
-      if (deps.allowanceExhausted && (await deps.allowanceExhausted(userId))) {
+      // [P82-B · owner] A PREVIEW (X-Tovira-Preview: 1) reads the file and answers "This chat has 1,240 messages to read.
+      // About 3 minutes." before the rep confirms: nothing is stored and no model is called, so it needs no allowance,
+      // no first-import acknowledgement and no consent tick yet (all still required by the import itself).
+      const preview = req.headers['x-tovira-preview'] === '1';
+      if (!preview && deps.allowanceExhausted && (await deps.allowanceExhausted(userId))) {
         sendJson(res, 402, { error: 'allowance_exhausted', message: "You've used this month's AI allowance, so importing is paused. Add usage, or wait for your allowance to reset, then try again." });
         return true;
       }
@@ -360,7 +365,7 @@ export async function handleNoteRoute(
       // right to upload messages written by other people. Once acknowledged (stored, once per account),
       // later imports skip this. Declining = not sending firstImportAck: the import does not proceed and
       // nothing about the account changes (no ack recorded, no note created).
-      if ((await deps.importAck.acknowledgedAt(userId)) === null) {
+      if (!preview && (await deps.importAck.acknowledgedAt(userId)) === null) {
         if (body.firstImportAck === true) {
           await deps.importAck.acknowledge(userId, Date.now());
         } else {
@@ -369,7 +374,7 @@ export async function handleNoteRoute(
         }
       }
       // A full export contains everything in the chat — require explicit consent.
-      if (body.consent !== true) {
+      if (!preview && body.consent !== true) {
         sendJson(res, 400, {
           error: 'consent_required',
           message: 'A WhatsApp export contains the entire chat. Confirm consent before importing.',
@@ -488,8 +493,15 @@ export async function handleNoteRoute(
         return true;
       }
       // [P67-1 · owner] Too long to read in one go: refused here, before anything is stored or read.
-      if (isTooLong(fresh.length, deps.longChatLimit ?? null)) {
-        sendJson(res, 413, { error: 'too_long', message: tooLongMessage(fresh.length, deps.longChatLimit!), messageCount: fresh.length, limit: deps.longChatLimit });
+      // [P82-B] counted STRIPPED: the messages Tovira will read (not held by the screen, not chatter)
+      const toRead = messagesToRead(fresh);
+      if (isTooLong(toRead, deps.longChatLimit ?? null)) {
+        sendJson(res, 413, { error: 'too_long', message: tooLongMessage(toRead, deps.longChatLimit!), messageCount: toRead, limit: deps.longChatLimit });
+        return true;
+      }
+      if (preview) {
+        const est = readingEstimate(fresh, 'live'); // a single import is read live
+        sendJson(res, 200, { preview: true, messagesToRead: est.messages, minutes: est.minutes, line: readingLine(est) });
         return true;
       }
       // [ALIAS-COUNTERPART] Confirm the counterpart BEFORE extraction (the ordering rule). Identify

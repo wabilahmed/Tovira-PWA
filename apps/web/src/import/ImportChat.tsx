@@ -1,5 +1,5 @@
 import { hapticTick } from '../haptics.js';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ImportResult } from '../clients/clientsClient.js';
 import { CeilingNotice } from './CeilingNotice.js';
 import { RepIdentification } from './RepIdentification.js';
@@ -7,6 +7,8 @@ import { formatBody, formatRange } from '../format/dates.js';
 import { ExportSteps } from '../onboarding/exportSteps.js';
 
 export interface ImportApi {
+  /** [P82-B] "This chat has 1,240 messages to read. About 3 minutes." (stripped; stores nothing). null when it can't tell. */
+  previewImport?(clientId: string, input: { content?: string; contentBase64?: string; fileName?: string }): Promise<{ line: string } | null>;
   importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string }, consent: boolean): Promise<ImportResult>;
 }
 
@@ -78,6 +80,19 @@ export function ImportChat({
 
   // A selected/shared file takes precedence over the paste box.
   const canSubmit = (fileB64.length > 0 || content.trim().length > 0) && consent && !busy;
+  // [P82-B · owner] Before Import: the stripped messages to read and the minutes, from the server's preview (no cost).
+  const [readingLine, setReadingLine] = useState<string | null>(null);
+  useEffect(() => {
+    setReadingLine(null);
+    if (!api.previewImport || (!fileB64 && !content.trim())) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      void api.previewImport!(clientId, fileB64 ? { contentBase64: fileB64, fileName: uploadName || undefined } : { content })
+        .then((r) => { if (!cancelled) setReadingLine(r?.line ?? null); })
+        .catch(() => {});
+    }, fileB64 ? 0 : 500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [api, clientId, fileB64, content, uploadName]);
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>): void {
     const file = e.target.files?.[0];
@@ -203,6 +218,7 @@ export function ImportChat({
         <span>I understand this export contains the whole conversation, and I have consent to store it.</span>
       </label>
 
+      {readingLine && <p data-testid="import-reading" style={{ margin: 0 }}>{readingLine}</p>}
       {error && <p role="alert" style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
       {error && overAllowance && onOpenSubscription && (
         <button type="button" className="tov-link" style={{ justifySelf: 'start' }} onClick={onOpenSubscription}>Buy more usage</button>

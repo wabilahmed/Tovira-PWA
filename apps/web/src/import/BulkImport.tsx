@@ -42,6 +42,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
   const [batchId, setBatchId] = useState('');
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [upsell, setUpsell] = useState<Upsell | undefined>(undefined);
+  const [readingLine, setReadingLine] = useState<string | undefined>(undefined); // [P82-B]
   const [pendingDecisions, setPendingDecisions] = useState<ReviewDecision[]>([]);
   const [jobs, setJobs] = useState<BulkJob[]>([]);
   const [resultUpsell, setResultUpsell] = useState<Upsell | undefined>(undefined);
@@ -75,6 +76,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
         }
         setResult(parsed.result);
         setUpsell(parsed.upsell);
+        setReadingLine(parsed.reading?.line);
         setStep('review');
       } catch {
         if (cancelled) return;
@@ -116,6 +118,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
       // Oversized rows (never uploaded) are shown alongside the parsed rows, excluded from import.
       setResult({ ...parsed.result, rows: [...parsed.result.rows, ...tooLargeRows] });
       setUpsell(parsed.upsell);
+      setReadingLine(parsed.reading?.line);
       setStep('review');
     } catch {
       setError('Something went wrong reading those files. Try again.');
@@ -188,7 +191,7 @@ export function BulkImport({ api, pollMs = 400, onSubscribe, onOpenBookScan, sin
   if (step === 'review' && result) {
     return (
       <section aria-label="Import chats" data-testid="bulk-import">
-        <ImportReview result={result} upsell={upsell} onImport={(d) => void doImport(d)} onOpenSubscription={onOpenSubscription} onSubscribe={onSubscribe} />
+        <ImportReview result={result} upsell={upsell} readingLine={readingLine} onImport={(d) => void doImport(d)} onOpenSubscription={onOpenSubscription} onSubscribe={onSubscribe} />
       </section>
     );
   }

@@ -39,11 +39,6 @@ export function warnMessage(percent: number): string {
   return `You've used ${percent}% of this month's AI usage.`;
 }
 
-/** [P81-3] "Import allowance: AED 19 left" (the server rounds down). */
-export function importAllowanceLine(leftAed: number): string {
-  return `Import allowance: AED ${leftAed} left`;
-}
-
 /** "Extra usage: +80% left (never expires)". */
 export function extraLine(extraPercentLeft: number): string {
   return `Extra usage: +${extraPercentLeft}% left (never expires)`;

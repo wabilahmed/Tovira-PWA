@@ -59,6 +59,8 @@ export interface BulkRow {
   /** [existing] how many messages are NEW vs what is already stored for the client (0 → up to date).
    *  Filled by the service (parseBatch has no access to stored notes). */
   newMessageCount?: number;
+  /** [P82-B] The messages Tovira will read from this chat, stripped (not held, not chatter). */
+  messagesToRead?: number;
   /** [FOLLOW-UP 2] only the most recent part of a very long chat was imported. */
   truncated?: boolean;
   /** [too_long] the messages that would be read, and the limit. */

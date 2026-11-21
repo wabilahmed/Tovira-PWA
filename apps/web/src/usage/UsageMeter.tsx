@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AllowanceStatus } from './allowanceClient.js';
-import { packLabel, exhaustedAction, exhaustedMessage, warnMessage, extraLine, importAllowanceLine } from './usageCopy.js';
+import { packLabel, exhaustedAction, exhaustedMessage, warnMessage, extraLine } from './usageCopy.js';
 import { formatStamp } from '../format/dates.js';
 import { SubscribeNow } from '../billing/SubscribeUpsell.js';
 import type { Plan } from '../billing/plans.js';
@@ -147,8 +147,6 @@ export function UsageMeter({
         ? <p data-testid="usage-updating" role="status">Updating your balance…</p>
         : <p data-testid="usage-percent">{usageLabel(s)} of this month&rsquo;s usage used · resets {resetWord}</p>}
       {!updating && extra > 0 && <p data-testid="usage-extra" className="tov-muted">{extraLine(extra)}</p>}
-      {/* [P81-3] the one-time onboarding import allowance, only while it applies (first 14 days) */}
-      {!updating && typeof s.importAllowanceLeftAed === 'number' && <p data-testid="usage-import" className="tov-muted">{importAllowanceLine(s.importAllowanceLeftAed)}</p>}
 
       {/* [P37] The one home of the picker: directly under the bar, for an active subscriber, at any percentage. */}
       {!updating && s.canTopUp && (

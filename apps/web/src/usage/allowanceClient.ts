@@ -19,8 +19,6 @@ export interface AllowanceStatus {
   aiPaused?: boolean;
   /** [P37] the unspent top-up balance, % of the monthly allowance ("Extra usage: +80% left"). */
   extraPercentLeft?: number;
-  /** [P81-3] the onboarding import allowance left, whole AED (rounded down); null outside the first 14 days. */
-  importAllowanceLeftAed?: number | null;
   /** [P37] the subscription state: 'active' | 'trialing' | 'trial_expired' | 'payment_failed' | 'past_due' |
    *  'suspended' | 'ended' | 'canceled' | 'none'. Drives the 100% message. Absent on older payloads. */
   subscription?: string | null;

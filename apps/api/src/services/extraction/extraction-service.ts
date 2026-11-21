@@ -168,8 +168,7 @@ export class ExtractionService {
     /** [COST-IMPORT-METRIC] rolling per-rep import cost sink. Optional — extraction runs unchanged. */
     private readonly importCost?: { record(r: ImportCostRecord): void },
     /** [SPEND-CAP] over-cap gate: when canSpend is false, extraction defers (note stays pending). */
-    /** [P81-3] kind 'import': an import may still run on the onboarding allowance while the month is used up. */
-    private readonly allowanceExhausted?: (userId: string, kind?: 'import' | 'extraction') => Promise<boolean>,
+    private readonly allowanceExhausted?: (userId: string) => Promise<boolean>,
     /** [ALIAS-NORMALISE] learned aliases for a client, to normalise counterpart attribution. */
     private readonly aliasesFor?: (userId: string, clientId: string) => Promise<ExtractionAlias[]>,
     /** [EXTRACT-STOPREASON] observability sink for starved (no-text) extraction outputs. */
@@ -324,7 +323,7 @@ export class ExtractionService {
     // force-reserve, overshoot absorbed by the gate). A forceAllowance on an unclaimed note is NOT
     // honoured, so it can never pre-authorise spend for a chat that hasn't been started.
     const honourForce = opts?.forceAllowance === true && note.status === 'extracting';
-    if (!honourForce && this.allowanceExhausted && (await this.allowanceExhausted(userId, note.source === 'whatsapp_export' ? 'import' : 'extraction'))) {
+    if (!honourForce && this.allowanceExhausted && (await this.allowanceExhausted(userId))) {
       return { status: 'spend_capped', flagged: true };
     }
 
