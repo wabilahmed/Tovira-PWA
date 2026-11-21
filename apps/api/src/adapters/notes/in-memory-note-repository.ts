@@ -91,6 +91,11 @@ export class InMemoryNoteRepository implements NoteRepository {
     if (n && n.userId === userId && n.status === 'pending_transcription') n.claimedAt = null;
   }
 
+  async touchExtractionClaim(userId: string, noteId: string, nowMs: number): Promise<void> {
+    const n = this.byId.get(noteId);
+    if (n && n.userId === userId && n.status === 'extracting') n.claimedAt = nowMs;
+  }
+
   async reclaimStaleExtracting(userId: string, nowMs: number, staleMs: number): Promise<number> {
     let count = 0;
     for (const n of this.byId.values()) {

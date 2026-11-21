@@ -24,7 +24,8 @@ import type { InviteRepository } from './ports/invite-repository.js';
 import type { InviteActivationTx } from './ports/invite-activation-tx.js';
 import type { SessionRepository } from './ports/session-repository.js';
 import { StubModelClient } from './adapters/model/stub.js';
-import { AnthropicModelClient } from './adapters/model/anthropic.js';
+import { AnthropicModelClient, AnthropicBatchClient } from './adapters/model/anthropic.js';
+import { BATCH_RESERVATION_TTL_MS } from './services/spend/ai-gate.js';
 import { MeteredModelClient } from './adapters/model/metered.js';
 import { StubAuthProvider } from './adapters/auth/stub.js';
 import { FsStorage } from './adapters/storage/fs.js';
@@ -732,6 +733,8 @@ export function createKeptSuggestionRepository(config: AppConfig, pool?: Pool): 
 export function createExtractionModelRouter(
   config: AppConfig,
   statusOf: (userId: string, nowMs: number) => Promise<string>,
+  /** [P81-2] batch: the bulk-import route, read through the Message Batches API (still gated and metered). */
+  opts: { batch?: boolean } = {},
 ): ModelRouter | undefined {
   if (config.modelProvider !== 'anthropic') return undefined;
   // [SPEND-INSTRUMENT] Wrap the router's clients in MeteredModelClient — WITHOUT this, extraction/import
@@ -745,15 +748,18 @@ export function createExtractionModelRouter(
   // never refused, so the spend cap did not bound extraction (the dominant cost). The started-chat
   // allowance bypass still works: claimAndExtract passes forceReserve, which GatedModelClient honours.
   const trialModel = config.anthropicModel.startsWith('claude-sonnet-') ? config.anthropicModel : 'claude-sonnet-5';
-  const make = (model: string) =>
-    new GatedModelClient(
+  const make = (model: string) => {
+    const live = new AnthropicModelClient(anthropicOptionsFor(config, 'extraction', model));
+    return new GatedModelClient(
       new MeteredModelClient(
-        new AnthropicModelClient(anthropicOptionsFor(config, 'extraction', model)),
+        opts.batch ? new AnthropicBatchClient(live) : live, // [P81-2] the batch client reads live what its batch does not return
         'extraction',
         model,
       ),
       model,
+      opts.batch ? { reservationTtlMs: BATCH_RESERVATION_TTL_MS } : {}, // [P81-2] a batched call waits; keep its reservation
     );
+  };
   return new BillingModelRouter(
     statusOf,
     { model: make(config.anthropicModel), modelId: config.anthropicModel },

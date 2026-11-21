@@ -21,6 +21,7 @@ import { AccessRequestRetentionService, ACCESS_REQUEST_RETENTION_DAYS } from './
 import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/audio-retention-service.js';
 import { BulkImportService } from './services/import/bulk-import-service.js';
 import { BulkBatchNotifier } from './services/import/bulk-batch-notifier.js';
+import { withClaimHeartbeat } from './services/import/claim-heartbeat.js';
 import { KeptSuggestionService } from './services/promises/kept-suggestion-service.js';
 import { BulkBatchRetentionService, BULK_BATCH_TTL_MS } from './services/import/bulk-batch-retention.js';
 import { BulkUpsellService } from './services/import/bulk-upsell.js';
@@ -452,10 +453,30 @@ async function main(): Promise<void> {
   });
   // [RULING 2 items 2/5/6] The single claim-then-extract path shared by the sweep and the bulk
   // orchestrator. It is the ONE call site that passes forceAllowance (inside createClaimAndExtract).
+  // [P81-2 · owner] Bulk and multi-file imports: the same certified extraction, read through the Message Batches API at
+  // half price (still gated and metered: createExtractionModelRouter with batch). A single live import stays live. A chat
+  // waiting on a batch refreshes its claim every 2 minutes so the sweep never reads it a second time.
+  const bulkRouter = config.bulkImportBatch ? createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status), { batch: true }) : undefined;
+  const bulkExtraction = bulkRouter
+    ? createExtractionService(config, clients, notes, facts, extractionLogs, repGlossary, bulkRouter, extractionLimiter, meetings, (userId) => auth.timezoneFor(userId), requirements, matching, importCost, aiExhausted, extractionAliasesFor(contactAliases), extractionHealth, verifiedGate, clientPointers, restriction, keptSuggestions, samePerson)
+    : extraction;
   const claimAndExtract = createClaimAndExtract({
     claim: (u, id, now) => notes.claimForExtraction(u, id, now),
     extract: (u, id, today, opts) => extraction.extractNote(u, id, today, opts),
     // [P79-EMERGENCY · owner] a stored note over the emergency limit is never read (no model call), wherever it came from
+    tooLong: async (u, id) => {
+      const n = await notes.findByIdForUser(u, id);
+      return (n?.messages ?? []).filter((m) => !m.excluded).length > EMERGENCY_MAX_MESSAGES;
+    },
+    setAside: async (u, id) => {
+      await notes.update(u, id, { status: 'needs_review' });
+      console.info(`[extract] note ${id} set aside: over the ${EMERGENCY_MAX_MESSAGES}-message emergency limit, not read`);
+    },
+  });
+  // [P81-2] The bulk path: the same guard and set-aside as claimAndExtract, the batched service, and a fresh claim.
+  const bulkClaimAndExtract = createClaimAndExtract({
+    claim: (u, id, now) => notes.claimForExtraction(u, id, now),
+    extract: (u, id, today, opts) => withClaimHeartbeat(() => notes.touchExtractionClaim(u, id, Date.now()), 2 * 60_000, () => bulkExtraction.extractNote(u, id, today, opts)),
     tooLong: async (u, id) => {
       const n = await notes.findByIdForUser(u, id);
       return (n?.messages ?? []).filter((m) => !m.excluded).length > EMERGENCY_MAX_MESSAGES;
@@ -652,7 +673,8 @@ async function main(): Promise<void> {
   const bulkImport = new BulkImportService({
     clients,
     notes,
-    extract: (u, id, today) => claimAndExtract(u, id, today),
+    extract: (u, id, today) => (bulkRouter ? bulkClaimAndExtract(u, id, today) : claimAndExtract(u, id, today)),
+    batch: !!bulkRouter, // [P81-2]
     isExhausted: aiExhausted,
     isPaused: () => pauseFlag.paused(),
     concurrency: bulkConcurrency(config.sweepConcurrency),

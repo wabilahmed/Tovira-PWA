@@ -58,6 +58,9 @@ export class AiGateRefused extends Error {
  * frees a crashed call's reservation promptly WITHOUT ever expiring one that is still running.
  */
 export const AI_RESERVATION_TTL_MS = 5 * 60 * 1000;
+/** [P81-2] A batched call: up to ~6 min waiting, a cancel, then a live read of what the batch did not finish (~15 min
+ *  worst case). 30 minutes sits above that, so a running batched call never loses its reservation. */
+export const BATCH_RESERVATION_TTL_MS = 30 * 60 * 1000;
 
 export interface AiGateDeps {
   allowance: AiAllowanceRepository;
@@ -86,6 +89,9 @@ export interface GateCall<T> {
    *  for the allowance. If there is room it reserves/charges normally; if not, it runs anyway and its
    *  overshoot is recorded globally but NOT charged to the account (absorbed). Kill switch still applies. */
   forceReserve?: boolean;
+  /** [P81-2] How long the reservation lives before the stale sweep frees it. Default AI_RESERVATION_TTL_MS (5 min);
+   *  a batched call (minutes waiting on the Message Batches API) asks for BATCH_RESERVATION_TTL_MS. */
+  reservationTtlMs?: number;
   /** The provider call itself. */
   exec: () => Promise<T>;
   /** The EXACT cost of the call, AED, from its result. */
@@ -109,7 +115,7 @@ export class AiGate {
     if (call.userId) {
       const w = allowanceWindow(await this.deps.billingWindowFor(call.userId), this.now());
       await this.deps.allowance.ensureMonth(call.userId, w.key, w.startMs, this.deps.allowanceAed);
-      const r = await this.deps.allowance.reserve(call.userId, w.key, call.estimateAed, this.now() + this.ttl);
+      const r = await this.deps.allowance.reserve(call.userId, w.key, call.estimateAed, this.now() + (call.reservationTtlMs ?? this.ttl));
       if (!r.ok) {
         // [RULING 2] An already-started chat is never refused for the allowance. With no reservation
         // its actual is left OUT of the per-user settle below (reservationId stays null) — absorbed, so

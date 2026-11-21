@@ -21,7 +21,7 @@ export interface AnthropicModelClientOptions {
   thinking?: ThinkingMode;
 }
 
-interface AnthropicResponseBody {
+export interface AnthropicResponseBody {
   content?: Array<{ type: string; text?: string }>;
   stop_reason?: string;
   usage?: {
@@ -74,6 +74,34 @@ export class AnthropicModelClient implements ModelClient {
     return out;
   }
 
+  /** [P81-2] The request headers. Shared with the batch client, so a batched request is sent exactly as a live one. */
+  headers(request: Pick<ModelCompletionRequest, 'cacheSystemPrompt' | 'cacheTtl'>): Record<string, string> {
+    // The 1-hour cache tier is gated behind a beta flag; the 5-minute default is not.
+    const wantsExtendedTtl = request.cacheSystemPrompt === true && request.cacheTtl === '1h';
+    return {
+      'content-type': 'application/json',
+      'x-api-key': this.opts.apiKey,
+      'anthropic-version': '2023-06-01',
+      ...(wantsExtendedTtl ? { 'anthropic-beta': EXTENDED_CACHE_TTL_BETA } : {}),
+    };
+  }
+
+  /** [P81-2] The request body (the Messages API params). Shared with the batch client (byte-identical params). */
+  params(request: ModelCompletionRequest): Record<string, unknown> {
+    return {
+      model: this.opts.model,
+      max_tokens: request.maxTokens ?? 1024,
+      system: buildSystem(request.system, request.cacheSystemPrompt, request.cacheTtl),
+      messages: request.messages,
+      ...this.modelFields(request),
+    };
+  }
+
+  /** The API base URL (the batch client posts to /v1/messages/batches on it). */
+  get baseUrl(): string {
+    return this.opts.baseUrl;
+  }
+
   /** The model id this client sends to the API — exposed for routing assertions. */
   get modelId(): string {
     return this.opts.model;
@@ -83,26 +111,12 @@ export class AnthropicModelClient implements ModelClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.opts.timeoutMs ?? 30_000);
 
-    // The 1-hour cache tier is gated behind a beta flag; the 5-minute default is not.
-    const wantsExtendedTtl = request.cacheSystemPrompt === true && request.cacheTtl === '1h';
-
     let response: Response;
     try {
       response = await fetch(`${this.opts.baseUrl}/v1/messages`, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': this.opts.apiKey,
-          'anthropic-version': '2023-06-01',
-          ...(wantsExtendedTtl ? { 'anthropic-beta': EXTENDED_CACHE_TTL_BETA } : {}),
-        },
-        body: JSON.stringify({
-          model: this.opts.model,
-          max_tokens: request.maxTokens ?? 1024,
-          system: buildSystem(request.system, request.cacheSystemPrompt, request.cacheTtl),
-          messages: request.messages,
-          ...this.modelFields(request),
-        }),
+        headers: this.headers(request),
+        body: JSON.stringify(this.params(request)),
         signal: controller.signal,
       });
     } catch (cause) {
@@ -123,6 +137,12 @@ export class AnthropicModelClient implements ModelClient {
       throw new ModelError('model request failed', cause);
     }
 
+    return parseAnthropicBody(body);
+  }
+}
+
+/** [P81-2] A Messages API response body → the port's response (shared by the live and the batch client). */
+export function parseAnthropicBody(body: AnthropicResponseBody): ModelCompletionResponse {
     const text = body.content?.find((b) => b.type === 'text')?.text ?? '';
     const u = body.usage;
     return {
@@ -140,5 +160,117 @@ export class AnthropicModelClient implements ModelClient {
       },
       raw: body,
     };
+}
+
+/**
+ * [P81-2 · owner, 21 Nov] The Message Batches API (half price) for bulk and multi-file imports. A ModelClient, so the
+ * extraction code is unchanged: every request made while a batch is gathering (gatherMs) goes into ONE batch, sent with
+ * exactly the headers and params the live client sends (AnthropicModelClient.headers / .params); each caller is answered
+ * from its own result, marked `batchDiscount` so the spend gate and the ledger record it at the batch price.
+ *
+ * An import always finishes: an item the batch errors, cancels or expires, a submit that fails, or a batch still running
+ * at maxWaitMs (it is then cancelled, so its unstarted items are not billed) is read live by the wrapped client instead.
+ * Results and polling are never logged with content: only the batch id and counts.
+ *
+ * Measured (owner's real chat, 19 Nov): 10 pieces in one batch ended in 165 s; AED 1.56 vs 3.40 live.
+ */
+export interface BatchClientOptions {
+  fetchImpl?: typeof fetch;
+  /** How long requests are gathered into one batch after the first arrives. */
+  gatherMs?: number;
+  pollMs?: number;
+  /** After this, a running batch is cancelled and its unfinished items are read live (keeps under the claim timeout). */
+  maxWaitMs?: number;
+  /** The API allows 100,000 per batch; a smaller cap keeps one batch's payload modest. */
+  maxPerBatch?: number;
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+interface Pending { request: ModelCompletionRequest; resolve: (r: ModelCompletionResponse) => void; reject: (e: unknown) => void }
+type BatchResult = { type: string; message?: AnthropicResponseBody };
+
+export class AnthropicBatchClient implements ModelClient {
+  private gathering: Pending[] = [];
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private seq = 0;
+  private readonly o: Required<BatchClientOptions>;
+
+  constructor(private readonly live: AnthropicModelClient, opts: BatchClientOptions = {}) {
+    this.o = {
+      fetchImpl: opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a)),
+      gatherMs: opts.gatherMs ?? 3_000,
+      pollMs: opts.pollMs ?? 20_000,
+      maxWaitMs: opts.maxWaitMs ?? 6 * 60_000,
+      maxPerBatch: opts.maxPerBatch ?? 2_000,
+      now: opts.now ?? (() => Date.now()),
+      sleep: opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+    };
+  }
+
+  complete(request: ModelCompletionRequest): Promise<ModelCompletionResponse> {
+    return new Promise((resolve, reject) => {
+      this.gathering.push({ request, resolve, reject });
+      if (this.gathering.length >= this.o.maxPerBatch) { this.flushNow(); return; }
+      if (!this.timer) this.timer = setTimeout(() => this.flushNow(), this.o.gatherMs);
+    });
+  }
+
+  private flushNow(): void {
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    while (this.gathering.length > 0) {
+      const group = this.gathering.splice(0, this.o.maxPerBatch);
+      void this.runBatch(group);
+    }
+  }
+
+  private async runBatch(group: Pending[]): Promise<void> {
+    const ids = group.map(() => `r${++this.seq}`);
+    const results = new Map<string, BatchResult>();
+    try {
+      const headers = this.live.headers(group.some((p) => p.request.cacheSystemPrompt && p.request.cacheTtl === '1h') ? { cacheSystemPrompt: true, cacheTtl: '1h' } : {});
+      const base = this.live.baseUrl;
+      const sub = await this.o.fetchImpl(`${base}/v1/messages/batches`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ requests: group.map((p, i) => ({ custom_id: ids[i], params: this.live.params(p.request) })) }),
+      });
+      if (!sub.ok) throw new Error(`batch submit ${sub.status}`);
+      const batch = (await sub.json()) as { id: string };
+      const start = this.o.now();
+      let st: { ended_at?: string | null; results_url?: string | null } = {};
+      let cancelled = false;
+      for (;;) {
+        await this.o.sleep(this.o.pollMs);
+        st = (await (await this.o.fetchImpl(`${base}/v1/messages/batches/${batch.id}`, { headers })).json()) as typeof st;
+        if (st.ended_at) break; // the API sets ended_at (and results_url) once every item has finished
+        if (!cancelled && this.o.now() - start > this.o.maxWaitMs) {
+          cancelled = true; // unstarted items are not billed; what finished is still returned
+          await this.o.fetchImpl(`${base}/v1/messages/batches/${batch.id}/cancel`, { method: 'POST', headers });
+          console.warn(`[batch] ${batch.id}: still running after ${Math.round(this.o.maxWaitMs / 1000)}s; cancelled, unfinished items read live`);
+        }
+        if (cancelled && this.o.now() - start > this.o.maxWaitMs * 2) throw new Error('batch did not end after cancel');
+      }
+      if (st.results_url) {
+        const text = await (await this.o.fetchImpl(st.results_url, { headers })).text();
+        for (const line of text.split('\n')) {
+          if (!line.trim()) continue;
+          const r = JSON.parse(line) as { custom_id: string; result: BatchResult };
+          results.set(r.custom_id, r.result);
+        }
+      }
+      const ok = [...results.values()].filter((r) => r.type === 'succeeded').length;
+      console.info(`[batch] ${batch.id}: ${group.length} request(s), ${ok} answered by the batch, ${group.length - ok} read live`);
+    } catch (err) {
+      console.warn(`[batch] ${group.length} request(s) read live: ${err instanceof Error ? err.message : 'batch failed'}`);
+    }
+    await Promise.all(group.map(async (p, i) => {
+      const r = results.get(ids[i]!);
+      if (r?.type === 'succeeded' && r.message) {
+        const parsed = parseAnthropicBody(r.message);
+        p.resolve({ ...parsed, usage: { ...(parsed.usage ?? { inputTokens: 0, outputTokens: 0 }), batchDiscount: true } });
+        return;
+      }
+      try { p.resolve(await this.live.complete(p.request)); } catch (e) { p.reject(e instanceof ModelError ? e : new ModelError('model request failed', e)); }
+    }));
   }
 }

@@ -48,6 +48,8 @@ export interface BulkImportDeps {
   bulkNotes?: { add: (noteId: string) => void; remove: (noteId: string) => void };
   /** [P20-3 / BULK-08] Emit the ONE aggregate "Imported N chats …" notification at batch end. */
   onBatchComplete?: (userId: string, summary: BulkImportSummary) => Promise<void>;
+  /** [P81-2] The chats are read through the Message Batches API: no one-chat warm-up (it would cost a batch round). */
+  batch?: boolean;
   /** [P67-1] The most messages one chat may have to read; null = no limit (windowed extraction). Absent = none. */
   longChatLimit?: number | null;
 }
@@ -206,6 +208,7 @@ export class BulkImportService {
       isExhausted: () => this.deps.isExhausted(userId),
       isPaused: this.deps.isPaused,
       concurrency: this.deps.concurrency,
+      warmUp: !this.deps.batch,
       onProgress,
       // Persist + extract — called ONLY once the start-gate passes, so an unstarted chat is never stored.
       start: async (it) => {

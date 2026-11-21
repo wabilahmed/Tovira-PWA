@@ -23,6 +23,7 @@ export class ModelCallEventService {
       cacheCreationInputTokens: usage.cacheCreationInputTokens,
       cacheCreation5mInputTokens: usage.cacheCreation5mInputTokens,
       cacheReadInputTokens: usage.cacheReadInputTokens,
+      batchDiscount: usage.batchDiscount, // [P81-2] a batch answer is recorded at the batch price
     };
     const costAed = callCostUsd(model, callUsage) * USD_TO_AED;
     const periodKey = userId ? await this.periodKeyFor(userId) : null;
