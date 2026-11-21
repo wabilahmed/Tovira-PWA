@@ -1,82 +1,79 @@
 /**
- * [BULK-IMPORT · RULING 2] The top-up upsell shown (a) on the review screen before Import when the
- * batch would exceed the remaining allowance, and (b) on the batch result when chats failed at the
- * limit. The shortfall and the "which top-up covers it" decision are computed HERE, on the server,
- * because they depend on AED usage values the client must never see (D3). The client receives only the
- * percentage labels, the prices, and the id of the option to highlight.
+ * [BULK-IMPORT · RULING 2 → P83 · owner, 21 Nov] The pack upsell shown (a) on the review screen before Import when the
+ * batch has more messages to read than the rep has left, and (b) on the batch result when chats waited at the limit.
+ * Everything is in messages: the packs are named "+1,500 messages", and the smallest pack that covers the shortfall is
+ * highlighted. No price is in it: prices appear only on the purchase screen and at checkout.
  */
 import type { TopUpOption } from '../../config.js';
 
-/** What the client is allowed to see about a top-up: the percentage label and the price — never the
- *  added-allowance AED (a usage value) or the shortfall AED. */
-export interface TopUpChoice {
+/** A pack as the upsell names it: its messages, never its price. */
+export interface PackChoice {
   id: string;
   label: string;
-  priceAed: number;
+  messages: number;
 }
 
 export interface BulkUpsell {
-  /** The batch needs more usage than is left (before Import), or chats failed at the limit (result). */
+  /** The batch has more messages to read than are left (before Import), or chats waited at the limit (result). */
   shortfall: boolean;
-  /** The number the copy speaks about: importable chats (review) or failed chats (result). */
+  /** The number the copy speaks about: importable chats (review) or chats that waited (result). */
   n: number;
-  /** false for a trial account → the web shows "Subscribe to keep importing" instead of options. */
+  /** false for a trial account → the web shows "Subscribe to keep importing" instead of packs. */
   canTopUp: boolean;
-  options: TopUpChoice[];
-  /** The smallest option whose added allowance covers the shortfall — highlighted. Null when no
-   *  shortfall, or on a trial (no options). */
+  options: PackChoice[];
+  /** The smallest pack that covers the shortfall: highlighted. Null when there is no shortfall, or on a trial. */
   recommendedOptionId: string | null;
+  /** Before Import: the batch's messages to read and the messages left. */
+  messagesToRead?: number;
+  messagesLeft?: number;
 }
 
-const choice = (o: TopUpOption): TopUpChoice => ({ id: o.id, label: o.label, priceAed: o.priceAed });
+const choice = (o: TopUpOption): PackChoice => ({ id: o.id, label: o.label, messages: o.messages });
 
-/** The smallest top-up whose added allowance covers the shortfall; the largest if none does; null if
- *  there are no options. */
-export function pickTopUp(shortfallAed: number, options: readonly TopUpOption[]): TopUpOption | null {
+/** The smallest pack whose messages cover the shortfall; the largest if none does; null with no packs. */
+export function pickPack(shortMessages: number, options: readonly TopUpOption[]): TopUpOption | null {
   if (options.length === 0) return null;
-  const byAdded = [...options].sort((a, b) => a.addedAed - b.addedAed);
-  return byAdded.find((o) => o.addedAed >= shortfallAed) ?? byAdded[byAdded.length - 1]!;
+  const bySize = [...options].sort((a, b) => a.messages - b.messages);
+  return bySize.find((o) => o.messages >= shortMessages) ?? bySize[bySize.length - 1]!;
 }
 
 export function buildUpsell(
-  input: { estimateAed: number; remainingAed: number; canTopUp: boolean; n: number },
+  input: { messagesToRead: number; messagesLeft: number; canTopUp: boolean; n: number; result?: boolean },
   options: readonly TopUpOption[],
 ): BulkUpsell {
-  const shortfall = input.estimateAed > input.remainingAed + 1e-6;
+  const shortfall = input.result === true || input.messagesToRead > input.messagesLeft;
   const canOffer = input.canTopUp && options.length > 0;
-  const recommended = shortfall && canOffer ? pickTopUp(input.estimateAed - input.remainingAed, options) : null;
+  const recommended = shortfall && canOffer ? pickPack(Math.max(1, input.messagesToRead - input.messagesLeft), options) : null;
   return {
     shortfall,
     n: input.n,
     canTopUp: input.canTopUp,
     options: canOffer ? options.map(choice) : [],
     recommendedOptionId: recommended ? recommended.id : null,
+    ...(input.result ? {} : { messagesToRead: input.messagesToRead, messagesLeft: input.messagesLeft }),
   };
 }
 
 export interface BulkUpsellDeps {
   topUpOptions: readonly TopUpOption[];
-  /** Remaining allowance AED for the rep (stays server-side). */
-  remainingAllowanceAed: (userId: string) => Promise<number>;
-  /** A paying subscriber can top up; a trial cannot (→ Subscribe). */
+  /** The rep's messages left (the month's, then packs). */
+  messagesLeft: (userId: string) => Promise<number>;
+  /** A paying subscriber can buy packs; a trial cannot (→ Subscribe). */
   canTopUp: (userId: string) => Promise<boolean>;
 }
 
 export class BulkUpsellService {
   constructor(private readonly deps: BulkUpsellDeps) {}
 
-  /** Before Import: does this batch's worst-case estimate exceed what the rep has left this month? */
-  async forBatch(userId: string, estimateAed: number, n: number): Promise<BulkUpsell> {
-    const [remainingAed, canTopUp] = await Promise.all([
-      this.deps.remainingAllowanceAed(userId),
-      this.deps.canTopUp(userId),
-    ]);
-    return buildUpsell({ estimateAed, remainingAed, canTopUp, n }, this.deps.topUpOptions);
+  /** Before Import: does this batch have more messages to read than the rep has left? */
+  async forBatch(userId: string, messagesToRead: number, n: number): Promise<BulkUpsell> {
+    const [messagesLeft, canTopUp] = await Promise.all([this.deps.messagesLeft(userId), this.deps.canTopUp(userId)]);
+    return buildUpsell({ messagesToRead, messagesLeft, canTopUp, n }, this.deps.topUpOptions);
   }
 
-  /** On the batch result: n chats failed at the limit — offer top-ups (or Subscribe for a trial). */
+  /** On the batch result: n chats waited at the limit. Offer packs (or Subscribe for a trial). */
   async forResult(userId: string, limitedCount: number): Promise<BulkUpsell> {
     const canTopUp = await this.deps.canTopUp(userId);
-    return buildUpsell({ estimateAed: 1, remainingAed: 0, canTopUp, n: limitedCount }, this.deps.topUpOptions);
+    return buildUpsell({ messagesToRead: 1, messagesLeft: 0, canTopUp, n: limitedCount, result: true }, this.deps.topUpOptions);
   }
 }

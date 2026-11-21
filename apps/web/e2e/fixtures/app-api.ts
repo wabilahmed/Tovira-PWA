@@ -37,7 +37,7 @@ const ROUTES: Array<[RegExp, unknown]> = [
   [/^\/api\/version$/, { signupEnabled: false, referralsEnabled: false }],
   [/^\/api\/onboarding/, { hasClient: true, hasNote: true, briefReachable: true, seeded: true, bookScanReady: true, nextStep: '', seeding: { primary: 'whatsapp_export', requiresPasteEntry: false, steps: { android: [], ios: [] } }, fallbacks: [] }],
   [/^\/api\/billing\/status$/, { entitled: true, status: 'trialing', trialEndsAt: Date.now() + 9 * DAY, renewsAt: null }],
-  [/^\/api\/allowance\/status$/, { percentUsed: 37, rawPercentUsed: 37, exhausted: false, resetAt: new Date(Date.now() + 9 * DAY).toISOString(), canTopUp: false, options: [], subscription: 'trialing', extraPercentLeft: 0 }],
+  [/^\/api\/allowance\/status$/, { messagesAllowance: 10_000, messagesUsed: 3700, messagesTotal: 10_000, messagesLeft: 6300, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: new Date(Date.now() + 9 * DAY).toISOString(), canTopUp: false, options: [], custom: null, subscription: 'trialing' }],
   [/^\/api\/clients\/row-summaries$/, { rows: {} }],
   [/^\/api\/clients$/, { clients: CLIENTS }],
   [/^\/api\/promises$/, { promises: PROMISES, done: [], staleThresholdDays: 90 }],

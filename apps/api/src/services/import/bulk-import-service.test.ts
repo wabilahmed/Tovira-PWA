@@ -59,7 +59,8 @@ function makeService(over: Partial<ConstructorParameters<typeof BulkImportServic
 }
 
 describe('[BULK-IMPORT] BulkImportService', () => {
-  it('parse returns a per-file result plus the up-front estimate as a % of the allowance', async () => {
+  // [P83 · owner] no percentage of an allowance leaves the server any more (pin moved): the estimate stays internal
+  it('parse returns a per-file result plus the up-front estimate, and no percentage of an allowance', async () => {
     const { svc } = makeService();
     const out = await svc.parse('u', [
       { name: 'a.txt', content: androidChat('Wabil', 'Layla') },
@@ -67,7 +68,7 @@ describe('[BULK-IMPORT] BulkImportService', () => {
     ], 'Wabil');
     expect(out.result.rows).toHaveLength(2);
     expect(out.estimateAed).toBeGreaterThan(0);
-    expect(out.percentOfAllowance).toBeGreaterThan(0);
+    expect(out).not.toHaveProperty('percentOfAllowance');
   });
 
   it('a "new" decision creates a client and a pending_extraction note, then extracts it once', async () => {

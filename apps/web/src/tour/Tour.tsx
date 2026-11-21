@@ -4,8 +4,7 @@ import type { TourApi } from './tourClient.js';
 import type { View } from '../shell/nav.js';
 import type { AllowanceStatus } from '../usage/allowanceClient.js';
 import type { Entitlement } from '../billing/billingClient.js';
-import { PLANS } from '../billing/plans.js';
-import { usageLabel } from '../usage/UsageMeter.js';
+import { fractionRead, usedLine } from '../usage/usageCopy.js';
 import { ExportSteps, detectPlatform, type NavigatorLike } from '../onboarding/exportSteps.js';
 import { ReceiptThread, ReceiptsProvider } from '../receipts/ReceiptThread.js';
 import type { ReceiptsApi, ReceiptSource } from '../receipts/receiptsClient.js';
@@ -354,7 +353,10 @@ function buildSteps(c: {
   ];
 }
 
-/** Step 8 — the rep's REAL plan: trial end date, usage, prices from the Subscription screen's config. */
+/** "10,000": the plan's messages a month. */
+const groupedMessages = (u: AllowanceStatus | null): string => (u?.messagesAllowance ?? 10_000).toLocaleString('en-US');
+
+/** Step 8: the rep's REAL plan: trial end date and messages read [P83: messages, no price before the purchase screen]. */
 function PlanStep({ ent, usage, now }: { ent: Entitlement | null; usage: AllowanceStatus | null; now: number }): JSX.Element {
   const status = ent?.status ?? 'none';
   const days = ent ? Math.max(0, Math.ceil((ent.trialEndsAt - now) / DAY)) : 0;
@@ -366,16 +368,16 @@ function PlanStep({ ent, usage, now }: { ent: Entitlement | null; usage: Allowan
       )}
       {subscribed && ent?.renewsAt != null && <p>You&apos;re subscribed. Your plan renews on {formatBody(ent.renewsAt)}.</p>}
       {!subscribed && (
-        <p data-testid="tour-prices">Subscribe here any time: {PLANS.monthly.price} or {PLANS.annual.price}.</p>
+        <p data-testid="tour-prices">Subscribe here any time for {groupedMessages(usage)} messages a month.</p>
       )}
       <div className="tov-tour__usage">
-        <div role="meter" aria-label="AI usage this month" aria-valuenow={usage?.percentUsed ?? 0} aria-valuemin={0} aria-valuemax={100} className="tov-tour__usage-bar">
-          <div style={{ width: `${usage?.percentUsed ?? 0}%` }} />
+        <div role="meter" aria-label="Messages read this month" aria-valuenow={usage?.messagesUsed ?? 0} aria-valuemin={0} aria-valuemax={usage?.messagesTotal ?? 10_000} className="tov-tour__usage-bar">
+          <div style={{ width: `${usage ? Math.round(fractionRead(usage) * 1000) / 10 : 0}%` }} />
         </div>
-        <p data-testid="tour-usage">{usage ? usageLabel(usage) : '0%'} used. This shows how much of this month&apos;s AI allowance you&apos;ve used. It resets each billing month.</p>
+        <p data-testid="tour-usage">{usage ? usedLine(usage) : '0 messages read this month'}. Each message Tovira reads from an imported chat counts; notes and voice notes don&apos;t. It resets each billing month.</p>
       </div>
-      <p>At 100%, AI features like imports pause until it resets. Find and everything else keep working.</p>
-      <p>{subscribed ? 'If you run low, tap Buy more usage here.' : 'Once you subscribe, you can buy extra usage here if you run low.'}</p>
+      <p>When they run out, imports pause until the reset. Notes, Find and everything else keep working.</p>
+      <p>{subscribed ? 'If you run low, tap Add messages here.' : 'Once you subscribe, you can add messages here if you run low.'}</p>
       {/* [P46-6] The Ledger, after Subscription (spotlit: More, where it lives) */}
       <p data-testid="tour-ledger"><strong>The Ledger</strong> shows the deals and clients Tovira helped you win.</p>
       <p>Notifications and your time zone are in Settings too.</p>

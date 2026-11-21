@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import { extractToken, readJsonBody, readRawBody, sendJson } from './helpers.js';
-import { TOP_UP_OPTIONS, purchasableTopUp } from '../config.js';
+import { TOP_UP_OPTIONS, purchasableTopUp, customPackCheck, customPackPriceFils, customPackId, groupNumber } from '../config.js';
 import { PriceIntervalMismatchError } from '../ports/billing.js';
 
 export interface BillingRouteDeps {
@@ -53,7 +53,7 @@ export async function handleBillingRoute(
   // response's `paid` tells the page whether it may say "payment received" (else it sends them to Settings).
   if (isSuccess) {
     const sessionId = new URL(req.url ?? '/', 'http://localhost').searchParams.get('session_id') ?? '';
-    sendJson(res, 200, await deps.billing.confirmCheckoutSession(userId, sessionId));
+    sendJson(res, 200, await deps.billing.confirmCheckoutSession(userId, sessionId)); // [P83] carries messagesAdded for a pack
     return true;
   }
 
@@ -79,14 +79,27 @@ export async function handleBillingRoute(
       sendJson(res, 403, { error: 'top_up_requires_subscription', message: 'Top-ups are available once you subscribe. During the trial, subscribe to add usage.' });
       return true;
     }
-    const body = (await readJsonBody(req).catch(() => ({}))) as { optionId?: unknown };
-    const option = typeof body.optionId === 'string' ? purchasableTopUp(body.optionId) : undefined; // [P37] retired packs refused
-    if (!option) {
-      sendJson(res, 400, { error: 'validation', message: 'Choose a top-up option.', options: TOP_UP_OPTIONS });
+    // [P83 · owner] A fixed pack ({optionId}) or a custom amount ({messages}). The price is ALWAYS the server's: any
+    // price the browser sends is ignored, and a custom amount is recalculated here from its message count.
+    const body = (await readJsonBody(req).catch(() => ({}))) as { optionId?: unknown; messages?: unknown };
+    const user = await deps.auth.getPublicUser(userId);
+    if (body.messages !== undefined) {
+      const n = typeof body.messages === 'number' ? body.messages : typeof body.messages === 'string' && body.messages.trim() !== '' ? Number(body.messages) : Number.NaN;
+      const check = customPackCheck(n);
+      if (!check.ok) {
+        sendJson(res, 400, { error: 'validation', message: check.message });
+        return true;
+      }
+      const priceAed = customPackPriceFils(n) / 100;
+      sendJson(res, 200, await deps.billing.topUpCheckout(userId, user?.email ?? '', customPackId(n), priceAed, `Tovira: +${groupNumber(n)} messages`));
       return true;
     }
-    const user = await deps.auth.getPublicUser(userId);
-    sendJson(res, 200, await deps.billing.topUpCheckout(userId, user?.email ?? '', option.id, option.priceAed, `Tovira extra usage: ${option.label}`));
+    const option = typeof body.optionId === 'string' ? purchasableTopUp(body.optionId) : undefined; // [P37] retired packs refused
+    if (!option) {
+      sendJson(res, 400, { error: 'validation', message: 'Choose a pack.', options: TOP_UP_OPTIONS });
+      return true;
+    }
+    sendJson(res, 200, await deps.billing.topUpCheckout(userId, user?.email ?? '', option.id, option.priceAed, `Tovira: ${option.label}`));
     return true;
   }
 

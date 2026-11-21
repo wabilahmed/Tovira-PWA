@@ -3,7 +3,7 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { BillingService } from '../services/billing/billing-service.js';
 import type { AllowanceStatusService } from '../services/spend/allowance-status.js';
 import { extractToken, sendJson } from './helpers.js';
-import { TOP_UP_OPTIONS } from '../config.js';
+import { TOP_UP_OPTIONS, CUSTOM_PACK, MONTHLY_MESSAGES } from '../config.js';
 
 export interface AllowanceRouteDeps {
   auth: AuthService;
@@ -32,24 +32,30 @@ export async function handleAllowanceRoute(req: IncomingMessage, res: ServerResp
   }
   const aiPaused = deps.aiPaused ? await deps.aiPaused() : false; // [AUDIT item 4] ops kill switch (30s-cached)
   if (!deps.allowanceStatus) {
-    sendJson(res, 200, { percentUsed: 0, rawPercentUsed: 0, exhausted: false, resetAt: null, canTopUp: false, options: [], aiPaused, extraPercentLeft: 0, subscription: null });
+    sendJson(res, 200, { messagesAllowance: MONTHLY_MESSAGES, messagesUsed: 0, messagesTotal: MONTHLY_MESSAGES, messagesLeft: MONTHLY_MESSAGES, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: null, canTopUp: false, options: [], custom: null, aiPaused, subscription: null });
     return true;
   }
   const s = await deps.allowanceStatus.status(identity.userId);
   // D10: only a subscribed (active) account may buy top-ups — a trial has no card on file.
   const ent = deps.billing ? await deps.billing.entitlement(identity.userId, Date.now()) : null;
   const canTopUp = ent?.status === 'active';
+  // [P83 · owner] Messages only: what was read, what is left (the month's, then packs), and what the last pack added.
+  // `exhausted` is true when imports stop: no messages left, or the money gate behind them has stopped.
   sendJson(res, 200, {
-    percentUsed: s.percentUsed,
-    rawPercentUsed: s.rawPercentUsed,
-    exhausted: s.exhausted,
+    messagesAllowance: s.messagesAllowance,
+    messagesUsed: s.messagesUsed,
+    messagesTotal: s.messagesTotal,
+    messagesLeft: s.messagesLeft,
+    packMessagesLeft: s.packMessagesLeft,
+    lastTopupMessages: s.lastTopupMessages,
+    exhausted: s.exhausted || s.messagesExhausted,
+    messagesExhausted: s.messagesExhausted,
     resetAt: new Date(s.resetAtMs).toISOString(),
     canTopUp,
-    options: canTopUp ? TOP_UP_OPTIONS.map((o) => ({ id: o.id, label: o.label, priceAed: o.priceAed })) : [],
+    // the purchase screen's packs and the custom range (prices are shown only there and at checkout)
+    options: canTopUp ? TOP_UP_OPTIONS.map((o) => ({ id: o.id, label: o.label, messages: o.messages, priceAed: o.priceAed })) : [],
+    custom: canTopUp ? { min: CUSTOM_PACK.min, max: CUSTOM_PACK.max, step: CUSTOM_PACK.step, bands: CUSTOM_PACK.bands.map((b) => ({ ...b })) } : null,
     aiPaused,
-    // [P37] the unspent top-up balance as % of the monthly allowance, and the subscription state the 100%
-    // message keys off (trial → Subscribe, payment failed → Update your card, subscribed → Buy more usage).
-    extraPercentLeft: s.extraPercentLeft,
     subscription: ent?.status ?? null,
   });
   return true;

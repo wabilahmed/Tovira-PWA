@@ -7,7 +7,6 @@ import type { BulkJob } from './BulkImportResult.js';
 
 export interface BulkParseResponse {
   result: ReviewResult;
-  percentOfAllowance: number;
   /** [P82-B] "These 3 chats have 3,200 messages to read. About 9 minutes." (stripped messages; never a cost) */
   reading?: { messages: number; minutes: number; chats: number; line: string };
   upsell?: Upsell;

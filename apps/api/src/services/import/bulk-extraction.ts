@@ -20,7 +20,9 @@
  */
 import type { ExtractOutcome } from '../extraction/extraction-service.js';
 
-export type ChatJobState = 'queued' | 'extracting' | 'done' | 'failed' | 'failed_usage_limit' | 'failed_interrupted';
+/** [P83] 'waiting_messages': stored, but more messages to read than are left; it is read once the rep adds messages or
+ *  the month resets (unlike 'failed_usage_limit', which was never stored). */
+export type ChatJobState = 'queued' | 'extracting' | 'done' | 'failed' | 'failed_usage_limit' | 'failed_interrupted' | 'waiting_messages';
 
 export interface ChatJob {
   key: string;
@@ -62,6 +64,8 @@ export function chatStateFor(status: string): ChatJobState {
     case 'pending_confirmation':
     case 'claimed_elsewhere': // the sweep won the claim — the note is being extracted, not failed
       return 'done';
+    case 'out_of_messages': // [P83] stored, but not enough messages left: it waits, unread, for a pack or the reset
+      return 'waiting_messages';
     case 'spend_capped':
     case 'trial_limit':
       // A started chat should not hit the allowance (the gate absorbs its overshoot); if it still does,

@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Tour, TOUR_STEP_COUNT, type TourProps } from './Tour.js';
-import { PLANS } from '../billing/plans.js';
 import { EXPORT_STEPS } from '../onboarding/exportSteps.js';
 
 /**
@@ -18,7 +17,7 @@ function props(over: Partial<TourProps> = {}): TourProps {
     mode: 'required',
     api: { saveStep: vi.fn(async () => {}), complete: vi.fn(async () => {}) },
     billing: { status: vi.fn(async () => ({ entitled: true, status: 'trialing', trialEndsAt: TRIAL_END, renewsAt: null })) },
-    usage: { status: vi.fn(async () => ({ percentUsed: 0, rawPercentUsed: 0, exhausted: false, resetAt: '2026-11-03T00:00:00.000Z', canTopUp: false, options: [], subscription: 'trialing', extraPercentLeft: 0 })) },
+    usage: { status: vi.fn(async () => ({ messagesAllowance: 10_000, messagesUsed: 0, messagesTotal: 10_000, messagesLeft: 10_000, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: '2026-11-03T00:00:00.000Z', canTopUp: false, options: [], custom: null, subscription: 'trialing' })) },
     notifications: { enable: vi.fn(async () => ({ ok: true })) },
     onNavigate: vi.fn(),
     onFinish: vi.fn(),
@@ -114,21 +113,24 @@ describe('[P37] the tour', () => {
     }
   });
 
-  it('the plan step shows the REAL trial end date and usage, and prices from the Subscription config', async () => {
-    const p = props({ usage: { status: vi.fn(async () => ({ percentUsed: 37, rawPercentUsed: 37, exhausted: false, resetAt: '2026-11-03T00:00:00.000Z', canTopUp: false, options: [], subscription: 'trialing', extraPercentLeft: 0 })) } });
+  // [P83 · owner, 21 Nov] pins moved: messages read (not a percentage), and no price before the purchase screen
+  it('the plan step shows the REAL trial end date and messages read, and the plan in messages (no price)', async () => {
+    const p = props({ usage: { status: vi.fn(async () => ({ messagesAllowance: 10_000, messagesUsed: 3700, messagesTotal: 10_000, messagesLeft: 6300, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: '2026-11-03T00:00:00.000Z', canTopUp: false, options: [], custom: null, subscription: 'trialing' })) } });
     render(<Tour {...p} />);
     await goTo(9);
     await waitFor(() => expect(screen.getByTestId('tour-trial')).toHaveTextContent('Your free trial ends on 3 Nov 2026 (14 days).'));
-    expect(screen.getByTestId('tour-usage')).toHaveTextContent('37% used.');
-    expect(screen.getByTestId('tour-prices')).toHaveTextContent(`Subscribe here any time: ${PLANS.monthly.price} or ${PLANS.annual.price}.`);
-    expect(screen.getByText('Once you subscribe, you can buy extra usage here if you run low.')).toBeInTheDocument();
+    expect(screen.getByTestId('tour-usage')).toHaveTextContent('3,700 of 10,000 messages read this month · resets 3 Nov.');
+    expect(screen.getByTestId('tour-usage')).toHaveTextContent("notes and voice notes don't");
+    expect(screen.getByTestId('tour-prices')).toHaveTextContent('Subscribe here any time for 10,000 messages a month.');
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/AED|%/);
+    expect(screen.getByText('Once you subscribe, you can add messages here if you run low.')).toBeInTheDocument();
     expect(p.onNavigate).toHaveBeenLastCalledWith('settings');
   });
 
-  it('a subscriber replaying the tour is pointed at Buy more usage instead', async () => {
+  it('a subscriber replaying the tour is pointed at Add messages instead', async () => {
     render(<Tour {...props({ mode: 'replay', billing: { status: vi.fn(async () => ({ entitled: true, status: 'active', trialEndsAt: 0, renewsAt: Date.parse('2026-11-12T00:00:00Z') })) } })} />);
     await goTo(9);
-    expect(await screen.findByText('If you run low, tap Buy more usage here.')).toBeInTheDocument();
+    expect(await screen.findByText('If you run low, tap Add messages here.')).toBeInTheDocument();
     expect(screen.queryByTestId('tour-prices')).toBeNull();
   });
 

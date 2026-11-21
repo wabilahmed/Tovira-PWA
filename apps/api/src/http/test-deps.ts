@@ -31,7 +31,7 @@ import { IsolatingModelClient } from '../services/import/chat-isolation.js';
 import { BulkImportService } from '../services/import/bulk-import-service.js';
 import { BulkUpsellService } from '../services/import/bulk-upsell.js';
 import { bulkConcurrency } from '../services/import/bulk-extraction.js';
-import { TOP_UP_OPTIONS, DEFAULT_MONTHLY_AI_ALLOWANCE_AED } from '../config.js';
+import { TOP_UP_OPTIONS, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, MONTHLY_MESSAGES } from '../config.js';
 import { InMemoryRequirementRepository } from '../adapters/requirements/in-memory-requirement-repository.js';
 import { InMemoryInventoryMatchRepository } from '../adapters/inventory/in-memory-inventory-match-repository.js';
 import { MatchingService } from '../services/inventory/matching-service.js';
@@ -58,7 +58,8 @@ import { InMemoryAiAllowanceRepository } from '../adapters/spend/in-memory-ai-al
 import { InMemoryAiPauseRepository } from '../adapters/spend/in-memory-ai-pause-repository.js';
 import { AllowanceStatusService } from '../services/spend/allowance-status.js';
 import { allowanceWindow } from '../services/spend/ai-period.js';
-import { topUpCreditAed } from '../config.js';
+import { createPackCreditor } from '../services/billing/credit-pack.js';
+import { messagesToRead } from '../services/import/reading-estimate.js';
 import { InMemoryModelCallEventStore } from '../adapters/spend/in-memory-model-call-event-store.js';
 import { InMemoryTrainingLogStatsRepository } from '../adapters/logs/in-memory-training-log-stats-repository.js';
 import { TrainingLogStatsService } from '../services/facts/training-log-stats.js';
@@ -138,6 +139,8 @@ import { InMemoryGoingQuietAlertRepository } from '../adapters/ledger/in-memory-
 import { longChatLimit } from '../services/import/long-chat.js';
 
 export interface TestDeps extends ApiDeps {
+  /** [P83] the stub Stripe gateway (a test reads the checkouts it opened, with the amount charged). */
+  stripeStub: StubStripeGateway;
   /** [P47] the kept-suggestion store (the erasure guard seeds one). */
   keptSuggestionRepo: InMemoryKeptSuggestionRepository;
   /** [P50-2] */
@@ -317,7 +320,8 @@ export function buildInMemoryDeps(
   const recallSessions = new InMemoryRecallSessionRepository();
   const askCapture = new AskCaptureService({ notes, clients, facts, embedder, extraction, corrections, extractionLog, requirements });
   const hero = new HeroService({ clients, facts: surfacing.facts, meetings: surfacing.meetings, notes }, { minClients: 5, minNotes: 20 }, 30, 90, matching, restriction); // [P47] restricted views
-  const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), new StubStripeGateway('whsec_test'), 7);
+  const stripeStub = new StubStripeGateway('whsec_test');
+  const billing = new BillingService(new InMemorySubscriptionRepository(), new InMemoryTrialGrantRepository(), new InMemoryWebhookEventRepository(), stripeStub, 7);
   // [SPEND-INSTRUMENT] The durable spend cap (mirrors prod): status-aware caps (trial 20 / paid 45),
   // period-bucketed. Wired into the sweep's canSpend skip + the extraction spendGate so a capped rep's
   // extraction QUEUES (sweep leaves it untouched) rather than spends — now testable end-to-end.
@@ -333,16 +337,20 @@ export function buildInMemoryDeps(
   const allowanceStatus = new AllowanceStatusService({
     allowance: aiAllowance,
     allowanceAed: DEFAULT_MONTHLY_AI_ALLOWANCE_AED,
+    messagesAllowance: MONTHLY_MESSAGES,
     billingWindowFor: (uid) => billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart })),
   });
   // [USAGE-ALLOWANCE · D12] credit a confirmed top-up to the rep's current window (mirrors index.ts).
-  billing.setTopUpHandler(async (eventId, userId, optionId) => {
-    const added = topUpCreditAed(optionId, DEFAULT_MONTHLY_AI_ALLOWANCE_AED);
-    if (added === null) return;
-    const e = await billing.entitlement(userId, Date.now());
-    const w = allowanceWindow({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, Date.now());
-    await aiAllowance.creditTopUpOnce(eventId, userId, w.key, w.startMs, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, added);
+  const creditPack = createPackCreditor({
+    allowance: aiAllowance, monthlyAllowanceAed: DEFAULT_MONTHLY_AI_ALLOWANCE_AED, monthlyMessages: MONTHLY_MESSAGES,
+    windowFor: async (userId) => {
+      const e = await billing.entitlement(userId, Date.now());
+      const w = allowanceWindow({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }, Date.now());
+      return { key: w.key, startMs: w.startMs };
+    },
+    warn: () => {},
   });
+  billing.setTopUpHandler(async (eventId, userId, optionId, amountPaidFils) => { await creditPack(eventId, userId, optionId, amountPaidFils); });
   const modelCallEvents = new InMemoryModelCallEventStore();
   // [ASYNC-EXTRACT] The production processor — extraction is async by default, so tests drive it via
   // the SWEEP (the real path), not by an inline /extract. `runSweep()` runs a bounded number of passes
@@ -350,6 +358,7 @@ export function buildInMemoryDeps(
   const claimAndExtract = createClaimAndExtract({
     claim: (u, id, now) => notes.claimForExtraction(u, id, now),
     extract: (u, id, today, o) => extraction.extractNote(u, id, today, o),
+    chargeMessages: async (u, id) => allowanceStatus.chargeMessages(u, id, messagesToRead((await notes.findByIdForUser(u, id))?.messages ?? [])), // [P83] mirrors index.ts
   });
   // [P21-D / BULK-08] Same notification wiring as index.ts: per-note import_complete on settle, suppressed
   // for notes in a bulk batch, which emits one aggregate instead.
@@ -423,10 +432,7 @@ export function buildInMemoryDeps(
   });
   const bulkUpsell = new BulkUpsellService({
     topUpOptions: TOP_UP_OPTIONS,
-    remainingAllowanceAed: async (uid) => {
-      const s = await allowanceStatus.status(uid);
-      return Math.max(0, s.availableAed - s.spentAed - s.reservedAed);
-    },
+    messagesLeft: async (uid) => (await allowanceStatus.status(uid)).messagesLeft, // [P83]
     canTopUp: async (uid) => (await billing.entitlement(uid, Date.now())).status === 'active',
   });
 
@@ -541,6 +547,7 @@ export function buildInMemoryDeps(
     corpus: new CorpusStatsService(clients, notes),
     monday: new MondayDigestService(clients, surfacing.notes, surfacing.facts, notifications, 30, pushDispatch),
     ledger,
+    stripeStub,
     keptSuggestionRepo, // [P47] the erasure guard's fixture seeds one
     samePerson, // [P50-2]
     accessAnswers: new AccessAnswersService(accessRequests), // [P46-6c.2]

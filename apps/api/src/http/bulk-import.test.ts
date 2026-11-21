@@ -98,7 +98,8 @@ describe('[BULK-IMPORT] the bulk endpoints (individual upload → parse → asyn
     expect(body.reading.line).not.toMatch(/AED|\$|cost|spend|credit|%/i);
   });
 
-  it('uploads files one at a time, then parse returns a review + % estimate + upsell, no AED usage (D3)', async () => {
+  // [P83 · owner, 21 Nov] "Remove percentOfAllowance from the bulk parse API": the pin moved to the messages to read.
+  it('uploads files one at a time, then parse returns a review + the messages to read + upsell, no AED usage and no percentage (D3)', async () => {
     const token = await signup('bulkparse@example.com');
     await upload(token, 'b1', 0, 'a.txt', bytesOf(chat('Wabil', 'Layla')));
     await upload(token, 'b1', 1, 'b.txt', bytesOf(chat('Wabil', 'Omar')));
@@ -106,9 +107,12 @@ describe('[BULK-IMPORT] the bulk endpoints (individual upload → parse → asyn
     expect(res.status).toBe(200);
     const raw = await res.text();
     expect(raw).not.toContain('estimateAed');
-    const body = JSON.parse(raw) as { result: { rows: unknown[] }; percentOfAllowance: number; upsell: { canTopUp: boolean } };
+    expect(raw).not.toContain('percentOfAllowance');
+    expect(raw).not.toMatch(/priceAed|AED/);
+    const body = JSON.parse(raw) as { result: { rows: unknown[] }; reading: { messages: number }; upsell: { canTopUp: boolean; messagesToRead: number } };
     expect(body.result.rows).toHaveLength(2);
-    expect(body.percentOfAllowance).toBeGreaterThan(0);
+    expect(body.reading.messages).toBeGreaterThan(0);
+    expect(body.upsell.messagesToRead).toBe(body.reading.messages);
     expect(body.upsell.canTopUp).toBe(false); // fresh account = trial → Subscribe, not top-ups
   });
 

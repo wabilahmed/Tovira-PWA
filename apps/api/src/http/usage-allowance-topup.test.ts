@@ -3,11 +3,12 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
-import { topUpOptionById } from '../config.js';
+import { packGateAed, packMessages, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, MONTHLY_MESSAGES } from '../config.js';
 import { listenForTest } from '../test-support/listen.js';
 
 // +25% of the AED 60 allowance = AED 15. Read from config so this can never drift from the top-up amount.
-const TOPUP25 = topUpOptionById('topup_25')!.addedAed;
+// [P83] the retired +25% pack now credits 2,500 messages, and the same AED 15 of gate headroom (2,500 × AED 0.006).
+const TOPUP25 = packGateAed(packMessages('topup_25')!, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, MONTHLY_MESSAGES);
 
 /**
  * [USAGE-ALLOWANCE · D6/D10/D12] Top-ups: the meter status, the checkout (trial refused, subscribed
@@ -40,10 +41,11 @@ async function topUpEvent(id: string, userId: string, optionId: string): Promise
 }
 
 describe('[USAGE-ALLOWANCE · D3/D10] the meter status', () => {
-  it('a trial rep sees a percentage, no top-up option, and a reset date', async () => {
+  // [P83 · owner] messages, not a percentage (pin moved by the owner's decision)
+  it('a trial rep sees messages read, no top-up option, and a reset date', async () => {
     const { token } = await signup('meter-trial@example.com');
-    const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { percentUsed: number; exhausted: boolean; canTopUp: boolean; options: unknown[]; resetAt: string };
-    expect(s.percentUsed).toBe(0);
+    const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { messagesUsed: number; exhausted: boolean; canTopUp: boolean; options: unknown[]; resetAt: string };
+    expect(s.messagesUsed).toBe(0);
     expect(s.exhausted).toBe(false);
     expect(s.canTopUp).toBe(false); // D10 — no top-ups in trial
     expect(s.options).toEqual([]);
@@ -59,12 +61,11 @@ describe('[USAGE-ALLOWANCE · D3/D10] the meter status', () => {
     expect(s.options).toHaveLength(3);
   });
 
-  it('shows 100% + exhausted once the allowance is used up', async () => {
+  it('shows exhausted once the allowance is used up', async () => {
     const { token, userId } = await signup('meter-exhausted@example.com');
     await deps.exhaustAllowance(userId);
-    const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { percentUsed: number; exhausted: boolean };
+    const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { exhausted: boolean };
     expect(s.exhausted).toBe(true);
-    expect(s.percentUsed).toBe(100);
   });
 });
 
@@ -111,9 +112,9 @@ describe('[USAGE-ALLOWANCE · D12] the top-up webhook credits exactly once', () 
     // Fail the first credit (simulate a DB blip mid-transaction), succeed on the retry.
     const realTopUp = deps.aiAllowance.topUp.bind(deps.aiAllowance);
     let failedOnce = false;
-    deps.aiAllowance.topUp = async (u, pk, aed) => {
+    deps.aiAllowance.topUp = async (u, pk, aed, messages) => {
       if (!failedOnce) { failedOnce = true; throw new Error('db blip mid-credit'); }
-      return realTopUp(u, pk, aed);
+      return realTopUp(u, pk, aed, messages);
     };
     try {
       const first = await topUpEvent('evt_topup_retry', userId, 'topup_25');

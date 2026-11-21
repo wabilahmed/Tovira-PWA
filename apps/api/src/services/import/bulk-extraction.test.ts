@@ -41,6 +41,8 @@ describe('[BULK-IMPORT] per-chat extraction orchestrator (RULING 2)', () => {
     expect(chatStateFor('trial_limit')).toBe('failed_usage_limit');
     expect(chatStateFor('needs_review')).toBe('failed');
     expect(chatStateFor('not_found')).toBe('failed');
+    // [P83] stored, but more messages to read than are left: it waits (read after a pack or the reset), never "failed"
+    expect(chatStateFor('out_of_messages')).toBe('waiting_messages');
   });
 
   it('warms the cache with ONE chat, awaits it, THEN fans out the rest', async () => {

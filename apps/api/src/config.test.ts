@@ -13,16 +13,12 @@ describe('[USAGE-ALLOWANCE] allowance default + derived top-ups', () => {
     expect(loadConfig({ DATABASE_URL: 'postgres://x', PORT: '3001', NODE_ENV: 'development', MONTHLY_AI_ALLOWANCE_AED: '80' }).monthlyAiAllowanceAed).toBe(80);
   });
 
-  // [P37 · owner, 20 Oct] "AED 1 buys 1% of your monthly allowance" — AED 50 / 100 / 150 for +50 / +100 / +150%
-  // (was AED 50 / 65 / 85 / 100 / 120 for +15 / 25 / 50 / 75 / 100%).
-  it('each top-up addedAed is its label % of the allowance (30/60/90), never hard-coded', () => {
-    const pct = (id: string): number => Number(id.replace('topup_', ''));
-    for (const o of TOP_UP_OPTIONS) {
-      expect(o.addedAed).toBe((DEFAULT_MONTHLY_AI_ALLOWANCE_AED * pct(o.id)) / 100);
-    }
-    expect(TOP_UP_OPTIONS.map((o) => o.addedAed)).toEqual([30, 60, 90]);
-    expect(TOP_UP_OPTIONS.map((o) => o.priceAed)).toEqual([50, 100, 150]); // AED 1 = 1%
-    expect(TOP_UP_OPTIONS.map((o) => o.label)).toEqual(['+50%', '+100%', '+150%']);
+  // [P37 · owner, 20 Oct] "AED 1 buys 1% of your monthly allowance". [P83 · owner, 21 Nov] moved to messages: +1,500 for
+  // AED 50, +3,000 for AED 100, +5,000 for AED 150 (pin moved by the owner's decision; prices unchanged).
+  it('each pack names its messages, at the owner prices, never hard-coded elsewhere', () => {
+    expect(TOP_UP_OPTIONS.map((o) => o.messages)).toEqual([1500, 3000, 5000]);
+    expect(TOP_UP_OPTIONS.map((o) => o.priceAed)).toEqual([50, 100, 150]);
+    expect(TOP_UP_OPTIONS.map((o) => o.label)).toEqual(['+1,500 messages', '+3,000 messages', '+5,000 messages']);
   });
 });
 

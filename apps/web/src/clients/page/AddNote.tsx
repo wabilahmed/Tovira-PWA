@@ -29,7 +29,7 @@ export function AddNote({ clientId, clientName, api, onOpenSubscription }: { cli
       <ActionRow><Button type="submit" variant="primary" loading={state === 'saving'} disabled={!text.trim()}>Save the note</Button></ActionRow>
       {state === 'held' && <p role="status" className="ui-secondary" data-testid="note-held">Saved. Confirm it in Needs your answer.</p>}
       {state === 'paused' && (
-        <Banner tone="warning" actions={onOpenSubscription && <Button size="sm" onClick={onOpenSubscription}>Buy more usage</Button>}>
+        <Banner tone="warning" actions={onOpenSubscription && <Button size="sm" onClick={onOpenSubscription}>Add messages</Button>}>
           AI is paused for your account, so new notes can't be analysed right now.
         </Banner>
       )}

@@ -18,7 +18,7 @@ import { ANSWERS_REQUIRED } from './access-answers-routes.js';
  * [BULK-IMPORT page] The bulk endpoints. The API caps a JSON body at 1 MB and 20 exports far exceed that,
  * so the page uploads ONE file per request into a durable pending batch (Storage), then:
  *   POST /import/bulk/files            — one file → decoded + stashed (iOS .zip supported, media dropped).
- *   POST /import/bulk/parse  {batchId} — deterministic local parse (NO model, D2) + % estimate + upsell.
+ *   POST /import/bulk/parse  {batchId} — deterministic local parse (NO model, D2) + the messages to read + upsell.
  *   POST /import/bulk        {batchId} — confirmed decisions → extraction runs in the background (202).
  *   GET  /import/bulk/:id/status       — poll per-chat job state; done=true carries the result upsell.
  */
@@ -45,7 +45,7 @@ export interface BulkImportRouteDeps {
  * their notes (the sweep finishes those) — so the view can never show "importing" forever.
  */
 const INTERRUPTED_TIMEOUT_MS = 5 * 60 * 1000;
-const TERMINAL: ReadonlySet<ChatJobState> = new Set<ChatJobState>(['done', 'failed', 'failed_usage_limit', 'failed_interrupted']);
+const TERMINAL: ReadonlySet<ChatJobState> = new Set<ChatJobState>(['done', 'failed', 'failed_usage_limit', 'failed_interrupted', 'waiting_messages']);
 
 function stateFromNote(note: { status: string; sweepAttempts?: number } | null): ChatJobState {
   if (!note) return 'failed_interrupted'; // the note vanished — treat as interrupted
@@ -206,9 +206,9 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
     const repName = typeof body.repName === 'string' ? body.repName : null;
     const out = await deps.bulkImport.parse(userId, files, repName);
     const n = out.result.rows.filter((r) => !NON_IMPORTABLE.has(r.state)).length;
-    const upsell = deps.bulkUpsell ? await deps.bulkUpsell.forBatch(userId, out.estimateAed, n) : undefined;
-    // D3: the client sees the % of allowance and the upsell (prices + labels) — NEVER the raw AED estimate.
-    sendJson(res, 200, { result: out.result, percentOfAllowance: out.percentOfAllowance, ...(out.reading ? { reading: out.reading } : {}), ...(upsell ? { upsell } : {}) }); // [P82-B] reading: the line shown before Import
+    const upsell = deps.bulkUpsell ? await deps.bulkUpsell.forBatch(userId, out.reading?.messages ?? 0, n) : undefined;
+    // [P83 · owner] Messages only: the reading line and the pack upsell. No percentage of an allowance, no AED estimate.
+    sendJson(res, 200, { result: out.result, ...(out.reading ? { reading: out.reading } : {}), ...(upsell ? { upsell } : {}) }); // [P82-B] reading: the line shown before Import
     return true;
   }
 
@@ -241,7 +241,7 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
       // [FIX 2a] Delete the staged files BEFORE marking the batch done, so a client that polls done=true
       // can trust the staged conversation content is already gone.
       await clearBatchInputs(deps.storage, userId, batchId);
-      const limited = result.jobs.filter((j) => j.state === 'failed_usage_limit').length;
+      const limited = result.jobs.filter((j) => j.state === 'failed_usage_limit' || j.state === 'waiting_messages').length; // [P83] both need messages
       const upsell = limited > 0 && deps.bulkUpsell ? await deps.bulkUpsell.forResult(userId, limited) : undefined;
       // [P20-3 / BULK-08] carry the one summary so the finished screen shows it with "Open Book Scan".
       await writeBatchStatus(deps.storage, userId, batchId, { jobs: result.jobs, done: true, summary: result.summary, started, updatedAt: Date.now(), ...(upsell ? { upsell } : {}) });

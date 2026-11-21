@@ -12,7 +12,7 @@ import { PLANS, type Plan } from './plans.js';
 
 /** The reassurance line: subscribing resets a trial's used allowance to a full month. No AED figure — the
  *  allowance's dirham value is never shown to reps (guarded by no-ai-cost-figures.guard.test.ts). */
-export const ALLOWANCE_RESET_LINE = "Subscribing gives you a full month's allowance."; // [P37 · owner] no AED-of-AI figure shown to reps
+export const ALLOWANCE_RESET_LINE = 'Subscribing gives you 10,000 messages a month.'; // [P37 · owner] no AED-of-AI figure; [P83] in messages
 
 export function SubscribeNow({ onSubscribe }: { onSubscribe?: (plan: Plan) => void }): JSX.Element {
   return (

@@ -515,6 +515,7 @@ export function createApiServer(deps: ApiDeps): Server {
           repNames: deps.repNames,
           importAck: deps.importAck,
           allowanceExhausted: deps.allowanceExhausted,
+          ...(deps.allowanceStatus ? { messagesLeft: async (u: string) => { const st = await deps.allowanceStatus!.status(u); return { left: st.messagesLeft, allowance: st.messagesAllowance, resetAtMs: st.resetAtMs }; } } : {}), // [P83]
           ...(deps.accessAnswers ? { answersRequired: (u: string) => deps.accessAnswers!.required(u) } : {}),
           restriction: deps.restriction,
           longChatLimit: deps.longChatLimit,

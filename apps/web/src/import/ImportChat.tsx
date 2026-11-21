@@ -8,7 +8,7 @@ import { ExportSteps } from '../onboarding/exportSteps.js';
 
 export interface ImportApi {
   /** [P82-B] "This chat has 1,240 messages to read. About 3 minutes." (stripped; stores nothing). null when it can't tell. */
-  previewImport?(clientId: string, input: { content?: string; contentBase64?: string; fileName?: string }): Promise<{ line: string } | null>;
+  previewImport?(clientId: string, input: { content?: string; contentBase64?: string; fileName?: string }): Promise<{ line: string; notEnoughLine?: string } | null>;
   importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; firstImportAck?: boolean; confirmImport?: boolean; counterpart?: string }, consent: boolean): Promise<ImportResult>;
 }
 
@@ -62,7 +62,7 @@ export function ImportChat({
   initialContent?: string;
   /** Prefill file bytes (e.g. a .zip shared via the Android share-target). */
   initialContentBase64?: string;
-  /** [P37] Over the allowance → "Buy more usage" opens Settings → Subscription. */
+  /** [P37 → P83] Not enough messages → "Add messages" opens Settings → Subscription (the purchase screen). */
   onOpenSubscription?: () => void;
 }): JSX.Element {
   const [content, setContent] = useState(initialContent);
@@ -82,13 +82,15 @@ export function ImportChat({
   const canSubmit = (fileB64.length > 0 || content.trim().length > 0) && consent && !busy;
   // [P82-B · owner] Before Import: the stripped messages to read and the minutes, from the server's preview (no cost).
   const [readingLine, setReadingLine] = useState<string | null>(null);
+  const [notEnoughLine, setNotEnoughLine] = useState<string | null>(null); // [P83] more to read than is left
   useEffect(() => {
     setReadingLine(null);
+    setNotEnoughLine(null);
     if (!api.previewImport || (!fileB64 && !content.trim())) return;
     let cancelled = false;
     const t = setTimeout(() => {
       void api.previewImport!(clientId, fileB64 ? { contentBase64: fileB64, fileName: uploadName || undefined } : { content })
-        .then((r) => { if (!cancelled) setReadingLine(r?.line ?? null); })
+        .then((r) => { if (!cancelled) { setReadingLine(r?.line ?? null); setNotEnoughLine(r?.notEnoughLine ?? null); } })
         .catch(() => {});
     }, fileB64 ? 0 : 500);
     return () => { cancelled = true; clearTimeout(t); };
@@ -218,10 +220,11 @@ export function ImportChat({
         <span>I understand this export contains the whole conversation, and I have consent to store it.</span>
       </label>
 
-      {readingLine && <p data-testid="import-reading" style={{ margin: 0 }}>{readingLine}</p>}
+      {readingLine && !notEnoughLine && <p data-testid="import-reading" style={{ margin: 0 }}>{readingLine}</p>}
+      {notEnoughLine && !error && <p data-testid="import-not-enough" role="status" style={{ margin: 0 }}>{notEnoughLine}</p>}
       {error && <p role="alert" style={{ color: 'var(--claret)', margin: 0 }}>{error}</p>}
-      {error && overAllowance && onOpenSubscription && (
-        <button type="button" className="tov-link" style={{ justifySelf: 'start' }} onClick={onOpenSubscription}>Buy more usage</button>
+      {((error && overAllowance) || (notEnoughLine && !error)) && onOpenSubscription && (
+        <button type="button" className="tov-link" style={{ justifySelf: 'start' }} onClick={onOpenSubscription}>Add messages</button>
       )}
       {notice && <p role="status" style={{ color: 'var(--text-secondary)', margin: 0 }}>{notice}</p>}
       {/* [P20-6] "Imported to X · Open" after filing to the suggested client (same toast as move Undo). */}

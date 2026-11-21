@@ -3,8 +3,10 @@ import type {
   AiAllowanceRepository,
   AiMonth,
   GlobalSpendResult,
+  MessageChargeResult,
   ReserveResult,
 } from '../../ports/ai-allowance-repository.js';
+import { MONTHLY_MESSAGES } from '../../config.js';
 
 interface Reservation {
   id: string;
@@ -29,7 +31,7 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
 
   private readonly key = (userId: string, periodKey: string) => `${userId}\u0000${periodKey}`;
 
-  async ensureMonth(userId: string, periodKey: string, periodStartMs: number, allowanceAed: number): Promise<AiMonth> {
+  async ensureMonth(userId: string, periodKey: string, periodStartMs: number, allowanceAed: number, messagesAllowance: number = MONTHLY_MESSAGES): Promise<AiMonth> {
     const k = this.key(userId, periodKey);
     const existing = this.months.get(k);
     if (existing) return { ...existing };
@@ -38,7 +40,12 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
       .filter((m) => m.userId === userId && m.periodStartMs < periodStartMs)
       .sort((a, b) => b.periodStartMs - a.periodStartMs)[0];
     const carriedTopup = prev ? Math.max(0, prev.topupAed - Math.max(0, prev.spentAed - prev.allowanceAed)) : 0;
-    const row: AiMonth = { userId, periodKey, periodStartMs, allowanceAed, topupAed: carriedTopup, spentAed: 0, reservedAed: 0, displayExhausted: false };
+    // [P83] and the remaining pack messages (the month's messages are used first).
+    const carriedMessages = prev ? Math.max(0, prev.messagesTopup - Math.max(0, prev.messagesUsed - prev.messagesAllowance)) : 0;
+    const row: AiMonth = {
+      userId, periodKey, periodStartMs, allowanceAed, topupAed: carriedTopup, spentAed: 0, reservedAed: 0, displayExhausted: false,
+      messagesAllowance, messagesTopup: carriedMessages, messagesUsed: 0, lastTopupMessages: null,
+    };
     this.months.set(k, row);
     return { ...row };
   }
@@ -89,10 +96,23 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
     return n;
   }
 
-  async topUp(userId: string, periodKey: string, addedAed: number): Promise<void> {
+  private readonly charged = new Set<string>();
+  async chargeMessages(userId: string, periodKey: string, noteId: string, messages: number): Promise<MessageChargeResult> {
+    if (this.charged.has(noteId)) return 'already';
+    const row = this.months.get(this.key(userId, periodKey));
+    if (!row) return 'insufficient';
+    // ATOMIC: no await between the check and the write (as the single conditional UPDATE in pg).
+    if (row.messagesUsed + messages > row.messagesAllowance + row.messagesTopup) return 'insufficient';
+    row.messagesUsed += messages;
+    this.charged.add(noteId);
+    return 'charged';
+  }
+
+  async topUp(userId: string, periodKey: string, addedAed: number, addedMessages = 0): Promise<void> {
     const row = this.months.get(this.key(userId, periodKey));
     if (row) {
       row.topupAed += Math.max(0, addedAed);
+      if (addedMessages > 0) { row.messagesTopup += addedMessages; row.lastTopupMessages = addedMessages; }
       row.displayExhausted = false; // allowance added → clear the sticky stop (D8)
     }
   }
@@ -102,10 +122,10 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
   // credit leaves the event un-recorded (retryable), and a replay after success is a no-op.
   private readonly creditedEvents = new Set<string>();
 
-  async creditTopUpOnce(eventId: string, userId: string, periodKey: string, periodStartMs: number, allowanceAed: number, addedAed: number): Promise<boolean> {
+  async creditTopUpOnce(eventId: string, userId: string, periodKey: string, periodStartMs: number, allowanceAed: number, addedAed: number, addedMessages = 0): Promise<boolean> {
     if (this.creditedEvents.has(eventId)) return false; // idempotent replay
     await this.ensureMonth(userId, periodKey, periodStartMs, allowanceAed);
-    await this.topUp(userId, periodKey, addedAed); // if this throws, the id is NOT recorded → retryable
+    await this.topUp(userId, periodKey, addedAed, addedMessages); // if this throws, the id is NOT recorded → retryable
     this.creditedEvents.add(eventId);
     return true;
   }

@@ -140,22 +140,24 @@ describe('<ImportReview>', () => {
     expect(onImport).toHaveBeenCalledWith([{ fileName: 'b.txt', action: 'new', name: 'Omar' }]);
   });
 
-  // [P37] The picker lives only in Settings → Subscription: the review offers "Buy more usage", which opens it.
-  it('shows the top-up upsell before Import when the batch exceeds the remaining allowance', async () => {
+  // [P37] The picker lives only in Settings → Subscription. [P83 · owner] pins moved to messages: the packs by their
+  // messages (the recommended one highlighted) and "Choose your own amount", each opening the purchase screen; no price.
+  it('shows the pack upsell before Import when the batch has more messages to read than are left', async () => {
     const onOpenSubscription = vi.fn();
     render(<ImportReview
       result={result({ rows: [row({ fileName: 'a.txt', state: 'new', counterpart: 'Layla' })] })}
       onImport={vi.fn()}
       onOpenSubscription={onOpenSubscription}
-      upsell={{ shortfall: true, n: 8, canTopUp: true, recommendedOptionId: 'topup_50', options: [
-        { id: 'topup_15', label: '+15%', priceAed: 50 },
-        { id: 'topup_50', label: '+50%', priceAed: 85 },
+      upsell={{ shortfall: true, n: 8, canTopUp: true, recommendedOptionId: 'topup_100', messagesToRead: 3000, messagesLeft: 500, options: [
+        { id: 'topup_50', label: '+1,500 messages', messages: 1500 },
+        { id: 'topup_100', label: '+3,000 messages', messages: 3000 },
       ] }}
     />);
-    expect(screen.getByText(/needs more usage than you have left this month/i)).toBeInTheDocument();
-    expect(screen.getByText(/import all 8/i)).toBeInTheDocument();
+    expect(screen.getByText('These 8 chats have 3,000 messages to read. You have 500 left this month.')).toBeInTheDocument();
+    expect(screen.getByTestId('upsell-custom')).toHaveTextContent('Choose your own amount');
+    expect(screen.getByTestId('bulk-upsell').textContent).not.toMatch(/AED|%/);
     const rec = screen.getByTestId('topup-recommended');
-    expect(rec).toHaveTextContent('Buy more usage');
+    expect(rec).toHaveTextContent('+3,000 messages');
     await userEvent.click(rec);
     expect(onOpenSubscription).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /^import/i })).toBeEnabled(); // Import still allowed without topping up
@@ -169,7 +171,7 @@ describe('<ImportReview>', () => {
       onSubscribe={onSubscribe}
       upsell={{ shortfall: true, n: 3, canTopUp: false, recommendedOptionId: null, options: [] }}
     />);
-    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent("Subscribing gives you a full month's allowance."); // [P37 · owner] was "…to the full AED 60."
+    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent('Subscribing gives you 10,000 messages a month.'); // [P37 · owner] was "…to the full AED 60."; [P83] in messages
     await userEvent.click(screen.getByTestId('subscribe-annual'));
     expect(onSubscribe).toHaveBeenLastCalledWith('annual');
     await userEvent.click(screen.getByTestId('subscribe-monthly'));

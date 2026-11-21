@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { runOutLine, notEnoughLine, ADD_MESSAGES_LINE } from '../services/spend/messages-copy.js';
 import { messagesToRead, readingEstimate, readingLine } from '../services/import/reading-estimate.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
@@ -130,6 +131,9 @@ export interface NoteRouteDeps {
   /** [USAGE-ALLOWANCE · D4] at 100% of the allowance, a chat-export upload is REFUSED (not queued).
    *  Optional — without it, imports are never allowance-gated (local/old wiring). */
   allowanceExhausted?: (userId: string) => Promise<boolean>;
+  /** [P83 · owner] The rep's messages left (the month's, then packs), the month's messages and the reset. A chat with
+   *  more messages to read than are left is refused before anything is stored. Optional (old wiring: no check). */
+  messagesLeft?: (userId: string) => Promise<{ left: number; allowance: number; resetAtMs: number }>;
   /** [P46-6c.2] True while a hot-lead invitee has not answered and confirmed: captures are refused. */
   answersRequired?: (userId: string) => Promise<boolean>;
   /** [TASK 2] Active erasure-window restriction — in the rep's book, a note about a restricted
@@ -327,7 +331,7 @@ export async function handleNoteRoute(
       // no first-import acknowledgement and no consent tick yet (all still required by the import itself).
       const preview = req.headers['x-tovira-preview'] === '1';
       if (!preview && deps.allowanceExhausted && (await deps.allowanceExhausted(userId))) {
-        sendJson(res, 402, { error: 'allowance_exhausted', message: "You've used this month's AI allowance, so importing is paused. Add usage, or wait for your allowance to reset, then try again." });
+        sendJson(res, 402, { error: 'allowance_exhausted', message: 'Importing is paused for now. Add more messages, or wait for the monthly reset, then try again.' });
         return true;
       }
       // [FIX 1] A chat uploads as RAW BINARY (no base64 + no 1 MB JSON cap, so a long-history export —
@@ -499,9 +503,18 @@ export async function handleNoteRoute(
         sendJson(res, 413, { error: 'too_long', message: tooLongMessage(toRead, deps.longChatLimit!), messageCount: toRead, limit: deps.longChatLimit });
         return true;
       }
+      // [P83 · owner] More messages to read than are left (the month's, then packs): say so before the rep confirms
+      // (the preview), and refuse the import itself before anything is stored. Nothing is read.
+      const allowanceNow = deps.messagesLeft ? await deps.messagesLeft(userId) : null;
+      const short = allowanceNow !== null && toRead > allowanceNow.left;
+      const shortLine = short ? (allowanceNow!.left === 0 ? runOutLine(allowanceNow!.allowance, allowanceNow!.resetAtMs) : notEnoughLine(toRead, allowanceNow!.left)) : null;
       if (preview) {
         const est = readingEstimate(fresh, 'live'); // a single import is read live
-        sendJson(res, 200, { preview: true, messagesToRead: est.messages, minutes: est.minutes, line: readingLine(est) });
+        sendJson(res, 200, { preview: true, messagesToRead: est.messages, minutes: est.minutes, line: readingLine(est), ...(short ? { notEnough: true, messagesLeft: allowanceNow!.left, notEnoughLine: shortLine } : {}) });
+        return true;
+      }
+      if (short) {
+        sendJson(res, 402, { error: 'out_of_messages', message: `${shortLine} ${ADD_MESSAGES_LINE}`, messagesToRead: toRead, messagesLeft: allowanceNow!.left });
         return true;
       }
       // [ALIAS-COUNTERPART] Confirm the counterpart BEFORE extraction (the ordering rule). Identify

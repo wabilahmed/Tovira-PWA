@@ -22,6 +22,9 @@ export interface ClaimAndExtractDeps {
   /** [P79-EMERGENCY] True when the note has more messages than may be read; it is then set aside, never read. */
   tooLong?: (userId: string, noteId: string) => Promise<boolean>;
   setAside?: (userId: string, noteId: string) => Promise<void>;
+  /** [P83 · owner] Count the chat's messages (stripped) against the month and the packs, once per note. False when not
+   *  enough are left: the chat is then NOT claimed and NOT read; it waits, intact, for a pack or the monthly reset. */
+  chargeMessages?: (userId: string, noteId: string) => Promise<boolean>;
 }
 
 export function createClaimAndExtract(deps: ClaimAndExtractDeps) {
@@ -31,6 +34,7 @@ export function createClaimAndExtract(deps: ClaimAndExtractDeps) {
       await deps.setAside?.(userId, noteId);
       return { status: 'too_long' };
     }
+    if (deps.chargeMessages && !(await deps.chargeMessages(userId, noteId))) return { status: 'out_of_messages', flagged: true };
     const claimed = await deps.claim(userId, noteId, now());
     if (!claimed) return { status: 'claimed_elsewhere' }; // another worker has it — do nothing
     return deps.extract(userId, noteId, today);

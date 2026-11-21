@@ -370,7 +370,7 @@ export class ClientsClient {
    *  (a string, or `{ content }`) or a file's raw bytes (`{ contentBase64 }` — for the .zip iOS
    *  exports, or a .txt read as bytes). The server detects zip vs text by content, not filename. */
   /** [P82-B] The import preview: "This chat has 1,240 messages to read. About 3 minutes." Stores nothing; null on any failure. */
-  async previewImport(clientId: string, input: { content?: string; contentBase64?: string; fileName?: string }): Promise<{ line: string } | null> {
+  async previewImport(clientId: string, input: { content?: string; contentBase64?: string; fileName?: string }): Promise<{ line: string; notEnoughLine?: string } | null> {
     const bytes = typeof input.contentBase64 === 'string' && input.contentBase64.length > 0
       ? Uint8Array.from(atob(input.contentBase64), (c) => c.charCodeAt(0))
       : new TextEncoder().encode(input.content ?? '');
@@ -379,8 +379,9 @@ export class ClientsClient {
     try {
       const res = await fetch(this.url(`/clients/${clientId}/notes/import`), { method: 'POST', credentials: 'include', headers, body: bytes });
       if (!res.ok) return null;
-      const body = (await res.json().catch(() => null)) as { preview?: boolean; line?: string } | null;
-      return body?.preview && typeof body.line === 'string' ? { line: body.line } : null;
+      const body = (await res.json().catch(() => null)) as { preview?: boolean; line?: string; notEnoughLine?: string } | null;
+      // [P83] more messages to read than are left: the line that says so, before the rep confirms
+      return body?.preview && typeof body.line === 'string' ? { line: body.line, ...(typeof body.notEnoughLine === 'string' ? { notEnoughLine: body.notEnoughLine } : {}) } : null;
     } catch {
       return null;
     }
@@ -465,7 +466,8 @@ export class ClientsClient {
       // [AUDIT item 5] Distinguish the two reasons AI is locked so the rep sees the right action: an
       // exhausted monthly allowance (top up) vs a failed/suspended payment (update card). UI copy only.
       const b = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
-      if (b.error === 'allowance_exhausted') return { ok: false, error: 'allowance', message: b.message ?? "You've used this month's AI allowance. Top up to import now, or wait for it to reset." };
+      // [P83] not enough messages left, or importing paused: both lead to "Add messages"
+      if (b.error === 'out_of_messages' || b.error === 'allowance_exhausted') return { ok: false, error: 'allowance', message: b.message ?? 'Importing is paused for now. Add more messages, or wait for the monthly reset.' };
       return { ok: false, error: 'payment', message: b.message ?? 'Payment failed, so AI is paused. Update your card in Billing to resume.' };
     }
     if (res.status === 428) {

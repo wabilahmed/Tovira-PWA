@@ -42,12 +42,12 @@ export function foundParts(f: FoundCounts, clientName = 'they'): Array<{ text: s
 }
 
 const HOLD_REASON: Record<NonNullable<ProcessingItem['hold']>, string> = {
-  allowance: 'Your monthly AI allowance is used up.',
+  allowance: 'Importing is paused: no messages left this month.', // [P83] messages, never usage
   subscribe: 'Your trial has ended.',
   payment: 'Your last payment didn’t go through.',
 };
 const HOLD_SAVED: Record<NonNullable<ProcessingItem['hold']>, string> = {
-  allowance: 'It’s saved. Tovira analyses it as soon as you top up.',
+  allowance: 'It’s saved. Tovira reads it as soon as you add messages or the month resets.',
   subscribe: 'It’s saved. Tovira analyses it once you subscribe.',
   payment: 'It’s saved. Tovira analyses it once your payment is updated.',
 };
@@ -82,7 +82,7 @@ export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubsc
           );
         }
         if (i.state === 'held') {
-          const action = i.hold === 'allowance' ? (onTopUp && <Button size="sm" onClick={onTopUp}>Buy more usage</Button>)
+          const action = i.hold === 'allowance' ? (onTopUp && <Button size="sm" onClick={onTopUp}>Add messages</Button>)
             : i.hold === 'subscribe' ? (onSubscribe && <Button size="sm" onClick={onSubscribe}>Subscribe</Button>)
             : (onUpdatePayment && <Button size="sm" onClick={onUpdatePayment}>Update payment</Button>);
           return (

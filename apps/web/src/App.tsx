@@ -927,7 +927,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
           <PageHeader title="Settings" />
           <Section>
             <ul className="ui-list">
-              <ListRow title="Subscription" meta="Your plan, usage, and buying more usage" onOpen={() => navigate('subscription')} openLabel="Subscription" trailing={<span aria-hidden="true" className="ui-caption">›</span>} />
+              <ListRow title="Subscription" meta="Your plan, messages, and adding more" onOpen={() => navigate('subscription')} openLabel="Subscription" trailing={<span aria-hidden="true" className="ui-caption">›</span>} />
               <ListRow title="Account" meta="Your email, signing out, your data" onOpen={() => navigate('account')} openLabel="Account" trailing={<span aria-hidden="true" className="ui-caption">›</span>} />
             </ul>
           </Section>

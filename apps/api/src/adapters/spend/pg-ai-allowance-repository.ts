@@ -4,8 +4,10 @@ import type {
   AiAllowanceRepository,
   AiMonth,
   GlobalSpendResult,
+  MessageChargeResult,
   ReserveResult,
 } from '../../ports/ai-allowance-repository.js';
+import { MONTHLY_MESSAGES } from '../../config.js';
 
 interface MonthRow {
   user_id: string;
@@ -16,6 +18,10 @@ interface MonthRow {
   spent_aed: string;
   reserved_aed: string;
   display_exhausted: boolean;
+  messages_allowance: number;
+  messages_topup: number;
+  messages_used: number;
+  last_topup_messages: number | null;
 }
 
 function toMonth(r: MonthRow): AiMonth {
@@ -28,10 +34,28 @@ function toMonth(r: MonthRow): AiMonth {
     spentAed: Number(r.spent_aed),
     reservedAed: Number(r.reserved_aed),
     displayExhausted: r.display_exhausted,
+    messagesAllowance: Number(r.messages_allowance),
+    messagesTopup: Number(r.messages_topup),
+    messagesUsed: Number(r.messages_used),
+    lastTopupMessages: r.last_topup_messages == null ? null : Number(r.last_topup_messages),
   };
 }
 
-const MONTH_COLS = 'user_id, period_key, period_start_ms, allowance_aed, topup_aed, spent_aed, reserved_aed, display_exhausted';
+const MONTH_COLS = 'user_id, period_key, period_start_ms, allowance_aed, topup_aed, spent_aed, reserved_aed, display_exhausted, messages_allowance, messages_topup, messages_used, last_topup_messages';
+
+/** The previous window's REMAINING top-up, in AED and in messages (D7/D8, P83): the month is used first. */
+const PREV_SQL = `SELECT allowance_aed, topup_aed, spent_aed, messages_allowance, messages_topup, messages_used FROM ai_usage_month
+         WHERE user_id = $1 AND period_start_ms < $2 ORDER BY period_start_ms DESC LIMIT 1`;
+function carriedFrom(row: unknown): { aed: number; messages: number } {
+  if (!row) return { aed: 0, messages: 0 };
+  const p = row as { allowance_aed: string; topup_aed: string; spent_aed: string; messages_allowance: number; messages_topup: number; messages_used: number };
+  return {
+    aed: Math.max(0, Number(p.topup_aed) - Math.max(0, Number(p.spent_aed) - Number(p.allowance_aed))),
+    messages: Math.max(0, Number(p.messages_topup) - Math.max(0, Number(p.messages_used) - Number(p.messages_allowance))),
+  };
+}
+const INSERT_MONTH_SQL = `INSERT INTO ai_usage_month (user_id, period_key, period_start_ms, allowance_aed, topup_aed, messages_allowance, messages_topup)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (user_id, period_key) DO NOTHING`;
 
 /**
  * [USAGE-ALLOWANCE] Postgres AI-allowance ledger. Per-account ops run as the app role under RLS
@@ -42,28 +66,39 @@ const MONTH_COLS = 'user_id, period_key, period_start_ms, allowance_aed, topup_a
 export class PgAiAllowanceRepository implements AiAllowanceRepository {
   constructor(private readonly appPool: Pool, private readonly adminPool: Pool) {}
 
-  async ensureMonth(userId: string, periodKey: string, periodStartMs: number, allowanceAed: number): Promise<AiMonth> {
+  async ensureMonth(userId: string, periodKey: string, periodStartMs: number, allowanceAed: number, messagesAllowance: number = MONTHLY_MESSAGES): Promise<AiMonth> {
     return withTenant(this.appPool, userId, async (c) => {
       const existing = await c.query(`SELECT ${MONTH_COLS} FROM ai_usage_month WHERE user_id = $1 AND period_key = $2`, [userId, periodKey]);
       if (existing.rows[0]) return toMonth(existing.rows[0] as unknown as MonthRow);
-      // Carry forward the previous window's REMAINING top-up (D7/D8).
-      const prev = await c.query(
-        `SELECT allowance_aed, topup_aed, spent_aed FROM ai_usage_month
-         WHERE user_id = $1 AND period_start_ms < $2 ORDER BY period_start_ms DESC LIMIT 1`,
-        [userId, periodStartMs],
-      );
-      let carried = 0;
-      if (prev.rows[0]) {
-        const p = prev.rows[0] as { allowance_aed: string; topup_aed: string; spent_aed: string };
-        carried = Math.max(0, Number(p.topup_aed) - Math.max(0, Number(p.spent_aed) - Number(p.allowance_aed)));
-      }
-      await c.query(
-        `INSERT INTO ai_usage_month (user_id, period_key, period_start_ms, allowance_aed, topup_aed)
-         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id, period_key) DO NOTHING`,
-        [userId, periodKey, periodStartMs, allowanceAed, carried],
-      );
+      // Carry forward the previous window's REMAINING top-up (D7/D8), in AED and in messages (P83).
+      const carried = carriedFrom((await c.query(PREV_SQL, [userId, periodStartMs])).rows[0]);
+      await c.query(INSERT_MONTH_SQL, [userId, periodKey, periodStartMs, allowanceAed, carried.aed, messagesAllowance, carried.messages]);
       const row = await c.query(`SELECT ${MONTH_COLS} FROM ai_usage_month WHERE user_id = $1 AND period_key = $2`, [userId, periodKey]);
       return toMonth(row.rows[0] as unknown as MonthRow);
+    });
+  }
+
+  // [P83] Count a chat once: the charge row is insert-gated on the note id, and the count is a single conditional
+  // UPDATE (atomic, like reserve). Not enough left → the transaction rolls back, so the charge row is not kept.
+  async chargeMessages(userId: string, periodKey: string, noteId: string, messages: number): Promise<MessageChargeResult> {
+    return withTenant(this.appPool, userId, async (c) => {
+      const ins = await c.query(
+        `INSERT INTO ai_message_charge (note_id, user_id, period_key, messages) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (note_id) DO NOTHING RETURNING note_id`,
+        [noteId, userId, periodKey, messages],
+      );
+      if (ins.rows.length === 0) return 'already';
+      const upd = await c.query(
+        `UPDATE ai_usage_month SET messages_used = messages_used + $3, updated_at = now()
+         WHERE user_id = $1 AND period_key = $2 AND messages_used + $3 <= messages_allowance + messages_topup
+         RETURNING user_id`,
+        [userId, periodKey, messages],
+      );
+      if (upd.rows.length === 0) {
+        await c.query('DELETE FROM ai_message_charge WHERE note_id = $1', [noteId]);
+        return 'insufficient';
+      }
+      return 'charged';
     });
   }
 
@@ -159,11 +194,13 @@ export class PgAiAllowanceRepository implements AiAllowanceRepository {
     }
   }
 
-  async topUp(userId: string, periodKey: string, addedAed: number): Promise<void> {
+  async topUp(userId: string, periodKey: string, addedAed: number, addedMessages = 0): Promise<void> {
     await withTenant(this.appPool, userId, async (c) => {
       await c.query(
-        `UPDATE ai_usage_month SET topup_aed = topup_aed + $3, display_exhausted = false, updated_at = now() WHERE user_id = $1 AND period_key = $2`,
-        [userId, periodKey, Math.max(0, addedAed)],
+        `UPDATE ai_usage_month SET topup_aed = topup_aed + $3, messages_topup = messages_topup + $4,
+           last_topup_messages = CASE WHEN $4 > 0 THEN $4 ELSE last_topup_messages END, display_exhausted = false, updated_at = now()
+         WHERE user_id = $1 AND period_key = $2`,
+        [userId, periodKey, Math.max(0, addedAed), Math.max(0, Math.floor(addedMessages))],
       );
     });
   }
@@ -172,33 +209,22 @@ export class PgAiAllowanceRepository implements AiAllowanceRepository {
   // is the idempotency gate (ON CONFLICT DO NOTHING → already processed → no credit). If any step throws,
   // withTenant ROLLS BACK — including the event insert — so the caller returns non-2xx and Stripe's
   // retry credits it. A replay after success is a no-op. The credit is therefore never lost nor doubled.
-  async creditTopUpOnce(eventId: string, userId: string, periodKey: string, periodStartMs: number, allowanceAed: number, addedAed: number): Promise<boolean> {
+  async creditTopUpOnce(eventId: string, userId: string, periodKey: string, periodStartMs: number, allowanceAed: number, addedAed: number, addedMessages = 0): Promise<boolean> {
     return withTenant(this.appPool, userId, async (c) => {
       const ins = await c.query('INSERT INTO webhook_events (id) VALUES ($1) ON CONFLICT (id) DO NOTHING RETURNING id', [eventId]);
       if (ins.rows.length === 0) return false; // already processed → do not credit again
       // Ensure the window row (carrying forward the previous window's remaining top-up), inline.
       const existing = await c.query('SELECT 1 FROM ai_usage_month WHERE user_id = $1 AND period_key = $2', [userId, periodKey]);
       if (existing.rows.length === 0) {
-        const prev = await c.query(
-          `SELECT allowance_aed, topup_aed, spent_aed FROM ai_usage_month
-           WHERE user_id = $1 AND period_start_ms < $2 ORDER BY period_start_ms DESC LIMIT 1`,
-          [userId, periodStartMs],
-        );
-        let carried = 0;
-        if (prev.rows[0]) {
-          const p = prev.rows[0] as { allowance_aed: string; topup_aed: string; spent_aed: string };
-          carried = Math.max(0, Number(p.topup_aed) - Math.max(0, Number(p.spent_aed) - Number(p.allowance_aed)));
-        }
-        await c.query(
-          `INSERT INTO ai_usage_month (user_id, period_key, period_start_ms, allowance_aed, topup_aed)
-           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id, period_key) DO NOTHING`,
-          [userId, periodKey, periodStartMs, allowanceAed, carried],
-        );
+        const carried = carriedFrom((await c.query(PREV_SQL, [userId, periodStartMs])).rows[0]);
+        await c.query(INSERT_MONTH_SQL, [userId, periodKey, periodStartMs, allowanceAed, carried.aed, MONTHLY_MESSAGES, carried.messages]);
       }
+      const m = Math.max(0, Math.floor(addedMessages));
       await c.query(
-        `UPDATE ai_usage_month SET topup_aed = topup_aed + $3, display_exhausted = false, updated_at = now()
+        `UPDATE ai_usage_month SET topup_aed = topup_aed + $3, messages_topup = messages_topup + $4,
+           last_topup_messages = CASE WHEN $4 > 0 THEN $4 ELSE last_topup_messages END, display_exhausted = false, updated_at = now()
          WHERE user_id = $1 AND period_key = $2`,
-        [userId, periodKey, Math.max(0, addedAed)],
+        [userId, periodKey, Math.max(0, addedAed), m],
       );
       return true;
     });

@@ -39,6 +39,9 @@ export class SpendService {
     private readonly overrideFor?: OverrideFor,
     /** CAP-WARN: fired the first time a rep crosses the warn line in a period. Optional. */
     private readonly onWarn?: WarnHandler,
+    /** [P83] The AED a rep's packs added to the gate this window: a paid period's failsafe rises by the same amount,
+     *  so the failsafe and the gate stop at the same line. Optional. */
+    private readonly packAedFor?: (userId: string) => Promise<number>,
   ) {}
 
   /**
@@ -53,7 +56,9 @@ export class SpendService {
   }
 
   private async capFor(userId: string, periodKey: string): Promise<number> {
-    const base = periodKey.startsWith('t:') ? (this.cfg.trialCapAed ?? this.cfg.capAed) : this.cfg.capAed;
+    const trial = periodKey.startsWith('t:');
+    const extra = !trial && this.packAedFor ? Math.max(0, await this.packAedFor(userId).catch(() => 0)) : 0;
+    const base = trial ? (this.cfg.trialCapAed ?? this.cfg.capAed) : this.cfg.capAed + extra;
     return (await this.overrideFor?.(userId, periodKey)) ?? base;
   }
 

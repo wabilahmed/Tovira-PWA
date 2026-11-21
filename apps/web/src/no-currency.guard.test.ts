@@ -8,19 +8,25 @@ import { fileURLToPath } from 'node:url';
  * server's rep-facing copy (WhatsApp replies, emails, push, the import and allowance routes), contains AED, a $ figure
  * or cost / spend wording. The admin pages are excepted.
  *
- * KNOWN, until the owner approves the messages allowance (X): each is listed with why it is still here, so a NEW
- * occurrence anywhere fails this test.
+ * [P83 · owner, 21 Nov] X approved (10,000 messages on AED 299) and the pending list cleared. "AED only appears on the
+ * purchase screen and at checkout": the only files allowed a price are the purchase screens (the packs and the custom
+ * amount; the subscription checkout), plus the rep's OWN money (deal values, a client's stated price), which is not
+ * Tovira usage. Each is listed with why, so a NEW occurrence anywhere else fails this test.
  */
 const WEB = dirname(fileURLToPath(import.meta.url));
 const API = join(WEB, '..', '..', 'api', 'src');
-const PENDING: Record<string, string> = {
-  'usage/usageCopy.ts': 'the top-up pack label "AED 49: +50% of your monthly allowance": becomes "5,000 more messages" once X is approved',
-  'billing/plans.ts': 'the subscription price (AED 299 / month, AED 2,990 / year): a payment amount, not usage',
-  'billing/Billing.tsx': 'the checkout disclosure "Prices are in AED" (the payment terms)',
+const PURCHASE_SCREENS: Record<string, string> = {
+  'usage/PurchaseMessages.tsx': 'the purchase screen: the packs and the custom amount, at their prices',
+  'usage/purchaseCopy.ts': "the purchase screen's price formatting (\"AED 49.50\")",
+  'billing/plans.ts': 'the subscription checkout prices (AED 299 / month, AED 2,990 / year)',
+  'billing/Billing.tsx': 'the subscription checkout disclosure "Prices are in AED"',
+};
+const OWN_MONEY: Record<string, string> = {
   'ledger/Ledger.tsx': "the rep's own deal values (sales won, in AED): their money, not Tovira usage",
   'ledger/ledgerClient.ts': "the deal-value field of the rep's own ledger (their money)",
   'confirm/cardCopy.ts': "a client's price or budget as the rep stated it: their money, not Tovira usage",
 };
+const ALLOWED: Record<string, string> = { ...PURCHASE_SCREENS, ...OWN_MONEY };
 const BANNED = /\bAED\b|\$\s?\d|\bcosts?\b|\bspend(?:ing)?\b|\bspent\b/i;
 const walk = (d: string, out: string[] = []): string[] => {
   for (const n of readdirSync(d)) {
@@ -48,10 +54,10 @@ const offenders = (files: string[], root: string, allowed: Record<string, string
 
 describe('[P82-B] no currency or cost in anything a rep sees', () => {
   it('the app (admin pages and the public marketing pages excepted)', () => {
-    expect(offenders(walk(WEB), WEB, PENDING)).toEqual([]);
+    expect(offenders(walk(WEB), WEB, ALLOWED)).toEqual([]);
   });
   it("the server's rep-facing copy: WhatsApp replies, emails, push, the import, allowance and processing routes", () => {
-    const files = ['services/whatsapp/copy.ts', 'services/email/account-email-service.ts', 'services/import/bulk-batch-notifier.ts', 'services/import/reading-estimate.ts', 'services/import/long-chat.ts', 'http/allowance-routes.ts', 'http/notes-routes.ts', 'http/bulk-import-routes.ts'].map((f) => join(API, f));
+    const files = ['services/spend/messages-copy.ts', 'services/import/bulk-upsell.ts', 'services/whatsapp/copy.ts', 'services/email/account-email-service.ts', 'services/import/bulk-batch-notifier.ts', 'services/import/reading-estimate.ts', 'services/import/long-chat.ts', 'http/allowance-routes.ts', 'http/notes-routes.ts', 'http/bulk-import-routes.ts'].map((f) => join(API, f));
     // spendClass / costClass are code identifiers, not copy; console lines are logs, not rep-facing
     const strip = (t: string) => !/^(import|extraction|recall|spend_capped|erasure)$/.test(t) && !/^\[[a-z-]+\]/.test(t);
     expect(offenders(files, API, {}).filter((o) => strip(o.split(': "')[1]!.slice(0, -1)))).toEqual([]);
@@ -61,7 +67,12 @@ describe('[P82-B] no currency or cost in anything a rep sees', () => {
     expect(visibleText(`<p>This import will cost about 3 dollars</p>`).some((t) => BANNED.test(t))).toBe(true);
     expect(visibleText(`// AED in a comment is fine\nconst y = 'This chat has 1,240 messages to read.';`).some((t) => BANNED.test(t))).toBe(false);
   });
-  it('every pending exception still exists (remove it from the list when it is fixed)', () => {
-    for (const f of Object.keys(PENDING)) expect(statSync(join(WEB, f)).isFile(), f).toBe(true);
+  it('every allowed file still exists (remove it from the list when it goes)', () => {
+    for (const f of Object.keys(ALLOWED)) expect(statSync(join(WEB, f)).isFile(), f).toBe(true);
+  });
+  it('[P83] the usage copy (meter, banners, tour, processing card) is NOT allowed a price: the pending list is cleared', () => {
+    for (const f of ['usage/usageCopy.ts', 'usage/UsageMeter.tsx', 'usage/UsageBanner.tsx', 'tour/Tour.tsx', 'processing/ProcessingCard.tsx', 'import/ImportReview.tsx']) {
+      expect(ALLOWED[f], f).toBeUndefined();
+    }
   });
 });

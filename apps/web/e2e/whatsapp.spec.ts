@@ -57,7 +57,6 @@ for (const scheme of ['light', 'dark'] as const) {
     await stubWhatsApp(context, { linked: true });
     await context.route((u) => u.pathname === '/api/import/bulk/parse', (route) => route.fulfill(json({
       result: { rows: [{ fileName: 'WhatsApp Chat - Anjali Mehra.zip', platform: 'ios', state: 'new', counterpart: 'Anjali Mehra' }], repName: 'Wabil', needsRepId: false },
-      percentOfAllowance: 2,
     })));
     await theme(page, context, scheme);
     await page.goto('/app?import=wa-3f2c9d');

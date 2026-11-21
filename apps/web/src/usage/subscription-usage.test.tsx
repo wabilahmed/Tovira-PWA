@@ -12,128 +12,157 @@ import type { AllowanceStatus } from './allowanceClient.js';
  * unspent balance shows as "Extra usage: +80% left (never expires)". Today warns at 80 / 95 / 100%. At 100% a
  * trial sees Subscribe and a failed payment sees Update your card. Back from checkout: "Updating your balance…"
  * until the webhook has credited it.
+ *
+ * [P83 · owner, 21 Nov] Pins moved by the owner's decision to messages: "Add messages" (was "Buy more usage"), packs
+ * "+1,500 messages · AED 50.00" on the purchase screen, "Extra messages: 1,500 left (never expire)", the run-out line
+ * "You've read your 10,000 messages this month. Resets 5 Nov." then the three packs and "Choose your own amount".
  */
-const PACKS = [{ id: 'topup_50', label: '+50%', priceAed: 50 }, { id: 'topup_100', label: '+100%', priceAed: 100 }, { id: 'topup_150', label: '+150%', priceAed: 150 }];
-const s = (over: Partial<AllowanceStatus> = {}): AllowanceStatus => ({ percentUsed: 0, exhausted: false, resetAt: '2026-11-05T00:00:00.000Z', canTopUp: true, options: PACKS, subscription: 'active', extraPercentLeft: 0, ...over });
+const PACKS = [{ id: 'topup_50', label: '+1,500 messages', messages: 1500, priceAed: 50 }, { id: 'topup_100', label: '+3,000 messages', messages: 3000, priceAed: 100 }, { id: 'topup_150', label: '+5,000 messages', messages: 5000, priceAed: 150 }];
+const CUSTOM = { min: 1000, max: 50_000, step: 500, bands: [{ from: 1000, filsPer1000: 3300 }, { from: 5000, filsPer1000: 3000 }] };
+/** `pct` = messages read as a share of the month (10,000), the old percentage tests' axis. */
+const at = (pct: number): Partial<AllowanceStatus> => ({ messagesUsed: pct * 100, messagesLeft: 10_000 - pct * 100, exhausted: pct >= 100, messagesExhausted: pct >= 100 });
+const s = (over: Partial<AllowanceStatus> = {}): AllowanceStatus => ({
+  messagesAllowance: 10_000, messagesUsed: 0, messagesTotal: 10_000, messagesLeft: 10_000, packMessagesLeft: 0, lastTopupMessages: null,
+  exhausted: false, messagesExhausted: false, resetAt: '2026-11-05T00:00:00.000Z', canTopUp: true, options: PACKS, custom: CUSTOM, subscription: 'active', ...over,
+});
 const api = (st: AllowanceStatus | (() => AllowanceStatus)): UsageMeterApi => ({
   status: vi.fn(async () => (typeof st === 'function' ? st() : st)),
   topUp: vi.fn(async () => 'https://checkout.stripe.test/topup'),
+  topUpCustom: vi.fn(async () => ({ url: 'https://checkout.stripe.test/custom' })),
 });
 const NOT_SUBSCRIBED: Array<Partial<AllowanceStatus>> = [
   { subscription: 'trialing' }, { subscription: 'trial_expired' }, { subscription: 'payment_failed' }, { subscription: 'past_due' }, { subscription: 'ended' }, { subscription: 'canceled' },
-].map((x) => ({ ...x, canTopUp: false, options: [] }));
+].map((x) => ({ ...x, canTopUp: false, options: [], custom: null }));
 
 beforeEach(() => { try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignore */ } });
 
-describe('[P37] Settings → Subscription: Buy more usage', () => {
+describe('[P37 → P83] Settings → Subscription: Add messages', () => {
   for (const pct of [0, 50, 100]) {
-    it(`an active subscriber sees "Buy more usage" under the bar at ${pct}%`, async () => {
-      render(<UsageMeter api={api(s({ percentUsed: pct, exhausted: pct === 100 }))} />);
-      expect(await screen.findByRole('button', { name: 'Buy more usage' })).toBeInTheDocument();
+    it(`an active subscriber sees "Add messages" under the bar at ${pct}%`, async () => {
+      render(<UsageMeter api={api(s(at(pct)))} />);
+      expect(await screen.findByRole('button', { name: 'Add messages' })).toBeInTheDocument();
     });
   }
 
-  it('the picker lists every configured pack as "AED 50: +50% of your monthly allowance"', async () => {
+  it('the purchase screen lists every configured pack with its price, then "Choose your own amount"', async () => {
     render(<UsageMeter api={api(s())} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Buy more usage' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add messages' }));
     const sheet = screen.getByTestId('topup-sheet');
-    expect(within(sheet).getAllByRole('button').map((b) => b.textContent)).toEqual([
-      'AED 50: +50% of your monthly allowance', 'AED 100: +100% of your monthly allowance', 'AED 150: +150% of your monthly allowance',
+    expect(PACKS.map((p) => within(sheet).getByTestId(`topup-${p.id}`).textContent)).toEqual([
+      '+1,500 messages · AED 50.00', '+3,000 messages · AED 100.00', '+5,000 messages · AED 150.00',
     ]);
+    expect(within(sheet).getByTestId('custom-pack')).toHaveTextContent('Choose your own amount');
     expect(sheet.textContent).not.toMatch(/Most popular/i);
   });
 
   for (const over of NOT_SUBSCRIBED) {
     for (const pct of [0, 50, 100]) {
-      it(`${over.subscription} at ${pct}%: no "Buy more usage", no picker`, async () => {
-        render(<UsageMeter api={api(s({ ...over, percentUsed: pct, exhausted: pct === 100 }))} onSubscribe={vi.fn()} />);
-        await screen.findByTestId('usage-percent');
-        expect(screen.queryByRole('button', { name: 'Buy more usage' })).toBeNull();
+      it(`${over.subscription} at ${pct}%: no "Add messages", no purchase screen`, async () => {
+        render(<UsageMeter api={api(s({ ...over, ...at(pct) }))} onSubscribe={vi.fn()} />);
+        await screen.findByTestId('usage-used');
+        expect(screen.queryByRole('button', { name: 'Add messages' })).toBeNull();
         expect(screen.queryByTestId('topup-sheet')).toBeNull();
       });
     }
   }
 
-  it('the unspent balance: "Extra usage: +80% left (never expires)"', async () => {
-    render(<UsageMeter api={api(s({ extraPercentLeft: 80 }))} />);
-    expect(await screen.findByTestId('usage-extra')).toHaveTextContent('Extra usage: +80% left (never expires)');
+  it('the unused pack messages: "Extra messages: 1,500 left (never expire)"', async () => {
+    render(<UsageMeter api={api(s({ messagesTotal: 11_500, packMessagesLeft: 1500 }))} />);
+    expect(await screen.findByTestId('usage-extra')).toHaveTextContent('Extra messages: 1,500 left (never expire)');
   });
 
-  it('a trial at 100%: "You\'ve used this trial\'s allowance. Subscribe to keep going." with Subscribe', async () => {
-    render(<UsageMeter api={api(s({ subscription: 'trialing', canTopUp: false, options: [], percentUsed: 100, exhausted: true }))} onSubscribe={vi.fn()} />);
-    expect(await screen.findByTestId('usage-paused')).toHaveTextContent("You've used this trial's allowance. Subscribe to keep going.");
+  it('a trial that runs out: "You\'ve read this trial\'s messages. Subscribe to keep importing." with Subscribe', async () => {
+    render(<UsageMeter api={api(s({ subscription: 'trialing', canTopUp: false, options: [], custom: null, ...at(100) }))} onSubscribe={vi.fn()} />);
+    expect(await screen.findByTestId('usage-paused')).toHaveTextContent("You've read this trial's messages. Subscribe to keep importing.");
     expect(screen.getByTestId('subscribe-monthly')).toBeInTheDocument();
   });
 
   it('a failed payment at 100%: "Update your card" opens the billing portal', async () => {
     const onUpdateCard = vi.fn();
-    render(<UsageMeter api={api(s({ subscription: 'payment_failed', canTopUp: false, options: [], percentUsed: 100, exhausted: true }))} onUpdateCard={onUpdateCard} />);
+    render(<UsageMeter api={api(s({ subscription: 'payment_failed', canTopUp: false, options: [], custom: null, ...at(100) }))} onUpdateCard={onUpdateCard} />);
     await userEvent.click(await screen.findByRole('button', { name: 'Update your card' }));
     expect(onUpdateCard).toHaveBeenCalled();
   });
 
   it('back from checkout: "Updating your balance…" until the webhook has credited it', async () => {
-    try { sessionStorage.setItem('tovira.topup.baseline', JSON.stringify({ extra: 0, percent: 100 })); } catch { /* ignore */ }
+    try { sessionStorage.setItem('tovira.topup.baseline', JSON.stringify({ total: 10_000 })); } catch { /* ignore */ }
     let credited = false;
-    render(<UsageMeter api={api(() => (credited ? s({ extraPercentLeft: 50, percentUsed: 66 }) : s({ percentUsed: 100, exhausted: true })))} awaitingTopUp pollMs={20} />);
+    render(<UsageMeter api={api(() => (credited ? s({ ...at(100), exhausted: false, messagesExhausted: false, messagesTotal: 11_500, messagesLeft: 1500, packMessagesLeft: 1500, lastTopupMessages: 1500 }) : s(at(100))))} awaitingTopUp pollMs={20} />);
     expect(await screen.findByTestId('usage-updating')).toHaveTextContent('Updating your balance…');
     expect(screen.queryByTestId('usage-paused')).toBeNull(); // no stale 100% while it lands
     credited = true;
     await waitFor(() => expect(screen.queryByTestId('usage-updating')).toBeNull());
-    expect(screen.getByTestId('usage-extra')).toHaveTextContent('+50% left');
+    expect(screen.getByTestId('usage-extra')).toHaveTextContent('1,500 left');
+    expect(screen.getByTestId('usage-added')).toHaveTextContent('+1,500 messages added');
   });
 
   it('choosing a pack remembers the balance before checkout (so the return can tell when it lands)', async () => {
     const onRedirect = vi.fn();
-    render(<UsageMeter api={api(s({ extraPercentLeft: 10, percentUsed: 40 }))} onRedirect={onRedirect} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Buy more usage' }));
-    await userEvent.click(screen.getByRole('button', { name: 'AED 100: +100% of your monthly allowance' }));
+    render(<UsageMeter api={api(s({ ...at(40), messagesTotal: 11_000, packMessagesLeft: 1000 }))} onRedirect={onRedirect} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Add messages' }));
+    await userEvent.click(screen.getByRole('button', { name: '+3,000 messages · AED 100.00' }));
     await waitFor(() => expect(onRedirect).toHaveBeenCalledWith('https://checkout.stripe.test/topup'));
-    expect(JSON.parse(sessionStorage.getItem('tovira.topup.baseline') ?? '{}')).toEqual({ extra: 10, percent: 40 });
+    expect(JSON.parse(sessionStorage.getItem('tovira.topup.baseline') ?? '{}')).toEqual({ total: 11_000 });
   });
 });
 
-describe('[P37] Today warns at 80 / 95 / 100% (month + balance together)', () => {
+describe('[P37 → P83] Today warns at 80 / 95% of the messages and when they run out (month + packs together)', () => {
   it('nothing below 80%', async () => {
-    const { container } = render(<UsageBanner api={api(s({ percentUsed: 79 }))} onOpenSubscription={vi.fn()} />);
+    const { container } = render(<UsageBanner api={api(s(at(79)))} onOpenSubscription={vi.fn()} />);
     await new Promise((r) => setTimeout(r, 20));
     expect(container.textContent).toBe('');
   });
-  for (const [pct, id] of [[80, 'usage-banner-80'], [95, 'usage-banner-95'], [100, 'usage-banner-100']] as const) {
-    it(`${pct}% → the ${pct}% banner with "Buy more usage" (subscriber)`, async () => {
+  for (const [pct, id] of [[80, 'usage-banner-80'], [95, 'usage-banner-95']] as const) {
+    it(`${pct}% → "You've read ${pct * 100} of your 10,000 messages", the packs open the purchase screen`, async () => {
       const onOpen = vi.fn();
-      render(<UsageBanner api={api(s({ percentUsed: pct, exhausted: pct === 100 }))} onOpenSubscription={onOpen} />);
+      render(<UsageBanner api={api(s(at(pct)))} onOpenSubscription={onOpen} />);
       const banner = await screen.findByTestId(id);
-      await userEvent.click(within(banner).getByRole('button', { name: 'Buy more usage' }));
+      expect(banner).toHaveTextContent(`You've read ${(pct * 100).toLocaleString('en-US')} of your 10,000 messages this month.`);
+      await userEvent.click(within(banner).getByRole('button', { name: '+1,500 messages' }));
       expect(onOpen).toHaveBeenCalled();
     });
   }
-  it('a trial at 100% sees Subscribe on Today, not Buy more usage', async () => {
+  it('run out (subscriber): the owner line, then the three packs and "Choose your own amount", no AED', async () => {
     const onOpen = vi.fn();
-    render(<UsageBanner api={api(s({ subscription: 'trialing', canTopUp: false, options: [], percentUsed: 100, exhausted: true }))} onOpenSubscription={onOpen} />);
+    render(<UsageBanner api={api(s(at(100)))} onOpenSubscription={onOpen} />);
     const banner = await screen.findByTestId('usage-banner-100');
-    expect(banner).toHaveTextContent("You've used this trial's allowance. Subscribe to keep going.");
-    expect(within(banner).queryByRole('button', { name: 'Buy more usage' })).toBeNull();
+    expect(banner).toHaveTextContent("You've read your 10,000 messages this month. Resets 5 Nov.");
+    expect(within(banner).getAllByRole('button').map((b) => b.textContent)).toEqual(['+1,500 messages', '+3,000 messages', '+5,000 messages', 'Choose your own amount']);
+    expect(banner.textContent).not.toMatch(/AED|%/);
+    await userEvent.click(within(banner).getByRole('button', { name: 'Choose your own amount' }));
+    expect(onOpen).toHaveBeenCalled();
+  });
+  it('NEGATIVE: a pack keeps a rep from the 80% line (the month alone at 85%, plus 5,000 pack messages)', async () => {
+    const { container } = render(<UsageBanner api={api(s({ ...at(85), messagesTotal: 15_000, messagesLeft: 6500, packMessagesLeft: 5000 }))} onOpenSubscription={vi.fn()} />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(container.textContent).toBe('');
+  });
+  it('a trial that runs out sees Subscribe on Today, no packs', async () => {
+    const onOpen = vi.fn();
+    render(<UsageBanner api={api(s({ subscription: 'trialing', canTopUp: false, options: [], custom: null, ...at(100) }))} onOpenSubscription={onOpen} />);
+    const banner = await screen.findByTestId('usage-banner-100');
+    expect(banner).toHaveTextContent("You've read this trial's messages. Subscribe to keep importing.");
+    expect(within(banner).queryByRole('button', { name: '+1,500 messages' })).toBeNull();
     await userEvent.click(within(banner).getByRole('button', { name: 'Subscribe' }));
     expect(onOpen).toHaveBeenCalled();
   });
-  it('a failed payment at 100% sees Update your card on Today', async () => {
-    render(<UsageBanner api={api(s({ subscription: 'payment_failed', canTopUp: false, options: [], percentUsed: 100, exhausted: true }))} onOpenSubscription={vi.fn()} />);
+  it('a failed payment that runs out sees Update your card on Today', async () => {
+    render(<UsageBanner api={api(s({ subscription: 'payment_failed', canTopUp: false, options: [], custom: null, ...at(100) }))} onOpenSubscription={vi.fn()} />);
     expect(within(await screen.findByTestId('usage-banner-100')).getByRole('button', { name: 'Update your card' })).toBeInTheDocument();
   });
 });
 
-describe('[P37] over-allowance actions explain why and link to Subscription', () => {
-  it('an import refused for the allowance shows the reason and "Buy more usage"', async () => {
+describe('[P37 → P83] refused actions explain why and link to Subscription', () => {
+  it('an import refused for the messages left shows the reason and "Add messages"', async () => {
     const { ImportChat } = await import('../import/ImportChat.js');
     const onOpen = vi.fn();
-    const importApi = { importWhatsApp: vi.fn(async () => ({ ok: false as const, error: 'allowance' as const, message: "You've used this month's AI allowance, so importing is paused. Add usage, or wait for your allowance to reset, then try again." })) };
+    const importApi = { importWhatsApp: vi.fn(async () => ({ ok: false as const, error: 'allowance' as const, message: 'This chat has 240 messages to read. You have 200 left this month. Add more messages to import it now.' })) };
     render(<ImportChat clientId="c1" api={importApi} onImported={vi.fn()} onOpenSubscription={onOpen} />);
     await userEvent.type(screen.getByLabelText('Pasted chat export'), '13/07/2019, 1:00 am - Sara: hi');
     await userEvent.click(screen.getByLabelText('Consent to import'));
     await userEvent.click(screen.getByRole('button', { name: 'Import chat' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/AI allowance, so importing is paused/);
-    await userEvent.click(screen.getByRole('button', { name: 'Buy more usage' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('This chat has 240 messages to read. You have 200 left this month.');
+    await userEvent.click(screen.getByRole('button', { name: 'Add messages' }));
     expect(onOpen).toHaveBeenCalled();
   });
 
@@ -145,7 +174,7 @@ describe('[P37] over-allowance actions explain why and link to Subscription', ()
     await userEvent.type(screen.getByLabelText('Add a note'), "Sara's budget is now 2.2M");
     await userEvent.click(screen.getByRole('button', { name: 'Save the note' }));
     expect(await screen.findByRole('status')).toHaveTextContent(/AI is paused/);
-    await userEvent.click(screen.getByRole('button', { name: 'Buy more usage' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add messages' }));
     expect(onOpen).toHaveBeenCalled();
   });
 });

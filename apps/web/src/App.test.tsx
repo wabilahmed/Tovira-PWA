@@ -297,7 +297,7 @@ describe('[AUDIT item 6] email-confirm banner is not duplicated', () => {
   it('shows exactly one "Confirm your email" banner on the Settings view', async () => {
     routeFetch([
       ['/billing/status', () => json(200, { entitled: true, status: 'trialing', trialEndsAt: Date.now() + 9e8, billingState: 'active' })],
-      ['/allowance/status', () => json(200, { percentUsed: 10, exhausted: false, resetAt: null, canTopUp: false, options: [] })],
+      ['/allowance/status', () => json(200, { messagesAllowance: 10_000, messagesUsed: 1000, messagesTotal: 10_000, messagesLeft: 9000, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: null, canTopUp: false, options: [], custom: null })],
       ['onboarding', () => json(200, NOT_SEEDED)],
       ['/me', () => json(200, SESSION_UNVERIFIED)],
       ['/clients', () => json(200, { clients: [] })],

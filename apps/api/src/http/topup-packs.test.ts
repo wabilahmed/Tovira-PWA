@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApiServer } from '../server.js';
 import { buildInMemoryDeps, type TestDeps } from './test-deps.js';
-import { TOP_UP_PACKS, TOP_UP_OPTIONS, topUpCreditAed, DEFAULT_MONTHLY_AI_ALLOWANCE_AED } from '../config.js';
+import { TOP_UP_PACKS, TOP_UP_OPTIONS, packMessages, packGateAed, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, MONTHLY_MESSAGES } from '../config.js';
 import { listenForTest } from '../test-support/listen.js';
 
 /**
@@ -12,6 +12,10 @@ import { listenForTest } from '../test-support/listen.js';
  * allowance at the time of purchase. The AED 65 / 85 / 120 packs are gone: refused at checkout. A checkout
  * already opened under a retired pack id still credits what it was sold for (no paid credit is lost), and
  * top-ups already credited are untouched.
+ *
+ * [P83 · owner, 21 Nov] Pins moved by the owner's decision: the packs are now messages (+1,500 / +3,000 / +5,000 at the
+ * same AED 50 / 100 / 150), each also adding gate headroom at the plan ratio (AED 0.006 a message). A retired pack still
+ * credits its share of the month, now in messages, with the same AED headroom it had.
  */
 let server: Server;
 let base: string;
@@ -35,16 +39,16 @@ async function subscribe(userId: string): Promise<void> {
 const credit = (id: string, userId: string, optionId: string) => fetch(`${base}/billing/webhook`, { method: 'POST', headers: { 'stripe-signature': 'whsec_test', 'content-type': 'application/json' }, body: JSON.stringify({ id, type: 'checkout.session.completed', mode: 'payment', userId, topUpOptionId: optionId }) });
 
 describe('[P37] the top-up packs', () => {
-  it('config: exactly three packs, {price_aed, percent} = 50/50, 100/100, 150/150', () => {
-    expect(TOP_UP_PACKS.map((p) => [p.priceAed, p.percent])).toEqual([[50, 50], [100, 100], [150, 150]]);
-    expect(TOP_UP_OPTIONS.map((o) => [o.priceAed, o.label])).toEqual([[50, '+50%'], [100, '+100%'], [150, '+150%']]);
+  it('config: exactly three packs, {price_aed, messages} = 50/1,500, 100/3,000, 150/5,000', () => {
+    expect(TOP_UP_PACKS.map((p) => [p.priceAed, p.messages])).toEqual([[50, 1500], [100, 3000], [150, 5000]]);
+    expect(TOP_UP_OPTIONS.map((o) => [o.priceAed, o.label])).toEqual([[50, '+1,500 messages'], [100, '+3,000 messages'], [150, '+5,000 messages']]);
   });
 
-  it('each credits percent × the monthly allowance at the time of purchase', () => {
-    for (const p of TOP_UP_OPTIONS) {
-      const pct = TOP_UP_PACKS.find((x) => x.id === p.id)!.percent;
-      expect(topUpCreditAed(p.id, 60)).toBe(60 * pct / 100);
-      expect(topUpCreditAed(p.id, 80)).toBe(80 * pct / 100); // the rule holds if the allowance changes
+  it('each credits its messages and the matching gate headroom (the rule holds if the allowance changes)', () => {
+    for (const p of TOP_UP_PACKS) {
+      expect(packMessages(p.id)).toBe(p.messages);
+      expect(packGateAed(p.messages, 60, 10_000)).toBeCloseTo(p.messages * 0.006, 9);
+      expect(packGateAed(p.messages, 80, 10_000)).toBeCloseTo(p.messages * 0.008, 9);
     }
   });
 
@@ -52,14 +56,16 @@ describe('[P37] the top-up packs', () => {
     const { token, userId } = await signup('packs-offer@example.com');
     await subscribe(userId);
     const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { options: Array<{ id: string; label: string; priceAed: number }> };
-    expect(s.options.map((o) => [o.priceAed, o.label])).toEqual([[50, '+50%'], [100, '+100%'], [150, '+150%']]);
+    expect(s.options.map((o) => [o.priceAed, o.label])).toEqual([[50, '+1,500 messages'], [100, '+3,000 messages'], [150, '+5,000 messages']]);
   });
 
-  it('the webhook credits +150% = 1.5 × the allowance', async () => {
+  it('the webhook credits +5,000 messages (and AED 30 of gate headroom)', async () => {
     const { userId } = await signup('packs-150@example.com');
     await subscribe(userId);
     expect((await credit('evt_pack150', userId, 'topup_150')).status).toBe(200);
-    expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(1.5 * DEFAULT_MONTHLY_AI_ALLOWANCE_AED);
+    const st = await deps.allowanceStatus.status(userId);
+    expect(st.packMessagesLeft).toBe(5000);
+    expect(st.topupAed).toBeCloseTo(packGateAed(5000, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, MONTHLY_MESSAGES), 9);
   });
 
   it('the retired AED 65 / 85 / 120 packs are refused at checkout; only 50 / 100 / 150 can be charged', async () => {
@@ -83,10 +89,11 @@ describe('[P37] the top-up packs', () => {
     const { userId } = await signup('packs-past@example.com');
     await subscribe(userId);
     expect((await credit('evt_old_25', userId, 'topup_25')).status).toBe(200); // a +25% bought before the change
-    const before = (await deps.allowanceStatus.status(userId)).topupAed;
-    expect(before).toBe(0.25 * DEFAULT_MONTHLY_AI_ALLOWANCE_AED);
+    const before = await deps.allowanceStatus.status(userId);
+    expect(before.topupAed).toBeCloseTo(0.25 * DEFAULT_MONTHLY_AI_ALLOWANCE_AED, 9); // the same AED 15 as before
+    expect(before.packMessagesLeft).toBe(2500); // 25% of the month, in messages
     expect((await credit('evt_new_50', userId, 'topup_50')).status).toBe(200);
-    expect((await deps.allowanceStatus.status(userId)).topupAed).toBe(before + 0.5 * DEFAULT_MONTHLY_AI_ALLOWANCE_AED);
+    expect((await deps.allowanceStatus.status(userId)).packMessagesLeft).toBe(2500 + 1500);
   });
 });
 
@@ -101,8 +108,8 @@ describe('[P37] a balance is for subscribers only', () => {
     // [P39-7] POST /recall is gone; "Add a note" (POST /captures) is the AI capture a rep can trigger directly.
     const ask = await fetch(`${base}/captures`, { method: 'POST', headers: H(token), body: JSON.stringify({ clientId: 'any', statement: "Sara's budget is 2M" }) });
     expect(ask.status).toBe(402);
-    const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { canTopUp: boolean; options: unknown[]; extraPercentLeft: number };
-    expect(s.extraPercentLeft).toBe(100); // still on the account
+    const s = (await (await fetch(`${base}/allowance/status`, { headers: H(token) })).json()) as { canTopUp: boolean; options: unknown[]; packMessagesLeft: number };
+    expect(s.packMessagesLeft).toBe(3000); // still on the account
     expect(s.canTopUp).toBe(false); // and no picker
     expect(s.options).toEqual([]);
   });

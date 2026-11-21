@@ -10,7 +10,7 @@ describe('<Locked>', () => {
     const onSubscribe = vi.fn();
     render(<Locked onSubscribe={onSubscribe} />);
     expect(screen.getByRole('status')).toHaveTextContent(/your trial has ended\. subscribe to reopen your book\./i);
-    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent("Subscribing gives you a full month's allowance."); // [P37 · owner] was "…to the full AED 60."
+    expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent('Subscribing gives you 10,000 messages a month.'); // [P37 · owner] was "…to the full AED 60."; [P83] in messages
     await userEvent.click(screen.getByTestId('subscribe-annual'));
     expect(onSubscribe).toHaveBeenLastCalledWith('annual');
   });

@@ -1,32 +1,21 @@
 import { useEffect, useState } from 'react';
 import type { AllowanceStatus } from './allowanceClient.js';
-import { packLabel, exhaustedAction, exhaustedMessage, warnMessage, extraLine } from './usageCopy.js';
-import { formatStamp } from '../format/dates.js';
+import type { CheckoutResult } from './allowanceClient.js';
+import { exhaustedAction, exhaustedMessage, warnMessage, extraLine, usedLine, addedLine, fractionRead } from './usageCopy.js';
+import { PurchaseMessages } from './PurchaseMessages.js';
 import { SubscribeNow } from '../billing/SubscribeUpsell.js';
 import type { Plan } from '../billing/plans.js';
 
 export interface UsageMeterApi {
   status(): Promise<AllowanceStatus | null>;
   topUp(optionId: string): Promise<string | null>;
+  /** [P83] A custom amount: only the message count is sent; the server prices it. */
+  topUpCustom(messages: number): Promise<CheckoutResult>;
 }
 
 /** The warning thresholds (D9). A banner shows once per threshold per allowance month. */
 const WARN_AT = 80;
 const WARN_HARD_AT = 95;
-
-/**
- * [P20-1c] The usage percentage, rounded DOWN (D3), but precise enough to trust: a real but tiny
- * fraction reads "<1%" not a flat "0%", and under 10% it shows one decimal place. At 10%+ it's a whole
- * number, as before. Uses the unfloored rawPercentUsed when present, else the floored percentUsed.
- */
-export function usageLabel(s: Pick<AllowanceStatus, 'percentUsed' | 'rawPercentUsed' | 'exhausted'>): string {
-  if (s.exhausted) return '100%';
-  const raw = s.rawPercentUsed ?? s.percentUsed;
-  if (raw <= 0) return '0%';
-  if (raw < 1) return '<1%';
-  if (raw < 10) return `${Math.floor(raw * 10) / 10}%`; // one decimal, floored (never rounds up past real)
-  return `${Math.floor(raw)}%`;
-}
 
 /** Per-viewer "seen this banner this month" memory. Best-effort — a convenience, never required. */
 function seen(key: string): boolean {
@@ -38,25 +27,25 @@ function markSeen(key: string): void {
 
 /** [P37] The balance before a top-up checkout, so the return can tell when the webhook has credited it. */
 const BASELINE_KEY = 'tovira.topup.baseline';
-function readBaseline(): { extra: number; percent: number } | null {
-  try { const v = sessionStorage.getItem(BASELINE_KEY); return v ? (JSON.parse(v) as { extra: number; percent: number }) : null; } catch { return null; }
+function readBaseline(): { total: number } | null {
+  try { const v = sessionStorage.getItem(BASELINE_KEY); return v ? (JSON.parse(v) as { total: number }) : null; } catch { return null; }
 }
-function writeBaseline(v: { extra: number; percent: number } | null): void {
+function writeBaseline(v: { total: number } | null): void {
   try { if (v) sessionStorage.setItem(BASELINE_KEY, JSON.stringify(v)); else sessionStorage.removeItem(BASELINE_KEY); } catch { /* storage optional */ }
 }
-/** Has a top-up landed since the baseline? (More balance, or a lower combined percentage.) */
-function credited(s: AllowanceStatus, base: { extra: number; percent: number } | null): boolean {
-  if (!base) return (s.extraPercentLeft ?? 0) > 0 && !s.exhausted;
-  return (s.extraPercentLeft ?? 0) > base.extra || s.percentUsed < base.percent;
+/** Has a pack landed since the baseline? (More messages this month.) */
+function credited(s: AllowanceStatus, base: { total: number } | null): boolean {
+  if (!base) return s.lastTopupMessages != null && !s.exhausted;
+  return s.messagesTotal > base.total;
 }
 
 /**
- * [USAGE-ALLOWANCE · D3/D8/D9/D10 → P37] Settings → Subscription's usage: ONE bar, ONE percentage (month + extra
- * usage together) — no dirhams, tokens, or per-action cost — then the unspent extra usage ("+80% left, never
- * expires") and, for an ACTIVE subscriber only, "Buy more usage" directly under the bar (the one place the
- * picker lives). 80 / 95% banners once per threshold per month. At 100% the message follows the real
- * subscription state: a subscriber buys more, a trial subscribes, a failed payment updates the card. Back from a
- * top-up checkout it says "Updating your balance…" until the webhook has credited it — never a stale 100%.
+ * [USAGE-ALLOWANCE · D3/D8/D9/D10 → P37 → P83 · owner] Settings → Subscription's usage, in messages: ONE bar and
+ * "2,340 of 10,000 messages read this month · resets 5 Dec", the unused pack messages ("never expire"), and the last
+ * pack added. For an ACTIVE subscriber, "Add messages" opens the purchase screen right under the bar (the one place a
+ * price appears before checkout). 80 / 95% lines once per threshold per month. Run out: "You've read your 10,000
+ * messages this month. Resets 5 Dec." then the packs and "Choose your own amount" (a trial subscribes, a failed
+ * payment updates the card). Back from a checkout it says "Updating your balance…" until the webhook has credited it.
  */
 export function UsageMeter({
   api,
@@ -114,80 +103,76 @@ export function UsageMeter({
   if (!s) return null;
 
   const month = s.resetAt ? s.resetAt.slice(0, 7) : 'na';
-  const showWarnHard = !updating && s.percentUsed >= WARN_HARD_AT && !s.exhausted && !seen(`tovira.usage.95.${month}`);
-  const showWarn = !updating && !showWarnHard && s.percentUsed >= WARN_AT && !s.exhausted && !seen(`tovira.usage.80.${month}`);
-  const resetWord = s.resetAt ? formatStamp(s.resetAt) : 'your next billing month';
-  const extra = s.extraPercentLeft ?? 0;
+  const read = fractionRead(s);
+  const showWarnHard = !updating && read >= WARN_HARD_AT / 100 && !s.exhausted && !seen(`tovira.usage.95.${month}`);
+  const showWarn = !updating && !showWarnHard && read >= WARN_AT / 100 && !s.exhausted && !seen(`tovira.usage.80.${month}`);
   const action = exhaustedAction(s);
 
   async function buy(optionId: string): Promise<void> {
     setBusy(optionId);
-    writeBaseline({ extra, percent: s!.percentUsed });
+    writeBaseline({ total: s!.messagesTotal });
     const url = await api.topUp(optionId);
     setBusy(null);
     if (url) onRedirect(url);
     else writeBaseline(null);
   }
+  async function buyCustom(messages: number): Promise<CheckoutResult> {
+    setBusy('custom');
+    writeBaseline({ total: s!.messagesTotal });
+    const r = await api.topUpCustom(messages);
+    setBusy(null);
+    if ('url' in r) onRedirect(r.url);
+    else writeBaseline(null);
+    return r;
+  }
 
   return (
-    <section aria-label="AI usage" data-testid="usage-meter">
+    <section aria-label="Messages" data-testid="usage-meter">
       <div
         role="meter"
-        aria-valuenow={s.percentUsed}
+        aria-valuenow={s.messagesUsed}
         aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label="AI usage this month"
+        aria-valuemax={s.messagesTotal}
+        aria-label="Messages read this month"
         data-testid="usage-bar"
         style={{ background: 'var(--surface-elevated)', borderRadius: 999, height: 10, overflow: 'hidden' }}
       >
-        <div style={{ width: `${updating ? 0 : s.percentUsed}%`, height: '100%', background: s.exhausted && !updating ? 'var(--claret)' : 'var(--green)' }} />
+        <div style={{ width: `${updating ? 0 : Math.round(read * 1000) / 10}%`, height: '100%', background: s.exhausted && !updating ? 'var(--claret)' : 'var(--green)' }} />
       </div>
-      {/* [P18-1] The reset date sits next to the percentage, so the number has a timeframe. */}
       {updating
         ? <p data-testid="usage-updating" role="status">Updating your balance…</p>
-        : <p data-testid="usage-percent">{usageLabel(s)} of this month&rsquo;s usage used · resets {resetWord}</p>}
-      {!updating && extra > 0 && <p data-testid="usage-extra" className="tov-muted">{extraLine(extra)}</p>}
-
-      {/* [P37] The one home of the picker: directly under the bar, for an active subscriber, at any percentage. */}
-      {!updating && s.canTopUp && (
-        <div>
-          <button type="button" data-tour="buy-more" className={s.exhausted ? 'tov-primary' : undefined} aria-expanded={picker || s.exhausted} onClick={() => setPicker((p) => !p)}>Buy more usage</button>
-          {(picker || s.exhausted) && <TopUp options={s.options} busy={busy} onBuy={buy} />}
-        </div>
-      )}
+        : <p data-testid="usage-used">{usedLine(s)}</p>}
+      {!updating && s.packMessagesLeft > 0 && <p data-testid="usage-extra" className="tov-muted">{extraLine(s.packMessagesLeft)}</p>}
+      {!updating && s.lastTopupMessages != null && <p data-testid="usage-added" className="tov-muted">{addedLine(s.lastTopupMessages)}</p>}
 
       {!updating && s.exhausted && (
         <div role="alert" data-testid="usage-paused">
-          <p>{exhaustedMessage(s, resetWord)}</p>
+          <p>{exhaustedMessage(s)}</p>
           {action === 'subscribe' && <SubscribeNow onSubscribe={onSubscribe} />}
           {action === 'update_card' && <button type="button" className="tov-primary" onClick={() => onUpdateCard?.()}>Update your card</button>}
         </div>
       )}
 
+      {/* [P37 → P83] The one home of the purchase screen: directly under the bar, for an active subscriber. */}
+      {!updating && s.canTopUp && (
+        <div>
+          <button type="button" data-tour="buy-more" className={s.exhausted ? 'tov-primary' : undefined} aria-expanded={picker || s.exhausted} onClick={() => setPicker((p) => !p)}>Add messages</button>
+          {(picker || s.exhausted) && <PurchaseMessages options={s.options} custom={s.custom} busy={busy} onBuy={(id) => void buy(id)} onBuyCustom={buyCustom} />}
+        </div>
+      )}
+
       {showWarnHard && (
         <div role="status" data-testid="usage-warn-95">
-          <p>{warnMessage(s.percentUsed)}</p>
+          <p>{warnMessage(s)}</p>
           <button onClick={() => markSeen(`tovira.usage.95.${month}`)}>Dismiss</button>
         </div>
       )}
       {showWarn && (
         <div role="status" data-testid="usage-warn-80">
-          <p>{warnMessage(s.percentUsed)}</p>
+          <p>{warnMessage(s)}</p>
           <button onClick={() => markSeen(`tovira.usage.80.${month}`)}>Dismiss</button>
         </div>
       )}
     </section>
-  );
-}
-
-function TopUp({ options, busy, onBuy }: { options: AllowanceStatus['options']; busy: string | null; onBuy: (id: string) => void }): JSX.Element {
-  return (
-    <div data-testid="topup-sheet" style={{ display: 'grid', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-      {options.map((o) => (
-        <button key={o.id} type="button" data-testid={`topup-${o.id}`} disabled={busy !== null} onClick={() => onBuy(o.id)}>
-          {packLabel(o)}
-        </button>
-      ))}
-    </div>
   );
 }

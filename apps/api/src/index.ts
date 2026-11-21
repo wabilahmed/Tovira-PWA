@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { SamePersonService } from './services/clients/same-person.js';
 import { extractionAliasesFor } from './services/clients/extraction-aliases.js';
 import { dirname, resolve } from 'node:path';
-import { loadConfig, assertDeployReady, describeAdapters, emailConfigSummary, opsSurfaceWarning, topUpCreditAed, TOP_UP_OPTIONS } from './config.js';
+import { loadConfig, assertDeployReady, describeAdapters, emailConfigSummary, opsSurfaceWarning, TOP_UP_OPTIONS } from './config.js';
 import { ClientOverviewService } from './services/clients/client-overview.js';
 import { TourService } from './services/tour/tour-service.js';
 import { PgTourFunnelRepository } from './adapters/tour/pg-tour-funnel-repository.js';
@@ -23,6 +23,7 @@ import { BulkImportService } from './services/import/bulk-import-service.js';
 import { BulkBatchNotifier } from './services/import/bulk-batch-notifier.js';
 import { withClaimHeartbeat } from './services/import/claim-heartbeat.js';
 import { messagesToRead } from './services/import/reading-estimate.js';
+import { createPackCreditor } from './services/billing/credit-pack.js';
 import { KeptSuggestionService } from './services/promises/kept-suggestion-service.js';
 import { BulkBatchRetentionService, BULK_BATCH_TTL_MS } from './services/import/bulk-batch-retention.js';
 import { BulkUpsellService } from './services/import/bulk-upsell.js';
@@ -298,7 +299,10 @@ async function main(): Promise<void> {
       detail: { spentAed: Math.round(e.spentAed * 100) / 100, capAed: e.capAed, dominantClass: e.dominantClass, warnFraction: config.spendWarnFraction },
     });
   };
-  const spend = new SpendService(spendLedger, spendPeriodFor, { capAed: config.spendCapAed, trialCapAed: config.trialSpendCapAed, warnFraction: config.spendWarnFraction }, () => Date.now(), (u, pk) => spendOverrides.effectiveCap(u, pk), onSpendWarn);
+  const spend = new SpendService(spendLedger, spendPeriodFor, { capAed: config.spendCapAed, trialCapAed: config.trialSpendCapAed, warnFraction: config.spendWarnFraction }, () => Date.now(), (u, pk) => spendOverrides.effectiveCap(u, pk), onSpendWarn,
+    // [P83] the failsafe matches the gate: AED 60 plus the AED headroom this window's packs added (allowanceStatus is
+    // built below; this runs only at call time)
+    async (u) => (await allowanceStatus.status(u)).topupAed);
   setSpendSink(spend); // every metered model call now records its AED against the rep's period
   // [SPEND-INSTRUMENT] Per-call event log alongside the ledger: class/model/tokens/cache/cost per call
   // (system calls recorded account-less). Cross-tenant ops accounting → the root pool.
@@ -340,17 +344,20 @@ async function main(): Promise<void> {
   // [USAGE-ALLOWANCE · D4] The rep-facing status + the pre-call "is AI stopped?" check used by import,
   // questions, and the scheduled AI jobs so they refuse/skip up front instead of calling a model to
   // discover it.
-  const allowanceStatus = new AllowanceStatusService({ allowance: aiAllowance, allowanceAed: config.monthlyAiAllowanceAed, billingWindowFor: aiBillingWindowFor });
+  const allowanceStatus = new AllowanceStatusService({ allowance: aiAllowance, allowanceAed: config.monthlyAiAllowanceAed, messagesAllowance: config.monthlyMessages, billingWindowFor: aiBillingWindowFor });
+  // [P83 · owner] A chat's messages (stripped) are counted once, against the month and then the packs, before it is read.
+  // Not enough left → it waits, unread. Notes and voice notes have no messages, so they never count.
+  const chargeChatMessages = async (u: string, id: string): Promise<boolean> =>
+    allowanceStatus.chargeMessages(u, id, messagesToRead((await notes.findByIdForUser(u, id))?.messages ?? []));
   const aiExhausted = (uid: string) => allowanceStatus.isExhausted(uid);
   // [USAGE-ALLOWANCE · D12] Credit a confirmed top-up to the rep's current window (idempotent via the
   // webhook_events dedupe). Set here because the allowance repo is built after billing.
-  billing.setTopUpHandler(async (eventId, userId, optionId) => {
-    // [P37] percent × the monthly allowance at the time of purchase (retired pack ids still credit what they sold).
-    const added = topUpCreditAed(optionId, config.monthlyAiAllowanceAed);
-    if (added === null) { console.warn(`[usage-allowance] unknown top-up option ${optionId} for ${userId}`); return; }
-    const w = allowanceWindow(await aiBillingWindowFor(userId), Date.now());
-    await aiAllowance.creditTopUpOnce(eventId, userId, w.key, w.startMs, config.monthlyAiAllowanceAed, added);
+  // [P83] a pack's messages (and its AED gate headroom) are added only here, after Stripe confirms the payment.
+  const creditPack = createPackCreditor({
+    allowance: aiAllowance, monthlyAllowanceAed: config.monthlyAiAllowanceAed, monthlyMessages: config.monthlyMessages,
+    windowFor: async (userId) => { const w = allowanceWindow(await aiBillingWindowFor(userId), Date.now()); return { key: w.key, startMs: w.startMs }; },
   });
+  billing.setTopUpHandler(async (eventId, userId, optionId, amountPaidFils) => { await creditPack(eventId, userId, optionId, amountPaidFils); });
   // CAP-ENFORCE: recall keeps working at the cap but is limited to N/day WHILE capped (Wabil's ruling).
   const modelRouter = createExtractionModelRouter(config, (uid, now) => billing.entitlement(uid, now).then((e) => e.status));
   // [TRIAL-FARM] Durable, monotonic extraction counter (not prunable log rows) backs the ceilings.
@@ -473,6 +480,7 @@ async function main(): Promise<void> {
       await notes.update(u, id, { status: 'needs_review' });
       console.info(`[extract] note ${id} set aside: over the ${EMERGENCY_MAX_MESSAGES}-message emergency limit, not read`);
     },
+    chargeMessages: chargeChatMessages,
   });
   // [P81-2] The bulk path: the same guard and set-aside as claimAndExtract, the batched service, and a fresh claim.
   const bulkClaimAndExtract = createClaimAndExtract({
@@ -486,6 +494,7 @@ async function main(): Promise<void> {
       await notes.update(u, id, { status: 'needs_review' });
       console.info(`[extract] note ${id} set aside: over the ${EMERGENCY_MAX_MESSAGES}-message emergency limit, not read`);
     },
+    chargeMessages: chargeChatMessages,
   });
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),
@@ -690,10 +699,7 @@ async function main(): Promise<void> {
   });
   const bulkUpsell = new BulkUpsellService({
     topUpOptions: TOP_UP_OPTIONS,
-    remainingAllowanceAed: async (uid) => {
-      const s = await allowanceStatus.status(uid);
-      return Math.max(0, s.availableAed - s.spentAed - s.reservedAed);
-    },
+    messagesLeft: async (uid) => (await allowanceStatus.status(uid)).messagesLeft, // [P83]
     canTopUp: async (uid) => (await billing.entitlement(uid, Date.now())).status === 'active',
   });
   // [BETA-5] Approval/invite provisioning. applyReferral reuses the existing ReferralService (declared

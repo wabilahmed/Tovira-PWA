@@ -28,9 +28,11 @@ const offences = (text: string) => FORBIDDEN.filter(([, re]) => re.test(text)).m
 const NOW = Date.parse('2026-07-15T00:00:00Z');
 const DAY = 24 * 60 * 60 * 1000;
 const billingApi = (status: Entitlement | null): BillingApi => ({ status: vi.fn().mockResolvedValue(status), checkout: vi.fn().mockResolvedValue(null), portal: vi.fn().mockResolvedValue(null) });
-const OPTIONS = [15, 25, 50, 75, 100].map((pct, i) => ({ id: `topup_${pct}`, label: `+${pct}%`, priceAed: [50, 65, 85, 100, 120][i]! }));
-const allowance = (over: Partial<AllowanceStatus>): AllowanceStatus => ({ percentUsed: 40, exhausted: false, resetAt: '2026-11-01T00:00:00.000Z', canTopUp: true, options: OPTIONS, ...over });
-const usageApi = (s: AllowanceStatus): UsageMeterApi => ({ status: vi.fn().mockResolvedValue(s), topUp: vi.fn().mockResolvedValue(null) });
+// [P83] the packs and the custom amount, in messages
+const OPTIONS = [[1500, 50], [3000, 100], [5000, 150]].map(([m, p]) => ({ id: `topup_${p}`, label: `+${m!.toLocaleString('en-US')} messages`, messages: m!, priceAed: p! }));
+const CUSTOM = { min: 1000, max: 50_000, step: 500, bands: [{ from: 1000, filsPer1000: 3300 }, { from: 5000, filsPer1000: 3000 }] };
+const allowance = (over: Partial<AllowanceStatus>): AllowanceStatus => ({ messagesAllowance: 10_000, messagesUsed: 4000, messagesTotal: 10_000, messagesLeft: 6000, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: '2026-11-01T00:00:00.000Z', canTopUp: true, options: OPTIONS, custom: CUSTOM, ...over });
+const usageApi = (s: AllowanceStatus): UsageMeterApi => ({ status: vi.fn().mockResolvedValue(s), topUp: vi.fn().mockResolvedValue(null), topUpCustom: vi.fn().mockResolvedValue({ error: 'x' }) });
 
 describe('[P32] no VAT wording on rep-facing surfaces (VAT switch off)', () => {
   it('the landing page — visible text, meta and share descriptions — never mentions VAT', () => {
@@ -64,7 +66,7 @@ describe('[P32] no VAT wording on rep-facing surfaces (VAT switch off)', () => {
   });
 
   it('the top-up picker and the subscribe upsell never mention VAT', async () => {
-    for (const s of [allowance({}), allowance({ percentUsed: 100, exhausted: true }), allowance({ canTopUp: false })]) {
+    for (const s of [allowance({}), allowance({ messagesUsed: 10_000, messagesLeft: 0, exhausted: true, messagesExhausted: true }), allowance({ canTopUp: false })]) {
       const { container } = render(<UsageMeter api={usageApi(s)} />);
       await screen.findAllByText(/./);
       await new Promise((r) => setTimeout(r, 0));

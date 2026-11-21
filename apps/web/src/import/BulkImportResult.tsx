@@ -4,10 +4,11 @@ import type { Plan } from '../billing/plans.js';
 /**
  * [BULK-IMPORT · RULING 2] The batch progress / result view. One row per chat with its state, and —
  * when chats failed because the account hit its monthly usage limit — the exact ruling copy plus the
- * top-up (or Subscribe, for a trial) prompt and the invitation to re-upload. A usage-limited chat was
- * never stored (its content is discarded), so re-uploading is how the rep retries after topping up.
+ * pack (or Subscribe, for a trial) prompt and the invitation to re-upload. A usage-limited chat was
+ * never stored (its content is discarded), so re-uploading is how the rep retries after adding messages. [P83] A chat
+ * that was stored but had more messages to read than were left waits instead, and is read once messages are added.
  */
-export type BulkJobState = 'queued' | 'extracting' | 'done' | 'failed' | 'failed_usage_limit' | 'failed_interrupted';
+export type BulkJobState = 'queued' | 'extracting' | 'done' | 'failed' | 'failed_usage_limit' | 'failed_interrupted' | 'waiting_messages';
 export interface BulkJob {
   key: string;
   state: BulkJobState;
@@ -18,7 +19,8 @@ const ROW_COPY: Record<BulkJobState, string> = {
   extracting: 'Analysing…',
   done: 'Imported.',
   failed: "Couldn't be read. Not imported.",
-  failed_usage_limit: 'Not imported. You reached your monthly usage limit.',
+  failed_usage_limit: 'Not imported. No messages were left this month.', // [P83] messages, never usage
+  waiting_messages: 'Saved. Tovira reads it as soon as you add messages.', // [P83] stored, read after a pack or the reset
   failed_interrupted: 'Not imported. Something went wrong. Please re-upload this chat.',
 };
 
@@ -48,6 +50,7 @@ export function BulkImportResult({ jobs, upsell, onOpenSubscription, onSubscribe
   onOpenBookScan?: () => void;
 }): JSX.Element {
   const limited = jobs.filter((j) => j.state === 'failed_usage_limit').length;
+  const waiting = jobs.filter((j) => j.state === 'waiting_messages').length;
 
   return (
     <section aria-label="Import results" data-testid="bulk-import-result" style={{ display: 'grid', gap: 'var(--space-3)' }}>
@@ -69,13 +72,20 @@ export function BulkImportResult({ jobs, upsell, onOpenSubscription, onSubscribe
         ))}
       </ul>
 
-      {limited > 0 && (
+      {(limited > 0 || waiting > 0) && (
         <div style={{ display: 'grid', gap: 'var(--space-2)' }}>
-          <p style={{ margin: 0 }}>
-            {limited} {limited === 1 ? 'chat' : 'chats'} weren&rsquo;t imported because you reached your monthly usage limit.
-          </p>
+          {waiting > 0 && (
+            <p style={{ margin: 0 }} data-testid="bulk-waiting">
+              {waiting} {waiting === 1 ? 'chat is' : 'chats are'} saved and waiting: more messages to read than you have left this month.
+            </p>
+          )}
+          {limited > 0 && (
+            <p style={{ margin: 0 }}>
+              {limited} {limited === 1 ? 'chat' : 'chats'} weren&rsquo;t imported because no messages were left this month.
+            </p>
+          )}
           {upsell && (
-            <UpsellBanner upsell={upsell} lead="Re-upload them after topping up." onOpenSubscription={onOpenSubscription} onSubscribe={onSubscribe} />
+            <UpsellBanner upsell={upsell} lead={limited > 0 ? 'Add messages, then re-upload the ones not imported.' : 'Add messages and Tovira reads them straight away.'} onOpenSubscription={onOpenSubscription} onSubscribe={onSubscribe} />
           )}
         </div>
       )}

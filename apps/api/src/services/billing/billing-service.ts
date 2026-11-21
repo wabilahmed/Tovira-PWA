@@ -1,3 +1,4 @@
+import { packMessages } from '../../config.js';
 import type { RevenueEvent } from '../../ports/cost-report.js';
 import type { StripeWebhookEvent } from '../../ports/billing.js';
 import type {
@@ -83,7 +84,7 @@ export class BillingService {
    *  transactionally (records the event + credits in one DB tx — see creditTopUpOnce). Set at boot after
    *  the allowance repo is built. MUST throw on a DB failure so the webhook returns non-2xx and Stripe
    *  retries (the credit is never lost); a replay after success is a no-op. */
-  private onTopUp?: (eventId: string, userId: string, topUpOptionId: string) => Promise<void>;
+  private onTopUp?: (eventId: string, userId: string, topUpOptionId: string, amountPaidFils?: number) => Promise<void>;
   /** [P44-2] Records paid revenue for the ops cost report; set at boot. */
   private revenue?: { periodKeyFor(userId: string): Promise<string | null>; record(e: RevenueEvent): Promise<void> };
   setRevenueRecorder(r: { periodKeyFor(userId: string): Promise<string | null>; record(e: RevenueEvent): Promise<void> }): void {
@@ -99,7 +100,7 @@ export class BillingService {
       console.warn(`[cost-report] revenue not recorded (payment unaffected): ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  setTopUpHandler(fn: (eventId: string, userId: string, topUpOptionId: string) => Promise<void>): void {
+  setTopUpHandler(fn: (eventId: string, userId: string, topUpOptionId: string, amountPaidFils?: number) => Promise<void>): void {
     this.onTopUp = fn;
   }
 
@@ -230,7 +231,7 @@ export class BillingService {
    * no-op, and it composes safely with the webhook (both only ever set active). A top-up session (mode
    * 'payment') is reported paid but changes no subscription state (the webhook credits the allowance).
    */
-  async confirmCheckoutSession(userId: string, sessionId: string): Promise<{ paid: boolean; entitlement: Entitlement }> {
+  async confirmCheckoutSession(userId: string, sessionId: string): Promise<{ paid: boolean; entitlement: Entitlement; messagesAdded?: number }> {
     const now = this.now();
     const info = sessionId ? await this.stripe.retrieveCheckoutSession(sessionId) : null;
     if (!info || !info.paid || info.userId !== userId) {
@@ -248,7 +249,9 @@ export class BillingService {
         });
       }
     }
-    return { paid: true, entitlement: await this.entitlement(userId, now) };
+    // [P83] A paid pack: name what it adds ("+1,500 messages added"). The messages themselves are credited by the webhook.
+    const messagesAdded = info.mode === 'payment' && info.topUpOptionId ? packMessages(info.topUpOptionId) : null;
+    return { paid: true, entitlement: await this.entitlement(userId, now), ...(messagesAdded ? { messagesAdded } : {}) };
   }
 
   /**
@@ -332,7 +335,7 @@ export class BillingService {
     // succeeds, in one transaction (creditTopUpOnce). NOT swallowed: a DB failure throws → the webhook
     // returns non-2xx → Stripe retries and credits; a replay after success is a no-op.
     if (event.type === 'checkout.session.completed' && event.mode === 'payment' && event.userId && event.topUpOptionId) {
-      if (this.onTopUp) await this.onTopUp(event.id, event.userId, event.topUpOptionId);
+      if (this.onTopUp) await this.onTopUp(event.id, event.userId, event.topUpOptionId, event.amountTotalFils); // [P83] the amount Stripe charged
       const uid = event.userId;
       if (event.amountTotalFils !== undefined) {
         await this.recordRevenue(async () => ({

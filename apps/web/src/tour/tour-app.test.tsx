@@ -39,7 +39,7 @@ function stub(opts: { tour?: { required: boolean; step: number }; loggedIn?: boo
     if (url.endsWith('/me')) return loggedIn ? json(200, SESSION) : json(401, {});
     if (url.includes('onboarding')) return json(200, SEEDED);
     if (url.includes('/billing/status')) return json(200, { entitled: true, status: 'trialing', trialEndsAt: Date.now() + 14 * 86_400_000, renewsAt: null });
-    if (url.includes('/allowance/status')) return json(200, { percentUsed: 0, exhausted: false, resetAt: null, canTopUp: false, options: [], subscription: 'trialing', extraPercentLeft: 0 });
+    if (url.includes('/allowance/status')) return json(200, { messagesAllowance: 10_000, messagesUsed: 0, messagesTotal: 10_000, messagesLeft: 10_000, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: null, canTopUp: false, options: [], custom: null, subscription: 'trialing' });
     if (/\/clients(\?|$)/.test(url)) return json(200, { clients: [] });
     return json(404, {});
   }));

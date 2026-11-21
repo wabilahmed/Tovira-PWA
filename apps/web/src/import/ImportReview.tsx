@@ -1,3 +1,4 @@
+import { CHOOSE_OWN } from '../usage/usageCopy.js';
 import { useMemo, useState } from 'react';
 import { RepIdentification } from './RepIdentification.js';
 import { SubscribeNow } from '../billing/SubscribeUpsell.js';
@@ -59,12 +60,12 @@ export interface ReviewResult {
   needsRepId: boolean;
 }
 
-/** [RULING 2] The top-up / subscribe upsell for a batch that would exceed the allowance. Carries only
- *  percentage labels + prices (and which option to highlight) — never an AED usage value. */
+/** [RULING 2 → P83] The pack / subscribe upsell for a batch with more messages to read than are left. Packs are named by
+ *  their messages ("+1,500 messages"); no price here (prices are on the purchase screen). */
 export interface TopUpChoice {
   id: string;
   label: string;
-  priceAed: number;
+  messages: number;
 }
 export interface Upsell {
   shortfall: boolean;
@@ -72,6 +73,16 @@ export interface Upsell {
   canTopUp: boolean;
   options: TopUpChoice[];
   recommendedOptionId: string | null;
+  messagesToRead?: number;
+  messagesLeft?: number;
+}
+
+/** "These 3 chats have 3,000 messages to read. You have 500 left this month." */
+export function shortfallLine(u: Upsell): string {
+  if (u.messagesToRead === undefined || u.messagesLeft === undefined) return `Add more messages to import all ${u.n}.`;
+  const g = (x: number) => x.toLocaleString('en-US');
+  const what = u.n === 1 ? 'This chat has' : `These ${u.n} chats have`;
+  return `${what} ${g(u.messagesToRead)} messages to read. You have ${g(u.messagesLeft)} left this month.`;
 }
 
 /** One confirmed instruction per IMPORTED chat. A merge targets an existing client; a new chat carries
@@ -202,7 +213,7 @@ export function ImportReview({ result, onImport, upsell, readingLine, onOpenSubs
       {upsell?.shortfall && (
         <UpsellBanner
           upsell={upsell}
-          lead={`This batch needs more usage than you have left this month. Top up now to import all ${upsell.n}.`}
+          lead={shortfallLine(upsell)}
           onOpenSubscription={onOpenSubscription}
           onSubscribe={onSubscribe}
         />
@@ -227,12 +238,12 @@ export function ImportReview({ result, onImport, upsell, readingLine, onOpenSubs
   );
 }
 
-/** [RULING 2] The top-up (or Subscribe, for a trial) prompt. Prices + percentages only — never a usage
- *  value. The recommended option (smallest covering the shortfall) is highlighted. */
+/** [RULING 2 → P83] The packs (or Subscribe, for a trial). Named by their messages, the recommended one (the smallest
+ *  that covers the shortfall) highlighted, and "Choose your own amount"; each opens the purchase screen. */
 export function UpsellBanner({ upsell, lead, onOpenSubscription, onSubscribe }: {
   upsell: Upsell;
   lead: string;
-  /** [P37] The picker lives only in Settings → Subscription — this opens it. */
+  /** [P37] The purchase screen lives only in Settings → Subscription: this opens it. */
   onOpenSubscription?: () => void;
   onSubscribe?: (plan: Plan) => void;
 }): JSX.Element {
@@ -240,9 +251,14 @@ export function UpsellBanner({ upsell, lead, onOpenSubscription, onSubscribe }: 
     <div role="status" data-testid="bulk-upsell" style={{ border: '1px solid var(--border)', borderRadius: '0.5rem', padding: 'var(--space-3)', display: 'grid', gap: 'var(--space-2)' }}>
       <p style={{ margin: 0 }}>{lead}</p>
       {upsell.canTopUp ? (
-        <button type="button" className="tov-primary" data-testid="topup-recommended" onClick={() => onOpenSubscription?.()} style={{ justifySelf: 'start' }}>
-          Buy more usage
-        </button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+          {upsell.options.map((o) => (
+            <button key={o.id} type="button" data-testid={o.id === upsell.recommendedOptionId ? 'topup-recommended' : `upsell-${o.id}`} className={o.id === upsell.recommendedOptionId ? 'tov-primary' : undefined} onClick={() => onOpenSubscription?.()}>
+              {o.label}
+            </button>
+          ))}
+          <button type="button" data-testid="upsell-custom" onClick={() => onOpenSubscription?.()}>{CHOOSE_OWN}</button>
+        </div>
       ) : (
         <SubscribeNow onSubscribe={onSubscribe} />
       )}

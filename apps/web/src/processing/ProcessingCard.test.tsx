@@ -79,13 +79,14 @@ describe('[P65-3] when it fails', () => {
     await userEvent.setup().click(within(c).getByRole('button', { name: 'Try again' }));
     expect(p.onRetry).toHaveBeenCalledWith('n1');
   });
-  it('the allowance used up: the reason, that it is saved, and the top-up link', async () => {
+  // [P83 · owner] pins moved to messages
+  it('no messages left: the reason, that it is saved, and the Add messages link', async () => {
     const p = show([item({ state: 'held', hold: 'allowance' })]);
     const c = screen.getByTestId('processing-n1');
     expect(c).toHaveTextContent("Tovira couldn't analyse this chat.");
-    expect(c).toHaveTextContent('Your monthly AI allowance is used up.');
-    expect(c).toHaveTextContent('It’s saved. Tovira analyses it as soon as you top up.');
-    await userEvent.setup().click(within(c).getByRole('button', { name: 'Buy more usage' }));
+    expect(c).toHaveTextContent('Importing is paused: no messages left this month.');
+    expect(c).toHaveTextContent('It’s saved. Tovira reads it as soon as you add messages or the month resets.');
+    await userEvent.setup().click(within(c).getByRole('button', { name: 'Add messages' }));
     expect(p.onTopUp).toHaveBeenCalled();
   });
   it('NEGATIVE: a recording that never arrived offers no Try again (there is nothing to read)', () => {

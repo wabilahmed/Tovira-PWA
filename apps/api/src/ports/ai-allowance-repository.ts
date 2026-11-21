@@ -20,7 +20,18 @@ export interface AiMonth {
    *  allowance this window; the meter then reads 100% even if settled spend is below the allowance
    *  (the worst-case estimate over-locks). Cleared by a top-up (and reset by a new window). */
   displayExhausted: boolean;
+  /** [P83] The plan's messages this window (10,000). */
+  messagesAllowance: number;
+  /** [P83] Pack messages available this window: carried in (packs never expire) + bought. */
+  messagesTopup: number;
+  /** [P83] Messages read from imported chats this window (stripped of chatter). Notes never count. */
+  messagesUsed: number;
+  /** [P83] The messages the last pack added this window ("+1,500 messages added"), or null. */
+  lastTopupMessages: number | null;
 }
+
+/** [P83] The outcome of counting a chat's messages: counted now, already counted (a retry), or not enough left. */
+export type MessageChargeResult = 'charged' | 'already' | 'insufficient';
 
 export interface ReserveResult {
   ok: boolean;
@@ -36,7 +47,11 @@ export interface GlobalSpendResult {
 export interface AiAllowanceRepository {
   /** Ensure this window's row exists, carrying forward the previous window's REMAINING top-up (D7/D8).
    *  Idempotent: an existing row is returned unchanged. */
-  ensureMonth(userId: string, periodKey: string, periodStartMs: number, allowanceAed: number): Promise<AiMonth>;
+  ensureMonth(userId: string, periodKey: string, periodStartMs: number, allowanceAed: number, messagesAllowance?: number): Promise<AiMonth>;
+
+  /** [P83] Count an imported chat's messages against this window, ONCE per note, atomically: succeeds only if
+   *  used + messages <= allowance + topup. A note already counted returns 'already' and changes nothing. */
+  chargeMessages(userId: string, periodKey: string, noteId: string, messages: number): Promise<MessageChargeResult>;
 
   /** Atomically reserve `estimateAed` against this window. Succeeds ONLY if
    *  spent + reserved + estimate <= allowance + topup, as a single conditional update. On success the
@@ -54,7 +69,7 @@ export interface AiAllowanceRepository {
   expireStale(nowMs: number): Promise<number>;
 
   /** Credit a confirmed top-up to this window (D6/D12): raises available, so the meter's % drops (D8). */
-  topUp(userId: string, periodKey: string, addedAed: number): Promise<void>;
+  topUp(userId: string, periodKey: string, addedAed: number, addedMessages?: number): Promise<void>;
 
   /** [FIX 5] Credit a top-up EXACTLY ONCE for a Stripe event, atomically. In ONE transaction: record the
    *  event as processed (insert-gated on `eventId`) AND credit the window. Returns true if it credited,
@@ -68,6 +83,8 @@ export interface AiAllowanceRepository {
     periodStartMs: number,
     allowanceAed: number,
     addedAed: number,
+    /** [P83] The pack's messages (also recorded as the window's lastTopupMessages). */
+    addedMessages?: number,
   ): Promise<boolean>;
 
   /** The current window row, for the meter. null if none yet. */

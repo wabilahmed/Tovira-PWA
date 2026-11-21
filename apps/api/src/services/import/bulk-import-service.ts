@@ -20,7 +20,7 @@ import { dedupeMessages, renderThread } from './dedup.js';
 import { assignSpeakerRoles } from './unanswered.js';
 import { redactMessages } from '../redaction/redact.js';
 import { screenPrecise } from '../screening/precise-screen.js';
-import { estimateBulkAed, percentOfAllowance } from './bulk-estimate.js';
+import { estimateBulkAed } from './bulk-estimate.js';
 import { messagesToRead, piecesFor, minutesFor, readingLine } from './reading-estimate.js';
 import { isTooLong } from './long-chat.js';
 import { BulkExtractionOrchestrator, type ChatJob } from './bulk-extraction.js';
@@ -65,7 +65,6 @@ export interface BulkImportSummary {
 export interface BulkParseOutcome {
   result: BulkParseResult;
   estimateAed: number;
-  percentOfAllowance: number;
   /** [P82-B] What the rep sees before Import: the stripped messages to read and the minutes, as one line. */
   reading?: { messages: number; minutes: number; chats: number; line: string };
 }
@@ -149,7 +148,7 @@ export class BulkImportService {
     const pieces = reading.reduce((n, r) => n + piecesFor(r.messagesToRead ?? 0), 0);
     const minutes = minutesFor(pieces, this.deps.batch ? 'batch' : 'live');
     const readingSummary = { messages, minutes, chats: reading.length, line: readingLine({ messages, minutes }, reading.length) };
-    return { result, estimateAed, percentOfAllowance: percentOfAllowance(estimateAed, this.deps.allowanceAed), reading: readingSummary };
+    return { result, estimateAed, reading: readingSummary }; // [P83] no percentage of an allowance leaves the server
   }
 
   /** Redact + screen each message exactly as the import pipeline does, so dedupe compares like-for-like. */

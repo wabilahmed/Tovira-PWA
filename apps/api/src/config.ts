@@ -29,54 +29,101 @@ export type EmailProvider = 'stub' | 'ses' | 'resend';
 export const DEFAULT_MONTHLY_AI_ALLOWANCE_AED = 60;
 
 /**
- * [USAGE-ALLOWANCE · D6 → P37] One-time top-up products. The rule (owner, 20 Oct): "AED 1 buys 1% of your monthly
- * allowance". Each pack is {priceAed, percent}; the allowance it adds is percent × the monthly allowance AT THE
- * TIME OF PURCHASE (topUpCreditAed), so the rule holds if the allowance changes. Top-ups never expire and are
- * spent only after the monthly allowance (D7); buying one drops the meter (D8). Subscribers only (D10).
+ * [P83 · owner, 21 Nov] Messages are what a rep buys and sees. AED 299 a month = MONTHLY_MESSAGES messages read from
+ * imported chats (stripped: reading-estimate.ts messagesToRead). Notes and voice notes do not count. The AED gate above
+ * (DEFAULT_MONTHLY_AI_ALLOWANCE_AED) stays the real money limit behind it.
+ */
+export const MONTHLY_MESSAGES = 10_000;
+export const PLAN_PRICE_AED = 299;
+/** The plan's rate, AED per 1,000 messages (299 / 10 rounded up): no pack is ever sold below it. */
+export const PLAN_RATE_AED_PER_1000 = 30;
+
+/**
+ * [USAGE-ALLOWANCE · D6 → P37 → P83] One-time packs of messages. Each adds its messages to the rep's balance, and the
+ * same share of AED gate headroom as the plan (packGateAed), so the money gate never stops a rep who still has paid
+ * messages. Packs never expire and are used only after the month's messages. Subscribers only (D10).
  */
 export interface TopUpOption {
   id: string;
-  /** Allowance (AI cost, AED) this top-up adds at the DEFAULT allowance — for server-side shortfall maths only. */
-  addedAed: number;
-  /** What the rep pays, AED. */
+  /** Messages this pack adds. */
+  messages: number;
+  /** What the rep pays, AED (shown only on the purchase screen and at checkout). */
   priceAed: number;
-  /** Share of the monthly allowance, for the label (e.g. '+50%'). */
+  /** "+1,500 messages". */
   label: string;
 }
-/** [P37] The packs on sale. */
-export const TOP_UP_PACKS: ReadonlyArray<{ id: string; priceAed: number; percent: number }> = [
-  { id: 'topup_50', priceAed: 50, percent: 50 },
-  { id: 'topup_100', priceAed: 100, percent: 100 },
-  { id: 'topup_150', priceAed: 150, percent: 150 },
+/** [P83] The packs on sale (ids kept from P37, so a checkout opened before the change still credits). */
+export const TOP_UP_PACKS: ReadonlyArray<{ id: string; priceAed: number; messages: number }> = [
+  { id: 'topup_50', priceAed: 50, messages: 1500 },
+  { id: 'topup_100', priceAed: 100, messages: 3000 },
+  { id: 'topup_150', priceAed: 150, messages: 5000 },
 ];
-/** [P37] Retired packs (AED 50 +15%, AED 65 +25%, AED 100 +75%): never sold again (refused at checkout), but a
- *  checkout opened before the change still credits what it was sold for when its webhook lands. (The retired
- *  AED 85 +50% and AED 120 +100% shared ids with today's packs and credit the same share.) */
+/** [P37] Retired packs (sold as a share of the month): never sold again, but a checkout opened before the change still
+ *  credits its share of the month, now in messages. */
 const RETIRED_TOP_UP_PERCENT: Readonly<Record<string, number>> = { topup_15: 15, topup_25: 25, topup_75: 75 };
 
-export const TOP_UP_OPTIONS: readonly TopUpOption[] = TOP_UP_PACKS.map(({ id, priceAed, percent }) => ({
-  id,
-  addedAed: (DEFAULT_MONTHLY_AI_ALLOWANCE_AED * percent) / 100, // 60 → 30 / 60 / 90
-  priceAed,
-  label: `+${percent}%`,
+/** "1,500" (en-US grouping, the app's number style). */
+export const groupNumber = (n: number): string => n.toLocaleString('en-US');
+
+export const TOP_UP_OPTIONS: readonly TopUpOption[] = TOP_UP_PACKS.map(({ id, priceAed, messages }) => ({
+  id, messages, priceAed, label: `+${groupNumber(messages)} messages`,
 }));
-/** A pack that can be BOUGHT now (checkout). */
-export function topUpOptionById(id: string): TopUpOption | undefined {
-  return TOP_UP_OPTIONS.find((o) => o.id === id) ?? retiredOption(id);
-}
-/** [P37] Only the packs on sale — the checkout endpoint accepts nothing else. */
+/** [P37] Only the fixed packs on sale. */
 export function purchasableTopUp(id: string): TopUpOption | undefined {
   return TOP_UP_OPTIONS.find((o) => o.id === id);
 }
-function retiredOption(id: string): TopUpOption | undefined {
-  const percent = RETIRED_TOP_UP_PERCENT[id];
-  return percent === undefined ? undefined : { id, addedAed: (DEFAULT_MONTHLY_AI_ALLOWANCE_AED * percent) / 100, priceAed: 0, label: `+${percent}%` };
+
+/**
+ * [P83 · owner] The custom pack: the rep types how many messages; the SERVER prices it (never the browser). 1,000 to
+ * 50,000 in steps of 500, AED 33 per 1,000 up to 4,999 and AED 30 per 1,000 from 5,000. Every valid amount is a whole
+ * number of fils, so the price is exact (no rounding).
+ */
+export const CUSTOM_PACK = { min: 1000, max: 50_000, step: 500, bands: [{ from: 1000, filsPer1000: 3300 }, { from: 5000, filsPer1000: 3000 }] } as const;
+export function customPackRateFilsPer1000(messages: number): number {
+  let rate: number = CUSTOM_PACK.bands[0].filsPer1000;
+  for (const b of CUSTOM_PACK.bands) if (messages >= b.from) rate = b.filsPer1000;
+  return rate;
 }
-/** [P37] The allowance (AED) a confirmed top-up credits: its percent × the monthly allowance at purchase time.
- *  Covers retired pack ids too, so a checkout opened before the change is never lost. Null for an unknown id. */
-export function topUpCreditAed(id: string, monthlyAllowanceAed: number): number | null {
-  const percent = TOP_UP_PACKS.find((p) => p.id === id)?.percent ?? RETIRED_TOP_UP_PERCENT[id];
-  return percent === undefined ? null : (monthlyAllowanceAed * percent) / 100;
+export function customPackCheck(messages: number): { ok: true } | { ok: false; message: string } {
+  if (typeof messages !== 'number' || !Number.isFinite(messages)) return { ok: false, message: `Type how many messages you want, from ${groupNumber(CUSTOM_PACK.min)} to ${groupNumber(CUSTOM_PACK.max)}.` };
+  if (messages < CUSTOM_PACK.min) return { ok: false, message: `The smallest amount is ${groupNumber(CUSTOM_PACK.min)} messages.` };
+  if (messages > CUSTOM_PACK.max) return { ok: false, message: `The largest amount is ${groupNumber(CUSTOM_PACK.max)} messages.` };
+  if (!Number.isInteger(messages) || messages % CUSTOM_PACK.step !== 0) {
+    const lo = Math.floor(messages / CUSTOM_PACK.step) * CUSTOM_PACK.step;
+    return { ok: false, message: `Choose a number in steps of ${CUSTOM_PACK.step} (for example ${groupNumber(lo)} or ${groupNumber(lo + CUSTOM_PACK.step)}).` };
+  }
+  return { ok: true };
+}
+/** The exact price of a custom pack, in fils. Throws for an amount that may not be sold. */
+export function customPackPriceFils(messages: number): number {
+  const c = customPackCheck(messages);
+  if (!c.ok) throw new Error(c.message);
+  return (messages * customPackRateFilsPer1000(messages)) / 1000; // a multiple of 500 × 3,300 or 3,000 / 1,000: whole fils
+}
+export const customPackId = (messages: number): string => `custom_${messages}`;
+
+/** [P83] The messages a confirmed pack credits: a fixed pack, a retired pack (its share of the month), or a valid custom
+ *  pack. Null for anything else (never credited). */
+export function packMessages(id: string): number | null {
+  const fixed = TOP_UP_PACKS.find((p) => p.id === id);
+  if (fixed) return fixed.messages;
+  const pct = RETIRED_TOP_UP_PERCENT[id];
+  if (pct !== undefined) return (MONTHLY_MESSAGES * pct) / 100;
+  const m = /^custom_(\d+)$/.exec(id);
+  if (m) { const n = Number(m[1]); return customPackCheck(n).ok ? n : null; }
+  return null;
+}
+/** [P83] The price of a pack in fils as the server sets it (fixed or custom); null if it may not be sold. */
+export function packPriceFils(id: string): number | null {
+  const fixed = TOP_UP_PACKS.find((p) => p.id === id);
+  if (fixed) return fixed.priceAed * 100;
+  const m = /^custom_(\d+)$/.exec(id);
+  if (m && customPackCheck(Number(m[1])).ok) return customPackPriceFils(Number(m[1]));
+  return null;
+}
+/** [P83] The AED gate headroom a pack adds: its messages at the plan's ratio (AED 60 per 10,000 = AED 0.006 a message). */
+export function packGateAed(messages: number, monthlyAllowanceAed: number, monthlyMessages: number): number {
+  return monthlyMessages > 0 ? (messages * monthlyAllowanceAed) / monthlyMessages : 0;
 }
 
 /**
@@ -235,6 +282,8 @@ export interface AppConfig {
    *  after the two-call pointer split raised per-import cost. Overridable via MONTHLY_AI_ALLOWANCE_AED;
    *  the default (DEFAULT_MONTHLY_AI_ALLOWANCE_AED) IS the product value. */
   monthlyAiAllowanceAed: number;
+  /** [P83] Messages a month on the plan (MONTHLY_MESSAGES env, default 10,000). */
+  monthlyMessages: number;
   /** [USAGE-ALLOWANCE · D13] Global monthly AI-spend ALERT threshold. When total spend this calendar
    *  month crosses it, the owner is emailed ONCE. It NEVER blocks or pauses anything (the global ceiling
    *  was removed). Derivation: beta of ~3 reps × AED 40 + founder testing + headroom; raise deliberately
@@ -362,11 +411,12 @@ export function loadConfig(env: Env = process.env): AppConfig {
     trialDays: parsePositive(env.TRIAL_DAYS, DEFAULT_TRIAL_DAYS, 'TRIAL_DAYS'),
     trialExtractionCeiling: parsePositive(env.TRIAL_EXTRACTION_CEILING, 100, 'TRIAL_EXTRACTION_CEILING'),
     paidExtractionCeiling: parsePositive(env.PAID_EXTRACTION_CEILING, 2000, 'PAID_EXTRACTION_CEILING'),
-    spendCapAed: parsePositive(env.SPEND_CAP_AED, 45, 'SPEND_CAP_AED'),
+    spendCapAed: parsePositive(env.SPEND_CAP_AED, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, 'SPEND_CAP_AED'), // [P83] matches the gate (60)
     sweepConcurrency: parsePositive(env.SWEEP_CONCURRENCY, 5, 'SWEEP_CONCURRENCY'),
     trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, 20, 'TRIAL_SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     monthlyAiAllowanceAed: parsePositive(env.MONTHLY_AI_ALLOWANCE_AED, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, 'MONTHLY_AI_ALLOWANCE_AED'),
+    monthlyMessages: parsePositive(env.MONTHLY_MESSAGES, MONTHLY_MESSAGES, 'MONTHLY_MESSAGES'),
     aiSpendAlertAed: parsePositive(env.AI_SPEND_ALERT_AED, 300, 'AI_SPEND_ALERT_AED'),
     aiPaused: env.AI_PAUSED?.trim() === 'true', // default false (undefined → not paused)
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),
