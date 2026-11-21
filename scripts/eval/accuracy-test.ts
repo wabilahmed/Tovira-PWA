@@ -3,7 +3,7 @@
  * its answer key by the rules in plan/accuracy-test/README.md. Fictional people, so outputs are kept and may be committed.
  *
  *   One command, extract + score (Message Batches API, half price; needs ANTHROPIC_API_KEY, the eval key):
- *     npx tsx scripts/eval/accuracy-test.ts run --label v097 --runs 2 [--cap 10] [--src apps/api/src] [--profile v010]
+ *     npx tsx scripts/eval/accuracy-test.ts run --label v097 --runs 2 [--cap 10] [--size 200] [--src apps/api/src] [--profile v010]
  *   Score saved outputs again (free):
  *     npx tsx scripts/eval/accuracy-test.ts score plan/accuracy-test/runs/v097-1.json plan/accuracy-test/runs/v097-2.json
  *
@@ -31,7 +31,7 @@ const TODAY = '2026-11-21';
 type Obj = Record<string, unknown>;
 type Extraction = Obj & { promises?: Obj[]; people?: Obj[]; personal_facts?: Obj[]; key_dates?: Obj[]; requirements?: Obj[]; concerns?: string[]; next_steps?: string[]; meeting?: Obj | null; budget?: Obj[]; decision_process?: Obj[]; situation?: Obj[] };
 interface Row { id: string; difficulty: string; msg_number: string; timestamp: string; sender: string; message_text: string; 'field_v0.9.7': string; 'field_v0.10': string; expected: string; expected_date: string; date_raw: string; must_not_store: string; notes: string }
-interface RunFile { meta: { label: string; run: number; prompt: string; prefilter: string; pieces: number; calls: number; failedCalls: number; aed: number; thinkingPerPiece: number; thinkingMax: number; batchSeconds: number }; extracted: Extraction | null }
+interface RunFile { meta: { label: string; run: number; size?: number; prompt: string; prefilter: string; pieces: number; calls: number; failedCalls: number; aed: number; thinkingPerPiece: number; thinkingMax: number; batchSeconds: number }; extracted: Extraction | null }
 
 // ── the key ────────────────────────────────────────────────────────────────────────────────────────────────────────
 function parseCsv(text: string): Row[] {
@@ -115,7 +115,8 @@ const TRAPS: Record<string, (e: Extraction, all: string) => boolean> = {
   N02: (_e, all) => /umrah/i.test(all),
   N03: (_e, all) => /784[- ]?1988|1234567/.test(all),
   N04: (e) => /universit/i.test(anywhereBut(e, [])), // the rep's own fact, in any field
-  N05: (e) => /spain/i.test(anywhereBut(e, ['next_steps'])), // must not be stored; only a (low) next step is acceptable
+  // [owner, 21 Nov] a violation only as a requirement or a promise; a (low-confidence) next step, or a personal fact, is not
+  N05: (e) => [...items(e, 'requirements'), ...items(e, 'promises')].some((x) => /spain/i.test(text(x))),
   N06: (e) => items(e, 'requirements').some((x) => /colleague/i.test(text(x))) || items(e, 'people').some((x) => /colleague/i.test(text(x))),
   N07: (e) => storedDates(e).some((d) => d.date !== null && /05\/06/.test(d.raw ?? '')),
   N08: (e) => items(e, 'requirements').some((x) => /jvc/i.test(text(x))),
@@ -247,7 +248,9 @@ async function run(args: Map<string, string>): Promise<string[]> {
   const { PROMPT_VERSION } = await imp('services/extraction/prompt.ts');
   const profile = args.get('profile') === 'v010' ? (await imp('services/extraction/prompt-profile.ts')).PROMPT_V010_DRAFT : undefined;
   const hasPrefilter = existsSync(`${SRC}/services/import/chatter-filter.ts`) && (profile ? profile.prefilter : readFileSync(`${SRC}/services/extraction/extraction-service.ts`, 'utf8').includes('[P81-1'));
-  const config = { ...loadConfig(), windowing: { ...loadConfig().windowing, enabled: true } };
+  // --size: the piece size (overlap stays 20); default the production setting
+  const size = args.get('size') ? Number(args.get('size')) : undefined;
+  const config = { ...loadConfig(), windowing: { ...loadConfig().windowing, enabled: true, ...(size ? { size, overlap: 20 } : {}) } };
   const P = AI_PRICES.anthropic[config.anthropicModel];
   const aed = (u: Obj) => 0.5 * USD_TO_AED * (((u.input_tokens as number) ?? 0) * P.inputPerMTok + ((u.output_tokens as number) ?? 0) * P.outputPerMTok + ((u.cache_read_input_tokens as number) ?? 0) * P.cacheReadPerMTok + ((u.cache_creation_input_tokens as number) ?? 0) * P.cacheWritePerMTok) / 1e6;
 
@@ -314,7 +317,7 @@ async function run(args: Map<string, string>): Promise<string[]> {
     };
     const extracted = await extractOnce();
     const think = usages.map((u) => ((u.output_tokens_details as Obj | undefined)?.thinking_tokens as number) ?? 0);
-    const out: RunFile = { meta: { label, run: r + 1, prompt: profile?.version ?? PROMPT_VERSION, prefilter: hasPrefilter ? 'on' : 'off', pieces, calls, failedCalls: failed, aed: +usages.reduce((n, u) => n + aed(u), 0).toFixed(3), thinkingPerPiece: Math.round(think.reduce((a, b) => a + b, 0) / Math.max(1, think.length)), thinkingMax: Math.max(0, ...think), batchSeconds: Math.round((Date.now() - t0) / 1000) }, extracted: extracted as Extraction | null };
+    const out: RunFile = { meta: { label, run: r + 1, size: config.windowing.size, prompt: profile?.version ?? PROMPT_VERSION, prefilter: hasPrefilter ? 'on' : 'off', pieces, calls, failedCalls: failed, aed: +usages.reduce((n, u) => n + aed(u), 0).toFixed(3), thinkingPerPiece: Math.round(think.reduce((a, b) => a + b, 0) / Math.max(1, think.length)), thinkingMax: Math.max(0, ...think), batchSeconds: Math.round((Date.now() - t0) / 1000) }, extracted: extracted as Extraction | null };
     const f = `${DIR}/runs/${label}-${r + 1}.json`;
     writeFileSync(f, JSON.stringify(out, null, 1));
     files.push(f);
@@ -337,7 +340,7 @@ async function report(files: string[], src: string): Promise<void> {
     const total = Object.values(s.found).length - 1; // O06 superseded
     const got = Object.entries(s.found).filter(([id, v]) => v && !M[id]!.superseded).length;
     const d = (v: string) => s.dates.filter((x) => x.verdict === v).length;
-    lines.push(`## ${r.meta.label} run ${r.meta.run} (${r.meta.prompt}, pre-filter ${r.meta.prefilter})`,
+    lines.push(`## ${r.meta.label} run ${r.meta.run} (${r.meta.prompt}, pre-filter ${r.meta.prefilter}, pieces of ${r.meta.size ?? 120})`,
       `- AED ${r.meta.aed} (batch price) · ${r.meta.pieces} pieces · thinking per piece ${r.meta.thinkingPerPiece} (max ${r.meta.thinkingMax}) · failed calls ${r.meta.failedCalls}`,
       `- Recall ${got}/${total} = ${Math.round((got / total) * 100)}% · by difficulty ${JSON.stringify(s.byDifficulty)}`,
       `- By field ${JSON.stringify(s.byField)}`,
@@ -386,5 +389,5 @@ async function chatCache(src: string): Promise<void> {
 const src = args.get('src') ?? 'apps/api/src';
 if (cmd === 'run') { await chatCache(src); const files = await run(args); await report(files, src); }
 else if (cmd === 'score') { await chatCache(src); await report(paths.map((p) => resolve(p)), src); }
-else { console.log(`usage:\n  npx tsx scripts/eval/accuracy-test.ts run --label <name> --runs <n> [--cap AED] [--src <tree>/apps/api/src] [--profile v010]\n  npx tsx scripts/eval/accuracy-test.ts score <run.json>...`); process.exitCode = 2; }
+else { console.log(`usage:\n  npx tsx scripts/eval/accuracy-test.ts run --label <name> --runs <n> [--cap AED] [--size N] [--src <tree>/apps/api/src] [--profile v010]\n  npx tsx scripts/eval/accuracy-test.ts score <run.json>...`); process.exitCode = 2; }
 void basename;

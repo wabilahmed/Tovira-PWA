@@ -41,7 +41,7 @@ X05,obscure,912,2026-06-29 19:19:00,client,my dad is helping with the down payme
 X06,obscure,941,2026-07-03 22:15:00,client,oh and I'll ask the bank for that valuation report thing,promises,promises,Client: ask bank for valuation report,,,,"Casual promise, no date"
 M13,moderate,957,2026-07-06 11:25:00,rep,Let me check with the landlord and I'll confirm by Wednesday,promises,promises,Rep: confirm with landlord,2026-07-08,by Wednesday,,due resolves to 2026-07-08
 M14,moderate,996,2026-07-10 19:48:00,client,we're also talking to another agent tbh,concerns,concerns,Also working with another agent (competition),,,,
-N05,trap,1014,2026-07-12 22:50:00,client,maybe one day we'll buy a villa in Spain,NONE,NONE,"Not a requirement, not a promise (vague someday)",,,YES,A low-confidence next step is acceptable
+N05,trap,1014,2026-07-12 22:50:00,client,maybe one day we'll buy a villa in Spain,NONE,NONE,"Not a requirement, not a promise (vague someday)",,,,"Owner, 21 Nov: NOT a violation if stored as a low-confidence next step; a violation if stored as a requirement or a promise"
 M15,moderate,1041,2026-07-16 20:20:00,client,honestly the last place we saw felt really dark,personal_facts,personal_facts,Wants natural light (disliked a dark flat),,,,Implied preference
 X08,obscure,1069,2026-07-19 23:40:00,client,"the one near the highway, I could hear trucks all night, no way",concerns,concerns,Doesn't want road noise / wants a quiet location,,,,
 M16,moderate,1097,2026-07-22 08:40:00,client,Karim's fine with anything as long as there's a gym in the building,requirements,requirements,Gym in the building,,,,
