@@ -103,3 +103,13 @@ can't be reached.
     they work whatever the totals are. The page sends the bucket from score and total; the API accepts the new five;
     a new migration replaces the CHECK (keep the old values readable, or map them, for the rows already stored); the
     Funnel card's bucket labels follow. Tests first, as usual.
+
+## [P83-6] "end of month" resolves today; the owner's note says it should stay null (needs an owner decision)
+Owner, 21 Nov: "end of month must stay null (vague phrase; key M07)". The resolver does NOT leave it null today:
+resolve-date.ts tryRelative has resolved "end of month" / "end of the month" (also after "by") to the last day of the
+message's month since P16/P18, and the certified prompt (rule 2) lists "end of month" as a relative phrase to resolve.
+So M07 ("if the bank approves by end of month we'll sign", sent 27 May) stores 2026-05-31 today. The same batch said
+not to change anything that already resolves, so P83-6 left it as it is.
+  - To decide: should "end of month" go to null + "date to confirm" (one line in tryRelative, plus a test from M07)?
+    The answer key's M07 note says null; the prompt's rule 2 says resolve. Both touch what the gate scores
+    (resolve-date.ts is in the gate's import graph), so a change runs the gate.

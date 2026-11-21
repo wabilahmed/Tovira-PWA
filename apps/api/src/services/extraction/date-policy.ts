@@ -1,5 +1,5 @@
 import type { ExtractedPromise, KeyDate, Meeting } from './types.js';
-import { resolveDueDate, extractClockTime } from './resolve-date.js';
+import { resolveDueDate, extractClockTime, FULL_WRITTEN_DATE } from './resolve-date.js';
 
 /**
  * [P40-1] The one rule for every date Tovira stores from an extraction: it comes from the deterministic resolver
@@ -7,7 +7,7 @@ import { resolveDueDate, extractClockTime } from './resolve-date.js';
  * phrase is kept, and the item is marked "date to confirm" — the rep answers it in Needs your answer.
  *
  * The one exception: the model's date stands when the receipt quote itself carries that exact explicit date
- * ("25/04/2026", "2026-04-25") and the resolver reads that text as the same date. A date without a year
+ * ("25/04/2026", "2026-04-25", "25 April 2026") and the resolver reads that text as the same date. A date without a year
  * ("25 April") is not readable without guessing, so it never qualifies.
  *
  * Before P40 the write path used `resolved ?? model` — the P39 "Sunday morning" → 20 Oct bug was that fallback.
@@ -19,7 +19,9 @@ const EXPLICIT = /\b\d{1,2}[./-]\d{1,2}[./-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/g;
 /** Every explicit date the resolver can read in a quote (YYYY-MM-DD). */
 function explicitDatesIn(quote: string | null | undefined, dayFirst: boolean): string[] {
   if (!quote) return [];
-  return [...quote.matchAll(EXPLICIT)].map((m) => resolveDueDate(m[0], null, { dayFirst }).date).filter((d): d is string => d !== null);
+  // [P83-6] A date written with a month name and a year ("30 June 2026") is as explicit as "30/06/2026".
+  const found = [...quote.matchAll(EXPLICIT), ...quote.matchAll(FULL_WRITTEN_DATE)].map((m) => m[0]);
+  return found.map((t) => resolveDueDate(t, null, { dayFirst }).date).filter((d): d is string => d !== null);
 }
 
 function trusted(resolved: string | null | undefined, model: string | null, raw: string | null, quote: string | null | undefined, dayFirst: boolean): TrustedDate {
