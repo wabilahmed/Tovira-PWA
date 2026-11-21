@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   const modelId = config.models.extraction;
   const cap = SpendCap.fromEnv(process.env);
   const real = createModelClient(config, 'extraction');
-  const model: ModelClient = { complete: async (r) => { const res = await real.complete(r); cap.add(modelId, res.usage ?? { inputTokens: 0, outputTokens: 0 }); return res; } };
+  const model: ModelClient = { complete: async (r) => { cap.guard(modelId, r); const res = await real.complete(r); cap.add(modelId, res.usage ?? { inputTokens: 0, outputTokens: 0 }); return res; } };
   const ids = process.env.FAB_DIAG_ONLY?.split(',');
   let fab = 0;
   const repeat = Math.max(1, Number(process.env.FAB_DIAG_REPEAT ?? 1));

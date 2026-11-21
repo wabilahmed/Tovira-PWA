@@ -136,6 +136,7 @@ async function main(): Promise<void> {
   const spendCap = SpendCap.fromEnv(process.env);
   const model: ModelClient = {
     complete: async (req) => {
+      spendCap.guard(modelId, req); // [P83-9] a capped run never sends a call that could pass the cap
       const res = await realModel.complete(req);
       const u = res.usage ?? { inputTokens: 0, outputTokens: 0 };
       budget.record('extraction', modelId, u);
