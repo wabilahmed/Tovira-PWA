@@ -6,7 +6,7 @@ import type { HeroService } from '../hero/hero-service.js';
 import { isActivePromise } from '../facts/promise-lifecycle.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
-import { budgetAmount, primaryRequirement, requirementDue, requirementFacets, requirementMonthMention, requirementTopic, summarizeRequirements } from '../clients/requirement-summary.js';
+import { budgetAmount, primaryRequirement, requirementDue, requirementFacets, requirementMonthMention, requirementTopic, summarizeRequirements, currentRequirements } from '../clients/requirement-summary.js';
 
 /**
  * [P39-7] Find: fixed questions with fixed answers, read from what is STORED — clients, promises, requirements,
@@ -289,6 +289,7 @@ export class FindService {
     const perClient = new Map<string, RequirementRecord[]>();
     const live = new Set(clients.filter((c) => !isClosed(c)).map((c) => c.id));
     for (const req of open) if (live.has(req.clientId)) perClient.set(req.clientId, [...(perClient.get(req.clientId) ?? []), req]);
+    for (const [id, reqs] of perClient) perClient.set(id, currentRequirements(reqs)); // [P83-8] only the latest count shows
     return { clients, perClient };
   }
 
