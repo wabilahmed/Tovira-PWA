@@ -22,6 +22,7 @@ import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/au
 import { BulkImportService } from './services/import/bulk-import-service.js';
 import { BulkBatchNotifier } from './services/import/bulk-batch-notifier.js';
 import { withClaimHeartbeat } from './services/import/claim-heartbeat.js';
+import { OnboardingAllowance } from './services/spend/onboarding-allowance.js';
 import { KeptSuggestionService } from './services/promises/kept-suggestion-service.js';
 import { BulkBatchRetentionService, BULK_BATCH_TTL_MS } from './services/import/bulk-batch-retention.js';
 import { BulkUpsellService } from './services/import/bulk-upsell.js';
@@ -318,7 +319,11 @@ async function main(): Promise<void> {
   const aiAlertSender = createEmailSender(config);
   const aiBillingWindowFor = (uid: string) =>
     billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart }));
+  // [P81-3 · owner] the one-time AED 20 import allowance for an account's first 14 days (separate from the month)
+  const onboardingUsers = new PgUserRepository(appPool);
+  const onboarding = new OnboardingAllowance({ allowance: aiAllowance, accountStartFor: async (uid) => (await onboardingUsers.findById(uid))?.createdAt ?? null });
   const aiGate = new AiGate({
+    onboarding,
     allowance: aiAllowance,
     allowanceAed: config.monthlyAiAllowanceAed,
     alertThresholdAed: config.aiSpendAlertAed,
@@ -339,8 +344,8 @@ async function main(): Promise<void> {
   // [USAGE-ALLOWANCE · D4] The rep-facing status + the pre-call "is AI stopped?" check used by import,
   // questions, and the scheduled AI jobs so they refuse/skip up front instead of calling a model to
   // discover it.
-  const allowanceStatus = new AllowanceStatusService({ allowance: aiAllowance, allowanceAed: config.monthlyAiAllowanceAed, billingWindowFor: aiBillingWindowFor });
-  const aiExhausted = (uid: string) => allowanceStatus.isExhausted(uid);
+  const allowanceStatus = new AllowanceStatusService({ allowance: aiAllowance, allowanceAed: config.monthlyAiAllowanceAed, billingWindowFor: aiBillingWindowFor, onboarding });
+  const aiExhausted = (uid: string, kind?: 'import' | 'extraction') => allowanceStatus.isExhausted(uid, { forImport: kind === 'import' });
   // [USAGE-ALLOWANCE · D12] Credit a confirmed top-up to the rep's current window (idempotent via the
   // webhook_events dedupe). Set here because the allowance repo is built after billing.
   billing.setTopUpHandler(async (eventId, userId, optionId) => {
@@ -675,7 +680,7 @@ async function main(): Promise<void> {
     notes,
     extract: (u, id, today) => (bulkRouter ? bulkClaimAndExtract(u, id, today) : claimAndExtract(u, id, today)),
     batch: !!bulkRouter, // [P81-2]
-    isExhausted: aiExhausted,
+    isExhausted: (uid: string) => aiExhausted(uid, 'import'), // [P81-3] the onboarding allowance counts for imports
     isPaused: () => pauseFlag.paused(),
     concurrency: bulkConcurrency(config.sweepConcurrency),
     longChatLimit: longChatLimit(config.windowing.enabled), // [P67-1]

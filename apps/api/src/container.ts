@@ -682,7 +682,7 @@ export function createExtractionService(
   requirements?: RequirementRepository,
   matching?: MatchingService,
   importCost?: ImportCostMetrics,
-  allowanceExhausted?: (userId: string) => Promise<boolean>,
+  allowanceExhausted?: (userId: string, kind?: 'import' | 'extraction') => Promise<boolean>, // [P81-3]
   aliasesFor?: (userId: string, clientId: string) => Promise<ExtractionAlias[]>,
   health?: { recordStarvedOutput(): void },
   verifiedGate?: { isVerified(userId: string): Promise<boolean> },

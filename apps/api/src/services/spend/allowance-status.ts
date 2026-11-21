@@ -1,3 +1,4 @@
+import type { OnboardingAllowance } from './onboarding-allowance.js';
 import type { AiAllowanceRepository } from '../../ports/ai-allowance-repository.js';
 import { allowanceWindow, type AllowanceWindowInput } from './ai-period.js';
 
@@ -25,6 +26,8 @@ export interface AllowanceStatus {
   /** [P37] The top-up balance still unspent, as a whole % of the monthly allowance (rounded down) — "Extra
    *  usage: +80% left (never expires)". The month is used first, so this only falls once the month is spent. */
   extraPercentLeft: number;
+  /** [P81-3] The onboarding import allowance left (AED), or null outside the account's first 14 days. */
+  importAllowanceLeftAed: number | null;
 }
 
 export interface AllowanceStatusDeps {
@@ -32,6 +35,7 @@ export interface AllowanceStatusDeps {
   allowanceAed: number;
   billingWindowFor: (userId: string) => Promise<AllowanceWindowInput>;
   now?: () => number;
+  onboarding?: OnboardingAllowance;
 }
 
 // Floating-point slack: treat headroom within a thousandth of a fil as gone.
@@ -66,11 +70,15 @@ export class AllowanceStatusService {
       extraPercentLeft: m.allowanceAed > 0
         ? Math.floor((Math.max(0, m.topupAed - Math.max(0, m.spentAed - m.allowanceAed)) / m.allowanceAed) * 100 + 1e-9)
         : 0,
+      importAllowanceLeftAed: this.deps.onboarding ? await this.deps.onboarding.leftAed(userId) : null,
     };
   }
 
   /** The pre-call gate used by import/questions/jobs: has this rep's AI stopped? */
-  async isExhausted(userId: string): Promise<boolean> {
-    return (await this.status(userId)).exhausted;
+  async isExhausted(userId: string, opts: { forImport?: boolean } = {}): Promise<boolean> {
+    const s = await this.status(userId);
+    // [P81-3] an import may still run on the onboarding allowance while the month is used up
+    if (s.exhausted && opts.forImport && (s.importAllowanceLeftAed ?? 0) > EPS) return false;
+    return s.exhausted;
   }
 }
