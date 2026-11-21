@@ -59,3 +59,11 @@ export function allowanceWindow(w: AllowanceWindowInput, nowMs: number): Allowan
 
   return { key: `${prefix}:${MONTH_KEY(y, m0)}`, startMs, endMs, anchorDay };
 }
+
+/** [P84-5] The allowance a window opens with: a trial window (one per trial, keyed 'trial:…') has the trial's AED gate and
+ *  messages; any other window has the plan's. */
+export function windowAllowance(key: string, plan: { aed: number; messages?: number }, trial?: { aed?: number; messages?: number }): { aed: number; messages: number | undefined } {
+  return key.startsWith('trial:') && trial
+    ? { aed: trial.aed ?? plan.aed, messages: trial.messages ?? plan.messages }
+    : { aed: plan.aed, messages: plan.messages };
+}

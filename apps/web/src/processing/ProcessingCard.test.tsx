@@ -71,13 +71,19 @@ describe('[P65-3] when it is done', () => {
 });
 
 describe('[P65-3] when it fails', () => {
+  // [P84-6 · owner, 22 Nov] pin moved: a chat that can't be read says its messages weren't used (they are given back);
+  // a typed note keeps the old words (it never used messages).
   it('on our side: the reason in plain words, and Try again', async () => {
     const p = show([item({ state: 'failed', failure: { reason: 'ours', canRetry: true } })]);
     const c = screen.getByTestId('processing-n1');
-    expect(c).toHaveTextContent("Tovira couldn't analyse this chat.");
-    expect(c).toHaveTextContent('Something went wrong on our side.');
+    expect(c).toHaveTextContent("Couldn't read this chat. Your messages weren't used.");
     await userEvent.setup().click(within(c).getByRole('button', { name: 'Try again' }));
     expect(p.onRetry).toHaveBeenCalledWith('n1');
+  });
+  it('a typed note on our side: "Tovira couldn\'t analyse this note." Something went wrong on our side.', () => {
+    show([item({ noteId: 't1', kind: 'typed', state: 'failed', failure: { reason: 'ours', canRetry: true } })]);
+    const c = screen.getByTestId('processing-t1');
+    expect(c).toHaveTextContent('Something went wrong on our side.');
   });
   // [P83 · owner] pins moved to messages
   it('no messages left: the reason, that it is saved, and the Add messages link', async () => {

@@ -18,7 +18,7 @@ const ROW_COPY: Record<BulkJobState, string> = {
   queued: 'Waiting…',
   extracting: 'Analysing…',
   done: 'Imported.',
-  failed: "Couldn't be read. Not imported.",
+  failed: "Couldn't read this chat. Your messages weren't used.", // [P84-6 · owner] its messages are given back
   failed_usage_limit: 'Not imported. No messages were left this month.', // [P83] messages, never usage
   waiting_messages: 'Saved. Tovira reads it as soon as you add messages.', // [P83] stored, read after a pack or the reset
   failed_interrupted: 'Not imported. Something went wrong. Please re-upload this chat.',

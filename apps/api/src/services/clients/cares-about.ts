@@ -1,3 +1,4 @@
+import { currentRequirements } from './requirement-summary.js';
 import type { NoteRecord } from '../../ports/note-repository.js';
 import type { RequirementRecord } from '../../ports/requirement-repository.js';
 import type { KeyDateRecord } from '../../ports/facts-repository.js';
@@ -91,7 +92,8 @@ export function caresAbout(input: {
       return { kind: 'date' as const, text: when && !norm(d.description).includes(norm(when)) ? `${d.description} · ${when}` : d.description, subject: null, noteId: d.noteId, quote: d.sourceSpan?.trim() ? d.sourceSpan : null, at: d.sourceMessageAt };
     });
 
-  const asks: CareItem[] = input.requirements
+  // [P84-7 · owner] a need whose count a later need changed is left out: only the latest shows (brief, nudges, page)
+  const asks: CareItem[] = currentRequirements(input.requirements)
     .filter((q) => q.status === 'open' && !hidden(q.text) && !hidden(q.requirementRaw))
     .sort((a, b) => b.lastMentionedAt - a.lastMentionedAt)
     .filter((q) => fresh(q.text))

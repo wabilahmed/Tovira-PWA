@@ -13,7 +13,7 @@ export interface ProcessingItem {
   stage?: 'waiting' | 'transcribing' | 'reading';
   messageCount?: number;
   etaMinutes?: number;
-  hold?: 'allowance' | 'subscribe' | 'payment';
+  hold?: 'allowance' | 'subscribe' | 'payment' | 'messages'; // [P84-9] 'messages': more to read than is left
   found?: FoundCounts;
   failure?: { reason: 'ours' | 'recording_missing'; canRetry: boolean };
   startedAt: number;

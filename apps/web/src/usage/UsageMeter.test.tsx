@@ -86,8 +86,9 @@ describe('<UsageMeter> in messages', () => {
 
   it('a trial rep who runs out sees Subscribe, no packs (D10)', async () => {
     const onSubscribe = vi.fn();
-    render(<UsageMeter api={makeApi(status({ ...OUT, canTopUp: false, options: [], custom: null, subscription: 'trialing' }))} onSubscribe={onSubscribe} />);
-    expect(await screen.findByTestId('usage-paused')).toHaveTextContent("You've read this trial's messages. Subscribe to keep importing.");
+    // [P84-5 · owner, 22 Nov] pin moved: a trial has 5,000 messages and names them
+    render(<UsageMeter api={makeApi(status({ ...OUT, canTopUp: false, options: [], custom: null, subscription: 'trialing', trial: true, messagesAllowance: 5000 }))} onSubscribe={onSubscribe} />);
+    expect(await screen.findByTestId('usage-paused')).toHaveTextContent("You've read your 5,000 trial messages. Subscribe to keep importing.");
     expect(screen.queryByTestId('topup-sheet')).toBeNull();
     await userEvent.click(screen.getByTestId('subscribe-monthly'));
     expect(onSubscribe).toHaveBeenLastCalledWith('monthly');

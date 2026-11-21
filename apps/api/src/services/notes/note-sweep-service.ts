@@ -19,6 +19,8 @@ export interface NoteSweepDeps {
   extract(userId: string, noteId: string, todayIso: string): Promise<void>;
   setAttempts(userId: string, noteId: string, attempts: number): Promise<void>;
   markNeedsReview(userId: string, noteId: string): Promise<void>;
+  /** [P84-6 · owner] Optional: give back the messages counted for a chat the sweep gave up on. */
+  refundMessages?(userId: string, noteId: string): Promise<void>;
   /** [SPEND-CAP] Optional over-cap gate. A capped rep's pending notes are LEFT UNTOUCHED (not
    *  advanced, not attempt-counted, never flagged) so they resume intact once the rep is under
    *  cap — a spend cap must never burn a note's retry budget or push it to needs_review. */
@@ -108,6 +110,7 @@ export class NoteSweepService {
       // Exhausted retries → terminal flagged state, never silently dropped.
       if (note.sweepAttempts >= this.maxAttempts) {
         await this.deps.markNeedsReview(userId, note.id);
+        await this.deps.refundMessages?.(userId, note.id).catch(() => undefined);
         flagged += 1;
         await this.settle(userId, note.id);
         return;

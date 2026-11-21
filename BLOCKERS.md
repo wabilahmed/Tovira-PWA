@@ -104,7 +104,7 @@ can't be reached.
     a new migration replaces the CHECK (keep the old values readable, or map them, for the rows already stored); the
     Funnel card's bucket labels follow. Tests first, as usual.
 
-## [P83-6] "end of month" resolves today; the owner's note says it should stay null (needs an owner decision)
+## [P83-6] RESOLVED (owner, 22 Nov): "end of month" keeps resolving to the last day of the month. No certification. The v1 answer key's M07 now expects 2026-05-31; nothing was re-scored.
 Owner, 21 Nov: "end of month must stay null (vague phrase; key M07)". The resolver does NOT leave it null today:
 resolve-date.ts tryRelative has resolved "end of month" / "end of the month" (also after "by") to the last day of the
 message's month since P16/P18, and the certified prompt (rule 2) lists "end of month" as a relative phrase to resolve.
@@ -113,3 +113,22 @@ not to change anything that already resolves, so P83-6 left it as it is.
   - To decide: should "end of month" go to null + "date to confirm" (one line in tryRelative, plus a test from M07)?
     The answer key's M07 note says null; the prompt's rule 2 says resolve. Both touch what the gate scores
     (resolve-date.ts is in the gate's import graph), so a change runs the gate.
+
+## [P84-3] Next batch: Arabic and Hindi observance words on the precise list (logged, not built)
+Owner, 22 Nov: the English observance words (Umrah, Hajj, fasting, Ramadan as an observance) are on the precise list
+since P83-7. The Arabic and Hindi forms were left out because a plain word match cuts far too much. To add later, with
+the same rule as English (an observance is withheld; a time anchor, a trip and a trade are kept):
+  - Arabic: عمرة / العمرة, حج / الحج / حاج, صيام / صائم / صايم, رمضان only as an observance ("أنا صايم"), اعتكاف.
+  - Hindi / Hinglish: उमरा, हज, रोज़ा / रोजा / roza / roze (rakha hai), उपवास / व्रत / vrat / upvas, "fast rakha hai".
+  - False-match tests to write first (each must stay unchanged, nothing cut):
+    - "بعد رمضان نوقع العقد" (after Ramadan we sign: a time anchor)
+    - "رجعنا من العمرة امس" (back from Umrah: a trip)
+    - "عندنا باقات عمرة للعائلات" (Umrah packages: the trade) and "مكتب حج وعمرة" (a Hajj and Umrah office)
+    - "الحاج محمد" (Hajji as an honorific for a person's name)
+    - "حجز" / "حجزت الشقة" (booking: shares the letters ح ج)
+    - "रोज़ाना डिलीवरी" / "roz delivery" (daily: shares the stem of roza)
+    - "हज़ार" / "hazaar" (thousand: shares the letters of हज)
+    - "vrat ke baad milte hain" (a time anchor, kept) vs "aaj mera vrat hai" (an observance, cut)
+  - Positive tests: "أنا صايم اليوم", "رايحين عمرة في فبراير فبنكون مسافرين", "मेरा रोज़ा है", "hum Umrah pe ja rahe hain".
+  - Only removal, never a word added or changed (P69-14). screening/precise-screen.ts is in the gate's import graph,
+    so the batch runs the gate.

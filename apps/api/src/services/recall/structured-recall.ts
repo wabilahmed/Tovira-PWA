@@ -1,3 +1,4 @@
+import { currentAcrossClients } from '../clients/requirement-summary.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
@@ -171,7 +172,7 @@ export class StructuredRecall {
     }
 
     // [P21-A1] Open requirements — what each client has STATED they need, quoted verbatim.
-    for (const r of reqs) {
+    for (const r of currentAcrossClients(reqs)) { // [P84-7] only the latest count is quoted
       if (!inScope(r.clientId)) continue;
       const phrase = (r.requirementRaw || r.text).trim();
       if (!phrase) continue;

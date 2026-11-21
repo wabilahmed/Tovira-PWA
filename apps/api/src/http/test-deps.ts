@@ -31,7 +31,7 @@ import { IsolatingModelClient } from '../services/import/chat-isolation.js';
 import { BulkImportService } from '../services/import/bulk-import-service.js';
 import { BulkUpsellService } from '../services/import/bulk-upsell.js';
 import { bulkConcurrency } from '../services/import/bulk-extraction.js';
-import { TOP_UP_OPTIONS, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, MONTHLY_MESSAGES } from '../config.js';
+import { TOP_UP_OPTIONS, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, MONTHLY_MESSAGES, TRIAL_MESSAGES } from '../config.js';
 import { InMemoryRequirementRepository } from '../adapters/requirements/in-memory-requirement-repository.js';
 import { InMemoryInventoryMatchRepository } from '../adapters/inventory/in-memory-inventory-match-repository.js';
 import { MatchingService } from '../services/inventory/matching-service.js';
@@ -338,6 +338,8 @@ export function buildInMemoryDeps(
     allowance: aiAllowance,
     allowanceAed: DEFAULT_MONTHLY_AI_ALLOWANCE_AED,
     messagesAllowance: MONTHLY_MESSAGES,
+    trialAllowanceAed: 30, // [P84-5] mirrors prod: a trial has 5,000 messages and an AED 30 gate
+    trialMessagesAllowance: TRIAL_MESSAGES,
     billingWindowFor: (uid) => billing.entitlement(uid, Date.now()).then((e) => ({ status: e.status, trialEndsAt: e.trialEndsAt, renewsAt: e.renewsAt, periodStart: e.periodStart })),
   });
   // [USAGE-ALLOWANCE · D12] credit a confirmed top-up to the rep's current window (mirrors index.ts).
@@ -359,6 +361,7 @@ export function buildInMemoryDeps(
     claim: (u, id, now) => notes.claimForExtraction(u, id, now),
     extract: (u, id, today, o) => extraction.extractNote(u, id, today, o),
     chargeMessages: async (u, id) => allowanceStatus.chargeMessages(u, id, messagesToRead((await notes.findByIdForUser(u, id))?.messages ?? [])), // [P83] mirrors index.ts
+    refundMessages: async (u, id) => { await allowanceStatus.refundMessages(u, id); }, // [P84-6] mirrors index.ts
   });
   // [P21-D / BULK-08] Same notification wiring as index.ts: per-note import_complete on settle, suppressed
   // for notes in a bulk batch, which emits one aggregate instead.
@@ -382,6 +385,7 @@ export function buildInMemoryDeps(
     onSettled: (u, id) => importCompletion.onNoteSettled(u, id), // IMPORT-DONE (mirrors index.ts)
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
+    refundMessages: async (u, id) => { await allowanceStatus.refundMessages(u, id); }, // [P84-6]
     isVerified: opts.enforceVerification ? (u: string) => auth.getPublicUser(u).then((x) => x?.emailVerified ?? false) : undefined,
     allow: (u: string) => extractionLimiter.allow(u), // [ASYNC-EXTRACT] ceiling skip (mirrors prod)
     // [USAGE-ALLOWANCE · D4 / BILLING-DUNNING · D3 / P14-1] queue waits unless the rep may spend now:
@@ -531,6 +535,8 @@ export function buildInMemoryDeps(
         notes, clients, facts, requirements, meetings,
         holdReason: (u) => extractionBlockReason({ billing, allowanceExhausted: (x: string) => allowanceStatus.isExhausted(x) } as never, u),
         today: async (u, nowMs) => zonedTodayIso(await auth.timezoneFor(u), new Date(nowMs)),
+        // [P84-9] a chat with more to read than is left waits for messages
+        messages: { left: async (u) => (await allowanceStatus.status(u)).messagesLeft, isCharged: (u, id) => allowanceStatus.isCharged(u, id) },
       }),
       presence,
       now: () => Date.now() + processingClock.offsetMs,

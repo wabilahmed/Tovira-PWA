@@ -326,6 +326,9 @@ async function main(): Promise<void> {
   const aiGate = new AiGate({
     allowance: aiAllowance,
     allowanceAed: config.monthlyAiAllowanceAed,
+    messagesAllowance: config.monthlyMessages, // [P84-5] a window the gate opens first gets the same figures as the status
+    trialAllowanceAed: config.trialAiAllowanceAed,
+    trialMessagesAllowance: config.trialMessages,
     alertThresholdAed: config.aiSpendAlertAed,
     billingWindowFor: aiBillingWindowFor,
     isPaused: () => pauseFlag.paused(),
@@ -344,11 +347,13 @@ async function main(): Promise<void> {
   // [USAGE-ALLOWANCE · D4] The rep-facing status + the pre-call "is AI stopped?" check used by import,
   // questions, and the scheduled AI jobs so they refuse/skip up front instead of calling a model to
   // discover it.
-  const allowanceStatus = new AllowanceStatusService({ allowance: aiAllowance, allowanceAed: config.monthlyAiAllowanceAed, messagesAllowance: config.monthlyMessages, billingWindowFor: aiBillingWindowFor });
+  const allowanceStatus = new AllowanceStatusService({ allowance: aiAllowance, allowanceAed: config.monthlyAiAllowanceAed, messagesAllowance: config.monthlyMessages, trialAllowanceAed: config.trialAiAllowanceAed, trialMessagesAllowance: config.trialMessages, billingWindowFor: aiBillingWindowFor }); // [P84-5] a trial: 5,000 messages, AED 30
   // [P83 · owner] A chat's messages (stripped) are counted once, against the month and then the packs, before it is read.
   // Not enough left → it waits, unread. Notes and voice notes have no messages, so they never count.
   const chargeChatMessages = async (u: string, id: string): Promise<boolean> =>
     allowanceStatus.chargeMessages(u, id, messagesToRead((await notes.findByIdForUser(u, id))?.messages ?? []));
+  // [P84-6 · owner] Reading a chat failed for good: give back what was counted for it.
+  const refundChatMessages = async (u: string, id: string): Promise<void> => { await allowanceStatus.refundMessages(u, id); };
   const aiExhausted = (uid: string) => allowanceStatus.isExhausted(uid);
   // [USAGE-ALLOWANCE · D12] Credit a confirmed top-up to the rep's current window (idempotent via the
   // webhook_events dedupe). Set here because the allowance repo is built after billing.
@@ -481,6 +486,7 @@ async function main(): Promise<void> {
       console.info(`[extract] note ${id} set aside: over the ${EMERGENCY_MAX_MESSAGES}-message emergency limit, not read`);
     },
     chargeMessages: chargeChatMessages,
+    refundMessages: refundChatMessages, // [P84-6] a chat that can't be read never uses messages
   });
   // [P81-2] The bulk path: the same guard and set-aside as claimAndExtract, the batched service, and a fresh claim.
   const bulkClaimAndExtract = createClaimAndExtract({
@@ -495,6 +501,7 @@ async function main(): Promise<void> {
       console.info(`[extract] note ${id} set aside: over the ${EMERGENCY_MAX_MESSAGES}-message emergency limit, not read`);
     },
     chargeMessages: chargeChatMessages,
+    refundMessages: refundChatMessages, // [P84-6] a chat that can't be read never uses messages
   });
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),
@@ -504,6 +511,7 @@ async function main(): Promise<void> {
     reclaim: (u) => notes.reclaimStaleExtracting(u, Date.now(), EXTRACTION_CLAIM_TIMEOUT_MS).then(() => undefined),
     setAttempts: (u, id, n) => notes.update(u, id, { sweepAttempts: n }),
     markNeedsReview: (u, id) => notes.update(u, id, { status: 'needs_review' }),
+    refundMessages: refundChatMessages, // [P84-6]
     // [USAGE-ALLOWANCE · D4 / BILLING-DUNNING · D3 / P14-1] A queued note waits unless the rep may spend
     // on a model call right now: NOT exhausted (allowance) AND canRunAi (ENTITLED and not AI-paused). The
     // entitlement gate is the P14-1 fix — a never-subscribed / lapsed-trial account has no subscription
@@ -764,6 +772,8 @@ async function main(): Promise<void> {
         notes, clients, facts, requirements, meetings,
         holdReason: (u) => extractionBlockReason({ billing, allowanceExhausted: aiExhausted } as never, u),
         today: async (u, nowMs) => zonedTodayIso(await auth.timezoneFor(u), new Date(nowMs)),
+        // [P84-9] a chat with more to read than is left waits for messages
+        messages: { left: async (u) => (await allowanceStatus.status(u)).messagesLeft, isCharged: (u, id) => allowanceStatus.isCharged(u, id) },
       }),
       presence: appPresence,
     },

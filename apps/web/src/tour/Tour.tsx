@@ -353,8 +353,8 @@ function buildSteps(c: {
   ];
 }
 
-/** "10,000": the plan's messages a month. */
-const groupedMessages = (u: AllowanceStatus | null): string => (u?.messagesAllowance ?? 10_000).toLocaleString('en-US');
+/** "10,000": the plan's messages a month (what subscribing gives, even while a trial has 5,000) [P84-5]. */
+const groupedMessages = (u: AllowanceStatus | null): string => (u?.planMessages ?? (u?.trial || u?.subscription === 'trialing' ? 10_000 : u?.messagesAllowance) ?? 10_000).toLocaleString('en-US');
 
 /** Step 8: the rep's REAL plan: trial end date and messages read [P83: messages, no price before the purchase screen]. */
 function PlanStep({ ent, usage, now }: { ent: Entitlement | null; usage: AllowanceStatus | null; now: number }): JSX.Element {
@@ -364,7 +364,7 @@ function PlanStep({ ent, usage, now }: { ent: Entitlement | null; usage: Allowan
   return (
     <>
       {status === 'trialing' && ent && (
-        <p data-testid="tour-trial">Your free trial ends on {formatBody(ent.trialEndsAt)} ({days} day{days === 1 ? '' : 's'}).</p>
+        <p data-testid="tour-trial">Your free trial ends on {formatBody(ent.trialEndsAt)} ({days} day{days === 1 ? '' : 's'}).{usage?.trial ? ` It includes ${usage.messagesAllowance.toLocaleString('en-US')} messages.` : ''}</p>
       )}
       {subscribed && ent?.renewsAt != null && <p>You&apos;re subscribed. Your plan renews on {formatBody(ent.renewsAt)}.</p>}
       {!subscribed && (
@@ -374,7 +374,7 @@ function PlanStep({ ent, usage, now }: { ent: Entitlement | null; usage: Allowan
         <div role="meter" aria-label="Messages read this month" aria-valuenow={usage?.messagesUsed ?? 0} aria-valuemin={0} aria-valuemax={usage?.messagesTotal ?? 10_000} className="tov-tour__usage-bar">
           <div style={{ width: `${usage ? Math.round(fractionRead(usage) * 1000) / 10 : 0}%` }} />
         </div>
-        <p data-testid="tour-usage">{usage ? usedLine(usage) : '0 messages read this month'}. Each message Tovira reads from an imported chat counts; notes and voice notes don&apos;t. It resets each billing month.</p>
+        <p data-testid="tour-usage">{usage ? usedLine(usage) : '0 messages read this month'}. Each message Tovira reads from an imported chat counts; notes and voice notes don&apos;t.{usage?.trial ? '' : ' It resets each billing month.'}</p>
       </div>
       <p>When they run out, imports pause until the reset. Notes, Find and everything else keep working.</p>
       <p>{subscribed ? 'If you run low, tap Add messages here.' : 'Once you subscribe, you can add messages here if you run low.'}</p>

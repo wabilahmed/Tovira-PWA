@@ -114,12 +114,15 @@ describe('[P37] the tour', () => {
   });
 
   // [P83 · owner, 21 Nov] pins moved: messages read (not a percentage), and no price before the purchase screen
+  // [P84-5 · owner, 22 Nov] pins moved again: a trial has 5,000 messages, in trial words (it ends, it does not reset);
+  // subscribing still names the plan's 10,000.
   it('the plan step shows the REAL trial end date and messages read, and the plan in messages (no price)', async () => {
-    const p = props({ usage: { status: vi.fn(async () => ({ messagesAllowance: 10_000, messagesUsed: 3700, messagesTotal: 10_000, messagesLeft: 6300, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: '2026-11-03T00:00:00.000Z', canTopUp: false, options: [], custom: null, subscription: 'trialing' })) } });
+    const p = props({ usage: { status: vi.fn(async () => ({ messagesAllowance: 5000, messagesUsed: 3700, messagesTotal: 5000, messagesLeft: 1300, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: '2026-11-03T00:00:00.000Z', canTopUp: false, options: [], custom: null, subscription: 'trialing', trial: true, planMessages: 10_000, timeZone: 'Asia/Dubai' })) } });
     render(<Tour {...p} />);
     await goTo(9);
-    await waitFor(() => expect(screen.getByTestId('tour-trial')).toHaveTextContent('Your free trial ends on 3 Nov 2026 (14 days).'));
-    expect(screen.getByTestId('tour-usage')).toHaveTextContent('3,700 of 10,000 messages read this month · resets 3 Nov.');
+    await waitFor(() => expect(screen.getByTestId('tour-trial')).toHaveTextContent('Your free trial ends on 3 Nov 2026 (14 days). It includes 5,000 messages.'));
+    expect(screen.getByTestId('tour-usage')).toHaveTextContent('3,700 of 5,000 trial messages read · trial ends 3 Nov.');
+    expect(screen.getByTestId('tour-usage')).not.toHaveTextContent('resets');
     expect(screen.getByTestId('tour-usage')).toHaveTextContent("notes and voice notes don't");
     expect(screen.getByTestId('tour-prices')).toHaveTextContent('Subscribe here any time for 10,000 messages a month.');
     expect(screen.getByRole('dialog').textContent).not.toMatch(/AED|%/);

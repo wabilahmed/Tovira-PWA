@@ -1,3 +1,4 @@
+import { currentAcrossClients } from '../clients/requirement-summary.js';
 import type { ClientRepository, ClientRecord } from '../../ports/client-repository.js';
 import type { RequirementRepository, RequirementRecord } from '../../ports/requirement-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
@@ -199,7 +200,7 @@ export class AggregateRecall {
     }
 
     // Requirements across clients, with the filters asked for.
-    const open = await this.deps.requirements.listOpenByUser(userId);
+    const open = currentAcrossClients(await this.deps.requirements.listOpenByUser(userId)); // [P84-7] only the latest count
     const byClient = new Map<string, RequirementRecord[]>();
     for (const r of open) byClient.set(r.clientId, [...(byClient.get(r.clientId) ?? []), r]);
     // The rep's own words for the content filters (the stems are only for matching): "parking", not "park".

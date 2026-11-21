@@ -71,9 +71,10 @@ describe('[P37 → P83] Settings → Subscription: Add messages', () => {
     expect(await screen.findByTestId('usage-extra')).toHaveTextContent('Extra messages: 1,500 left (never expire)');
   });
 
-  it('a trial that runs out: "You\'ve read this trial\'s messages. Subscribe to keep importing." with Subscribe', async () => {
-    render(<UsageMeter api={api(s({ subscription: 'trialing', canTopUp: false, options: [], custom: null, ...at(100) }))} onSubscribe={vi.fn()} />);
-    expect(await screen.findByTestId('usage-paused')).toHaveTextContent("You've read this trial's messages. Subscribe to keep importing.");
+  // [P84-5 · owner, 22 Nov] pin moved: a trial has 5,000 messages and names them
+  it('a trial that runs out: "You\'ve read your 5,000 trial messages. Subscribe to keep importing." with Subscribe', async () => {
+    render(<UsageMeter api={api(s({ subscription: 'trialing', trial: true, canTopUp: false, options: [], custom: null, ...at(100), messagesAllowance: 5000 }))} onSubscribe={vi.fn()} />);
+    expect(await screen.findByTestId('usage-paused')).toHaveTextContent("You've read your 5,000 trial messages. Subscribe to keep importing.");
     expect(screen.getByTestId('subscribe-monthly')).toBeInTheDocument();
   });
 
@@ -139,9 +140,10 @@ describe('[P37 → P83] Today warns at 80 / 95% of the messages and when they ru
   });
   it('a trial that runs out sees Subscribe on Today, no packs', async () => {
     const onOpen = vi.fn();
-    render(<UsageBanner api={api(s({ subscription: 'trialing', canTopUp: false, options: [], custom: null, ...at(100) }))} onOpenSubscription={onOpen} />);
+    // [P84-5 · owner, 22 Nov] pin moved: a trial has 5,000 messages and names them
+    render(<UsageBanner api={api(s({ subscription: 'trialing', trial: true, canTopUp: false, options: [], custom: null, ...at(100), messagesAllowance: 5000 }))} onOpenSubscription={onOpen} />);
     const banner = await screen.findByTestId('usage-banner-100');
-    expect(banner).toHaveTextContent("You've read this trial's messages. Subscribe to keep importing.");
+    expect(banner).toHaveTextContent("You've read your 5,000 trial messages. Subscribe to keep importing.");
     expect(within(banner).queryByRole('button', { name: '+1,500 messages' })).toBeNull();
     await userEvent.click(within(banner).getByRole('button', { name: 'Subscribe' }));
     expect(onOpen).toHaveBeenCalled();

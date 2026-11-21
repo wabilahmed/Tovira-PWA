@@ -32,7 +32,7 @@ export async function handleAllowanceRoute(req: IncomingMessage, res: ServerResp
   }
   const aiPaused = deps.aiPaused ? await deps.aiPaused() : false; // [AUDIT item 4] ops kill switch (30s-cached)
   if (!deps.allowanceStatus) {
-    sendJson(res, 200, { messagesAllowance: MONTHLY_MESSAGES, messagesUsed: 0, messagesTotal: MONTHLY_MESSAGES, messagesLeft: MONTHLY_MESSAGES, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, resetAt: null, canTopUp: false, options: [], custom: null, aiPaused, subscription: null });
+    sendJson(res, 200, { messagesAllowance: MONTHLY_MESSAGES, messagesUsed: 0, messagesTotal: MONTHLY_MESSAGES, messagesLeft: MONTHLY_MESSAGES, packMessagesLeft: 0, lastTopupMessages: null, exhausted: false, trial: false, planMessages: MONTHLY_MESSAGES, timeZone: null, resetAt: null, canTopUp: false, options: [], custom: null, aiPaused, subscription: null });
     return true;
   }
   const s = await deps.allowanceStatus.status(identity.userId);
@@ -49,6 +49,9 @@ export async function handleAllowanceRoute(req: IncomingMessage, res: ServerResp
     packMessagesLeft: s.packMessagesLeft,
     lastTopupMessages: s.lastTopupMessages,
     exhausted: s.exhausted || s.messagesExhausted,
+    trial: s.trial, // [P84-5] the trial's 5,000 (no monthly reset)
+    planMessages: MONTHLY_MESSAGES, // [P84-5] what subscribing gives: 10,000 a month
+    timeZone: await deps.auth.timezoneFor(identity.userId).catch(() => null), // [P84-8] "Resets <date>" in the rep's own day
     messagesExhausted: s.messagesExhausted,
     resetAt: new Date(s.resetAtMs).toISOString(),
     canTopUp,

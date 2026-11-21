@@ -1,5 +1,5 @@
 import type { AiAllowanceRepository } from '../../ports/ai-allowance-repository.js';
-import { allowanceWindow, type AllowanceWindowInput } from './ai-period.js';
+import { allowanceWindow, windowAllowance, type AllowanceWindowInput } from './ai-period.js';
 
 /**
  * [USAGE-ALLOWANCE] The rep-facing allowance status (D3/D4/D8) and the pre-call "is AI stopped?" check.
@@ -39,6 +39,8 @@ export interface AllowanceStatus {
   messagesExhausted: boolean;
   /** [P83] "+N messages added" by the last pack this window, or null. */
   lastTopupMessages: number | null;
+  /** [P84-5] This is the trial's window (5,000 messages, no monthly reset). */
+  trial: boolean;
 }
 
 export interface AllowanceStatusDeps {
@@ -46,6 +48,9 @@ export interface AllowanceStatusDeps {
   allowanceAed: number;
   /** [P83] Messages a month on the plan (config.monthlyMessages). Default 10,000. */
   messagesAllowance?: number;
+  /** [P84-5] The trial window's AED gate (AED 30) and messages (5,000). Absent → the plan's. */
+  trialAllowanceAed?: number;
+  trialMessagesAllowance?: number;
   billingWindowFor: (userId: string) => Promise<AllowanceWindowInput>;
   now?: () => number;
 }
@@ -59,9 +64,15 @@ export class AllowanceStatusService {
     this.now = deps.now ?? (() => Date.now());
   }
 
+  /** Open (or read) this window's row with the right figures: the trial's for a trial window, else the plan's. */
+  private open(userId: string, w: { key: string; startMs: number }) {
+    const a = windowAllowance(w.key, { aed: this.deps.allowanceAed, messages: this.deps.messagesAllowance }, { aed: this.deps.trialAllowanceAed, messages: this.deps.trialMessagesAllowance });
+    return this.deps.allowance.ensureMonth(userId, w.key, w.startMs, a.aed, a.messages);
+  }
+
   async status(userId: string): Promise<AllowanceStatus> {
     const w = allowanceWindow(await this.deps.billingWindowFor(userId), this.now());
-    const m = await this.deps.allowance.ensureMonth(userId, w.key, w.startMs, this.deps.allowanceAed, this.deps.messagesAllowance);
+    const m = await this.open(userId, w);
     const availableAed = m.allowanceAed + m.topupAed;
     // [sticky] a prior refusal pins exhaustion even if settled spend is below the allowance.
     const exhausted = m.displayExhausted || m.spentAed + m.reservedAed >= availableAed - EPS;
@@ -89,6 +100,7 @@ export class AllowanceStatusService {
       packMessagesLeft: Math.max(0, m.messagesTopup - Math.max(0, m.messagesUsed - m.messagesAllowance)),
       messagesExhausted: m.messagesUsed >= m.messagesAllowance + m.messagesTopup,
       lastTopupMessages: m.lastTopupMessages,
+      trial: w.key.startsWith('trial:'),
     };
   }
 
@@ -104,8 +116,18 @@ export class AllowanceStatusService {
   async chargeMessages(userId: string, noteId: string, messages: number): Promise<boolean> {
     if (messages <= 0) return true;
     const w = allowanceWindow(await this.deps.billingWindowFor(userId), this.now());
-    await this.deps.allowance.ensureMonth(userId, w.key, w.startMs, this.deps.allowanceAed, this.deps.messagesAllowance);
+    await this.open(userId, w);
     return (await this.deps.allowance.chargeMessages(userId, w.key, noteId, messages)) !== 'insufficient';
+  }
+
+  /** [P84-6] Reading a chat failed for good: give its messages back (once). Returns how many. */
+  refundMessages(userId: string, noteId: string): Promise<number> {
+    return this.deps.allowance.refundMessages(userId, noteId);
+  }
+
+  /** [P84-9] Were this chat's messages already counted? */
+  isCharged(userId: string, noteId: string): Promise<boolean> {
+    return this.deps.allowance.isCharged(userId, noteId);
   }
 
   /** The pre-call gate used by import/questions/jobs: has this rep's AI stopped? */

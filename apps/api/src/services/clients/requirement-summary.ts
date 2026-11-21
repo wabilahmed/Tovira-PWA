@@ -195,6 +195,16 @@ export function currentRequirements<T extends RequirementLike>(reqs: T[]): T[] {
   return reqs.filter((r) => !replaced.has(r));
 }
 
+/** [P84-7 · owner] currentRequirements for a list that spans clients (recall, matching): each client's needs are
+ *  compared only with that client's own. The input order is kept. */
+export function currentAcrossClients<T extends RequirementLike & { clientId: string }>(reqs: T[]): T[] {
+  const byClient = new Map<string, T[]>();
+  for (const r of reqs) byClient.set(r.clientId, [...(byClient.get(r.clientId) ?? []), r]);
+  const keep = new Set<T>();
+  for (const list of byClient.values()) for (const r of currentRequirements(list)) keep.add(r);
+  return reqs.filter((r) => keep.has(r));
+}
+
 export function summarizeRequirements(reqs: RequirementLike[]): RequirementSummary {
   const primary = primaryRequirement(reqs);
   // The labelled budget history ("3M → 3.4M") still lists every budget stated, oldest first.

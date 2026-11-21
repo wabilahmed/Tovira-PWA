@@ -102,6 +102,26 @@ export class PgAiAllowanceRepository implements AiAllowanceRepository {
     });
   }
 
+  // [P84-6] Give a permanently failed chat's count back, once: delete its charge row (RLS: only the rep's own) and take
+  // the same messages off the window it was counted in, in one transaction.
+  async refundMessages(userId: string, noteId: string): Promise<number> {
+    return withTenant(this.appPool, userId, async (c) => {
+      const del = await c.query(`DELETE FROM ai_message_charge WHERE note_id = $1 AND user_id = $2 RETURNING period_key, messages`, [noteId, userId]);
+      const row = del.rows[0] as { period_key: string; messages: number } | undefined;
+      if (!row) return 0;
+      await c.query(
+        `UPDATE ai_usage_month SET messages_used = GREATEST(0, messages_used - $3), updated_at = now() WHERE user_id = $1 AND period_key = $2`,
+        [userId, row.period_key, row.messages],
+      );
+      return Number(row.messages);
+    });
+  }
+
+  async isCharged(userId: string, noteId: string): Promise<boolean> {
+    return withTenant(this.appPool, userId, async (c) =>
+      (await c.query(`SELECT 1 FROM ai_message_charge WHERE note_id = $1 AND user_id = $2`, [noteId, userId])).rows.length > 0);
+  }
+
   async reserve(userId: string, periodKey: string, estimateAed: number, expiresAtMs: number): Promise<ReserveResult> {
     return withTenant(this.appPool, userId, async (c) => {
       const upd = await c.query(

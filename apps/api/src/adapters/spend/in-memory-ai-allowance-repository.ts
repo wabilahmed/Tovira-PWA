@@ -96,7 +96,7 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
     return n;
   }
 
-  private readonly charged = new Set<string>();
+  private readonly charged = new Map<string, { userId: string; periodKey: string; messages: number }>();
   async chargeMessages(userId: string, periodKey: string, noteId: string, messages: number): Promise<MessageChargeResult> {
     if (this.charged.has(noteId)) return 'already';
     const row = this.months.get(this.key(userId, periodKey));
@@ -104,8 +104,21 @@ export class InMemoryAiAllowanceRepository implements AiAllowanceRepository {
     // ATOMIC: no await between the check and the write (as the single conditional UPDATE in pg).
     if (row.messagesUsed + messages > row.messagesAllowance + row.messagesTopup) return 'insufficient';
     row.messagesUsed += messages;
-    this.charged.add(noteId);
+    this.charged.set(noteId, { userId, periodKey, messages });
     return 'charged';
+  }
+
+  async refundMessages(userId: string, noteId: string): Promise<number> {
+    const c = this.charged.get(noteId);
+    if (!c || c.userId !== userId) return 0;
+    this.charged.delete(noteId);
+    const row = this.months.get(this.key(userId, c.periodKey));
+    if (row) row.messagesUsed = Math.max(0, row.messagesUsed - c.messages);
+    return c.messages;
+  }
+
+  async isCharged(userId: string, noteId: string): Promise<boolean> {
+    return this.charged.get(noteId)?.userId === userId;
   }
 
   async topUp(userId: string, periodKey: string, addedAed: number, addedMessages = 0): Promise<void> {

@@ -1141,6 +1141,15 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
 function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onSubscribe, onOpenLeadSheet, timeZone, billingStatus, onOpenClient, initialImport, onOpenSubscription, onRenamed, processing = [], onCaptured, onRetry }: { client: ClientSummary; clients?: Array<{ id: string; name: string }>; onBack: () => void; /** [P39-8] where back goes ("Clients", "Find", "Today") */ backLabel?: string; onSubscribe: (plan: Plan) => void; onOpenLeadSheet?: () => void; timeZone?: string; billingStatus?: string; onOpenClient?: (clientId: string) => void; /** [P36-2] a shared chat to import here, prefilled */ initialImport?: { content: string; contentB64: string }; /** [P37] */ onOpenSubscription?: () => void; /** [P49] the client was renamed (or the rename undone) */ onRenamed?: (c: ClientSummary) => void; /** [P65] what Tovira is doing with this client's captures */ processing?: ProcessingItem[]; /** [P65] the rep just sent something */ onCaptured?: (kind: CaptureKind) => void; /** [P65] Try again */ onRetry?: (noteId: string) => Promise<boolean> }): JSX.Element {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [pending, setPending] = useState<PendingRecording[]>([]);
+  // [P84-9] the packs a chat waiting for messages offers (labels only); none for a trial
+  const [packs, setPacks] = useState<Array<{ id: string; label: string }>>([]);
+  const waitingForMessages = processing.some((i) => i.state === 'held' && i.hold === 'messages');
+  useEffect(() => {
+    if (!waitingForMessages) return;
+    let live = true;
+    void usageApi.status().then((s) => { if (live) setPacks(s?.canTopUp ? s.options.map((o) => ({ id: o.id, label: o.label })) : []); });
+    return () => { live = false; };
+  }, [waitingForMessages]);
   const [active, setActive] = useState<ActiveRecording | null>(null);
   const [recStartedAt, setRecStartedAt] = useState<number | null>(null); // [P36-5] the recorder's timer
   const [status, setStatus] = useState<string | null>(null);
@@ -1372,6 +1381,7 @@ function ClientDetail({ client, clients = [], onBack, backLabel = 'Clients', onS
         onTopUp={onOpenSubscription}
         onSubscribe={() => onSubscribe('monthly')}
         onUpdatePayment={onOpenSubscription}
+        packs={packs}
       />
 
       {/* [P69 · owner] the core promise, first on the page: what the client said they care about, each with its source */}

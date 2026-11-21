@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { runOutLine, notEnoughLine, ADD_MESSAGES_LINE } from '../services/spend/messages-copy.js';
+import { runOutLine, trialRunOutLine, notEnoughLine, ADD_MESSAGES_LINE, SUBSCRIBE_LINE } from '../services/spend/messages-copy.js';
 import { messagesToRead, readingEstimate, readingLine } from '../services/import/reading-estimate.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AuthService } from '../services/auth/auth-service.js';
@@ -133,7 +133,7 @@ export interface NoteRouteDeps {
   allowanceExhausted?: (userId: string) => Promise<boolean>;
   /** [P83 · owner] The rep's messages left (the month's, then packs), the month's messages and the reset. A chat with
    *  more messages to read than are left is refused before anything is stored. Optional (old wiring: no check). */
-  messagesLeft?: (userId: string) => Promise<{ left: number; allowance: number; resetAtMs: number }>;
+  messagesLeft?: (userId: string) => Promise<{ left: number; allowance: number; resetAtMs: number; trial?: boolean; timeZone?: string }>;
   /** [P46-6c.2] True while a hot-lead invitee has not answered and confirmed: captures are refused. */
   answersRequired?: (userId: string) => Promise<boolean>;
   /** [TASK 2] Active erasure-window restriction — in the rep's book, a note about a restricted
@@ -507,14 +507,16 @@ export async function handleNoteRoute(
       // (the preview), and refuse the import itself before anything is stored. Nothing is read.
       const allowanceNow = deps.messagesLeft ? await deps.messagesLeft(userId) : null;
       const short = allowanceNow !== null && toRead > allowanceNow.left;
-      const shortLine = short ? (allowanceNow!.left === 0 ? runOutLine(allowanceNow!.allowance, allowanceNow!.resetAtMs) : notEnoughLine(toRead, allowanceNow!.left)) : null;
+      // [P84-5] a trial's own words (it does not reset); [P84-8] the reset day in the rep's own time zone
+      const a = allowanceNow;
+      const shortLine = short && a ? (a.left === 0 ? (a.trial ? trialRunOutLine(a.allowance) : runOutLine(a.allowance, a.resetAtMs, a.timeZone)) : notEnoughLine(toRead, a.left, 1, a.trial)) : null;
       if (preview) {
         const est = readingEstimate(fresh, 'live'); // a single import is read live
         sendJson(res, 200, { preview: true, messagesToRead: est.messages, minutes: est.minutes, line: readingLine(est), ...(short ? { notEnough: true, messagesLeft: allowanceNow!.left, notEnoughLine: shortLine } : {}) });
         return true;
       }
       if (short) {
-        sendJson(res, 402, { error: 'out_of_messages', message: `${shortLine} ${ADD_MESSAGES_LINE}`, messagesToRead: toRead, messagesLeft: allowanceNow!.left });
+        sendJson(res, 402, { error: 'out_of_messages', message: `${shortLine} ${allowanceNow!.trial ? SUBSCRIBE_LINE : ADD_MESSAGES_LINE}`, messagesToRead: toRead, messagesLeft: allowanceNow!.left });
         return true;
       }
       // [ALIAS-COUNTERPART] Confirm the counterpart BEFORE extraction (the ordering rule). Identify

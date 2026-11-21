@@ -1,3 +1,4 @@
+import { currentRequirements } from '../clients/requirement-summary.js';
 import type { InventoryMatchRepository, MatchRecord, MatchConfidence } from '../../ports/inventory-match-repository.js';
 import type { RequirementRepository, RequirementRecord } from '../../ports/requirement-repository.js';
 import type { InventoryRepository, InventoryItemRecord } from '../../ports/inventory-repository.js';
@@ -60,6 +61,7 @@ export class MatchingService {
    *  vector, matches nothing. */
   async matchRequirement(userId: string, requirement: RequirementRecord, vector: number[] | null): Promise<MatchRecord[]> {
     if (requirement.status !== 'open' || vector === null) return [];
+    if (await this.isReplaced(userId, requirement)) return []; // [P84-7] a later count replaced this need
     const items = await this.inventory.searchByEmbedding(userId, vector, CANDIDATE_LIMIT); // ACTIVE items only
     return this.persist(userId, requirement.id, requirement.clientId, items.map((h) => ({ itemId: h.item.id, similarity: h.similarity })));
   }
@@ -71,7 +73,9 @@ export class MatchingService {
     if (item.status !== 'active' || vector === null) return [];
     const reqs = await this.requirements.searchByEmbedding(userId, vector, CANDIDATE_LIMIT); // OPEN requirements only
     const out: MatchRecord[] = [];
+    const replaced = new Map<string, Set<string>>();
     for (const { requirement, similarity } of reqs) {
+      if ((await this.replacedIds(userId, requirement.clientId, replaced)).has(requirement.id)) continue; // [P84-7]
       const confidence = this.confidenceFor(similarity);
       if (!confidence) continue;
       out.push(await this.matches.upsert(userId, { requirementId: requirement.id, itemId: item.id, clientId: requirement.clientId, similarity, confidence }));
@@ -140,14 +144,33 @@ export class MatchingService {
     return this.matches.findById(userId, matchId);
   }
 
+  /** [P84-7 · owner] The ids of a client's open needs that a later count replaced ("at least 3 bedrooms", then "4
+   *  bedrooms not 3"): never matched, never suggested. Cached per call in `cache`. */
+  private async replacedIds(userId: string, clientId: string, cache: Map<string, Set<string>>): Promise<Set<string>> {
+    const hit = cache.get(clientId);
+    if (hit) return hit;
+    const open = (await this.requirements.listByClient(userId, clientId)).filter((r) => r.status === 'open');
+    const current = new Set(currentRequirements(open).map((r) => r.id));
+    const out = new Set(open.filter((r) => !current.has(r.id)).map((r) => r.id));
+    cache.set(clientId, out);
+    return out;
+  }
+
+  private async isReplaced(userId: string, requirement: RequirementRecord): Promise<boolean> {
+    return (await this.replacedIds(userId, requirement.clientId, new Map())).has(requirement.id);
+  }
+
   /** Turn stored matches into surfaced suggestions, dropping any whose requirement is no longer open
    *  (dormant/met/gone) or whose item is no longer active (defense in depth over the creation-time
    *  filters), and any that would lack a receipt. No suggestion without the client's quoted words. */
   private async hydrate(userId: string, ms: MatchRecord[]): Promise<MatchSuggestion[]> {
     const out: MatchSuggestion[] = [];
+    const replaced = new Map<string, Set<string>>();
     for (const m of ms) {
       const req = await this.requirements.findByIdForUser(userId, m.requirementId);
       if (!req || req.status !== 'open' || !req.requirementRaw) continue;
+      // [P84-7] a match made before a later count replaced its need is no longer suggested (kept, not deleted)
+      if ((await this.replacedIds(userId, req.clientId, replaced)).has(req.id)) continue;
       const item = await this.inventory.findByIdForUser(userId, m.itemId);
       if (!item || item.status !== 'active') continue;
       out.push({

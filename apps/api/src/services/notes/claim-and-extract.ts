@@ -25,7 +25,12 @@ export interface ClaimAndExtractDeps {
   /** [P83 · owner] Count the chat's messages (stripped) against the month and the packs, once per note. False when not
    *  enough are left: the chat is then NOT claimed and NOT read; it waits, intact, for a pack or the monthly reset. */
   chargeMessages?: (userId: string, noteId: string) => Promise<boolean>;
+  /** [P84-6 · owner] Reading the chat failed for good (needs_review): give back the messages counted for it. */
+  refundMessages?: (userId: string, noteId: string) => Promise<void>;
 }
+
+/** [P84-6] The outcomes that end a read for good, unread. (A paused or capped read waits and resumes: not one.) */
+const PERMANENT_FAILURE: ReadonlySet<string> = new Set(['needs_review']);
 
 export function createClaimAndExtract(deps: ClaimAndExtractDeps) {
   const now = deps.now ?? ((): number => Date.now());
@@ -37,6 +42,8 @@ export function createClaimAndExtract(deps: ClaimAndExtractDeps) {
     if (deps.chargeMessages && !(await deps.chargeMessages(userId, noteId))) return { status: 'out_of_messages', flagged: true };
     const claimed = await deps.claim(userId, noteId, now());
     if (!claimed) return { status: 'claimed_elsewhere' }; // another worker has it — do nothing
-    return deps.extract(userId, noteId, today);
+    const outcome = await deps.extract(userId, noteId, today);
+    if (PERMANENT_FAILURE.has(outcome.status)) await deps.refundMessages?.(userId, noteId).catch(() => undefined);
+    return outcome;
   };
 }

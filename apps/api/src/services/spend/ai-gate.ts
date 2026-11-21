@@ -1,6 +1,6 @@
 import type { AiAllowanceRepository } from '../../ports/ai-allowance-repository.js';
 import type { AiPauseRepository } from '../../ports/ai-pause-repository.js';
-import { allowanceWindow, type AllowanceWindowInput } from './ai-period.js';
+import { allowanceWindow, windowAllowance, type AllowanceWindowInput } from './ai-period.js';
 
 /**
  * [USAGE-ALLOWANCE · D14 runtime kill switch] Reads the DB pause flag with a cache of at most `ttlMs`
@@ -66,6 +66,11 @@ export interface AiGateDeps {
   allowance: AiAllowanceRepository;
   /** The monthly allowance (D1), in AED. */
   allowanceAed: number;
+  /** [P83/P84-5] The plan's messages, and the trial window's AED gate and messages, so a window the gate opens first
+   *  opens with the same figures the status would give it. Absent → the plan's / the repository default. */
+  messagesAllowance?: number;
+  trialAllowanceAed?: number;
+  trialMessagesAllowance?: number;
   /** The global email-alert threshold (D13), in AED. */
   alertThresholdAed: number;
   /** The rep's billing window, to derive the monthly allowance period. */
@@ -114,7 +119,8 @@ export class AiGate {
     let reservationId: string | null = null;
     if (call.userId) {
       const w = allowanceWindow(await this.deps.billingWindowFor(call.userId), this.now());
-      await this.deps.allowance.ensureMonth(call.userId, w.key, w.startMs, this.deps.allowanceAed);
+      const a = windowAllowance(w.key, { aed: this.deps.allowanceAed, messages: this.deps.messagesAllowance }, { aed: this.deps.trialAllowanceAed, messages: this.deps.trialMessagesAllowance });
+      await this.deps.allowance.ensureMonth(call.userId, w.key, w.startMs, a.aed, a.messages);
       const r = await this.deps.allowance.reserve(call.userId, w.key, call.estimateAed, this.now() + (call.reservationTtlMs ?? this.ttl));
       if (!r.ok) {
         // [RULING 2] An already-started chat is never refused for the allowance. With no reservation

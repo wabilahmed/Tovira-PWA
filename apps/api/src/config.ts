@@ -34,6 +34,9 @@ export const DEFAULT_MONTHLY_AI_ALLOWANCE_AED = 60;
  * (DEFAULT_MONTHLY_AI_ALLOWANCE_AED) stays the real money limit behind it.
  */
 export const MONTHLY_MESSAGES = 10_000;
+/** [P84-5 · owner, 22 Nov] The 14-day trial's messages (not the plan's 10,000). Its money gate is the plan's AED per
+ *  message (AED 60 per 10,000), so 5,000 messages = AED 30, and the trial ledger failsafe flags at that same line. */
+export const TRIAL_MESSAGES = 5_000;
 export const PLAN_PRICE_AED = 299;
 /** The plan's rate, AED per 1,000 messages (299 / 10 rounded up): no pack is ever sold below it. */
 export const PLAN_RATE_AED_PER_1000 = 30;
@@ -276,6 +279,9 @@ export interface AppConfig {
    *  (Was 15 — raised because 15.3 would have throttled the heaviest legitimate trial, the wrong person.)
    *  Enforced pre-spend, degrade-not-break. NOT settled. */
   trialSpendCapAed: number;
+  /** [P84-5] The trial's messages (TRIAL_MESSAGES, 5,000) and its AED gate (the plan's AED per message: AED 30). */
+  trialMessages: number;
+  trialAiAllowanceAed: number;
   spendWarnFraction: number;
   /** [USAGE-ALLOWANCE · D1] Each rep's monthly AI-cost allowance (100%). Derivation: AED 60 ≈ 20% of the
    *  AED 299 subscription: the most AI cost one seat may consume per month. Raised from 40 on 2026-10-05
@@ -348,6 +354,16 @@ function isBlank(v: string | undefined): boolean {
   return v === undefined || v.trim() === '';
 }
 
+/** [P84-5] The trial's messages, its AED gate (the plan's AED per message unless TRIAL_AI_ALLOWANCE_AED says otherwise)
+ *  and its ledger failsafe (the gate's line unless TRIAL_SPEND_CAP_AED says otherwise). */
+function trialFigures(env: Record<string, string | undefined>): { trialMessages: number; trialAiAllowanceAed: number; trialSpendCapAed: number } {
+  const trialMessages = parsePositive(env.TRIAL_MESSAGES, TRIAL_MESSAGES, 'TRIAL_MESSAGES');
+  const planAed = parsePositive(env.MONTHLY_AI_ALLOWANCE_AED, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, 'MONTHLY_AI_ALLOWANCE_AED');
+  const planMessages = parsePositive(env.MONTHLY_MESSAGES, MONTHLY_MESSAGES, 'MONTHLY_MESSAGES');
+  const trialAiAllowanceAed = parsePositive(env.TRIAL_AI_ALLOWANCE_AED, Math.round(packGateAed(trialMessages, planAed, planMessages) * 100) / 100, 'TRIAL_AI_ALLOWANCE_AED');
+  return { trialMessages, trialAiAllowanceAed, trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, trialAiAllowanceAed, 'TRIAL_SPEND_CAP_AED') };
+}
+
 export function loadConfig(env: Env = process.env): AppConfig {
   const missing = REQUIRED.filter((key) => isBlank(env[key]));
   if (missing.length > 0) {
@@ -413,10 +429,11 @@ export function loadConfig(env: Env = process.env): AppConfig {
     paidExtractionCeiling: parsePositive(env.PAID_EXTRACTION_CEILING, 2000, 'PAID_EXTRACTION_CEILING'),
     spendCapAed: parsePositive(env.SPEND_CAP_AED, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, 'SPEND_CAP_AED'), // [P83] matches the gate (60)
     sweepConcurrency: parsePositive(env.SWEEP_CONCURRENCY, 5, 'SWEEP_CONCURRENCY'),
-    trialSpendCapAed: parsePositive(env.TRIAL_SPEND_CAP_AED, 20, 'TRIAL_SPEND_CAP_AED'),
     spendWarnFraction: parsePositive(env.SPEND_WARN_FRACTION, 0.8, 'SPEND_WARN_FRACTION'),
     monthlyAiAllowanceAed: parsePositive(env.MONTHLY_AI_ALLOWANCE_AED, DEFAULT_MONTHLY_AI_ALLOWANCE_AED, 'MONTHLY_AI_ALLOWANCE_AED'),
     monthlyMessages: parsePositive(env.MONTHLY_MESSAGES, MONTHLY_MESSAGES, 'MONTHLY_MESSAGES'),
+    // [P84-5] the trial: 5,000 messages; its gate at the plan's AED per message; its failsafe at the gate's line
+    ...trialFigures(env),
     aiSpendAlertAed: parsePositive(env.AI_SPEND_ALERT_AED, 300, 'AI_SPEND_ALERT_AED'),
     aiPaused: env.AI_PAUSED?.trim() === 'true', // default false (undefined → not paused)
     opsToken: isBlank(env.OPS_TOKEN) ? undefined : env.OPS_TOKEN!.trim(),

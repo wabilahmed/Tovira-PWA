@@ -53,6 +53,13 @@ export interface AiAllowanceRepository {
    *  used + messages <= allowance + topup. A note already counted returns 'already' and changes nothing. */
   chargeMessages(userId: string, periodKey: string, noteId: string, messages: number): Promise<MessageChargeResult>;
 
+  /** [P84-6] Give back what was counted for this note (to the window it was counted in), once: the charge row goes, so a
+   *  later Try again counts it afresh. Returns the messages given back (0 when nothing was counted). */
+  refundMessages(userId: string, noteId: string): Promise<number>;
+
+  /** [P84-9] Have this note's messages already been counted? (A counted chat never waits for messages.) */
+  isCharged(userId: string, noteId: string): Promise<boolean>;
+
   /** Atomically reserve `estimateAed` against this window. Succeeds ONLY if
    *  spent + reserved + estimate <= allowance + topup, as a single conditional update. On success the
    *  reservation is recorded (open, with `expiresAtMs`) so it can be settled or expired later. */

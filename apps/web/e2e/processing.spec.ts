@@ -70,7 +70,8 @@ for (const scheme of ['light', 'dark'] as const) {
     state.phase = 'failed';
     await page.reload();
     await page.getByRole('button', { name: 'Open Sara Khan' }).click();
-    await expect(page.getByText('Something went wrong on our side.')).toBeVisible();
+    // [P84-6 · owner, 22 Nov] pin moved: a chat that can't be read says its messages weren't used (they are given back)
+    await expect(page.getByText("Couldn't read this chat. Your messages weren't used.")).toBeVisible();
     await shot(page, `p65-4-failure-${scheme}`);
 
     state.phase = 'working';

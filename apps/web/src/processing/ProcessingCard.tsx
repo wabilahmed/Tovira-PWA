@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../ui/index.js';
 import { NOUN, foundNothing, type FoundCounts, type ProcessingItem } from './processingClient.js';
+import { CHOOSE_OWN } from '../usage/usageCopy.js';
 
 /**
  * [P65 · owner] The status card at the top of a client's page: while Tovira is reading what the rep sent (the real
@@ -41,19 +42,26 @@ export function foundParts(f: FoundCounts, clientName = 'they'): Array<{ text: s
   return out;
 }
 
-const HOLD_REASON: Record<NonNullable<ProcessingItem['hold']>, string> = {
+const HOLD_REASON: Record<Exclude<NonNullable<ProcessingItem['hold']>, 'messages'>, string> = {
   allowance: 'Importing is paused: no messages left this month.', // [P83] messages, never usage
   subscribe: 'Your trial has ended.',
   payment: 'Your last payment didn’t go through.',
 };
-const HOLD_SAVED: Record<NonNullable<ProcessingItem['hold']>, string> = {
+const HOLD_SAVED: Record<Exclude<NonNullable<ProcessingItem['hold']>, 'messages'>, string> = {
   allowance: 'It’s saved. Tovira reads it as soon as you add messages or the month resets.',
   subscribe: 'It’s saved. Tovira analyses it once you subscribe.',
   payment: 'It’s saved. Tovira analyses it once your payment is updated.',
 };
 
-export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubscribe, onUpdatePayment }: {
+/** [P84-9 · owner] the line on a chat held for messages */
+export const WAITING_FOR_MESSAGES = 'Waiting for messages: add messages to read this chat';
+/** [P84-6 · owner] a chat that could not be read (its messages were given back) */
+export const CHAT_NOT_READ = "Couldn't read this chat. Your messages weren't used.";
+
+export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubscribe, onUpdatePayment, packs }: {
   items: ProcessingItem[];
+  /** [P84-9] the packs to offer on a chat waiting for messages (labels only, no price); empty for a trial. */
+  packs?: Array<{ id: string; label: string }>;
   onOpenSection: (s: SectionLink) => void;
   onRetry: (noteId: string) => Promise<boolean>;
   onTopUp?: () => void;
@@ -81,7 +89,24 @@ export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubsc
             </div>
           );
         }
+        if (i.state === 'held' && i.hold === 'messages') {
+          const canBuy = (packs ?? []).length > 0;
+          return (
+            <div key={i.noteId} className="ui-banner ui-banner--warning" role="status" data-testid={`processing-${i.noteId}`} data-state="held">
+              <div>
+                <p className="ui-strong" style={{ margin: 0 }}>{WAITING_FOR_MESSAGES}</p>
+                <p className="ui-secondary" style={{ margin: 0 }}>{canBuy ? 'It’s saved. Tovira reads it as soon as you add messages or the month resets.' : 'It’s saved. Tovira reads it once you subscribe.'}</p>
+              </div>
+              <div className="ui-cluster ui-gap-3">
+                {canBuy
+                  ? [...packs!.map((p) => <Button key={p.id} size="sm" onClick={() => onTopUp?.()}>{p.label}</Button>), <Button key="custom" size="sm" variant="text" onClick={() => onTopUp?.()}>{CHOOSE_OWN}</Button>]
+                  : onSubscribe && <Button size="sm" onClick={onSubscribe}>Subscribe</Button>}
+              </div>
+            </div>
+          );
+        }
         if (i.state === 'held') {
+          const hold = (i.hold ?? 'allowance') as keyof typeof HOLD_REASON;
           const action = i.hold === 'allowance' ? (onTopUp && <Button size="sm" onClick={onTopUp}>Add messages</Button>)
             : i.hold === 'subscribe' ? (onSubscribe && <Button size="sm" onClick={onSubscribe}>Subscribe</Button>)
             : (onUpdatePayment && <Button size="sm" onClick={onUpdatePayment}>Update payment</Button>);
@@ -89,8 +114,8 @@ export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubsc
             <div key={i.noteId} className="ui-banner ui-banner--warning" role="status" data-testid={`processing-${i.noteId}`} data-state="held">
               <div>
                 <p className="ui-strong" style={{ margin: 0 }}>{`Tovira couldn't analyse ${what}.`}</p>
-                <p style={{ margin: 0 }}>{HOLD_REASON[i.hold ?? 'allowance']}</p>
-                <p className="ui-secondary" style={{ margin: 0 }}>{HOLD_SAVED[i.hold ?? 'allowance']}</p>
+                <p style={{ margin: 0 }}>{HOLD_REASON[hold]}</p>
+                <p className="ui-secondary" style={{ margin: 0 }}>{HOLD_SAVED[hold]}</p>
               </div>
               {action && <div className="ui-cluster ui-gap-3">{action}</div>}
             </div>
@@ -98,11 +123,16 @@ export function ProcessingCard({ items, onOpenSection, onRetry, onTopUp, onSubsc
         }
         if (i.state === 'failed') {
           const missing = i.failure?.reason === 'recording_missing';
+          const chat = i.kind === 'chat' && !missing;
           return (
             <div key={i.noteId} className="ui-banner ui-banner--danger" role="alert" data-testid={`processing-${i.noteId}`} data-state="failed">
               <div>
-                <p className="ui-strong" style={{ margin: 0 }}>{`Tovira couldn't analyse ${what}.`}</p>
-                <p style={{ margin: 0 }}>{missing ? 'The recording was not found, so it couldn’t be transcribed.' : 'Something went wrong on our side.'}</p>
+                {chat
+                  ? <p className="ui-strong" style={{ margin: 0 }}>{CHAT_NOT_READ}</p>
+                  : <>
+                      <p className="ui-strong" style={{ margin: 0 }}>{`Tovira couldn't analyse ${what}.`}</p>
+                      <p style={{ margin: 0 }}>{missing ? 'The recording was not found, so it couldn’t be transcribed.' : 'Something went wrong on our side.'}</p>
+                    </>}
               </div>
               <div className="ui-cluster ui-gap-3">
                 {i.failure?.canRetry && (

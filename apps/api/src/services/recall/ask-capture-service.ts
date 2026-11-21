@@ -6,7 +6,7 @@ import type { FactsRepository } from '../../ports/facts-repository.js';
 import type { Embedder } from '../../ports/embedder.js';
 import type { ExtractedPromise, KeyDate } from '../extraction/types.js';
 import { factsProjection } from '../extraction/date-policy.js';
-import { summarizeRequirements } from '../clients/requirement-summary.js';
+import { summarizeRequirements, currentRequirements } from '../clients/requirement-summary.js';
 import type { RequirementRepository } from '../../ports/requirement-repository.js';
 import type { CorrectionRepository } from '../../ports/correction-repository.js';
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
@@ -100,7 +100,7 @@ export class AskCaptureService {
       // [P40-3] "Did Sara Khan's budget change from AED 2M to AED 2.2M?" — the stored budget, when there is one
       let previousValue: string | null = null;
       if (set?.field === 'budget' && this.deps.requirements) {
-        const reqs = (await this.deps.requirements.listByClient(userId, n.clientId)).filter((r) => r.status === 'open');
+        const reqs = currentRequirements((await this.deps.requirements.listByClient(userId, n.clientId)).filter((r) => r.status === 'open')); // [P84-7]
         previousValue = summarizeRequirements(reqs).budget ?? null;
       }
       out.push({ noteId: n.id, clientId: n.clientId, clientName, statement, capturedAt: n.createdAt, summary: captureSummary(statement, clientName), ...(set ? { field: set.field, value: set.value } : {}), ...(previousValue ? { previousValue } : {}) });

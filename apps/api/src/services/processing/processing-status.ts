@@ -1,3 +1,4 @@
+import { messagesToRead } from '../import/reading-estimate.js';
 import type { NoteRecord, NoteRepository } from '../../ports/note-repository.js';
 import type { ClientRepository } from '../../ports/client-repository.js';
 import type { FactsRepository } from '../../ports/facts-repository.js';
@@ -17,7 +18,8 @@ import { extractionState } from '../notes/extraction-state.js';
 export type CaptureKind = 'chat' | 'voice' | 'typed';
 export type ProcessingStage = 'waiting' | 'transcribing' | 'reading';
 export type FailureReason = 'ours' | 'recording_missing';
-export type HoldReason = 'allowance' | 'subscribe' | 'payment';
+/** [P84-9] 'messages': a chat with more messages to read than the rep has left waits for a pack or the reset. */
+export type HoldReason = 'allowance' | 'subscribe' | 'payment' | 'messages';
 import { careCount } from '../clients/cares-about.js';
 export interface FoundCounts { /** [P69] things the client cares about (details, asks, worries) */ caresAbout: number; promises: number; overduePromises: number; dates: number; requirements: number; people: number; needsAnswer: number }
 export interface ProcessingItem {
@@ -94,6 +96,8 @@ export interface ProcessingStatusDeps {
   holdReason: (userId: string) => Promise<HoldReason | null>;
   /** The rep's "today" (YYYY-MM-DD, their time zone), for overdue promises. */
   today: (userId: string, nowMs: number) => Promise<string>;
+  /** [P84-9] Messages left this window, and whether a chat's messages were already counted. Optional. */
+  messages?: { left: (userId: string) => Promise<number>; isCharged: (userId: string, noteId: string) => Promise<boolean> };
 }
 
 /** Counted from what was saved for this note: its promises (open ones past due are overdue), its dates (key dates and a
@@ -124,16 +128,29 @@ export async function foundFor(deps: ProcessingStatusDeps, userId: string, n: No
 export class ProcessingStatusService {
   constructor(private readonly deps: ProcessingStatusDeps) {}
 
+  /** [P84-9] A queued chat not yet counted, with more messages to read than are left: it waits for messages. */
+  private async messagesHold(userId: string, n: NoteRecord, cached: () => number | null, cache: (v: number) => void): Promise<HoldReason | null> {
+    const m = this.deps.messages;
+    if (!m || kindOf(n) !== 'chat' || n.status !== 'pending_extraction') return null;
+    const toRead = messagesToRead(n.messages ?? []);
+    if (toRead <= 0) return null;
+    let left = cached();
+    if (left === null) { left = await m.left(userId); cache(left); }
+    if (toRead <= left) return null;
+    return (await m.isCharged(userId, n.id)) ? null : 'messages';
+  }
+
   async status(userId: string, nowMs: number): Promise<ProcessingStatus> {
     const notes = await this.deps.notes.listProcessingByUser(userId, nowMs - RECENT_MS);
     if (notes.length === 0) return { items: [], working: 0 };
     const [hold, today] = await Promise.all([this.deps.holdReason(userId), this.deps.today(userId, nowMs)]);
+    let left: number | null = null;
     const names = new Map<string, string>();
     const items: ProcessingItem[] = [];
     for (const n of notes) {
       if (!names.has(n.clientId)) names.set(n.clientId, (await this.deps.clients.findByIdForUser(userId, n.clientId))?.name ?? '');
       const found = n.status === 'extracted' ? await foundFor(this.deps, userId, n, today) : null;
-      const item = toItem({ note: n, clientName: names.get(n.clientId)!, hold, found });
+      const item = toItem({ note: n, clientName: names.get(n.clientId)!, hold: hold ?? (await this.messagesHold(userId, n, () => left, (v) => { left = v; })), found });
       if (item) items.push(item);
     }
     items.sort((a, b) => b.startedAt - a.startedAt);

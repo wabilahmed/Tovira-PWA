@@ -14,8 +14,11 @@ let server: Server; let base: string; let deps: TestDeps;
 beforeAll(async () => { deps = buildInMemoryDeps(); server = createApiServer(deps); await listenForTest(server); base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`; });
 afterAll(async () => { await new Promise<void>((r) => server.close(() => r())); });
 
-async function rep(email: string) {
-  const s = (await (await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'password123' }) })).json()) as { token: string; user: { id: string } };
+// [P84-5 · owner, 22 Nov] pins moved: a trial now has 5,000 messages, so the plan's 10,000 is tested on a subscriber
+// (the webhook below); the trial has its own cases at the end. [P84-8] the rep's time zone is set at signup.
+async function rep(email: string, opts: { trial?: boolean; timezone?: string } = {}) {
+  const s = (await (await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'password123', ...(opts.timezone ? { timezone: opts.timezone } : {}) }) })).json()) as { token: string; user: { id: string } };
+  if (!opts.trial) await fetch(`${base}/billing/webhook`, { method: 'POST', headers: { 'stripe-signature': 'whsec_test', 'content-type': 'application/json' }, body: JSON.stringify({ id: `evt_sub_${s.user.id}`, type: 'checkout.session.completed', userId: s.user.id }) });
   const c = (await (await fetch(`${base}/clients`, { method: 'POST', headers: { authorization: `Bearer ${s.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Sara Lee' }) })).json()) as { id: string };
   return { token: s.token, userId: s.user.id, clientId: c.id };
 }
@@ -66,3 +69,40 @@ describe('[P83] imports and the messages left', () => {
     expect((await deps.allowanceStatus.status(r.userId)).messagesUsed).toBe(10_000);
   });
 });
+
+describe('[P84-5] a trial: 5,000 messages, in trial words', () => {
+  it('a trial rep can read 5,000, not 10,000', async () => {
+    const r = await rep('im-t1@x.io', { trial: true });
+    const s = await deps.allowanceStatus.status(r.userId);
+    expect([s.messagesAllowance, s.messagesLeft]).toEqual([5000, 5000]);
+  });
+  it('NEGATIVE: too big for what the trial has left: refused, nothing stored, with the trial line', async () => {
+    const r = await rep('im-t2@x.io', { trial: true });
+    await useMessages(r.userId, 4800);
+    const b = (await (await post(r.token, r.clientId, exportOf(240))).json()) as { error: string; message: string };
+    expect(b.error).toBe('out_of_messages');
+    expect(b.message).toBe('This chat has 240 messages to read. You have 200 left in your trial. Subscribe to import it now.');
+    expect(await deps.notes.listByClient(r.userId, r.clientId)).toEqual([]);
+  });
+  it('NEGATIVE: none left: "You\'ve read your 5,000 trial messages." (no reset date: a trial does not reset)', async () => {
+    const r = await rep('im-t3@x.io', { trial: true });
+    await useMessages(r.userId, 5000);
+    const b = (await (await post(r.token, r.clientId, exportOf(5))).json()) as { message: string };
+    expect(b.message).toBe("You've read your 5,000 trial messages. Subscribe to import it now.");
+  });
+});
+
+describe('[P84-8] "Resets <date>" is the rep\'s own day', () => {
+  it('a rep in New York and a rep in Dubai each see the reset day in their own time zone', async () => {
+    const ny = await rep('im-tz1@x.io', { timezone: 'America/New_York' });
+    const dxb = await rep('im-tz2@x.io', { timezone: 'Asia/Dubai' });
+    await useMessages(ny.userId, 10_000);
+    await useMessages(dxb.userId, 10_000);
+    const resetAtMs = (await deps.allowanceStatus.status(ny.userId)).resetAtMs;
+    const day = (tz: string) => { const p = new Intl.DateTimeFormat('en-GB', { timeZone: tz, day: 'numeric', month: 'short' }).formatToParts(new Date(resetAtMs)); return `${p.find((x) => x.type === 'day')!.value} ${p.find((x) => x.type === 'month')!.value}`; };
+    const msg = async (r: { token: string; clientId: string }) => ((await (await post(r.token, r.clientId, exportOf(5))).json()) as { message: string }).message;
+    expect(await msg(ny)).toContain(`Resets ${day('America/New_York')}.`);
+    expect(await msg(dxb)).toContain(`Resets ${day('Asia/Dubai')}.`);
+  });
+});
+

@@ -38,6 +38,12 @@ export interface AllowanceStatus {
   /** 'active' | 'trialing' | 'trial_expired' | 'payment_failed' | 'past_due' | 'suspended' | 'ended' | 'canceled' |
    *  'none'. Drives the run-out message. */
   subscription?: string | null;
+  /** [P84-5] The trial's window: 5,000 messages, and it ends (no monthly reset). */
+  trial?: boolean;
+  /** [P84-5] What subscribing gives a month (10,000), for "Subscribe for 10,000 messages a month". */
+  planMessages?: number;
+  /** [P84-8] The rep's own time zone, so "Resets <date>" is their day. */
+  timeZone?: string | null;
 }
 
 /** A refused checkout carries the server's reason ("The smallest amount is 1,000 messages."). */
