@@ -73,6 +73,55 @@ function utcDate(y: number, mo1: number, d: number): Date | null {
   return dt;
 }
 
+/** [P83-6] Month names and the short forms people write ("Jun", "Sept"). Whole words only. */
+const MONTHS: Record<string, number> = {
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6,
+  jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+const MON = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?';
+const DAY = '(\\d{1,2})(?:st|nd|rd|th)?';
+const YEAR = '(\\d{4})';
+const RANGE = '\\s*(?:-|to|until|till|and)\\s*';
+const OF = '\\s+(?:of\\s+)?';
+/** [P83-6] A full written date, optionally the start of a range, inside free text (for a meeting sentence or a quote). */
+export const FULL_WRITTEN_DATE = new RegExp(
+  `\\b(?:\\d{1,2}(?:st|nd|rd|th)?(?:${OF}${MON})?${RANGE})?\\d{1,2}(?:st|nd|rd|th)?${OF}${MON},?\\s+\\d{4}\\b` +
+  `|\\b${MON}\\s+\\d{1,2}(?:st|nd|rd|th)?(?:${RANGE}(?:${MON}\\s+)?\\d{1,2}(?:st|nd|rd|th)?)?,?\\s+\\d{4}\\b`,
+  'gi',
+);
+
+/** [P83-6] A range's start, valid only when both ends are real dates and the range runs forward. */
+function rangeStart(d1: number, m1: number, d2: number, m2: number, y: number): string | null {
+  const y1 = m1 > m2 ? y - 1 : y; // "28 Dec to 3 Jan 2027": the range starts the year before
+  const start = utcDate(y1, m1, d1);
+  const end = utcDate(y, m2, d2);
+  if (!start || !end || end.getTime() < start.getTime()) return null;
+  return iso(start);
+}
+
+/** [P83-6] A date written with a month NAME and a year: "30 June 2026", "June 30, 2026", "30th Jun 2026",
+ *  or a range "1 to 20 December 2026" / "28 Nov to 3 Dec 2026" (its START date). The whole phrase must be the
+ *  date; a day and month without a year never matches (the no-year rule). Null when impossible. */
+function tryWrittenDate(phrase: string): string | null {
+  const p = phrase.replace(/[\u2013\u2014]/g, '-').replace(/^(from|between)\s+/, '').replace(/^the\s+/, '').trim();
+  const mo = (s: string): number => MONTHS[s.replace(/\.$/, '')] ?? 0;
+  const whole = (re: string): RegExpExecArray | null => new RegExp(`^${re}$`).exec(p);
+  let m = whole(`${DAY}${OF}${MON},?\\s+${YEAR}`);
+  if (m) { const d = utcDate(Number(m[3]), mo(m[2]!), Number(m[1])); return d ? iso(d) : null; }
+  m = whole(`${MON}\\s+${DAY},?\\s+${YEAR}`);
+  if (m) { const d = utcDate(Number(m[3]), mo(m[1]!), Number(m[2])); return d ? iso(d) : null; }
+  m = whole(`${DAY}${RANGE}${DAY}${OF}${MON},?\\s+${YEAR}`);
+  if (m) { const k = mo(m[3]!); return rangeStart(Number(m[1]), k, Number(m[2]), k, Number(m[4])); }
+  m = whole(`${DAY}${OF}${MON}${RANGE}${DAY}${OF}${MON},?\\s+${YEAR}`);
+  if (m) return rangeStart(Number(m[1]), mo(m[2]!), Number(m[3]), mo(m[4]!), Number(m[5]));
+  m = whole(`${MON}\\s+${DAY}${RANGE}${DAY},?\\s+${YEAR}`);
+  if (m) { const k = mo(m[1]!); return rangeStart(Number(m[2]), k, Number(m[3]), k, Number(m[4])); }
+  m = whole(`${MON}\\s+${DAY}${RANGE}${MON}\\s+${DAY},?\\s+${YEAR}`);
+  if (m) return rangeStart(Number(m[2]), mo(m[1]!), Number(m[4]), mo(m[3]!), Number(m[5]));
+  return null;
+}
+
 /** Try to read a FULLY-SPECIFIED absolute date (needs no anchor). Null otherwise. `dayFirst` (true for a
  *  WhatsApp import, whose own timestamps are parsed day-first) lets an otherwise-ambiguous A/B/YYYY resolve
  *  as DD/MM; without it, an ambiguous order stays null (no locale guess — the certified-prompt rule). */
@@ -96,7 +145,7 @@ function tryExplicit(phrase: string, dayFirst = false): string | null {
     const d = utcDate(y, month, day);
     return d ? iso(d) : null;
   }
-  return null;
+  return tryWrittenDate(phrase);
 }
 
 /** [P16-1/P18-3] Extract an EXPLICIT clock time ("3pm", "3:30pm", "15:00", "9 am") as "HH:MM". Null for
@@ -127,6 +176,9 @@ export function extractDatePhrase(text: string): string | null {
   // is then left to the resolver, which returns null without a day-order proof — never a weekday guess.)
   const explicit = /\b\d{1,2}[./-]\d{1,2}[./-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b/.exec(text);
   if (explicit) return explicit[0];
+  // [P83-6] A date written with a month name and a year ("Sunday 17 May 2026 at 4pm") wins the same way.
+  const written = new RegExp(FULL_WRITTEN_DATE.source, 'i').exec(text);
+  if (written) return written[0];
   const re = /\b((?:this|next)\s+)?(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu(?:rs?)?|fri|sat|sun)\b|\bin\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:days?|weeks?)\b|\bend\s+of\s+(?:the\s+)?month\b/i;
   const m = re.exec(text);
   return m ? m[0] : null;

@@ -14,6 +14,7 @@
  *    [P27-2] A later value replaces only the VALUE: an earlier requirement that says anything else ("4BR villa
  *    in Mirdif, budget around 3M") is never dropped — its stale value clause leaves the display text when it
  *    separates cleanly, else the text is kept whole; the verbatim receipt (requirement_raw) is never edited.
+ *  - [P83-8] the same for a count ("at least 3 bedrooms" → "4 bedrooms not 3"): requirement-supersede.ts.
  *  - one meeting (the schema holds one): the most recently arranged.
  * `deliveryFor` then looks, over the WHOLE chat, for a later message that delivered a promise — so a promise
  * made in window 1 and delivered in window 3 is noticed even though the windows were read apart. [P24-2] It
@@ -23,6 +24,7 @@ import type { Extraction, ExtractedPromise, ExtractedPerson, KeyDate, Requiremen
 import type { ImportedMessage } from '../../ports/note-repository.js';
 import { normalizeName } from '../text/normalize-name.js';
 import { queryTerms, termHits } from '../recall/query-terms.js';
+import { supersededItems } from './requirement-supersede.js';
 
 export interface WindowConfig {
   /** Chats with MORE than this many (model-visible) messages are windowed. */
@@ -158,6 +160,8 @@ export function mergeWindowExtractions(parts: Extraction[]): Extraction {
     // [P27-2] A need that also carried the old value: keep the need, drop only the stale value from its text.
     requirements.push({ ...r, text: withoutValueClause(r.text, s) ?? r.text });
   }
+  // [P83-8 · owner] LATER WINS for a count too: "at least 3 bedrooms" then "4 bedrooms not 3" keeps only the latest.
+  const replaced = supersededItems(requirements, (r) => ({ text: r.text, raw: r.requirement_raw }));
 
   const keyDate = (k: KeyDate) => `${k.date ?? ''}|${norm(k.description)}`;
   const key_dates = dedupeBy(parts.flatMap((x) => x.key_dates), keyDate);
@@ -175,7 +179,7 @@ export function mergeWindowExtractions(parts: Extraction[]): Extraction {
     key_dates,
     concerns: dedupeSimilar(parts.flatMap((x) => x.concerns), (c) => c),
     next_steps: dedupeSimilar(parts.flatMap((x) => x.next_steps), (c) => c),
-    requirements,
+    requirements: requirements.filter((r) => !replaced.has(r)),
     meeting,
     ...(pointers ? { pointers } : {}),
   };

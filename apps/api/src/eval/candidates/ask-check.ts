@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   const modelId = config.models.recall;
   const cap = SpendCap.fromEnv(process.env);
   const real = createModelClient(config, 'recall');
-  const model: ModelClient = { complete: async (r) => { const res = await real.complete(r); cap.add(modelId, res.usage ?? { inputTokens: 0, outputTokens: 0 }); return res; } };
+  const model: ModelClient = { complete: async (r) => { cap.guard(modelId, r); const res = await real.complete(r); cap.add(modelId, res.usage ?? { inputTokens: 0, outputTokens: 0 }); return res; } };
 
   // A book shaped like the test rep's.
   const clients = new InMemoryClientRepository();

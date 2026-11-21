@@ -1,4 +1,5 @@
 import { extractDatePhrase, resolveDueDate } from '../extraction/resolve-date.js';
+import { supersededItems } from '../extraction/requirement-supersede.js';
 
 /**
  * [P36-5] A client's wants in one line, read deterministically from their STORED requirements (no model, no
@@ -183,6 +184,15 @@ export function requirementMonthMention(r: RequirementLike): { month: number; sa
     if (m) return { month: MONTH_NUM[m[1]!.slice(0, 3).toLowerCase()]!, said: m[1]![0]!.toUpperCase() + m[1]!.slice(1) };
   }
   return null;
+}
+
+/** [P83-8 · owner] The requirements still current: a need whose count a LATER need changed ("at least 3 bedrooms",
+ *  then "4 bedrooms not 3", in the same chat or another note) is left out, so only the latest shows. Nothing is
+ *  deleted; the input order is kept. */
+export function currentRequirements<T extends RequirementLike>(reqs: T[]): T[] {
+  const ordered = reqs.slice().sort((a, b) => (a.statedOn ?? '').localeCompare(b.statedOn ?? '') || a.createdAt - b.createdAt);
+  const replaced = supersededItems(ordered, (r) => ({ text: r.text, raw: r.requirementRaw }));
+  return reqs.filter((r) => !replaced.has(r));
 }
 
 export function summarizeRequirements(reqs: RequirementLike[]): RequirementSummary {

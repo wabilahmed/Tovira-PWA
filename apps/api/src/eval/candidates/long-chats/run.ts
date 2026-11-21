@@ -64,6 +64,7 @@ async function main(): Promise<void> {
   let fixtureCalls = 0; let fixtureAed = 0; let fixtureIn = 0; let fixtureOut = 0;
   const model: ModelClient = {
     complete: async (req) => {
+      cap.guard(modelId, req); // [P83-9] never send a call whose worst case would pass the cap
       const res = await real.complete(req);
       const u = res.usage ?? { inputTokens: 0, outputTokens: 0 };
       const before = cap.spentAed;

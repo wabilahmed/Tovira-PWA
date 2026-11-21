@@ -13,11 +13,14 @@ import type { SensitiveCategory, SensitiveMatch } from './sensitive-screen.js';
  * HOLIDAYS AS DATES ARE NOT SENSITIVE (owner): "after Ramadan", "Eid break", "post Diwali", "during Ramadan", "Ramadan
  * timings" are dates. Festival names are not listed at all; only observance is ("he is fasting", "she observes
  * Ramadan", "he prays"), and even an observance word used as a date ("after the fasting month") is not withheld.
+ * [P83-7 · owner] Pilgrimage is observance too: "we're doing Umrah in February", "he is going for Hajj", and "during
+ * Ramadan I'm observing"; "after Hajj we sign" is a date and the Umrah or Hajj trade ("Umrah packages") is business.
  *
  * KNOWN MISSES (precise-screen.test.ts records them): vague or indirect mentions ("he has been unwell", "trouble with
  * the police"), misspellings, and Arabic and Hindi beyond the common terms below.
  */
-type Rule = { category: SensitiveCategory; re: RegExp };
+/** `statement`: the match is a statement about a person, never a date word, so the date check below does not apply. */
+type Rule = { category: SensitiveCategory; re: RegExp; statement?: true };
 const W = (words: string) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${words})(?![\\p{L}\\p{N}])`, 'giu');
 const CASED = (words: string) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${words})(?![\\p{L}\\p{N}])`, 'gu');
 const ANY = (words: string) => new RegExp(`(?:${words})`, 'gu'); // Arabic / Devanagari: letters attach (ال…), no \b
@@ -36,6 +39,11 @@ const RULES: Rule[] = [
   { category: 'religion', re: W(`(?:is|am|are|was|were|be|being|a|an|born|practising|practicing|devout|strict|observant|(?:is|am|are|was) (?:a|an)(?: (?:practising|practicing|devout|strict|observant))?) (?:${FAITH})|(?:is|am|are|was|very|quite|deeply|not) religious|devout|fasting|prays|praying|converted to`) },
   { category: 'religion', re: W('(?:observes|observing|celebrates|celebrating|keeps|keeping) (?:the )?(?:ramadan|ramzan|roza|eid|diwali|navratri|karwa chauth|lent|easter|christmas|passover|shabbat|sabbath)') },
   { category: 'religion', re: W('goes to (?:the )?(?:church|mosque|temple|gurdwara|synagogue)') },
+  // [P83-7 · owner] pilgrimage: "we're doing Umrah in February", "he is going for Hajj". Not the trade in it ("Umrah
+  // packages", "Hajj visa", "Umrah tour operator"), and not a date ("after Hajj", "the Hajj season": the date check).
+  { category: 'religion', re: W('(?:hajj|umrah)(?!\\s+(?:packages?|visas?|tours?|operators?|agen(?:t|ts|cy|cies)|bookings?)\\b)') },
+  // [P83-7 · owner] observance said with no object, ending the clause: "during Ramadan I'm observing".
+  { category: 'religion', statement: true, re: W("(?:i['’]m|i am|we['’]re|we are|he['’]s|he is|she['’]s|she is|they['’]re|they are) observing(?=\\s*(?:[.,;:!?]|$))") },
   { category: 'religion', re: ANY('व्रत|रोज़ा|रोजा|صائم|يصوم') },
   // [P55-2 · owner] a party name counts only with party context (party, voted, votes, member, campaign, rally, ticket),
   // never "labour card", "Ministry of Labour", "conservative estimate", "green light" or "Democratic Republic of Congo"
@@ -47,7 +55,10 @@ const RULES: Rule[] = [
 // A religion word used as a date ("after the fasting month", "fasting season") is not an observance.
 const DATE_BEFORE = /(?:^|\s)(?:after|before|post|pre|during|until|till|by|over|around|ahead of|from)\s+(?:the\s+)?(?:\S+\s+)?$/i;
 const DATE_AFTER = /^\s*(?:break|holidays?|week|month|season|sale|offers?|rush|timings?|hours|period|days?)\b/i;
+// [P83-7] "back from Umrah" is a trip the person made, not a date.
+const RETURNED_FROM = /\b(?:back|returned|returning|home)\s+from\s+(?:the\s+|his\s+|her\s+|their\s+|our\s+|my\s+)?$/i;
 function usedAsDate(text: string, index: number, span: string): boolean {
+  if (RETURNED_FROM.test(text.slice(Math.max(0, index - 30), index))) return false;
   return DATE_BEFORE.test(text.slice(Math.max(0, index - 30), index)) || DATE_AFTER.test(text.slice(index + span.length, index + span.length + 20));
 }
 
@@ -55,11 +66,11 @@ function usedAsDate(text: string, index: number, span: string): boolean {
 export function screenPrecise(text: string): SensitiveMatch[] {
   if (!text) return [];
   const out: SensitiveMatch[] = [];
-  for (const { category, re } of RULES) {
+  for (const { category, re, statement } of RULES) {
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(text)) !== null) {
-      if (category === 'religion' && usedAsDate(text, m.index, m[0])) continue;
+      if (category === 'religion' && !statement && usedAsDate(text, m.index, m[0])) continue;
       out.push({ category, span: m[0], index: m.index });
     }
   }

@@ -6,7 +6,7 @@ import type { MeetingRepository } from '../../ports/meeting-repository.js';
 import type { ContactAliasRepository } from '../../ports/contact-alias-repository.js';
 import { withReceipt } from '../receipts/receipt.js';
 import { isStalePromise } from '../facts/promise-lifecycle.js';
-import { summarizeRequirements } from './requirement-summary.js';
+import { summarizeRequirements, currentRequirements } from './requirement-summary.js';
 import { caresAbout, topCare, type CareItem } from './cares-about.js';
 
 /**
@@ -110,7 +110,7 @@ export class ClientOverviewService {
       .sort((a, b) => Number(a.done) - Number(b.done) || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'));
     const active = promises.filter((p) => !p.done && !p.stale);
 
-    const open = reqs.filter((r) => r.status === 'open').sort((a, b) => (a.statedOn ?? '').localeCompare(b.statedOn ?? '') || a.createdAt - b.createdAt);
+    const open = currentRequirements(reqs.filter((r) => r.status === 'open')).sort((a, b) => (a.statedOn ?? '').localeCompare(b.statedOn ?? '') || a.createdAt - b.createdAt);
     const s = summarizeRequirements(open);
 
     const meetings = meetingsAll.filter((m) => m.clientId === clientId);
@@ -168,7 +168,7 @@ export class ClientOverviewService {
         for (const m of n.messages ?? []) if (!m.excluded && m.sentAt && (!last || m.sentAt > last)) last = m.sentAt;
       }
       out[c.id] = {
-        listLine: summarizeRequirements(reqs.filter((r) => r.clientId === c.id)).listLine,
+        listLine: summarizeRequirements(currentRequirements(reqs.filter((r) => r.clientId === c.id))).listLine,
         lastMessageAt: last,
         overduePromises: promises.filter((p) => p.clientId === c.id && !p.done && p.dueDate !== null && p.dueDate < today && !isStalePromise(p, nowMs, threshold)).length,
         aliases: aliases.filter((a) => a.clientId === c.id).map((a) => a.alias),

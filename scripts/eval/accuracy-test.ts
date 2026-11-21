@@ -20,6 +20,9 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, basename } from 'node:path';
+// [P83-9] The cap check and the output ceiling always come from this tree (a --src draft only changes what is measured).
+import { startWithinCap, plannedCallOf } from '../../apps/api/src/eval/spend-cap.ts';
+import { OUTPUT_CEILING } from '../../apps/api/src/services/extraction/extraction-service.ts';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
 const DIR = `${ROOT}/plan/accuracy-test`;
@@ -283,17 +286,19 @@ async function run(args: Map<string, string>): Promise<string[]> {
   transport = async (b) => { captured.push(b); return new Response(JSON.stringify({ content: [{ type: 'text', text: '{"summary":"","promises":[],"people":[],"personal_facts":[],"key_dates":[],"concerns":[],"next_steps":[],"requirements":[],"meeting":null}' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } }), { status: 200 }); };
   await extractOnce();
   const pieces = captured.length;
-  // The cap covers every run recorded in runs/spend.json (one test round); estimate at the measured batch price per piece.
+  // The cap covers every run recorded in runs/spend.json (one test round). [P83-9 · owner] It is a hard stop: the run
+  // refuses to start when spent + its WORST case (every piece at its output ceiling plus its whole input, at the batch
+  // price from the shared price table) would pass the cap. Nothing is sent before that check.
   const ledgerFile = `${DIR}/runs/spend.json`;
   const ledger = existsSync(ledgerFile) ? (JSON.parse(readFileSync(ledgerFile, 'utf8')) as { spentAed: number; runs: Array<{ label: string; aed: number }> }) : { spentAed: 0, runs: [] };
-  const estimate = pieces * runs * 0.18; // AED at batch price (measured 0.16-0.18 per 120-message piece, 19-21 Nov)
-  console.log(`${label}: ${pieces} pieces per run · ${runs} run(s) · prompt ${profile?.version ?? PROMPT_VERSION} · pre-filter ${hasPrefilter ? 'on' : 'off'} · estimate AED ${estimate.toFixed(2)} · already spent AED ${ledger.spentAed.toFixed(2)} of cap ${cap}`);
-  if (ledger.spentAed + estimate > cap) throw new Error(`AED ${ledger.spentAed.toFixed(2)} spent + estimate ${estimate.toFixed(2)} is over the cap AED ${cap}: nothing sent`);
+  const planned = Array.from({ length: runs }, () => captured.map((b) => plannedCallOf(b, OUTPUT_CEILING))).flat();
+  console.log(`${label}: ${pieces} pieces per run · ${runs} run(s) · prompt ${profile?.version ?? PROMPT_VERSION} · pre-filter ${hasPrefilter ? 'on' : 'off'}`);
   // 2. one batch for every run
   const headers = { 'content-type': 'application/json', 'x-api-key': KEYV, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'extended-cache-ttl-2025-04-11' };
   const t0 = Date.now();
   const requests = Array.from({ length: runs }, (_, r) => captured.map((b, i) => ({ custom_id: `r${r}-p${i}`, params: b }))).flat();
-  const sub = await realFetch('https://api.anthropic.com/v1/messages/batches', { method: 'POST', headers, body: JSON.stringify({ requests }) });
+  const sub = await startWithinCap({ model: config.anthropicModel, calls: planned, batch: true, spentAed: ledger.spentAed, capAed: cap },
+    () => realFetch('https://api.anthropic.com/v1/messages/batches', { method: 'POST', headers, body: JSON.stringify({ requests }) }));
   const batch = (await sub.json()) as { id?: string };
   if (!sub.ok || !batch.id) throw new Error(`batch submit failed (${sub.status})`);
   console.log(`submitted ${requests.length} requests as ${batch.id}`);
