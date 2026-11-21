@@ -23,6 +23,7 @@ import { factsProjection, trustedMeetingDatetime } from './date-policy.js';
 import type { ModelRouter } from './model-router.js';
 import type { ExtractionLimiter } from './limiter.js';
 import { EXTRACTION_SYSTEM_PROMPT, PROMPT_VERSION, buildUserMessage } from './prompt.js';
+import { filterChatter } from '../import/chatter-filter.js';
 import { asExtraction } from './validate.js';
 import { extractJsonObject } from './parse.js';
 import { detectUnansweredQuestions } from '../import/unanswered.js';
@@ -167,7 +168,8 @@ export class ExtractionService {
     /** [COST-IMPORT-METRIC] rolling per-rep import cost sink. Optional — extraction runs unchanged. */
     private readonly importCost?: { record(r: ImportCostRecord): void },
     /** [SPEND-CAP] over-cap gate: when canSpend is false, extraction defers (note stays pending). */
-    private readonly allowanceExhausted?: (userId: string) => Promise<boolean>,
+    /** [P81-3] kind 'import': an import may still run on the onboarding allowance while the month is used up. */
+    private readonly allowanceExhausted?: (userId: string, kind?: 'import' | 'extraction') => Promise<boolean>,
     /** [ALIAS-NORMALISE] learned aliases for a client, to normalise counterpart attribution. */
     private readonly aliasesFor?: (userId: string, clientId: string) => Promise<ExtractionAlias[]>,
     /** [EXTRACT-STOPREASON] observability sink for starved (no-text) extraction outputs. */
@@ -322,7 +324,7 @@ export class ExtractionService {
     // force-reserve, overshoot absorbed by the gate). A forceAllowance on an unclaimed note is NOT
     // honoured, so it can never pre-authorise spend for a chat that hasn't been started.
     const honourForce = opts?.forceAllowance === true && note.status === 'extracting';
-    if (!honourForce && this.allowanceExhausted && (await this.allowanceExhausted(userId))) {
+    if (!honourForce && this.allowanceExhausted && (await this.allowanceExhausted(userId, note.source === 'whatsapp_export' ? 'import' : 'extraction'))) {
       return { status: 'spend_capped', flagged: true };
     }
 
@@ -365,11 +367,25 @@ export class ExtractionService {
     // client's current pointers are loaded for that, never injected into this extraction call.
     const currentPointerSet = this.pointers ? await this.pointers.getForClient(userId, note.clientId).catch(() => null) : null;
     const dealState = client ? dealStateOf(client, this.now()) : 'open';
+    // [P23-B4] The model-visible messages of an imported chat (held ones never reach a model).
+    const visible = (rnote.messages ?? []).filter((m) => !m.excluded);
+    // [P81-1 · owner] The chatter pre-filter: media with no caption, deleted messages, stickers, system lines and a lone
+    // ok / thanks / lol / emoji are left out of what the model reads, before the chat is split into pieces. The chat is
+    // stored whole (the rep sees every message); only what the model reads shrinks. The prompt is the certified v0.9.7.
+    let modelMessages = visible;
+    if (visible.length > 0) {
+      const f = filterChatter(visible);
+      const k = f.byKind;
+      if (f.removed > 0) {
+        modelMessages = f.kept;
+        console.info(`[prefilter] note ${noteId}: removed ${f.removed} of ${f.total} message(s) (media ${k.media}, deleted ${k.deleted}, sticker ${k.sticker}, system ${k.system}, short reply ${k.short_reply})`);
+      }
+    }
     const userMessage = buildUserMessage({
       today: referenceDate,
       clientName: client?.name ?? 'Unknown',
       source: note.source,
-      text: safeText,
+      text: modelMessages !== visible ? renderThread(modelMessages) : safeText,
       glossary,
     });
 
@@ -386,8 +402,7 @@ export class ExtractionService {
     const spendClass = note.source === 'whatsapp_export' ? 'import' : 'extraction';
     // [P23-B4] A long imported chat, with the switch on → windowed. Everything else: the single pass below,
     // byte-identical to before.
-    const visible = (rnote.messages ?? []).filter((m) => !m.excluded);
-    const windows = this.windowing?.enabled && note.source === 'whatsapp_export' ? planWindows(visible.length, this.windowing) : null;
+    const windows = this.windowing?.enabled && note.source === 'whatsapp_export' ? planWindows(modelMessages.length, this.windowing) : null;
     if (windows) {
       // [P68-2/3 · owner] Pieces are read in parallel (up to windowing.concurrency at once), each finished piece is
       // kept, a failed piece (unreadable or starved) is tried once more, and one piece that still fails never fails
@@ -399,7 +414,7 @@ export class ExtractionService {
       const stop: { refusedAt: [number, number] | null } = { refusedAt: null }; // set inside the lanes
       const readPiece = async (w: number): Promise<void> => {
         const [from, to] = windows[w]!;
-        const windowMessage = buildUserMessage({ today: referenceDate, clientName: client?.name ?? 'Unknown', source: note.source, text: renderThread(visible.slice(from, to)), glossary });
+        const windowMessage = buildUserMessage({ today: referenceDate, clientName: client?.name ?? 'Unknown', source: note.source, text: renderThread(modelMessages.slice(from, to)), glossary });
         let part: Extraction | null = null;
         for (let attempt = 0; attempt < 2 && !part && !stop.refusedAt; attempt++) {
           const a = await this.call(route.model, windowMessage, userId, spendClass, honourForce);

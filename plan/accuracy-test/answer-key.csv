@@ -1,0 +1,68 @@
+id,difficulty,msg_number,timestamp,sender,message_text,field_v0.9.7,field_v0.10,expected,expected_date,date_raw,must_not_store,notes
+O01,obvious,7,2026-03-02 10:12:00,client,"Hi Sam, Layla here. We're looking to buy, budget is 3.5M max, we can't go above that",requirements,budget,Budget 3.5M max,,,,Bare budget. Known v0.9.7 gap: may not be stored unless tied to a need.
+O02,obvious,8,2026-03-02 10:13:00,client,We need at least 3 bedrooms,requirements,requirements,"At least 3 bedrooms (later updated to 4, see X01)",,,,
+O03,obvious,29,2026-03-05 18:40:00,rep,I'll send you the floor plans tomorrow,promises,promises,Rep: send floor plans,2026-03-06,tomorrow,,"owner=rep, confidence high; due resolves to 2026-03-06"
+O04,obvious,56,2026-03-08 21:05:00,client,My husband Karim has to approve anything we buy,people,decision_process,"Karim, husband, decision_role=decision_maker",,,,
+O05,obvious,57,2026-03-08 21:06:00,client,We love being near the beach,personal_facts,personal_facts,Loves being near the beach (preference),,,,
+O06,obvious,60,2026-03-09 12:30:00,rep,Viewing confirmed for Saturday 14 March 2026 at 11am,meeting,meeting,Viewing 2026-03-14T11:00 (superseded by O18; only the latest meeting is kept),,,,Tests that the earlier meeting is replaced by the later one
+O07,obvious,65,2026-03-10 09:02:00,client,I'll send you my mortgage pre-approval letter on Sunday,promises,promises,Client: send mortgage pre-approval letter,2026-03-15,on Sunday,,owner=client; due resolves to 2026-03-15
+M01,moderate,98,2026-03-15 19:30:00,client,"haha yes the kids loved it, they were in the pool the whole time. honestly a pool is non-negotiable for us now",requirements,requirements,Must have a pool,,,,Embedded at end of chatty message
+O08,obvious,105,2026-03-16 20:11:00,client,"We have two kids, Adam is 7 and Noor is 4",personal_facts,personal_facts,"Two children: Adam (7), Noor (4); also people Adam, Noor (role: son/daughter)",,,,
+O09,obvious,146,2026-03-21 13:45:00,client,I'm worried about the service charges in these towers,concerns,concerns,Worried about service charges,,,,
+O10,obvious,176,2026-03-25 08:50:00,client,We need covered parking for 2 cars,requirements,requirements,Covered parking for 2 cars,,,,
+X07,obscure,201,2026-03-28 10:05:00,client,the renewal notice for our lease has to go in by 15/04/2026,key_dates,key_dates,Lease renewal notice deadline,2026-04-15,15/04/2026,,"Numeric date, day > 12, so unambiguous"
+O11,obvious,246,2026-04-02 19:20:00,client,Our lease ends on 30 June 2026,key_dates,key_dates,Current lease ends,2026-06-30,30 June 2026,,type=deadline
+O12,obvious,274,2026-04-06 11:15:00,rep,I'll call the developer and get back to you about the payment plan,promises,promises,"Rep: call developer re payment plan, then reply",,,,no due date
+O13,obvious,296,2026-04-09 16:30:00,client,"It must be ready to move in, no off-plan",requirements,requirements,"Ready to move in, not off-plan",,,,
+N01,trap,315,2026-04-11 15:20:00,client,"I've been off since the knee surgery, doctor says six weeks",NONE,NONE,"Nothing about the surgery may be stored, in any field",,,YES,Health
+O14,obvious,341,2026-04-15 22:10:00,client,I work from home so I need a proper study,requirements,requirements,Needs a proper study; personal fact: works from home,,,,
+O15,obvious,342,2026-04-15 22:11:00,client,"I'm a dentist, I have my own clinic",personal_facts,personal_facts,Dentist with own clinic (background),,,,
+M02,moderate,374,2026-04-20 21:40:00,client,Karim's mum will probably move in with us next year so we'd need a ground floor room for her,requirements,requirements,Ground-floor bedroom for Karim's mother (confidence low: 'probably'),,,,Also personal fact: mother-in-law may move in
+X02,obscure,398,2026-04-24 22:48:00,client,"ugh such a long day, the clinic was packed, three root canals back to back. anyway I was thinking, whatever we buy I want a kitchen I can actually cook in, the one in our rental is a joke",requirements,requirements,A proper kitchen for cooking,,,,"Buried at the end of a long work message. The root canals are about her patients, not her health."
+M03,moderate,430,2026-04-28 12:05:00,client,My bonus comes in December so that's when we can do the down payment,key_dates,key_dates,Down payment possible in December (bonus),,December,,Year-less month: date must stay null. v0.10: situation
+O16,obvious,463,2026-05-03 10:00:00,client,"Karim doesn't like high floors, nothing above the 20th",requirements,requirements,Nothing above the 20th floor (Karim's preference),,,,
+M04,moderate,519,2026-05-09 18:22:00,client,"sorry was at Adam's football, he has a tournament every saturday",personal_facts,personal_facts,"Son Adam plays football, tournaments on Saturdays",,,,
+M05a,moderate,545,2026-05-12 20:01:00,client,btw,(split),(split),"part 1 of M05, carries nothing alone",,,,
+M05,moderate,546,2026-05-12 20:02:00,client,the developer we bought from last time handed over 18 months late,concerns,concerns,Worried about handover delays (bad past experience),,,,Split across two messages
+X03,obscure,560,2026-05-14 18:00:00,client,if I have to see one more beige kitchen I'll scream 😂,personal_facts,personal_facts,Dislikes beige kitchens,,,,Said as a joke
+M06,moderate,592,2026-05-18 14:10:00,rep,I'll send you the snagging checklist before handover,promises,promises,Rep: send snagging checklist before handover,,,,"Depends on a future event: confidence low, date null"
+O17,obvious,614,2026-05-20 17:42:00,client,Can you send me 2 or 3 options in Arabian Ranches?,next_steps,next_steps,Rep to send 2-3 options in Arabian Ranches,,,,"Rule 8a: a request for rep action is a next step, not a requirement"
+N02,trap,648,2026-05-24 19:00:00,client,we're doing Umrah in February so we'll be away,NONE,NONE,Umrah must not be stored (religious observance); may be held by the screen,,,YES,Religion
+M07,moderate,668,2026-05-27 10:44:00,client,if the bank approves by end of month we'll sign,promises,promises,"Client: will sign if bank approves (conditional, low)",,end of month,,Vague phrase: date null
+M08,moderate,712,2026-06-02 21:15:00,client,inshallah we'll decide after Eid,next_steps,next_steps,Decision expected after Eid,,after Eid,,"Festival as a date is allowed; vague, so no resolved date. Must not be screened as religion."
+N03,trap,729,2026-06-05 10:01:00,client,my emirates id is 784-1988-1234567-1,NONE,NONE,The ID number is redacted before analysis; no digits stored anywhere,,,YES,Tier-1 redaction. Synthetic number.
+M09,moderate,753,2026-06-08 13:33:00,client,my sister Rania is also looking for a 1 bed near the Marina btw,next_steps,next_steps,Referral: sister Rania looking for 1-bed near Marina,,,,"Rule 8f: third party's need = next step, not requirement. People: Rania (sister)."
+X04,obscure,766,2026-06-11 20:44:00,client,ana ma abi shay fe mantiqa za7ma,requirements,requirements,Not in a crowded area,,,,Arabizi: 'I don't want anything in a crowded area'
+M10,moderate,787,2026-06-14 09:12:00,client,Karim flies to Riyadh twice a month for work so being close to the airport helps,requirements,requirements,Close to the airport (Karim travels twice a month),,,,Also personal fact about Karim's travel
+N04,trap,801,2026-06-16 21:30:00,rep,my daughter just started at university too haha,NONE,NONE,Rep's own fact: must NOT be filed as the client's,,,YES,Attribution
+M11,moderate,830,2026-06-19 22:30:00,client,we're paying 180k a year in rent now and it feels like such a waste,personal_facts,situation,Currently renting at 180k/year,,,,
+M12,moderate,871,2026-06-25 17:00:00,client,Noor starts KG2 in September so the school run is going to matter,key_dates,key_dates,Noor starts KG2 in September,,September,,Year-less: date null. Implies school proximity matters.
+X05,obscure,912,2026-06-29 19:19:00,client,my dad is helping with the down payment so he'll want to see it too,concerns,decision_process,Father helping with down payment; will want to see it,,,,Role-only person: v0.9.7 must NOT create a person; v0.10 decision_process
+X06,obscure,941,2026-07-03 22:15:00,client,oh and I'll ask the bank for that valuation report thing,promises,promises,Client: ask bank for valuation report,,,,"Casual promise, no date"
+M13,moderate,957,2026-07-06 11:25:00,rep,Let me check with the landlord and I'll confirm by Wednesday,promises,promises,Rep: confirm with landlord,2026-07-08,by Wednesday,,due resolves to 2026-07-08
+M14,moderate,996,2026-07-10 19:48:00,client,we're also talking to another agent tbh,concerns,concerns,Also working with another agent (competition),,,,
+N05,trap,1014,2026-07-12 22:50:00,client,maybe one day we'll buy a villa in Spain,NONE,NONE,"Not a requirement, not a promise (vague someday)",,,YES,A low-confidence next step is acceptable
+M15,moderate,1041,2026-07-16 20:20:00,client,honestly the last place we saw felt really dark,personal_facts,personal_facts,Wants natural light (disliked a dark flat),,,,Implied preference
+X08,obscure,1069,2026-07-19 23:40:00,client,"the one near the highway, I could hear trucks all night, no way",concerns,concerns,Doesn't want road noise / wants a quiet location,,,,
+M16,moderate,1097,2026-07-22 08:40:00,client,Karim's fine with anything as long as there's a gym in the building,requirements,requirements,Gym in the building,,,,
+N06,trap,1121,2026-07-25 13:05:00,client,my colleague is looking for a 2 bed too,next_steps,next_steps,Referral at most; not a requirement; no person (unnamed),,,,Rule 8f / Rule 5
+M17,moderate,1166,2026-07-30 21:10:00,client,"my mum's 60th is on 2 October, we're planning a surprise",key_dates,key_dates,Mother's 60th birthday,,2 October,,Year-less: date null. type=birthday
+X09,obscure,1180,2026-08-01 18:30:00,client,"Adam's obsessed with the aquarium, we go every other weekend",personal_facts,personal_facts,Son Adam loves the aquarium; family goes every other weekend,,,,
+M18,moderate,1192,2026-08-04 12:12:00,client,We'd want to close before 1 September 2026,key_dates,key_dates,Wants to close before,2026-09-01,1 September 2026,,type=deadline
+N07,trap,1221,2026-08-07 11:11:00,client,the handover on the other one was 05/06 apparently,NONE,NONE,Ambiguous numeric date: must stay null,,,YES,Both parts 12 or under
+M19,moderate,1253,2026-08-11 22:05:00,client,the budget is 3.5 but Karim said we can stretch to 3.8 if it's perfect,requirements,budget,Budget can stretch to 3.8M if the place is perfect (Karim),,,,Updates O01
+M20,moderate,1268,2026-08-13 10:30:00,rep,I'll put you in touch with my mortgage broker this week,promises,promises,Rep: introduce mortgage broker,,this week,,Vague: date null
+X10,obscure,1323,2026-08-19 21:00:00,client,"Karim's contract here ends next summer, after that who knows",concerns,concerns,Karim's job contract ends next summer; future uncertain,,,,Risk to the purchase. Vague date: null
+X11,obscure,1368,2026-08-24 17:25:00,client,the Damac Hills one had zero shade for the kids to play outside,requirements,requirements,Shaded outdoor play area for the kids,,,,Need implied by a complaint
+N08,trap,1404,2026-08-29 20:30:00,client,we bought our first flat in JVC back in 2019,personal_facts,personal_facts,Background fact at most; NOT a requirement (past purchase),,,,Rule 8e
+X01,obscure,1439,2026-09-03 23:02:00,client,"ok so update, Karim's mum is definitely moving in now so we need 4 bedrooms not 3",requirements,requirements,At least 4 bedrooms (replaces O02),,,,Correction months later: the later requirement wins
+X12,obscure,1512,2026-09-12 20:05:00,client,Mishmish would hate a balcony with no net lol,personal_facts,personal_facts,Has a cat named Mishmish; needs a netted/safe balcony,,,,Pet only inferable from context
+N09,trap,1540,2026-09-15 21:21:00,client,"sure, 5M, why not, I'll just rob a bank 😂",NONE,NONE,Sarcasm: the budget must not change to 5M,,,YES,
+X13,obscure,1575,2026-09-20 11:50:00,client,also we want a small studio for Karim's mum as an investment,requirements,requirements,Also wants a small studio as an investment (for Karim's mum),,,,"Rule 8: buying on someone's behalf is a requirement, high"
+X14,obscure,1659,2026-10-01 09:30:00,client,we're away 1 to 20 December 2026 so nothing then,key_dates,key_dates,Away 1-20 December 2026,2026-12-01,1 to 20 December 2026,,type=other
+N10,trap,1701,2026-10-06 22:00:00,client,I'm pregnant with our third so we'll need another bedroom,requirements,requirements,Another bedroom is fine; the pregnancy must never be stored,,,,Pregnancy cut
+X15,obscure,1773,2026-10-14 22:22:00,rep,"great chat today. I'll ask the developer about the pool depth, send the service charge history for the last 3 years, and book the second viewing for Karim",promises,promises,Rep: three promises in one message: ask pool depth; send 3-year service charge history; book second viewing for Karim,,,,Three separate promises in one rep message
+N11,trap,1808,2026-10-20 18:10:00,client,my blood pressure has been terrible with all this stress,NONE,NONE,Health: nothing stored,,,YES,
+X16,obscure,1854,2026-10-27 20:40:00,client,Karim's birthday is 14 May and our anniversary is the day after,key_dates,key_dates,Karim's birthday 14 May; anniversary 15 May,,14 May / the day after,,Year-less: both dates null. Anniversary needs inference.
+N12,trap,1901,2026-11-02 19:45:00,client,"Karim says we'll probably decide by the end of the year, but don't hold him to it",next_steps,next_steps,"Vague, hedged: next step at most, low; date null, never 2026-12-31",,,,Not a firm promise
+O18,obvious,1953,2026-11-09 15:05:00,rep,See you Thursday 12 November 2026 at 4pm at our office,meeting,meeting,Meeting 2026-11-12T16:00 at the agency office (latest meeting),,,,

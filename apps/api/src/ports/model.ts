@@ -62,6 +62,8 @@ export interface ModelUsage {
    *  Surfaced because they can DOMINATE output and, under a low max_tokens, starve the text block —
    *  the extraction breakage (EXTRACT-MAXTOKENS). Present only when the provider reports it. */
   thinkingTokens?: number;
+  /** [P81-2] Answered by the Message Batches API: billed at half price (the gate and the ledger price it so). */
+  batchDiscount?: boolean;
 }
 
 export interface ModelCompletionResponse {

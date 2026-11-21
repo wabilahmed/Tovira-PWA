@@ -147,6 +147,12 @@ export class PgNoteRepository implements NoteRepository {
     });
   }
 
+  async touchExtractionClaim(userId: string, noteId: string, nowMs: number): Promise<void> {
+    await withTenant(this.pool, userId, async (c) => {
+      await c.query(`UPDATE notes SET claimed_at = to_timestamp($2::double precision / 1000) WHERE id = $1 AND status = 'extracting'`, [noteId, nowMs]);
+    });
+  }
+
   async reclaimStaleExtracting(userId: string, nowMs: number, staleMs: number): Promise<number> {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(

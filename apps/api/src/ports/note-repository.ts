@@ -135,6 +135,8 @@ export interface NoteRepository {
   /** [RULING 2 item 2] Crash recovery: flip this rep's notes stuck in 'extracting' with a claim older
    *  than staleMs back to pending_extraction, so the sweep re-drains them. Returns the count. */
   reclaimStaleExtracting(userId: string, nowMs: number, staleMs: number): Promise<number>;
+  /** [P81-2] Refresh the claim of a note still being extracted (a chat waiting on a batch), so the sweep does not reclaim it. Never claims a note that is not 'extracting'. */
+  touchExtractionClaim(userId: string, noteId: string, nowMs: number): Promise<void>;
   update(userId: string, id: string, patch: NotePatch): Promise<void>;
   /** Hard-delete a note (Ask-capture reject/expire). The operational log row survives (0045). */
   delete(userId: string, id: string): Promise<boolean>;

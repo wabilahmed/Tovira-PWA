@@ -114,6 +114,8 @@ export interface AnthropicUsage {
    *  Absent → the whole write is priced at the 1-hour rate, which never under-bills. */
   cacheCreation5mInputTokens?: number;
   cacheReadInputTokens?: number;
+  /** [P81-2] Answered by the Message Batches API: every token at half price. */
+  batchDiscount?: boolean;
 }
 
 /** The tier a request is billed at: the long-context rates once its prompt crosses the threshold. */
@@ -129,7 +131,8 @@ export function anthropicCostUsd(model: string, u: AnthropicUsage): number {
   const write5m = Math.min(write, u.cacheCreation5mInputTokens ?? 0);
   const read = u.cacheReadInputTokens ?? 0;
   const p = ratesFor(row, u.inputTokens + write + read);
-  return (
+  const factor = u.batchDiscount === true ? 0.5 : 1; // [P81-2] the Message Batches API bills half
+  return factor * (
     (u.inputTokens * p.inputPerMTok +
       u.outputTokens * p.outputPerMTok +
       (write - write5m) * p.cacheWritePerMTok +

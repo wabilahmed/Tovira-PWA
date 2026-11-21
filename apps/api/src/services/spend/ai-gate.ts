@@ -1,3 +1,4 @@
+import { ONBOARDING_PERIOD_KEY, type OnboardingAllowance } from './onboarding-allowance.js';
 import type { AiAllowanceRepository } from '../../ports/ai-allowance-repository.js';
 import type { AiPauseRepository } from '../../ports/ai-pause-repository.js';
 import { allowanceWindow, type AllowanceWindowInput } from './ai-period.js';
@@ -58,6 +59,9 @@ export class AiGateRefused extends Error {
  * frees a crashed call's reservation promptly WITHOUT ever expiring one that is still running.
  */
 export const AI_RESERVATION_TTL_MS = 5 * 60 * 1000;
+/** [P81-2] A batched call: up to ~6 min waiting, a cancel, then a live read of what the batch did not finish (~15 min
+ *  worst case). 30 minutes sits above that, so a running batched call never loses its reservation. */
+export const BATCH_RESERVATION_TTL_MS = 30 * 60 * 1000;
 
 export interface AiGateDeps {
   allowance: AiAllowanceRepository;
@@ -73,6 +77,8 @@ export interface AiGateDeps {
   onAlert?: (ym: string, totalAed: number) => void | Promise<void>;
   now?: () => number;
   reservationTtlMs?: number;
+  /** [P81-3] The one-time import allowance for an account's first 14 days, drawn on before the month for imports. */
+  onboarding?: OnboardingAllowance;
 }
 
 export interface GateCall<T> {
@@ -86,6 +92,11 @@ export interface GateCall<T> {
    *  for the allowance. If there is room it reserves/charges normally; if not, it runs anyway and its
    *  overshoot is recorded globally but NOT charged to the account (absorbed). Kill switch still applies. */
   forceReserve?: boolean;
+  /** [P81-2] How long the reservation lives before the stale sweep frees it. Default AI_RESERVATION_TTL_MS (5 min);
+   *  a batched call (minutes waiting on the Message Batches API) asks for BATCH_RESERVATION_TTL_MS. */
+  reservationTtlMs?: number;
+  /** [P81-3] The call's spend class ('import' may draw on the onboarding allowance). */
+  spendClass?: string;
   /** The provider call itself. */
   exec: () => Promise<T>;
   /** The EXACT cost of the call, AED, from its result. */
@@ -106,10 +117,18 @@ export class AiGate {
 
     // 2–4. Reserve the worst case against the account's OWN allowance (ownerless calls skip this).
     let reservationId: string | null = null;
-    if (call.userId) {
+    // [P81-3] An import in the account's first 14 days draws on the onboarding allowance first (same atomic reserve,
+    // its own key). If it cannot cover this call, the month is used as before.
+    const ob = this.deps.onboarding;
+    if (call.userId && call.spendClass === 'import' && ob && (await ob.eligible(call.userId))) {
+      await ob.ensure(call.userId);
+      const r = await this.deps.allowance.reserve(call.userId, ONBOARDING_PERIOD_KEY, call.estimateAed, this.now() + (call.reservationTtlMs ?? this.ttl));
+      if (r.ok) reservationId = r.reservationId!;
+    }
+    if (call.userId && !reservationId) {
       const w = allowanceWindow(await this.deps.billingWindowFor(call.userId), this.now());
       await this.deps.allowance.ensureMonth(call.userId, w.key, w.startMs, this.deps.allowanceAed);
-      const r = await this.deps.allowance.reserve(call.userId, w.key, call.estimateAed, this.now() + this.ttl);
+      const r = await this.deps.allowance.reserve(call.userId, w.key, call.estimateAed, this.now() + (call.reservationTtlMs ?? this.ttl));
       if (!r.ok) {
         // [RULING 2] An already-started chat is never refused for the allowance. With no reservation
         // its actual is left OUT of the per-user settle below (reservationId stays null) — absorbed, so

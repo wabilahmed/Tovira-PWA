@@ -147,6 +147,8 @@ export interface AppConfig {
   /** [P23-B4 / EXT-10] Windowed extraction for long imported chats. OFF by default (EXTRACT_WINDOWED);
    *  over `threshold` messages a chat is read in windows of `size` overlapping by `overlap`. */
   windowing: { enabled: boolean; threshold: number; size: number; overlap: number; concurrency: number };
+  /** [P81-2 · owner] Bulk and multi-file imports are read through the Message Batches API (half price). BULK_IMPORT_BATCH, default on. */
+  bulkImportBatch: boolean;
   storageDir: string;
   /** [STORAGE] Blob backend: 's3' (production — the provisioned media bucket) or 'fs' (local dev).
    *  EXPLICIT, not inferred, so production can never silently fall back to ephemeral container-local
@@ -335,6 +337,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     auxThinking: parseEnum(env.AUX_THINKING, ['adaptive', 'disabled'] as const, 'disabled', 'AUX_THINKING'),
     extractionCacheTtl: parseEnum(env.EXTRACTION_CACHE_TTL, CACHE_TTLS, '1h', 'EXTRACTION_CACHE_TTL'),
     windowing: parseWindowing(env),
+    bulkImportBatch: parseBulkImportBatch(env),
     storageDir: env.STORAGE_DIR?.trim() || './.data/storage',
     storageBackend: env.STORAGE_BACKEND?.trim() === 's3' ? 's3' : 'fs',
     s3MediaBucket: isBlank(env.S3_MEDIA_BUCKET) ? undefined : env.S3_MEDIA_BUCKET!.trim(),
@@ -566,6 +569,13 @@ function parseEnum<T extends string>(raw: string | undefined, allowed: readonly 
 }
 
 /** [P23-B4] EXTRACT_WINDOWED (0/1/true/false, default off) + N/W/O, validated: overlap < size. */
+function parseBulkImportBatch(env: Env): boolean {
+  const raw = env.BULK_IMPORT_BATCH?.trim().toLowerCase();
+  if (!raw) return true;
+  if (!['0', '1', 'true', 'false'].includes(raw)) throw new ConfigError(`Invalid BULK_IMPORT_BATCH: "${env.BULK_IMPORT_BATCH}". Expected 1/0/true/false.`);
+  return raw === '1' || raw === 'true';
+}
+
 function parseWindowing(env: Env): AppConfig['windowing'] {
   const raw = env.EXTRACT_WINDOWED?.trim().toLowerCase();
   if (raw && !['0', '1', 'true', 'false'].includes(raw)) throw new ConfigError(`Invalid EXTRACT_WINDOWED: "${env.EXTRACT_WINDOWED}". Expected 1/0/true/false.`);

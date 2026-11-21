@@ -42,6 +42,8 @@ export interface BulkExtractionDeps<I> {
   isPaused?: () => Promise<boolean>;
   concurrency: number;
   onProgress?: (jobs: ChatJob[]) => void;
+  /** [P81-2] Default true: the first chat runs alone to prime the cache. Off for batch imports (a whole batch round). */
+  warmUp?: boolean;
 }
 
 /**
@@ -105,10 +107,12 @@ export class BulkExtractionOrchestrator<I> {
     };
 
     // Warm-up: the first chat alone, awaited, so its cache-write primes the prefix for the rest.
-    await processOne(items[0]!, jobs[0]!);
+    // [P81-2] Skipped for a batch import: waiting on one chat alone would cost a whole batch round.
+    const warm = this.deps.warmUp !== false;
+    if (warm) await processOne(items[0]!, jobs[0]!);
 
     // Fan out the remainder with a bounded worker pool (shared cursor on the single JS thread).
-    let cursor = 1;
+    let cursor = warm ? 1 : 0;
     const worker = async (): Promise<void> => {
       while (cursor < items.length) {
         const i = cursor;
@@ -116,7 +120,7 @@ export class BulkExtractionOrchestrator<I> {
         await processOne(items[i]!, jobs[i]!);
       }
     };
-    const lanes = Math.max(1, Math.min(this.deps.concurrency, items.length - 1));
+    const lanes = Math.max(1, Math.min(this.deps.concurrency, items.length - cursor));
     await Promise.all(Array.from({ length: lanes }, () => worker()));
 
     return jobs;

@@ -25,7 +25,11 @@ import {
 export { anthropicEstimateAed };
 
 export class GatedModelClient implements ModelClient {
-  constructor(readonly inner: ModelClient, private readonly modelId: string) {}
+  /** [P81-2] Set for the batched route: its calls reserve for longer (they wait on a batch). */
+  readonly reservationTtlMs?: number;
+  constructor(readonly inner: ModelClient, private readonly modelId: string, opts: { reservationTtlMs?: number } = {}) {
+    if (opts.reservationTtlMs !== undefined) this.reservationTtlMs = opts.reservationTtlMs;
+  }
 
   async complete(req: ModelCompletionRequest): Promise<ModelCompletionResponse> {
     const gate = currentAiGate();
@@ -37,6 +41,8 @@ export class GatedModelClient implements ModelClient {
       exemptFromPause: req.spendClass === 'erasure',
       // [RULING 2] An already-started bulk chat is never refused for the allowance (overshoot absorbed).
       forceReserve: req.forceReserve === true,
+      ...(req.spendClass ? { spendClass: req.spendClass } : {}), // [P81-3] an import may draw on the onboarding allowance
+      ...(this.reservationTtlMs !== undefined ? { reservationTtlMs: this.reservationTtlMs } : {}),
       exec: () => this.inner.complete(req),
       actualAedFrom: (res) => usdToAed(anthropicCostUsd(this.modelId, res.usage ?? { inputTokens: 0, outputTokens: 0 })),
     });
