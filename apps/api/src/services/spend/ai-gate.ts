@@ -1,4 +1,3 @@
-import { ONBOARDING_PERIOD_KEY, type OnboardingAllowance } from './onboarding-allowance.js';
 import type { AiAllowanceRepository } from '../../ports/ai-allowance-repository.js';
 import type { AiPauseRepository } from '../../ports/ai-pause-repository.js';
 import { allowanceWindow, type AllowanceWindowInput } from './ai-period.js';
@@ -77,8 +76,6 @@ export interface AiGateDeps {
   onAlert?: (ym: string, totalAed: number) => void | Promise<void>;
   now?: () => number;
   reservationTtlMs?: number;
-  /** [P81-3] The one-time import allowance for an account's first 14 days, drawn on before the month for imports. */
-  onboarding?: OnboardingAllowance;
 }
 
 export interface GateCall<T> {
@@ -95,8 +92,6 @@ export interface GateCall<T> {
   /** [P81-2] How long the reservation lives before the stale sweep frees it. Default AI_RESERVATION_TTL_MS (5 min);
    *  a batched call (minutes waiting on the Message Batches API) asks for BATCH_RESERVATION_TTL_MS. */
   reservationTtlMs?: number;
-  /** [P81-3] The call's spend class ('import' may draw on the onboarding allowance). */
-  spendClass?: string;
   /** The provider call itself. */
   exec: () => Promise<T>;
   /** The EXACT cost of the call, AED, from its result. */
@@ -117,15 +112,7 @@ export class AiGate {
 
     // 2–4. Reserve the worst case against the account's OWN allowance (ownerless calls skip this).
     let reservationId: string | null = null;
-    // [P81-3] An import in the account's first 14 days draws on the onboarding allowance first (same atomic reserve,
-    // its own key). If it cannot cover this call, the month is used as before.
-    const ob = this.deps.onboarding;
-    if (call.userId && call.spendClass === 'import' && ob && (await ob.eligible(call.userId))) {
-      await ob.ensure(call.userId);
-      const r = await this.deps.allowance.reserve(call.userId, ONBOARDING_PERIOD_KEY, call.estimateAed, this.now() + (call.reservationTtlMs ?? this.ttl));
-      if (r.ok) reservationId = r.reservationId!;
-    }
-    if (call.userId && !reservationId) {
+    if (call.userId) {
       const w = allowanceWindow(await this.deps.billingWindowFor(call.userId), this.now());
       await this.deps.allowance.ensureMonth(call.userId, w.key, w.startMs, this.deps.allowanceAed);
       const r = await this.deps.allowance.reserve(call.userId, w.key, call.estimateAed, this.now() + (call.reservationTtlMs ?? this.ttl));
