@@ -369,6 +369,23 @@ export class ClientsClient {
   /** Import a WhatsApp chat export under a client (P1-4b / IMPORT-ZIP). Accepts either pasted text
    *  (a string, or `{ content }`) or a file's raw bytes (`{ contentBase64 }` — for the .zip iOS
    *  exports, or a .txt read as bytes). The server detects zip vs text by content, not filename. */
+  /** [P82-B] The import preview: "This chat has 1,240 messages to read. About 3 minutes." Stores nothing; null on any failure. */
+  async previewImport(clientId: string, input: { content?: string; contentBase64?: string; fileName?: string }): Promise<{ line: string } | null> {
+    const bytes = typeof input.contentBase64 === 'string' && input.contentBase64.length > 0
+      ? Uint8Array.from(atob(input.contentBase64), (c) => c.charCodeAt(0))
+      : new TextEncoder().encode(input.content ?? '');
+    const headers: Record<string, string> = { 'content-type': 'application/octet-stream', 'X-Tovira-Preview': '1' };
+    if (input.fileName) headers['X-Tovira-Filename'] = encodeURIComponent(input.fileName);
+    try {
+      const res = await fetch(this.url(`/clients/${clientId}/notes/import`), { method: 'POST', credentials: 'include', headers, body: bytes });
+      if (!res.ok) return null;
+      const body = (await res.json().catch(() => null)) as { preview?: boolean; line?: string } | null;
+      return body?.preview && typeof body.line === 'string' ? { line: body.line } : null;
+    } catch {
+      return null;
+    }
+  }
+
   async importWhatsApp(clientId: string, input: string | { content?: string; contentBase64?: string; misfileAck?: boolean; confirmImport?: boolean; counterpart?: string; firstImportAck?: boolean; fileName?: string }, consent: boolean): Promise<ImportResult> {
     const payload = typeof input === 'string' ? { content: input } : input;
     // [FIX 1] Chat uploads go as RAW BINARY (no base64/JSON inflation, no 1 MB JSON cap) — the file bytes

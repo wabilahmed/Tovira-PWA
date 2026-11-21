@@ -1,4 +1,5 @@
 import { createHash, randomInt, randomUUID } from 'node:crypto';
+import { messagesToRead } from '../import/reading-estimate.js';
 import type { Storage } from '../../ports/storage.js';
 import { MediaTooLargeError, type WhatsAppGraph, type WhatsAppLink, type WhatsAppLinkStore } from '../../ports/whatsapp.js';
 import type { RateLimiter } from '../security/rate-limiter.js';
@@ -223,7 +224,7 @@ export class WhatsAppService {
     const parsed = parseWhatsAppExport(r.file.content);
     if (!parsed.ok || parsed.messages.length === 0) { log(bytes.length, 'not_export', r.meta); await this.reply(m, REPLY.notAnExport); return; }
     const limit = this.deps.longChatLimit ?? null;
-    if (isTooLong(parsed.messages.length, limit)) { log(bytes.length, 'too long', r.meta); await this.reply(m, tooLongMessage(parsed.messages.length, limit!)); return; }
+    if (isTooLong(messagesToRead(parsed.messages), limit)) { log(bytes.length, 'too long', r.meta); await this.reply(m, tooLongMessage(messagesToRead(parsed.messages), limit!)); return; }
 
     const batchId = `wa-${randomUUID()}`;
     await putBatchFile(this.deps.storage, userId, batchId, 0, r.file, this.now());

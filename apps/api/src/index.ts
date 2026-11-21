@@ -22,6 +22,7 @@ import { AudioRetentionService, AUDIO_RETENTION_DAYS } from './services/media/au
 import { BulkImportService } from './services/import/bulk-import-service.js';
 import { BulkBatchNotifier } from './services/import/bulk-batch-notifier.js';
 import { withClaimHeartbeat } from './services/import/claim-heartbeat.js';
+import { messagesToRead } from './services/import/reading-estimate.js';
 import { KeptSuggestionService } from './services/promises/kept-suggestion-service.js';
 import { BulkBatchRetentionService, BULK_BATCH_TTL_MS } from './services/import/bulk-batch-retention.js';
 import { BulkUpsellService } from './services/import/bulk-upsell.js';
@@ -466,7 +467,7 @@ async function main(): Promise<void> {
     // [P79-EMERGENCY · owner] a stored note over the emergency limit is never read (no model call), wherever it came from
     tooLong: async (u, id) => {
       const n = await notes.findByIdForUser(u, id);
-      return (n?.messages ?? []).filter((m) => !m.excluded).length > EMERGENCY_MAX_MESSAGES;
+      return messagesToRead(n?.messages ?? []) > EMERGENCY_MAX_MESSAGES; // [P82-B] stripped
     },
     setAside: async (u, id) => {
       await notes.update(u, id, { status: 'needs_review' });
@@ -479,7 +480,7 @@ async function main(): Promise<void> {
     extract: (u, id, today, opts) => withClaimHeartbeat(() => notes.touchExtractionClaim(u, id, Date.now()), 2 * 60_000, () => bulkExtraction.extractNote(u, id, today, opts)),
     tooLong: async (u, id) => {
       const n = await notes.findByIdForUser(u, id);
-      return (n?.messages ?? []).filter((m) => !m.excluded).length > EMERGENCY_MAX_MESSAGES;
+      return messagesToRead(n?.messages ?? []) > EMERGENCY_MAX_MESSAGES; // [P82-B] stripped
     },
     setAside: async (u, id) => {
       await notes.update(u, id, { status: 'needs_review' });

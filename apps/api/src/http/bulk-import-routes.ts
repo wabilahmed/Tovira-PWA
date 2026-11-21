@@ -208,7 +208,7 @@ export async function handleBulkImportRoute(req: IncomingMessage, res: ServerRes
     const n = out.result.rows.filter((r) => !NON_IMPORTABLE.has(r.state)).length;
     const upsell = deps.bulkUpsell ? await deps.bulkUpsell.forBatch(userId, out.estimateAed, n) : undefined;
     // D3: the client sees the % of allowance and the upsell (prices + labels) — NEVER the raw AED estimate.
-    sendJson(res, 200, { result: out.result, percentOfAllowance: out.percentOfAllowance, ...(upsell ? { upsell } : {}) });
+    sendJson(res, 200, { result: out.result, percentOfAllowance: out.percentOfAllowance, ...(out.reading ? { reading: out.reading } : {}), ...(upsell ? { upsell } : {}) }); // [P82-B] reading: the line shown before Import
     return true;
   }
 

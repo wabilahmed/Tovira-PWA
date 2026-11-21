@@ -21,6 +21,7 @@ import { assignSpeakerRoles } from './unanswered.js';
 import { redactMessages } from '../redaction/redact.js';
 import { screenPrecise } from '../screening/precise-screen.js';
 import { estimateBulkAed, percentOfAllowance } from './bulk-estimate.js';
+import { messagesToRead, piecesFor, minutesFor, readingLine } from './reading-estimate.js';
 import { isTooLong } from './long-chat.js';
 import { BulkExtractionOrchestrator, type ChatJob } from './bulk-extraction.js';
 export type { ChatJob } from './bulk-extraction.js';
@@ -65,6 +66,8 @@ export interface BulkParseOutcome {
   result: BulkParseResult;
   estimateAed: number;
   percentOfAllowance: number;
+  /** [P82-B] What the rep sees before Import: the stripped messages to read and the minutes, as one line. */
+  reading?: { messages: number; minutes: number; chats: number; line: string };
 }
 
 export interface BulkImportOutcome {
@@ -120,11 +123,12 @@ export class BulkImportService {
         const overlap = await this.overlapClient(msgs, existing, storedFor, r.matchClientId);
         if (overlap) { r.state = 'existing'; r.matchClientId = overlap.id; r.matchClientName = overlap.name; }
       }
-      if (r.state === 'existing' && r.matchClientId) {
-        r.newMessageCount = dedupeMessages(await storedFor(r.matchClientId), msgs).length;
-      }
+      // [P82-B · owner] Counted STRIPPED: the messages Tovira will read (not held by the screen, not chatter).
+      const fresh = r.state === 'existing' && r.matchClientId ? dedupeMessages(await storedFor(r.matchClientId), msgs) : msgs;
+      const toRead = messagesToRead(fresh);
+      if (r.state === 'existing' && r.matchClientId) r.newMessageCount = toRead;
+      r.messagesToRead = toRead;
       // [P67-1] Refused before it is read: more messages to read than one pass can take.
-      const toRead = r.state === 'existing' ? (r.newMessageCount ?? msgs.length) : msgs.length;
       if (!NON_IMPORTABLE.has(r.state) && isTooLong(toRead, this.deps.longChatLimit ?? null)) {
         r.state = 'too_long';
         r.messageCount = toRead;
@@ -139,7 +143,13 @@ export class BulkImportService {
       .filter((r) => !NON_IMPORTABLE.has(r.state) && !(r.state === 'existing' && r.newMessageCount === 0))
       .map((r) => byName.get(r.fileName)?.content ?? '');
     const estimateAed = estimateBulkAed(chats, this.deps.modelId);
-    return { result, estimateAed, percentOfAllowance: percentOfAllowance(estimateAed, this.deps.allowanceAed) };
+    // [P82-B] "These 3 chats have 3,200 messages to read. About 9 minutes." (batched: minutes per batch round)
+    const reading = result.rows.filter((r) => !NON_IMPORTABLE.has(r.state) && !(r.state === 'existing' && r.newMessageCount === 0));
+    const messages = reading.reduce((n, r) => n + (r.messagesToRead ?? 0), 0);
+    const pieces = reading.reduce((n, r) => n + piecesFor(r.messagesToRead ?? 0), 0);
+    const minutes = minutesFor(pieces, this.deps.batch ? 'batch' : 'live');
+    const readingSummary = { messages, minutes, chats: reading.length, line: readingLine({ messages, minutes }, reading.length) };
+    return { result, estimateAed, percentOfAllowance: percentOfAllowance(estimateAed, this.deps.allowanceAed), reading: readingSummary };
   }
 
   /** Redact + screen each message exactly as the import pipeline does, so dedupe compares like-for-like. */
@@ -196,7 +206,7 @@ export class BulkImportService {
       const prior = targetClientId ? await this.deps.notes.listByClient(userId, targetClientId) : [];
       const fresh = dedupeMessages(prior.flatMap((n) => n.messages ?? []), screened);
       if (fresh.length === 0) { skipped += 1; continue; } // nothing new — a duplicate upload
-      if (isTooLong(fresh.length, this.deps.longChatLimit ?? null)) { skipped += 1; continue; } // [P67-1] never read
+      if (isTooLong(messagesToRead(fresh), this.deps.longChatLimit ?? null)) { skipped += 1; continue; } // [P67-1] never read; [P82-B] stripped
 
       plan.push({ decision, fresh });
     }

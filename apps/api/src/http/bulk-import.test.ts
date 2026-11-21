@@ -86,6 +86,18 @@ describe('[BULK-IMPORT] the bulk endpoints (individual upload → parse → asyn
     expect((await fetch(`${base}/import/bulk/b1/status`)).status).toBe(401);
   });
 
+  it('[P82-B] parse returns the line shown before Import: stripped messages to read and minutes, no cost', async () => {
+    const token = await signup('bulkreading@example.com');
+    await upload(token, 'br', 0, 'a.txt', bytesOf(chat('Wabil', 'Layla')));
+    await upload(token, 'br', 1, 'b.txt', bytesOf(chat('Wabil', 'Omar') + '\n[2026-02-01, 10:00:00] Omar: ok\n[2026-02-01, 10:01:00] Omar: <Media omitted>'));
+    const body = (await (await post('/import/bulk/parse', token, { batchId: 'br', repName: 'Wabil' })).json()) as { result: { rows: Array<{ messagesToRead: number }> }; reading: { messages: number; minutes: number; chats: number; line: string } };
+    const perRow = body.result.rows.map((r) => r.messagesToRead);
+    expect(body.reading.messages).toBe(perRow[0]! + perRow[1]!);
+    expect(perRow[1]).toBe(perRow[0]); // the "ok" and the media line are not counted
+    expect(body.reading.line).toBe(`These 2 chats have ${body.reading.messages.toLocaleString('en-US')} messages to read. About ${body.reading.minutes} minute${body.reading.minutes === 1 ? '' : 's'}.`);
+    expect(body.reading.line).not.toMatch(/AED|\$|cost|spend|credit|%/i);
+  });
+
   it('uploads files one at a time, then parse returns a review + % estimate + upsell, no AED usage (D3)', async () => {
     const token = await signup('bulkparse@example.com');
     await upload(token, 'b1', 0, 'a.txt', bytesOf(chat('Wabil', 'Layla')));

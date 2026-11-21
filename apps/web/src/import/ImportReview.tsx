@@ -133,8 +133,10 @@ function decide(row: ReviewRow, choice: Choice | undefined, repName: string | nu
   }
 }
 
-export function ImportReview({ result, onImport, upsell, onOpenSubscription, onSubscribe }: {
+export function ImportReview({ result, onImport, upsell, readingLine, onOpenSubscription, onSubscribe }: {
   result: ReviewResult;
+  /** [P82-B] shown before Import: the stripped messages to read and the minutes (never a cost) */
+  readingLine?: string;
   onImport: (decisions: ReviewDecision[]) => void;
   /** [RULING 2] when the batch would exceed the allowance, the top-up / subscribe prompt. */
   upsell?: Upsell;
@@ -212,6 +214,7 @@ export function ImportReview({ result, onImport, upsell, onOpenSubscription, onS
         </p>
       )}
 
+      {readingLine && <p data-testid="import-reading" style={{ margin: 0 }}>{readingLine}</p>}
       <button
         type="button"
         onClick={submit}
