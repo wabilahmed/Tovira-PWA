@@ -1,0 +1,541 @@
+{
+ "meta": {
+  "label": "v097",
+  "run": 1,
+  "prompt": "tovira-extract-v0.9.7",
+  "prefilter": "on",
+  "pieces": 13,
+  "calls": 13,
+  "failedCalls": 0,
+  "aed": 1.566,
+  "thinkingPerPiece": 4447,
+  "thinkingMax": 8183,
+  "batchSeconds": 145
+ },
+ "extracted": {
+  "summary": "WhatsApp exchange between rep Sam Karimi and client Layla Haddad about a home search; she is buying with her husband Karim (who must approve), with a budget cap of 3.5M, needs at least 3 bedrooms, a pool, beach proximity, and covered parking for 2 cars, and a viewing was confirmed for March 14. Layla Haddad is searching for a ready-to-move-in property with covered parking for 2 cars and a home study; she also mentioned her lease renewal and end dates, and Sam promised to follow up with the developer about a payment plan. Ongoing WhatsApp conversation between Sam Karimi and Layla Haddad about property listings, during which Layla shared several home requirements (a study, a usable kitchen, a possible ground-floor room for Karim's mother, and a floor-height limit) along with some personal details about her work and family. Ongoing WhatsApp conversation between rep Sam Karimi and client Layla Haddad about property options; she flagged a past developer's late handover, asked for options in Arabian Ranches, and said she'd sign if the bank approves financing by end of month. Ongoing WhatsApp exchange with Layla Haddad about her property search; she said she'd sign if the bank approves financing by end of month, stated preferences for a quiet area and airport proximity, mentioned her sister Rania is also looking for a 1-bed near the Marina, and flagged that their current rent feels like a waste. Mostly casual back-and-forth between rep Sam Karimi and client Layla Haddad with property listings shared; Layla mentioned frustration with high rent, her daughter Noor starting KG2 in September, and her father helping with the down payment; she will get a bank valuation report and Sam will confirm landlord details by Wednesday. Ongoing WhatsApp exchange between rep Sam Karimi and client Layla Haddad about property viewings for her search; Sam promised to confirm with the landlord by Wednesday, and Layla raised concerns about two properties shown, flagged she's also talking to another agent, and relayed a gym requirement from Karim. Ongoing WhatsApp exchange between rep Sam Karimi and client Layla Haddad about property listings; Layla wants to close before 1 September 2026, her colleague separately expressed interest in a 2-bed, and Sam committed to introducing her to his mortgage broker. Ongoing WhatsApp exchange between Sam Karimi and Layla Haddad about a property search, mostly short acknowledgments and listing links, with a few substantive updates: a complaint about a viewed property, family background, and an updated requirement for a 4-bedroom home now that Karim's mother is moving in. Chat history with Layla Haddad about an ongoing property search: she updated the requirement from 3 to 4 bedrooms because Karim's mother is moving in with them, and later added a need for a small studio for Karim's mother as an investment. She also joked that a 5M budget was out of reach and mentioned wanting balcony safety for her pet Mishmish. Ongoing WhatsApp exchange between Sam Karimi and Layla Haddad with multiple property listings shared; Layla asked for a small studio investment for Karim's mother and noted she will be away for part of December. Ongoing WhatsApp exchange between Sam Karimi and Layla Haddad about a property search; Sam committed to check the pool depth with the developer, send service charge history, and book a second viewing for Karim, while Layla shared some family dates and said a decision might come by end of year. Routine WhatsApp exchange between Sam Karimi and Layla Haddad with mostly short acknowledgments; Layla mentioned Karim saying they'll probably decide by the end of the year, and a meeting was set for Thursday 12 November 2026 at 4pm at the office.",
+  "promises": [
+   {
+    "text": "Send the floor plans",
+    "owner": "rep",
+    "due_date": null,
+    "due_raw": "tomorrow",
+    "confidence": "high",
+    "source_span": "I'll send you the floor plans tomorrow",
+    "source_message_at": "2026-03-05T18:40:00",
+    "resolved_due_date": "2026-03-06",
+    "resolution": "relative"
+   },
+   {
+    "text": "Send the mortgage pre-approval letter",
+    "owner": "client",
+    "due_date": null,
+    "due_raw": "Sunday",
+    "confidence": "high",
+    "source_span": "I'll send you my mortgage pre-approval letter on Sunday",
+    "source_message_at": "2026-03-10T09:02:00",
+    "resolved_due_date": "2026-03-15",
+    "resolution": "relative"
+   },
+   {
+    "text": "Call the developer and get back to Layla about the payment plan",
+    "owner": "rep",
+    "due_date": null,
+    "due_raw": null,
+    "confidence": "high",
+    "source_span": "I'll call the developer and get back to you about the payment plan",
+    "source_message_at": "2026-04-06T11:15:00",
+    "resolved_due_date": null,
+    "resolution": null
+   },
+   {
+    "text": "Send the snagging checklist before handover",
+    "owner": "rep",
+    "due_date": null,
+    "due_raw": "before handover",
+    "confidence": "high",
+    "source_span": "I'll send you the snagging checklist before handover",
+    "source_message_at": "2026-05-18T14:10:00",
+    "resolved_due_date": null,
+    "resolution": null
+   },
+   {
+    "text": "Sign if the bank approves financing",
+    "owner": "client",
+    "due_date": null,
+    "due_raw": "end of month",
+    "confidence": "low",
+    "source_span": "if the bank approves by end of month we'll sign",
+    "source_message_at": "2026-05-27T10:44:00",
+    "resolved_due_date": "2026-05-31",
+    "resolution": "relative"
+   },
+   {
+    "text": "Ask the bank for the valuation report",
+    "owner": "client",
+    "due_date": null,
+    "due_raw": null,
+    "confidence": "high",
+    "source_span": "I'll ask the bank for that valuation report thing",
+    "source_message_at": "2026-07-03T22:15:00",
+    "resolved_due_date": null,
+    "resolution": null
+   },
+   {
+    "text": "Check with the landlord and confirm back to Layla",
+    "owner": "rep",
+    "due_date": null,
+    "due_raw": "Wednesday",
+    "confidence": "high",
+    "source_span": "Let me check with the landlord and I'll confirm by Wednesday",
+    "source_message_at": "2026-07-06T11:25:00",
+    "resolved_due_date": "2026-07-08",
+    "resolution": "relative"
+   },
+   {
+    "text": "Introduce Layla to his mortgage broker",
+    "owner": "rep",
+    "due_date": null,
+    "due_raw": "this week",
+    "confidence": "high",
+    "source_span": "I'll put you in touch with my mortgage broker this week",
+    "source_message_at": "2026-08-13T10:30",
+    "resolved_due_date": null,
+    "resolution": null
+   },
+   {
+    "text": "Ask the developer about the pool depth",
+    "owner": "rep",
+    "due_date": null,
+    "due_raw": null,
+    "confidence": "high",
+    "source_span": "I'll ask the developer about the pool depth",
+    "source_message_at": "2026-10-14T22:22:00",
+    "resolved_due_date": null,
+    "resolution": null
+   },
+   {
+    "text": "Send the service charge history for the last 3 years",
+    "owner": "rep",
+    "due_date": null,
+    "due_raw": null,
+    "confidence": "high",
+    "source_span": "send the service charge history for the last 3 years",
+    "source_message_at": "2026-10-14T22:22:00",
+    "resolved_due_date": null,
+    "resolution": null
+   },
+   {
+    "text": "Book the second viewing for Karim",
+    "owner": "rep",
+    "due_date": null,
+    "due_raw": null,
+    "confidence": "high",
+    "source_span": "book the second viewing for Karim",
+    "source_message_at": "2026-10-14T22:22:00",
+    "resolved_due_date": null,
+    "resolution": null
+   }
+  ],
+  "people": [
+   {
+    "name": "Layla Haddad",
+    "role": "Dentist",
+    "reports_to": null,
+    "decision_role": "influencer",
+    "notes": "Needs her husband Karim's approval before any purchase",
+    "source_span": "Hi Sam, Layla here. We're looking to buy, budget is 3.5M max, we can't go above that",
+    "source_message_at": "2026-03-02T10:12:00"
+   },
+   {
+    "name": "Karim",
+    "role": null,
+    "reports_to": null,
+    "decision_role": "decision_maker",
+    "notes": "Has to approve anything they buy",
+    "source_span": "My husband Karim has to approve anything we buy",
+    "source_message_at": "2026-03-08T21:05:00"
+   },
+   {
+    "name": "Rania",
+    "role": "sister",
+    "reports_to": null,
+    "decision_role": "unknown",
+    "notes": "Referral - also looking for a 1 bed near the Marina",
+    "source_span": "my sister Rania is also looking for a 1 bed near the Marina btw",
+    "source_message_at": "2026-06-08T13:33:00"
+   }
+  ],
+  "personal_facts": [
+   {
+    "subject": "Layla Haddad",
+    "fact": "Loves being near the beach",
+    "category": "preference",
+    "source_span": "We love being near the beach",
+    "source_message_at": "2026-03-08T21:06:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Two kids, Adam (7) and Noor (4)",
+    "category": "family",
+    "source_span": "We have two kids, Adam is 7 and Noor is 4",
+    "source_message_at": "2026-03-16T20:11:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Is a dentist and has her own clinic",
+    "category": "background",
+    "source_span": "I'm a dentist, I have my own clinic",
+    "source_message_at": "2026-04-15T22:11:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Son Adam has a football tournament every Saturday",
+    "category": "family",
+    "source_span": "sorry was at Adam's football, he has a tournament every saturday",
+    "source_message_at": "2026-05-09T18:22:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Dislikes beige kitchens",
+    "category": "preference",
+    "source_span": "if I have to see one more beige kitchen I'll scream",
+    "source_message_at": "2026-05-14T18:00:00"
+   },
+   {
+    "subject": "Karim",
+    "fact": "Flies to Riyadh twice a month for work",
+    "category": "background",
+    "source_span": "Karim flies to Riyadh twice a month for work so being close to the airport helps",
+    "source_message_at": "2026-06-14T09:12:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Daughter Noor starts KG2 in September; the school run will matter for property choice",
+    "category": "family",
+    "source_span": "Noor starts KG2 in September so the school run is going to matter",
+    "source_message_at": "2026-06-25T17:00:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Her father is helping with the down payment and will want to see the property",
+    "category": "family",
+    "source_span": "my dad is helping with the down payment so he'll want to see it too",
+    "source_message_at": "2026-06-29T19:19:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Mentioned maybe one day buying a villa in Spain",
+    "category": "other",
+    "source_span": "maybe one day we'll buy a villa in Spain",
+    "source_message_at": "2026-07-12T22:50:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Mum's 60th birthday is on 2 October; planning a surprise",
+    "category": "family",
+    "source_span": "my mum's 60th is on 2 October, we're planning a surprise",
+    "source_message_at": "2026-07-30T21:10"
+   },
+   {
+    "subject": "Adam",
+    "fact": "Obsessed with the aquarium; they go every other weekend",
+    "category": "hobby",
+    "source_span": "Adam's obsessed with the aquarium, we go every other weekend",
+    "source_message_at": "2026-08-01T18:30"
+   },
+   {
+    "subject": "Karim",
+    "fact": "His work contract here ends next summer, with uncertainty about what happens after",
+    "category": "background",
+    "source_span": "Karim's contract here ends next summer, after that who knows",
+    "source_message_at": "2026-08-19T21:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Bought their first flat in JVC back in 2019",
+    "category": "background",
+    "source_span": "we bought our first flat in JVC back in 2019",
+    "source_message_at": "2026-08-29T20:30"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Karim's mother is moving in with them",
+    "category": "family",
+    "source_span": "Karim's mum is definitely moving in now",
+    "source_message_at": "2026-09-03T23:02"
+   },
+   {
+    "subject": "Karim",
+    "fact": "His mother is moving in with them",
+    "category": "family",
+    "source_span": "Karim's mum is definitely moving in now",
+    "source_message_at": "2026-09-03T23:02:00"
+   },
+   {
+    "subject": "Layla Haddad",
+    "fact": "Has a pet named Mishmish; wants balcony safety netting for it",
+    "category": "other",
+    "source_span": "Mishmish would hate a balcony with no net lol",
+    "source_message_at": "2026-09-12T20:05:00"
+   }
+  ],
+  "key_dates": [
+   {
+    "description": "Deadline for the lease renewal notice to be submitted",
+    "date": "2026-04-15",
+    "date_raw": "15/04/2026",
+    "type": "deadline",
+    "source_span": "the renewal notice for our lease has to go in by 15/04/2026",
+    "source_message_at": "2026-03-28T10:05:00",
+    "resolved_date": "2026-04-15",
+    "resolution": "explicit"
+   },
+   {
+    "description": "Current lease end date",
+    "date": "2026-06-30",
+    "date_raw": "30 June 2026",
+    "type": "other",
+    "source_span": "Our lease ends on 30 June 2026",
+    "source_message_at": "2026-04-02T19:20:00",
+    "resolved_date": null,
+    "resolution": null
+   },
+   {
+    "description": "Planned down payment timing, tied to Layla's December bonus",
+    "date": null,
+    "date_raw": "December",
+    "type": "other",
+    "source_span": "My bonus comes in December so that's when we can do the down payment",
+    "source_message_at": "2026-04-28T12:05:00",
+    "resolved_date": null,
+    "resolution": null
+   },
+   {
+    "description": "Client will be away traveling in February",
+    "date": null,
+    "date_raw": "February",
+    "type": "other",
+    "source_span": null,
+    "source_message_at": "2026-05-24T19:00:00",
+    "resolved_date": null,
+    "resolution": null
+   },
+   {
+    "description": "Noor starts KG2",
+    "date": null,
+    "date_raw": "September",
+    "type": "other",
+    "source_span": "Noor starts KG2 in September so the school run is going to matter",
+    "source_message_at": "2026-06-25T17:00:00",
+    "resolved_date": null,
+    "resolution": null
+   },
+   {
+    "description": "Handover date on another property",
+    "date": null,
+    "date_raw": "05/06",
+    "type": "other",
+    "source_span": "the handover on the other one was 05/06 apparently",
+    "source_message_at": "2026-08-07T11:11",
+    "resolved_date": null,
+    "resolution": null
+   },
+   {
+    "description": "Karim's work contract ending (uncertain plans after)",
+    "date": null,
+    "date_raw": "next summer",
+    "type": "other",
+    "source_span": "Karim's contract here ends next summer, after that who knows",
+    "source_message_at": "2026-08-19T21:00",
+    "resolved_date": null,
+    "resolution": null
+   },
+   {
+    "description": "Layla away, unavailable for meetings/viewings",
+    "date": "2026-12-01",
+    "date_raw": "1 to 20 December 2026",
+    "type": "other",
+    "source_span": "we're away 1 to 20 December 2026 so nothing then",
+    "source_message_at": "2026-10-01T09:30:00",
+    "resolved_date": null,
+    "resolution": null
+   },
+   {
+    "description": "Karim's birthday",
+    "date": null,
+    "date_raw": "14 May",
+    "type": "birthday",
+    "source_span": "Karim's birthday is 14 May",
+    "source_message_at": "2026-10-27T20:40:00",
+    "resolved_date": null,
+    "resolution": null
+   },
+   {
+    "description": "Layla's wedding anniversary (day after Karim's birthday)",
+    "date": null,
+    "date_raw": "the day after",
+    "type": "anniversary",
+    "source_span": "our anniversary is the day after",
+    "source_message_at": "2026-10-27T20:40:00",
+    "resolved_date": null,
+    "resolution": null
+   },
+   {
+    "description": "Expected decision timing on the deal (uncertain)",
+    "date": null,
+    "date_raw": "by the end of the year",
+    "type": "deadline",
+    "source_span": "Karim says we'll probably decide by the end of the year, but don't hold him to it",
+    "source_message_at": "2026-11-02T19:45:00",
+    "resolved_date": null,
+    "resolution": null
+   }
+  ],
+  "concerns": [
+   "Worried about the service charges in these towers",
+   "The developer they bought from last time handed over 18 months late",
+   "Paying 180k a year in rent now and it feels like a waste",
+   "Client mentioned they are also talking to another agent",
+   "The last place shown felt really dark",
+   "Could hear trucks all night at the property near the highway, rejected it",
+   "The Damac Hills property had zero shade for the kids to play outside",
+   "Karim's contract ends next summer, and what happens after is uncertain",
+   "Feels a 5M budget is out of reach, joked she'd have to rob a bank to afford it"
+  ],
+  "next_steps": [
+   "Follow up on the referral - Layla's sister Rania is also looking for a 1 bed near the Marina",
+   "Client said they'll decide after Eid",
+   "Arrange for Layla's father to see the property since he's helping with the down payment",
+   "Follow up on colleague's interest in a 2-bed property",
+   "Possible decision from Karim and Layla by end of year, though they said not to count on it"
+  ],
+  "requirements": [
+   {
+    "text": "Looking to buy a property with a max budget of 3.5M",
+    "requirement_raw": "We're looking to buy, budget is 3.5M max, we can't go above that",
+    "stated_on": "2026-03-02",
+    "confidence": "high"
+   },
+   {
+    "text": "At least 3 bedrooms",
+    "requirement_raw": "We need at least 3 bedrooms",
+    "stated_on": "2026-03-02",
+    "confidence": "high"
+   },
+   {
+    "text": "A property with a pool",
+    "requirement_raw": "a pool is non-negotiable for us now",
+    "stated_on": "2026-03-15",
+    "confidence": "high"
+   },
+   {
+    "text": "Covered parking for 2 cars",
+    "requirement_raw": "We need covered parking for 2 cars",
+    "stated_on": "2026-03-25",
+    "confidence": "high"
+   },
+   {
+    "text": "Ready to move in, no off-plan properties",
+    "requirement_raw": "It must be ready to move in, no off-plan",
+    "stated_on": "2026-04-09",
+    "confidence": "high"
+   },
+   {
+    "text": "A proper study, since she works from home",
+    "requirement_raw": "I work from home so I need a proper study",
+    "stated_on": "2026-04-15",
+    "confidence": "high"
+   },
+   {
+    "text": "A ground floor room for Karim's mother",
+    "requirement_raw": "we'd need a ground floor room for her",
+    "stated_on": "2026-04-20",
+    "confidence": "low"
+   },
+   {
+    "text": "A kitchen she can actually cook in",
+    "requirement_raw": "I want a kitchen I can actually cook in",
+    "stated_on": "2026-04-24",
+    "confidence": "high"
+   },
+   {
+    "text": "A unit no higher than the 20th floor",
+    "requirement_raw": "nothing above the 20th",
+    "stated_on": "2026-05-03",
+    "confidence": "high"
+   },
+   {
+    "text": "2 or 3 options in Arabian Ranches",
+    "requirement_raw": "Can you send me 2 or 3 options in Arabian Ranches?",
+    "stated_on": "2026-05-20",
+    "confidence": "high"
+   },
+   {
+    "text": "Doesn't want anywhere in a crowded area",
+    "requirement_raw": "ana ma abi shay fe mantiqa za7ma",
+    "stated_on": "2026-06-11",
+    "confidence": "high"
+   },
+   {
+    "text": "Being close to the airport",
+    "requirement_raw": "being close to the airport helps",
+    "stated_on": "2026-06-14",
+    "confidence": "high"
+   },
+   {
+    "text": "A property location where the school run is manageable, given Noor starts KG2 in September",
+    "requirement_raw": "Noor starts KG2 in September so the school run is going to matter",
+    "stated_on": "2026-06-25",
+    "confidence": "low"
+   },
+   {
+    "text": "A building with a gym (Karim is flexible on everything else)",
+    "requirement_raw": "Karim's fine with anything as long as there's a gym in the building",
+    "stated_on": "2026-07-22",
+    "confidence": "high"
+   },
+   {
+    "text": "To close before 1 September 2026",
+    "requirement_raw": "We'd want to close before 1 September 2026",
+    "stated_on": "2026-08-04",
+    "confidence": "high"
+   },
+   {
+    "text": "A 4-bedroom home instead of 3",
+    "requirement_raw": "we need 4 bedrooms not 3",
+    "stated_on": "2026-09-03",
+    "confidence": "high"
+   },
+   {
+    "text": "A small studio for Karim's mum, as an investment",
+    "requirement_raw": "also we want a small studio for Karim's mum as an investment",
+    "stated_on": "2026-09-20",
+    "confidence": "high"
+   },
+   {
+    "text": "A balcony with a safety net (for her pet)",
+    "requirement_raw": "Mishmish would hate a balcony with no net lol",
+    "stated_on": "2026-09-12",
+    "confidence": "low"
+   },
+   {
+    "text": "A small studio as an investment for Karim's mum",
+    "requirement_raw": "we want a small studio for Karim's mum as an investment",
+    "stated_on": "2026-09-20",
+    "confidence": "high"
+   }
+  ],
+  "meeting": {
+   "datetime": "2026-11-12T16:00",
+   "datetime_raw": "Thursday 12 November 2026 at 4pm",
+   "confirmed": true,
+   "source_span": "See you Thursday 12 November 2026 at 4pm at our office",
+   "source_message_at": "2026-11-09T15:05:00",
+   "resolved_datetime": "2026-11-12T16:00",
+   "resolution": "relative"
+  },
+  "pointers": [],
+  "unanswered_questions": []
+ }
+}
