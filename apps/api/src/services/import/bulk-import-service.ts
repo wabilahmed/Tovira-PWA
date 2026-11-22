@@ -14,6 +14,8 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository, ImportedMessage } from '../../ports/note-repository.js';
 import type { RepNameRepository } from '../../ports/contact-alias-repository.js';
 import type { ExtractOutcome } from '../extraction/extraction-service.js';
+import type { Requirement } from '../extraction/types.js';
+import { currentRequirements, type RequirementLike } from '../clients/requirement-summary.js';
 import { parseWhatsAppExport, type ParsedMessage } from './whatsapp.js';
 import { parseBatch, type BulkInputFile, type BulkClient, type BulkParseResult, type RowState } from './bulk-parse.js';
 import { dedupeMessages, renderThread } from './dedup.js';
@@ -53,6 +55,9 @@ export interface BulkImportDeps {
   batch?: boolean;
   /** [P67-1] The most messages one chat may have to read; null = no limit (windowed extraction). Absent = none. */
   longChatLimit?: number | null;
+  /** [P85-1] The stored requirements, so the summary counts only the current ones (a replaced count is not counted,
+   *  even when the later count is in a note the client already had). Absent → read from the batch's chats alone. */
+  requirements?: { listByClient: (userId: string, clientId: string) => Promise<Array<RequirementLike & { noteId: string }>> };
 }
 
 /** [P20-3 / BULK-08] The one summary shown on the finished screen + in the aggregate notification. */
@@ -262,11 +267,27 @@ export class BulkImportService {
     const noteIds = jobs.map((j) => j.noteId).filter((id): id is string => !!id);
     let promises = 0;
     let requirements = 0;
+    // [P85-1 · owner] only CURRENT requirements are counted: one a later count replaced (P83-8) is not
+    const batchNotes = new Set(noteIds);
+    const byClient = new Map<string, Array<{ noteId: string; r: RequirementLike }>>();
     for (const id of noteIds) {
       const note = await this.deps.notes.findByIdForUser(userId, id);
-      const ex = (note?.extracted ?? {}) as { promises?: unknown[]; requirements?: unknown[] };
+      const ex = (note?.extracted ?? {}) as { promises?: unknown[]; requirements?: Array<Partial<Requirement>> };
       promises += ex.promises?.length ?? 0;
-      requirements += ex.requirements?.length ?? 0;
+      if (!note || this.deps.requirements) continue;
+      const list = byClient.get(note.clientId) ?? [];
+      (ex.requirements ?? []).forEach((q, i) => list.push({ noteId: id, r: { text: q.text ?? '', requirementRaw: q.requirement_raw ?? '', statedOn: q.stated_on ?? null, createdAt: list.length + i } }));
+      byClient.set(note.clientId, list);
+    }
+    if (this.deps.requirements) {
+      const clientIds = new Set<string>();
+      for (const id of noteIds) { const n = await this.deps.notes.findByIdForUser(userId, id); if (n) clientIds.add(n.clientId); }
+      for (const cid of clientIds) {
+        const rows = await this.deps.requirements.listByClient(userId, cid);
+        requirements += currentRequirements(rows).filter((r) => batchNotes.has(r.noteId)).length;
+      }
+    } else {
+      for (const list of byClient.values()) { const keep = new Set(currentRequirements(list.map((x) => x.r))); requirements += list.filter((x) => keep.has(x.r)).length; }
     }
     const summary: BulkImportSummary = { chatsImported: jobs.filter((j) => j.state === 'done').length, promises, requirements };
     try { await this.deps.onBatchComplete?.(userId, summary); } finally { for (const id of noteIds) this.deps.bulkNotes?.remove(id); }

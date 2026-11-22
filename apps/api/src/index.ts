@@ -663,7 +663,7 @@ async function main(): Promise<void> {
   // time — first-finding latency ~15s rather than up to 30s, for the day-one wow moment. Other jobs
   // have long intervals, so a faster due-check is negligible overhead.
   const recallSessions = createRecallSessionRepository(config, appPool);
-  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, repGlossary, storage, clientPointers, inventoryRepo, restriction);
+  const account = createAccountService(auth, clients, notes, facts, meetings, images, recallSessions, (userId, email) => accountEmail.sendAccountDeleted(userId, email).then(() => undefined), contactAliases, repNames, extractionLogs, corrections, repGlossary, storage, clientPointers, inventoryRepo, restriction, requirements);
   // [BILLING-DUNNING · D8] retention: delete ended accounts 90 days after they end, via the account path.
   const billingRetention = createBillingRetentionService(config, appPool, (uid) => account.deleteAccount(uid), billingEmailHook);
   const activation = createActivationService(config, appPool);
@@ -697,6 +697,7 @@ async function main(): Promise<void> {
     isPaused: () => pauseFlag.paused(),
     concurrency: bulkConcurrency(config.sweepConcurrency),
     longChatLimit: longChatLimit(config.windowing.enabled), // [P67-1]
+    requirements, // [P85-1] the summary counts only current requirements
     allowanceAed: config.monthlyAiAllowanceAed,
     modelId: config.modelProvider === 'anthropic' ? config.anthropicModel : 'stub',
     repNames,

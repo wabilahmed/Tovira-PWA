@@ -10,6 +10,8 @@ import { restrictNote, noteIsAboutRestricted } from '../erasure/restrict-note.js
 import { factWithholder, withoutRestricted, type RestrictionSource } from '../erasure/surface-filter.js';
 import { NO_RESTRICTION } from '../erasure/restriction.js';
 import { liveNames } from '../clients/live-names.js';
+import { replacedAcrossClients } from '../clients/requirement-summary.js';
+import type { RequirementRecord } from '../../ports/requirement-repository.js';
 
 /** [P48] The book's exact placeholder, on a restricted note in the export too. */
 const NOTE_RESTRICTION_NOTICE = 'Restricted while a privacy request is reviewed.';
@@ -78,6 +80,8 @@ export class AccountService {
     private readonly inventory?: { listByUser(userId: string): Promise<unknown[]> },
     /** [P48] the active erasure restriction; absent → nothing withheld. */
     private readonly restriction?: RestrictionSource,
+    /** [P85-2] the rep's requirements, carried in the export as their own list (replaced ones kept and marked). */
+    private readonly requirements?: { listByClient(userId: string, clientId: string): Promise<RequirementRecord[]> },
   ) {}
 
   async exportData(userId: string): Promise<unknown> {
@@ -104,6 +108,18 @@ export class AccountService {
     const recallSessions = await this.recallSessions.exportForUser(userId);
     const repGlossary = this.repGlossary ? ((await this.repGlossary.listByUser(userId)) as Array<{ wrongTerm: string; rightTerm: string }>) : [];
     const clientPointers = this.pointers ? ((await this.pointers.listByUser(userId)) as Array<{ clientId: string; pointers: Array<{ text: string }> }>) : [];
+    // [P85-2 · owner] every requirement, a replaced one kept and marked "superseded by <later item, date>"
+    const reqRows: RequirementRecord[] = [];
+    if (this.requirements) for (const c of clients) reqRows.push(...(await this.requirements.listByClient(userId, c.id)));
+    const visibleReqs = await withoutRestricted(reqRows, withheld, (q) => ({ clientId: q.clientId, noteId: q.noteId, quote: q.requirementRaw }));
+    const replaced = replacedAcrossClients(visibleReqs);
+    const dateOf = (q: RequirementRecord) => q.statedOn ?? new Date(q.createdAt).toISOString().slice(0, 10);
+    const requirements = visibleReqs.map((q) => {
+      const by = replaced.get(q);
+      return by
+        ? { ...q, supersededBy: { id: by.id, text: by.text, date: dateOf(by) }, superseded: `superseded by ${by.text}, ${dateOf(by)}` }
+        : { ...q, supersededBy: null };
+    });
     return {
       exportedAt: new Date().toISOString(),
       ...(r.active ? { restrictionNotice: EXPORT_RESTRICTION_NOTICE } : {}),
@@ -111,6 +127,7 @@ export class AccountService {
       notes, // raw text / transcripts live here
       // [P20-2] include soft-deleted promises (with their deleted_at) — the rep's own data in a DSAR.
       promises: await withoutRestricted(await this.facts.listPromisesByUser(userId, { includeDeleted: true }), withheld, spanned),
+      requirements,
       keyDates: await withoutRestricted(await this.facts.listKeyDatesByUser(userId), withheld, spanned),
       meetings: await withoutRestricted(await this.meetings.listByUser(userId), withheld, spanned),
       images,

@@ -67,7 +67,12 @@ export interface SupersedeView { text: string; raw: string }
  * The items (in chat order, earliest first) that a LATER item replaces. Pure; never edits an item.
  */
 export function supersededItems<T>(ordered: T[], view: (t: T) => SupersedeView): Set<T> {
-  const out = new Set<T>();
+  return new Set(supersededBy(ordered, view).keys());
+}
+
+/** [P85-2 · owner] The same, with the later item that replaced each one (the first later item that does). Pure. */
+export function supersededBy<T>(ordered: T[], view: (t: T) => SupersedeView): Map<T, T> {
+  const out = new Map<T, T>();
   const views = ordered.map((t) => {
     const v = view(t);
     const own = countSlots(v.text);
@@ -81,7 +86,7 @@ export function supersededItems<T>(ordered: T[], view: (t: T) => SupersedeView):
       const l = views[j]!;
       const now = l.slots.get(slot);
       if (now === undefined || now === old) continue;
-      if (l.only || namesOldValue(`${l.v.text} ${l.v.raw}`, old)) { out.add(e.item); break; }
+      if (l.only || namesOldValue(`${l.v.text} ${l.v.raw}`, old)) { out.set(e.item, l.item); break; }
     }
   }
   return out;

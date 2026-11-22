@@ -1,5 +1,5 @@
 import { extractDatePhrase, resolveDueDate } from '../extraction/resolve-date.js';
-import { supersededItems } from '../extraction/requirement-supersede.js';
+import { supersededItems, supersededBy } from '../extraction/requirement-supersede.js';
 
 /**
  * [P36-5] A client's wants in one line, read deterministically from their STORED requirements (no model, no
@@ -203,6 +203,19 @@ export function currentAcrossClients<T extends RequirementLike & { clientId: str
   const keep = new Set<T>();
   for (const list of byClient.values()) for (const r of currentRequirements(list)) keep.add(r);
   return reqs.filter((r) => keep.has(r));
+}
+
+/** [P85-2 · owner] For a list that spans clients: each replaced need → the later need (same client) that replaced it.
+ *  Nothing is dropped; the data export marks the replaced ones. */
+export function replacedAcrossClients<T extends RequirementLike & { clientId: string }>(reqs: T[]): Map<T, T> {
+  const byClient = new Map<string, T[]>();
+  for (const r of reqs) byClient.set(r.clientId, [...(byClient.get(r.clientId) ?? []), r]);
+  const out = new Map<T, T>();
+  for (const list of byClient.values()) {
+    const ordered = list.slice().sort((a, b) => (a.statedOn ?? '').localeCompare(b.statedOn ?? '') || a.createdAt - b.createdAt);
+    for (const [old, by] of supersededBy(ordered, (r) => ({ text: r.text, raw: r.requirementRaw }))) out.set(old, by);
+  }
+  return out;
 }
 
 export function summarizeRequirements(reqs: RequirementLike[]): RequirementSummary {

@@ -428,6 +428,7 @@ export function buildInMemoryDeps(
     isPaused: () => aiPause.getPaused(),
     concurrency: bulkConcurrency(5),
     longChatLimit: longChatLimit(true), // [P79-EMERGENCY] as in production (index.ts: windowing on, the emergency limit)
+    requirements, // [P85-1] as in production
     allowanceAed: DEFAULT_MONTHLY_AI_ALLOWANCE_AED,
     modelId: 'stub',
     repNames,
@@ -516,7 +517,7 @@ export function buildInMemoryDeps(
     // [PRIVACY-3] purgeables covers every in-memory store the users FK cascade purges in Postgres, so
     // account deletion leaves zero rows in the in-memory model too (recall + S3 archive are purged by
     // AccountService directly). A new store added here without a purge fails the deletion test.
-    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary, clientPointers, keptSuggestionRepo, personLinks], undefined, contactAliases /* [P49-4] as in production (container.ts): the export carries the aliases */, extractionLog, corrections, repGlossary, storage, clientPointers, inventoryRepo, restriction),
+    account: new AccountService(auth, clients, notes, facts, meetings, images, recallSessions, [clients, notes, facts, meetings, inventoryRepo, inventoryMatches, requirements, extractionLog, corrections, images, importAck, extractionCounter, repGlossary, clientPointers, keptSuggestionRepo, personLinks], undefined, contactAliases /* [P49-4] as in production (container.ts): the export carries the aliases */, extractionLog, corrections, repGlossary, storage, clientPointers, inventoryRepo, restriction, requirements),
     recallSessions,
     extractionCounter,
     runSweep,
