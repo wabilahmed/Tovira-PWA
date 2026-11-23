@@ -132,3 +132,22 @@ the same rule as English (an observance is withheld; a time anchor, a trip and a
   - Positive tests: "أنا صايم اليوم", "رايحين عمرة في فبراير فبنكون مسافرين", "मेरा रोज़ा है", "hum Umrah pe ja rahe hain".
   - Only removal, never a word added or changed (P69-14). screening/precise-screen.ts is in the gate's import graph,
     so the batch runs the gate.
+
+## [P85] Before January 2027: move the API runtime from Node 20 to Node 22 (logged, plan only, not done)
+
+**Why.** Every API boot (the service and the backfill task alike, seen in /tovira/prod/api on 23 Nov) logs: "NodeVersionSupportWarning: The AWS SDK for JavaScript (v3) versions published after the first week of January 2027 will require node >=22. You are running node v20.20.2." (Node 20 itself reached end of life in April 2026.) Upgrade before January 2027 so the SDK keeps shipping fixes to us.
+
+**Where Node 20 is pinned today.**
+- `docker/api.prod.Dockerfile` (both stages: `node:20-bookworm-slim`), `docker/api.Dockerfile`, `docker/web.Dockerfile`.
+- GitHub Actions `node-version: 20`: ci.yml (5), deploy.yml (3), extraction-gate.yml (1).
+- `package.json` engines `"node": ">=20"` (raise to `>=22`).
+- To check in the infra folder (human-gated): any Lambda runtime such as `nodejs20.x` (the stub EventBridge Lambda).
+
+**Plan (one batch, owner approves the push).**
+1. Local: switch to Node 22, `npm ci`, then the full verify (typecheck, lint, unit, integration, Playwright). Watch the native and Node-sensitive pieces: pg, scrypt hashing, `fetch`/undici behaviour, `node:test` helpers, timers in the suite.
+2. Bump the three Dockerfiles to `node:22-bookworm-slim` and all workflow `node-version` pins in the same commit, plus engines.
+3. Build the arm64 prod image in CI as usual (a real rebuild, not a retag). Boot checks: migrations run, `/api/health` 200, `/api/version` shows the build, the scheduled brain's `jobs[]` present, one backfill task run shows no Node 20 warning.
+4. Any Lambda on `nodejs20.x`: change through provision.yml (plan, show the owner, apply on their yes).
+5. Rollback: redeploy the previous commit through Deploy (the Node 20 image is still in ECR).
+
+**Not now.** Owner, 22 Nov: plan only.
