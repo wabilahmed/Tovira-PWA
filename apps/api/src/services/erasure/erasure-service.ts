@@ -9,6 +9,7 @@ import { purgeUserBatches } from '../import/bulk-batch-store.js';
 import type { ClientPointerRepository } from '../../ports/client-pointer-repository.js';
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_MAX_TOKENS, buildUserMessage } from '../extraction/prompt.js';
 import { matchName, mentionsName, normName, type MatchKind } from './name-match.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 
 /**
@@ -120,7 +121,7 @@ export class ErasureService {
   private async allNotes(userId: string): Promise<NoteRecord[]> {
     const clients = await this.deps.clients.listByUser(userId);
     const out: NoteRecord[] = [];
-    for (const c of clients) out.push(...(await this.deps.notes.listByClient(userId, c.id)));
+    for (const list of (await listForClients(this.deps.notes, userId, clients.map((c) => c.id))).values()) out.push(...list); // [P86] one read
     return out;
   }
 

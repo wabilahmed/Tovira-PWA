@@ -6,6 +6,7 @@ import type { NoteRepository } from '../../ports/note-repository.js';
 import type { PushableAlert } from '../push/push-dispatch-service.js';
 import { zonedTodayIso } from '../time/zone.js';
 import { isStalePromise } from '../facts/promise-lifecycle.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECURRING_TYPES = new Set(['birthday', 'anniversary']);
@@ -212,8 +213,9 @@ export class ScanService {
     const cutoff = nowMs - staleDays * DAY_MS;
     const clients = await this.clients.listByUser(userId);
     let created = 0;
+    const notesBy = await listForClients(this.notes, userId, clients.map((c) => c.id)); // [P86] one read, not one per client
     for (const c of clients) {
-      const imports = (await this.notes.listByClient(userId, c.id)).filter((n) => n.source === 'whatsapp_export');
+      const imports = (notesBy.get(c.id) ?? []).filter((n) => n.source === 'whatsapp_export');
       if (imports.length === 0) continue; // never imported → onboarding's job, not refresh
       const latest = imports.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
       if (latest.createdAt >= cutoff) continue; // recently refreshed → no nudge

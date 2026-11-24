@@ -8,6 +8,7 @@ import { withReceipt } from '../receipts/receipt.js';
 import { isStalePromise } from '../facts/promise-lifecycle.js';
 import { summarizeRequirements, currentRequirements } from './requirement-summary.js';
 import { caresAbout, topCare, type CareItem } from './cares-about.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 /**
  * [P36-5] Everything the client page's header and sections summarise, read from the stored record — no model
@@ -162,9 +163,10 @@ export class ClientOverviewService {
     const today = new Date(nowMs).toISOString().slice(0, 10);
     const threshold = this.deps.promiseStaleThresholdDays ?? 90;
     const out: Record<string, ClientRowSummary> = {};
+    const notesBy = await listForClients(this.deps.notes, userId, clients.map((c) => c.id)); // [P86] one read, not one per client
     for (const c of clients) {
       let last: string | null = null;
-      for (const n of await this.deps.notes.listByClient(userId, c.id)) {
+      for (const n of notesBy.get(c.id) ?? []) {
         for (const m of n.messages ?? []) if (!m.excluded && m.sentAt && (!last || m.sentAt > last)) last = m.sentAt;
       }
       out[c.id] = {

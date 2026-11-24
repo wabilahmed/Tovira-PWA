@@ -181,3 +181,47 @@ describe('[ASYNC-EXTRACT] NoteSweepService — ceiling skip + fairness + bounded
     expect(Object.values(counts)).toEqual([1, 1, 1, 1, 1, 1]); // each once, none twice
   });
 });
+
+/**
+ * [P86 · index audit] The sweep runs every 15 seconds. It used to open a transaction per rep (reclaim, three gates,
+ * list) even when nothing was waiting: 200 reps meant ~1,600 round trips a tick. With `usersWithWork` it asks once
+ * which reps have notes in flight and does the per-rep work for those reps only. A rep with nothing in flight was
+ * skipped before too (nothing to reclaim, an empty list), so the result of a pass is unchanged.
+ */
+describe('[P86] NoteSweepService — only reps with notes in flight are visited', () => {
+  it('visits only the reps usersWithWork names: no reclaim, gate or list for the rest', async () => {
+    const touched: string[] = [];
+    const { svc, calls } = make(
+      { u1: [note('a', 'pending_extraction')], u2: [], u3: [] },
+      {
+        allUserIds: async () => { throw new Error('allUserIds must not be read when usersWithWork is wired'); },
+        usersWithWork: async () => ['u1'],
+        reclaim: async (u) => { touched.push(`reclaim:${u}`); },
+        canSpend: async (u) => { touched.push(`gate:${u}`); return true; },
+      },
+    );
+    const r = await svc.sweep('2026-11-24');
+    expect(calls.extract).toEqual(['a']);
+    expect(r.advanced).toBe(1);
+    expect(touched).toEqual(['reclaim:u1', 'gate:u1']);
+  });
+
+  it('a stale claim is still reclaimed: a rep named only for a crashed extracting note is visited', async () => {
+    const reclaimed: string[] = [];
+    const pending: Record<string, SweepableNote[]> = { u9: [] };
+    const { svc, calls } = make(pending, {
+      usersWithWork: async () => ['u9'],
+      reclaim: async (u) => { reclaimed.push(u); pending[u] = [note('back', 'pending_extraction')]; },
+    });
+    await svc.sweep('2026-11-24');
+    expect(reclaimed).toEqual(['u9']);
+    expect(calls.extract).toEqual(['back']);
+  });
+
+  it('without usersWithWork it visits every rep, as before', async () => {
+    const { svc, calls } = make({ u1: [note('a', 'pending_extraction')], u2: [note('b', 'pending_transcription')] });
+    await svc.sweep('2026-11-24');
+    expect(calls.extract).toEqual(['a']);
+    expect(calls.transcribe).toEqual(['b']);
+  });
+});

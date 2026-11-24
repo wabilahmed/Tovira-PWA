@@ -5,6 +5,7 @@ import type { UnansweredQuestion } from '../import/unanswered.js';
 import { promiseDedupeKey } from '../facts/promise-identity.js';
 import { isStalePromise } from '../facts/promise-lifecycle.js';
 import { extractionState } from '../notes/extraction-state.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 /**
  * Day-One Book Scan — the "Relationship X-Ray" (P5-3b). Scans a rep's seeded
@@ -173,8 +174,9 @@ export class BookScanService {
     let extractedChats = 0;
     let pendingChats = 0;
     let failedChats = 0;
+    const notesBy = await listForClients(this.repos.notes, userId, clients.map((c) => c.id)); // [P86] one read, not one per client
     for (const c of clients) {
-      const clientNotes = await this.repos.notes.listByClient(userId, c.id); // most-recent first
+      const clientNotes = notesBy.get(c.id) ?? []; // most-recent first
       chatsRead += clientNotes.filter((n) => n.source === 'whatsapp_export').length;
       for (const n of clientNotes) {
         if (n.source === 'whatsapp_export') {

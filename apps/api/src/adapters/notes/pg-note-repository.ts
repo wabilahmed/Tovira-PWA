@@ -2,6 +2,7 @@ import type { Pool } from 'pg';
 import type { ImportedMessage, MoveSuggestion, NewNote, NotePatch, NoteRecord, NoteRepository, NoteSource, SimilarNote } from '../../ports/note-repository.js';
 import { SETTLED_STATUSES } from '../../ports/note-repository.js';
 import { withTenant } from '../../db/tenant.js';
+import { groupByClient } from '../../services/notes/list-for-clients.js';
 
 interface NoteRow {
   id: string;
@@ -81,6 +82,19 @@ export class PgNoteRepository implements NoteRepository {
         [clientId],
       );
       return (rows as unknown as NoteRow[]).map(toRecord);
+    });
+  }
+
+  /** [P86] Every listed client's notes in ONE tenant read (was one read per client). Same filter and order as
+   *  listByClient; served by notes_client_id_idx (client_id = ANY) under RLS. */
+  async listByClients(userId: string, clientIds: string[]): Promise<Map<string, NoteRecord[]>> {
+    if (clientIds.length === 0) return new Map();
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(
+        `SELECT ${COLUMNS} FROM notes WHERE client_id = ANY($1::uuid[]) AND status <> 'pending_confirmation' ORDER BY created_at DESC`,
+        [clientIds],
+      );
+      return groupByClient((rows as unknown as NoteRow[]).map(toRecord), clientIds);
     });
   }
 

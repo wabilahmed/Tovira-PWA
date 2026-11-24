@@ -21,6 +21,7 @@ export type FailureReason = 'ours' | 'recording_missing';
 /** [P84-9] 'messages': a chat with more messages to read than the rep has left waits for a pack or the reset. */
 export type HoldReason = 'allowance' | 'subscribe' | 'payment' | 'messages';
 import { careCount } from '../clients/cares-about.js';
+import { clientsById } from '../notes/list-for-clients.js';
 export interface FoundCounts { /** [P69] things the client cares about (details, asks, worries) */ caresAbout: number; promises: number; overduePromises: number; dates: number; requirements: number; people: number; needsAnswer: number }
 export interface ProcessingItem {
   noteId: string;
@@ -145,10 +146,10 @@ export class ProcessingStatusService {
     if (notes.length === 0) return { items: [], working: 0 };
     const [hold, today] = await Promise.all([this.deps.holdReason(userId), this.deps.today(userId, nowMs)]);
     let left: number | null = null;
-    const names = new Map<string, string>();
+    const byId = await clientsById(this.deps.clients, userId, notes.map((n) => n.clientId)); // [P86] one read, not one per client
+    const names = new Map<string, string>([...new Set(notes.map((n) => n.clientId))].map((id) => [id, byId.get(id)?.name ?? '']));
     const items: ProcessingItem[] = [];
     for (const n of notes) {
-      if (!names.has(n.clientId)) names.set(n.clientId, (await this.deps.clients.findByIdForUser(userId, n.clientId))?.name ?? '');
       const found = n.status === 'extracted' ? await foundFor(this.deps, userId, n, today) : null;
       const item = toItem({ note: n, clientName: names.get(n.clientId)!, hold: hold ?? (await this.messagesHold(userId, n, () => left, (v) => { left = v; })), found });
       if (item) items.push(item);

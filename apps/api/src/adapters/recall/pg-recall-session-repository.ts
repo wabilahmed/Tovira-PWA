@@ -60,18 +60,17 @@ export class PgRecallSessionRepository implements RecallSessionRepository {
 
   async exportForUser(userId: string): Promise<RecallSessionExport[]> {
     return withTenant(this.pool, userId, async (c) => {
-      const sessions = await c.query(`SELECT id, created_at FROM recall_sessions ORDER BY created_at`);
+      // [P86 · index audit] every session with its messages in ONE query (was one query per session)
+      const { rows } = await c.query(
+        `SELECT s.id, s.created_at, m.role, m.content, m.created_at AS m_created_at
+           FROM recall_sessions s LEFT JOIN recall_messages m ON m.session_id = s.id
+          ORDER BY s.created_at, s.id, m.created_at`,
+      );
       const out: RecallSessionExport[] = [];
-      for (const s of sessions.rows as unknown as SessRow[]) {
-        const msgs = await c.query(
-          `SELECT role, content, created_at FROM recall_messages WHERE session_id = $1 ORDER BY created_at`,
-          [s.id],
-        );
-        out.push({
-          id: s.id,
-          createdAt: s.created_at.getTime(),
-          messages: (msgs.rows as unknown as MsgRow[]).map((r) => ({ role: r.role, content: r.content, createdAt: r.created_at.getTime() })),
-        });
+      for (const r of rows as unknown as Array<SessRow & { role: MsgRow['role'] | null; content: string | null; m_created_at: Date | null }>) {
+        let last = out[out.length - 1];
+        if (!last || last.id !== r.id) { last = { id: r.id, createdAt: r.created_at.getTime(), messages: [] }; out.push(last); }
+        if (r.role !== null && r.m_created_at !== null) last.messages.push({ role: r.role, content: r.content ?? '', createdAt: r.m_created_at.getTime() });
       }
       return out;
     });

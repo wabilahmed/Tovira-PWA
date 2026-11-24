@@ -25,6 +25,10 @@ export class InMemoryImageRepository implements ImageRepository {
       .sort((a, b) => b.createdAt - a.createdAt);
   }
 
+  async listByClients(userId: string, clientIds: string[]): Promise<Map<string, ImageRecord[]>> {
+    return new Map(await Promise.all(clientIds.map(async (id) => [id, await this.listByClient(userId, id)] as const)));
+  }
+
   async findByIdForUser(userId: string, id: string): Promise<ImageRecord | null> {
     const i = this.byId.get(id);
     return i && i.userId === userId ? i : null;

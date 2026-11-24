@@ -1,5 +1,6 @@
 import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 /**
  * Corpus-value visibility (P4-10): "X months, Y moments". Recomputed from stored
@@ -31,8 +32,9 @@ export class CorpusStatsService {
     let moments = 0;
     const times: number[] = [];
 
+    const notesBy = await listForClients(this.notes, userId, clients.map((c) => c.id)); // [P86] one read, not one per client
     for (const c of clients) {
-      for (const n of await this.notes.listByClient(userId, c.id)) {
+      for (const n of notesBy.get(c.id) ?? []) {
         if (n.status === 'import_failed') continue; // a failed import is not a moment
         if (n.source === 'whatsapp_export' && n.messages) {
           moments += n.messages.length;

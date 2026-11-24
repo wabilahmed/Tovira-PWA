@@ -3,6 +3,7 @@ import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import type { NoteRepository } from '../ports/note-repository.js';
 import { extractToken, sendJson } from './helpers.js';
+import { listForClients } from '../services/notes/list-for-clients.js';
 
 export interface OnboardingRouteDeps {
   auth: AuthService;
@@ -30,8 +31,9 @@ export async function handleOnboardingRoute(
   const clients = await deps.clients.listByUser(identity.userId);
   let notes = 0;
   let seeded = false; // has the rep imported at least one WhatsApp chat export?
+  const notesBy = await listForClients(deps.notes, identity.userId, clients.map((c) => c.id)); // [P86] one read, not one per client
   for (const c of clients) {
-    const cn = await deps.notes.listByClient(identity.userId, c.id);
+    const cn = notesBy.get(c.id) ?? [];
     notes += cn.length;
     if (cn.some((n) => n.source === 'whatsapp_export')) seeded = true;
   }

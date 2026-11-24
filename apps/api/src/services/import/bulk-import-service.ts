@@ -26,6 +26,7 @@ import { estimateBulkAed } from './bulk-estimate.js';
 import { messagesToRead, piecesFor, minutesFor, readingLine } from './reading-estimate.js';
 import { isTooLong } from './long-chat.js';
 import { BulkExtractionOrchestrator, type ChatJob } from './bulk-extraction.js';
+import { listForClients } from '../notes/list-for-clients.js';
 export type { ChatJob } from './bulk-extraction.js';
 
 export type BulkDecision =
@@ -270,20 +271,19 @@ export class BulkImportService {
     // [P85-1 · owner] only CURRENT requirements are counted: one a later count replaced (P83-8) is not
     const batchNotes = new Set(noteIds);
     const byClient = new Map<string, Array<{ noteId: string; r: RequirementLike }>>();
+    const batchClients = new Set<string>(); // [P86] collected here, so the batch's notes are read once (was twice)
     for (const id of noteIds) {
       const note = await this.deps.notes.findByIdForUser(userId, id);
       const ex = (note?.extracted ?? {}) as { promises?: unknown[]; requirements?: Array<Partial<Requirement>> };
       promises += ex.promises?.length ?? 0;
+      if (note) batchClients.add(note.clientId);
       if (!note || this.deps.requirements) continue;
       const list = byClient.get(note.clientId) ?? [];
       (ex.requirements ?? []).forEach((q, i) => list.push({ noteId: id, r: { text: q.text ?? '', requirementRaw: q.requirement_raw ?? '', statedOn: q.stated_on ?? null, createdAt: list.length + i } }));
       byClient.set(note.clientId, list);
     }
     if (this.deps.requirements) {
-      const clientIds = new Set<string>();
-      for (const id of noteIds) { const n = await this.deps.notes.findByIdForUser(userId, id); if (n) clientIds.add(n.clientId); }
-      for (const cid of clientIds) {
-        const rows = await this.deps.requirements.listByClient(userId, cid);
+      for (const rows of (await listForClients(this.deps.requirements, userId, batchClients)).values()) { // [P86] one read
         requirements += currentRequirements(rows).filter((r) => batchNotes.has(r.noteId)).length;
       }
     } else {

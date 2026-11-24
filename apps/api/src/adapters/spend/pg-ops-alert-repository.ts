@@ -18,7 +18,7 @@ export class PgOpsAlertRepository implements OpsAlertRepository {
   async listRecent(limit: number): Promise<OpsAlert[]> {
     const { rows } = await this.pool.query(
       `SELECT id, kind, user_id, dedupe_key, detail, (extract(epoch from created_at) * 1000)::bigint AS created_at
-         FROM ops_alerts ORDER BY created_at DESC LIMIT $1`,
+         FROM ops_alerts ORDER BY ops_alerts.created_at DESC LIMIT $1`, // [P86] the column, not the computed alias, so ops_alerts_created_idx serves it
       [limit],
     );
     return (rows as Array<{ id: string; kind: string; user_id: string; dedupe_key: string; detail: Record<string, unknown>; created_at: string }>).map((r) => ({

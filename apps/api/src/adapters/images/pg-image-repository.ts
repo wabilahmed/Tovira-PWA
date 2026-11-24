@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type { ImageRecord, ImageRepository, NewImage } from '../../ports/image-repository.js';
 import { withTenant } from '../../db/tenant.js';
+import { groupByClient } from '../../services/notes/list-for-clients.js';
 
 interface Row {
   id: string;
@@ -45,6 +46,15 @@ export class PgImageRepository implements ImageRepository {
         [clientId],
       );
       return (rows as unknown as Row[]).map(toRecord);
+    });
+  }
+
+  /** [P86] Every listed client's images in ONE tenant read (was one per client). Same order as listByClient. */
+  async listByClients(userId: string, clientIds: string[]): Promise<Map<string, ImageRecord[]>> {
+    if (clientIds.length === 0) return new Map();
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${COLUMNS} FROM images WHERE client_id = ANY($1::uuid[]) ORDER BY created_at DESC`, [clientIds]);
+      return groupByClient((rows as unknown as Row[]).map(toRecord), clientIds);
     });
   }
 

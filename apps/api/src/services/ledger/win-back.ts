@@ -3,6 +3,7 @@ import type { ClientRepository } from '../../ports/client-repository.js';
 import type { NoteRepository } from '../../ports/note-repository.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 import { zonedWallClockToInstant } from '../time/zone.js';
+import { clientsById, listForClients } from '../notes/list-for-clients.js';
 
 /** [P47-2] The client's first message must come within this many days after the alert reached the rep. */
 export const WIN_BACK_WINDOW_DAYS = 7;
@@ -46,8 +47,10 @@ export class WinBackService {
    */
   async recordShown(userId: string, clientIds: string[], nowMs: number): Promise<number> {
     let n = 0;
-    for (const id of [...new Set(clientIds)].slice(0, 50)) {
-      const c = await this.deps.clients.findByIdForUser(userId, id);
+    const ids = [...new Set(clientIds)].slice(0, 50);
+    const byId = await clientsById(this.deps.clients, userId, ids); // [P86] one read, not one per card
+    for (const id of ids) {
+      const c = byId.get(id) ?? null;
       if (!c) continue;
       const silentDays = (nowMs - c.lastTouchedAt) / DAY_MS;
       if (silentDays <= this.deps.coldThresholdDays) continue;
@@ -63,12 +66,15 @@ export class WinBackService {
     const tz = await this.deps.timezoneFor(userId);
     const r = this.deps.restriction ? await this.deps.restriction.forUser(userId) : NO_RESTRICTION;
     const out: WinBackEntry[] = [];
+    // [P86] the alerted clients and their notes in two reads, not two per alert
+    const byId = await clientsById(this.deps.clients, userId, alerts.map((a) => a.clientId));
+    const notesBy = await listForClients(this.deps.notesView ?? this.deps.notes, userId, [...byId.keys()]);
     for (const a of alerts) {
-      const client = await this.deps.clients.findByIdForUser(userId, a.clientId);
+      const client = byId.get(a.clientId) ?? null;
       if (!client) continue;
       if (r.active && r.restrictsWho(client.name)) continue; // [TASK 2] erasure restriction
       let first: { at: number; body: string; sentAt: string; noteId: string } | null = null;
-      for (const n of await (this.deps.notesView ?? this.deps.notes).listByClient(userId, a.clientId)) {
+      for (const n of notesBy.get(a.clientId) ?? []) {
         for (const m of n.messages ?? []) {
           if (m.role !== 'client' || m.excluded || !m.sentAt) continue;
           let at: number;

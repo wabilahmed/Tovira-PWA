@@ -36,6 +36,15 @@ export function restrictingNotes<T extends Pick<NoteRepository, 'listByClient'> 
       return r.active ? list.map((n) => restrictNote(n, r)) : list;
     },
   };
+  // [P86] the batched read withholds exactly what the per-client read does (never a door past the restriction)
+  const batched = (notes as unknown as { listByClients?: (u: string, ids: string[]) => Promise<Map<string, NoteRecord[]>> }).listByClients;
+  if (typeof batched === 'function') {
+    overrides.listByClients = async (userId: string, clientIds: string[]) => {
+      const r = await restriction.forUser(userId);
+      const byClient = await batched.call(notes, userId, clientIds);
+      return r.active ? new Map([...byClient].map(([id, list]) => [id, list.map((n) => restrictNote(n, r))])) : byClient;
+    };
+  }
   if (notes.findByIdForUser) {
     overrides.findByIdForUser = async (userId: string, id: string) => {
       const r = await restriction.forUser(userId);
@@ -126,8 +135,25 @@ export function restrictingRequirements<T extends object>(requirements: T, restr
   const fact = (x: { clientId: string; noteId: string; requirementRaw: string; text: string }): WithheldFact => ({ clientId: x.clientId, noteId: x.noteId, quote: x.requirementRaw || x.text });
   const listed = viewDropping(requirements, ['listOpenByUser', 'listByClient'] as Array<keyof T>, restriction, notes, clients, fact as never);
   const one = (requirements as unknown as { findByIdForUser?: (u: string, id: string) => Promise<Parameters<typeof fact>[0] | null> }).findByIdForUser;
-  if (!restriction || typeof one !== 'function') return listed;
+  const batched = (requirements as unknown as { listByClients?: (u: string, ids: string[]) => Promise<Map<string, Array<Parameters<typeof fact>[0]>>> }).listByClients;
+  if (!restriction || (typeof one !== 'function' && typeof batched !== 'function')) return listed;
+  const extra: Record<string, unknown> = {};
+  // [P86] the batched read withholds exactly what the per-client read does
+  if (typeof batched === 'function') {
+    extra.listByClients = async (userId: string, clientIds: string[]) => {
+      const byClient = await batched.call(requirements, userId, clientIds);
+      const r = await restriction.forUser(userId);
+      if (!r.active) return byClient;
+      const names = new Map((await clients.listByUser(userId)).map((c) => [c.id, c.name]));
+      const withheld = await factWithholder(userId, restriction, notes, (cid) => names.get(cid));
+      const out = new Map<string, Array<Parameters<typeof fact>[0]>>();
+      for (const [id, list] of byClient) out.set(id, await withoutRestricted(list, withheld, fact));
+      return out;
+    };
+  }
+  if (typeof one !== 'function') return overlay(listed, extra as Partial<Record<keyof T, unknown>>);
   return overlay(listed, {
+    ...extra,
     findByIdForUser: async (userId: string, id: string) => {
       const req = await one.call(requirements, userId, id);
       if (!req) return null;
@@ -151,4 +177,43 @@ export function surfacingRepos<N extends NoteLister, F extends object, M extends
     meetings: restrictingMeetings(repos.meetings, restriction, repos.notes, repos.clients),
     requirements: restrictingRequirements(repos.requirements, restriction, repos.notes, repos.clients),
   };
+}
+
+/**
+ * [P86 · found by the P47 erasure guard] The fact an alert was built from, read from its dedupe key: an overdue or
+ * due-today promise (`promise:<id>`, `due_today:<id>:<day>`), a meeting nudge (`nudge:<id>`), a date reminder
+ * (`date:<id>:<day>`). Null for an alert not built from one fact (going cold, digests, imports, erasure notices).
+ */
+export function alertSourceId(dedupeKey: string): string | null {
+  const m = /^(promise|due_today|nudge|date):([^:]+)/.exec(dedupeKey);
+  return m ? m[2]! : null;
+}
+
+/**
+ * [P86] The ids of the promises, key dates and meetings the restricted views withhold while an erasure window is open
+ * (empty when none is). An alert written before the window opened can quote the restricted person without naming them
+ * ("<their words> lease ends: 2026-12-01"); the notifications route withholds any alert whose source fact is here.
+ * Computed with the same views every surface reads, so an alert is withheld exactly when its fact is.
+ */
+export async function withheldFactIds(
+  userId: string,
+  restriction: RestrictionSource | undefined,
+  raw: {
+    facts: { listPromisesByUser(u: string): Promise<Array<{ id: string }>>; listKeyDatesByUser(u: string): Promise<Array<{ id: string }>> };
+    meetings: { listByUser(u: string): Promise<Array<{ id: string }>> };
+  },
+  notes: NoteLister,
+  clients: Names,
+): Promise<Set<string>> {
+  if (!restriction || !(await restriction.forUser(userId)).active) return new Set();
+  const facts = restrictingFacts(raw.facts, restriction, notes, clients);
+  const meetings = restrictingMeetings(raw.meetings, restriction, notes, clients);
+  const ids = (xs: Array<{ id: string }>) => xs.map((x) => x.id);
+  const [allP, shownP, allD, shownD, allM, shownM] = await Promise.all([
+    raw.facts.listPromisesByUser(userId), facts.listPromisesByUser(userId),
+    raw.facts.listKeyDatesByUser(userId), facts.listKeyDatesByUser(userId),
+    raw.meetings.listByUser(userId), meetings.listByUser(userId),
+  ]);
+  const shown = new Set([...ids(shownP), ...ids(shownD), ...ids(shownM)]);
+  return new Set([...ids(allP), ...ids(allD), ...ids(allM)].filter((id) => !shown.has(id)));
 }

@@ -40,6 +40,7 @@ import { TrialExtractionLimiter } from './services/extraction/limiter.js';
 import { CorpusStatsService } from './services/corpus/corpus-service.js';
 import { PrioritiesService } from './services/hero/priorities-service.js';
 import { NoteSweepService, DEFAULT_MAX_SWEEP_ATTEMPTS, EXTRACTION_CLAIM_TIMEOUT_MS } from './services/notes/note-sweep-service.js';
+import { PgNoteSweepSource } from './adapters/notes/pg-note-sweep-source.js';
 import { createClaimAndExtract } from './services/notes/claim-and-extract.js';
 import { VisitService } from './services/visits/visits.js';
 import { GameEvents } from './services/visits/game-events.js';
@@ -503,8 +504,11 @@ async function main(): Promise<void> {
     chargeMessages: chargeChatMessages,
     refundMessages: refundChatMessages, // [P84-6] a chat that can't be read never uses messages
   });
+  // [P86 · index audit] one cross-tenant read names the reps with notes in flight; the sweep visits only those
+  const sweepSource = config.authStore === 'postgres' ? new PgNoteSweepSource(migrationPool) : null;
   const noteSweep = new NoteSweepService({
     allUserIds: () => auth.allUserIds(),
+    ...(sweepSource ? { usersWithWork: () => sweepSource.usersWithWork(Date.now(), EXTRACTION_CLAIM_TIMEOUT_MS) } : {}),
     listPending: (u) => notes.listPendingByUser(u).then((rows) => rows.map((n) => ({ id: n.id, status: n.status, sweepAttempts: n.sweepAttempts }))),
     transcribe: (u, id) => transcription.transcribeNote(u, id).then(() => undefined),
     extract: (u, id, today) => claimAndExtract(u, id, today).then(() => undefined),

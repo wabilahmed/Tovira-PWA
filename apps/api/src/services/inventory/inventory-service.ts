@@ -121,8 +121,9 @@ export class InventoryService {
   async sharesForClientDetailed(userId: string, clientId: string): Promise<Array<{ share: InventoryShareRecord; itemTitle: string; itemStatus: InventoryStatus }>> {
     const shares = await this.repo.listSharesByClient(userId, clientId);
     const out: Array<{ share: InventoryShareRecord; itemTitle: string; itemStatus: InventoryStatus }> = [];
+    const items = shares.length > 0 ? new Map((await this.repo.listByUser(userId)).map((i) => [i.id, i])) : new Map(); // [P86] one read
     for (const share of shares) {
-      const item = await this.repo.findByIdForUser(userId, share.itemId);
+      const item = items.get(share.itemId);
       out.push({ share, itemTitle: item?.title ?? '(removed)', itemStatus: item?.status ?? 'disabled' });
     }
     return out;

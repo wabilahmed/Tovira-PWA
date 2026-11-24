@@ -68,7 +68,7 @@ import type { KeptSuggestionService } from './services/promises/kept-suggestion-
 import { handleBriefRoute } from './http/brief-routes.js';
 import { handleMeetingRoute } from './http/meetings-routes.js';
 import { handleInsightsRoute } from './http/insights-routes.js';
-import { restrictingFacts, restrictingMeetings, restrictingNotes } from './services/erasure/surface-filter.js';
+import { restrictingFacts, restrictingMeetings, restrictingNotes, withheldFactIds } from './services/erasure/surface-filter.js';
 import { handleImageRoute } from './http/images-routes.js';
 import { handleHeroRoute } from './http/hero-routes.js';
 import { withholdRestrictedActions } from './services/hero/today-restriction.js';
@@ -580,6 +580,7 @@ export function createApiServer(deps: ApiDeps): Server {
         await handleProactiveRoute(request, response, {
           auth: deps.auth,
           restriction: deps.restriction, // [P40-2]
+          withheldSources: (uid) => withheldFactIds(uid, deps.restriction, { facts: deps.facts, meetings: deps.meetings }, deps.notes, deps.clients), // [P86]
           clients: deps.clients,
           notifications: deps.notifications,
           scan: deps.scan,

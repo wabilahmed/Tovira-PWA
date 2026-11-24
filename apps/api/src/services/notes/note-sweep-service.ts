@@ -14,6 +14,10 @@ export interface SweepableNote {
 
 export interface NoteSweepDeps {
   allUserIds(): Promise<string[]>;
+  /** [P86 · index audit] Optional: the reps that have a note in flight (pending transcription or extraction, or an
+   *  'extracting' claim older than the reclaim timeout), read in ONE query. When wired, the sweep visits only these
+   *  reps instead of opening a transaction per rep every tick; a rep with nothing in flight had nothing to do. */
+  usersWithWork?(): Promise<string[]>;
   listPending(userId: string): Promise<SweepableNote[]>;
   transcribe(userId: string, noteId: string): Promise<void>;
   extract(userId: string, noteId: string, todayIso: string): Promise<void>;
@@ -81,7 +85,8 @@ export class NoteSweepService {
   async sweep(todayIso: string): Promise<SweepResult> {
     // Gather each eligible rep's pending notes (apply the per-user skips ONCE, up front).
     const perUser: Array<{ userId: string; notes: SweepableNote[] }> = [];
-    for (const userId of await this.deps.allUserIds()) {
+    const reps = this.deps.usersWithWork ? await this.deps.usersWithWork() : await this.deps.allUserIds();
+    for (const userId of reps) {
       // [RULING 2 item 2] Recover any note a crashed worker left stuck in 'extracting' (older than the
       // timeout) back to pending_extraction, BEFORE the gates, so it resumes once the gates allow.
       if (this.deps.reclaim) await this.deps.reclaim(userId);

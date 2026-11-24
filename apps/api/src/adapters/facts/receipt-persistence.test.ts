@@ -79,9 +79,11 @@ describe('[RECEIPTS-v0.9.5 Task 2] relational persistence — Postgres INSERT/re
     const ins = find(calls, 'INSERT INTO promises');
     expect(ins.sql).toContain('source_span');
     expect(ins.sql).toContain('source_message_at');
-    // params: […, merged_into($9), source_span($10), source_message_at($11)]
-    expect(ins.params[9]).toBe("I'll send the revised quote by Thursday");
-    expect(ins.params[10]).toBe(CHAT_MSG_AT);
+    // [P86 · owner, 24 Nov: "rewrite any N+1 loops"] pin moved: one INSERT for all of a note's promises, each column
+    // bound as an array (one element per promise). Same columns, same values, same strictness.
+    // params: […, merged_into[]($11), source_span[]($12), source_message_at[]($13)]
+    expect(ins.params[11]).toEqual(["I'll send the revised quote by Thursday"]);
+    expect(ins.params[12]).toEqual([CHAT_MSG_AT]);
   });
 
   it('the key_dates INSERT names both receipt columns and binds their values', async () => {
@@ -90,17 +92,20 @@ describe('[RECEIPTS-v0.9.5 Task 2] relational persistence — Postgres INSERT/re
     const ins = find(calls, 'INSERT INTO key_dates');
     expect(ins.sql).toContain('source_span');
     expect(ins.sql).toContain('source_message_at');
-    // params: […, type($7), source_span($8), source_message_at($9)]
-    expect(ins.params[7]).toBe('handover is on the 3rd of March');
-    expect(ins.params[8]).toBe(CHAT_MSG_AT);
+    // [P86 · owner, 24 Nov: "rewrite any N+1 loops"] pin moved: one INSERT for all of a note's key dates, each column
+    // bound as an array (one element per key date). Same columns, same values, same strictness.
+    // params: […, type[]($8), source_span[]($9), source_message_at[]($10)]
+    expect(ins.params[8]).toEqual(['handover is on the 3rd of March']);
+    expect(ins.params[9]).toEqual([CHAT_MSG_AT]);
   });
 
   it('ambiguous source binds source_message_at as NULL, never a stand-in', async () => {
     const { pool, calls } = fakePool((sql) => (sql.includes('INSERT INTO promises') ? [{ id: 'p-1' }] : []));
     await new PgFactsRepository(pool).saveExtraction('u', { noteId: 'n1', clientId: 'c1', promises: [withReceipt({ source_message_at: null })] });
     const ins = find(calls, 'INSERT INTO promises');
-    expect(ins.params[9]).toBe("I'll send the revised quote by Thursday");
-    expect(ins.params[10]).toBeNull();
+    // [P86 · owner, 24 Nov] pin moved with the batched INSERT (see above): the element is NULL, never a stand-in
+    expect(ins.params[11]).toEqual(["I'll send the revised quote by Thursday"]);
+    expect(ins.params[12]).toEqual([null]);
   });
 
   it('the read path (toRecord) surfaces both fields from a stored row', async () => {

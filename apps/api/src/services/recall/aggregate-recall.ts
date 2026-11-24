@@ -7,6 +7,7 @@ import type { Receipt } from './recall-service.js';
 import { queryTerms, termHits } from './query-terms.js';
 import { asksAboutMyPromises } from './structured-recall.js';
 import { isActivePromise } from '../facts/promise-lifecycle.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 /**
  * [P35-1] Count and list questions ACROSS clients — "how many clients have open requirements?", "which clients
@@ -282,9 +283,10 @@ export class AggregateRecall {
     const cutoff = nowMs - days * DAY_MS;
     const clients = (await this.deps.clients.listByUser(userId)).filter((c) => !isClosed(c) && (!scope || scope.has(c.id)));
     const rows: Array<{ item: AggregateItem; at: number }> = [];
+    const notesBy = await listForClients(this.deps.notes, userId, clients.map((c) => c.id)); // [P86] one read, not one per client
     for (const c of clients) {
       let last: { at: string; body: string; noteId: string } | null = null;
-      for (const n of await this.deps.notes.listByClient(userId, c.id)) {
+      for (const n of notesBy.get(c.id) ?? []) {
         for (const msg of n.messages ?? []) {
           if (msg.role !== 'client' || msg.excluded || !msg.sentAt) continue;
           if (!last || msg.sentAt > last.at) last = { at: msg.sentAt, body: msg.body, noteId: n.id };

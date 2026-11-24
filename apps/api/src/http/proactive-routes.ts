@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { liveNames } from '../services/clients/live-names.js';
+import { alertSourceId } from '../services/erasure/surface-filter.js';
 import type { AuthService } from '../services/auth/auth-service.js';
 import type { ClientRepository } from '../ports/client-repository.js';
 import type { NotificationRepository } from '../ports/notification-repository.js';
@@ -12,6 +13,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface ProactiveRouteDeps {
   /** [P40-2] erasure-window restriction (optional: older wiring → none). */
   restriction?: { forUser(userId: string): Promise<import('../services/erasure/restriction.js').Restriction> };
+  /** [P86] ids of the facts the restricted views withhold: an alert built from one (named by its dedupe key) is
+   *  withheld too, even when its text does not name the person. Optional (older wiring → text check only). */
+  withheldSources?: (userId: string) => Promise<Set<string>>;
   auth: AuthService;
   clients: ClientRepository;
   notifications: NotificationRepository;
@@ -61,7 +65,10 @@ export async function handleProactiveRoute(
     const live = await liveNames(deps.clients, userId);
     const all = (await deps.notifications.listByUser(userId)).map((n) => ({ stored: n, shown: { ...n, title: live.rewrite(n.clientId, n.title), body: live.rewrite(n.clientId, n.body) } }));
     const hidden = (t: string) => !!r?.active && r.restrictsText(t);
-    const shown = all.filter(({ stored, shown: v }) => stored.type.startsWith('erasure_') || !(hidden(stored.title) || hidden(stored.body) || hidden(v.title) || hidden(v.body))).map((x) => x.shown);
+    // [P86] an alert built from a fact the restricted person stated is withheld even when it does not name them
+    const withheld = r?.active && deps.withheldSources ? await deps.withheldSources(userId) : new Set<string>();
+    const fromWithheld = (key: string) => { const id = alertSourceId(key); return id !== null && withheld.has(id); };
+    const shown = all.filter(({ stored, shown: v }) => stored.type.startsWith('erasure_') || !(hidden(stored.title) || hidden(stored.body) || hidden(v.title) || hidden(v.body) || fromWithheld(stored.dedupeKey))).map((x) => x.shown);
     sendJson(res, 200, { notifications: shown });
     return true;
   }

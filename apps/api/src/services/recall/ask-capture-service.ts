@@ -12,6 +12,7 @@ import type { CorrectionRepository } from '../../ports/correction-repository.js'
 import type { ExtractionLogRepository } from '../../ports/extraction-log-repository.js';
 import { recordVerdict } from '../facts/verdict.js';
 import { captureSummary, captureField } from './explicit-statement.js';
+import { clientsById, listForClients } from '../notes/list-for-clients.js';
 
 const PENDING = 'pending_confirmation';
 const DEFAULT_TTL_MS = 14 * 24 * 60 * 60 * 1000; // ASK-CAPTURE constraint 3: 14-day expiry
@@ -92,15 +93,18 @@ export class AskCaptureService {
     await this.expire(userId);
     const notes = await this.deps.notes.listByStatusForUser(userId, PENDING);
     const out: PendingCapture[] = [];
+    // [P86] the captures' clients and their requirements in one read each, not one per capture
+    const byId = await clientsById(this.deps.clients, userId, notes.map((n) => n.clientId));
+    const reqsBy = this.deps.requirements ? await listForClients(this.deps.requirements, userId, notes.map((n) => n.clientId)) : new Map();
     for (const n of notes) {
-      const client = await this.deps.clients.findByIdForUser(userId, n.clientId);
+      const client = byId.get(n.clientId) ?? null;
       const clientName = client?.name ?? 'a client';
       const statement = n.rawText ?? '';
       const set = captureField(statement);
       // [P40-3] "Did Sara Khan's budget change from AED 2M to AED 2.2M?" — the stored budget, when there is one
       let previousValue: string | null = null;
       if (set?.field === 'budget' && this.deps.requirements) {
-        const reqs = currentRequirements((await this.deps.requirements.listByClient(userId, n.clientId)).filter((r) => r.status === 'open')); // [P84-7]
+        const reqs = currentRequirements((reqsBy.get(n.clientId) ?? []).filter((r: { status: string }) => r.status === 'open')); // [P84-7]
         previousValue = summarizeRequirements(reqs).budget ?? null;
       }
       out.push({ noteId: n.id, clientId: n.clientId, clientName, statement, capturedAt: n.createdAt, summary: captureSummary(statement, clientName), ...(set ? { field: set.field, value: set.value } : {}), ...(previousValue ? { previousValue } : {}) });

@@ -2,6 +2,7 @@ import { currentRequirements } from '../clients/requirement-summary.js';
 import type { InventoryMatchRepository, MatchRecord, MatchConfidence } from '../../ports/inventory-match-repository.js';
 import type { RequirementRepository, RequirementRecord } from '../../ports/requirement-repository.js';
 import type { InventoryRepository, InventoryItemRecord } from '../../ports/inventory-repository.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 /**
  * [INV-MATCH, A4b] The requirement↔inventory matching engine. Pure RETRIEVAL — vector cosine, never
@@ -149,9 +150,7 @@ export class MatchingService {
   private async replacedIds(userId: string, clientId: string, cache: Map<string, Set<string>>): Promise<Set<string>> {
     const hit = cache.get(clientId);
     if (hit) return hit;
-    const open = (await this.requirements.listByClient(userId, clientId)).filter((r) => r.status === 'open');
-    const current = new Set(currentRequirements(open).map((r) => r.id));
-    const out = new Set(open.filter((r) => !current.has(r.id)).map((r) => r.id));
+    const out = replacedAmong(await this.requirements.listByClient(userId, clientId));
     cache.set(clientId, out);
     return out;
   }
@@ -165,13 +164,22 @@ export class MatchingService {
    *  filters), and any that would lack a receipt. No suggestion without the client's quoted words. */
   private async hydrate(userId: string, ms: MatchRecord[]): Promise<MatchSuggestion[]> {
     const out: MatchSuggestion[] = [];
+    if (ms.length === 0) return out;
+    // [P86] the matches' requirements and items in one read each (was two reads per match). listOpenByUser is the
+    // same (restricted) view findByIdForUser read from, already narrowed to the open needs a suggestion requires;
+    // listByUser(active) is the active items a suggestion requires.
+    const openReqs = new Map((await this.requirements.listOpenByUser(userId)).map((r) => [r.id, r]));
+    const activeItems = new Map((await this.inventory.listByUser(userId, 'active')).map((i) => [i.id, i]));
     const replaced = new Map<string, Set<string>>();
+    const clientIds = new Set(ms.map((m) => openReqs.get(m.requirementId)?.clientId).filter((id): id is string => !!id));
+    const byClient = await listForClients(this.requirements, userId, clientIds);
+    for (const id of clientIds) replaced.set(id, replacedAmong(byClient.get(id) ?? []));
     for (const m of ms) {
-      const req = await this.requirements.findByIdForUser(userId, m.requirementId);
+      const req = openReqs.get(m.requirementId);
       if (!req || req.status !== 'open' || !req.requirementRaw) continue;
       // [P84-7] a match made before a later count replaced its need is no longer suggested (kept, not deleted)
       if ((await this.replacedIds(userId, req.clientId, replaced)).has(req.id)) continue;
-      const item = await this.inventory.findByIdForUser(userId, m.itemId);
+      const item = activeItems.get(m.itemId);
       if (!item || item.status !== 'active') continue;
       out.push({
         matchId: m.id,
@@ -184,4 +192,11 @@ export class MatchingService {
     }
     return out;
   }
+}
+
+/** [P84-7] Of a client's needs, the ids of the OPEN ones a later count replaced (never matched, never suggested). */
+function replacedAmong(reqs: RequirementRecord[]): Set<string> {
+  const open = reqs.filter((r) => r.status === 'open');
+  const current = new Set(currentRequirements(open).map((r) => r.id));
+  return new Set(open.filter((r) => !current.has(r.id)).map((r) => r.id));
 }

@@ -47,6 +47,8 @@ export interface RequirementRepository {
    *  saveExtraction). Returns the stored rows (with ids) so the caller can trigger matching. */
   saveForNote(userId: string, noteId: string, clientId: string, reqs: RequirementInput[]): Promise<RequirementRecord[]>;
   listByClient(userId: string, clientId: string): Promise<RequirementRecord[]>;
+  /** [P86] listByClient for many clients in one read (same rows, same order, per client). */
+  listByClients?(userId: string, clientIds: string[]): Promise<Map<string, RequirementRecord[]>>;
   /** Open, non-dormant requirements across the rep — the matchable set for a new inventory item. */
   listOpenByUser(userId: string): Promise<RequirementRecord[]>;
   findByIdForUser(userId: string, id: string): Promise<RequirementRecord | null>;

@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { withTenant } from '../../db/tenant.js';
+import { groupByClient } from '../../services/notes/list-for-clients.js';
 import type { Confidence } from '../../services/extraction/types.js';
 import type {
   RequirementRepository,
@@ -53,16 +55,19 @@ export class PgRequirementRepository implements RequirementRepository {
   async saveForNote(userId: string, noteId: string, clientId: string, reqs: RequirementInput[]): Promise<RequirementRecord[]> {
     return withTenant(this.pool, userId, async (c) => {
       await c.query('DELETE FROM requirements WHERE note_id = $1', [noteId]); // idempotent per note
-      const out: RequirementRecord[] = [];
-      for (const r of reqs) {
-        const { rows } = await c.query(
-          `INSERT INTO requirements (user_id, note_id, client_id, text, requirement_raw, stated_on, confidence, embedding)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector) RETURNING ${COLUMNS}`,
-          [userId, noteId, clientId, r.text, r.requirementRaw, r.statedOn, r.confidence, vec(r.embedding)],
-        );
-        out.push(toRecord(rows[0] as unknown as Row));
-      }
-      return out;
+      if (reqs.length === 0) return [];
+      // [P86 · index audit] one INSERT for all of the note's requirements (was one per requirement), returned in
+      // input order (ids made here, so the order never depends on RETURNING's).
+      const ids = reqs.map(() => randomUUID());
+      const { rows } = await c.query(
+        `INSERT INTO requirements (id, user_id, note_id, client_id, text, requirement_raw, stated_on, confidence, embedding)
+         SELECT t.id, $1, $2, $3, t.text, t.requirement_raw, t.stated_on, t.confidence, t.embedding::vector
+           FROM unnest($4::uuid[], $5::text[], $6::text[], $7::date[], $8::text[], $9::text[]) AS t(id, text, requirement_raw, stated_on, confidence, embedding)
+         RETURNING ${COLUMNS}`,
+        [userId, noteId, clientId, ids, reqs.map((r) => r.text), reqs.map((r) => r.requirementRaw), reqs.map((r) => r.statedOn), reqs.map((r) => r.confidence), reqs.map((r) => vec(r.embedding))],
+      );
+      const byId = new Map((rows as unknown as Row[]).map((r) => [String(r.id), toRecord(r)]));
+      return ids.map((id) => byId.get(id)!);
     });
   }
 
@@ -70,6 +75,15 @@ export class PgRequirementRepository implements RequirementRepository {
     return withTenant(this.pool, userId, async (c) => {
       const { rows } = await c.query(`SELECT ${COLUMNS} FROM requirements WHERE client_id = $1 ORDER BY created_at DESC`, [clientId]);
       return (rows as unknown as Row[]).map(toRecord);
+    });
+  }
+
+  /** [P86] Every listed client's requirements in ONE tenant read (was one per client). Same order as listByClient. */
+  async listByClients(userId: string, clientIds: string[]): Promise<Map<string, RequirementRecord[]>> {
+    if (clientIds.length === 0) return new Map();
+    return withTenant(this.pool, userId, async (c) => {
+      const { rows } = await c.query(`SELECT ${COLUMNS} FROM requirements WHERE client_id = ANY($1::uuid[]) ORDER BY created_at DESC`, [clientIds]);
+      return groupByClient((rows as unknown as Row[]).map(toRecord), clientIds);
     });
   }
 

@@ -5,6 +5,7 @@ import type { NotificationRepository } from '../../ports/notification-repository
 import type { PushDispatchService } from '../push/push-dispatch-service.js';
 import type { UnansweredQuestion } from '../import/unanswered.js';
 import { zonedTodayIso, zonedWeekdayHour, zonedWallClockToInstant } from '../time/zone.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 /** The slice of the matching engine the digest needs — the week's still-unacted strong suggestions. */
 export interface MondayMatchSource {
@@ -88,8 +89,9 @@ export class MondayDigestService {
 
     const clients = await this.clients.listByUser(userId);
     const unansweredQuestions: MondayDigest['unansweredQuestions'] = [];
+    const notesBy = await listForClients(this.notes, userId, clients.map((c) => c.id)); // [P86] one read, not one per client
     for (const c of clients) {
-      for (const n of await this.notes.listByClient(userId, c.id)) {
+      for (const n of notesBy.get(c.id) ?? []) {
         const ex = n.extracted as { unanswered_questions?: UnansweredQuestion[] } | null;
         for (const q of ex?.unanswered_questions ?? []) {
           if (q.question.trim()) unansweredQuestions.push({ clientId: c.id, question: q.question.trim(), date: q.sentAt });

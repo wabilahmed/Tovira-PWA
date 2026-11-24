@@ -7,6 +7,7 @@ import { isActivePromise } from '../facts/promise-lifecycle.js';
 import { restrictNote } from '../erasure/restrict-note.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 import { budgetAmount, primaryRequirement, requirementDue, requirementFacets, requirementMonthMention, requirementTopic, summarizeRequirements, currentRequirements } from '../clients/requirement-summary.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 /**
  * [P39-7] Find: fixed questions with fixed answers, read from what is STORED — clients, promises, requirements,
@@ -253,10 +254,11 @@ export class FindService {
   /** The newest message per client: theirs, and anyone's (restricted senders withheld). */
   private async lastMessages(userId: string, clients: ClientRecord[], r: Restriction): Promise<Map<string, { theirs: FindReceipt | null; anyAt: string | null }>> {
     const out = new Map<string, { theirs: FindReceipt | null; anyAt: string | null }>();
+    const notesBy = await listForClients(this.deps.notes, userId, clients.map((c) => c.id)); // [P86] one read, not one per client
     for (const c of clients) {
       let theirs: FindReceipt | null = null;
       let anyAt: string | null = null;
-      for (const raw of await this.deps.notes.listByClient(userId, c.id)) {
+      for (const raw of notesBy.get(c.id) ?? []) {
         const n = r.active ? restrictNote(raw, r) : raw;
         for (const m of n.messages ?? []) {
           if (m.excluded || !m.sentAt) continue;

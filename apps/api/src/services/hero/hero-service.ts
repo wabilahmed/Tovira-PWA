@@ -9,6 +9,7 @@ import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 import { isActivePromise } from '../facts/promise-lifecycle.js';
 import { evaluateGate, type GateState, type VolumeGateConfig } from './volume-gate.js';
 import { withReceipt } from '../receipts/receipt.js';
+import { clientsById, listForClients } from '../notes/list-for-clients.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_PATTERN_SAMPLE = 2; // a pattern needs >= 2 supporting deals (thin-sample guard)
@@ -130,7 +131,7 @@ export class HeroService {
   async status(userId: string): Promise<GateState> {
     const clients = await this.deps.clients.listByUser(userId);
     let notes = 0;
-    for (const c of clients) notes += (await this.deps.notes.listByClient(userId, c.id)).length;
+    for (const list of (await listForClients(this.deps.notes, userId, clients.map((c) => c.id))).values()) notes += list.length; // [P86]
     return evaluateGate({ clients: clients.length, notes }, this.gateConfig);
   }
 
@@ -144,9 +145,10 @@ export class HeroService {
     const restriction = this.restriction ? await this.restriction.forUser(userId) : NO_RESTRICTION;
 
     const out: ClientSignals[] = [];
+    const notesBy = await listForClients(this.deps.notes, userId, clients.map((c) => c.id)); // [P86] one read, not one per client
     for (const c of clients) {
       const cp = promises.filter((p) => p.clientId === c.id);
-      const rawNotes = await this.deps.notes.listByClient(userId, c.id);
+      const rawNotes = notesBy.get(c.id) ?? [];
       const notes = restriction.active ? rawNotes.map((n) => restrictNote(n, restriction)) : rawNotes;
       const people = notes.flatMap((n) => extractedOf(n.extracted).people);
       let lastClientMessage: { noteId: string; body: string; at: string } | null = null;
@@ -283,8 +285,10 @@ export class HeroService {
     // promises, cooling clients, meetings), because a match is a guess and a guess ranks under a
     // fact. Each carries its receipt inline (the client's quoted words + date) — never a bare match.
     if (this.matching) {
-      for (const s of await this.matching.suggestionsForUser(userId)) {
-        const client = await this.deps.clients.findByIdForUser(userId, s.clientId);
+      const suggestions = await this.matching.suggestionsForUser(userId);
+      const byId = await clientsById(this.deps.clients, userId, suggestions.map((s) => s.clientId)); // [P86] one read
+      for (const s of suggestions) {
+        const client = byId.get(s.clientId) ?? null;
         const when = s.receipt.statedOn ? ` · ${bodyDate(s.receipt.statedOn)}` : '';
         actions.push({
           kind: 'match',

@@ -78,6 +78,12 @@ jobs:
         env:
           MIGRATIONS_TEST_DB_URL: postgres://tovira:tovira@localhost:5432/tovira
         run: npx vitest run apps/api/src/scripts/pregnancy-purge-real-postgres.test.ts
+      # [P86] Every app query EXPLAINed on a seeded database (fails on a sequential scan of a growing table or an
+      # unindexed foreign key), and the batched reads and writes that replaced the N+1 loops, on real Postgres.
+      - name: Query plans and batched writes against seeded real Postgres
+        env:
+          MIGRATIONS_TEST_DB_URL: postgres://tovira:tovira@localhost:5432/tovira
+        run: npx vitest run apps/api/src/db/query-plans.guard.test.ts apps/api/src/db/batched-writes-real-postgres.test.ts
 
   # The P1-9 extraction quality gate (Sonnet vs Haiku). It needs a real model
   # key, so it self-activates: a no-op until ANTHROPIC_API_KEY is in the repo

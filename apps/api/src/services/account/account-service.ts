@@ -12,6 +12,7 @@ import { NO_RESTRICTION } from '../erasure/restriction.js';
 import { liveNames } from '../clients/live-names.js';
 import { replacedAcrossClients } from '../clients/requirement-summary.js';
 import type { RequirementRecord } from '../../ports/requirement-repository.js';
+import { listForClients } from '../notes/list-for-clients.js';
 
 /** [P48] The book's exact placeholder, on a restricted note in the export too. */
 const NOTE_RESTRICTION_NOTICE = 'Restricted while a privacy request is reviewed.';
@@ -92,14 +93,17 @@ export class AccountService {
       n.moveSuggestion ? { ...n, moveSuggestion: { ...n.moveSuggestion, toClientName: (n.moveSuggestion.toClientId && live.name(n.moveSuggestion.toClientId)) ?? n.moveSuggestion.toClientName, reason: live.rewrite(n.moveSuggestion.toClientId, n.moveSuggestion.reason) } } : n;
     const notes = [];
     const images = [];
+    // [P86] every client's notes and images in one read each (was two reads per client)
+    const notesBy = await listForClients(this.notes, userId, clients.map((c) => c.id));
+    const imagesBy = await listForClients(this.images, userId, clients.map((c) => c.id));
     for (const c of clients) {
       // [P48] a restricted note reads as the book shows it: their part withheld, flagged with the book's notice
-      for (const n of await this.notes.listByClient(userId, c.id)) {
+      for (const n of notesBy.get(c.id) ?? []) {
         notes.push(named(r.active ? { ...restrictNote(n, r), ...(noteIsAboutRestricted(n, r) ? { restricted: true, restrictionNotice: NOTE_RESTRICTION_NOTICE } : {}) } : n));
       }
       // Image metadata + retrievable id — the "usable format" for the gallery
       // (each fetched from /images/:id). Completes the full-corpus export (P5-4).
-      images.push(...(await this.images.listByClient(userId, c.id)));
+      images.push(...(imagesBy.get(c.id) ?? []));
     }
     // [P48] facts read from the restricted person (their quote, or the client is them) are withheld; mentions stay
     const names = new Map(clients.map((c) => [c.id, c.name]));
@@ -110,7 +114,7 @@ export class AccountService {
     const clientPointers = this.pointers ? ((await this.pointers.listByUser(userId)) as Array<{ clientId: string; pointers: Array<{ text: string }> }>) : [];
     // [P85-2 · owner] every requirement, a replaced one kept and marked "superseded by <later item, date>"
     const reqRows: RequirementRecord[] = [];
-    if (this.requirements) for (const c of clients) reqRows.push(...(await this.requirements.listByClient(userId, c.id)));
+    if (this.requirements) for (const list of (await listForClients(this.requirements, userId, clients.map((c) => c.id))).values()) reqRows.push(...list); // [P86] one read
     const visibleReqs = await withoutRestricted(reqRows, withheld, (q) => ({ clientId: q.clientId, noteId: q.noteId, quote: q.requirementRaw }));
     const replaced = replacedAcrossClients(visibleReqs);
     const dateOf = (q: RequirementRecord) => q.statedOn ?? new Date(q.createdAt).toISOString().slice(0, 10);
@@ -184,10 +188,9 @@ export class AccountService {
   private async purgeBlobs(userId: string): Promise<void> {
     if (!this.blobStorage) return;
     const known = new Set<string>();
-    for (const c of await this.clients.listByUser(userId)) {
-      for (const n of await this.notes.listByClient(userId, c.id)) if (n.audioKey) known.add(n.audioKey);
-      for (const img of await this.images.listByClient(userId, c.id)) known.add(img.storageKey);
-    }
+    const ids = (await this.clients.listByUser(userId)).map((c) => c.id);
+    for (const list of (await listForClients(this.notes, userId, ids)).values()) for (const n of list) if (n.audioKey) known.add(n.audioKey); // [P86] one read
+    for (const list of (await listForClients(this.images, userId, ids)).values()) for (const img of list) known.add(img.storageKey);
     for (const key of known) await this.blobStorage.delete(key);
     try {
       const orphans: string[] = [];

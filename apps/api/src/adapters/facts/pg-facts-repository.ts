@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { promiseDedupeKey } from './dedupe.js';
 import type {
@@ -96,31 +97,58 @@ export class PgFactsRepository implements FactsRepository {
       for (const r of openRows as { id: string; owner: string; text: string; due_date: Date | null }[]) {
         canonicalByKey.set(promiseDedupeKey(r.owner, r.text), { id: r.id, dueDate: r.due_date });
       }
+      // [P86 · index audit] One INSERT for all of this note's promises and one for its key dates (was one INSERT per
+      // item). Ids are made here so a duplicate can point at a canonical created in this same statement (the self-FK
+      // is checked at the end of the statement). Dedupe and "the specific date wins" are decided exactly as before:
+      // a canonical created in this note takes the date into its own row; an earlier canonical is updated after.
+      type Row = { id: string; text: string; owner: string; due_date: string | null; due_raw: string | null; confidence: string; merged_into: string | null; source_span: string | null; source_message_at: string | null; date_status: string | null };
+      const rows: Row[] = [];
+      const fresh = new Map<string, Row>();
+      const fills: Array<{ id: string; due_date: string; due_raw: string | null }> = [];
       for (const p of input.promises) {
         const key = promiseDedupeKey(p.owner, p.text);
         const canonical = canonicalByKey.get(key);
         // [P24-2] A promise is always inserted OPEN — only the rep closes one.
-        const { rows: ins } = await c.query(
-          `INSERT INTO promises (user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, merged_into, source_span, source_message_at, capture_at, date_status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
-          [userId, input.noteId, input.clientId, p.text, p.owner, p.due_date, p.due_raw, p.confidence, canonical ? canonical.id : null, p.source_span ?? null, p.source_message_at ?? null, input.captureAt ?? null, p.date_status ?? null],
-        );
+        const row: Row = { id: randomUUID(), text: p.text, owner: p.owner, due_date: p.due_date, due_raw: p.due_raw, confidence: p.confidence, merged_into: canonical ? canonical.id : null, source_span: p.source_span ?? null, source_message_at: p.source_message_at ?? null, date_status: p.date_status ?? null };
+        rows.push(row);
         if (canonical) {
           // Specific date wins: fill the canonical's null date from this duplicate.
           if (canonical.dueDate === null && p.due_date !== null) {
-            await c.query('UPDATE promises SET due_date = $1, due_raw = $2, date_status = NULL WHERE id = $3', [p.due_date, p.due_raw, canonical.id]); // [P40-1] a date answers it
+            const made = fresh.get(canonical.id);
+            if (made) { made.due_date = p.due_date; made.due_raw = p.due_raw; made.date_status = null; } // [P40-1] a date answers it
+            else fills.push({ id: canonical.id, due_date: p.due_date, due_raw: p.due_raw });
             canonical.dueDate = new Date(p.due_date);
           }
         } else {
           // A new canonical this same note's later promises can also dedup against.
-          canonicalByKey.set(key, { id: (ins as { id: string }[])[0]!.id, dueDate: p.due_date ? new Date(p.due_date) : null });
+          canonicalByKey.set(key, { id: row.id, dueDate: p.due_date ? new Date(p.due_date) : null });
+          fresh.set(row.id, row);
         }
       }
-      for (const d of input.keyDates ?? []) {
+      if (rows.length > 0) {
+        const col = <K extends keyof Row>(k: K) => rows.map((r) => r[k]);
+        await c.query(
+          `INSERT INTO promises (id, user_id, note_id, client_id, text, owner, due_date, due_raw, confidence, merged_into, source_span, source_message_at, capture_at, date_status)
+           SELECT t.id, $1, $2, $3, t.text, t.owner, t.due_date, t.due_raw, t.confidence, t.merged_into, t.source_span, t.source_message_at, $4, t.date_status
+             FROM unnest($5::uuid[], $6::text[], $7::text[], $8::date[], $9::text[], $10::text[], $11::uuid[], $12::text[], $13::timestamptz[], $14::text[])
+                  AS t(id, text, owner, due_date, due_raw, confidence, merged_into, source_span, source_message_at, date_status)`,
+          [userId, input.noteId, input.clientId, input.captureAt ?? null, col('id'), col('text'), col('owner'), col('due_date'), col('due_raw'), col('confidence'), col('merged_into'), col('source_span'), col('source_message_at'), col('date_status')],
+        );
+      }
+      if (fills.length > 0) {
+        await c.query(
+          `UPDATE promises p SET due_date = f.due_date, due_raw = f.due_raw, date_status = NULL
+             FROM unnest($1::uuid[], $2::date[], $3::text[]) AS f(id, due_date, due_raw) WHERE p.id = f.id`, // [P40-1] a date answers it
+          [fills.map((f) => f.id), fills.map((f) => f.due_date), fills.map((f) => f.due_raw)],
+        );
+      }
+      const kd = input.keyDates ?? [];
+      if (kd.length > 0) {
         await c.query(
           `INSERT INTO key_dates (user_id, note_id, client_id, description, date, date_raw, type, source_span, source_message_at, capture_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [userId, input.noteId, input.clientId, d.description, d.date, d.date_raw, d.type, d.source_span ?? null, d.source_message_at ?? null, input.captureAt ?? null],
+           SELECT $1, $2, $3, t.description, t.date, t.date_raw, t.type, t.source_span, t.source_message_at, $4
+             FROM unnest($5::text[], $6::date[], $7::text[], $8::text[], $9::text[], $10::timestamptz[]) AS t(description, date, date_raw, type, source_span, source_message_at)`,
+          [userId, input.noteId, input.clientId, input.captureAt ?? null, kd.map((d) => d.description), kd.map((d) => d.date), kd.map((d) => d.date_raw), kd.map((d) => d.type), kd.map((d) => d.source_span ?? null), kd.map((d) => d.source_message_at ?? null)],
         );
       }
     });
