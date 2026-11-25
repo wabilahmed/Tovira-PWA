@@ -84,6 +84,7 @@ suite('[P86] every app query uses an index on a seeded Postgres 16', () => {
     const url = new URL(ADMIN_URL!);
     url.pathname = `/${DB}`;
     pool = new pg.Pool({ connectionString: url.toString(), max: 4 });
+    pool.on('error', () => {}); // [P87] teardown drops this database WITH (FORCE): a connection still closing is ended (57P01), which node-pg raises on the pool. Not a test result.
     const c = await pool.connect();
     try {
       await runMigrations(c, loadMigrations(fileURLToPath(new URL('../../migrations', import.meta.url))));

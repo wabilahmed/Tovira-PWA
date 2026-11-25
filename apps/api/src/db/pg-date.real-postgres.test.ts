@@ -63,6 +63,7 @@ suite('[P87-1] a stored DATE round-trips unchanged under TZ=Asia/Dubai, on real 
     const url = new URL(ADMIN_URL!);
     url.pathname = `/${DB}`;
     pool = createPool(url.toString());
+    pool.on('error', () => {}); // [P87] teardown drops this database WITH (FORCE): a connection still closing is ended (57P01), which node-pg raises on the pool. Not a test result.
     const c = await pool.connect();
     try { await runMigrations(c, loadMigrations(fileURLToPath(new URL('../../migrations', import.meta.url)))); } finally { c.release(); }
     userId = (await new PgUserRepository(pool).create({ email: 'p87@example.com', passwordHash: 'x', referralCode: 'P87A' })).id;

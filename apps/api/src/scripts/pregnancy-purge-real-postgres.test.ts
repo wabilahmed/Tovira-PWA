@@ -38,6 +38,7 @@ suite('[P69-17] pregnancy-purge finds planted pregnancy details in real Postgres
     const url = new URL(ADMIN_URL!);
     url.pathname = `/${DB}`;
     pool = new pg.Pool({ connectionString: url.toString() });
+    pool.on('error', () => {}); // [P87] teardown drops this database WITH (FORCE): a connection still closing is ended (57P01), which node-pg raises on the pool. Not a test result.
     const c = await pool.connect();
     try { await runMigrations(c, loadMigrations(fileURLToPath(new URL('../../migrations', import.meta.url)))); } finally { c.release(); }
 
