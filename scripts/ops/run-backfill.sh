@@ -30,6 +30,9 @@
 #   pregnancy-purge  apps/api/src/scripts/pregnancy-purge.ts  [P69-15] stored pregnancy details, all accounts, cut the way the
 #                  store-time block cuts them. Dry run prints counts only; --apply deletes/cuts in one transaction.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script pregnancy-purge
+#   erasure-exposure-check  apps/api/src/scripts/erasure-exposure-check.ts  [P88-1] READ-ONLY: erasure requests (all statuses), completed
+#                  erasure receipts and audit rows, and the accounts (emails redacted). No args, refuses --apply.
+#   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script erasure-exposure-check
 #   push-audit    apps/api/src/scripts/push-audit.ts  [P46-2] reps with no stored push subscription; counts only, refuses --apply.
 #   AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script push-audit
 #   tier1-india-audit apps/api/src/scripts/tier1-india-audit.ts  [P53-5] stored values the Indian Tier-1 rules would now blank; counts only, refuses --apply.
@@ -132,6 +135,7 @@ case "$SCRIPT_NAME" in
   stripe-mode-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/stripe-mode-audit.ts" ;;
   qa-data-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/qa-data-audit.ts" ;;
   push-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/push-audit.ts" ;;
+  erasure-exposure-check) SCRIPT_IN_IMAGE="apps/api/src/scripts/erasure-exposure-check.ts" ;;
   tier1-india-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/tier1-india-audit.ts" ;;
   ledger-backfill) SCRIPT_IN_IMAGE="apps/api/src/scripts/ledger-backfill.ts" ;;
   trial-end-audit) SCRIPT_IN_IMAGE="apps/api/src/scripts/trial-end-audit.ts" ;;
@@ -139,12 +143,12 @@ case "$SCRIPT_NAME" in
   pregnancy-purge) SCRIPT_IN_IMAGE="apps/api/src/scripts/pregnancy-purge.ts" ;;
   delete-accounts) SCRIPT_IN_IMAGE="apps/api/src/scripts/delete-accounts.ts" ;;
   discard-import) SCRIPT_IN_IMAGE="apps/api/src/scripts/discard-import.ts" ;;
-  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit | funnel-diagnose | pregnancy-purge | delete-accounts | discard-import)" ;;
+  *) die "unknown --script: $SCRIPT_NAME (expected trials | promise-dates | meeting-dates | undated-to-confirm | subscription-periods | create-admin | kept-promise-check | stripe-mode-audit | qa-data-audit | push-audit | tier1-india-audit | ledger-backfill | trial-end-audit | funnel-diagnose | pregnancy-purge | delete-accounts | discard-import | erasure-exposure-check)" ;;
 esac
 
 # [P26-2/P30-3] Read-only checks: nothing to apply, no args — refused here, before any AWS call.
 READ_ONLY=0
-if [ "$SCRIPT_NAME" = "kept-promise-check" ] || [ "$SCRIPT_NAME" = "stripe-mode-audit" ] || [ "$SCRIPT_NAME" = "subscription-periods" ] || [ "$SCRIPT_NAME" = "push-audit" ] || [ "$SCRIPT_NAME" = "tier1-india-audit" ] || [ "$SCRIPT_NAME" = "trial-end-audit" ] || [ "$SCRIPT_NAME" = "funnel-diagnose" ]; then
+if [ "$SCRIPT_NAME" = "kept-promise-check" ] || [ "$SCRIPT_NAME" = "stripe-mode-audit" ] || [ "$SCRIPT_NAME" = "subscription-periods" ] || [ "$SCRIPT_NAME" = "push-audit" ] || [ "$SCRIPT_NAME" = "erasure-exposure-check" ] || [ "$SCRIPT_NAME" = "tier1-india-audit" ] || [ "$SCRIPT_NAME" = "trial-end-audit" ] || [ "$SCRIPT_NAME" = "funnel-diagnose" ]; then
   READ_ONLY=1
   [ "$APPLY" -eq 0 ] || die "$SCRIPT_NAME is read-only — --apply is refused"
   [ "${#PASSTHROUGH[@]}" -eq 0 ] || die "$SCRIPT_NAME is read-only and takes no arguments"
