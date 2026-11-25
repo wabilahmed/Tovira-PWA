@@ -3,6 +3,7 @@ import { clientSelfNames, isTheClient } from '../clients/self-names.js';
 import type { NoteRepository, ImportedMessage } from '../../ports/note-repository.js';
 import { modelSafeText } from '../import/dedup.js';
 import { restrictNote } from '../erasure/restrict-note.js';
+import { factWithholder, withoutRestrictedPointers } from '../erasure/surface-filter.js';
 import { NO_RESTRICTION, type Restriction } from '../erasure/restriction.js';
 import type { NoteRecord } from '../../ports/note-repository.js';
 import type { FactsRepository, PromiseRecord } from '../../ports/facts-repository.js';
@@ -130,8 +131,9 @@ export class BriefService {
     // [TASK 2] Drop pointers that cite a restricted counterparty; if the CLIENT itself is the restricted
     // party, drop the whole set (the pointer card is a surface).
     const clientRestricted = restriction.active && restriction.restrictsWho(client.name);
+    // [P87-3] and a pointer read from their own message, even when its wording does not name them
     const visiblePointers = pointerSet && !clientRestricted
-      ? pointerSet.pointers.filter((p) => !(restriction.active && restriction.restrictsText(p.text)))
+      ? await withoutRestrictedPointers(clientId, pointerSet.pointers, restriction, await factWithholder(userId, this.restriction, this.notes, () => client.name))
       : [];
 
     const empty = rawNotes.length === 0 && promises.length === 0;

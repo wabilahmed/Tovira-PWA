@@ -38,6 +38,9 @@ export interface DailyDigestDeps {
   dispatch: (userId: string, alerts: PushableAlert[]) => Promise<unknown>;
   /** [TZ-BOUNDARY] the digest fires on the rep's local clock. */
   timezoneFor?: (userId: string) => Promise<string>;
+  /** [P87-3] The list as the rep may see it now: a list cached before an erasure window opened can hold an item read
+   *  from the restricted person, and the digest must count only what Today shows (restrictedTodayView). */
+  withhold?: (userId: string, actions: TodayAction[]) => Promise<TodayAction[]>;
 }
 
 export class DailyDigestService {
@@ -62,7 +65,8 @@ export class DailyDigestService {
       const day = zonedTodayIso(tz, new Date(nowMs));
       const cached = await this.deps.priorities.get(userId, day); // READ the precomputed cache — never recompute
       if (!cached) continue; // no precomputed list yet → nothing to announce
-      const count = this.discretionaryCount(cached.actions);
+      // [P87-3] count only what Today shows now: the list may predate an erasure window
+      const count = this.discretionaryCount(this.deps.withhold ? await this.deps.withhold(userId, cached.actions) : cached.actions);
       if (count === 0) continue; // no findings → NO push (empty digest is worse than silence)
 
       const alert: PushableAlert = {

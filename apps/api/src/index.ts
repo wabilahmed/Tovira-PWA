@@ -48,6 +48,7 @@ import { ImportCompletionService } from './services/notes/import-completion-serv
 import { TrialEmailService } from './services/email/trial-email-service.js';
 import { MondayDigestService } from './services/monday/monday-service.js';
 import { DailyDigestService } from './services/digest/daily-digest-service.js';
+import { restrictedTodayView } from './services/hero/today-restriction.js';
 import { ErasureService } from './services/erasure/erasure-service.js';
 import { ErasureRequestService } from './services/erasure/erasure-request-service.js';
 import { ReferralService } from './services/referral/referral-service.js';
@@ -445,7 +446,7 @@ async function main(): Promise<void> {
     canUseAi: (userId) => billing.entitlement(userId, Date.now()).then(canRunAi),
   });
   // NOTIF-REWORK: the daily digest reads the SAME precomputed priorities cache (never recomputes).
-  const dailyDigest = new DailyDigestService({ priorities: prioritiesRepo, notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts), timezoneFor: (userId) => auth.timezoneFor(userId) });
+  const dailyDigest = new DailyDigestService({ priorities: prioritiesRepo, notifications, dispatch: (userId, alerts) => pushDispatch.dispatch(userId, alerts), timezoneFor: (userId) => auth.timezoneFor(userId), withhold: restrictedTodayView(restriction, notes, clients) }); // [P87-3]
   // Note sweep (FLOWS-7): advance any rep's stuck pending notes so a voice note or a
   // deferred import (IMPORT-ASYNC) never stalls; bounded retries → terminal
   // needs_review, never lost.

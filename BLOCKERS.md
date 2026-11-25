@@ -151,3 +151,25 @@ the same rule as English (an observance is withheld; a time anchor, a trip and a
 5. Rollback: redeploy the previous commit through Deploy (the Node 20 image is still in ECR).
 
 **Not now.** Owner, 22 Nov: plan only.
+
+## [P87-3] Erasure: alerts and pointers built from a restricted person's words without naming them (fixed 25 Nov)
+
+- What leaked, while an erasure window was open: a notification written before the window that quoted the person without naming them (fixed in P86); a stored pointer read from their own message whose wording did not name them, in the pre-meeting brief, the client's pointer card and (from 27 Oct) the data export; and the daily digest's count included a cached Today item the restriction withholds (a number, no words). Since the restriction shipped on 5 Oct 2026 (31ddbde).
+- No real users were exposed: per the owner (25 Nov), no real users existed in that period, and the gap needs an open erasure request to show anything. Tests: http/erasure-unnamed-sources.test.ts, services/erasure/withheld-alerts.test.ts.
+
+## [P86 → next gated deploy] Two N+1 loops held back because they sit in the extraction gate's import graph
+
+Ship both with the next change that runs the gate anyway (each spends a gate run on its own, about AED 5 to 13). Both are on the `ALLOWED` list in `db/n-plus-one.guard.test.ts`, marked HELD; remove them there when fixed.
+- `services/extraction/extraction-service.ts` `detectAndStoreMisfile`: reads each candidate client's notes one client at a time after every extraction. Fix: `listForClients` (services/notes/list-for-clients.ts).
+- `services/recall/structured-recall.ts` `forUser`: reads notes and requirements per client. Fix: `listForClients` for both.
+- With them: give `InMemoryNoteRepository` and `InMemoryRequirementRepository` (also in the graph) a `listByClients`, and add it to the note port, like the Postgres repositories have.
+
+## [P86] Indexes nothing uses (report only, nothing dropped)
+
+No app query filters or sorts on these on the seeded audit database; each still costs a write. Re-check after 30 days of real usage with `SELECT relname, indexrelname, idx_scan FROM pg_stat_user_indexes WHERE idx_scan = 0 ORDER BY relname;` (run on prod by the owner), and drop only what is still at zero, in a no-transaction migration (`DROP INDEX CONCURRENTLY IF EXISTS`; the runner would need to allow it).
+- `access_requests_work_email_idx`
+- `extraction_logs_created_at_idx`
+- `model_call_events_period` and `model_call_events_user_period`: the table is an audit log; the AED gate and the failsafe total a rep's spend from `ai_usage_month` and `spend_ledger`, and every read of the log is by time range, by conversation, or the whole table (the admin cost report)
+- `revenue_events_user_period`
+- `transcription_events_user_period`
+- `hot_leads_became_hot`: the list sorts `became_hot_at DESC NULLS LAST`, which this index (`DESC`, nulls first) cannot serve; `hot_leads_status_hot_idx` (P86) does

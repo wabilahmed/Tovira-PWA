@@ -29,7 +29,14 @@ async function signup(email: string): Promise<{ token: string; userId: string }>
 }
 type Card = { id: string; text: string; dueRaw: string; dueDate: string | null; dateStatus: string; clientName: string; suggestedDate: string | null; receipt: { quote: string } };
 
-async function seed(userId: string, dueRaw = 'Sunday morning', sourceMessageAt: string | null = '2026-10-10T10:05') {
+/** [P87-4 · owner, 25 Nov] Relative dates: a card shows only for a promise said in the last 90 days, so a fixed
+ *  "said on 10 Oct 2026" stopped listing after 8 Jan 2027 (and "clears the question" then passed for no reason). The
+ *  fixture is said on a Saturday 7 to 13 days ago; "Sunday morning" then means the next day, as on 10 Oct did. */
+const DAY = 86_400_000;
+const SAT = (() => { const d = new Date(Date.now() - 7 * DAY); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 1) % 7)); return d.toISOString().slice(0, 10); })();
+const SUN = new Date(Date.parse(`${SAT}T00:00:00Z`) + DAY).toISOString().slice(0, 10);
+
+async function seed(userId: string, dueRaw = 'Sunday morning', sourceMessageAt: string | null = `${SAT}T10:05`) {
   const c = await deps.clients.create(userId, 'Sara Khan');
   await deps.facts.saveExtraction(userId, { noteId: 'n1', clientId: c.id, promises: [
     { text: 'Send the floor plans', owner: 'rep', due_date: null, due_raw: dueRaw, confidence: 'high', source_span: "Sure, I'll send them Sunday morning", source_message_at: sourceMessageAt, date_status: 'to_confirm' },
@@ -43,7 +50,7 @@ describe('[P40-1] dates to confirm', () => {
     const { token, userId } = await signup('a@example.com');
     await seed(userId);
     const [card] = await cards(token);
-    expect(card).toMatchObject({ text: 'Send the floor plans', dueRaw: 'Sunday morning', dueDate: null, dateStatus: 'to_confirm', clientName: 'Sara Khan', suggestedDate: '2026-10-11', receipt: { quote: "Sure, I'll send them Sunday morning" } });
+    expect(card).toMatchObject({ text: 'Send the floor plans', dueRaw: 'Sunday morning', dueDate: null, dateStatus: 'to_confirm', clientName: 'Sara Khan', suggestedDate: SUN, receipt: { quote: "Sure, I'll send them Sunday morning" } });
   });
 
   it('no suggested date when the resolver has none', async () => {
@@ -55,10 +62,10 @@ describe('[P40-1] dates to confirm', () => {
   it('answering with a date stores it, clears the question, and is recorded as the rep\'s edit', async () => {
     const { token, userId } = await signup('a@example.com');
     const p = await seed(userId);
-    const res = await fetch(`${base}/promises/${p.id}`, { method: 'PATCH', headers: H(token), body: JSON.stringify({ dueDate: '2026-10-11' }) });
+    const res = await fetch(`${base}/promises/${p.id}`, { method: 'PATCH', headers: H(token), body: JSON.stringify({ dueDate: SUN }) });
     expect(res.status).toBe(200);
     const after = (await deps.facts.getPromise(userId, p.id))!;
-    expect(after.dueDate).toBe('2026-10-11');
+    expect(after.dueDate).toBe(SUN);
     expect(after.dateStatus).toBeNull();
     expect(await cards(token)).toEqual([]);
   });
@@ -80,7 +87,7 @@ describe('[P40-1] dates to confirm', () => {
     const b = await signup('b@example.com');
     const p = await seed(a.userId);
     expect((await fetch(`${base}/promises/${p.id}`, { method: 'PATCH', headers: H(a.token), body: JSON.stringify({ dateStatus: 'whenever' }) })).status).toBe(400);
-    expect((await fetch(`${base}/promises/${p.id}`, { method: 'PATCH', headers: H(b.token), body: JSON.stringify({ dueDate: '2026-10-11' }) })).status).toBe(404);
+    expect((await fetch(`${base}/promises/${p.id}`, { method: 'PATCH', headers: H(b.token), body: JSON.stringify({ dueDate: SUN }) })).status).toBe(404);
   });
 
   it('negative: until answered it is never Overdue, never in Missed promises or Due this week', async () => {

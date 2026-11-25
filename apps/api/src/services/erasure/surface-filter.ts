@@ -217,3 +217,26 @@ export async function withheldFactIds(
   const shown = new Set([...ids(shownP), ...ids(shownD), ...ids(shownM)]);
   return new Set([...ids(allP), ...ids(allD), ...ids(allM)].filter((id) => !shown.has(id)));
 }
+
+/**
+ * [P87-3 · owner, 25 Nov] A stored pointer is withheld when its wording names the restricted person OR any message it
+ * cites (its receipts) is theirs. Pointers were withheld only when their text named them, so "Pushes hard on price",
+ * read from the restricted person's own message, still showed in the brief, the client's pointer card and the export.
+ * Same rule as facts (factWithholder): their words are withheld, a mention of them by someone else stays.
+ */
+export async function withoutRestrictedPointers<P extends { text: string; receipts?: Array<{ source_span: string }> }>(
+  clientId: string,
+  pointers: P[],
+  restriction: Pick<Restriction, 'active' | 'restrictsText'>,
+  withheld: (f: WithheldFact) => Promise<boolean>,
+): Promise<P[]> {
+  if (!restriction.active) return pointers;
+  const out: P[] = [];
+  for (const p of pointers) {
+    if (restriction.restrictsText(p.text)) continue;
+    let theirs = false;
+    for (const r of p.receipts ?? []) if (await withheld({ clientId, noteId: null, quote: r.source_span })) { theirs = true; break; }
+    if (!theirs) out.push(p);
+  }
+  return out;
+}

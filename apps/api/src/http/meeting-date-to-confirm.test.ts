@@ -18,6 +18,14 @@ async function signup(email: string) {
   return { token: b.token, userId: b.user.id };
 }
 const ago = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 16);
+/** [P87-4 · owner, 25 Nov] Relative dates: a card shows only for a meeting said in the last 90 days, so fixed dates in
+ *  October 2026 stopped listing in January 2027 (and "the card clears" then passed for no reason). The most recent given
+ *  weekday that is 7 to 13 days ago, and a day after it, as 'YYYY-MM-DD'. */
+const weekdayAgo = (dow: number) => { const d = new Date(Date.now() - 7 * 86_400_000); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() - dow + 7) % 7)); return d.toISOString().slice(0, 10); };
+const plus = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+const THU = weekdayAgo(4); // "Saturday 3pm" said on a Thursday → that Saturday
+const WED = weekdayAgo(3); // "Saturday" said on a Wednesday → that Saturday
+const SAT_AFTER_WED = plus(WED, 3);
 type Card = { id: string; clientName: string; datetimeRaw: string; datetime: string | null; dateStatus: string; suggestedDatetime: string | null };
 const cards = async (t: string) => ((await (await fetch(`${base}/confirmations`, { headers: H(t) })).json()) as { meetingDatesToConfirm: Card[] }).meetingDatesToConfirm;
 
@@ -29,9 +37,9 @@ async function seed(userId: string, raw: string, saidAt: string) {
 describe('[P40-1] meetings to confirm', () => {
   it('listed with the phrase and the resolver\'s suggested time', async () => {
     const { token, userId } = await signup('a@example.com');
-    await seed(userId, 'Saturday 3pm', '2026-10-08T10:00'); // a Thursday → Sat 10 Oct, 15:00
+    await seed(userId, 'Saturday 3pm', `${THU}T10:00`); // a Thursday → that Saturday, 15:00
     const [m] = await cards(token);
-    expect(m).toMatchObject({ clientName: 'Sara Khan', datetimeRaw: 'Saturday 3pm', datetime: null, dateStatus: 'to_confirm', suggestedDatetime: '2026-10-10T15:00' });
+    expect(m).toMatchObject({ clientName: 'Sara Khan', datetimeRaw: 'Saturday 3pm', datetime: null, dateStatus: 'to_confirm', suggestedDatetime: `${plus(THU, 2)}T15:00` });
   });
 
   it('no suggestion when the resolver has none ("Saturday afternoon" has no clock time)', async () => {
@@ -91,18 +99,18 @@ describe('[P40-1] meetings to confirm', () => {
 // [P43-7 · owner] A meeting said as "Saturday" keeps its day and asks only for the time. The day is the one the
 // shared resolver reads for a promise, anchored to the meeting's own message; nothing new is stored.
 describe('[P43-7] date-only meetings keep their day', () => {
-  it('"Saturday" said on Wed 21 Oct → day 2026-10-24 on the card and in the meetings list', async () => {
+  it('"Saturday" said on a Wednesday → that Saturday on the card and in the meetings list', async () => {
     const { token, userId } = await signup('a@example.com');
-    const m = await seed(userId, 'Saturday', '2026-10-21T10:00');
-    expect((await cards(token))[0]).toMatchObject({ id: m.id, datetime: null, day: '2026-10-24', suggestedDatetime: null });
+    const m = await seed(userId, 'Saturday', `${WED}T10:00`);
+    expect((await cards(token))[0]).toMatchObject({ id: m.id, datetime: null, day: SAT_AFTER_WED, suggestedDatetime: null });
     const list = ((await (await fetch(`${base}/meetings`, { headers: H(token) })).json()) as { meetings: Array<{ id: string; day: string | null }> }).meetings;
-    expect(list.find((x) => x.id === m.id)?.day).toBe('2026-10-24');
+    expect(list.find((x) => x.id === m.id)?.day).toBe(SAT_AFTER_WED);
   });
 
   it('answering with a time on that day sets it and confirms the meeting', async () => {
     const { token, userId } = await signup('a@example.com');
-    const m = await seed(userId, 'Saturday', '2026-10-21T10:00');
-    expect((await fetch(`${base}/meetings/${m.id}`, { method: 'PATCH', headers: H(token), body: JSON.stringify({ datetime: '2026-10-24T15:00' }) })).status).toBe(200);
+    const m = await seed(userId, 'Saturday', `${WED}T10:00`);
+    expect((await fetch(`${base}/meetings/${m.id}`, { method: 'PATCH', headers: H(token), body: JSON.stringify({ datetime: `${SAT_AFTER_WED}T15:00` }) })).status).toBe(200);
     const after = (await deps.meetings.findByIdForUser(userId, m.id))!;
     expect(after).toMatchObject({ confirmed: true, dateStatus: null });
     expect(after.datetime).not.toBeNull();
@@ -111,8 +119,8 @@ describe('[P43-7] date-only meetings keep their day', () => {
 
   it('NEGATIVE: "next Tuesday" and "the 5th" stay without a day, as now', async () => {
     const { token, userId } = await signup('a@example.com');
-    await seed(userId, 'next Tuesday', '2026-10-21T10:00');
-    await seed(userId, 'the 5th', '2026-10-21T10:00');
+    await seed(userId, 'next Tuesday', `${WED}T10:00`);
+    await seed(userId, 'the 5th', `${WED}T10:00`);
     expect((await cards(token)).map((c) => (c as Card & { day: string | null }).day)).toEqual([null, null]);
   });
 

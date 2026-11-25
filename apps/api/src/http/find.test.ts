@@ -25,6 +25,11 @@ afterEach(async () => { await new Promise<void>((r) => server.close(() => r()));
 const H = (t: string) => ({ authorization: `Bearer ${t}`, 'content-type': 'application/json' });
 const DAY = 86_400_000;
 const day = (offset: number) => new Date(Date.now() + offset * DAY).toISOString().slice(0, 10);
+/** [P87-4 · owner, 25 Nov] The client last wrote 85 days ago (it was a fixed 1 Sep 2026, which read "1 Sep 2026" from
+ *  1 Jan 2027 on, so the label test would fail). Find shows a date without its year inside the current year. */
+const SAID = day(-85);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const saidLabel = `${Number(SAID.slice(8, 10))} ${MONTHS[Number(SAID.slice(5, 7)) - 1]}${SAID.slice(0, 4) === String(new Date().getUTCFullYear()) ? '' : ` ${SAID.slice(0, 4)}`}`;
 async function signup(email: string): Promise<{ token: string; userId: string }> {
   const res = await fetch(`${base}/auth/signup`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'password123' }) });
   const b = (await res.json()) as { token: string; user: { id: string } };
@@ -39,15 +44,15 @@ const find = async (token: string, q: string, qs = ''): Promise<{ status: number
 async function seed(userId: string, name = 'Sara Khan', who = 'Sara') {
   const c = await deps.clients.create(userId, name);
   const n = await deps.notes.create(userId, { clientId: c.id, source: 'whatsapp_export', rawText: 'x', audioKey: null, status: 'extracted', messages: [
-    { sender: who, sentAt: '2026-09-01T09:00', body: 'looking for a 4BR villa in Mirdif, budget around 3M', media: false, role: 'client' },
-    { sender: 'Rep', sentAt: '2026-09-02T10:00', body: "I'll send the floor plans", media: false, role: 'rep' },
+    { sender: who, sentAt: `${SAID}T09:00`, body: 'looking for a 4BR villa in Mirdif, budget around 3M', media: false, role: 'client' },
+    { sender: 'Rep', sentAt: `${day(-84)}T10:00`, body: "I'll send the floor plans", media: false, role: 'rep' },
   ] } as never);
   await deps.requirements.saveForNote(userId, n.id, c.id, [
-    { text: '4BR villa in Mirdif', requirementRaw: 'looking for a 4BR villa in Mirdif, budget around 3M', statedOn: '2026-09-01', confidence: 'high', embedding: null },
+    { text: '4BR villa in Mirdif', requirementRaw: 'looking for a 4BR villa in Mirdif, budget around 3M', statedOn: SAID, confidence: 'high', embedding: null },
   ]);
   await deps.facts.saveExtraction(userId, { noteId: n.id, clientId: c.id, promises: [
-    { text: 'Send the floor plans', owner: 'rep', due_date: day(-3), due_raw: null, confidence: 'high', source_span: "I'll send the floor plans", source_message_at: '2026-09-02T10:00' },
-    { text: 'Send ID photos', owner: 'client', due_date: day(-200), due_raw: null, confidence: 'high', source_span: 'will send ID', source_message_at: '2026-03-01T10:00' }, // stale
+    { text: 'Send the floor plans', owner: 'rep', due_date: day(-3), due_raw: null, confidence: 'high', source_span: "I'll send the floor plans", source_message_at: `${day(-84)}T10:00` },
+    { text: 'Send ID photos', owner: 'client', due_date: day(-200), due_raw: null, confidence: 'high', source_span: 'will send ID', source_message_at: `${day(-200)}T10:00` }, // stale
   ] });
   return { clientId: c.id, noteId: n.id };
 }
@@ -64,11 +69,11 @@ describe('[P39-7] Find answers', () => {
     expect(body.footnote).toMatch(/more than 90 days overdue are kept/);
   });
 
-  it('no-reply: "Last replied 1 Sep" with their message as the receipt', async () => {
+  it('no-reply: "Last replied <day month>" with their message as the receipt', async () => {
     const { token, userId } = await signup('a@example.com');
     await seed(userId);
     const { body } = await find(token, 'no-reply');
-    expect(body.items.map((i) => [i.clientName, i.line])).toEqual([['Sara Khan', 'Last replied 1 Sep']]);
+    expect(body.items.map((i) => [i.clientName, i.line])).toEqual([['Sara Khan', `Last replied ${saidLabel}`]]);
     expect(body.items[0]!.receipt!.quote).toMatch(/4BR villa/);
   });
 

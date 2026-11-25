@@ -1,10 +1,11 @@
 import type { Pool } from 'pg';
+import { pgDay } from '../../db/pg-date.js';
 import type { DayRollup, PageView, VisitStore } from '../../services/visits/visits.js';
 import { rollupOf } from '../../services/visits/visits.js';
 import type { GameEventRow } from '../../services/visits/game-events.js';
 
 /** [P63-7] Site visits in Postgres (OWNER pool; never granted to the app role). See migration 0112. */
-const day = (v: unknown): string => (v instanceof Date ? `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}` : String(v).slice(0, 10));
+const day = (v: unknown): string => pgDay(v) ?? '';
 
 export class PgVisitStore implements VisitStore {
   constructor(private readonly pool: Pool) {}

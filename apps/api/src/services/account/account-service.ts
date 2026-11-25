@@ -7,7 +7,7 @@ import type { ImageRepository } from '../../ports/image-repository.js';
 import type { RecallSessionRepository } from '../../ports/recall-session-repository.js';
 import type { Storage } from '../../ports/storage.js';
 import { restrictNote, noteIsAboutRestricted } from '../erasure/restrict-note.js';
-import { factWithholder, withoutRestricted, type RestrictionSource } from '../erasure/surface-filter.js';
+import { factWithholder, withoutRestricted, withoutRestrictedPointers, type RestrictionSource } from '../erasure/surface-filter.js';
 import { NO_RESTRICTION } from '../erasure/restriction.js';
 import { liveNames } from '../clients/live-names.js';
 import { replacedAcrossClients } from '../clients/requirement-summary.js';
@@ -147,8 +147,9 @@ export class AccountService {
       corrections: this.corrections ? await this.corrections.listByUser(userId) : [],
       repGlossary: r.active ? repGlossary.filter((g) => !r.restrictsText(`${g.wrongTerm} ${g.rightTerm}`)) : repGlossary,
       // [POINTERS · D10] the rep's per-client relationship/closing pointers.
+      // [P87-3] a pointer read from their own message is withheld too, even when its wording does not name them
       clientPointers: r.active
-        ? clientPointers.map((set) => ({ ...set, pointers: r.restrictsWho(names.get(set.clientId) ?? '') ? [] : set.pointers.filter((p) => !r.restrictsText(p.text)) }))
+        ? await Promise.all(clientPointers.map(async (set) => ({ ...set, pointers: r.restrictsWho(names.get(set.clientId) ?? '') ? [] : await withoutRestrictedPointers(set.clientId, set.pointers, r, withheld) })))
         : clientPointers,
       // [P18-10j] the rep's inventory — their own data, previously missing from the export.
       inventory: this.inventory ? await this.inventory.listByUser(userId) : [],

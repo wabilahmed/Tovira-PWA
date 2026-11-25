@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { withTenant } from '../../db/tenant.js';
+import { pgDay } from '../../db/pg-date.js';
 import { groupByClient } from '../../services/notes/list-for-clients.js';
 import type { Confidence } from '../../services/extraction/types.js';
 import type {
@@ -18,7 +19,7 @@ interface Row {
   client_id: string;
   text: string;
   requirement_raw: string;
-  stated_on: Date | null;
+  stated_on: Date | string | null;
   confidence: string;
   status: string;
   embedded: boolean;
@@ -34,7 +35,7 @@ function toRecord(r: Row): RequirementRecord {
     clientId: r.client_id,
     text: r.text,
     requirementRaw: r.requirement_raw,
-    statedOn: r.stated_on ? r.stated_on.toISOString().slice(0, 10) : null,
+    statedOn: pgDay(r.stated_on),
     confidence: r.confidence as Confidence,
     status: r.status as RequirementStatus,
     embedded: r.embedded,

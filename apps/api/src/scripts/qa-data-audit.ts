@@ -20,6 +20,7 @@
  */
 import { pathToFileURL } from 'node:url';
 import { createPool } from '../db/pool.js';
+import { pgDay } from '../db/pg-date.js';
 import { redactEmail } from './stripe-mode-audit.js';
 import { requirementFacets } from '../services/clients/requirement-summary.js';
 
@@ -121,6 +122,7 @@ export async function runQaDelete(db: Queryable, ids: string[], apply: boolean):
 }
 
 const iso = (v: unknown): string => (v instanceof Date ? v.toISOString() : String(v ?? '')).slice(0, 10);
+const isoDay = (v: unknown): string => pgDay(v) ?? ''; // [P87-1] a DATE column: its calendar day, never a UTC shift
 
 /** Clients: an HTML/script probe, a "QA …" name, or a member of a test-looking bulk batch. */
 export function flagClients(rows: Array<{ id: string; user_id: string; email: string; name: string; created_at: unknown; has_export: boolean }>): Flag[] {
@@ -167,7 +169,7 @@ export function contradictions(rows: Array<{ client_id: string; name: string; te
   // [P40-5] read ONE requirement at a time — a "1BR" from one and a "Villa" from another is not a contradiction
   for (const [clientId, reqs] of by) {
     for (const r of reqs) {
-      const f = requirementFacets([{ text: r.text, requirementRaw: r.requirement_raw, statedOn: r.stated_on ? iso(r.stated_on) : null, createdAt: Date.parse(String(r.created_at)) || 0 }]);
+      const f = requirementFacets([{ text: r.text, requirementRaw: r.requirement_raw, statedOn: r.stated_on ? isoDay(r.stated_on) : null, createdAt: Date.parse(String(r.created_at)) || 0 }]);
       const beds = f.beds ? Number(f.beds.replace('BR', '')) : null;
       const big = f.type === 'Villa' || f.type === 'Townhouse' || f.type === 'Penthouse';
       if (beds !== null && ((big && beds <= 1) || (f.type === 'Studio' && beds >= 1))) {

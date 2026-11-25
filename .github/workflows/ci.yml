@@ -84,6 +84,13 @@ jobs:
         env:
           MIGRATIONS_TEST_DB_URL: postgres://tovira:tovira@localhost:5432/tovira
         run: npx vitest run apps/api/src/db/query-plans.guard.test.ts apps/api/src/db/batched-writes-real-postgres.test.ts
+      # [P87-1] A Postgres DATE round-trips unchanged on a host east of UTC (the test runs under TZ=Asia/Dubai): every
+      # pool createPool builds reads DATE as plain 'YYYY-MM-DD' text, never a local-midnight Date that reads a day off.
+      - name: Dates round-trip unchanged under TZ=Asia/Dubai on real Postgres
+        env:
+          MIGRATIONS_TEST_DB_URL: postgres://tovira:tovira@localhost:5432/tovira
+          TZ: Asia/Dubai
+        run: npx vitest run apps/api/src/db/pg-date.real-postgres.test.ts
 
   # The P1-9 extraction quality gate (Sonnet vs Haiku). It needs a real model
   # key, so it self-activates: a no-op until ANTHROPIC_API_KEY is in the repo

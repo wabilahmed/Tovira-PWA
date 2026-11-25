@@ -9,6 +9,7 @@ import type {
   SaveExtractionInput,
 } from '../../ports/facts-repository.js';
 import { withTenant } from '../../db/tenant.js';
+import { pgDay } from '../../db/pg-date.js';
 import { isMeetingNotPromise } from '../../services/facts/meeting-like.js';
 
 interface KeyDateRow {
@@ -33,7 +34,7 @@ interface PromiseRow {
   client_id: string;
   text: string;
   owner: string;
-  due_date: Date | null;
+  due_date: Date | string | null;
   due_raw: string | null;
   confidence: string;
   done: boolean;
@@ -56,7 +57,7 @@ function toRecord(row: PromiseRow): PromiseRecord {
     clientId: row.client_id,
     text: row.text,
     owner: row.owner,
-    dueDate: row.due_date ? row.due_date.toISOString().slice(0, 10) : null,
+    dueDate: pgDay(row.due_date),
     dueRaw: row.due_raw,
     confidence: row.confidence,
     done: row.done,
@@ -93,9 +94,9 @@ export class PgFactsRepository implements FactsRepository {
         'SELECT id, owner, text, due_date FROM promises WHERE client_id = $1 AND merged_into IS NULL AND done = false',
         [input.clientId],
       );
-      const canonicalByKey = new Map<string, { id: string; dueDate: Date | null }>();
-      for (const r of openRows as { id: string; owner: string; text: string; due_date: Date | null }[]) {
-        canonicalByKey.set(promiseDedupeKey(r.owner, r.text), { id: r.id, dueDate: r.due_date });
+      const canonicalByKey = new Map<string, { id: string; dueDate: string | null }>();
+      for (const r of openRows as { id: string; owner: string; text: string; due_date: Date | string | null }[]) {
+        canonicalByKey.set(promiseDedupeKey(r.owner, r.text), { id: r.id, dueDate: pgDay(r.due_date) });
       }
       // [P86 · index audit] One INSERT for all of this note's promises and one for its key dates (was one INSERT per
       // item). Ids are made here so a duplicate can point at a canonical created in this same statement (the self-FK
@@ -117,11 +118,11 @@ export class PgFactsRepository implements FactsRepository {
             const made = fresh.get(canonical.id);
             if (made) { made.due_date = p.due_date; made.due_raw = p.due_raw; made.date_status = null; } // [P40-1] a date answers it
             else fills.push({ id: canonical.id, due_date: p.due_date, due_raw: p.due_raw });
-            canonical.dueDate = new Date(p.due_date);
+            canonical.dueDate = p.due_date;
           }
         } else {
           // A new canonical this same note's later promises can also dedup against.
-          canonicalByKey.set(key, { id: row.id, dueDate: p.due_date ? new Date(p.due_date) : null });
+          canonicalByKey.set(key, { id: row.id, dueDate: p.due_date ?? null });
           fresh.set(row.id, row);
         }
       }
@@ -184,7 +185,7 @@ export class PgFactsRepository implements FactsRepository {
         noteId: r.note_id,
         clientId: r.client_id,
         description: r.description,
-        date: r.date ? r.date.toISOString().slice(0, 10) : null,
+        date: pgDay(r.date),
         dateRaw: r.date_raw,
         type: r.type,
         sourceSpan: r.source_span,
@@ -259,7 +260,7 @@ export class PgFactsRepository implements FactsRepository {
         noteId: r.note_id,
         clientId: r.client_id,
         description: r.description,
-        date: r.date ? r.date.toISOString().slice(0, 10) : null,
+        date: pgDay(r.date),
         dateRaw: r.date_raw,
         type: r.type,
         sourceSpan: r.source_span,

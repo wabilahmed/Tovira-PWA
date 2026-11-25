@@ -112,6 +112,11 @@ let token: string;
 let ids: Ids;
 let userId: string;
 const DAY = 86_400_000;
+/** [P87-4 · owner, 25 Nov] The key date and the meeting are relative to now, so the scan really builds a date reminder
+ *  and a meeting nudge from them inside the window. A fixed 1 Dec 2026 entered the 7-day reminder window only on
+ *  24 Nov (that is how P86 found the pre-window alert gap) and would stop producing a reminder after 1 Dec; the meeting
+ *  was in February 2026, so no nudge was ever built. */
+const SOON = new Date(Date.now() + 3 * DAY).toISOString().slice(0, 10);
 
 beforeAll(async () => {
   deps = buildInMemoryDeps();
@@ -144,9 +149,9 @@ beforeAll(async () => {
   } as never, embedding: [1, 0, 0] });
   await deps.facts.saveExtraction(u, { noteId: note.id, clientId: c.id, promises: [
     { text: `Send the ${MARK} passport copy`, owner: 'client', due_date: '2026-02-01', due_raw: '01/02/2026', confidence: 'high', source_span: K2, source_message_at: '2026-01-02T10:00' },
-  ], keyDates: [{ description: `${MARK} lease ends`, date: '2026-12-01', date_raw: '01/12/2026', type: 'deadline', source_span: K2, source_message_at: '2026-01-02T10:00' }] });
+  ], keyDates: [{ description: `${MARK} lease ends`, date: SOON, date_raw: 'next week', type: 'deadline', source_span: K2, source_message_at: '2026-01-02T10:00' }] });
   await deps.requirements.saveForNote(u, note.id, c.id, [{ text: '4BR villa in Mirdif', requirementRaw: K1, statedOn: '2026-01-01', confidence: 'high', embedding: null }]);
-  await deps.meetings.create(u, { clientId: c.id, datetime: '2026-02-10T11:00:00.000Z', datetimeRaw: `${MARK} viewing`, title: null, confirmed: true, noteId: note.id, sourceSpan: K1, sourceMessageAt: '2026-01-01T10:00', captureAt: '2026-01-03' });
+  await deps.meetings.create(u, { clientId: c.id, datetime: new Date(Date.now() + 3 * 3_600_000).toISOString(), datetimeRaw: `${MARK} viewing`, title: null, confirmed: true, noteId: note.id, sourceSpan: K1, sourceMessageAt: '2026-01-01T10:00', captureAt: '2026-01-03' });
   await deps.clientPointers!.save(u, c.id, { pointers: [{ section: 'relationship', text: `Khalid (${MARK}) pushes on price`, receipts: [] }], retrospectiveDisclosure: null }, Date.now());
   const held = await deps.askCapture!.capture(u, c.id, 'Khalid raised his budget to 3.2M', '2026-01-04'); // a mention
   const [p] = await deps.facts.listPromisesByUser(u);

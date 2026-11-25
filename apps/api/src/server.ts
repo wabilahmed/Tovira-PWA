@@ -71,7 +71,7 @@ import { handleInsightsRoute } from './http/insights-routes.js';
 import { restrictingFacts, restrictingMeetings, restrictingNotes, withheldFactIds } from './services/erasure/surface-filter.js';
 import { handleImageRoute } from './http/images-routes.js';
 import { handleHeroRoute } from './http/hero-routes.js';
-import { withholdRestrictedActions } from './services/hero/today-restriction.js';
+import { restrictedTodayView } from './services/hero/today-restriction.js';
 import { handleBookScanRoute } from './http/book-scan-routes.js';
 import type { BookScanService } from './services/book-scan/book-scan-service.js';
 import { handleRecallRoute } from './http/recall-routes.js';
@@ -593,10 +593,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleHeroRoute(request, response, {
         auth: deps.auth, hero: deps.hero, priorities: deps.priorities, billing: deps.billing, clients: deps.clients,
         // [P47] a restriction opened after Today's list was computed applies when it is served
-        withholdRestricted: async (uid, actions) => {
-          const names = new Map((await deps.clients.listByUser(uid)).map((c) => [c.id, c.name]));
-          return withholdRestrictedActions(uid, actions, deps.restriction, deps.notes, (id) => names.get(id));
-        },
+        withholdRestricted: restrictedTodayView(deps.restriction, deps.notes, deps.clients), // [P87-3] the digest counts with the same view
         ...(deps.clientOverview ? { careLines: (uid: string, ids: ReadonlyMap<string, string>) => deps.clientOverview!.careLines(uid, ids) } : {}), // [P69]
       })) return;
       if (await handleBookScanRoute(request, response, { auth: deps.auth, bookScan: deps.bookScan, billing: deps.billing })) return;
@@ -615,7 +612,7 @@ export function createApiServer(deps: ApiDeps): Server {
       if (await handleOnboardingRoute(request, response, { auth: deps.auth, clients: deps.clients, notes: deps.notes })) return;
       if (await handleTourRoute(request, response, { auth: deps.auth, tour: deps.tour })) return;
       if (await handleClientOverviewRoute(request, response, { auth: deps.auth, overview: deps.clientOverview })) return;
-      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction, deps.onOutcomeChanged, deps.aliases, (u, c, from, to) => reattributeRenamedClient(deps.notes, u, c, from, to).then(() => undefined))) return;
+      if (await handleClientRoute(request, response, deps.auth, deps.clients, deps.clientPointers, deps.restriction, deps.onOutcomeChanged, deps.aliases, (u, c, from, to) => reattributeRenamedClient(deps.notes, u, c, from, to).then(() => undefined), deps.notes)) return;
       if (await handleInventoryRoute(request, response, { auth: deps.auth, inventory: deps.inventory, clients: deps.clients, billing: deps.billing, matching: deps.matching })) return;
 
       if (request.method === 'GET' && url === '/') {

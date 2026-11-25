@@ -2,10 +2,11 @@ import type { Pool } from 'pg';
 import type { PrioritiesRecord, PrioritiesRepository } from '../../ports/priorities-repository.js';
 import type { TodayAction } from '../../services/hero/hero-service.js';
 import { withTenant } from '../../db/tenant.js';
+import { pgDay } from '../../db/pg-date.js';
 
 interface Row {
   user_id: string;
-  day: Date;
+  day: Date | string;
   actions: TodayAction[];
   refresh_count: number;
   computed_at: Date;
@@ -25,7 +26,7 @@ export class PgPrioritiesRepository implements PrioritiesRepository {
       if (!r) return null;
       return {
         userId: r.user_id,
-        day: typeof r.day === 'string' ? r.day : r.day.toISOString().slice(0, 10),
+        day: pgDay(r.day)!,
         actions: r.actions,
         refreshCount: r.refresh_count,
         computedAt: r.computed_at.getTime(),

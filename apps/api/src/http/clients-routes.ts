@@ -4,6 +4,8 @@ import type { ClientRepository, ClientOutcome } from '../ports/client-repository
 import type { ClientPointerRepository } from '../ports/client-pointer-repository.js';
 import { BadJsonError, extractToken, readJsonBody, sendJson } from './helpers.js';
 import { NO_RESTRICTION, type Restriction } from '../services/erasure/restriction.js';
+import { factWithholder, withoutRestrictedPointers } from '../services/erasure/surface-filter.js';
+import type { NoteRepository } from '../ports/note-repository.js';
 import { canonicalPhone } from '../services/clients/phone.js';
 import type { ContactAliasRepository } from '../ports/contact-alias-repository.js';
 import { INDUSTRIES, type Industry } from '../ports/access-request-repository.js';
@@ -29,6 +31,8 @@ export async function handleClientRoute(
   aliases?: Pick<ContactAliasRepository, 'add'>,
   /** [P49] After a rename: re-attribute the client's folded-in people entries to the new name. */
   onRenamed?: (userId: string, clientId: string, oldName: string, newName: string) => Promise<void>,
+  /** [P87-3] The raw notes, so a pointer read from the restricted person's own message is withheld (its receipts). */
+  notes?: Pick<NoteRepository, 'listByClient'>,
 ): Promise<boolean> {
   const method = req.method ?? 'GET';
   const path = (req.url ?? '/').split('?')[0]!;
@@ -279,7 +283,10 @@ export async function handleClientRoute(
       if (r.active && set) {
         const client = await clients.findByIdForUser(userId, id);
         const clientRestricted = client ? r.restrictsWho(client.name) : false;
-        const visible = clientRestricted ? [] : set.pointers.filter((p) => !r.restrictsText(p.text));
+        // [P87-3] its wording names them, or a message it cites is theirs
+        const visible = clientRestricted ? [] : notes
+          ? await withoutRestrictedPointers(id, set.pointers, r, await factWithholder(userId, restriction, notes, () => client?.name))
+          : set.pointers.filter((p) => !r.restrictsText(p.text));
         sendJson(res, 200, { pointers: visible, disclosure: clientRestricted ? null : set.retrospectiveDisclosure });
         return true;
       }

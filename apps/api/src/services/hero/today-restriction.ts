@@ -34,3 +34,17 @@ export async function withholdRestrictedActions(
   }
   return out;
 }
+
+/** [P87-3] The same rule as a ready function, for every reader of a cached Today list (the /today route, the daily
+ *  digest's count): `(userId, actions) => the actions the rep may see now`. */
+export function restrictedTodayView(
+  restriction: RestrictionSource | undefined,
+  notes: Pick<NoteRepository, 'listByClient'>,
+  clients: { listByUser(userId: string): Promise<Array<{ id: string; name: string }>> },
+): (userId: string, actions: TodayAction[]) => Promise<TodayAction[]> {
+  return async (userId, actions) => {
+    if (!restriction || !(await restriction.forUser(userId)).active) return actions;
+    const names = new Map((await clients.listByUser(userId)).map((c) => [c.id, c.name]));
+    return withholdRestrictedActions(userId, actions, restriction, notes, (id) => names.get(id));
+  };
+}
