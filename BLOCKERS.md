@@ -155,7 +155,14 @@ the same rule as English (an observance is withheld; a time anchor, a trip and a
 ## [P87-3] Erasure: alerts and pointers built from a restricted person's words without naming them (fixed 25 Nov)
 
 - What leaked, while an erasure window was open: a notification written before the window that quoted the person without naming them (fixed in P86); a stored pointer read from their own message whose wording did not name them, in the pre-meeting brief, the client's pointer card and (from 27 Oct) the data export; and the daily digest's count included a cached Today item the restriction withholds (a number, no words). Since the restriction shipped on 5 Oct 2026 (31ddbde).
-- No real users were exposed: per the owner (25 Nov), no real users existed in that period, and the gap needs an open erasure request to show anything. Tests: http/erasure-unnamed-sources.test.ts, services/erasure/withheld-alerts.test.ts.
+- Nobody was exposed in prod, as far as the database can show. The gap shows something only while an erasure request is open. Prod check on 26 Nov (`erasure-exposure-check`, read-only): 0 erasure requests stored (all statuses), 0 completed erasures on record (receipts outlive account deletion), 0 erasure audit rows. Prod has 2 accounts: the one account the 18 Nov clean-up kept (created 1 Nov) and the owner's, created 19 Nov. Limit: a request is deleted with its account, so a request opened and then withdrawn, on one of the 13 accounts deleted on 18 Nov, would leave no trace. The API logs keep 30 days and cannot rule it out. Tests: http/erasure-unnamed-sources.test.ts, services/erasure/withheld-alerts.test.ts.
+
+## [P88-2 → next gated deploy] Restriction registry and the unnamed-words fix, held (26 Nov)
+
+Committed as 526a934 on the local branch `p88-2-restriction-registry`, not pushed: it changes `services/erasure/restrict-note.ts`, `services/erasure/surface-filter.ts` and `services/promises/kept-suggestion-service.ts`, which are in the extraction gate's import graph, so pushing it runs the gate (about AED 5 to 13). Full suite and Playwright green on the branch.
+- Live in prod until it ships, each only while an erasure request is open (prod has none, 26 Nov): a note's own model output read from the restricted person's messages (summary, concerns, next steps, and the note's copies of each promise, key date, requirement, meeting and pointer, which quote their message word for word) on the client page, the brief, the notes list, Today's "cares" line and the export; the "Move it?" card naming them; a kept-promise suggestion whose delivery message is theirs when the promise is someone else's; old Ask answers quoting them in the export.
+- Also on the branch: the restriction registry (`services/erasure/restriction-registry.ts`) and its guard, the P47 fixture carrying the unnamed class, and a CI step comparing the registry with a migrated real Postgres.
+- To ship: merge the branch into main and push with the next change that runs the gate anyway, or on its own with the owner's yes.
 
 ## [P86 → next gated deploy] Two N+1 loops held back because they sit in the extraction gate's import graph
 
