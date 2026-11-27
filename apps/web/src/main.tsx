@@ -11,7 +11,8 @@ import '@fontsource-variable/fraunces/standard.css';
 import '@fontsource/ibm-plex-sans-arabic/arabic-400.css';
 import '@fontsource/ibm-plex-sans-arabic/arabic-500.css';
 import '@fontsource/ibm-plex-sans-arabic/arabic-600.css';
-import './styles/site-fonts.css'; // [P71-F · owner] Inter + JetBrains Mono, the landing's fonts
+import './styles/site-fonts.css'; // [P71-F · owner] Inter + JetBrains Mono, the signed-in app's fonts
+import './styles/geist.css'; // [P89 · owner] Geist, the public screens' one typeface (Marker)
 import './styles/theme.css';
 import { initTheme } from './styles/theme.js';
 

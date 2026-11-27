@@ -3,48 +3,47 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
- * [P69 · owner] Tovira's promise is "helps you close", not "a memory": it analyses your client conversations, picks
- * out what each client cares about, and puts it in front of you when it matters. Memory (promises, dates) is the
- * supporting line. Every example is something the product shows (What they care about, on the client page, the
- * brief, the reminder and Today). Reads the REAL shipped landing HTML.
+ * [P69 · owner] Tovira's promise is "helps you close", not "a memory": it picks out what each client cares about and
+ * puts it in front of you when it matters. Memory (promises, dates) is the supporting line. Reads the REAL shipped
+ * landing HTML.
+ * [P89 · owner, Prompt 86] The page is now the owner's Marker page, word for word. The promise is the same ("Walk into
+ * every meeting knowing what matters to them."); the P69 rules below are re-pointed to it. One rule moves with the
+ * owner's words: P69's "analyses, never reads your chats" gives way to the owner's own "Tovira reads your client chats";
+ * what stays is that no line says Tovira reads anything it was not given ("It only sees the chats you give it").
  */
 const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8');
 const d = new DOMParser().parseFromString(html, 'text/html');
 const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-// [P70 · owner] The landing page was rebuilt from the owner's approved design. The P69 promise stays ("helps you close":
-// it analyses your conversations and catches what you missed), now worded by the new page; its copy is pinned in
-// landing-p70.test.ts. The P69 rules below still hold on the rebuilt page.
-const DESC = 'Tovira analyses your client conversations and voice notes, catches the details a busy rep misses, and puts them in front of you before the meeting that matters.';
+const DESC = 'Tovira reads your client chats and catches the details that close deals.';
 
-describe('[P69] the hero', () => {
-  // [P76 · owner] the eyebrow is removed (pinned in landing-p76.test.ts)
-  it('headline and subhead (the P70 wording of the P69 promise)', () => {
+describe('[P69→P89] the hero', () => {
+  it('headline and subhead (the owner\'s Marker wording of the P69 promise)', () => {
     expect(html).not.toContain('FOR RELATIONSHIP SALES');
-    expect(text(d.querySelector('#hero-h'))).toBe('The detail that wins the deal is already in your chats.You just scrolled past it.');
-    expect(text(d.querySelector('#hero-h + p'))).toBe(DESC);
+    expect(text(d.querySelector('h1'))).toBe('Walk into every meeting knowing what matters to them.');
+    expect(text(d.querySelector('h1 + p'))).toBe(DESC);
   });
-  it('every example names what the client said and what Tovira caught, linked to the message', () => {
-    expect(text(d.querySelector('[role="tabpanel"]'))).toContain('WHAT THE CLIENT SAID');
-    expect(text(d.querySelector('[role="tabpanel"]'))).toContain('Linked to the message it came from.');
-  });
-});
-
-describe('[P69] what Tovira does, in order (now the three "How it works" steps)', () => {
-  it('give it the conversation, it analyses every line, it speaks up at the right time', () => {
-    expect([...d.querySelectorAll('#how h3')].map(text)).toEqual(['Give it the conversation', 'Tovira analyses every line', 'It speaks up at the right time']);
-    expect(text(d.querySelector('#how'))).toContain('Each morning, who to call and what they care about. And it never forgets a promise, yours or theirs.');
+  it('the example shows what the client said and what Tovira caught, kept with the message it came from', () => {
+    expect(text(d.getElementById('big'))).toBe("Honestly we're at the beach every weekend.");
+    expect(text(d.querySelector('#b4 .card strong'))).toBe('Loves the beach. Every weekend.');
+    expect(text(d.querySelector('#b4 .cap'))).toBe('And keeps it, with the message it came from.');
   });
 });
 
-describe('[P69] the six industries: what the client said, and what Tovira caught', () => {
-  it('six tabs, each with a caught line', () => {
-    expect([...d.querySelectorAll('[role="tab"]')].map(text)).toEqual(['Property', 'Insurance', 'Wealth', 'B2B accounts', 'Luxury', 'Recruitment']);
+describe('[P69→P89] what Tovira does, in order (the three steps)', () => {
+  it('export a chat, Tovira reads the chat, your brief is ready before the meeting', () => {
+    const steps = [...d.querySelectorAll('#how .t2-in > div > div')].map((s) => [...s.children].map(text));
+    expect(steps).toEqual([
+      ['1', 'Export a chat', 'Or record a voice note.'],
+      ['2', 'Tovira reads the chat', 'Months of history, in minutes.'],
+      ['3', 'Your brief is ready before the meeting', 'Open it and walk in prepared.'],
+    ]);
   });
-  // [P70 · owner] "Your move" now suggests the rep's next step ("Lead with the sea-view units."), labelled as the
-  // rep's decision ("You decide. Tovira just makes sure you saw it."). What Tovira caught still never advises.
-  it('NEGATIVE: no caught line advises what to sell or show, and no invented results', () => {
-    expect(text(d.querySelector('[data-world="caught"]'))).not.toMatch(/\b(show (them|her|him)|offer|pitch|sell|recommend|suggest)\b/i);
-    expect(html).toContain('You decide. Tovira just makes sure you saw it.');
+});
+
+describe('[P69] no caught line advises, and no invented results', () => {
+  it('NEGATIVE: nothing shown as caught advises what to sell or show; no invented results', () => {
+    const caught = [...d.querySelectorAll('.card strong, .brief li')].map(text).join(' ');
+    expect(caught).not.toMatch(/\b(show (them|her|him)|offer|pitch|sell|recommend|suggest)\b/i);
     expect(html).not.toMatch(/\d+\s?% (more|faster|higher)|close \d+/i);
   });
 });
@@ -61,7 +60,8 @@ describe('[P69] memory is the supporting line, never the headline', () => {
     for (const l of leads) expect(l).not.toMatch(/memory|remember/i);
     expect(html).not.toMatch(/memory for sales people/i);
   });
-  it('NEGATIVE: "analyses", never "reads your chats" (the wording rule)', () => {
-    expect(html).not.toMatch(/\breads (it|your|the)\b|\breading your chats\b/i);
+  it('NEGATIVE: no line says Tovira reads what it was not given (it only sees the chats you give it)', () => {
+    expect(html).toContain('It only sees the chats you give it.');
+    expect(html).not.toMatch(/reads (all|every one of) your (chats|messages)|reading your WhatsApp|access to your WhatsApp/i);
   });
 });

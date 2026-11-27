@@ -8,10 +8,15 @@ import { stubApi } from './fixtures/app-api.js';
  * browser has saved (the owner saw Privacy and Terms in light: a saved Light choice, and the static pages honoured it).
  * Inside the signed-in app the choice is kept, Dark when never chosen, and no app screen paints anything light in Dark.
  * With SHOTS_DIR set, each public page is saved at 390 and 1440 (for review; not committed).
+ * [P89 · owner, Prompt 86] "Public pages are now always light, in the Marker look ... This replaces the earlier rule
+ * that public pages are always dark." Every public-page pin moves from Dark (#171412, data-theme vault) to Marker
+ * (#FAFAFA, data-theme marker), and "nothing painted light" becomes "nothing painted in the old dark palette". The
+ * signed-in app's pins are unchanged (this prompt does not change the app's theme).
  */
 test.use({ serviceWorkers: 'block' });
 
-const DARK_BG = 'rgb(23, 20, 18)'; // #171412, the landing page and the Dark token --surface-base
+const DARK_BG = 'rgb(23, 20, 18)'; // #171412, the Dark token --surface-base (the signed-in app)
+const MARKER_BG = 'rgb(250, 250, 250)'; // #FAFAFA, the Marker ground (every public page, P89)
 
 const saveTheme = (context: BrowserContext, v: string, signedInBefore = false) =>
   context.addInitScript(([t, h]) => {
@@ -21,6 +26,21 @@ const saveTheme = (context: BrowserContext, v: string, signedInBefore = false) =
 // In production a CloudFront function serves app.html for the app's client-side routes (infra/terraform/marketing.tf);
 // the preview server has no such fallback, so it is simulated here (as billing-return.spec.ts does).
 const SPA_ROUTES = /^\/(request-access|reset-password|invite|verify-email|admin(\/.*)?|billing\/.*|no-such-page)$/;
+
+/** [P89] Any surface painted in the old dark public palette (#171412 page, #1F1B18 cards, #120F0D bands, #2A2521 fills). */
+async function oldDarkThings(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const old = new Set(['rgb(23, 20, 18)', 'rgb(31, 27, 24)', 'rgb(18, 15, 13)', 'rgb(42, 37, 33)', 'rgb(232, 100, 58)']);
+    const out: string[] = [];
+    for (const el of [document.documentElement, document.body, ...document.body.querySelectorAll('*')]) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 24 || r.height < 16) continue;
+      const bg = getComputedStyle(el).backgroundColor;
+      if (old.has(bg)) out.push(`${el.tagName.toLowerCase()} ${bg}`);
+    }
+    return out;
+  });
+}
 const appHtml = (): string => readFileSync(resolve('apps/web/dist/app.html'), 'utf8');
 
 /** Signed out: no session anywhere (the app, the admin console), every other call 404s. */
@@ -60,6 +80,8 @@ async function lightThings(page: Page): Promise<string[]> {
 
 const PUBLIC: [string, string][] = [
   ['landing', '/'],
+  ['game', '/game/'], // [P89] the game pages (the preview serves them with the slash too)
+  ['game-property', '/game/property/'],
   ['privacy', '/privacy/'], // vite preview serves the static pages with the slash; production maps /privacy (checked live)
   ['terms', '/terms/'],
   ['request-access', '/request-access'],
@@ -75,7 +97,7 @@ const PUBLIC: [string, string][] = [
 
 for (const width of [390, 1440]) {
   for (const scheme of ['light', 'dark'] as const) {
-    test(`${width}px, device ${scheme}: every public page is dark even with a saved Light theme`, async ({ page, context }) => {
+    test(`${width}px, device ${scheme}: every public page is Marker even with a saved Light or Dark theme`, async ({ page, context }) => {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
       await saveTheme(context, 'ledger', true); // someone signed in on this browser before and chose Light
@@ -84,22 +106,23 @@ for (const width of [390, 1440]) {
         await page.goto(path);
         await page.waitForLoadState('networkidle');
         const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-        expect(bg, `${path} body`).toBe(DARK_BG);
-        if (path !== '/') expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme')), path).toBe('vault');
-        expect(await lightThings(page), path).toEqual([]);
-        if (process.env.SHOTS_DIR && scheme === 'light') await page.screenshot({ path: `${process.env.SHOTS_DIR}/p74-${name}-${width}.png`, fullPage: true });
+        expect(bg, `${path} body`).toBe(MARKER_BG);
+        if (!['/', '/game/', '/game/property/'].includes(path)) expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme')), path).toBe('marker');
+        expect(await oldDarkThings(page), path).toEqual([]);
+        expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily), path).toMatch(/^Geist/);
+        if (process.env.SHOTS_DIR && scheme === 'light') await page.screenshot({ path: `${process.env.SHOTS_DIR}/p89-${name}-${width}.png`, fullPage: true });
       }
     });
   }
 }
 
-test('a saved Auto on a light device: Privacy and Terms are still dark', async ({ page, context }) => {
-  await page.emulateMedia({ colorScheme: 'light' });
+test('a saved Auto on a dark device: Privacy, Terms and the sign-in are still Marker', async ({ page, context }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
   await saveTheme(context, 'system');
   await signedOut(context);
   for (const path of ['/privacy/', '/terms/', '/app']) {
     await page.goto(path);
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), path).toBe(DARK_BG);
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), path).toBe(MARKER_BG);
   }
 });
 
@@ -132,14 +155,14 @@ test('the signed-in app keeps a saved Light (the choice is the rep\'s)', async (
   expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe('ledger');
 });
 
-test('a fresh browser gets Dark: the sign-in, then the app once signed in', async ({ browser }) => {
+test('a fresh browser: the sign-in is Marker, then the app is Dark once signed in', async ({ browser }) => {
   for (const scheme of ['light', 'dark'] as const) {
     const out = await browser.newContext({ colorScheme: scheme, serviceWorkers: 'block' });
     await signedOut(out);
     const p1 = await out.newPage();
     await p1.goto('/app');
     await p1.waitForLoadState('networkidle');
-    expect(await p1.evaluate(() => getComputedStyle(document.body).backgroundColor), `sign-in ${scheme}`).toBe(DARK_BG);
+    expect(await p1.evaluate(() => getComputedStyle(document.body).backgroundColor), `sign-in ${scheme}`).toBe(MARKER_BG);
     await out.close();
     const inn = await browser.newContext({ colorScheme: scheme, serviceWorkers: 'block' });
     await stubApi(inn);

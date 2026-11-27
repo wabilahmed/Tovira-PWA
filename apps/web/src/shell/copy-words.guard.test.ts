@@ -78,10 +78,13 @@ describe('[P39-9] rep-facing copy', () => {
   });
 
   // [P70 · owner] the rebuilt landing page words these two lines as the approved design does
-  it('the landing page: "Cancel any time in Settings." and "One plan" with no tiers or seats', () => {
+  // [P89 · owner, Prompt 86] the Marker page words them its own way: "One plan. Everything in it." and "Cancel any time";
+  // the trial line is the owner's "14 days free with 5,000 messages. No card." (still no add-ons, no Billing wording)
+  it('the landing page: "Cancel any time" and "One plan", with the trial in messages', () => {
     const html = readFileSync(join(ROOT, 'apps/web/index.html'), 'utf8');
-    expect(html).toContain('14 days free. No tiers, no seats. Cancel any time in Settings.');
-    expect(html).toContain('One plan. Pays for itself with one detail.');
+    expect(html).toContain('<span>Cancel any time</span>');
+    expect(html).toContain('One plan. Everything in it.');
+    expect(html).toContain('14 days free with 5,000 messages. No card.');
     expect(html).not.toContain('Cancel anytime from Billing');
     expect(html).not.toContain('no add-ons');
   });

@@ -50,16 +50,18 @@ async function stubClient(context: BrowserContext): Promise<void> {
 
 for (const scheme of ['light', 'dark'] as const) {
   // [P70 · owner] the landing page was rebuilt; its hero, tabs and game are checked in landing-usecases.spec.ts
-  test(`390px ${scheme}: the landing hero and the first industry card`, async ({ page }) => {
+  // [P89 · owner, Prompt 86] now the Marker landing (marker-site checks in landing-usecases.spec.ts); the hero and the
+  // caught card ("Tovira caught": what the client said, kept with the message) are checked here, as P69 did
+  test(`390px ${scheme}: the landing hero and the caught card`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
     await page.route('**/api/visit', (r) => r.fulfill({ status: 204, body: '' }));
     await page.goto('/');
-    await expect(page.locator('#hero-h')).toContainText('The detail that wins the deal is already in your chats.');
-    await shot(page, `p69-1-landing-hero-${scheme}`);
-    const panel = page.getByRole('tabpanel');
-    await panel.scrollIntoViewIfNeeded();
-    await expect(panel).toContainText('Loves the beach. Every weekend, with the kids.');
-    await shot(page, `p69-3-landing-card-${scheme}`, panel);
+    await expect(page.locator('h1')).toContainText('Walk into every meeting knowing what matters to them.');
+    await shot(page, `p89-1-landing-hero-${scheme}`);
+    const card = page.locator('#b4');
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toContainText('Loves the beach. Every weekend.');
+    await shot(page, `p89-3-landing-card-${scheme}`, card);
   });
 
   test(`390px ${scheme}: the client page opens on What they care about`, async ({ page, context }) => {

@@ -23,10 +23,14 @@ describe('[SITE-5] accessibility & landmarks', () => {
     }
   });
 
+  // [P89 · owner, Prompt 86] the share image is a PNG rendered from the hero; its alt text is in og:image:alt and
+  // twitter:image:alt (was an SVG with aria-label)
   it('the OG image is a real asset with an accessible label', () => {
-    const svg = read('apps/web/public/og.svg');
-    expect(svg).toContain('<svg');
-    expect(svg).toMatch(/aria-label=/);
+    const png = readFileSync(resolve(process.cwd(), 'apps/web/public/og.png'));
+    expect(png.subarray(1, 4).toString()).toBe('PNG');
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 630]);
+    const d = parse(EN);
+    for (const sel of ['meta[property="og:image:alt"]', 'meta[name="twitter:image:alt"]']) expect((d.querySelector(sel)?.getAttribute('content') ?? '').length, sel).toBeGreaterThan(20);
   });
 
   it('sections are labelled (each has aria-labelledby or aria-label)', () => {
@@ -43,7 +47,9 @@ describe('[SITE-5] meta & SEO', () => {
     const d = parse(EN);
     expect(d.querySelector('title')?.textContent).toMatch(/Tovira/);
     // [P69 · owner] the description is now the owner's line ("analyses your client conversations"), which doesn't name WhatsApp
-    expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/client conversations/);
+    // [P89 · owner, Prompt 86] now the Marker hero's line: "Tovira reads your client chats ..." (still no WhatsApp)
+    expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).toMatch(/your client chats/);
+    expect(d.querySelector('meta[name="description"]')?.getAttribute('content')).not.toMatch(/WhatsApp/);
     // [P70-4 · owner] P30 decided: the canonical is absolute on tovira.io (was relative '/')
     expect(d.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://tovira.io/');
     const alternates = [...d.querySelectorAll('link[rel="alternate"][hreflang]')].map((l) => l.getAttribute('hreflang'));

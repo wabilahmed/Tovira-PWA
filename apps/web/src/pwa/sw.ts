@@ -24,7 +24,8 @@ cleanupOutdatedCaches();
 // The prerendered marketing routes (`/`, `/privacy`, `/terms`, `/ar` + Arabic
 // legal). A stranger must never see a stale cached landing page after a deploy,
 // so these are NETWORK-FIRST with a cached fallback for offline.
-const MARKETING = /^\/(privacy|terms|ar(\/(privacy|terms))?)?$/;
+// [P89 · owner, Prompt 86] + the game's seven pages (/game, /game/<industry>)
+const MARKETING = /^\/(privacy|terms|ar(\/(privacy|terms))?|game(\/(property|insurance|wealth|b2b|luxury|recruitment))?)?$/;
 const isMarketingNav = ({ request, url }: { request: Request; url: URL }): boolean =>
   request.mode === 'navigate' && MARKETING.test(url.pathname.replace(/\/$/, '') || '/');
 const marketingFirst = new NetworkFirst({ cacheName: 'tovira-marketing' });

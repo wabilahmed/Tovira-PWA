@@ -1,23 +1,11 @@
 /**
- * [P70 · owner] The landing page's data, copied verbatim from renderVals() in the approved design
- * (plan/tovira-landing-reference.dc.html). The six industries, the game's 30 chats (P71), the chat wall, the marquee and
- * the star field. Change nothing here without the owner: every "Tovira caught" line is a claim the product must keep.
+ * [P70 · owner] The landing page's data, copied verbatim from renderVals() in the approved design (the P70 reference,
+ * since replaced). [P89 · owner, Prompt 86] The Marker landing has no industry tabs, chat wall, marquee or star field, so
+ * only the game is left here: its six industries and 30 chats, now played on /game. Change nothing here without the
+ * owner: every "Tovira caught" line is a claim the product must keep.
  * Owner changes from the design (P70): no country named (P51: "the UAE" and "SZR" removed), and the Europe line in chat
  * 2 says the need ("so the cover has to work there too"), because the drawn line was caught only 3/5.
  */
-export const ACCENT = '#E8643A';
-
-export interface World { label: string; before: string; buried: string; after: string; source: string; caught: string; move: string }
-
-export const WORLDS: World[] = [
-  { label: 'Property', before: 'Saturday is hard, kids have football. Honestly ', buried: "we're at the beach every weekend", after: ', can we do Sunday?', source: 'WhatsApp · 12 Mar', caught: 'Loves the beach. Every weekend, with the kids.', move: 'Lead with the sea-view units.' },
-  { label: 'Insurance', before: "Can we sign after I'm back from Munich? ", buried: "I'm in Europe most months for work", after: ', the travel is killing me.', source: 'Voice note · 4 Feb', caught: 'Travels to Europe most months.', move: 'Bring a policy that covers Europe too.' },
-  { label: 'Wealth', before: 'All good this side. ', buried: 'Our daughter starts at LSE in September', after: ', so we want to keep things liquid this year.', source: 'WhatsApp · 20 Jan', caught: 'Daughter at LSE from September. Wants liquidity.', move: 'Raise education funding before September.' },
-  { label: 'B2B accounts', before: 'Our MD will sign, but ', buried: 'honestly the CFO makes the call', after: '. Send it before the board on the 14th.', source: 'WhatsApp · 8 Apr', caught: 'The CFO really decides. Board meets on the 14th.', move: 'Get the revised SLA to the CFO by the 13th.' },
-  { label: 'Luxury', before: 'Thank you for last time! ', buried: 'She still talks about that emerald set', after: ". Our anniversary's in May.", source: 'WhatsApp · 17 Feb', caught: 'Anniversary in May. She loved the emerald set.', move: 'Call in early May about emeralds.' },
-  { label: 'Recruitment', before: 'Happy to talk. ', buried: "Honestly, I'd only move for hybrid, three days in the office max", after: '.', source: 'Voice note · 12 Jan', caught: 'Wants hybrid. Three office days at most.', move: 'Shortlist hybrid roles first.' },
-];
-
 export interface Msg { t: string; sig?: string; why?: string }
 export interface Game { label: string; chats: Msg[][] }
 
@@ -251,46 +239,3 @@ export const GAMES: Game[] = [
     ],
   ] },
 ];
-
-export interface WallLine { t: string; m?: boolean }
-export const WALL_A: WallLine[] = [
-  { t: 'ok thanks' }, { t: 'see you tmrw' }, { t: 'my wife decides on these things', m: true }, { t: 'sent' },
-  { t: 'can you resend the pdf' }, { t: 'running 10 min late' }, { t: 'budget is max 2.5', m: true }, { t: 'done' },
-  { t: 'call you after lunch' }, { t: 'perfect' }, { t: 'kids start school in Sept', m: true }, { t: 'noted' },
-];
-export const WALL_B: WallLine[] = [
-  { t: 'haha yes' }, { t: 'which floor was it?' }, { t: "I'm in London most of June", m: true }, { t: 'thank you!' },
-  { t: 'will check and revert' }, { t: 'ok' }, { t: 'last broker never called back', m: true }, { t: 'call me pls' },
-  { t: 'got it' }, { t: 'sunday works' }, { t: 'renewal is in March', m: true }, { t: 'sure' },
-];
-export const WALL_C: WallLine[] = [
-  { t: 'sounds good' }, { t: 'traffic is crazy' }, { t: 'we love the sea view', m: true }, { t: 'yes please' },
-  { t: 'what time?' }, { t: 'thx' }, { t: 'my partner gets back on the 20th', m: true }, { t: 'ok cool' },
-  { t: 'send me options' }, { t: 'on my way' }, { t: 'no more than 3 days office', m: true }, { t: 'great' },
-];
-
-export const MARQ_A = ['Loves the beach', 'The CFO really decides', 'Board meets on the 14th', 'Travels to Europe most months', 'Anniversary in May', 'Wants hybrid'];
-export const MARQ_B = ['Daughter at LSE from September', 'Loved the emerald set', 'Renewal on 1 March', 'Worried about slow support', 'Husband signs off over 3M', 'Wants liquidity', 'Wife wears gold, never silver', 'Wants a named account manager'];
-
-/** The chat wall: each column twice, so the -50% rise loops seamlessly. Missed lines glow. */
-export function wall(lines: WallLine[]): Array<{ text: string; cls: string; color: string }> {
-  return lines.concat(lines).map((l) => ({ text: l.t, cls: l.m ? 'tv-missed' : '', color: l.m ? '#FFD9C9' : '#9C9389' }));
-}
-
-/** The marquee: each row twice, coloured in a repeating muted / accent / text pattern. */
-export function marq(items: string[]): Array<{ t: string; color: string }> {
-  return items.concat(items).map((t, i) => ({ t, color: i % 3 === 1 ? '#E8643A' : (i % 3 === 2 ? '#F2EDE4' : '#7D736A') }));
-}
-
-/** The 28 stars, from the design's seeded generator (same seed, same sky). About 1 in 5 is gold. */
-export function stars(): string[] {
-  const out: string[] = [];
-  let seed = 7;
-  const rnd = (): number => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-  for (let i = 0; i < 28; i++) {
-    const size = 1.5 + rnd() * 2.5;
-    const gold = rnd() > 0.8;
-    out.push('left:' + (rnd() * 100).toFixed(1) + '%;top:' + (rnd() * 100).toFixed(1) + '%;width:' + size.toFixed(1) + 'px;height:' + size.toFixed(1) + 'px;' + (gold ? 'background:#F2B84B;box-shadow:0 0 8px rgba(242,184,75,.9);' : '') + 'animation-duration:' + (2.5 + rnd() * 4).toFixed(1) + 's,' + (6 + rnd() * 8).toFixed(1) + 's;animation-delay:-' + (rnd() * 6).toFixed(1) + 's,-' + (rnd() * 6).toFixed(1) + 's');
-  }
-  return out;
-}

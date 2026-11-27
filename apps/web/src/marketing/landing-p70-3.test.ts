@@ -2,7 +2,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { WORLDS, GAMES, MARQ_A, MARQ_B } from './landing-data.js';
+import { createHash } from 'node:crypto';
+import { GAMES, TRAP_REASONS } from './landing-data.js';
 
 /**
  * [P70-3 · owner] The B2B game chat failed the claim check (the CFO line was caught 2/5: the support worry right after
@@ -17,9 +18,13 @@ import { WORLDS, GAMES, MARQ_A, MARQ_B } from './landing-data.js';
  * [P73 · owner] Every message is in sentence case, so the carried-over lines start with a capital; the traffic line in
  * Luxury chat 4 is now the trap "The traffic was insane on the way back" (small talk, with its reason). The design's
  * data now starts with the five trap reasons, so the parse reads from there.
+ * [P89 · owner, Prompt 86] The P70 design file is deleted (plan/tovira-landing-marker.html replaces it) and the landing
+ * has no tabs or marquee any more. The game stays exactly as it is, on /game: the pins on its chats stay, the design-file
+ * match becomes a content hash of the game (taken on main before P89, unchanged), and the no-places rule now reads the
+ * Marker reference and the page.
  */
 const chat = (label: string, n: number) => GAMES.find((g) => g.label === label)!.chats[n]!;
-const ref = readFileSync(resolve(process.cwd(), 'plan/tovira-landing-reference.dc.html'), 'utf8');
+const ref = readFileSync(resolve(process.cwd(), 'plan/tovira-landing-marker.html'), 'utf8');
 const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8');
 
 describe('[P70-3] the owner\'s game edits, as carried into the P71 game', () => {
@@ -35,27 +40,20 @@ describe('[P70-3] the owner\'s game edits, as carried into the P71 game', () => 
   });
   it('no hidden decision-maker in the game: How it works and the marquee say so', () => {
     for (const g of GAMES) for (const c of g.chats) expect(c.map((m) => m.t)).not.toContain('our MD will sign, but honestly the CFO makes the call');
-    expect(html).toContain("What they care about, what they're worried about, every date and promise. In English, Arabic, Hindi and Urdu, even mixed.");
-    expect(html).not.toContain('who really decides,');
-    expect(MARQ_B).toContain('Wants a named account manager');
-    expect(MARQ_A).toContain('The CFO really decides'); // the B2B tab proves it 5/5 alone
+    // [P89 · owner] the How it works line and the marquee are gone with the P70 page; the page still names no hidden
+    // decision-maker (P89's copy guard: no decision-maker named only by role)
+    expect(html).not.toContain('who really decides');
+    expect(html).not.toMatch(/\bCFO\b/);
   });
-  it('the Insurance tab move and the traffic chatter', () => {
-    expect(WORLDS.find((w) => w.label === 'Insurance')!.move).toBe('Bring a policy that covers Europe too.');
+  it('the traffic chatter (the Insurance tab is gone with the P70 page)', () => {
     expect(chat('Luxury', 3)[0]).toEqual({ t: 'The traffic was insane on the way back', why: 'Small talk. Nothing to act on.' });
   });
 });
 
-describe('[P70-3] the design file matches the live page', () => {
-  it('every game chat (all 30), detail and reason, and every tab line, is in the design file word for word', () => {
-    // [P71] all 30 chats, in order: the design's games array, parsed, is exactly the page's data
-    const i = ref.indexOf('const POL = '); // [P73] the five trap reasons come first
-    const games = new Function(ref.slice(i, ref.indexOf('\n    ];', ref.indexOf('const games = [', i)) + 7) + '; return games;')() as Array<{ label: string; chats: Array<Array<string | null>>[] }>;
-    expect(games.map((g) => ({ label: g.label, chats: g.chats.map((c) => c.map(([t, sig, why]) => (sig ? { t, sig, why } : { t, why }))) }))).toEqual(GAMES);
-    for (const w of WORLDS) for (const s of [w.before, w.buried, w.after, w.caught, w.move]) expect(ref, s).toContain(s);
-    expect(ref).toContain("What they care about, what they're worried about, every date and promise.");
-    // [P71 · owner] the marquee entry now reads "Wife wears gold, never silver", to match Luxury chat 2
-    expect(ref).toContain("'Wife wears gold, never silver', 'Wants a named account manager']");
+describe('[P70-3→P89] the game is frozen; the Marker reference and the page name no place', () => {
+  it('the game (all 30 chats, every detail and reason, the five trap reasons) is exactly as it was before P89', () => {
+    expect(createHash('sha256').update(JSON.stringify({ GAMES, TRAP_REASONS })).digest('hex')).toBe('7063de1015e49c4e696644379a3eb382c56d1d9c6f00740ccf0572ecf067824b');
+    expect(GAMES.map((g) => g.chats.length)).toEqual([5, 5, 5, 5, 5, 5]);
   });
   it('NEGATIVE: neither file names a Gulf place or a country', () => {
     const bad = /\bUAE\b|united arab emirates|emirates|Dubai|Abu Dhabi|Sharjah|\bSZR\b|Sheikh Zayed|\b(India|Pakistan|Saudi|Qatar|Oman|Bahrain|Kuwait|Egypt|Germany|France|Spain|Italy|England|Britain|United Kingdom|United States|America|Canada|China|Japan|Russia)\b/i;

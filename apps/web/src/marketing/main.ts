@@ -1,53 +1,48 @@
 /**
- * Marketing entry — the ONLY script the static landing/legal pages load. It must
- * never import app code (asserted by marketing-bundle.test.ts): a stranger on the
- * landing page downloads this tiny module, not the React app bundle.
+ * Marketing entry — the ONLY script the landing page loads. It must never import app code (asserted by
+ * marketing-bundle.test.ts): a stranger on the landing page downloads this tiny module, not the React app bundle.
  *
- * Two jobs:
- *  1. Referral pass-through (the growth loop): carry ?ref= / utm_* from the
- *     landing URL onto every CTA and the language switch. Progressive enhancement
- *     — the CTAs already work as plain links to /app. See ./ref.ts (auto-runs).
- *  2. Logged-in redirect: a rep who lands on the marketing page but already has a
- *     session is sent to the app shell — marketing is for strangers. It reads a
- *     non-secret hint the app writes on auth; the real session cookie stays
- *     HttpOnly and is still validated by the app.
+ * Jobs:
+ *  1. Referral pass-through (the growth loop): carry ?ref= / utm_* from the landing URL onto every CTA. Progressive
+ *     enhancement: the CTAs already work as plain links. See ./ref.ts (auto-runs).
+ *  2. Logged-in redirect: a rep who lands on the marketing page but already has a session is sent to the app shell.
+ *     It reads a non-secret hint the app writes on auth; the real session cookie stays HttpOnly.
+ *  3. [P89 · owner, Prompt 86] The game moved to /game: an old /#game link goes there.
+ *  4. The cookieless page view, the scroll scene (./scene.ts) and its counts (./landing-track.ts).
  */
 import './ref.js';
 import { sendVisit } from './visit.js';
-import { trackGame } from './game-track.js';
-import { mountGame } from './game.js';
-import { mountWorlds } from './worlds.js';
+import { mountScene } from './scene.js';
+import { beatSink, trackClicks } from './landing-track.js';
 
 const AUTH_HINT = 'tovira.authed';
 
-function redirectIfAuthed(): void {
-  try {
-    if (localStorage.getItem(AUTH_HINT) === '1') {
-      location.replace('/app' + (location.search || ''));
-    }
-  } catch {
-    /* private mode / no storage — stay on the marketing page */
-  }
+/** [P89] Where an old in-page link now lives, or null. */
+export function movedAnchor(hash: string): string | null {
+  return hash === '#game' ? '/game' : null;
 }
 
-if (typeof location !== 'undefined' && typeof localStorage !== 'undefined') redirectIfAuthed();
+function redirect(): boolean {
+  const moved = movedAnchor(location.hash);
+  if (moved) { location.replace(moved + location.search); return true; }
+  try {
+    if (localStorage.getItem(AUTH_HINT) === '1') { location.replace('/app' + (location.search || '')); return true; }
+  } catch {
+    /* private mode / no storage: stay on the marketing page */
+  }
+  return false;
+}
+
+const left = typeof location !== 'undefined' && typeof localStorage !== 'undefined' ? redirect() : false;
 
 // [P63-7] the landing page's cookieless page view
-if (typeof location !== 'undefined' && (location.pathname === '/' || location.pathname === '/index.html')) sendVisit('landing');
+if (!left && typeof location !== 'undefined' && (location.pathname === '/' || location.pathname === '/index.html')) sendVisit('landing');
 
-// [P70 · owner] The only page script beyond the referral pass-through and the visit beacon: the game and the industry
-// tabs. Every animation is CSS (index.html); there is no reveal script. [P76 · owner] The game's only scroll: on mobile, a
-// new chat or game brings its card's top just below the header (game.ts).
 function mountLanding(): void {
-  const card = document.querySelector<HTMLElement>('[data-game]');
-  // [P71-T] cookieless game counts: game_view when the box is first on screen, then one event per action
-  const box = document.getElementById('game');
-  if (card) mountGame(card, box ? trackGame(box, card).onChange : undefined);
-  const tabs = document.querySelector<HTMLElement>('[data-worlds]');
-  const panel = document.querySelector<HTMLElement>('[data-world-panel]');
-  if (tabs && panel) mountWorlds(tabs, panel);
+  trackClicks(document, '/');
+  mountScene(document, window, beatSink('/'));
 }
-if (typeof document !== 'undefined') {
+if (!left && typeof document !== 'undefined') {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountLanding);
   else mountLanding();
 }

@@ -1,0 +1,41 @@
+{"name":"Tovira","version":2,
+"color":{"themes":[{"id":"light","name":"Light"}],"tokens":[
+{"name":"ground","value":{"light":"#FAFAFA"},"usage":"Page background everywhere. Tovira is a white page."},
+{"name":"surface","value":{"light":"#FFFFFF"},"usage":"Cards and panels on ground."},
+{"name":"surface-sunk","value":{"light":"#F2F2F2"},"usage":"Alternate section bands; ordinary chat bubbles."},
+{"name":"line","value":{"light":"#E6E6E6"},"usage":"Card borders and dividers."},
+{"name":"line-strong","value":{"light":"#CFCFCF"},"usage":"Borders that must be noticed: the pricing card, outline buttons."},
+{"name":"ink","value":{"light":"#0A0A0A"},"usage":"Headings, primary text, primary buttons, the logo disc."},
+{"name":"ink-soft","value":{"light":"#5A5A5F"},"usage":"Body text and descriptions."},
+{"name":"muted","value":{"light":"#6B6B70"},"usage":"Small labels, captions, footnotes. Never below 12px."},
+{"name":"on-ink","value":{"light":"#FFFFFF"},"usage":"Text and icons on an ink fill: buttons, the caught card."},
+{"name":"on-ink-soft","value":{"light":"#B4B4BB"},"usage":"Secondary text on an ink fill."},
+{"name":"highlight","value":{"light":"#FFE45C"},"usage":"The marker. Only for the detail Tovira caught, the key words of a headline, and the logo bar. Never a button or a background."},
+{"name":"on-highlight","value":{"light":"#0A0A0A"},"usage":"Text on highlight."}]},
+"type":{"fonts":[],
+"families":{"sans":"Geist, Inter, system-ui, sans-serif"},
+"groups":[
+{"name":"Display","family":"sans","styles":[
+{"name":"display-xl","fontSize":"80px","lineHeight":"82px","fontWeight":600},
+{"name":"display-lg","fontSize":"52px","lineHeight":"55px","fontWeight":600},
+{"name":"display-md","fontSize":"26px","lineHeight":"31px","fontWeight":600}]},
+{"name":"Text","family":"sans","styles":[
+{"name":"body-lg","fontSize":"20px","lineHeight":"30px","fontWeight":400},
+{"name":"body","fontSize":"16px","lineHeight":"26px","fontWeight":400},
+{"name":"body-strong","fontSize":"17px","lineHeight":"24px","fontWeight":600},
+{"name":"small","fontSize":"14px","lineHeight":"21px","fontWeight":400},
+{"name":"label","fontSize":"12px","lineHeight":"16px","fontWeight":600}]}]},
+"spacing":{"tokens":[
+{"name":"space-1","value":"4px","usage":"Between stacked lines of one thought."},
+{"name":"space-2","value":"8px","usage":"Inside small controls; between chat bubbles."},
+{"name":"space-3","value":"12px","usage":"Between a label and its content."},
+{"name":"space-4","value":"16px","usage":"Gap between cards in a grid."},
+{"name":"space-5","value":"20px","usage":"Card padding; page side gutter."},
+{"name":"space-6","value":"36px","usage":"Between a section heading and its content."},
+{"name":"space-7","value":"56px","usage":"Section padding on phones."},
+{"name":"space-8","value":"104px","usage":"Section padding on desktop."}]},
+"radius":{"tokens":[
+{"name":"radius-sm","value":"12px","usage":"Insets inside a card: receipts, quotes."},
+{"name":"radius-md","value":"14px","usage":"Buttons inside cards; chat bubbles use 16px with one 4px corner."},
+{"name":"radius-lg","value":"20px","usage":"Cards and panels."},
+{"name":"radius-pill","value":"999px","usage":"Primary buttons and the logo disc."}]}}

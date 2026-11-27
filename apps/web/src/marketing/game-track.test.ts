@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GAMES } from './landing-data.js';
-import { cardHtml, initialState, mountGame } from './game.js';
+import { cardHtml, initialState, mountGame, start } from './game.js';
 import { trackGame, gameSignedUp, GAME_CTA_KEY } from './game-track.js';
 
 /**
  * [P71-T · owner] The game's cookieless counts: each event fires once per action, and carries only the industry, the
  * chat number and counts, a wrong-tap flag, or a score bucket (never anything typed, never an id).
+ * [P89 · owner, Prompt 86] The game moved to its own pages: picking an industry is arriving on /game/<industry>, whose
+ * card mounts in the first chat and counts game_start on arrival (game-main.ts); "Try another industry" is a link to
+ * /game that counts game_switch as it is followed. Every event also carries the page's route when the page gives one.
  */
 type Sent = Record<string, unknown>;
 let sent: Sent[];
@@ -28,7 +31,17 @@ const mount = () => {
   return card;
 };
 const click = (card: HTMLElement, sel: string) => card.querySelector<HTMLElement>(sel)!.click();
-const pick = (card: HTMLElement, label: string) => [...card.querySelectorAll<HTMLElement>('[data-act="start"]')].find((b) => b.textContent === label)!.click();
+/** Arrive on an industry's page, as game-main.ts mounts it. */
+const mountAt = (label: string, route?: string) => {
+  const gi = GAMES.findIndex((g) => g.label === label);
+  const first = start(initialState(), gi);
+  document.body.innerHTML = `<div id="game"><div data-game>${cardHtml(first)}</div></div>`;
+  const card = document.querySelector<HTMLElement>('[data-game]')!;
+  const t = trackGame(document.getElementById('game')!, card, (b) => sent.push(b), route);
+  mountGame(card, t.onChange, first);
+  t.onChange(first, initialState());
+  return card;
+};
 const sigIdx = (gi: number, r: number) => GAMES[gi]!.chats[r]!.flatMap((m, i) => (m.sig ? [i] : []));
 // [P73] a chat's first trap (message 1 is no longer always chatter)
 const trapIdx = (gi: number, r: number) => GAMES[gi]!.chats[r]!.findIndex((m) => !m.sig);
@@ -45,8 +58,7 @@ describe('[P71-T] game events fire once per action', () => {
   });
 
   it('a whole game: start, a chat_done per chat, game_done, CTA, replay, switch', () => {
-    const card = mount();
-    pick(card, 'Wealth');
+    const card = mountAt('Wealth');
     expect(sent).toEqual([{ event: 'game_start', industry: 'Wealth' }]);
     // chat 1: one detail of two, then a wrong tap
     click(card, `.tv-msg[data-i="${sigIdx(2, 0)[0]}"]`);
@@ -71,10 +83,28 @@ describe('[P71-T] game events fire once per action', () => {
     expect(sent.at(-1)).toEqual({ event: 'game_replay', industry: 'Wealth' });
     for (let r = 0; r < 5; r++) { click(card, `.tv-msg[data-i="${trapIdx(2, r)}"]`); click(card, '[data-act="next"]'); }
     expect(sent.at(-1)).toEqual({ event: 'game_done', industry: 'Wealth', bucket: '0-3' });
-    click(card, '[data-act="switch"]');
+    const sw = card.querySelector<HTMLAnchorElement>('a[data-act="switch"]')!;
+    sw.addEventListener('click', (e) => e.preventDefault()); // jsdom does not navigate
+    sw.click();
     expect(sent.at(-1)).toEqual({ event: 'game_switch' });
     expect(sent.filter((e) => e.event === 'game_start')).toHaveLength(1);
     for (const e of sent) for (const k of Object.keys(e)) expect(ALLOWED).toContain(k);
+  });
+
+  it('[P89] on a game page every event carries its route, and the sign-up flag remembers it', () => {
+    const card = mountAt('Luxury', '/game/luxury');
+    expect(sent).toEqual([{ event: 'game_start', industry: 'Luxury', route: '/game/luxury' }]);
+    click(card, `.tv-msg[data-i="${trapIdx(4, 0)}"]`);
+    expect(sent.at(-1)).toMatchObject({ event: 'chat_done', industry: 'Luxury', chat: 1, route: '/game/luxury' });
+    for (let r = 0; r < 5; r++) { if (r > 0) click(card, `.tv-msg[data-i="${trapIdx(4, r)}"]`); click(card, '[data-act="next"]'); }
+    const cta = card.querySelector<HTMLAnchorElement>('a[data-cta]')!;
+    cta.addEventListener('click', (e) => e.preventDefault());
+    cta.click();
+    expect(sent.at(-1)).toEqual({ event: 'game_cta', industry: 'Luxury', bucket: '0-3', route: '/game/luxury' });
+    expect(JSON.parse(sessionStorage.getItem(GAME_CTA_KEY)!)).toEqual({ industry: 'Luxury', bucket: '0-3', route: '/game/luxury' });
+    const out: Sent[] = [];
+    gameSignedUp((b) => out.push(b));
+    expect(out).toEqual([{ event: 'game_signup', industry: 'Luxury', bucket: '0-3', route: '/game/luxury' }]);
   });
 
   it('a sign-up counts only after a game CTA tap in the same tab, and only once', () => {

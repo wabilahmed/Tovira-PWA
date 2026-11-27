@@ -41,7 +41,9 @@ describe('[P32] no VAT wording on rep-facing surfaces (VAT switch off)', () => {
     const metas = [...d.querySelectorAll('meta[content]')].map((m) => m.getAttribute('content') ?? '').join('\n');
     const text = `${d.body.textContent ?? ''}\n${metas}\n${d.title}`;
     expect(text).toMatch(/AED 299/);
-    expect(text).toMatch(/AED 2,990/);
+    // [P89 · owner, Prompt 86] the annual price is off the page until annual checkout is proven (Stripe test mode has no
+    // yearly price: BLOCKERS [P89-annual]); it comes back with that fix
+    expect(text).not.toMatch(/AED 2,990/);
     expect(offences(text)).toEqual([]);
   });
 

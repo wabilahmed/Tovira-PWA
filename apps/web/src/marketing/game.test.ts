@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { GAMES } from './landing-data.js';
-import { initialState, start, tap, next, replay, switchIndustry, view, rankFor, isDone, mountGame, cardHtml, type GameState } from './game.js';
+import { initialState, start, tap, next, replay, switchIndustry, view, rankFor, isDone, mountGame, cardHtml, SLUGS, type GameState } from './game.js';
 
 /**
  * [P71 · owner] The hero game is now pick-your-industry: 6 industries, 5 chats each. A wrong tap ends the chat and
@@ -11,6 +11,10 @@ import { initialState, start, tap, next, replay, switchIndustry, view, rankFor, 
  * A wrong tap says "Not a buying signal" with its "Why not" reason; the other traps say "Not a signal". The score is out
  * of the industry's own total (10 or 11). The pick screen is "HOW IT WORKS" in 5 steps. The tap-target floor follows the
  * brand's 44px minimum (docs/tovira-brand.md; the owner's Block C draws messages at 46px).
+ * [P89 · owner, Prompt 86] The game moved to its own pages: /game is the pick screen, and each industry is a real page
+ * (/game/property, …) that starts that industry's game. So the pick screen's six choices are LINKS to those pages (the
+ * same grid, the same 48px), an industry page mounts in its first chat, and "Try another industry" is a link to /game.
+ * Rules, content and scoring are unchanged; the colours are Marker's (ink dots, not terracotta).
  */
 const sigIdx = (gi: number, r: number) => GAMES[gi]!.chats[r]!.flatMap((m, i) => (m.sig ? [i] : []));
 const chatterIdx = (gi: number, r: number) => GAMES[gi]!.chats[r]!.flatMap((m, i) => (m.sig ? [] : [i]));
@@ -35,7 +39,7 @@ describe('[P71] the pick screen', () => {
   });
   // [P78 · owner] "Nobody reads the instructions": HOW IT WORKS and the intro go, the pick screen is one line (this pin
   // moves with that note; the 6 buttons of 48px in the auto-fit grid stay). landing-p78.test.ts pins the full screen.
-  it('[P73→P78] the pick screen: one line, and 6 real buttons of 48px in an auto-fit grid', () => {
+  it('[P73→P78→P89] the pick screen: one line, and 6 links to the industry pages, 48px, in an auto-fit grid', () => {
     document.body.innerHTML = cardHtml(initialState());
     expect(document.body.textContent).toContain('Clients drop details that win deals. Can you spot them? Pick your industry to start.');
     expect(document.body.textContent).not.toContain('HOW IT WORKS');
@@ -43,9 +47,11 @@ describe('[P71] the pick screen', () => {
     expect(document.querySelectorAll('ol li')).toHaveLength(0);
     expect(document.body.textContent).not.toContain('One point per detail caught'); // [P78] it was inside HOW IT WORKS
     expect(document.body.innerHTML).toContain('grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px');
-    const btns = [...document.querySelectorAll<HTMLButtonElement>('button[data-act="start"]')];
-    expect(btns.map((b) => b.textContent)).toEqual(view(initialState()).industries);
-    for (const b of btns) { expect(b.type).toBe('button'); expect(b.getAttribute('style')).toMatch(/min-height: 48px/); }
+    const links = [...document.querySelectorAll<HTMLAnchorElement>('a.tv-pick')];
+    expect(links.map((b) => b.textContent)).toEqual(view(initialState()).industries);
+    expect(links.map((b) => b.getAttribute('href'))).toEqual(['/game/property', '/game/insurance', '/game/wealth', '/game/b2b', '/game/luxury', '/game/recruitment']);
+    expect([...SLUGS]).toEqual(['property', 'insurance', 'wealth', 'b2b', 'luxury', 'recruitment']);
+    for (const b of links) expect(b.getAttribute('style')).toMatch(/min-height: 48px/);
   });
 });
 
@@ -154,7 +160,7 @@ describe('[P71] game rules', () => {
     expect(v.scoreDots).toHaveLength(11);
     expect(view(playAll(1, () => 3)).maxScore).toBe(10); // Insurance: 1 + 3 + 2 + 2 + 2
     expect(view(playAll(1, () => 3)).score).toBe(10);
-    expect(v.scoreDots.filter((d) => d.includes('#E8643A'))).toHaveLength(7);
+    expect(v.scoreDots.filter((d) => d.includes('#0A0A0A'))).toHaveLength(7); // [P89] ink in Marker (was #E8643A)
     expect(v.industryUpper).toBe('B2B ACCOUNTS');
   });
 
@@ -177,17 +183,25 @@ describe('[P71] game rules', () => {
 });
 
 describe('[P71] the game in the page (real buttons, aria-pressed, a polite live region)', () => {
+  // [P89] picking an industry is arriving on its page: the card is prerendered in that industry's first chat and mounted
+  // there (game-main.ts does the same)
   const mount = () => {
     document.body.innerHTML = `<div data-game>${cardHtml(initialState())}</div>`;
     const card = document.querySelector<HTMLElement>('[data-game]')!;
     return { card, game: mountGame(card) };
   };
   const btn = (card: HTMLElement, i: number) => card.querySelector<HTMLButtonElement>(`.tv-msg[data-i="${i}"]`)!;
-  const pick = (card: HTMLElement, label: string) => [...card.querySelectorAll<HTMLButtonElement>('[data-act="start"]')].find((b) => b.textContent === label)!.click();
+  const pick = (card: HTMLElement, label: string) => {
+    const gi = GAMES.findIndex((g) => g.label === label);
+    const first = start(initialState(), gi);
+    card.innerHTML = cardHtml(first);
+    const fresh = card.cloneNode(true) as HTMLElement; // drop the pick screen's listener, as a new page load does
+    card.replaceWith(fresh);
+    return { card: fresh, game: mountGame(fresh, undefined, first) };
+  };
 
   it('picking Property shows its chat; a hit sets aria-pressed and the score', () => {
-    const { card } = mount();
-    pick(card, 'Property');
+    const { card } = pick(mount().card, 'Property');
     expect(card.textContent).toContain('Property client · chat 1 of 5');
     expect(card.querySelectorAll('button.tv-msg[aria-pressed="false"]')).toHaveLength(5);
     btn(card, 1).click();
@@ -197,8 +211,7 @@ describe('[P71] the game in the page (real buttons, aria-pressed, a polite live 
   });
 
   it('a wrong tap: the summary appears in the aria-live="polite" region and every message is disabled', () => {
-    const { card, game } = mount();
-    pick(card, 'Property');
+    const { card, game } = pick(mount().card, 'Property');
     btn(card, 0).click();
     const live = card.querySelector('[aria-live="polite"]')!;
     expect(live.textContent).toContain('You missed it.');
@@ -210,8 +223,7 @@ describe('[P71] the game in the page (real buttons, aria-pressed, a polite live 
   });
 
   it('a hit already shown is not re-rendered by the next tap (its pop does not replay)', () => {
-    const { card } = mount();
-    pick(card, 'Property');
+    const { card } = pick(mount().card, 'Property');
     btn(card, 1).click(); // chat 1's only detail ends the chat
     card.querySelector<HTMLButtonElement>('[data-act="next"]')!.click();
     btn(card, 0).click(); // chat 2: the first of two details
@@ -221,8 +233,7 @@ describe('[P71] the game in the page (real buttons, aria-pressed, a polite live 
   });
 
   it('the end screen: Play again and Try another industry', () => {
-    const { card } = mount();
-    pick(card, 'Wealth');
+    const { card } = pick(mount().card, 'Wealth');
     for (let r = 0; r < 5; r++) { btn(card, chatterIdx(2, r)[0]!).click(); card.querySelector<HTMLButtonElement>('[data-act="next"]')!.click(); }
     expect(card.textContent).toContain('YOUR SCORE · WEALTH');
     expect(card.textContent).toContain('0/11');
@@ -232,15 +243,16 @@ describe('[P71] the game in the page (real buttons, aria-pressed, a polite live 
     card.querySelector<HTMLButtonElement>('[data-act="replay"]')!.click();
     expect(card.textContent).toContain('Wealth client · chat 1 of 5');
     for (let r = 0; r < 5; r++) { btn(card, chatterIdx(2, r)[0]!).click(); card.querySelector<HTMLButtonElement>('[data-act="next"]')!.click(); }
-    card.querySelector<HTMLButtonElement>('[data-act="switch"]')!.click();
-    expect(card.querySelectorAll('[data-act="start"]')).toHaveLength(6);
+    // [P89] Try another industry is a link to /game (the pick screen's own page)
+    const sw = card.querySelector<HTMLAnchorElement>('a[data-act="switch"]')!;
+    expect([sw.textContent, sw.getAttribute('href')]).toEqual(['Try another industry', '/game']);
   });
 
   it('every tap target is at least 44px tall (the brand minimum)', () => {
-    const { card } = mount();
-    const check = () => { for (const b of card.querySelectorAll<HTMLElement>('button')) expect(b.getAttribute('style')).toMatch(/min-height:\s*(5[0-9]|4[4-9])px/); };
+    let { card } = mount();
+    const check = () => { for (const b of card.querySelectorAll<HTMLElement>('button, a.tv-pick')) expect(b.getAttribute('style')).toMatch(/min-height:\s*(5[0-9]|4[4-9])px/); };
     check();
-    pick(card, 'Property');
+    card = pick(card, 'Property').card;
     check();
     btn(card, 0).click();
     check();

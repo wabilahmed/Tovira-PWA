@@ -17,7 +17,9 @@ const html = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 // The prerendered marketing pages (static HTML, no app code) live at these paths;
 // everything else is the SPA (app.html). Kept in one place so the dev fallback and
 // the service-worker routing agree.
-const MARKETING_PATHS = ['/', '/privacy', '/terms'];
+// [P89 · owner, Prompt 86] + the seven game pages
+export const GAME_SLUGS = ['property', 'insurance', 'wealth', 'b2b', 'luxury', 'recruitment'];
+const MARKETING_PATHS = ['/', '/privacy', '/terms', '/game', ...GAME_SLUGS.map((s) => `/game/${s}`)];
 const isMarketing = (pathname: string): boolean => {
   const p = pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
   return MARKETING_PATHS.includes(p);
@@ -28,19 +30,30 @@ const isMarketing = (pathname: string): boolean => {
 // HTML navigation that isn't a marketing route to /app.html so the SPA loads,
 // mirroring what the service worker + CloudFront do in production.
 function appFallback(): Plugin {
+  type Req = { url?: string; method?: string; headers: { accept?: string } };
+  const isHtmlNav = (req: Req): boolean => req.method === 'GET' && (req.headers.accept ?? '').includes('text/html');
+  // [P89 · owner, Prompt 86] a game page by its clean address (/game/property) is its index.html, as in production
+  const gamePage = (req: Req, url: string): boolean => {
+    // any client, as CloudFront does; a file address (/game/index.html) is served as it is
+    if (req.method !== 'GET' || url.endsWith('.html') || !isMarketing(url) || !url.startsWith('/game')) return false;
+    req.url = url.replace(/\/$/, '') + '/index.html';
+    return true;
+  };
   return {
     name: 'tovira-app-fallback',
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {
         const url = (req.url ?? '/').split('?')[0]!;
-        const accepts = req.headers.accept ?? '';
-        const isHtmlNav = req.method === 'GET' && accepts.includes('text/html');
         const looksLikeFile = /\.[a-z0-9]+$/i.test(url) && !url.endsWith('.html');
-        if (isHtmlNav && !looksLikeFile && !isMarketing(url) && url !== '/app.html') {
+        if (gamePage(req, url)) return next();
+        if (isHtmlNav(req) && !looksLikeFile && !isMarketing(url) && url !== '/app.html') {
           req.url = '/app.html';
         }
         next();
       });
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, _res, next) => { gamePage(req, (req.url ?? '/').split('?')[0]!); next(); });
     },
   };
 }
@@ -54,6 +67,8 @@ export default defineConfig({
         landing: html('./index.html'),
         privacy: html('./privacy/index.html'),
         terms: html('./terms/index.html'),
+        game: html('./game/index.html'),
+        ...Object.fromEntries(GAME_SLUGS.map((s) => [`game-${s}`, html(`./game/${s}/index.html`)])),
       },
     },
   },
@@ -82,6 +97,8 @@ export default defineConfig({
       },
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        // [P89] share images are for link previews, never needed offline
+        globIgnores: ['**/og*.png'],
       },
       devOptions: { enabled: false },
     }),

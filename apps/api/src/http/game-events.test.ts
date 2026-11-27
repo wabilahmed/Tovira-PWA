@@ -39,9 +39,11 @@ describe('[P71-T] game events: what is stored', () => {
     expect(await hit(games, { event: 'game_switch' })).toBe(true);
     expect(await hit(games, { event: 'game_signup', industry: 'Property', bucket: '4-6' })).toBe(true);
     expect(store.games).toHaveLength(8);
-    for (const r of store.games) expect(Object.keys(r).sort()).toEqual(['bucket', 'caught', 'chat', 'day', 'details', 'event', 'industry', 'wrong']);
-    expect(store.games[2]).toEqual({ day: '2026-11-16', event: 'chat_done', industry: 'Property', chat: 2, caught: 1, details: 2, wrong: true, bucket: null });
-    expect(store.games[0]).toEqual({ day: '2026-11-16', event: 'game_view', industry: null, chat: null, caught: null, details: null, wrong: null, bucket: null });
+    // [P89 · owner, Prompt 86] + route (the page it came from), beat and place (the landing scene's events); still nothing
+    // that identifies anyone. A game event sent without a route (as here) stores route null.
+    for (const r of store.games) expect(Object.keys(r).sort()).toEqual(['beat', 'bucket', 'caught', 'chat', 'day', 'details', 'event', 'industry', 'place', 'route', 'wrong']);
+    expect(store.games[2]).toEqual({ day: '2026-11-16', event: 'chat_done', industry: 'Property', chat: 2, caught: 1, details: 2, wrong: true, bucket: null, route: null, beat: null, place: null });
+    expect(store.games[0]).toEqual({ day: '2026-11-16', event: 'game_view', industry: null, chat: null, caught: null, details: null, wrong: null, bucket: null, route: null, beat: null, place: null });
     expect(JSON.stringify(store.games)).not.toMatch(/1\.2\.3\.4|Mozilla|Sara|x@y/);
   });
   it('NEGATIVE: unknown events, industries, chat numbers, counts and buckets are refused', async () => {
@@ -78,7 +80,7 @@ describe('[P71-T] game events: what is stored', () => {
 
 describe('[P71-T] the game funnel maths', () => {
   const row = (event: GameEventRow['event'], extra: Partial<GameEventRow> = {}, day = '2026-11-16'): GameEventRow =>
-    ({ day, event, industry: null, chat: null, caught: null, details: null, wrong: null, bucket: null, ...extra });
+    ({ day, event, industry: null, chat: null, caught: null, details: null, wrong: null, bucket: null, route: null, beat: null, place: null, ...extra });
   const rows: GameEventRow[] = [
     ...Array.from({ length: 10 }, () => row('game_view')),
     ...Array.from({ length: 6 }, () => row('game_start', { industry: 'Property' })),

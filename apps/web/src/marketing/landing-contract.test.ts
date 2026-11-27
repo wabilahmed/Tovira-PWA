@@ -20,9 +20,12 @@ describe('[LANDING-REVERT] carried-forward facts', () => {
 
   // [P32] Owner, 2026-10-19: Prospera is NOT VAT-registered — the price is just the price (it used to pin
   // "VAT-inclusive"). Prices unchanged.
-  it('prices are AED 299 / AED 2,990 with a 14-day trial, and no VAT wording', () => {
+  // [P89 · owner, Prompt 86] the annual price is off the page until annual checkout is proven (BLOCKERS [P89-annual]);
+  // the trial is said in days and messages
+  it('prices are AED 299 a month with a 14-day trial, and no VAT wording', () => {
     expect(html).toContain('AED 299');
-    expect(html).toContain('AED 2,990');
+    expect(html).not.toContain('AED 2,990');
+    expect(html).toContain('14 days free with 5,000 messages. No card.');
     expect(html).not.toMatch(/\bVAT\b|inclusive/i);
     expect(html).toMatch(/14[- ]day/i);
   });
@@ -63,9 +66,11 @@ describe('[LANDING-REVERT] carried-forward facts', () => {
 
   // [P70 · owner] the rebuilt page keeps the annual plan, the FAQ and the trust points ("It shows its work" replaces the
   // security band); the sticky mobile CTA was removed on purpose, so its absence is now the contract.
-  it('the annual plan, FAQ and trust points are present, and there is no sticky mobile CTA', () => {
-    expect(html).toMatch(/per year/);                      // annual plan
-    expect(d.querySelectorAll('details').length).toBeGreaterThanOrEqual(3); // FAQ
+  // [P89 · owner, Prompt 86] no annual plan for now (see above); the owner's questions are two now ("Is it a CRM?" and
+  // "Why not just ask ChatGPT?" removed: their point is the "Different on purpose" section, which names no competitor)
+  it('the FAQ and trust points are present, and there is no sticky mobile CTA', () => {
+    expect(html).not.toMatch(/per year|a year/);
+    expect(d.querySelectorAll('details').length).toBeGreaterThanOrEqual(2); // FAQ
     expect(d.querySelector('section[aria-labelledby="trust-h"]')).not.toBeNull(); // trust points
     expect(d.querySelector('[data-mobile-cta]')).toBeNull(); // no sticky bottom CTA
   });
@@ -78,7 +83,8 @@ describe('[P30] share tags point at https://tovira.io', () => {
   const attr = (sel: string, a: string) => d.querySelector(sel)?.getAttribute(a);
   it('og:url, og:image and twitter:image are absolute on tovira.io', () => {
     expect(attr('meta[property="og:url"]', 'content')).toBe('https://tovira.io/');
-    expect([...d.querySelectorAll('meta[property="og:image"]')].map((m) => m.getAttribute('content'))).toEqual(['https://tovira.io/og.png', 'https://tovira.io/og.svg']);
+    // [P89 · owner, Prompt 86] one share image, the PNG rendered from the hero (the old og.svg is gone)
+    expect([...d.querySelectorAll('meta[property="og:image"]')].map((m) => m.getAttribute('content'))).toEqual(['https://tovira.io/og.png']);
     expect(attr('meta[name="twitter:image"]', 'content')).toBe('https://tovira.io/og.png');
   });
   it('NEGATIVE: no staging, cloudfront or not-ours host anywhere in the page', () => {

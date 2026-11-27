@@ -25,7 +25,8 @@ describe('[P51] no "UAE" on the landing page', () => {
 
   // [P70 · owner] the footer is now the company line; the contact address sits under the closing CTA. Still no location.
   it('the footer names Tovira and the company, no location; the contact address is on the page', () => {
-    expect(text(d.querySelector('footer > div > div'))).toBe('Tovira · Prospera Technologies FZ-LLC');
+    // [P89 · owner, Prompt 86] the Marker footer: the company line with the contact address
+    expect(text(d.querySelector('footer .foot-in > span'))).toBe('Tovira · Prospera Technologies FZ-LLC · hello@tovira.io');
     expect(text(d.querySelector('footer'))).not.toMatch(/UAE|Dubai|Emirates/);
     expect(d.querySelector('a[href="mailto:hello@tovira.io"]')).not.toBeNull();
   });
@@ -36,16 +37,15 @@ describe('[P51] no "UAE" on the landing page', () => {
   });
 
   // [P70 · owner] the tabs and the game render more copy in the browser than the HTML ships: none of it names the UAE
-  it('NEGATIVE: the industry tabs and the game name no country or UAE road either', () => {
+  // [P89] the tabs are gone; the game (landing-data.ts) still names no country or UAE road
+  it('NEGATIVE: the game names no country or UAE road either', () => {
     const data = readFileSync(resolve(process.cwd(), 'apps/web/src/marketing/landing-data.ts'), 'utf8');
     expect(data.slice(data.indexOf('export const'))).not.toMatch(/\bUAE\b|united arab emirates|Dubai|Abu Dhabi|\bSZR\b|Sheikh Zayed/i);
   });
 
-  it('NEGATIVE: no other country is named instead, and AED prices and the language line stay', () => {
+  // [P89 · owner, Prompt 86] the Marker page has no language line (the owner's page does not carry one); AED stays
+  it('NEGATIVE: no other country is named instead, and AED prices stay', () => {
     expect(html).not.toMatch(/\b(Saudi|KSA|Qatar|Oman|Bahrain|Kuwait|India|Pakistan|GCC|Middle East)\b/);
     expect(html).toMatch(/AED 299/);
-    expect(html).toMatch(/Arabic/);
-    expect(html).toMatch(/Hindi/);
-    expect(html).toMatch(/Urdu/);
   });
 });

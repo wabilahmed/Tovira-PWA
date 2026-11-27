@@ -25,7 +25,8 @@ function graph(entry: string, seen = new Set<string>()): Set<string> {
 }
 
 describe('[SITE-MERGE] the marketing entry is code-split from the app', () => {
-  const files = [...graph(resolve(MARKETING_DIR, 'main.ts'))];
+  // [P89 · owner, Prompt 86] + the game pages' entry (game-main.ts): the same rule
+  const files = [...graph(resolve(MARKETING_DIR, 'main.ts')), ...graph(resolve(MARKETING_DIR, 'game-main.ts'))];
 
   it('resolves at least the entry + the referral util', () => {
     expect(files.length).toBeGreaterThanOrEqual(2);

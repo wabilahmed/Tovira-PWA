@@ -9,6 +9,7 @@ import type { GameFunnel, GameStep } from './adminClient.js';
  * chat number, which is where people give up. Read-only.
  */
 const drop = (s: GameStep): string => (s.dropPct === null ? '' : s.dropPct > 0 ? `−${s.dropPct}%` : '0%');
+const PLACE_LABEL: Record<string, string> = { header: 'Header', beat1: 'Beat 1 (headline)', beat5: 'Beat 5 (brief)', pricing: 'Pricing', closing: 'Closing section', game_close: 'Under a game' };
 const cell = { padding: 'var(--space-1) var(--space-1)', textAlign: 'right' as const, whiteSpace: 'nowrap' as const };
 
 export function GameFunnelCard({ game }: { game: GameFunnel }): JSX.Element {
@@ -34,6 +35,7 @@ export function GameFunnelCard({ game }: { game: GameFunnel }): JSX.Element {
           </li>
         ))}
       </ol>
+      {w.landing && <LandingScene landing={w.landing} byRoute={w.byRoute ?? []} />}
       <h3 style={{ fontSize: 'var(--text-body-size)', margin: 'var(--space-2) 0 0' }}>By industry</h3>
       <div style={{ overflowX: 'auto' }}>
         <table data-testid="game-by-industry" style={{ borderCollapse: 'collapse', fontSize: 'var(--text-secondary-size)', fontVariantNumeric: 'tabular-nums', width: '100%' }}>
@@ -65,5 +67,43 @@ export function GameFunnelCard({ game }: { game: GameFunnel }): JSX.Element {
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * [P89 · owner, Prompt 86] Is the landing scene working? How many visits reached each beat (and what share of those that
+ * saw beat 1), which Start free was tapped, banner taps, and each game page's views and starts.
+ */
+function LandingScene({ landing, byRoute }: { landing: NonNullable<GameFunnel['7d']['landing']>; byRoute: NonNullable<GameFunnel['7d']['byRoute']> }): JSX.Element {
+  const first = landing.beats[0]?.n ?? 0;
+  const row = { display: 'flex', justifyContent: 'space-between', gap: 'var(--space-3)' } as const;
+  return (
+    <div data-testid="landing-scene" className="ui-stack ui-gap-2">
+      <h3 style={{ fontSize: 'var(--text-body-size)', margin: 'var(--space-2) 0 0' }}>Landing scene</h3>
+      <ul className="ui-stack ui-gap-1" style={{ listStyle: 'none', padding: 0, margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+        {landing.beats.map((b) => (
+          <li key={b.beat} data-testid={`beat-${b.beat}`} style={row}>
+            <span>{`Reached beat ${b.beat}`}</span>
+            <span>{first > 0 && b.beat > 1 ? <span className="ui-secondary">{`${Math.round((b.n / first) * 100)}% `}</span> : null}<strong>{b.n}</strong></span>
+          </li>
+        ))}
+      </ul>
+      <h3 style={{ fontSize: 'var(--text-body-size)', margin: 'var(--space-2) 0 0' }}>Start free taps</h3>
+      <ul className="ui-stack ui-gap-1" style={{ listStyle: 'none', padding: 0, margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+        {landing.starts.map((x) => <li key={x.place} data-testid={`start-${x.place}`} style={row}><span>{PLACE_LABEL[x.place] ?? x.place}</span><strong>{x.n}</strong></li>)}
+        <li data-testid="banner" style={row}><span>Game banner taps</span><strong>{landing.banner}</strong></li>
+      </ul>
+      <h3 style={{ fontSize: 'var(--text-body-size)', margin: 'var(--space-2) 0 0' }}>Game pages</h3>
+      <div style={{ overflowX: 'auto' }}>
+        <table data-testid="game-by-route" style={{ borderCollapse: 'collapse', fontSize: 'var(--text-secondary-size)', fontVariantNumeric: 'tabular-nums', width: '100%' }}>
+          <thead><tr className="ui-secondary"><th style={{ ...cell, textAlign: 'left', paddingInlineStart: 0 }}>Page</th><th style={cell}>Views</th><th style={{ ...cell, paddingInlineEnd: 0 }}>Starts</th></tr></thead>
+          <tbody>
+            {byRoute.map((r) => (
+              <tr key={r.route}><th scope="row" style={{ ...cell, textAlign: 'left', paddingInlineStart: 0, fontWeight: 500 }}>{r.route}</th><td style={cell}>{r.views}</td><td style={{ ...cell, paddingInlineEnd: 0 }}>{r.starts}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

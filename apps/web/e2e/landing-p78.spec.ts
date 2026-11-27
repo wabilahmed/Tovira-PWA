@@ -8,6 +8,10 @@ import { GAMES } from '../src/marketing/landing-data.js';
  *    and you fail this chat.") are on screen without scrolling, bold, 17px / 18px and 15px in the accent;
  *  - the counter reads "0 of N found", then "1 of N found" after a correct tap.
  * With SHOTS_DIR set, the review screenshots are saved there (not committed).
+ * [P89 · owner, Prompt 86] The game moved to its own pages in the Marker look: the pick screen is /game (six links), a
+ * chat starts on the industry's page (/game/property opens on chat 1, with the rules on screen on arrival), the rule is
+ * 17px at every width (one column) and the accent is ink. The old hero's clip check goes with the hero; the page still
+ * clips sideways with overflow-x: clip (landing-p78.test.ts).
  */
 async function shot(page: Page, name: string): Promise<void> {
   if (!process.env.SHOTS_DIR) return;
@@ -31,17 +35,19 @@ const onScreen = (page: Page, sel: string) => page.evaluate((s) => {
 const R = GAMES[0]!.chats.findIndex((c) => c.filter((m) => m.sig).length >= 2);
 const SIGS = GAMES[0]!.chats[R]!.flatMap((m, i) => (m.sig ? [i] : []));
 
-for (const [width, height, ruleSize] of [[390, 844, 17], [1440, 900, 18]] as const) {
+for (const [width, height, ruleSize] of [[390, 844, 17], [1440, 900, 17]] as const) {
   test(`${width}px: one line on the pick screen; the rules on screen when a chat starts; the counter`, async ({ page }) => {
     await page.setViewportSize({ width, height });
-    await page.goto('/#game');
-    const card = page.locator('[data-game]');
-    await expect(card.getByRole('button')).toHaveCount(6);
+    await page.goto('/game/');
+    let card = page.locator('[data-game]');
+    await expect(card.getByRole('link')).toHaveCount(6);
     await expect(card).toContainText('Clients drop details that win deals. Can you spot them? Pick your industry to start.');
     await expect(card).not.toContainText('HOW IT WORKS');
-    await shot(page, `p78-pick-${width}`);
+    await shot(page, `p89-pick-${width}`);
 
-    await card.getByRole('button', { name: 'Property' }).click();
+    await card.getByRole('link', { name: 'Property' }).click();
+    await expect(page).toHaveURL(/\/game\/property/);
+    card = page.locator('[data-game]');
     const n1 = GAMES[0]!.chats[0]!.filter((m) => m.sig).length;
     await expect(card.locator('[data-g="rule"]')).toHaveText(n1 === 1 ? 'Find the 1 message that helps you close the deal.' : `Find the ${n1} messages that help you close the deal.`);
     await expect(card.locator('[data-g="warn"]')).toHaveText('Pick a wrong one and you fail this chat.');
@@ -49,11 +55,11 @@ for (const [width, height, ruleSize] of [[390, 844, 17], [1440, 900, 18]] as con
     await expect.poll(() => onScreen(page, '[data-g="rule"]'), { message: 'line 1 visible without scrolling' }).toBe(true);
     await expect.poll(() => onScreen(page, '[data-g="warn"]'), { message: 'line 2 visible without scrolling' }).toBe(true);
     const css = (sel: string) => card.locator(sel).evaluate((e) => { const c = getComputedStyle(e); return { size: c.fontSize, weight: c.fontWeight, color: c.color }; });
-    expect(await css('[data-g="rule"]')).toEqual({ size: `${ruleSize}px`, weight: '700', color: 'rgb(242, 237, 228)' });
-    expect(await css('[data-g="warn"]')).toEqual({ size: '15px', weight: '700', color: 'rgb(232, 100, 58)' });
+    expect(await css('[data-g="rule"]')).toEqual({ size: `${ruleSize}px`, weight: '700', color: 'rgb(10, 10, 10)' });
+    expect(await css('[data-g="warn"]')).toEqual({ size: '15px', weight: '700', color: 'rgb(10, 10, 10)' });
     for (const sel of ['[data-g="meta"]', '[data-g="score"]']) expect(parseFloat((await css(sel)).size)).toBeLessThan(15);
     await expect(card.locator('[data-g="counter"]')).toHaveText(`0 of ${n1} found`);
-    await shot(page, `p78-chat-start-${width}`);
+    await shot(page, `p89-chat-start-${width}`);
 
     // play through to a chat with 2+ details, then one correct tap
     for (let r = 0; r < R; r++) {
@@ -68,49 +74,24 @@ for (const [width, height, ruleSize] of [[390, 844, 17], [1440, 900, 18]] as con
     await card.locator(`[data-i="${SIGS[0]}"]`).click();
     await expect(card.locator('[data-g="counter"]')).toHaveText(`1 of ${SIGS.length} found`);
     await expect(card.locator('[data-act="next"]')).toHaveCount(0); // still playing
-    await shot(page, `p78-one-correct-${width}`);
+    await shot(page, `p89-one-correct-${width}`);
   });
 }
 
-test('390px: picking an industry with the card top scrolled off screen brings the rules into view', async ({ page }) => {
+test('390px: an industry page opens with its first chat\'s rules on screen, no scrolling', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  const card = page.locator('[data-game]');
-  await expect(card.getByRole('button')).toHaveCount(6);
-  // the visitor has scrolled down so the industry buttons sit near the top and the card's top is off screen
-  await page.evaluate(() => scrollTo({ top: scrollY + document.querySelector('[data-game]')!.getBoundingClientRect().top + 86, behavior: 'instant' }));
-  expect(await onScreen(page, '[data-game] p')).toBe(false);
-  await page.evaluate(() => (document.querySelector('[data-act="start"][data-gi="0"]') as HTMLElement).click());
-  await expect.poll(() => onScreen(page, '[data-g="rule"]')).toBe(true);
-  await expect.poll(() => onScreen(page, '[data-g="warn"]')).toBe(true);
+  for (const slug of ['property', 'insurance', 'wealth', 'b2b', 'luxury', 'recruitment']) {
+    await page.goto(`/game/${slug}/`);
+    expect(await page.evaluate(() => scrollY), slug).toBe(0);
+    await expect.poll(() => onScreen(page, '[data-g="rule"]'), { message: slug }).toBe(true);
+    await expect.poll(() => onScreen(page, '[data-g="warn"]'), { message: slug }).toBe(true);
+  }
 });
 
-test('NEGATIVE 1440px: picking an industry never scrolls the page', async ({ page }) => {
+test('NEGATIVE 1440px: opening an industry page never scrolls it', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
-  await page.evaluate(() => { (window as unknown as { n: number }).n = 0; const o = window.scrollTo.bind(window); window.scrollTo = ((...a: Parameters<typeof window.scrollTo>) => { (window as unknown as { n: number }).n++; return o(...a); }) as typeof window.scrollTo; });
-  await page.locator('[data-act="start"][data-gi="0"]').click();
+  await page.goto('/game/property/');
   await expect(page.locator('[data-g="rule"]')).toBeVisible();
   await page.waitForTimeout(500);
-  expect(await page.evaluate(() => (window as unknown as { n: number }).n)).toBe(0);
+  expect(await page.evaluate(() => scrollY)).toBe(0);
 });
-
-// [P78] Found while testing P78, and live on tovira.io: the hero section was overflow: hidden, which a browser can still
-// scroll inside (a #game jump, scrollIntoView). On mobile, after Play the game and back to the top, the headline's first
-// lines stayed cut off (the section had scrolled 154px inside, and a visitor can't scroll it back). overflow: clip clips
-// the same and can't be scrolled.
-for (const width of [390, 1440]) {
-  test(`${width}px: after Play the game / Test your eye and back to the top, the headline is whole`, async ({ page }) => {
-    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
-    await page.goto('/');
-    await page.locator(width === 390 ? '.tv-mobplay' : 'body > header nav a[href="#game"]').first().click();
-    await page.waitForTimeout(900);
-    // what a #game jump or scrollIntoView can do to a section the page can't scroll: scroll it inside
-    await page.evaluate(() => { const s = document.getElementById('top')!; s.scrollTop = 154; s.scrollLeft = 79; });
-    await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
-    const r = await page.evaluate(() => { const s = document.getElementById('top')!; return { T: s.scrollTop, L: s.scrollLeft, h1: document.querySelector('h1')!.getBoundingClientRect().top, sec: s.getBoundingClientRect().top }; });
-    expect(r.T).toBe(0);
-    expect(r.L).toBe(0);
-    expect(r.h1).toBeGreaterThanOrEqual(r.sec);
-  });
-}

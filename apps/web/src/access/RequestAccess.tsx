@@ -193,7 +193,7 @@ export function RequestAccess({ client, referralsEnabled = false }: { client: Ac
             <input aria-labelledby="wa-number-label" type="tel" inputMode="tel" autoComplete="tel-national" placeholder="Your number" value={waNumber} onChange={(e) => setWaNumber(e.target.value)} required />
           </div>
         </div>
-        <p className="auth__hint" data-testid="whatsapp-hint">Once you’re approved, you’ll verify this number with one WhatsApp message, so you can send chats straight to Tovira.</p>
+        <p className="auth__hint" data-testid="whatsapp-hint">Once you’re approved, you’ll verify this number with one WhatsApp message.</p>
         {/* 2. Company */}
         <label className="auth__field"><span>Company name</span><input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required /></label>
         {/* 3. Role */}

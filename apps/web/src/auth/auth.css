@@ -119,3 +119,14 @@
 @media (prefers-reduced-motion: reduce) {
   .auth__field input, .auth__submit { transition: none; }
 }
+
+/* [P89 · owner, Prompt 86] Marker (plan/brand.md): a white page, no gradients or glows, cards at radius-lg, the disc
+ * logo, Geist for the small labels (no monospace). */
+.tov-logo { display: inline-flex; align-items: center; gap: var(--space-2); font-family: var(--font-display); font-weight: 600; letter-spacing: -0.03em; }
+.tov-logo__disc { flex: 0 0 auto; }
+:root[data-theme='marker'] .auth__bg { display: none; }
+:root[data-theme='marker'] .auth__card { border-radius: 20px; }
+:root[data-theme='marker'] .auth__home,
+:root[data-theme='marker'] .auth__tagline { font-family: var(--font-sans); }
+:root[data-theme='marker'] .auth__home:hover { color: var(--text-primary); }
+:root[data-theme='marker'] .auth__submit { border-radius: 999px; }

@@ -46,6 +46,10 @@ export interface GameWindow {
   steps: GameStep[];
   byIndustry: Array<{ industry: string; steps: GameStep[] }>;
   wrongShare: Array<{ chat: number; chats: number; wrong: number; pct: number | null }>;
+  /** [P89] the landing scene (absent from an API older than P89) */
+  landing?: { beats: Array<{ beat: number; n: number }>; starts: Array<{ place: string; n: number }>; banner: number };
+  /** [P89] game page views and starts by page */
+  byRoute?: Array<{ route: string; views: number; starts: number }>;
 }
 export type GameFunnel = Record<'7d' | '30d', GameWindow>;
 export interface FunnelReport {

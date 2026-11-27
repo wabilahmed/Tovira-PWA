@@ -180,3 +180,38 @@ No app query filters or sorts on these on the seeded audit database; each still 
 - `revenue_events_user_period`
 - `transcription_events_user_period`
 - `hot_leads_became_hot`: the list sorts `became_hot_at DESC NULLS LAST`, which this index (`DESC`, nulls first) cannot serve; `hot_leads_status_hot_idx` (P86) does
+
+## [P89-routing] Owner: apply the CloudFront routing for the game pages (27 Nov)
+The seven game pages are static files at `game/index.html` and `game/<industry>/index.html`. Their canonical tags and the sitemap use the clean addresses (`https://tovira.io/game/property`).
+- **The change:** the CloudFront function's MARKETING list in `infra/terraform/functions/frontend-viewer-request.js` gains the seven paths. It is tested in `apps/api/src/infra-cloudfront-function.test.ts`, and nothing else in terraform changes.
+- **Until it is applied:** a clean `/game…` address reaches the app shell, and a temporary script in `apps/web/app.html` sends it on to the page's file (`/game/property/index.html`). The page works, but the address bar shows the file path.
+- **Once it is applied:** after the live `/game` returns the game page itself, remove that script and its test in `game-pages.test.ts`.
+
+## [P89-annual] Annual price removed from the landing until annual checkout works (27 Nov)
+- **What was checked:** in Stripe test mode, the only AED 2,990 price is a *monthly* recurring price, and no yearly price exists. This is the P14 problem: STRIPE_ANNUAL_PRICE_ID pointed at a monthly price. So annual checkout could not be proven end to end.
+- **What changed:** the landing shows AED 299 a month only. The copy guard (`copy-guard.test.ts`) fails if an annual price comes back before this is fixed.
+- **The fix (owner):**
+  1. Create a yearly AED 2,990 price in Stripe.
+  2. Set STRIPE_ANNUAL_PRICE_ID in the secret store.
+  3. Prove annual checkout in test mode.
+  4. Then restore the line "a month · or AED 2,990 a year" and lift the guard.
+- **Not changed:** the in-app billing screen still offers the annual plan to signed-in reps.
+
+## [P89-game] The game's chats keep examples the copy rule now avoids (logged, not changed)
+- **The owner's rule (27 Nov):** no public example may show a bare budget or a decision-maker named only by role, until the next certification covers them.
+- **The conflict:** the game's content is frozen by Prompt 86 ("Game rules, content, scoring ... stay exactly as they are"). Its chats include "Husband signs off over 3M" and a budget line.
+- **Why it was kept:** those details passed the P71/P73 claim checks on the real model as written (27/27 and 30/30).
+- **How the guard is scoped:** it covers the landing and the game pages' own words, not the chats. The chats are still held to the places, names and currency rules.
+- **Decide:** change those chats, or keep them as certified.
+
+## [P89-copy] Copy outside the public pages that still says "send chats straight to Tovira" (logged, not changed)
+- **Rule 9 (owner, 27 Nov):** no copy may tell visitors to send chats to the WhatsApp number while it is limited to the owner's account.
+- **Fixed:** the request-access form's hint (a public page) now stops at "verify this number with one WhatsApp message."
+- **Still in place, for signed-in reps:**
+  - the WhatsApp banner and first step (shown only to the allowlist);
+  - the invite email's INVITE_WHATSAPP_LINE (`apps/api/src/services/email/account-email-service.ts`), which every invitee gets.
+- **Decide:** say whether the invite email should change too.
+
+## [P89 → P88-2] When the restriction registry ships
+- Migration 0121 adds `route`, `beat` and `place` (text and smallint) to game_events.
+- The registry on `p88-2-restriction-registry` must add the text columns `route` and `place`, as not-derived from messages (cookieless counts), or its guard fails on rebase.

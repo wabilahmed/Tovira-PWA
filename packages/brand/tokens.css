@@ -63,7 +63,7 @@
    [P71-D · owner] The landing page's palette (page #171412, cards #1F1B18, deeper #120F0D, text #F2EDE4 / #CFC6BA /
    #A79E92, accent #E8643A); status colours re-picked to differ in lightness (red L*73, green L*64, amber L*82, accent L*59). */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='ledger']) {
+  :root:not([data-theme='ledger']):not([data-theme='marker']) {
     --surface-base: #171412;      /* warm near-black, terracotta-tinted */
     --surface-raised: #1F1B18;    /* cards */
     --surface-elevated: #120F0D;  /* [P71-D · owner] the landing palette: deeper areas (the sunken token) */
@@ -163,6 +163,48 @@
   --amber-surface: rgba(252, 211, 77, 0.22);
 
   --shadow-overlay: 0 8px 32px -8px rgba(28, 25, 23, 0.12);
+
+  color-scheme: light;
+}
+
+/* ---- [P89 · owner, Prompt 86] Marker (light): the public site's look (plan/brand.md, plan/brand-tokens.json). Every
+   screen a signed-out visitor can reach (sign-in, request access, reset password, invite, verify email, the billing
+   return pages, a 404) is pinned to it; the signed-in app keeps its own Light/Dark/Auto. A white page, ink text, ink
+   buttons, one typeface (Geist). The accent becomes ink: the marker yellow is never a button or a background. */
+:root[data-theme='marker'] {
+  --surface-base: #FAFAFA;
+  --surface-raised: #FFFFFF;
+  --surface-elevated: #F2F2F2;
+  --hairline: #E6E6E6;
+  --hairline-control: #6B6B70;  /* form-field edges: 5:1 on white, so a field is plainly a field */
+
+  --text-primary: #0A0A0A;
+  --text-secondary: #5A5A5F;
+  --text-tertiary: #6B6B70;
+
+  --brass: #0A0A0A;
+  --brass-strong: #2A2A2E;
+  --brass-ink: #FFFFFF;
+  --brass-surface: rgba(10, 10, 10, 0.06);
+  --highlight-text: #0A0A0A;
+
+  --claret: #9e3b33;
+  --claret-line: #c99b96;
+  --claret-surface: rgba(158, 59, 51, 0.10);
+  --green: #3f6b4c;
+  --green-line: #a9bbaf;
+  --green-surface: rgba(74, 124, 89, 0.10);
+  --amber: #7a5318;
+  --amber-line: #d6c08a;
+  --amber-surface: rgba(252, 211, 77, 0.22);
+
+  --radius-card: 14px;  /* radius-md: fields and buttons; cards set radius-lg (20px) themselves */
+  --radius-chip: 12px;
+  --shadow-overlay: 0 30px 70px rgba(0, 0, 0, 0.1);
+
+  --font-display: Geist, 'Geist Fallback', system-ui, sans-serif;
+  --font-sans: Geist, 'Geist Fallback', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-mono: Geist, 'Geist Fallback', system-ui, sans-serif;
 
   color-scheme: light;
 }

@@ -3,12 +3,15 @@
  * and remembered in localStorage; Auto follows the device (handled in CSS).
  * [P71-D · owner] Anyone who has never chosen gets Dark (Vault, now the landing page's palette); a stored Light, Dark
  * or Auto is kept. The browser's theme-color (the address bar, the installed app's status bar) follows the theme in use.
- * [P74 · owner] Every page a signed-out visitor can reach is ALWAYS Dark (the landing palette), whatever is saved: while
- * a public surface is showing, the html pins data-theme="vault" and the saved choice waits in storage. The choice applies
+ * [P74 · owner] Every page a signed-out visitor can reach is ALWAYS the public site's look, whatever is saved: while
+ * a public surface is showing, the html pins it and the saved choice waits in storage. [P89 · owner, Prompt 86] That
+ * look is now Marker (light, Geist; data-theme="marker"), replacing Dark. The choice applies
  * only inside the signed-in app. A "signed in on this browser" hint lets the boot script paint the app in the saved
  * choice before the session check (no flash); without it, /app starts Dark (the sign-in).
  */
 export type ThemeChoice = 'system' | 'vault' | 'ledger';
+/** [P89 · owner, Prompt 86] What html carries: a choice, or 'marker' while a public surface shows (never stored). */
+export type AppliedTheme = ThemeChoice | 'marker';
 
 const KEY = 'tovira.theme';
 const SIGNED_IN = 'tovira.signedIn';
@@ -33,11 +36,12 @@ export function getTheme(): ThemeChoice {
   }
 }
 
-export const THEME_COLOR = { dark: '#171412', light: '#f4f1ea' } as const;
+export const THEME_COLOR = { dark: '#171412', light: '#f4f1ea', marker: '#FAFAFA' } as const;
 
 /** [P71-D] Point every theme-color meta at the theme in use. Auto: a meta with a media query keeps its own scheme. */
-function syncThemeColor(choice: ThemeChoice): void {
+function syncThemeColor(choice: AppliedTheme): void {
   if (typeof document === 'undefined') return;
+  if (choice === 'marker') { for (const m of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) m.setAttribute('content', THEME_COLOR.marker); return; }
   const deviceDark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
   for (const m of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
     const media = m.getAttribute('media') ?? '';
@@ -49,7 +53,7 @@ function syncThemeColor(choice: ThemeChoice): void {
 export function applyTheme(requested: ThemeChoice): void {
   const el = root();
   if (!el) return;
-  const choice: ThemeChoice = publicSurface ? 'vault' : requested; // [P74] a public page is never light
+  const choice: AppliedTheme = publicSurface ? 'marker' : requested; // [P89 · owner] a public page is always Marker (was Dark, P74)
   if (choice === 'system') el.removeAttribute('data-theme');
   else el.setAttribute('data-theme', choice);
   syncThemeColor(choice);
@@ -66,7 +70,7 @@ export function setTheme(choice: ThemeChoice): void {
   applyTheme(choice);
 }
 
-/** [P74] A public surface (sign-in, request access, …) is showing: pin Dark; leaving it restores the saved choice. */
+/** [P74] A public surface (sign-in, request access, …) is showing: pin Marker (P89; was Dark); leaving it restores the saved choice. */
 export function setPublicSurface(on: boolean): void {
   publicSurface = on;
   applyTheme(getTheme());

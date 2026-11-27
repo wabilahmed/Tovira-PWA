@@ -4,240 +4,362 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#171412" />
-    <meta name="color-scheme" content="dark" />
-    <title>Tovira: the detail that wins the deal is already in your chats</title>
-    <meta name="description" content="Tovira analyses your client conversations and voice notes, catches the details a busy rep misses, and puts them in front of you before the meeting that matters." />
+    <meta name="theme-color" content="#FAFAFA" />
+    <meta name="color-scheme" content="light" />
+    <title>Tovira: walk into every meeting knowing what matters to them</title>
+    <meta name="description" content="Tovira reads your client chats and catches the details that close deals." />
     <link rel="canonical" href="https://tovira.io/" />
     <link rel="alternate" hreflang="en" href="https://tovira.io/" />
     <link rel="alternate" hreflang="x-default" href="https://tovira.io/" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Tovira: the detail that wins the deal is already in your chats" />
-    <meta property="og:description" content="Tovira analyses your client conversations and voice notes, catches the details a busy rep misses, and puts them in front of you before the meeting that matters." />
+    <meta property="og:title" content="Tovira: walk into every meeting knowing what matters to them" />
+    <meta property="og:description" content="Tovira reads your client chats and catches the details that close deals." />
     <meta property="og:url" content="https://tovira.io/" />
     <meta property="og:image" content="https://tovira.io/og.png" />
-    <meta property="og:image" content="https://tovira.io/og.svg" />
-    <meta property="og:image:alt" content="Tovira: a pre-meeting brief in the Ledger theme." />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Tovira: Walk into every meeting knowing what matters to them, with &quot;what matters&quot; marked in yellow." />
     <meta property="og:locale" content="en_US" />
     <meta property="og:locale:alternate" content="ar_AR" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Tovira: the detail that wins the deal is already in your chats" />
-    <meta name="twitter:description" content="Tovira analyses your client conversations and voice notes, catches the details a busy rep misses, and puts them in front of you before the meeting that matters." />
+    <meta name="twitter:title" content="Tovira: walk into every meeting knowing what matters to them" />
+    <meta name="twitter:description" content="Tovira reads your client chats and catches the details that close deals." />
     <meta name="twitter:image" content="https://tovira.io/og.png" />
-    <link rel="stylesheet" href="/src/marketing/landing-fonts.css" />
-    <!-- [P70 · owner] The landing page, rebuilt from the approved design (plan/tovira-landing-reference.dc.html).
-         The animations are CSS only, copied from the design's keyframes; JavaScript runs only the tabs and the game. -->
+    <meta name="twitter:image:alt" content="Tovira: Walk into every meeting knowing what matters to them, with &quot;what matters&quot; marked in yellow." />
+    <link rel="preload" href="/src/marketing/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/src/styles/geist.css" />
+    <!-- [P89 · owner, Prompt 86] The Marker landing page, ported from plan/tovira-landing-marker.html (its wording word for
+         word). One pinned scene plays five beats as you scroll (src/marketing/scene.ts); the rest of the page is static. -->
     <style>
-body{margin:0;background:#171412}
-a{color:#E8643A}a:hover{color:#F28A63}
-.tv-sec{padding:clamp(64px,9vw,104px) 20px}
-.tv-up{animation:tvUp .9s cubic-bezier(.2,.8,.2,1) both}
-@keyframes tvUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
-.tv-star{position:absolute;border-radius:50%;background:#F2EDE4;pointer-events:none;box-shadow:0 0 6px rgba(242,237,228,.8);animation:tvTwinkle ease-in-out infinite, tvDrift ease-in-out infinite alternate}
-@keyframes tvTwinkle{0%,100%{opacity:.15;transform:scale(.6)}50%{opacity:1;transform:scale(1)}}
-@keyframes tvDrift{from{translate:0 0}to{translate:0 -14px}}
-.tv-orb{position:absolute;border-radius:50%;filter:blur(60px);pointer-events:none;animation:tvOrb 18s ease-in-out infinite alternate}
-@keyframes tvOrb{from{transform:translate(0,0) scale(1)}to{transform:translate(-60px,40px) scale(1.15)}}
-.tv-marq{display:flex;width:max-content;animation:tvMarq 60s linear infinite}
-.tv-marq.rev{animation-direction:reverse;animation-duration:70s}
-@keyframes tvMarq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.tv-col{animation:tvRise linear infinite}
-@keyframes tvRise{from{transform:translateY(0)}to{transform:translateY(-50%)}}
-.tv-missed{animation:tvPulse 4s ease-in-out infinite}
-@keyframes tvPulse{0%,60%,100%{box-shadow:0 0 0 1px rgba(232,100,58,0)}75%{box-shadow:0 0 0 1px rgba(232,100,58,.7),0 0 24px rgba(232,100,58,.35)}}
-.tv-fade{animation:tvIn .5s ease-out both}
-@keyframes tvIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.tv-pop{animation:tvPop .45s cubic-bezier(.2,1.4,.4,1) both}
-@keyframes tvPop{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:none}}
-.tv-shake{animation:tvShake .35s ease-in-out}
-@keyframes tvShake{0%,100%{transform:none}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
-.tv-msg{font:inherit;text-align:left;cursor:pointer;transition:background .2s,border-color .2s,color .2s,transform .15s}
-.tv-msg:not(:disabled):hover{transform:translateY(-2px);border-color:#5A5048}
-.tv-msg:disabled{cursor:default}
-.tv-tab,.tv-btn{cursor:pointer;font:inherit}
-.tv-tab:focus-visible,.tv-cta:focus-visible,.tv-msg:focus-visible,.tv-btn:focus-visible{outline:2px solid #E8643A;outline-offset:3px}
-@supports (animation-timeline: view()){
-.tv-rv{animation:tvUp linear both;animation-timeline:view();animation-range:entry 0% entry 55%}
+:root{
+  --ground:#FAFAFA; --ink:#0A0A0A; --soft:#5A5A5F; --muted:#6B6B70; --line:#E6E6E6; --hl:#FFE45C;
+  --sans:Geist, 'Geist Fallback', system-ui, sans-serif;
+  color-scheme:light;
 }
-@media (max-width: 640px){.tv-navlink{display:none}.tv-wall{height:360px !important}.tv-hdcta{padding:10px 14px !important;font-size:14px !important}}
-/* [P76 · owner] No scroll anchoring on this page: swapping the game card's content let the browser move the page (and
-   cancel the card scroll on mobile); the fonts have metric-matched fallbacks, so nothing above shifts as they load. */
-/* [P76 · owner] From 900px the game sits beside the copy (no wrap) and the hero's Play the game hides. The headline's
-   first line and "Would you have caught it?" share an INK top: both boxes start level, and the game moves down by the
-   difference between where each font's ink starts in its line (half the leading plus ascent minus cap/ascender
-   height): 0.125 of the headline size, 0.14 of the game heading size (Fraunces, measured in Chromium). */
-.tv-rule{font-size:17px}
-@media (min-width: 900px){.tv-hero{flex-wrap:nowrap !important}.tv-mobplay{display:none}.tv-hero-l{padding-top:0 !important}#game{margin-top:calc(clamp(34px, 4.4vw, 58px) * 0.125 - clamp(22px, 2.2vw, 26px) * 0.14)}.tv-rule{font-size:18px}}
-html{scroll-behavior:smooth;overflow-anchor:none}
-#how,#pricing{scroll-margin-top:72px}
-@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
-@media (prefers-reduced-motion: reduce){.tv-star{animation:none !important;opacity:.5}.tv-col,.tv-missed,.tv-orb,.tv-marq,.tv-up,.tv-rv,.tv-pop,.tv-shake,.tv-fade{animation:none !important}}
-/* [P70] the page frame: the design's wrapper styles live on body so the header is the page's banner; overflow-x is
-   clip (not hidden) so the sticky header still sticks */
-body{color:#F2EDE4;font-family:Inter,'Inter Fallback',system-ui,sans-serif;position:relative;overflow-x:clip}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans)}
+html{scroll-behavior:smooth}
+body{overflow-x:clip}
+a{color:inherit}
+.bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;background:rgba(250,250,250,.86);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:22px;letter-spacing:-.03em;text-decoration:none;color:var(--ink)}
+.logo .disc{flex:0 0 auto}
+.barnav{display:flex;align-items:center;gap:20px;font-size:15px}
+.navlink,.login{color:var(--soft);text-decoration:none}
+.pill{display:inline-block;background:var(--ink);color:#fff;text-decoration:none;font-weight:600;font-size:16px;padding:13px 24px;border-radius:999px;min-height:44px;line-height:18px}
+.pill-sm{font-size:14px;padding:13px 18px}
+.pill:focus-visible,.navlink:focus-visible,.login:focus-visible,.logo:focus-visible,.foot a:focus-visible,.t2-cta:focus-visible,summary:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:4px}
+.pill:focus-visible,a.t2-cta[data-cta]:focus-visible{border-radius:999px}
+.col{flex:0 1 300px;display:flex;flex-direction:column;gap:14px;will-change:transform}
+.col:nth-child(1),.col:nth-child(3){filter:blur(2.5px);opacity:.5}
+.col:nth-child(2){filter:blur(1px);opacity:.75}
+.msg{align-self:flex-start;max-width:92%;background:#F0F0F0;color:#77777D;border-radius:16px 16px 16px 4px;padding:10px 14px;font-size:15px;line-height:1.35}
+.msg.me{align-self:flex-end;border-radius:16px 16px 4px 16px;background:#E8E8E8}
+h1{margin:0;font-weight:600;font-size:clamp(38px,6.6vw,84px);line-height:1.02;letter-spacing:-.045em;text-wrap:balance}
+.mk{background:linear-gradient(transparent 58%,var(--hl) 58%);padding:0 6px;white-space:nowrap}
+.sub{margin:0;font-size:clamp(17px,1.8vw,21px);line-height:1.5;color:var(--soft);max-width:520px}
+.hint{font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.cap{margin:0;font-weight:600;font-size:clamp(24px,3.4vw,44px);letter-spacing:-.035em;line-height:1.08;text-wrap:balance}
+.big{position:relative;display:inline-block;background:#F0F0F0;color:var(--ink);border-radius:22px 22px 22px 6px;padding:18px 26px;font-size:clamp(19px,2.6vw,30px);font-weight:500;line-height:1.25;max-width:92vw}
+.big span{position:relative;z-index:1}
+.card{background:var(--ink);color:#fff;border-radius:22px;padding:24px 28px;text-align:left;width:min(92vw,460px);box-shadow:0 30px 70px rgba(0,0,0,.2)}
+.card small{display:block;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#B4B4BB;margin-bottom:10px}
+.card strong{display:block;font-size:clamp(22px,2.6vw,30px);font-weight:600;letter-spacing:-.03em;line-height:1.15}
+.brief{background:#fff;border:1px solid var(--line);border-radius:22px;padding:24px 28px;text-align:left;width:min(92vw,460px);box-shadow:0 30px 70px rgba(0,0,0,.1)}
+.brief small{display:block;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.brief ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;font-size:18px;font-weight:500}
+.brief li span{background:linear-gradient(transparent 55%,var(--hl) 55%);padding:0 4px}
+.t2-sec{padding:clamp(56px,8vw,104px) 20px}
+.t2-in{max-width:1120px;margin:0 auto}
+.t2-h2{margin:0;font-weight:600;font-size:clamp(30px,4.4vw,52px);line-height:1.06;letter-spacing:-0.035em;text-wrap:balance}
+.t2-mono{font-size:12px;font-weight:600;letter-spacing:.1em;color:#6B6B70}
+.t2-card{background:#FFFFFF;border:1px solid #E6E6E6;border-radius:20px}
+.t2-cta{transition:transform .15s}.t2-cta:hover{transform:translateY(-2px)}
+details summary{cursor:pointer;list-style:none}details summary::-webkit-details-marker{display:none}
+details[open] .t2-plus{transform:rotate(45deg)}
+.t2-plus{transition:transform .2s}
+.foot{border-top:1px solid var(--line)}
+.foot-in{max-width:1120px;margin:0 auto;padding:24px 20px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;font-size:14px;color:var(--muted)}
+.foot a{color:var(--muted)}
+.foot-links{display:flex;gap:18px}
+@media (max-width:640px){.t2-grid2{grid-template-columns:1fr !important}}
+@media (max-width:640px){.navlink{display:none}.barnav{gap:14px}.col:nth-child(3){display:none}.beat{gap:18px}}
+/* [P89] The five beats are a plain stacked page by default: with reduced motion, without JavaScript, or if the scene
+   script never runs, nothing is left hidden (SITE2-MOTION). html.scene-on (set in <head> only when motion is allowed, and
+   taken off again if the scene has not started within 4s) pins the stage and plays the beats on scroll (scene.ts). */
+.scene{position:relative}
+.stage{padding:110px 0 60px;display:flex;flex-direction:column;gap:72px}
+.cols,.veil{display:none}
+.beat{width:min(92vw,880px);margin:0 auto;text-align:center;display:flex;flex-direction:column;align-items:center;gap:22px}
+.big .stroke{position:absolute;left:-8px;right:-8px;top:8%;bottom:8%;background:var(--hl);border-radius:8px;transform-origin:left center;transform:scaleX(1) rotate(-1deg);z-index:0}
+.scene-on .scene{height:560vh}
+.scene-on .stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;padding:0;display:block}
+.scene-on .cols{position:absolute;inset:0;display:flex;justify-content:center;gap:clamp(16px,4vw,56px);padding:0 16px}
+.scene-on .veil{display:block;position:absolute;inset:0;background:radial-gradient(60% 55% at 50% 50%,rgba(250,250,250,.96) 0%,rgba(250,250,250,.86) 55%,rgba(250,250,250,0) 100%);pointer-events:none}
+.scene-on .beat{position:absolute;left:50%;top:50%;margin:0;transform:translate(-50%,-50%)}
+.scene-on #b2,.scene-on #b4,.scene-on #b5,.scene-on #cap3{opacity:0}
+.scene-on .big .stroke{transform:scaleX(0) rotate(-1deg)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.t2-cta,.t2-plus{transition:none}.t2-cta:hover{transform:none}}
     </style>
+    <!-- [P89] the game moved to /game: an old /#game link goes there before anything paints -->
+    <script>if(location.hash==='#game')location.replace('/game'+location.search)</script>
+    <!-- [P89] the scroll scene runs only with motion allowed; if its script hasn't started in 4s, the page stays stacked -->
+    <script>(function(){var d=document.documentElement;if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;d.classList.add('scene-on');setTimeout(function(){if(!window.__tovScene)d.classList.remove('scene-on')},4000)})()</script>
     <script type="module" src="/src/marketing/main.ts"></script>
   </head>
   <body>
-<header style="position: sticky; top: 0; z-index: 30; background: rgba(23,20,18,0.82); backdrop-filter: blur(12px); border-bottom: 1px solid #2A2521">
-<div style="max-width: 1200px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px">
-<a href="#top" style="text-decoration: none; color: #F2EDE4; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-size: 26px; font-weight: 600"><span style="color: #E8643A">T</span>o<span style="color: #E8643A">v</span>ira</a>
-<nav style="display: flex; align-items: center; gap: 18px" aria-label="Main">
-<a class="tv-navlink" href="#game" style="color: #CFC6BA; text-decoration: none; font-size: 15px">Test your eye</a>
-<a class="tv-navlink" href="#how" style="color: #CFC6BA; text-decoration: none; font-size: 15px">How it works</a>
-<a class="tv-navlink" href="#pricing" style="color: #CFC6BA; text-decoration: none; font-size: 15px">Pricing</a>
-<a href="/app" style="color: #CFC6BA; text-decoration: none; font-size: 15px">Log in</a>
-<a class="tv-cta tv-hdcta" data-cta href="/request-access" style="background: #E8643A; color: #171412; text-decoration: none; font-weight: 600; font-size: 15px; padding: 11px 18px; border-radius: 999px; white-space: nowrap">Try free for 14 days</a>
-</nav>
-</div>
+<header class="bar">
+  <a class="logo" href="#top"><svg class="disc" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true" focusable="false"><circle cx="15" cy="15" r="15" fill="#0A0A0A"/><rect x="6" y="7" width="18" height="6" rx="1.5" fill="#FFE45C"/><rect x="12" y="15" width="6" height="9" rx="1.5" fill="#FFFFFF"/></svg>Tovira</a>
+  <nav aria-label="Main" class="barnav">
+    <a class="navlink" href="/game">The game</a><a class="navlink" href="#privacy">Privacy</a><a class="navlink" href="#pricing">Pricing</a><a class="login" href="/app">Log in</a>
+    <a class="pill pill-sm" data-cta data-place="header" href="/request-access">Start free</a>
+  </nav>
 </header>
+<main id="top">
+<section class="scene" id="scene" aria-label="How Tovira works">
+  <div class="stage">
+    <div class="cols" aria-hidden="true">
+      <div class="col" id="c1"></div><div class="col" id="c2"></div><div class="col" id="c3"></div>
+    </div>
+    <div class="veil" id="veil"></div>
 
-<main>
+    <div class="beat" id="b1">
+      <h1>Walk into every meeting knowing <span class="mk">what matters</span> to them.</h1>
+      <p class="sub">Tovira reads your client chats and catches the details that close deals.</p>
+      <a class="pill" data-cta data-place="beat1" href="/request-access">Start free</a>
+      <div class="hint">Scroll to see how</div>
+    </div>
 
+    <div class="beat" id="b2">
+      <p class="cap">Clients tell you what matters. Once. In passing.</p>
+      <div class="big" id="big"><div class="stroke" id="stroke"></div><span>Honestly we're at the beach every weekend.</span></div>
+      <p class="cap" id="cap3">Tovira marks it.</p>
+    </div>
 
-<section id="top" aria-labelledby="hero-h" style="position: relative; overflow: clip">
-<div class="tv-orb" aria-hidden="true" style="width: 520px; height: 520px; right: -80px; top: -60px; background: rgba(232,100,58,0.22)"></div>
-<div class="tv-orb" aria-hidden="true" style="width: 380px; height: 380px; left: -120px; bottom: -120px; background: rgba(242,184,75,0.10); animation-delay: -7s"></div>
-<div aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none"><!--gen:stars--><div class="tv-star" style="left:11.5%;top:24.4%;width:2.7px;height:2.7px;animation-duration:4.3s,10.1s;animation-delay:-0.5s,-5.3s"></div><div class="tv-star" style="left:28.4%;top:78.1%;width:3.0px;height:3.0px;animation-duration:5.1s,6.6s;animation-delay:-3.0s,-1.4s"></div><div class="tv-star" style="left:56.0%;top:48.7%;width:3.2px;height:3.2px;animation-duration:3.2s,6.4s;animation-delay:-5.6s,-5.8s"></div><div class="tv-star" style="left:95.6%;top:18.9%;width:1.8px;height:1.8px;animation-duration:4.2s,10.4s;animation-delay:-4.0s,-1.7s"></div><div class="tv-star" style="left:44.6%;top:23.3%;width:1.9px;height:1.9px;background:#F2B84B;box-shadow:0 0 8px rgba(242,184,75,.9);animation-duration:4.7s,8.6s;animation-delay:-0.9s,-4.6s"></div><div class="tv-star" style="left:8.0%;top:92.6%;width:2.4px;height:2.4px;animation-duration:3.5s,13.1s;animation-delay:-2.8s,-1.4s"></div><div class="tv-star" style="left:75.9%;top:65.3%;width:3.0px;height:3.0px;animation-duration:3.0s,7.8s;animation-delay:-2.7s,-0.5s"></div><div class="tv-star" style="left:68.1%;top:64.7%;width:1.6px;height:1.6px;animation-duration:6.3s,8.6s;animation-delay:-2.6s,-3.0s"></div><div class="tv-star" style="left:45.1%;top:43.9%;width:2.6px;height:2.6px;background:#F2B84B;box-shadow:0 0 8px rgba(242,184,75,.9);animation-duration:3.6s,7.9s;animation-delay:-4.5s,-0.8s"></div><div class="tv-star" style="left:85.8%;top:96.8%;width:2.2px;height:2.2px;animation-duration:6.2s,12.9s;animation-delay:-4.5s,-3.8s"></div><div class="tv-star" style="left:32.4%;top:35.7%;width:2.9px;height:2.9px;animation-duration:3.4s,9.1s;animation-delay:-4.1s,-4.4s"></div><div class="tv-star" style="left:0.7%;top:36.0%;width:2.2px;height:2.2px;background:#F2B84B;box-shadow:0 0 8px rgba(242,184,75,.9);animation-duration:4.8s,9.5s;animation-delay:-0.5s,-5.9s"></div><div class="tv-star" style="left:58.7%;top:46.9%;width:2.6px;height:2.6px;background:#F2B84B;box-shadow:0 0 8px rgba(242,184,75,.9);animation-duration:3.0s,12.3s;animation-delay:-5.4s,-1.6s"></div><div class="tv-star" style="left:70.7%;top:69.8%;width:1.6px;height:1.6px;animation-duration:5.1s,13.0s;animation-delay:-1.4s,-5.0s"></div><div class="tv-star" style="left:8.2%;top:2.1%;width:1.9px;height:1.9px;animation-duration:4.6s,12.6s;animation-delay:-5.1s,-0.9s"></div><div class="tv-star" style="left:28.0%;top:48.8%;width:2.7px;height:2.7px;animation-duration:2.8s,8.8s;animation-delay:-1.4s,-1.8s"></div><div class="tv-star" style="left:16.5%;top:0.1%;width:3.5px;height:3.5px;animation-duration:5.0s,6.7s;animation-delay:-2.4s,-0.7s"></div><div class="tv-star" style="left:0.8%;top:75.6%;width:2.7px;height:2.7px;animation-duration:4.3s,11.9s;animation-delay:-2.0s,-5.6s"></div><div class="tv-star" style="left:26.8%;top:35.9%;width:3.3px;height:3.3px;animation-duration:2.8s,13.0s;animation-delay:-0.5s,-0.4s"></div><div class="tv-star" style="left:3.0%;top:60.0%;width:2.0px;height:2.0px;animation-duration:4.3s,9.0s;animation-delay:-3.2s,-5.4s"></div><div class="tv-star" style="left:12.0%;top:89.9%;width:2.8px;height:2.8px;animation-duration:5.1s,10.0s;animation-delay:-5.4s,-4.1s"></div><div class="tv-star" style="left:88.6%;top:41.6%;width:2.6px;height:2.6px;background:#F2B84B;box-shadow:0 0 8px rgba(242,184,75,.9);animation-duration:4.5s,11.6s;animation-delay:-4.7s,-5.5s"></div><div class="tv-star" style="left:63.5%;top:83.0%;width:2.9px;height:2.9px;background:#F2B84B;box-shadow:0 0 8px rgba(242,184,75,.9);animation-duration:4.3s,6.6s;animation-delay:-5.8s,-3.3s"></div><div class="tv-star" style="left:75.1%;top:78.2%;width:3.1px;height:3.1px;animation-duration:4.5s,9.6s;animation-delay:-5.3s,-4.3s"></div><div class="tv-star" style="left:46.7%;top:99.0%;width:1.6px;height:1.6px;animation-duration:5.1s,7.2s;animation-delay:-4.1s,-1.0s"></div><div class="tv-star" style="left:31.5%;top:2.2%;width:2.0px;height:2.0px;animation-duration:6.3s,10.1s;animation-delay:-0.2s,-2.3s"></div><div class="tv-star" style="left:23.3%;top:74.0%;width:2.0px;height:2.0px;animation-duration:3.7s,13.3s;animation-delay:-3.6s,-2.4s"></div><div class="tv-star" style="left:34.4%;top:41.7%;width:3.6px;height:3.6px;animation-duration:6.1s,10.5s;animation-delay:-0.5s,-1.0s"></div><!--/gen:stars--></div>
-<div class="tv-hero" style="position: relative; max-width: 1200px; margin: 0 auto; padding: clamp(40px, 7vw, 80px) 20px clamp(56px, 8vw, 96px); display: flex; flex-wrap: wrap; gap: 40px 56px; align-items: flex-start">
+    <div class="beat" id="b4">
+      <p class="cap">And keeps it, with the message it came from.</p>
+      <div class="card"><small>Tovira caught</small><strong>Loves the beach. Every weekend.</strong></div>
+    </div>
 
-<div class="tv-hero-l" style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 24px; padding-top: clamp(0px, 3vw, 40px)">
-<h1 id="hero-h" style="margin: 0; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.4vw, 58px); line-height: 1.02; letter-spacing: -0.025em"><span class="tv-up" style="display: block; animation-delay: .08s">The detail that wins the deal is already in your chats.</span><span class="tv-up" style="display: block; color: #E8643A; animation-delay: .32s">You just scrolled past it.</span></h1>
-<p class="tv-up" style="margin: 0; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.6; color: #CFC6BA; max-width: 560px; animation-delay: .5s">Tovira analyses your client conversations and voice notes, catches the details a busy rep misses, and puts them in front of you before the meeting that matters.</p>
-<div class="tv-up" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; animation-delay: .64s">
-<a class="tv-cta" data-cta href="/request-access" style="background: #E8643A; color: #171412; text-decoration: none; font-weight: 600; font-size: 17px; padding: 16px 26px; border-radius: 999px">Try free for 14 days</a>
-<a class="tv-cta tv-mobplay" href="#game" style="color: #F2EDE4; text-decoration: none; font-weight: 500; font-size: 17px; padding: 16px 22px; border-radius: 999px; border: 1px solid #4A423B">Play the game</a>
-</div>
-<div class="tv-up" style="font-size: 14px; color: #A79E92; animation-delay: .76s">Then AED 299 a month. Tovira never connects to your WhatsApp account.</div>
-</div>
-
-<div id="game" class="tv-up" style="flex: 1 1 400px; min-width: 0; max-width: 500px; display: flex; flex-direction: column; gap: 12px; animation-delay: .3s; scroll-margin-top: 84px">
-<div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px">
-<h2 id="game-h" style="margin: 0; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-weight: 600; font-size: clamp(22px, 2.2vw, 26px); line-height: 1.1">Would you have caught it?</h2>
-<div style="font-family: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace; font-size: 12px; letter-spacing: 0.14em; color: #E8643A">A 2-MINUTE TEST</div>
-</div>
-<div style="background: #1F1B18; border: 1px solid #332D28; border-radius: 22px; padding: clamp(14px, 2.4vw, 20px); display: flex; flex-direction: column; gap: 14px; box-shadow: 0 30px 80px rgba(0,0,0,0.45)" data-game><!--gen:game--><div style="display: flex; flex-direction: column; gap: 14px"><p style="margin: 0; font-size: 15px; line-height: 1.5; color: #F2EDE4">Clients drop details that win deals. Can you spot them? Pick your industry to start.</p><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px"><button class="tv-btn tv-msg" type="button" data-act="start" data-gi="0" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">Property</button><button class="tv-btn tv-msg" type="button" data-act="start" data-gi="1" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">Insurance</button><button class="tv-btn tv-msg" type="button" data-act="start" data-gi="2" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">Wealth</button><button class="tv-btn tv-msg" type="button" data-act="start" data-gi="3" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">B2B accounts</button><button class="tv-btn tv-msg" type="button" data-act="start" data-gi="4" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">Luxury</button><button class="tv-btn tv-msg" type="button" data-act="start" data-gi="5" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">Recruitment</button></div></div><!--/gen:game--></div>
-</div>
-
-</div>
+    <div class="beat" id="b5">
+      <p class="cap">Then has it ready before the meeting.</p>
+      <div class="brief"><small>Before your Sunday meeting</small><ul><li><span>Wants a sea view</span></li><li><span>Decides before September</span></li><li><span>Worried about the service charge</span></li></ul></div>
+      <a class="pill" data-cta data-place="beat5" href="/request-access">Start free</a>
+    </div>
+  </div>
 </section>
 
-<section aria-hidden="true" aria-label="Details Tovira caught" style="border-top: 1px solid #2A2521; border-bottom: 1px solid #2A2521; background: #120F0D; padding: 22px 0; overflow: hidden; display: flex; flex-direction: column; gap: 10px">
-<div class="tv-marq" style="font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-size: clamp(30px, 5vw, 60px); font-weight: 500; line-height: 1.1; white-space: nowrap">
-<!--gen:marqA--><span style="padding: 0 28px; color: #7D736A">Loves the beach</span><span style="padding: 0 28px; color: #E8643A">The CFO really decides</span><span style="padding: 0 28px; color: #F2EDE4">Board meets on the 14th</span><span style="padding: 0 28px; color: #7D736A">Travels to Europe most months</span><span style="padding: 0 28px; color: #E8643A">Anniversary in May</span><span style="padding: 0 28px; color: #F2EDE4">Wants hybrid</span><span style="padding: 0 28px; color: #7D736A">Loves the beach</span><span style="padding: 0 28px; color: #E8643A">The CFO really decides</span><span style="padding: 0 28px; color: #F2EDE4">Board meets on the 14th</span><span style="padding: 0 28px; color: #7D736A">Travels to Europe most months</span><span style="padding: 0 28px; color: #E8643A">Anniversary in May</span><span style="padding: 0 28px; color: #F2EDE4">Wants hybrid</span><!--/gen:marqA-->
-</div>
-<div class="tv-marq rev" style="font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-size: clamp(30px, 5vw, 60px); font-weight: 500; line-height: 1.1; white-space: nowrap">
-<!--gen:marqB--><span style="padding: 0 28px; color: #7D736A">Daughter at LSE from September</span><span style="padding: 0 28px; color: #E8643A">Loved the emerald set</span><span style="padding: 0 28px; color: #F2EDE4">Renewal on 1 March</span><span style="padding: 0 28px; color: #7D736A">Worried about slow support</span><span style="padding: 0 28px; color: #E8643A">Husband signs off over 3M</span><span style="padding: 0 28px; color: #F2EDE4">Wants liquidity</span><span style="padding: 0 28px; color: #7D736A">Wife wears gold, never silver</span><span style="padding: 0 28px; color: #E8643A">Wants a named account manager</span><span style="padding: 0 28px; color: #F2EDE4">Daughter at LSE from September</span><span style="padding: 0 28px; color: #7D736A">Loved the emerald set</span><span style="padding: 0 28px; color: #E8643A">Renewal on 1 March</span><span style="padding: 0 28px; color: #F2EDE4">Worried about slow support</span><span style="padding: 0 28px; color: #7D736A">Husband signs off over 3M</span><span style="padding: 0 28px; color: #E8643A">Wants liquidity</span><span style="padding: 0 28px; color: #F2EDE4">Wife wears gold, never silver</span><span style="padding: 0 28px; color: #7D736A">Wants a named account manager</span><!--/gen:marqB-->
-</div>
-</section>
-
-<section aria-labelledby="missed-h" style="position: relative">
-<div class="tv-sec" style="max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 48px; align-items: center">
-<div class="tv-rv" style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
-<div style="font-family: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace; font-size: 13px; letter-spacing: 0.16em; color: #A79E92">THE PROBLEM</div>
-<h2 id="missed-h" style="margin: 0; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-weight: 500; font-size: clamp(32px, 4.2vw, 54px); line-height: 1.06; letter-spacing: -0.02em">Your clients tell you how to win them. Once. In passing.</h2>
-<p style="margin: 0; font-size: 18px; line-height: 1.65; color: #CFC6BA">A trip to Europe. A spouse who really decides. A budget said once and never again. It's buried between "thanks" and "see you Sunday", across hundreds of messages a week. Nobody reads every line twice. Tovira does.</p>
-</div>
-<div class="tv-wall" style="flex: 1 1 420px; min-width: 0; height: 480px; overflow: hidden; position: relative; border-radius: 24px; perspective: 900px; -webkit-mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent); mask-image: linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent)" aria-hidden="true">
-<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; height: 100%; transform: rotateX(14deg) scale(1.06); transform-origin: 50% 0">
-<div class="tv-col" style="display: flex; flex-direction: column; gap: 10px; animation-duration: 38s">
-<!--gen:wallA--><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">ok thanks</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">see you tmrw</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">my wife decides on these things</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">sent</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">can you resend the pdf</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">running 10 min late</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">budget is max 2.5</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">done</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">call you after lunch</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">perfect</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">kids start school in Sept</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">noted</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">ok thanks</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">see you tmrw</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">my wife decides on these things</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">sent</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">can you resend the pdf</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">running 10 min late</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">budget is max 2.5</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">done</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">call you after lunch</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">perfect</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">kids start school in Sept</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">noted</div><!--/gen:wallA-->
-</div>
-<div class="tv-col" style="display: flex; flex-direction: column; gap: 10px; animation-duration: 46s">
-<!--gen:wallB--><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">haha yes</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">which floor was it?</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">I'm in London most of June</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">thank you!</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">will check and revert</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">ok</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">last broker never called back</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">call me pls</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">got it</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">sunday works</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">renewal is in March</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">sure</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">haha yes</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">which floor was it?</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">I'm in London most of June</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">thank you!</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">will check and revert</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">ok</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">last broker never called back</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">call me pls</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">got it</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">sunday works</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">renewal is in March</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">sure</div><!--/gen:wallB-->
-</div>
-<div class="tv-col" style="display: flex; flex-direction: column; gap: 10px; animation-duration: 42s">
-<!--gen:wallC--><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">sounds good</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">traffic is crazy</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">we love the sea view</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">yes please</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">what time?</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">thx</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">my partner gets back on the 20th</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">ok cool</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">send me options</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">on my way</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">no more than 3 days office</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">great</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">sounds good</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">traffic is crazy</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">we love the sea view</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">yes please</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">what time?</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">thx</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">my partner gets back on the 20th</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">ok cool</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">send me options</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">on my way</div><div class="tv-missed" style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #FFD9C9">no more than 3 days office</div><div style="background: #221D1A; border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: #9C9389">great</div><!--/gen:wallC-->
+<section class="t2-sec" aria-labelledby="missed-h">
+<div class="t2-in" style="display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px; max-width: 640px">
+<h2 class="t2-h2" id="missed-h">Nothing gets missed.</h2>
+<div style="display: flex; flex-direction: column; gap: 4px; font-size: clamp(17px, 1.6vw, 20px); color: #5A5A5F">
+<span>Every detail buried in small talk.</span><span>Every promise you made.</span><span>Every client going quiet.</span>
 </div>
 </div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
+<div class="t2-card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 200px">
+<div class="t2-mono">BEFORE YOUR 3PM</div>
+<div style="font-weight: 600; font-size: 17px">Meeting brief</div>
+<div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: #5A5A5F"><span>Wants a sea view</span><span>Decides before September</span><span>Worried about the service charge</span></div>
 </div>
+<div class="t2-card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 200px">
+<div class="t2-mono" style="color: #0A0A0A">DUE TODAY</div>
+<div style="font-weight: 600; font-size: 17px">A promise you made</div>
+<div style="font-size: 14px; color: #5A5A5F; line-height: 1.5">You said you'd send the floor plan by Thursday.</div>
 </div>
-</section>
-
-<section id="worlds" aria-labelledby="worlds-h" style="position: relative; background: radial-gradient(60% 50% at 20% 40%, rgba(232,100,58,0.10), rgba(23,20,18,0) 70%)">
-<div class="tv-sec" style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px">
-<div class="tv-rv" style="display: flex; flex-direction: column; gap: 14px; max-width: 760px">
-<div style="font-family: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace; font-size: 13px; letter-spacing: 0.16em; color: #A79E92">PICK YOUR WORLD</div>
-<h2 id="worlds-h" style="margin: 0; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-weight: 500; font-size: clamp(32px, 4.2vw, 54px); line-height: 1.06; letter-spacing: -0.02em">See what Tovira would catch in your chats.</h2>
+<div class="t2-card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 200px">
+<div class="t2-mono" style="color: #0A0A0A">GOING QUIET</div>
+<div style="font-weight: 600; font-size: 17px">No reply in 30 days</div>
+<div style="font-size: 14px; color: #5A5A5F; line-height: 1.5">Their last message: "When is the handover?"</div>
 </div>
-<div data-worlds style="display: flex; flex-wrap: wrap; gap: 10px" role="tablist" aria-label="Industries"><!--gen:tabs--><button class="tv-tab" type="button" role="tab" id="world-tab-0" aria-controls="world-panel" aria-selected="true" tabindex="0" data-w="0" style="background:#E8643A;color:#171412;border:1px solid #E8643A;border-radius:999px;padding:12px 20px;font-size:15px;font-weight:600;min-height:44px">Property</button><button class="tv-tab" type="button" role="tab" id="world-tab-1" aria-controls="world-panel" aria-selected="false" tabindex="-1" data-w="1" style="background:transparent;color:#F2EDE4;border:1px solid #4A423B;border-radius:999px;padding:12px 20px;font-size:15px;font-weight:500;min-height:44px">Insurance</button><button class="tv-tab" type="button" role="tab" id="world-tab-2" aria-controls="world-panel" aria-selected="false" tabindex="-1" data-w="2" style="background:transparent;color:#F2EDE4;border:1px solid #4A423B;border-radius:999px;padding:12px 20px;font-size:15px;font-weight:500;min-height:44px">Wealth</button><button class="tv-tab" type="button" role="tab" id="world-tab-3" aria-controls="world-panel" aria-selected="false" tabindex="-1" data-w="3" style="background:transparent;color:#F2EDE4;border:1px solid #4A423B;border-radius:999px;padding:12px 20px;font-size:15px;font-weight:500;min-height:44px">B2B accounts</button><button class="tv-tab" type="button" role="tab" id="world-tab-4" aria-controls="world-panel" aria-selected="false" tabindex="-1" data-w="4" style="background:transparent;color:#F2EDE4;border:1px solid #4A423B;border-radius:999px;padding:12px 20px;font-size:15px;font-weight:500;min-height:44px">Luxury</button><button class="tv-tab" type="button" role="tab" id="world-tab-5" aria-controls="world-panel" aria-selected="false" tabindex="-1" data-w="5" style="background:transparent;color:#F2EDE4;border:1px solid #4A423B;border-radius:999px;padding:12px 20px;font-size:15px;font-weight:500;min-height:44px">Recruitment</button><!--/gen:tabs--></div>
-<div id="world-panel" data-world-panel role="tabpanel" aria-labelledby="world-tab-0" tabindex="0" class="tv-fade" style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch"><!--gen:panel--><div style="flex: 1 1 320px; min-width: 0; background: #1F1B18; border: 1px solid #332D28; border-radius: 22px; padding: 24px; display: flex; flex-direction: column; gap: 14px"><div style="font-family: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace; font-size: 12px; letter-spacing: 0.14em; color: #A79E92">WHAT THE CLIENT SAID</div><div data-world="said" style="font-size: 19px; line-height: 1.55">Saturday is hard, kids have football. Honestly <span style="background: rgba(232,100,58,0.22); color: #FFD9C9; box-shadow: 0 0 0 1px rgba(232,100,58,0.6); border-radius: 6px; padding: 1px 4px">we're at the beach every weekend</span>, can we do Sunday?</div><div style="font-size: 13px; color: #A79E92">WhatsApp · 12 Mar</div></div><div style="flex: 1 1 280px; min-width: 0; background: #F2EDE4; color: #171412; border-radius: 22px; padding: 24px; display: flex; flex-direction: column; gap: 14px"><div style="font-family: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace; font-size: 12px; letter-spacing: 0.14em; color: #5E554C">TOVIRA CAUGHT</div><div data-world="caught" style="font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-size: 28px; font-weight: 600; line-height: 1.15">Loves the beach. Every weekend, with the kids.</div><div style="font-size: 13px; color: #5E554C">Linked to the message it came from. Shown in the brief before your next meeting.</div></div><div style="flex: 1 1 240px; min-width: 0; border: 1px dashed #4A423B; border-radius: 22px; padding: 24px; display: flex; flex-direction: column; gap: 14px"><div style="font-family: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace; font-size: 12px; letter-spacing: 0.14em; color: #A79E92">YOUR MOVE</div><div data-world="move" style="font-size: 21px; line-height: 1.4; font-weight: 500">Lead with the sea-view units.</div><div style="font-size: 13px; color: #A79E92">You decide. Tovira just makes sure you saw it.</div></div><!--/gen:panel--></div>
-</div>
-</section>
-
-<section id="how" aria-labelledby="how-h" style="background: linear-gradient(180deg, rgba(23,20,18,0), #120F0D 20%, #120F0D 80%, rgba(23,20,18,0))">
-<div class="tv-sec" style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px">
-<h2 id="how-h" class="tv-rv" style="margin: 0; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-weight: 500; font-size: clamp(32px, 4.2vw, 54px); line-height: 1.06; letter-spacing: -0.02em; max-width: 760px">Send it a chat. It finds what you missed.</h2>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px">
-<div class="tv-rv" style="background: #1F1B18; border: 1px solid #332D28; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
-<div style="font-family: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace; font-size: 14px; color: #E8643A">01</div>
-<h3 style="margin: 0; font-size: 22px; font-weight: 600">Give it the conversation</h3>
-<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">Export a WhatsApp chat, record a 30-second voice note after a call, or just type what you know.</p>
-</div>
-<div class="tv-rv" style="background: #1F1B18; border: 1px solid #332D28; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
-<div style="font-family: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace; font-size: 14px; color: #E8643A">02</div>
-<h3 style="margin: 0; font-size: 22px; font-weight: 600">Tovira analyses every line</h3>
-<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">What they care about, what they're worried about, every date and promise. In English, Arabic, Hindi and Urdu, even mixed.</p>
-</div>
-<div class="tv-rv" style="background: #1F1B18; border: 1px solid #332D28; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
-<div style="font-family: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace; font-size: 14px; color: #E8643A">03</div>
-<h3 style="margin: 0; font-size: 22px; font-weight: 600">It speaks up at the right time</h3>
-<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">A brief before every meeting. Each morning, who to call and what they care about. And it never forgets a promise, yours or theirs.</p>
+<div class="t2-card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 200px">
+<div class="t2-mono">RECEIPT</div>
+<div style="font-weight: 600; font-size: 17px">Proof for what it catches</div>
+<div style="font-size: 14px; color: #5A5A5F; line-height: 1.5">Every promise and detail links to the message, or voice note, it came from.</div>
+<div style="font-size: 14px; color: #5A5A5F; line-height: 1.5; background: #FAFAFA; border-radius: 12px; padding: 10px 12px">"We'd need it before September."<br><span style="color: #6B6B70; font-size: 12px">Client chat · 12 Mar, 14:02</span></div>
 </div>
 </div>
 </div>
 </section>
 
-<section aria-labelledby="trust-h">
-<div class="tv-sec" style="max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start">
-<div class="tv-rv" style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
-<h2 id="trust-h" style="margin: 0; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-weight: 500; font-size: clamp(32px, 4.2vw, 54px); line-height: 1.06; letter-spacing: -0.02em">It shows its work, then puts it to work.</h2>
+<section class="t2-sec" style="padding-top: 0" aria-labelledby="different-h">
+<div class="t2-in" style="display: flex; flex-direction: column; gap: 36px">
+<h2 class="t2-h2" id="different-h">Different on purpose</h2>
+<div class="t2-grid2" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">A CRM remembers what you type. Tovira remembers what they said.</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">No data entry. It reads the chat and finds what you never wrote down.</div>
 </div>
-<div style="flex: 1 1 500px; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px">
-<div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">Linked to the message</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">Tap any detail to see exactly where the client said it.</div></div>
-<div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">Never invents a date</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">If "next week sometime" isn't clear, it asks you instead of guessing.</div></div>
-<div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">A brief before every meeting</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">What they care about, what you promised and what's due, in one screen before you walk in.</div></div>
-<div class="tv-rv" style="border-top: 1px solid #3A332D; padding-top: 16px; display: flex; flex-direction: column; gap: 6px"><div style="font-weight: 600; font-size: 17px">Every promise, on time</div><div style="font-size: 15px; line-height: 1.55; color: #CFC6BA">Every date and commitment, yours and theirs, on your list before it's due.</div></div>
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">AI chatbots wait to be asked. Tovira speaks first.</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">Every day it tells you what needs your attention.</div>
+</div>
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">Some assistants want your whole WhatsApp. Tovira only sees the chats you send.</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">It never logs in, never sends as you and never messages your clients.</div>
+</div>
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">Built for selling, not for everything.</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">Promises you made, clients going quiet and what each one is waiting for.</div>
+</div>
+</div>
+</div>
+</section>
+
+<section style="padding: 0 20px" aria-label="The game">
+<a class="t2-cta" data-banner href="/game" style="max-width: 1120px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; background: #FFFFFF; border: 1px solid #CFCFCF; border-radius: 20px; padding: 22px 26px; text-decoration: none; color: #0A0A0A">
+<span style="display: flex; flex-direction: column; gap: 4px"><span class="t2-mono" style="color: #0A0A0A">A 2-MINUTE TEST</span><span style="font-size: clamp(22px, 2.6vw, 30px)">Would you have caught it?</span></span>
+<span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; color: #0A0A0A">Play the game<svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h12M10 4l5 5-5 5"/></svg></span>
+</a>
+</section>
+
+<section id="how" class="t2-sec" aria-labelledby="how-h" style="scroll-margin-top: 76px">
+<div class="t2-in" style="display: flex; flex-direction: column; gap: 36px">
+<h2 class="t2-h2" id="how-h">Three steps. No typing.</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 4px 0">
+<div style="font-size: 44px; color: #0A0A0A; line-height: 1">1</div>
+<div style="font-weight: 600; font-size: 19px">Export a chat</div>
+<div style="font-size: 15px; color: #5A5A5F">Or record a voice note.</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 4px 0">
+<div style="font-size: 44px; color: #0A0A0A; line-height: 1">2</div>
+<div style="font-weight: 600; font-size: 19px">Tovira reads the chat</div>
+<div style="font-size: 15px; color: #5A5A5F">Months of history, in minutes.</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 4px 0">
+<div style="font-size: 44px; color: #0A0A0A; line-height: 1">3</div>
+<div style="font-weight: 600; font-size: 19px">Your brief is ready before the meeting</div>
+<div style="font-size: 15px; color: #5A5A5F">Open it and walk in prepared.</div>
+</div>
 </div>
 </div>
 </section>
 
-<section id="pricing" aria-labelledby="price-h" style="background: radial-gradient(60% 70% at 50% 50%, rgba(232,100,58,0.12), rgba(23,20,18,0) 70%)">
-<div class="tv-sec" style="max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; align-items: center; text-align: center">
-<h2 id="price-h" class="tv-rv" style="margin: 0; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-weight: 500; font-size: clamp(32px, 4.2vw, 54px); line-height: 1.06; letter-spacing: -0.02em">One plan. Pays for itself with one detail.</h2>
-<div class="tv-rv" style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; width: 100%">
-<div style="flex: 1 1 240px; max-width: 320px; background: #1F1B18; border: 1px solid #332D28; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 6px"><div style="font-size: 15px; color: #A79E92">Monthly</div><div style="font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-size: 44px; font-weight: 600">AED 299</div><div style="font-size: 14px; color: #A79E92">per month</div></div>
-<div style="flex: 1 1 240px; max-width: 320px; background: #F2EDE4; color: #171412; border-radius: 22px; padding: 28px; display: flex; flex-direction: column; gap: 6px"><div style="font-size: 15px; color: #5E554C">Yearly · two months free</div><div style="font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-size: 44px; font-weight: 600">AED 2,990</div><div style="font-size: 14px; color: #5E554C">per year</div></div>
+<section class="t2-sec" style="padding-top: 0" aria-labelledby="does-h">
+<div class="t2-in" style="display: flex; flex-direction: column; gap: 36px">
+<h2 class="t2-h2" id="does-h">What Tovira does</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">Catches the details</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">What they love, their deadline, what worries them.</div>
 </div>
-<div style="font-size: 15px; color: #CFC6BA">14 days free. No tiers, no seats. Cancel any time in Settings.</div>
+
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">Briefs you before meetings</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">Everything that matters about this client, in one screen.</div>
+</div>
+
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">Tracks your promises</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">What you said you would do, and when it is due.</div>
+</div>
+
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">Warns you when clients go quiet</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">Before the deal goes cold.</div>
+</div>
+
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">Finds it in one tap</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">Missed promises, deals at risk, clients going quiet.</div>
+</div>
+
+<div class="t2-card" style="padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 600; font-size: 18px">Works with voice notes</div>
+<div style="font-size: 15px; line-height: 1.5; color: #5A5A5F">Talk after a meeting. Tovira writes it up under that client.</div>
+</div>
+
+</div>
 </div>
 </section>
 
-<section aria-labelledby="faq-h">
-<div class="tv-sec" style="max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px">
-<h2 id="faq-h" style="margin: 0 0 16px; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-weight: 500; font-size: 36px">Questions</h2>
-<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">What does Tovira pick up from a chat?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">The things that help you close: what the client loves, what they're looking for and at what price, deadlines, worries, family occasions, and every promise and date, yours and theirs. Every detail is linked to the exact message it came from, so you can check it in one tap.</p></details>
-<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">How do I get my chats into Tovira?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">Export a WhatsApp chat and add it in Tovira, record a short voice note after a call or meeting, or just type what you know. Tovira files everything under the right client.</p></details>
-<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">What does Tovira do with what it finds?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">It puts it in front of you when it matters. Each client has a page showing what they care about. Before a meeting you get a brief. Each morning, Today shows who to call and why. And you're reminded before any promise is due.</p></details>
-<details style="border-top: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">Does it work in Arabic, Hindi or Urdu?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">Yes. Chats and voice notes in English, Arabic, Hindi and Urdu all work, even when a client mixes languages in one message.</p></details>
-<details style="border-top: 1px solid #3A332D; border-bottom: 1px solid #3A332D; padding: 18px 0"><summary style="cursor: pointer; font-size: 18px; font-weight: 600">Why not just ask ChatGPT?</summary><p style="margin: 12px 0 0; font-size: 16px; line-height: 1.6; color: #CFC6BA">ChatGPT is great at answering what you ask, about what you paste in. But you have to remember to ask, and you have to know what you're looking for. Tovira works the other way round. It reads every chat you give it, picks out what each client cares about, and files it under the right client, linked to the exact message. It never makes up a date it can't find. Then it brings the right detail to you, before the meeting and in your morning list, without you asking. ChatGPT helps when you remember. Tovira is for the details you didn't know you'd forgotten.</p></details>
+<section id="privacy" class="t2-sec" aria-labelledby="trust-h" style="background: #F2F2F2; border-top: 1px solid #E6E6E6; border-bottom: 1px solid #E6E6E6; scroll-margin-top: 76px">
+<div class="t2-in" style="display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 14px; max-width: 680px">
+<h2 class="t2-h2" id="trust-h">You send chats in. Nothing goes out.</h2>
+<p style="margin: 0; font-size: clamp(17px, 1.6vw, 20px); color: #5A5A5F">Tovira never logs in to your WhatsApp, never messages your clients and never replies for you.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
+
+<div style="border: 1px solid #E6E6E6; border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+<div style="font-weight: 600; font-size: 17px">It only receives</div>
+<div style="font-size: 14px; line-height: 1.5; color: #5A5A5F">You send a chat to Tovira. It never logs in to your WhatsApp and never sends anything as you.</div>
+</div>
+
+<div style="border: 1px solid #E6E6E6; border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+<div style="font-weight: 600; font-size: 17px">You choose</div>
+<div style="font-size: 14px; line-height: 1.5; color: #5A5A5F">It only sees the chats you give it.</div>
+</div>
+
+<div style="border: 1px solid #E6E6E6; border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+<div style="font-weight: 600; font-size: 17px">Not used for training</div>
+<div style="font-size: 14px; line-height: 1.5; color: #5A5A5F">Your conversations are never used to train AI models.</div>
+</div>
+
+<div style="border: 1px solid #E6E6E6; border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 8px">
+<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+<div style="font-weight: 600; font-size: 17px">Proof for what it catches</div>
+<div style="font-size: 14px; line-height: 1.5; color: #5A5A5F">Every promise and detail links to the message, or voice note, it came from.</div>
+</div>
+
+</div>
 </div>
 </section>
 
-<section id="start" aria-labelledby="end-h" style="position: relative; overflow: hidden; background: radial-gradient(70% 80% at 50% 100%, rgba(232,100,58,0.22), rgba(23,20,18,0) 70%)">
-<div class="tv-sec" style="max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 26px; align-items: center; text-align: center">
-<h2 id="end-h" class="tv-rv" style="margin: 0; font-family: Fraunces, 'Fraunces Fallback', Georgia, serif; font-weight: 500; font-size: clamp(34px, 5vw, 64px); line-height: 1.04; letter-spacing: -0.025em">Your next client has already told you something important.</h2>
-<a class="tv-cta" data-cta href="/request-access" style="background: #E8643A; color: #171412; text-decoration: none; font-weight: 600; font-size: 18px; padding: 18px 30px; border-radius: 999px">Try free for 14 days</a>
-<div style="font-size: 14px; color: #A79E92">Then AED 299 a month · <a href="mailto:hello@tovira.io" style="color: inherit">hello@tovira.io</a></div>
+<section id="pricing" class="t2-sec" aria-labelledby="pricing-h" style="scroll-margin-top: 76px">
+<div class="t2-in" style="display: flex; flex-direction: column; align-items: center; gap: 28px; text-align: center">
+<h2 class="t2-h2" id="pricing-h">One plan. Everything in it.</h2>
+<div class="t2-card" data-pricing style="width: 100%; max-width: 440px; padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 16px; border-color: #CFCFCF">
+<div style="font-size: 60px; line-height: 1">AED 299</div>
+<div style="font-size: 15px; color: #6B6B70">a month</div>
+<div style="display: flex; flex-direction: column; gap: 8px; font-size: 16px; color: #5A5A5F"><span>10,000 messages a month</span><span>14 days free with 5,000 messages. No card.</span><span>Cancel any time</span></div>
+<a class="t2-cta" data-cta data-place="pricing" href="/request-access" style="margin-top: 6px; background: #0A0A0A; color: #FAFAFA; text-decoration: none; font-weight: 600; font-size: 17px; padding: 15px 28px; border-radius: 999px">Start free</a>
+</div>
+</div>
+</section>
+
+<section class="t2-sec" style="padding-top: 0" aria-labelledby="faq-h">
+<div style="max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px">
+<h2 class="t2-h2" id="faq-h" style="font-size: clamp(26px, 3.4vw, 38px)">Questions</h2>
+<div style="display: flex; flex-direction: column">
+
+
+<details style="border-top: 1px solid #E6E6E6; padding: 18px 0">
+<summary style="display: flex; justify-content: space-between; align-items: center; gap: 16px; font-weight: 600; font-size: 17px; min-height: 28px"><span>Do I have to connect my WhatsApp?</span><svg class="t2-plus" aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" style="flex: 0 0 auto"><path d="M10 4v12M4 10h12"/></svg></summary>
+<p style="margin: 10px 0 0; font-size: 15px; line-height: 1.6; color: #5A5A5F">No. You export a chat and send Tovira the file.</p>
+</details>
+
+
+<details style="border-top: 1px solid #E6E6E6; padding: 18px 0">
+<summary style="display: flex; justify-content: space-between; align-items: center; gap: 16px; font-weight: 600; font-size: 17px; min-height: 28px"><span>Who is it not for?</span><svg class="t2-plus" aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0A0A0A" stroke-width="2" stroke-linecap="round" style="flex: 0 0 auto"><path d="M10 4v12M4 10h12"/></svg></summary>
+<p style="margin: 10px 0 0; font-size: 15px; line-height: 1.6; color: #5A5A5F">Call-centre teams on recorded calls. Tovira is for people who sell through chat: a few clients for years, or hundreds at once.</p>
+</details>
+
+</div>
+</div>
+</section>
+
+<section id="start" aria-labelledby="start-h" style="border-top: 1px solid #E6E6E6">
+<div class="t2-in" style="padding: clamp(64px, 9vw, 112px) 20px; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center">
+<h2 class="t2-h2" id="start-h" style="max-width: 760px">Your next client already told you something important.</h2>
+<a class="t2-cta" data-cta data-place="closing" href="/request-access" style="background: #0A0A0A; color: #FAFAFA; text-decoration: none; font-weight: 600; font-size: 18px; padding: 17px 30px; border-radius: 999px">Start free</a>
+<div style="font-size: 14px; color: #6B6B70">14 days free · No card needed</div>
 </div>
 </section>
 </main>
-
-<footer style="border-top: 1px solid #2A2521">
-<div style="max-width: 1200px; margin: 0 auto; padding: 28px 20px 40px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; font-size: 14px; color: #A79E92">
-<div>Tovira · Prospera Technologies FZ-LLC</div>
-<div style="display: flex; gap: 18px"><a href="/privacy" style="color: #A79E92">Privacy</a><a href="/terms" style="color: #A79E92">Terms</a></div>
+<footer class="foot">
+<div class="foot-in">
+<span>Tovira · Prospera Technologies FZ-LLC · <a href="mailto:hello@tovira.io">hello@tovira.io</a></span>
+<span class="foot-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></span>
 </div>
 </footer>
   </body>

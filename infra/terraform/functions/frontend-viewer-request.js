@@ -7,7 +7,8 @@
 // Directory-index for the prerendered marketing pages: an S3 REST origin does not auto-append index.html,
 // so `/privacy` and `/terms` (dotless) map to `.../index.html`. Static assets (a dot in the path) pass
 // through. Everything else dotless is an app client-side route and is served the app shell.
-var MARKETING = ['/privacy', '/terms'];
+// [P89 · owner, Prompt 86] + the game's seven prerendered pages (/game and one per industry).
+var MARKETING = ['/privacy', '/terms', '/game', '/game/property', '/game/insurance', '/game/wealth', '/game/b2b', '/game/luxury', '/game/recruitment'];
 
 function queryString(qs) {
   var parts = [];

@@ -43,6 +43,10 @@ non-trivial work.** Decisions there are LOCKED — do not re-litigate them.
 - **Prompt caching:** the cacheable prefix must be byte-identical every call.
   Today's date and client names go in the VARIABLE part, never the cached prefix.
 
+## Public site
+- Any public page or copy change must follow `plan/brand.md` (the Marker brand; tokens in
+  `plan/brand-tokens.json`, landing source of truth `plan/tovira-landing-marker.html`). (Owner, Prompt 86.)
+
 ## Stack (locked — do not re-litigate)
 TypeScript end-to-end · React PWA (Vite) · Node API · PostgreSQL + pgvector ·
 Docker Compose locally · Vitest + Playwright · Claude via an interface (Anthropic

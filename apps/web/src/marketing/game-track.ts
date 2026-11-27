@@ -27,7 +27,9 @@ const chatOf = (s: GameState) => GAMES[s.gi]!.chats[s.round]!;
 const scoreOf = (s: GameState): number => s.results.reduce((a, r) => a + r, 0);
 
 /** Watch the game: game_view the first time its box is on screen, and an event for each action (via mountGame's onChange). */
-export function trackGame(box: HTMLElement, card: HTMLElement, send: Send = sendGame): { onChange: (s: GameState, prev: GameState) => void } {
+export function trackGame(box: HTMLElement, card: HTMLElement, sendRaw: Send = sendGame, route?: string): { onChange: (s: GameState, prev: GameState) => void } {
+  // [P89 · owner, Prompt 86] every event carries the game page it came from ('/game' or '/game/<industry>')
+  const send: Send = route ? (body) => sendRaw({ ...body, route }) : sendRaw;
   try {
     if (typeof IntersectionObserver !== 'undefined') {
       const io = new IntersectionObserver((entries) => {
@@ -42,7 +44,7 @@ export function trackGame(box: HTMLElement, card: HTMLElement, send: Send = send
     if (!a || !last || last.phase !== 'end') return;
     const flag = { industry: GAMES[last.gi]!.label, bucket: bucketOf(scoreOf(last)) };
     send({ event: 'game_cta', ...flag });
-    try { sessionStorage.setItem(GAME_CTA_KEY, JSON.stringify(flag)); } catch { /* private mode: no sign-up link */ }
+    try { sessionStorage.setItem(GAME_CTA_KEY, JSON.stringify(route ? { ...flag, route } : flag)); } catch { /* private mode: no sign-up link */ }
   });
   const onChange = (s: GameState, prev: GameState): void => {
     last = s;
@@ -65,7 +67,7 @@ export function gameSignedUp(send: Send = sendGame): void {
     const raw = sessionStorage.getItem(GAME_CTA_KEY);
     if (!raw) return;
     sessionStorage.removeItem(GAME_CTA_KEY);
-    const f = JSON.parse(raw) as { industry?: unknown; bucket?: unknown };
-    if (INDUSTRIES.includes(f.industry as string) && BUCKETS.includes(f.bucket as string)) send({ event: 'game_signup', industry: f.industry as string, bucket: f.bucket as string });
+    const f = JSON.parse(raw) as { industry?: unknown; bucket?: unknown; route?: unknown };
+    if (INDUSTRIES.includes(f.industry as string) && BUCKETS.includes(f.bucket as string)) send({ event: 'game_signup', industry: f.industry as string, bucket: f.bucket as string, ...(typeof f.route === 'string' ? { route: f.route } : {}) });
   } catch { /* never in the way */ }
 }

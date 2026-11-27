@@ -57,6 +57,14 @@ describe('[P75] the form field', () => {
     expect(hint).toMatch(/verify/i);
     expect(hint).not.toMatch(/UAE|Emirates|\+971|Dubai/);
   });
+  // [P89 · owner, 27 Nov] "No copy may tell visitors to send chats to a WhatsApp number while the number is limited to
+  // my account": the hint keeps the verification and drops "so you can send chats straight to Tovira"
+  it('[P89] NEGATIVE: the hint does not tell a visitor to send chats to the WhatsApp number', () => {
+    render(<RequestAccess client={makeClient()} />);
+    const hint = screen.getByTestId('whatsapp-hint').textContent!;
+    expect(hint).toBe('Once you’re approved, you’ll verify this number with one WhatsApp message.');
+    expect(hint).not.toMatch(/send chats|send (it|them) to/i);
+  });
 
   it('submits the number in E.164', async () => {
     const user = userEvent.setup();

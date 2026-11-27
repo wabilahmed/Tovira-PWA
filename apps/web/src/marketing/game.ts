@@ -1,6 +1,6 @@
 /**
  * [P71 · owner] "Would you have caught it?": the pick-your-industry landing game, ported from renderVals() in the
- * approved design (plan/tovira-landing-reference.dc.html). Pick an industry, play its 5 chats. A wrong tap ends the chat
+ * approved P70 design (since replaced by plan/tovira-landing-marker.html; the game moved to /game in P89). Pick an industry, play its 5 chats. A wrong tap ends the chat
  * and reveals every missed detail; finding every detail ends it too. Score = details caught, out of the industry's total.
  * [P73 · owner] 5 messages per chat, 1 to 3 details; a wrong tap says "Not a buying signal" with its "Why not" reason,
  * the other traps "Not a signal"; HOW IT WORKS in 5 steps; a smaller card (Blocks A and C of the design, word for word).
@@ -10,7 +10,7 @@
  * chat starts with its rules, big and bold: "Find the N messages that help you close the deal." (N from the data) and
  * "Pick a wrong one and you fail this chat.", then a live "x of N found" counter; the chat label and score are smaller.
  */
-import { ACCENT, GAMES, type Msg } from './landing-data.js';
+import { GAMES, type Msg } from './landing-data.js';
 
 export type Phase = 'pick' | 'play' | 'end';
 export interface GameState { gi: number; phase: Phase; round: number; tapped: number[]; results: number[]; shakeAt: number }
@@ -65,23 +65,26 @@ export interface GameView {
   score: number; maxScore: number; nextLabel: string; rank: string; rankLine: string;
 }
 
-const BASE = 'display:block;width:100%;min-height:46px;padding:10px 14px;border-radius:14px 14px 14px 4px;';
-const MONO = 'display:inline-block;margin-top:6px;font-family:"JetBrains Mono","JetBrains Mono Fallback",monospace;font-size:12px;letter-spacing:.06em;';
+// [P89 · owner, Prompt 86] The Marker look (plan/brand.md): a white card, ink text, the caught message marked in yellow
+// and tilted one degree as if marked by hand, small labels in Geist 600 uppercase. Rules, content and scoring unchanged.
+const BASE = 'display:block;width:100%;min-height:46px;padding:10px 14px;border-radius:16px 16px 16px 4px;color:#0A0A0A;';
+const LABEL = 'display:inline-block;margin-top:6px;font-family:Geist,"Geist Fallback",system-ui,sans-serif;font-size:12px;font-weight:600;letter-spacing:.06em;';
 const MSG_STYLES: Record<MsgState, string> = {
-  idle: BASE + 'background:#2A2521;color:#F2EDE4;border:1px solid #332D28',
-  hit: BASE + 'background:rgba(232,100,58,.16);color:#FFD9C9;border:1px solid ' + ACCENT + ';box-shadow:0 0 28px rgba(232,100,58,.25)',
-  wrong: BASE + 'background:#1A1714;color:#8A8076;border:1px solid #5A2A1E',
-  missed: BASE + 'background:#2A2521;color:#F2EDE4;border:1px dashed ' + ACCENT,
-  chatter: BASE + 'background:#1A1714;color:#6F675E;border:1px solid #2A2521',
+  idle: BASE + 'background:#F2F2F2;border:1px solid #E6E6E6',
+  hit: BASE + 'background:#FFE45C;border:1px solid #FFE45C;transform:rotate(-1deg)',
+  wrong: BASE + 'background:#FFFFFF;color:#5A5A5F;border:1px solid #0A0A0A',
+  missed: BASE + 'background:#F2F2F2;border:2px dashed #0A0A0A',
+  chatter: BASE + 'background:#FFFFFF;color:#5A5A5F;border:1px solid #E6E6E6',
 };
 const TAG_STYLES: Record<MsgState, string> = {
   idle: '',
-  hit: MONO + 'background:' + ACCENT + ';color:#171412;border-radius:999px;padding:4px 10px;font-weight:600',
-  wrong: MONO + 'color:#E8643A',
-  missed: MONO + 'color:' + ACCENT + ';font-weight:600',
-  chatter: MONO + 'color:#6F675E',
+  hit: LABEL + 'background:#0A0A0A;color:#FFFFFF;border-radius:999px;padding:4px 10px',
+  wrong: LABEL + 'color:#0A0A0A',
+  missed: LABEL + 'color:#0A0A0A',
+  chatter: LABEL + 'color:#5A5A5F',
 };
 const DOT = 'flex:1 1 0;min-width:0;height:6px;border-radius:999px;background:';
+const INK = '#0A0A0A';
 
 export function view(s: GameState): GameView {
   const game = gameOf(s);
@@ -109,9 +112,9 @@ export function view(s: GameState): GameView {
   let roundLine = 'You caught ' + all(sigCount) + '.';
   if (wrong) roundLine = found === 0 ? 'You missed ' + all(sigCount) + '.' : 'You caught ' + found + ' of ' + sigCount + ', and missed ' + plural(sigCount - found, 'detail') + '.';
   const roundSub = 'This chat had ' + plural(sigCount, 'useful detail') + '. ' + (sigCount === 1 ? 'Tovira caught it, linked to the message it came from.' : 'Tovira caught all ' + sigCount + ', each linked to the message it came from.');
-  const roundDots = [0, 1, 2, 3, 4].map((i) => DOT + (i < s.round || (i === s.round && done) ? ACCENT : i === s.round ? '#7D736A' : '#3A332D'));
+  const roundDots = [0, 1, 2, 3, 4].map((i) => DOT + (i < s.round || (i === s.round && done) ? INK : i === s.round ? '#6B6B70' : '#E6E6E6'));
   const scoreDots: string[] = [];
-  for (let i = 0; i < maxScore; i++) scoreDots.push(DOT + (i < score ? ACCENT : '#3A332D'));
+  for (let i = 0; i < maxScore; i++) scoreDots.push(DOT + (i < score ? INK : '#E6E6E6'));
   return {
     phase: s.phase, industries: GAMES.map((g) => g.label), industryLabel: game.label, industryUpper: game.label.toUpperCase(),
     header: game.label + ' client · chat ' + (s.round + 1) + ' of 5', roundNo: s.round + 1,
@@ -121,20 +124,23 @@ export function view(s: GameState): GameView {
   };
 }
 
-// ---- HTML views (markup and inline styles as drawn in the reference) ----
+// ---- HTML views (Marker, P89) ----
 
 export const esc = (v: string): string => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const MONO_FAMILY = "'JetBrains Mono', 'JetBrains Mono Fallback', monospace";
-const SERIF_FAMILY = "Fraunces, 'Fraunces Fallback', Georgia, serif";
+const SMALL = 'font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase';
 
 export const PICK_LINE = 'Clients drop details that win deals. Can you spot them? Pick your industry to start.';
 export const WARN_LINE = 'Pick a wrong one and you fail this chat.';
 
+/** [P89 · owner, Prompt 86] Each industry is a real page that starts its game. */
+export const SLUGS = ['property', 'insurance', 'wealth', 'b2b', 'luxury', 'recruitment'] as const;
+export const industryHref = (gi: number): string => `/game/${SLUGS[gi]}`;
+
 export function pickHtml(v: GameView): string {
   return `<div style="display: flex; flex-direction: column; gap: 14px">`
-    + `<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #F2EDE4">${PICK_LINE}</p>`
+    + `<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #0A0A0A">${PICK_LINE}</p>`
     + `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px">`
-    + v.industries.map((label, i) => `<button class="tv-btn tv-msg" type="button" data-act="start" data-gi="${i}" style="background: #2A2521; color: #F2EDE4; border: 1px solid #3A332D; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-align: left">${esc(label)}</button>`).join('')
+    + v.industries.map((label, i) => `<a class="tv-btn tv-pick" href="${industryHref(i)}" style="display: flex; align-items: center; background: #F2F2F2; color: #0A0A0A; border: 1px solid #E6E6E6; border-radius: 14px; padding: 12px 14px; min-height: 48px; font-size: 15px; font-weight: 600; text-decoration: none">${esc(label)}</a>`).join('')
     + `</div>`
     + `</div>`;
 }
@@ -142,7 +148,7 @@ export function pickHtml(v: GameView): string {
 export function msgInner(m: MsgView): string {
   return `<span style="display: block; font-size: 15px; line-height: 1.4">${esc(m.t)}</span>`
     + (m.hasTag ? `<span class="tv-pop" style="${esc(m.tagStyle)}">${esc(m.tag)}</span>` : '')
-    + (m.hasWhy ? `<span class="tv-pop" style="display: block; margin-top: 6px; font-size: 13px; line-height: 1.5; color: #CFC6BA"><span style="font-weight: 600; color: #F2EDE4">${esc(m.whyLabel)}</span>${esc(m.why)}</span>` : '');
+    + (m.hasWhy ? `<span class="tv-pop" style="display: block; margin-top: 6px; font-size: 13px; line-height: 1.5; color: #0A0A0A"><span style="font-weight: 600">${esc(m.whyLabel)}</span>${esc(m.why)}</span>` : '');
 }
 
 export function msgButton(m: MsgView, i: number): string {
@@ -151,22 +157,22 @@ export function msgButton(m: MsgView, i: number): string {
 
 export function resultHtml(v: GameView): string {
   if (!v.done) return '';
-  return `<div class="tv-pop" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; border-top: 1px solid #332D28; padding-top: 18px">`
-    + `<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 240px; min-width: 0"><div style="font-weight: 600; font-size: 17px">${esc(v.roundLine)}</div><div style="font-size: 14px; color: #A79E92">${esc(v.roundSub)}</div></div>`
-    + `<button class="tv-btn" type="button" data-act="next" style="background: #F2EDE4; color: #171412; border: 0; border-radius: 999px; padding: 14px 22px; font-weight: 600; font-size: 16px; min-height: 48px">${esc(v.nextLabel)}</button>`
+  return `<div class="tv-pop" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; border-top: 1px solid #E6E6E6; padding-top: 18px">`
+    + `<div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 240px; min-width: 0"><div style="font-weight: 600; font-size: 17px">${esc(v.roundLine)}</div><div style="font-size: 14px; color: #5A5A5F">${esc(v.roundSub)}</div></div>`
+    + `<button class="tv-btn" type="button" data-act="next" style="background: #0A0A0A; color: #FFFFFF; border: 0; border-radius: 999px; padding: 14px 22px; font-weight: 600; font-size: 16px; min-height: 48px">${esc(v.nextLabel)}</button>`
     + `</div>`;
 }
 
 export function playHtml(v: GameView): string {
   return `<div style="display: flex; flex-direction: column; gap: 12px">`
     + `<div style="display: flex; flex-direction: column; gap: 4px">`
-    + `<div data-g="rule" class="tv-rule" style="font-weight: 700; line-height: 1.3; color: #F2EDE4">${esc(v.findLine)}</div>`
-    + `<div data-g="warn" style="font-weight: 700; font-size: 15px; line-height: 1.35; color: ${ACCENT}">${WARN_LINE}</div>`
-    + `<div data-g="counter" style="margin-top: 2px; font-family: ${MONO_FAMILY}; font-size: 12px; letter-spacing: 0.06em; color: #CFC6BA">${esc(v.counter)}</div>`
+    + `<div data-g="rule" class="tv-rule" style="font-weight: 700; line-height: 1.3; color: #0A0A0A">${esc(v.findLine)}</div>`
+    + `<div data-g="warn" style="font-weight: 700; font-size: 15px; line-height: 1.35; color: #0A0A0A">${WARN_LINE}</div>`
+    + `<div data-g="counter" style="margin-top: 2px; ${SMALL}; color: #6B6B70">${esc(v.counter)}</div>`
     + `</div>`
     + `<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px">`
-    + `<div data-g="meta" style="font-size: 12px; color: #A79E92">${esc(v.header)}</div>`
-    + `<span data-g="score" style="background: ${ACCENT}; color: #171412; border-radius: 999px; padding: 4px 10px; font-family: ${MONO_FAMILY}; font-size: 11px; letter-spacing: 0.08em; font-weight: 600">SCORE ${v.score}</span>`
+    + `<div data-g="meta" style="font-size: 12px; color: #6B6B70">${esc(v.header)}</div>`
+    + `<span data-g="score" style="background: #0A0A0A; color: #FFFFFF; border-radius: 999px; padding: 4px 10px; font-size: 11px; letter-spacing: 0.08em; font-weight: 600">SCORE ${v.score}</span>`
     + `</div>`
     + `<div data-g="dots" style="display: flex; gap: 6px" aria-hidden="true">${v.roundDots.map((d) => `<div style="${d}"></div>`).join('')}</div>`
     + `<div data-g="msgs" style="display: flex; flex-direction: column; gap: 8px">${v.msgs.map(msgButton).join('')}</div>`
@@ -175,22 +181,22 @@ export function playHtml(v: GameView): string {
 }
 
 export function endHtml(v: GameView): string {
-  const ghost = 'background: transparent; color: #F2EDE4; border: 1px solid #4A423B; border-radius: 999px; padding: 15px 22px; font-weight: 500; font-size: 17px; min-height: 48px';
+  const ghost = 'display: inline-flex; align-items: center; background: transparent; color: #0A0A0A; border: 1px solid #CFCFCF; border-radius: 999px; padding: 15px 22px; font-weight: 500; font-size: 17px; min-height: 48px; text-decoration: none';
   return `<div class="tv-pop" style="display: flex; flex-direction: column; gap: 18px; align-items: center; text-align: center; padding: 8px 0">`
-    + `<div style="font-family: ${MONO_FAMILY}; font-size: 12px; letter-spacing: 0.16em; color: #A79E92">YOUR SCORE · ${esc(v.industryUpper)}</div>`
-    + `<div style="font-family: ${SERIF_FAMILY}; font-size: clamp(72px, 14vw, 120px); line-height: 1; font-weight: 600; color: ${ACCENT}">${v.score}/${v.maxScore}</div>`
+    + `<div style="${SMALL}; color: #6B6B70">YOUR SCORE · ${esc(v.industryUpper)}</div>`
+    + `<div style="font-size: clamp(72px, 14vw, 120px); line-height: 1; font-weight: 600; letter-spacing: -0.04em; color: #0A0A0A">${v.score}/${v.maxScore}</div>`
     + `<div style="display: flex; gap: 4px; width: 100%; max-width: 480px" aria-hidden="true">${v.scoreDots.map((d) => `<div style="${d}"></div>`).join('')}</div>`
-    + `<div style="font-family: ${SERIF_FAMILY}; font-size: clamp(26px, 3.4vw, 34px); font-weight: 600">${esc(v.rank)}</div>`
-    + `<p style="margin: 0; font-size: 17px; line-height: 1.6; color: #CFC6BA; max-width: 520px">${esc(v.rankLine)}</p>`
+    + `<div style="font-size: clamp(26px, 3.4vw, 34px); font-weight: 600; letter-spacing: -0.03em">${esc(v.rank)}</div>`
+    + `<p style="margin: 0; font-size: 17px; line-height: 1.6; color: #5A5A5F; max-width: 520px">${esc(v.rankLine)}</p>`
     + `<div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center">`
-    + `<a class="tv-cta" data-cta href="/request-access" style="background: ${ACCENT}; color: #171412; text-decoration: none; font-weight: 600; font-size: 17px; padding: 16px 26px; border-radius: 999px">Let Tovira catch them for you</a>`
+    + `<a class="tv-cta" data-cta href="/request-access" style="background: #0A0A0A; color: #FFFFFF; text-decoration: none; font-weight: 600; font-size: 17px; padding: 16px 26px; border-radius: 999px">Let Tovira catch them for you</a>`
     + `<button class="tv-btn" type="button" data-act="replay" style="${ghost}">Play again</button>`
-    + `<button class="tv-btn" type="button" data-act="switch" style="${ghost}">Try another industry</button>`
+    + `<a class="tv-btn" data-act="switch" href="/game" style="${ghost}">Try another industry</a>`
     + `</div>`
     + `</div>`;
 }
 
-/** The card's whole content for a state (the prerendered first state in index.html is this, for initialState()). */
+/** The card's whole content for a state (each game page prerenders its first state with this). */
 export const cardHtml = (s: GameState): string => { const v = view(s); return v.phase === 'pick' ? pickHtml(v) : v.phase === 'end' ? endHtml(v) : playHtml(v); };
 
 /** [P76 · owner] The hero stacks the game under the copy below 900px (index.html's .tv-hero rule says the same). */
@@ -244,8 +250,9 @@ const headerBottom = (win: Window): number => win.document.querySelector('body >
  * design); a new screen or a new chat re-renders the card. Keyboard focus follows the play: after a tap, to the next
  * message still open, or to Next when the chat is over; a new screen focuses its first control.
  */
-export function mountGame(card: HTMLElement, onChange?: (s: GameState, prev: GameState) => void): { state: () => GameState } {
-  let s = initialState();
+export function mountGame(card: HTMLElement, onChange?: (s: GameState, prev: GameState) => void, first: GameState = initialState()): { state: () => GameState } {
+  // [P89 · owner, Prompt 86] An industry page starts in that industry's first chat (prerendered); /game starts on the pick.
+  let s = first;
   const set = (nextState: GameState, keyboard: boolean, from = -1): void => {
     const prev = s;
     if (nextState === prev) return;
@@ -269,6 +276,10 @@ export function mountGame(card: HTMLElement, onChange?: (s: GameState, prev: Gam
     if (!el || !card.contains(el)) return;
     const keyboard = e.detail === 0;
     if (el.dataset.i !== undefined) { const i = Number(el.dataset.i); set(tap(s, i), keyboard, i); }
+    else if (el.dataset.act === 'switch' && el.tagName === 'A') {
+      // [P89] "Try another industry" is a link to /game: count the switch, let the browser follow the link
+      onChange?.(switchIndustry(s), s);
+    }
     else if (el.dataset.act === 'start' || el.dataset.act === 'next' || el.dataset.act === 'replay' || el.dataset.act === 'switch') {
       // [P76] on mobile, the new chat or screen starts at the card's top. Decided before the card re-renders: the browser's
       // scroll anchoring can move the page while the card's content is swapped. [P78 · owner] Picking an industry too, so

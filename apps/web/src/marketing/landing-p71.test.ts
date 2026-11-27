@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { GAMES, MARQ_B } from './landing-data.js';
+import { GAMES } from './landing-data.js';
 
 /**
  * [P71 · owner] The game's data: 6 industries, 5 chats each, 12 details per industry, uneven per chat (so a visitor
@@ -72,29 +72,32 @@ describe('[P71] claim-check rewordings (owner)', () => {
     expect(c).toContainEqual({ t: 'We need it to work for 40 people now, and 60 next year', sig: 'Needs it for 40 now, 60 next year', why: 'Price for 60, not 40. Growth is your next upsell.' });
     expect(c.map((m) => m.t)).not.toContain("we're 40 people now, maybe 60 next year");
   });
-  it('Luxury chat 2: "she" was never said to be anyone, stored 0/5, so it is now the wife; the marquee says the same', () => {
+  // [P89 · owner, Prompt 86] the marquee and the P70 design file are gone; the game chat keeps the wife, and no page shows
+  // the old unnamed "she" line
+  it('Luxury chat 2: "she" was never said to be anyone, stored 0/5, so it is now the wife', () => {
     const c = GAMES[4]!.chats[1]!;
     expect(c).toContainEqual(expect.objectContaining({ t: 'My wife only wears gold, never silver', sig: 'Wife wears gold, never silver' }));
     expect(c.map((m) => m.t)).not.toContain('she only wears gold, never silver');
-    expect(MARQ_B).toContain('Wife wears gold, never silver');
-    expect(MARQ_B).not.toContain('Wears gold, never silver');
     const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8');
-    expect(html).toContain('>Wife wears gold, never silver</span>');
     expect(html).not.toMatch(/>(She w|W)ears gold, never silver</);
-    const ref = readFileSync(resolve(process.cwd(), 'plan/tovira-landing-reference.dc.html'), 'utf8');
-    expect(ref).toContain("'Wife wears gold, never silver', 'Wants a named account manager']");
   });
 });
 
-describe('[P71] the hero shows the new game', () => {
-  const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8');
-  const d = new DOMParser().parseFromString(html, 'text/html');
-  it('headed "Would you have caught it?" with "A 2-MINUTE TEST", and the first render is the pick screen', () => {
-    const game = d.querySelector('#top #game')!;
-    expect(game.querySelector('h2')!.textContent).toBe('Would you have caught it?');
-    expect(game.textContent).toContain('A 2-MINUTE TEST');
-    expect(game.textContent).not.toContain('5 CHATS · 12 DETAILS');
-    expect(game.textContent).not.toContain('Each chat is harder than the last.');
-    expect(game.querySelectorAll('[data-game] button[data-act="start"]')).toHaveLength(6);
+// [P89 · owner, Prompt 86] The game moved off the landing to its own pages. The landing keeps only the slim "Would you
+// have caught it?" banner to /game; the pick screen (six industries) is /game's first render.
+describe('[P71→P89] the game lives on /game; the landing has its banner', () => {
+  it('the landing: no game card, one banner to /game headed "Would you have caught it?" with "A 2-MINUTE TEST"', () => {
+    const d = new DOMParser().parseFromString(readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8'), 'text/html');
+    expect(d.querySelector('[data-game]')).toBeNull();
+    const banner = d.querySelectorAll('a[data-banner]');
+    expect(banner).toHaveLength(1);
+    expect(banner[0]!.getAttribute('href')).toBe('/game');
+    expect(banner[0]!.textContent).toContain('Would you have caught it?');
+    expect(banner[0]!.textContent).toContain('A 2-MINUTE TEST');
+  });
+  it('/game renders the pick screen first: six links to the industry pages', () => {
+    const d = new DOMParser().parseFromString(readFileSync(resolve(process.cwd(), 'apps/web/game/index.html'), 'utf8'), 'text/html');
+    expect(d.querySelectorAll('[data-game] a.tv-pick')).toHaveLength(6);
+    expect(d.querySelector('[data-game]')!.textContent).not.toContain('5 CHATS · 12 DETAILS');
   });
 });

@@ -5,16 +5,24 @@ import { isBot, utcDay, type VisitService } from './visits.js';
  * nothing typed, no hash kept. Each action is one row with only the fields its event carries. Bots and signed-in admins
  * (that day's admin mark, checked and not stored) don't count. Owner plane; shown only in Admin → Funnel.
  */
-export const GAME_EVENTS = ['game_view', 'game_start', 'chat_done', 'game_done', 'game_cta', 'game_replay', 'game_switch', 'game_signup'] as const;
+export const GAME_EVENTS = ['game_view', 'game_start', 'chat_done', 'game_done', 'game_cta', 'game_replay', 'game_switch', 'game_signup', 'scene_beat', 'start_click', 'game_banner'] as const;
 export type GameEvent = (typeof GAME_EVENTS)[number];
 export const GAME_INDUSTRIES = ['Property', 'Insurance', 'Wealth', 'B2B accounts', 'Luxury', 'Recruitment'] as const;
 export type GameIndustry = (typeof GAME_INDUSTRIES)[number];
+/** [P89 · owner, Prompt 86] The pages an event can come from: the landing and the seven game pages. */
+export const GAME_ROUTES = ['/', '/game', '/game/property', '/game/insurance', '/game/wealth', '/game/b2b', '/game/luxury', '/game/recruitment'] as const;
+export type GameRoute = (typeof GAME_ROUTES)[number];
+/** [P89] The Start free buttons, by the beat or section each sits in. */
+export const START_PLACES = ['header', 'beat1', 'beat5', 'pricing', 'closing', 'game_close'] as const;
+export type StartPlace = (typeof START_PLACES)[number];
 export const SCORE_BUCKETS = ['0-3', '4-6', '7-9', '10-11', '12'] as const;
 export type ScoreBucket = (typeof SCORE_BUCKETS)[number];
 
 export interface GameEventRow {
   day: string; event: GameEvent; industry: GameIndustry | null; chat: number | null; caught: number | null;
   details: number | null; wrong: boolean | null; bucket: ScoreBucket | null;
+  /** [P89] the page it came from (null: a page cached from before P89), the scene beat, the Start free place */
+  route: GameRoute | null; beat: number | null; place: StartPlace | null;
 }
 export interface GameEventStore {
   addGame(row: GameEventRow): Promise<void>;
@@ -31,10 +39,16 @@ const bucket = (v: unknown): ScoreBucket | undefined => (SCORE_BUCKETS as readon
 export function parseGameEvent(body: Record<string, unknown>, day: string): GameEventRow | null {
   const event = body.event as GameEvent;
   if (!(GAME_EVENTS as readonly unknown[]).includes(event)) return null;
-  const row: GameEventRow = { day, event, industry: null, chat: null, caught: null, details: null, wrong: null, bucket: null };
+  // [P89] a route, when sent, must be one of ours; a game event may come without one (a page cached from before P89)
+  if (body.route !== undefined && !(GAME_ROUTES as readonly unknown[]).includes(body.route)) return null;
+  const route = (body.route as GameRoute | undefined) ?? null;
+  const row: GameEventRow = { day, event, industry: null, chat: null, caught: null, details: null, wrong: null, bucket: null, route, beat: null, place: null };
   const ind = industryOf(body.industry);
   switch (event) {
     case 'game_view': case 'game_switch': return row;
+    case 'scene_beat': { const beat = int(body.beat, 1, 5); return beat !== undefined && route ? { ...row, beat } : null; }
+    case 'start_click': { const place = (START_PLACES as readonly unknown[]).includes(body.place) ? (body.place as StartPlace) : undefined; return place && route ? { ...row, place } : null; }
+    case 'game_banner': return route ? row : null;
     case 'game_start': case 'game_replay': return ind ? { ...row, industry: ind } : null;
     case 'chat_done': {
       const chat = int(body.chat, 1, 5); const details = int(body.details, 1, 4); const caught = int(body.caught, 0, 4);
@@ -69,8 +83,17 @@ export class GameEvents {
 
 export type StepKey = 'view' | 'start' | 'chat1' | 'chat5' | 'end' | 'cta' | 'signup';
 export interface FunnelStep { key: StepKey; label: string; n: number; dropPct: number | null }
+export interface LandingWindow {
+  beats: Array<{ beat: number; n: number }>;
+  starts: Array<{ place: StartPlace; n: number }>;
+  banner: number;
+}
 export interface GameWindow {
   steps: FunnelStep[];
+  /** [P89] the landing scene: beats reached, Start free taps by place, game banner taps */
+  landing: LandingWindow;
+  /** [P89] game page views and starts by page */
+  byRoute: Array<{ route: GameRoute; views: number; starts: number }>;
   byIndustry: Array<{ industry: GameIndustry; steps: FunnelStep[] }>;
   wrongShare: Array<{ chat: number; chats: number; wrong: number; pct: number | null }>;
 }
@@ -100,8 +123,17 @@ export function gameFunnel(rows: GameEventRow[], today: string): GameFunnel {
   const window = (days: number): GameWindow => {
     const since = utcDay(t - (days - 1) * 86_400_000);
     const r = rows.filter((x) => x.day >= since && x.day <= today);
+    const count = (f: (x: GameEventRow) => boolean): number => r.filter(f).length;
     return {
       steps: stepsOf(r),
+      landing: {
+        beats: [1, 2, 3, 4, 5].map((beat) => ({ beat, n: count((x) => x.event === 'scene_beat' && x.beat === beat) })),
+        starts: START_PLACES.map((place) => ({ place, n: count((x) => x.event === 'start_click' && x.place === place) })),
+        banner: count((x) => x.event === 'game_banner'),
+      },
+      byRoute: GAME_ROUTES.filter((route) => route !== '/').map((route) => ({
+        route, views: count((x) => x.event === 'game_view' && x.route === route), starts: count((x) => x.event === 'game_start' && x.route === route),
+      })),
       byIndustry: GAME_INDUSTRIES.map((industry) => ({ industry, steps: stepsOf(r.filter((x) => x.industry === industry), 'start') })),
       wrongShare: [1, 2, 3, 4, 5].map((chat) => {
         const done = r.filter((x) => x.event === 'chat_done' && x.chat === chat);

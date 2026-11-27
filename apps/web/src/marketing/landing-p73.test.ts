@@ -87,24 +87,22 @@ describe('[P73] claim-check changes (owner standing approval)', () => {
   });
 });
 
-describe('[P73] the design file and the page', () => {
-  const ref = readFileSync(resolve(process.cwd(), 'plan/tovira-landing-reference.dc.html'), 'utf8');
-  it('the design file carries Block A (the 500px box, the auto-fit industry grid; [P78] no HOW IT WORKS)', () => {
-    expect(ref).toContain('<div id="game" class="tv-up" style="flex: 1 1 400px; min-width: 0; max-width: 500px; display: flex; flex-direction: column; gap: 12px; animation-delay: .3s; scroll-margin-top: 84px">');
-    // [P78 · owner] HOW IT WORKS is gone from the design too (pin moved with that note)
-    expect(ref).not.toContain('HOW IT WORKS');
-    expect(ref).not.toContain('HOW TO PLAY');
-    expect(ref).toContain('<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px">');
-    expect(ref).toContain("const POL = 'Polite, but it tells you nothing about what they want.';");
-    expect(ref).toContain("whyLabel: isSig ? 'Why it counts: ' : 'Why not: '");
-    // [P78 · owner] the small header line is replaced by the rule lines (pin moved with that note)
-    expect(ref).toContain('Pick a wrong one and you fail this chat.');
-    expect(ref).toContain('{{m.whyLabel}}');
+// [P89 · owner, Prompt 86] The P70 design file is deleted and the game left the landing for its own pages. The Block A
+// pins move to /game: the game column is still 640px at most (the page's main), the pick grid is the same auto-fit grid,
+// the card keeps its tighter padding, and the game code keeps the reasons and the warning (game.ts).
+describe('[P73→P89] the game page', () => {
+  it('the /game page: the auto-fit industry grid, no HOW IT WORKS, the tighter card padding', () => {
+    const html = readFileSync(resolve(process.cwd(), 'apps/web/game/index.html'), 'utf8');
+    expect(html).toContain('<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px">');
+    expect(html).not.toContain('HOW IT WORKS');
+    expect(html).not.toContain('HOW TO PLAY');
+    expect(html).toContain('.g-card{background:#FFFFFF;border:1px solid var(--line);border-radius:20px;padding:clamp(14px,2.4vw,20px)');
+    expect(html).toContain('.g-main{max-width:640px;');
   });
-  it('the page: the game column is 500px at most, the card padding is tighter', () => {
-    const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8');
-    expect(html).toContain('<div id="game" class="tv-up" style="flex: 1 1 400px; min-width: 0; max-width: 500px; display: flex; flex-direction: column; gap: 12px; animation-delay: .3s; scroll-margin-top: 84px">');
-    expect(html).toContain('border-radius: 22px; padding: clamp(14px, 2.4vw, 20px); display: flex; flex-direction: column; gap: 14px; box-shadow: 0 30px 80px rgba(0,0,0,0.45)" data-game>');
-    expect(html).toContain('font-size: clamp(22px, 2.2vw, 26px); line-height: 1.1">Would you have caught it?</h2>');
+  it('the game code: the reasons, "Why it counts" / "Why not", and the warning', () => {
+    const game = readFileSync(resolve(process.cwd(), 'apps/web/src/marketing/game.ts'), 'utf8');
+    expect(TRAP_REASONS[0]).toBe('Polite, but it tells you nothing about what they want.');
+    expect(game).toContain("whyLabel: m.sig ? 'Why it counts: ' : 'Why not: '");
+    expect(game).toContain("export const WARN_LINE = 'Pick a wrong one and you fail this chat.';");
   });
 });

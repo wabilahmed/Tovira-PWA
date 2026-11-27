@@ -9,6 +9,10 @@ import { test, expect, type Page } from '@playwright/test';
  *    isn't fully on screen (smooth; instant with reduced motion); desktop doesn't scroll;
  *  - the header links scroll smoothly and land just below the header (instant with reduced motion).
  * With SHOTS_DIR set, the review screenshots are saved there (not committed).
+ * [P89 · owner, Prompt 86] The P76 hero (the headline beside the game) is replaced by the owner's Marker landing and the
+ * game moved to its own pages. The hero alignment checks go with the page they measured; the rest moves: the game's
+ * card-into-view behaviour is checked on /game/property (the page opens on chat 1), "Try another industry" is a link to
+ * /game, and the header links are the Marker landing's (Privacy, Pricing; The game is a page of its own).
  */
 async function shot(page: Page, name: string, el?: ReturnType<Page['locator']>): Promise<void> {
   if (!process.env.SHOTS_DIR) return;
@@ -22,64 +26,19 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/game-event', (r) => r.fulfill({ status: 204, body: '' }));
 });
 
-/** The page y of the first row of light ink (the text colour #F2EDE4) in the element's first line. */
-async function inkTop(page: Page, selector: string): Promise<number> {
-  const box = (await page.locator(selector).boundingBox())!;
-  const top = Math.max(0, Math.floor(box.y) - 8);
-  const buf = await page.screenshot({ clip: { x: box.x, y: top, width: Math.min(box.width, 520), height: 90 }, scale: 'css' });
-  const row = await page.evaluate(async (b64) => {
-    const img = new Image();
-    img.src = `data:image/png;base64,${b64}`;
-    await img.decode();
-    const c = document.createElement('canvas');
-    c.width = img.width; c.height = img.height;
-    const ctx = c.getContext('2d')!;
-    ctx.drawImage(img, 0, 0);
-    const px = ctx.getImageData(0, 0, c.width, c.height).data;
-    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
-      const k = (y * c.width + x) * 4;
-      if (px[k]! > 170 && px[k + 1]! > 160 && px[k + 2]! > 150) return y;
-    }
-    return -1;
-  }, buf.toString('base64'));
-  expect(row, `no ink found for ${selector}`).toBeGreaterThan(0);
-  return top + row;
-}
-
 const headerBottom = (page: Page) => page.evaluate(() => document.querySelector('body > header')!.getBoundingClientRect().bottom);
 const cardTop = (page: Page) => page.evaluate(() => document.querySelector('[data-game]')!.getBoundingClientRect().top);
+const PROPERTY = '/game/property/'; // the preview serves the static pages with the slash; production maps /game/property
 
-for (const width of [1280, 1440, 1920]) {
-  test(`${width}px: the headline's first line and "Would you have caught it?" share a text top (within 2px)`, async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.setViewportSize({ width, height: 900 });
+test('390px and 1440px: the Marker hero is whole on first paint, with no eyebrow; the old hero is gone', async ({ page }) => {
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     await page.goto('/');
-    await page.addStyleTag({ content: '.tv-star,.tv-orb{display:none !important}' }); // nothing light behind the text
-    await page.evaluate(() => document.fonts.ready);
-    const h1 = await inkTop(page, 'h1 > span:first-child');
-    const h2 = await inkTop(page, '#game-h');
-    expect(Math.abs(h1 - h2), `h1 ink ${h1}, h2 ink ${h2}`).toBeLessThanOrEqual(2);
-    expect(await page.locator('h1').evaluate((el) => getComputedStyle(el).fontSize)).toBe(width === 1280 ? '56.32px' : '58px');
-    if (width === 1440) { await page.addStyleTag({ content: '.tv-star,.tv-orb{display:revert !important}' }); await shot(page, 'p76-hero-1440'); }
-  });
-}
-
-test('390px: the headline is 34px at its smallest, the hero\'s Play the game is shown and the eyebrow is gone', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  expect(await page.locator('h1').evaluate((el) => getComputedStyle(el).fontSize)).toBe('34px');
-  await expect(page.locator('#top').getByRole('link', { name: 'Play the game' })).toBeVisible();
-  await expect(page.getByText('FOR RELATIONSHIP SALES')).toHaveCount(0);
-  await shot(page, 'p76-hero-390');
-});
-
-test('1440px: the hero\'s Play the game is hidden (the game is beside it); the header\'s Test your eye stays', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
-  await expect(page.locator('#top').getByRole('link', { name: 'Play the game' })).toBeHidden();
-  await expect(page.locator('body > header').getByRole('link', { name: 'Test your eye' })).toBeVisible();
-  await expect(page.locator('#top').getByRole('link', { name: 'Try free for 14 days' })).toBeVisible();
+    await expect(page.locator('h1')).toBeInViewport({ ratio: 1 });
+    await expect(page.getByText('FOR RELATIONSHIP SALES')).toHaveCount(0);
+    await expect(page.locator('#b1').getByRole('link', { name: 'Play the game' })).toHaveCount(0); // the game's banner is further down
+    await expect(page.locator('body > header a.navlink[href="/game"]')).toHaveText('The game'); // hidden on phones, as the reference draws it; the banner links it there
+  }
 });
 
 /** Scroll so the card's top is 120px above the top of the screen, instantly (`sel` is clicked from script). */
@@ -99,9 +58,9 @@ const toEnd = async (page: Page) => {
   await expect(card).toContainText('YOUR SCORE · PROPERTY');
 };
 
-test('390px: Next chat, Play again and Try another industry bring the card\'s top just below the header (smooth)', async ({ page }) => {
+test('390px: Next chat and Play again bring the card\'s top just below the header (smooth); Try another industry opens /game', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto(PROPERTY);
   const card = page.locator('[data-game]');
   const check = async (sel: string, then: string) => {
     await hideCardTop(page, sel);
@@ -113,7 +72,6 @@ test('390px: Next chat, Play again and Try another industry bring the card\'s to
     await expect.poll(() => cardTop(page), { message: sel }).toBeGreaterThanOrEqual(hb + 10);
     await expect.poll(() => cardTop(page), { message: sel }).toBeLessThanOrEqual(hb + 14);
   };
-  await card.getByRole('button', { name: 'Property' }).click();
   await card.locator('button.tv-msg').nth(1).click();
   await check('[data-act="next"]', 'chat 2 of 5');
   await shot(page, 'p76-next-chat-390');
@@ -123,15 +81,16 @@ test('390px: Next chat, Play again and Try another industry bring the card\'s to
   await expect(card).toContainText('YOUR SCORE · PROPERTY');
   await check('[data-act="replay"]', 'chat 1 of 5');
   await toEnd(page);
-  await check('[data-act="switch"]', 'Pick your industry to start.'); // [P78 · owner] the CHOOSE YOUR INDUSTRY label went with HOW IT WORKS
+  await card.locator('a[data-act="switch"]').click();
+  await expect(page).toHaveURL(/\/game\/?$/);
+  await expect(page.locator('[data-game]')).toContainText('Pick your industry to start.');
 });
 
 test('390px, reduced motion: Next chat jumps to the card at once', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto(PROPERTY);
   const card = page.locator('[data-game]');
-  await card.getByRole('button', { name: 'Property' }).click();
   await card.locator('button.tv-msg').nth(1).click();
   await hideCardTop(page, '[data-act="next"]');
   const top = await page.evaluate(() => { (document.querySelector('[data-act="next"]') as HTMLElement).click(); return document.querySelector('[data-game]')!.getBoundingClientRect().top; });
@@ -143,9 +102,8 @@ test('390px, reduced motion: Next chat jumps to the card at once', async ({ page
 test('NEGATIVE 390px: the card already on screen: Next chat does not scroll', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto(PROPERTY);
   const card = page.locator('[data-game]');
-  await card.getByRole('button', { name: 'Property' }).click();
   await card.locator('button.tv-msg').nth(1).click();
   await page.evaluate(() => { const c = document.querySelector('[data-game]')!; scrollTo({ top: scrollY + c.getBoundingClientRect().top - 200, behavior: 'instant' }); });
   await spyScroll(page);
@@ -157,9 +115,8 @@ test('NEGATIVE 390px: the card already on screen: Next chat does not scroll', as
 
 test('NEGATIVE 1440px: desktop does not scroll after Next chat', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 600 });
-  await page.goto('/');
+  await page.goto(PROPERTY);
   const card = page.locator('[data-game]');
-  await card.getByRole('button', { name: 'Property' }).click();
   await card.locator('button.tv-msg').nth(1).click();
   await page.locator('[data-act="next"]').evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
   expect(await cardTop(page)).toBeLessThan(await headerBottom(page)); // the card's top is off screen, and still nothing scrolls
@@ -177,7 +134,7 @@ for (const reduced of [false, true]) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     const nav = page.locator('body > header nav');
-    for (const [name, id] of [['How it works', 'how'], ['Pricing', 'pricing'], ['Test your eye', 'game']] as const) {
+    for (const [name, id] of [['Privacy', 'privacy'], ['Pricing', 'pricing']] as const) {
       await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
       await nav.getByRole('link', { name }).evaluate((a) => (a as HTMLElement).click());
       const first = await page.evaluate(() => scrollY);
@@ -189,7 +146,7 @@ for (const reduced of [false, true]) {
       const hb = await headerBottom(page);
       const top = () => page.evaluate((i) => document.getElementById(i)!.getBoundingClientRect().top, id);
       await expect.poll(top, { message: name }).toBeGreaterThanOrEqual(hb - 1);
-      await expect.poll(top, { message: name }).toBeLessThanOrEqual(hb + (id === 'game' ? 24 : 12));
+      await expect.poll(top, { message: name }).toBeLessThanOrEqual(hb + 12);
     }
   });
 }
@@ -200,9 +157,9 @@ test('screenshots: the features section and the FAQ open, at 390 and 1440', asyn
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     await page.goto('/');
-    await page.addStyleTag({ content: 'body > header{position:static !important}' }); // keep the sticky header out of the element shots
-    await shot(page, `p76-features-${width}`, page.locator('section[aria-labelledby="trust-h"]'));
+    await page.addStyleTag({ content: 'body > header{position:static !important}' }); // keep the fixed header out of the element shots
+    await shot(page, `p89-privacy-${width}`, page.locator('section[aria-labelledby="trust-h"]'));
     for (const s of await page.locator('details > summary').all()) await s.click();
-    await shot(page, `p76-faq-open-${width}`, page.locator('section[aria-labelledby="faq-h"]'));
+    await shot(page, `p89-faq-open-${width}`, page.locator('section[aria-labelledby="faq-h"]'));
   }
 });

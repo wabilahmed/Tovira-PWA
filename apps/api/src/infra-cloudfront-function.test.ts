@@ -29,4 +29,14 @@ describe('[P30] CloudFront viewer-request function', () => {
       expect(run(host, '/assets/app.js')).toMatchObject({ uri: '/assets/app.js' });
     }
   });
+  // [P89 · owner, Prompt 86] the game's pages are prerendered: their clean addresses map to their index.html (a 200
+  // from S3), and an unknown /game/… address is still the app shell (its 404), never a page that doesn't exist
+  it('the seven game pages map to their index.html; anything else under /game is the app shell', () => {
+    for (const p of ['/game', '/game/property', '/game/insurance', '/game/wealth', '/game/b2b', '/game/luxury', '/game/recruitment']) {
+      expect(run('tovira.io', p)).toMatchObject({ uri: `${p}/index.html` });
+      expect(run('tovira.io', `${p}/`)).toMatchObject({ uri: `${p}/index.html` });
+    }
+    expect(run('tovira.io', '/game/unknown')).toMatchObject({ uri: '/app.html' });
+    expect(run('tovira.io', '/game/property/index.html')).toMatchObject({ uri: '/game/property/index.html' });
+  });
 });

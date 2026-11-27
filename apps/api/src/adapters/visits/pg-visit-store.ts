@@ -22,16 +22,16 @@ export class PgVisitStore implements VisitStore {
     await this.pool.query('INSERT INTO visit_excluded (day, visitor_hash) VALUES ($1::date, $2) ON CONFLICT DO NOTHING', [d, hash]);
     await this.pool.query('DELETE FROM page_views WHERE day = $1::date AND visitor_hash = $2', [d, hash]);
   }
-  /** [P71-T] game_events (migration 0116). */
+  /** [P71-T] game_events (migration 0116; route, beat and place from 0121). */
   async addGame(r: GameEventRow): Promise<void> {
     await this.pool.query(
-      'INSERT INTO game_events (day, event, industry, chat, caught, details, wrong, bucket) VALUES ($1::date, $2, $3, $4, $5, $6, $7, $8)',
-      [r.day, r.event, r.industry, r.chat, r.caught, r.details, r.wrong, r.bucket],
+      'INSERT INTO game_events (day, event, industry, chat, caught, details, wrong, bucket, route, beat, place) VALUES ($1::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
+      [r.day, r.event, r.industry, r.chat, r.caught, r.details, r.wrong, r.bucket, r.route, r.beat, r.place],
     );
   }
   async gamesSince(sinceDay: string): Promise<GameEventRow[]> {
-    const { rows } = await this.pool.query('SELECT day::text AS day, event, industry, chat, caught, details, wrong, bucket FROM game_events WHERE day >= $1::date', [sinceDay]);
-    return rows.map((x) => ({ day: day(x.day), event: x.event, industry: x.industry, chat: x.chat, caught: x.caught, details: x.details, wrong: x.wrong, bucket: x.bucket }));
+    const { rows } = await this.pool.query('SELECT day::text AS day, event, industry, chat, caught, details, wrong, bucket, route, beat, place FROM game_events WHERE day >= $1::date', [sinceDay]);
+    return rows.map((x) => ({ day: day(x.day), event: x.event, industry: x.industry, chat: x.chat, caught: x.caught, details: x.details, wrong: x.wrong, bucket: x.bucket, route: x.route, beat: x.beat, place: x.place }));
   }
   async add(v: PageView): Promise<void> {
     await this.pool.query(

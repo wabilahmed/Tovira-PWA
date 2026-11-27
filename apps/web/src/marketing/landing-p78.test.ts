@@ -2,9 +2,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { GAMES, ACCENT } from './landing-data.js';
+import { GAMES } from './landing-data.js';
 import { initialState, start, tap, next, view, isDone, mountGame, cardHtml } from './game.js';
-import { fragmentsIn } from './landing-render.js';
 
 /**
  * [P78 · owner] Game clarity fix ("people didn't understand what to do; the instructions are too long, nobody reads
@@ -16,6 +15,9 @@ import { fragmentsIn } from './landing-render.js';
  *  - below them a live counter, "0 of N found", up by one on each correct tap, frozen once the chat ends;
  *  - "[Industry] client · chat n of 5" and the score pill stay, smaller than the rule lines.
  * Data, scoring, the summary, the reveal and the tracking don't change.
+ * [P89 · owner, Prompt 86] The game moved to its own pages in the Marker look: the pick screen's six choices are links to
+ * the industry pages (each page opens on its first chat), the accent is ink (#0A0A0A, was #E8643A) and the text is ink
+ * on white (was #F2EDE4 on dark). The P70 design file is deleted, so its pins read the game code and /game instead.
  */
 const sigIdx = (gi: number, r: number) => GAMES[gi]!.chats[r]!.flatMap((m, i) => (m.sig ? [i] : []));
 const chatterIdx = (gi: number, r: number) => GAMES[gi]!.chats[r]!.flatMap((m, i) => (m.sig ? [] : [i]));
@@ -32,12 +34,12 @@ describe('[P78] the pick screen', () => {
     const text = document.body.textContent!;
     for (const gone of ['HOW IT WORKS', 'A quick test of how well', 'CHOOSE YOUR INDUSTRY', 'One wrong tap ends that chat', 'One point per detail']) expect(text).not.toContain(gone);
     expect(document.querySelectorAll('ol, li')).toHaveLength(0);
-    expect([...document.querySelectorAll('button[data-act="start"]')].map((b) => b.textContent)).toEqual(GAMES.map((g) => g.label));
+    expect([...document.querySelectorAll('a.tv-pick')].map((b) => b.textContent)).toEqual(GAMES.map((g) => g.label));
     expect(text.replace(GAMES.map((g) => g.label).join(''), '')).toBe(PICK_LINE);
   });
-  it('the prerendered page carries the same pick screen', () => {
-    const html = readFileSync(resolve(process.cwd(), 'apps/web/index.html'), 'utf8');
-    expect(fragmentsIn(html).game).toBe(cardHtml(initialState()));
+  it('the prerendered /game page carries the same pick screen', () => {
+    const html = readFileSync(resolve(process.cwd(), 'apps/web/game/index.html'), 'utf8');
+    expect(html).toContain(`<div class="g-card" data-game data-gi="-1">${cardHtml(initialState())}</div>`);
     expect(html).not.toContain('HOW IT WORKS');
   });
 });
@@ -60,11 +62,10 @@ describe('[P78] every chat starts with the rules', () => {
         expect(warn.textContent).toBe(WARN);
         expect(warn.style.fontWeight).toBe('700');
         expect(rule.style.fontWeight).toBe('700');
-        expect(warn.getAttribute('style')).toContain(`color: ${ACCENT}`);
-        expect(ACCENT.toUpperCase()).toBe('#E8643A');
+        expect(warn.getAttribute('style')).toContain('color: #0A0A0A'); // [P89] the accent is ink in Marker
         expect(px(warn.getAttribute('style')!, 'font-size')).toBe(15);
         expect(rule.className).toContain('tv-rule');
-        expect(rule.getAttribute('style')).toContain('color: #F2EDE4');
+        expect(rule.getAttribute('style')).toContain('color: #0A0A0A'); // [P89] ink on white
         s = next(tap(s, chatterIdx(gi, r)[0]!));
       }
     });
@@ -80,11 +81,11 @@ describe('[P78] every chat starts with the rules', () => {
     expect(score.textContent).toBe('SCORE 0');
     for (const el of [meta, score]) expect(px(el.getAttribute('style')!, 'font-size')).toBeLessThan(15);
   });
-  it('the rule sizes: 17px on mobile, 18px from 900px (page and design file)', () => {
-    for (const f of ['apps/web/index.html', 'plan/tovira-landing-reference.dc.html']) {
+  // [P89] on the game pages the card is one column at every width (640px at most), so the rule is 17px throughout
+  it('the rule size: 17px on every game page', () => {
+    for (const f of ['apps/web/game/index.html', 'apps/web/game/property/index.html']) {
       const html = readFileSync(resolve(process.cwd(), f), 'utf8');
       expect(html, f).toContain('.tv-rule{font-size:17px}');
-      expect(html, f).toMatch(/@media \(min-width: 900px\)\{[^\n]*\.tv-rule\{font-size:18px\}/);
     }
   });
 });
@@ -93,11 +94,11 @@ describe('[P78] the live counter', () => {
   it('goes up on each correct tap and stops when the chat ends', () => {
     const card = document.createElement('div');
     document.body.replaceChildren(card);
-    card.innerHTML = cardHtml(initialState());
-    mountGame(card);
+    // [P89] the Property page opens on its first chat
+    card.innerHTML = cardHtml(start(initialState(), 0));
+    mountGame(card, undefined, start(initialState(), 0));
     const counter = () => card.querySelector('[data-g="counter"]')!.textContent;
     // Property chat 3 has more than one detail: catch one, then a wrong tap ends it
-    (card.querySelector('[data-act="start"][data-gi="0"]') as HTMLElement).click();
     const r = GAMES[0]!.chats.findIndex((c) => c.filter((m) => m.sig).length >= 2);
     for (let i = 0; i < r; i++) {
       for (const j of sigIdx(0, i)) (card.querySelector(`[data-i="${j}"]`) as HTMLElement).click();
@@ -131,57 +132,44 @@ describe('[P78] the live counter', () => {
   });
 });
 
-describe('[P78] the design file says the same', () => {
-  const ref = readFileSync(resolve(process.cwd(), 'plan/tovira-landing-reference.dc.html'), 'utf8');
+describe('[P78→P89] the game code says the same (the design file is deleted)', () => {
+  const game = readFileSync(resolve(process.cwd(), 'apps/web/src/marketing/game.ts'), 'utf8').replace(/\/\*\*[\s\S]*?\*\/|\/\/.*$/gm, '');
   it('the pick line, the rule lines and the counter', () => {
-    expect(ref).toContain(`>${PICK_LINE}</p>`);
-    for (const gone of ['HOW IT WORKS', 'A quick test of how well', 'CHOOSE YOUR INDUSTRY', 'Tap every useful detail']) expect(ref).not.toContain(gone);
-    expect(ref).toContain('{{findLine}}');
-    expect(ref).toContain(`>${WARN}</div>`);
-    expect(ref).toContain('{{counter}}');
-    expect(ref).toContain("'Find the 1 message that helps you close the deal.'");
-    expect(ref).toContain("' messages that help you close the deal.'");
-    expect(ref).toContain("' of ' + sigCount + ' found'");
+    expect(game).toContain(`export const PICK_LINE = '${PICK_LINE}';`);
+    for (const gone of ['HOW IT WORKS', 'A quick test of how well', 'CHOOSE YOUR INDUSTRY', 'Tap every useful detail']) expect(game).not.toContain(gone);
+    expect(game).toContain(`export const WARN_LINE = '${WARN}';`);
+    expect(game).toContain("'Find the 1 message that helps you close the deal.'");
+    expect(game).toContain("' messages that help you close the deal.'");
+    expect(game).toContain("found + ' of ' + sigCount + ' found'");
   });
 });
 
-describe('[P78] on mobile, picking an industry starts with the rules on screen', () => {
-  // Found in Playwright under load at 390: with the card's top scrolled above the screen, picking an industry left the
-  // first chat's rule lines out of sight. Picking an industry now brings the card's top under the header, like P76's
-  // Next chat, Play again and Try another industry (mobile only; decided before the card re-renders).
-  const setup = (o: { stacked: boolean; cardTop: number }) => {
-    const card = document.createElement('div');
-    document.body.replaceChildren(card);
-    card.innerHTML = cardHtml(initialState());
-    card.getBoundingClientRect = () => ({ top: o.cardTop } as DOMRect);
-    const calls: Array<{ top: number; behavior: string }> = [];
-    Object.assign(window, {
-      matchMedia: (q: string) => ({ matches: q === '(max-width: 899px)' ? o.stacked : q === '(prefers-reduced-motion: reduce)' }),
-      scrollTo: (x: { top: number; behavior: string }) => { calls.push(x); },
-    });
-    mountGame(card);
-    (card.querySelector('[data-act="start"][data-gi="0"]') as HTMLElement).click();
-    return calls;
-  };
-  it('the card top above the screen: it scrolls to the card (instant with reduced motion)', () => {
-    const calls = setup({ stacked: true, cardTop: -86 });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.behavior).toBe('instant');
-    expect(calls[0]!.top).toBe(window.scrollY - 86 - 12); // no header in this page: 12px below the top
+// [P89 · owner, Prompt 86] Picking an industry now opens its page, which loads with the H1, then the card on its first
+// chat: the rules are on screen on arrival at 390px (e2e/game-pages.spec.ts), so there is no in-place pick to scroll for.
+// Next chat, Play again and Try another industry keep P76's scroll (landing-p76.test.ts).
+describe('[P78→P89] picking an industry opens its page, rules first', () => {
+  it('NEGATIVE: the pick screen has no in-place start (each choice is a link to its page)', () => {
+    document.body.innerHTML = cardHtml(initialState());
+    expect(document.querySelectorAll('[data-act="start"]')).toHaveLength(0);
+    expect(document.querySelectorAll('a.tv-pick[href^="/game/"]')).toHaveLength(6);
   });
-  it('NEGATIVE: the card already on screen, or desktop: no scroll', () => {
-    expect(setup({ stacked: true, cardTop: 200 })).toHaveLength(0);
-    expect(setup({ stacked: false, cardTop: -86 })).toHaveLength(0);
+  it('an industry page opens on its first chat with the rule lines first', () => {
+    const html = readFileSync(resolve(process.cwd(), 'apps/web/game/property/index.html'), 'utf8');
+    const card = /<div class="g-card" data-game data-gi="0">([\s\S]*?)<\/div>\n<\/section>/.exec(html)![1]!;
+    expect(card).toBe(cardHtml(start(initialState(), 0)));
+    document.body.innerHTML = card;
+    expect(document.body.firstElementChild!.querySelector('[data-g="rule"]')!.textContent).toBe(findLine(1));
   });
 });
 
-describe('[P78] the hero section clips without scrolling', () => {
-  it('section#top is overflow: clip (not hidden) in the page and the design file', () => {
-    for (const f of ['apps/web/index.html', 'plan/tovira-landing-reference.dc.html']) {
+// [P89] the P78 fix (the headline was cut off on mobile) carries over: the page clips sideways with overflow-x: clip,
+// never hidden (a hidden ancestor would break the pinned scene's sticky stage)
+describe('[P78→P89] the page clips without scrolling', () => {
+  it('body is overflow-x: clip (not hidden) on the landing and the game pages', () => {
+    for (const f of ['apps/web/index.html', 'apps/web/game/index.html']) {
       const html = readFileSync(resolve(process.cwd(), f), 'utf8');
-      const tag = /<section id="top"[^>]*>/.exec(html)![0];
-      expect(tag, f).toContain('overflow: clip');
-      expect(tag, f).not.toContain('overflow: hidden');
+      expect(html, f).toMatch(/body\{overflow-x:clip\}/);
+      expect(html, f).not.toMatch(/(html|body)[^{]*\{[^}]*overflow(-x)?:\s*hidden/);
     }
   });
 });

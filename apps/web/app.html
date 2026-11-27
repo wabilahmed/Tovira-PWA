@@ -12,17 +12,26 @@
          imported in main.tsx, no CDN (P71-F). -->
     <script>
       // [P71-D · owner] Pin the theme before first paint. No saved choice: Dark. A saved Light, Dark or Auto is kept.
-      // [P74 · owner] ...but only inside the signed-in app: every page a signed-out visitor can reach is always Dark
+      // [P74 · owner] ...but only inside the signed-in app: every page a signed-out visitor can reach is always the public
+      // look, [P89 · owner] now Marker (was Dark)
       // (request access, reset password, invite, verify email, the admin console, the billing pages, a 404, and the
       // sign-in, i.e. /app until someone has signed in on this browser). Same decision as initTheme() in theme.ts.
       // The theme-color (address bar, installed app's status bar) follows it: #171412 dark, #f4f1ea light.
       (function () {
-        var t = 'vault';
+        // [P89 · owner, Prompt 86] TEMPORARY until the CloudFront routing for the game pages is applied (provision
+        // workflow): a clean game address reaches the app shell, so send it to the static page's own file. Remove once
+        // the live /game returns the game page itself (BLOCKERS [P89-routing]).
+        var gp = location.pathname.replace(/\/$/, '');
+        if (/^\/game(\/(property|insurance|wealth|b2b|luxury|recruitment))?$/.test(gp)) {
+          location.replace(gp + '/index.html' + location.search + location.hash);
+          return;
+        }
+        var t = 'marker';
         try {
           var p = location.pathname;
           if ((p === '/app' || p === '/') && localStorage.getItem('tovira.signedIn') === '1') {
             var s = localStorage.getItem('tovira.theme');
-            if (s === 'ledger' || s === 'vault' || s === 'system') t = s;
+            t = s === 'ledger' || s === 'vault' || s === 'system' ? s : 'vault';
           }
         } catch (e) {}
         if (t !== 'system') document.documentElement.setAttribute('data-theme', t);
@@ -31,7 +40,7 @@
         for (var i = 0; i < metas.length; i++) {
           var media = metas[i].getAttribute('media') || '';
           var dark = t === 'vault' || (t === 'system' && (media ? media.indexOf('dark') !== -1 : deviceDark));
-          metas[i].setAttribute('content', dark ? '#171412' : '#f4f1ea');
+          metas[i].setAttribute('content', t === 'marker' ? '#FAFAFA' : dark ? '#171412' : '#f4f1ea');
         }
       })();
     </script>
