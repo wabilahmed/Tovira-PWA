@@ -416,9 +416,12 @@ test.describe('[P89] the game pages', () => {
       await expect(page.locator('.g-close')).toContainText('Tovira catches every one of them for you.');
       await shot(page, `p89-game-end-${width}`, { full: true });
       await noSideScroll(page, 'end screen');
-      await expect.poll(() => events.map((e) => e.event)).toEqual(['game_start', 'game_view', 'chat_done', 'chat_done', 'chat_done', 'chat_done', 'chat_done', 'game_done']);
+      // [P89 · owner, 28 Nov] game_start and game_view leave the page as two separate beacons the moment it opens, and
+      // CI run 46069986180 caught them arriving the other way round: the page sends them in order, but nothing orders
+      // their arrival. So those two are checked in either order; everything after them stays in strict order.
+      await expect.poll(() => [[...events.slice(0, 2).map((e) => e.event)].sort(), ...events.slice(2).map((e) => e.event)]).toEqual([['game_start', 'game_view'], 'chat_done', 'chat_done', 'chat_done', 'chat_done', 'chat_done', 'game_done']);
       for (const e of events) expect(e.route, JSON.stringify(e)).toBe('/game/property');
-      expect(events[0]).toEqual({ event: 'game_start', industry: 'Property', route: '/game/property' });
+      expect(events.find((e) => e.event === 'game_start')).toEqual({ event: 'game_start', industry: 'Property', route: '/game/property' });
       await page.locator('.g-close a[data-cta]').evaluate((a) => a.addEventListener('click', (e) => e.preventDefault()));
       await page.locator('.g-close a[data-cta]').click();
       await expect.poll(() => events.at(-1)).toEqual({ event: 'start_click', place: 'game_close', route: '/game/property' });
