@@ -168,9 +168,16 @@ async function nudge(page: Page, dy: number, touch: boolean): Promise<void> {
   const before = await page.evaluate(() => scrollY);
   if (!touch) { await page.mouse.move(200, 400); await page.mouse.wheel(0, dy); }
   else {
-    // the finger lands in the empty side margin, low on the screen (never on a link), and moves at an ordinary pace
+    // a finger, as raw touch events (the synthetic scroll gesture never scrolls on CI's Linux headless Chromium): it
+    // lands in the empty side margin (never on a link), moves at an ordinary pace and lifts
     const cdp = await page.context().newCDPSession(page);
-    await cdp.send('Input.synthesizeScrollGesture', { x: 8, y: 760, xDistance: 0, yDistance: -dy, gestureSourceType: 'touch', speed: 400 });
+    const x = 8; const y0 = dy > 0 ? 700 : 200; const steps = 8;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y0 }] });
+    for (let i = 1; i <= steps; i++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y0 - (dy * i) / steps }] });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await cdp.detach();
   }
   // the visitor's input reached the page (a gesture that never arrived is a test-rig failure, not a settle failure)
