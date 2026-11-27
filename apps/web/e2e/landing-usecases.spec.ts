@@ -165,10 +165,16 @@ const settled = async (page: Page) => {
 };
 /** A small scroll the way a visitor makes it: a mouse wheel tick on desktop, a finger swipe on a touch screen. */
 async function nudge(page: Page, dy: number, touch: boolean): Promise<void> {
-  if (!touch) { await page.mouse.move(200, 400); await page.mouse.wheel(0, dy); return; }
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Input.synthesizeScrollGesture', { x: 195, y: 500, xDistance: 0, yDistance: -dy, gestureSourceType: 'touch', speed: 800 });
-  await cdp.detach();
+  const before = await page.evaluate(() => scrollY);
+  if (!touch) { await page.mouse.move(200, 400); await page.mouse.wheel(0, dy); }
+  else {
+    // the finger lands in the empty side margin, low on the screen (never on a link), and moves at an ordinary pace
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.synthesizeScrollGesture', { x: 8, y: 760, xDistance: 0, yDistance: -dy, gestureSourceType: 'touch', speed: 400 });
+    await cdp.detach();
+  }
+  // the visitor's input reached the page (a gesture that never arrived is a test-rig failure, not a settle failure)
+  await expect.poll(() => page.evaluate(() => scrollY), { message: `the ${touch ? 'swipe' : 'wheel'} scrolled the page`, timeout: 3000 }).not.toBe(before);
 }
 
 test.describe('[P89 · owner, 28 Nov] the scene never leaves a blank or half-faded screen', () => {
