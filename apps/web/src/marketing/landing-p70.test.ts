@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { discSvg, headerHtml, footerHtml } from './marker.js';
-import { BEATS, beatAt, frameAt } from './scene.js';
+import { BEATS, SETTLE_MS, beatAt, frameAt, settleTarget } from './scene.js';
 
 /**
  * [P70 · owner] The landing page rebuilt from the approved design; these tests read the REAL shipped landing HTML.
@@ -133,20 +133,48 @@ describe('[P70→P89] the sections, in order', () => {
 });
 
 describe('[P70→P89] motion: one pinned scene, five beats', () => {
-  it('the beats come in order as you scroll, each fully shown at its point, and no two overlap', () => {
-    expect(BEATS).toEqual([0, 0.27, 0.45, 0.69, 0.94]);
-    expect([0, 0.25, 0.4, 0.7, 0.95].map(beatAt)).toEqual([1, 1, 2, 4, 5]);
+  // [P89 · owner, 28 Nov, scene scrolling fix] Moved: five stops at 0, 0.25, 0.5, 0.75 and 1 (were 0, 0.27, 0.45,
+  // 0.69, 0.94), and the beats now cross-fade, so "no two overlap" is replaced by the owner's rule: no scroll position
+  // shows less than one readable beat (opacity 0.25 or more at every 2%).
+  it('the beats come in order as you scroll, each whole at its stop (0, 0.25, 0.5, 0.75, 1)', () => {
+    expect(BEATS).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    expect(BEATS.map(beatAt)).toEqual([1, 2, 3, 4, 5]);
     const at0 = frameAt(0);
     expect([at0.b1, at0.b2, at0.b4, at0.b5]).toEqual([1, 0, 0, 0]); // the headline on first paint
-    expect(frameAt(BEATS[1]).b2).toBe(1);
-    expect(frameAt(BEATS[2]).stroke).toBe(1); // the marker has swept across
-    expect(frameAt(BEATS[3]).b4).toBe(1);
-    expect(frameAt(BEATS[4]).b5).toBeGreaterThan(0.95);
-    for (let p = 0; p <= 1; p += 0.005) {
-      const f = frameAt(p);
-      const shown = [f.b1, f.b2, f.b4, f.b5].filter((o) => o > 0.02).length;
-      expect(shown, `p=${p.toFixed(3)}`).toBeLessThanOrEqual(1);
+    const f1 = frameAt(BEATS[1]); expect([f1.b1, f1.b2, f1.b4, f1.b5, f1.b2Lift, f1.big]).toEqual([0, 1, 0, 0, 0, 1]); // the message
+    expect(f1.stroke).toBe(0);
+    const f2 = frameAt(BEATS[2]); expect([f2.b2, f2.stroke, f2.cap3, f2.b4, f2.b2Lift]).toEqual([1, 1, 1, 0, 0]); // the marker stroke complete
+    const f3 = frameAt(BEATS[3]); expect([f3.b2, f3.b4, f3.b5, f3.b4Lift]).toEqual([0, 1, 0, 0]); // the black card
+    const f4 = frameAt(BEATS[4]); expect([f4.b4, f4.b5, f4.b5Lift]).toEqual([0, 1, 0]); // the brief
+  });
+  it('the beats overlap as they change: at every 2% of progress at least one beat is at opacity 0.25 or more', () => {
+    for (let i = 0; i <= 50; i++) {
+      const f = frameAt(i / 50);
+      expect(Math.max(f.b1, f.b2, f.b4, f.b5), `p=${(i / 50).toFixed(2)}`).toBeGreaterThanOrEqual(0.25);
     }
+    for (let i = 0; i <= 1000; i++) { const f = frameAt(i / 1000); expect(Math.max(f.b1, f.b2, f.b4, f.b5)).toBeGreaterThanOrEqual(0.5); }
+    // the next beat starts in before the last has gone
+    expect(frameAt(0.1).b1).toBeGreaterThan(0); expect(frameAt(0.1).b2).toBeGreaterThan(0);
+    expect(frameAt(0.6).b2).toBeGreaterThan(0); expect(frameAt(0.6).b4).toBeGreaterThan(0);
+    expect(frameAt(0.86).b4).toBeGreaterThan(0); expect(frameAt(0.86).b5).toBeGreaterThan(0);
+  });
+  it('the settle: between two stops it goes on to the next stop the visitor was heading for', () => {
+    expect([0.05, 0.26, 0.49, 0.6, 0.9].map((p) => settleTarget(p, 1))).toEqual([0.25, 0.5, 0.5, 0.75, 1]);
+    expect([0.05, 0.26, 0.49, 0.6, 0.9].map((p) => settleTarget(p, -1))).toEqual([0, 0.25, 0.25, 0.5, 0.75]);
+    for (const b of BEATS) { expect(settleTarget(b, 1), `on ${b}`).toBeNull(); expect(settleTarget(b, -1), `on ${b}`).toBeNull(); }
+    expect(settleTarget(0.4, 0)).toBeNull(); // no direction, no settle
+    // past the last stop the page scrolls on (progress is 1 there): no settle; back up into the scene from below: the last stop
+    expect(settleTarget(1, 1)).toBeNull();
+    expect(settleTarget(0.9, -1, true)).toBe(1);
+    expect(settleTarget(0.6, -1, true)).toBe(0.5); // a long fling from below past the last two beats goes by direction
+  });
+  it('the settle waits about 110ms, never prevents scrolling, and a touch, wheel or key cancels it', () => {
+    expect(SETTLE_MS).toBe(110);
+    const src = readFileSync(resolve(process.cwd(), 'apps/web/src/marketing/scene.ts'), 'utf8');
+    expect(src).not.toMatch(/preventDefault|passive:\s*false|scroll-snap/);
+    for (const ev of ['wheel', 'keydown', 'touchstart']) expect(src).toMatch(new RegExp(`addEventListener\\('${ev}', [^\n]*stopGlide`));
+    expect(style).toContain('.scene-on .scene{height:420vh}');
+    expect(style).not.toMatch(/560vh/);
   });
   it('the scene animates only transform and opacity', () => {
     const src = readFileSync(resolve(process.cwd(), 'apps/web/src/marketing/scene.ts'), 'utf8');

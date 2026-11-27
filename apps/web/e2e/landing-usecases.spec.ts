@@ -7,8 +7,13 @@ import { test, expect, type Page } from '@playwright/test';
  *    without JavaScript);
  *  - no sideways scroll at 375px, at any point of the scene, nor on the game pages;
  *  - with reduced motion, all five beats show as a plain stacked page and nothing animates;
- *  - the scene at scroll progress 0, 0.25, 0.4, 0.7 and 0.95, at 1440x900 and 390x844: one beat at a time, fully shown,
- *    whole on screen below the header, no text overlapping (saved to SHOTS_DIR for the owner when set);
+ *  - the scene at its five stops, 0, 0.25, 0.5, 0.75 and 1 (owner, 28 Nov; were 0, 0.25, 0.4, 0.7 and 0.95), at 1440x900
+ *    and 390x844: one beat at a time, fully shown, whole on screen below the header, no text overlapping (saved to
+ *    SHOTS_DIR for the owner when set);
+ *  - [owner, 28 Nov] never a blank or half-faded screen: at every 2% of progress a beat is at opacity 0.25 or more; a
+ *    small scroll down from each stop settles on the next stop and a small scroll up on the previous one (desktop wheel,
+ *    and a 390px touch screen); past the last stop the page scrolls on; back up from below settles on the last stop;
+ *    a touch cancels the settle; no settle with reduced motion;
  *  - every link and question is reachable by keyboard, and a beat's link scrolls its beat into view when focused;
  *  - every text colour clears 4.5:1 on what is actually behind it;
  *  - the seven game routes answer 200 with their H1 in the raw HTML, the sitemap lists them, an old /#game link opens
@@ -117,30 +122,138 @@ test('without JavaScript the beats are a plain stacked page too (nothing is left
 });
 
 for (const [width, height] of [[1440, 900], [390, 844]] as const) {
-  test(`${width}x${height}: the scene at 0, 0.25, 0.4, 0.7 and 0.95: one beat at a time, whole, below the header, no overlap`, async ({ page }) => {
+  test(`${width}x${height}: the scene at its stops 0, 0.25, 0.5, 0.75 and 1: one beat at a time, whole, below the header, no overlap`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await page.goto('/');
     await page.evaluate(() => document.fonts.ready);
     expect(await page.evaluate(() => document.documentElement.classList.contains('scene-on'))).toBe(true);
-    const expected: Record<string, string> = { '0': 'b1', '0.25': 'b2', '0.4': 'b2', '0.7': 'b4', '0.95': 'b5' };
-    for (const p of [0, 0.25, 0.4, 0.7, 0.95]) {
+    const expected: Record<string, string> = { '0': 'b1', '0.25': 'b2', '0.5': 'b2', '0.75': 'b4', '1': 'b5' };
+    for (const p of [0, 0.25, 0.5, 0.75, 1]) {
       await toProgress(page, p);
       const s = await sceneState(page);
       expect(s.shown.map((b) => b.id), `p=${p}: one beat`).toEqual([expected[String(p)]]);
       const b = s.shown[0]!;
-      expect(b.o, `p=${p}: fully shown`).toBeGreaterThan(0.95);
+      expect(b.o, `p=${p}: fully shown`).toBe(1);
       expect(b.top, `p=${p}: below the header`).toBeGreaterThanOrEqual(s.headerBottom);
       expect(b.bottom, `p=${p}: not cut off at the bottom`).toBeLessThanOrEqual(s.vh);
       expect(b.left, `p=${p}: not cut off at the side`).toBeGreaterThanOrEqual(0);
       expect(b.right, `p=${p}: not cut off at the side`).toBeLessThanOrEqual(s.vw);
       expect(s.overlaps, `p=${p}: no text overlapping`).toEqual([]);
-      if (p === 0.4) expect(await page.locator('#stroke').evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).a), 'the marker is mid-sweep').toBeGreaterThan(0.3);
+      const stroke = await page.locator('#stroke').evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).a);
+      if (p === 0.25) expect(stroke, 'the message, before the marker').toBeLessThan(0.01);
+      if (p === 0.5) {
+        expect(stroke, 'the marker stroke is complete').toBeGreaterThan(0.99);
+        expect(await page.locator('#cap3').evaluate((e) => parseFloat(getComputedStyle(e).opacity))).toBe(1);
+      }
       await shot(page, `p89-scene-${width}-${String(p).replace('.', '')}`);
     }
     // phones show two chat columns, desktops three
     expect(await page.locator('.col:visible').count()).toBe(width < 641 ? 2 : 3);
   });
 }
+
+/** The scene's progress now (unclamped), and the scroll position. */
+const where = (page: Page) => page.evaluate(() => {
+  const s = document.getElementById('scene')!; const top = s.getBoundingClientRect().top + scrollY; const max = s.offsetHeight - innerHeight;
+  return { p: (scrollY - top) / max, y: scrollY, top, max };
+});
+/** Wait until the page has stopped moving (no change over 300ms), then say where it is. */
+const settled = async (page: Page) => {
+  let last = -1;
+  for (let i = 0; i < 40; i++) { const { y } = await where(page); if (Math.abs(y - last) < 0.5) break; last = y; await page.waitForTimeout(300); }
+  return where(page);
+};
+/** A small scroll the way a visitor makes it: a mouse wheel tick on desktop, a finger swipe on a touch screen. */
+async function nudge(page: Page, dy: number, touch: boolean): Promise<void> {
+  if (!touch) { await page.mouse.move(200, 400); await page.mouse.wheel(0, dy); return; }
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.synthesizeScrollGesture', { x: 195, y: 500, xDistance: 0, yDistance: -dy, gestureSourceType: 'touch', speed: 800 });
+  await cdp.detach();
+}
+
+test.describe('[P89 · owner, 28 Nov] the scene never leaves a blank or half-faded screen', () => {
+  for (const [width, height, touch] of [[1440, 900, false], [390, 844, true]] as const) {
+    test(`${width}x${height}${touch ? ' touch' : ''}: at every 2% of progress a beat is at opacity 0.25 or more`, async ({ browser }) => {
+      const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: touch, isMobile: touch });
+      const page = await ctx.newPage();
+      await page.route('**/api/**', (r) => r.fulfill({ status: 204, body: '' }));
+      await page.goto('/');
+      for (let i = 0; i <= 50; i++) {
+        await toProgress(page, i / 50);
+        const s = await sceneState(page);
+        const top = Math.max(0, ...s.shown.map((b) => b.o));
+        expect(top, `p=${(i / 50).toFixed(2)}`).toBeGreaterThanOrEqual(0.25);
+      }
+      await ctx.close();
+    });
+
+    test(`${width}x${height}${touch ? ' touch' : ''}: a small scroll from each stop settles on the next stop down, or the previous one up`, async ({ browser }) => {
+      const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: touch, isMobile: touch });
+      const page = await ctx.newPage();
+      await page.route('**/api/**', (r) => r.fulfill({ status: 204, body: '' }));
+      await page.goto('/');
+      await page.evaluate(() => document.fonts.ready);
+      const STOPS = [0, 0.25, 0.5, 0.75, 1];
+      for (let i = 0; i < 4; i++) {
+        await toProgress(page, STOPS[i]!); await settled(page);
+        await nudge(page, 80, touch);
+        const w = await settled(page);
+        expect(w.p, `down from ${STOPS[i]}`).toBeCloseTo(STOPS[i + 1]!, 2);
+        expect(Math.max(0, ...(await sceneState(page)).shown.map((b) => b.o)), `down from ${STOPS[i]}: the beat is whole`).toBe(1);
+      }
+      for (let i = 4; i > 0; i--) {
+        await toProgress(page, STOPS[i]!); await settled(page);
+        await nudge(page, -80, touch);
+        const w = await settled(page);
+        expect(w.p, `up from ${STOPS[i]}`).toBeCloseTo(STOPS[i - 1]!, 2);
+      }
+      // past the last stop the page scrolls on into the rest of the page, untouched
+      await toProgress(page, 1); await settled(page);
+      await nudge(page, 300, touch);
+      const past = await settled(page);
+      expect(past.y, 'past the last stop: scrolls on').toBeGreaterThan(past.top + past.max + 100);
+      // back up into the scene from below settles on the last stop
+      await page.evaluate(() => { const s = document.getElementById('scene')!; const top = s.getBoundingClientRect().top + scrollY; scrollTo({ top: top + s.offsetHeight - innerHeight + 400, behavior: 'instant' }); });
+      await settled(page);
+      await nudge(page, -500, touch);
+      const back = await settled(page);
+      expect(back.p, 'back up from below: the last stop').toBeCloseTo(1, 2);
+      await ctx.close();
+    });
+  }
+
+  test('a touch cancels the settle, and the visitor\'s own scrolling is never held back', async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const page = await ctx.newPage();
+    await page.route('**/api/**', (r) => r.fulfill({ status: 204, body: '' }));
+    await page.goto('/');
+    await toProgress(page, 0.3); // between stops, moving down: the settle heads for 0.5
+    // the moment the glide is under way, a finger lands on the screen
+    const caught = await page.evaluate(() => new Promise<number>((done) => {
+      const s = document.getElementById('scene')!; const top = s.getBoundingClientRect().top + scrollY; const max = s.offsetHeight - innerHeight;
+      const from = scrollY;
+      const tick = () => { if (scrollY > from + 4) { window.dispatchEvent(new TouchEvent('touchstart', { touches: [] })); done((scrollY - top) / max); } else requestAnimationFrame(tick); };
+      tick();
+    }));
+    expect(caught, 'the glide had begun').toBeGreaterThan(0.3);
+    const a = await settled(page);
+    expect(a.p, 'it stopped where the touch caught it, short of the stop').toBeLessThan(0.49);
+    expect(a.p - caught, 'and went no further').toBeLessThan(0.02);
+    await ctx.close();
+  });
+
+  test('no settle with reduced motion: the page stays where the visitor left it', async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+    const page = await ctx.newPage();
+    await page.route('**/api/**', (r) => r.fulfill({ status: 204, body: '' }));
+    await page.goto('/');
+    await page.evaluate(() => scrollTo({ top: 1234, behavior: 'instant' }));
+    await page.mouse.move(200, 400); await page.mouse.wheel(0, 60);
+    await page.waitForTimeout(600);
+    expect(await page.evaluate(() => scrollY)).toBe(1294);
+    await ctx.close();
+  });
+});
 
 test('the scene loop stops when the scene is off screen', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
