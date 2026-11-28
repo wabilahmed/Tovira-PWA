@@ -8,6 +8,11 @@ const makeClient = (): AccessRequestClient & { submit: ReturnType<typeof vi.fn> 
   submit: vi.fn().mockResolvedValue({ id: 'req-1' }),
 });
 
+// [P90 · owner, Prompt 88, batch 1] The form is three steps now ("Split the one long form into three steps"): these
+// tests keep every assertion they had and walk the steps to reach it. step 1 = about you, step 2 = your company,
+// step 3 = your clients. Each helper leaves the form on the NEXT step.
+const next = async (user: ReturnType<typeof userEvent.setup>): Promise<void> => { await user.click(screen.getByRole('button', { name: 'Next' })); };
+/** Step 1 (about you), then Next: the form is on step 2. */
 async function fillBase(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.type(screen.getByLabelText('Full name'), 'Dana Rep');
   await user.type(screen.getByLabelText('Work email'), 'dana@brokerage.ae');
@@ -15,14 +20,23 @@ async function fillBase(user: ReturnType<typeof userEvent.setup>): Promise<void>
   // [P75 · owner] the form now requires a WhatsApp number with its country code (pin moved with the owner's new rule)
   await user.selectOptions(screen.getByLabelText('Country code'), 'AE');
   await user.type(screen.getByLabelText('WhatsApp number'), '050 123 4567');
+  await next(user);
+}
+/** Step 2 (your company) with the given industry and ownership, then Next: the form is on step 3. */
+async function fillCompany(user: ReturnType<typeof userEvent.setup>, industry: string, own: 'own' | 'employed', licence = 'TL-123'): Promise<void> {
   await user.type(screen.getByLabelText('Company name'), 'Meridian');
   await user.type(screen.getByLabelText('Role / job title'), 'Broker');
+  await user.click(screen.getByLabelText(industry));
+  if (own === 'own') { await user.click(screen.getByLabelText('I own or manage it')); await user.type(screen.getByLabelText('Trade licence number'), licence); }
+  else await user.click(screen.getByLabelText('I am employed by it'));
+  await next(user);
 }
 
 describe('<RequestAccess>', () => {
   it('reveals the trade licence field only when "own or manage" is chosen', async () => {
     const user = userEvent.setup();
     render(<RequestAccess client={makeClient()} />);
+    await fillBase(user); // [P90] the question is on step 2
     expect(screen.queryByLabelText('Trade licence number')).toBeNull();
     await user.click(screen.getByLabelText('I own or manage it'));
     expect(screen.getByLabelText('Trade licence number')).toBeTruthy();
@@ -31,6 +45,7 @@ describe('<RequestAccess>', () => {
   it('shows the NOC-by-email note (no upload) when "employed" is chosen', async () => {
     const user = userEvent.setup();
     render(<RequestAccess client={makeClient()} />);
+    await fillBase(user); // [P90] the question is on step 2
     await user.click(screen.getByLabelText('I am employed by it'));
     expect(screen.getByTestId('noc-note').textContent).toMatch(/NOC/);
     expect(screen.queryByLabelText('Trade licence number')).toBeNull();
@@ -41,17 +56,23 @@ describe('<RequestAccess>', () => {
   it('reveals the free-text box only for the "Other" conversation option', async () => {
     const user = userEvent.setup();
     render(<RequestAccess client={makeClient()} />);
+    await fillBase(user); await fillCompany(user, 'Insurance', 'employed'); // [P90] the question is on step 3
     expect(screen.queryByLabelText('Please describe')).toBeNull();
     // [P42 · owner] Industry has its own "Other" now; this is the conversations one.
     await user.click(screen.getByLabelText('Other', { selector: 'input[name="conversationOwnership"]' }));
     expect(screen.getByLabelText('Please describe')).toBeTruthy();
   });
 
+  // [P90 · owner, Prompt 88, batch 1] moved: the confirmation is on step 3, and Request access now also waits for the
+  // step's two questions ("Next is disabled until that step is complete, the same way Request access is today").
   it('shows the exact confirmation sentence and keeps submit disabled until it is ticked', async () => {
     const user = userEvent.setup();
     render(<RequestAccess client={makeClient()} />);
+    await fillBase(user); await fillCompany(user, 'Insurance', 'employed');
     expect(screen.getByText(CONFIRMATION_TEXT)).toBeTruthy();
     const submit = screen.getByRole('button', { name: /request access/i });
+    await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
+    await user.click(screen.getByLabelText('Under 50'));
     expect(submit).toBeDisabled();
     await user.click(screen.getByRole('checkbox'));
     expect(submit).not.toBeDisabled();
@@ -62,13 +83,11 @@ describe('<RequestAccess>', () => {
     const client = makeClient();
     render(<RequestAccess client={client} />);
     await fillBase(user);
-    await user.click(screen.getByLabelText('I own or manage it'));
-    await user.type(screen.getByLabelText('Trade licence number'), 'TL-123');
+    // [P42 · owner] Industry is a required question.
+    await fillCompany(user, 'Insurance', 'own');
     // [P42 · owner] "brokerage" became "company" in the label; the stored value is unchanged.
     await user.click(screen.getByLabelText('Clients of the company I own or manage.'));
     await user.click(screen.getByLabelText('50–200'));
-    // [P42 · owner] Industry is a required question.
-    await user.click(screen.getByLabelText('Insurance'));
     await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: /request access/i }));
 
@@ -79,26 +98,41 @@ describe('<RequestAccess>', () => {
       conversationOwnershipOther: null, expectedVolume: '50_200', industry: 'insurance', industryOther: null, confirmationAccepted: true,
       hp_trap_7: '', // [P63-2] the trap's new name
     }));
-    expect(await screen.findByText(/request has been recorded/i)).toBeTruthy();
-    expect(screen.getByText(/within 2 business days/i)).toBeTruthy();
+    // [P90 · owner, Prompt 88, batch 1] moved: the received screen is "Got it. You're in the queue." then "Thank you. We
+    // review requests within 2 business days." (was "Thank you. Your request has been recorded. We review…")
+    expect(await screen.findByRole('heading', { name: "Got it. You're in the queue." })).toBeTruthy();
+    expect(screen.getByText('Thank you. We review requests within 2 business days.')).toBeTruthy();
   });
 
   // [P42-A5] Owner: the form speaks to every relationship-sales rep, not brokerages or field sales.
-  it('the intro is for sales people whose clients stay with them for years; the options say company', () => {
+  // [P90 · owner, Prompt 88, batch 1] moved: the intro line is now "Tovira is in private beta. Tell us a little about you
+  // and we'll be in touch." (the owner's new wording); the options still say company (step 3).
+  it('the intro is the private-beta line; the options say company', async () => {
+    const user = userEvent.setup();
     render(<RequestAccess client={makeClient()} />);
-    expect(screen.getByText('Tovira is in private beta for sales people whose clients stay with them for years. Tell us a little about you and we’ll be in touch.')).toBeTruthy();
+    expect(screen.getByText("Tovira is in private beta. Tell us a little about you and we'll be in touch.")).toBeTruthy();
+    await fillBase(user); await fillCompany(user, 'Insurance', 'employed');
     expect(screen.getByLabelText('Clients of the company I own or manage.')).toBeTruthy();
     expect(screen.getByLabelText('Clients of the company that employs me.')).toBeTruthy();
   });
 
-  it('NEGATIVE: no "brokerage" and no "field sales" anywhere on the form', () => {
+  it('NEGATIVE: no "brokerage" and no "field sales" anywhere on the form (every step)', async () => {
+    const user = userEvent.setup();
     const { container } = render(<RequestAccess client={makeClient()} />);
+    expect(container.textContent).not.toMatch(/brokerage|field sales/i);
+    await user.type(screen.getByLabelText('Full name'), 'Dana Rep'); await user.type(screen.getByLabelText('Work email'), 'dana@example.com');
+    await user.type(screen.getByLabelText('Phone'), '+971 50 123 4567'); await user.selectOptions(screen.getByLabelText('Country code'), 'AE');
+    await user.type(screen.getByLabelText('WhatsApp number'), '050 123 4567'); await next(user);
+    expect(container.textContent).not.toMatch(/brokerage|field sales/i);
+    await fillCompany(user, 'Insurance', 'employed');
     expect(container.textContent).not.toMatch(/brokerage|field sales/i);
   });
 
   // [P42-A6] Owner: a required Industry question, seven choices in this order, Other with free text.
-  it('asks "Which industry do you sell in?" with the seven choices in order', () => {
+  it('asks "Which industry do you sell in?" with the seven choices in order', async () => {
+    const user = userEvent.setup();
     render(<RequestAccess client={makeClient()} />);
+    await fillBase(user); // [P90] the question is on step 2
     const group = screen.getByRole('group', { name: 'Which industry do you sell in?' });
     expect(within(group).getAllByRole('radio').map((r) => r.closest('label')?.textContent)).toEqual(['Insurance', 'Wealth / private banking', 'B2B / key accounts', 'Luxury / client advisory', 'Recruitment', 'Property', 'Other']);
   });
@@ -107,11 +141,14 @@ describe('<RequestAccess>', () => {
     const user = userEvent.setup();
     const client = makeClient();
     render(<RequestAccess client={client} />);
+    await fillBase(user); // [P90] step 1 first; the industry is on step 2
     expect(screen.queryByLabelText('Your industry')).toBeNull();
+    await user.type(screen.getByLabelText('Company name'), 'Meridian');
+    await user.type(screen.getByLabelText('Role / job title'), 'Broker');
     await user.click(screen.getByLabelText('Other', { selector: 'input[name="industry"]' }));
     await user.type(screen.getByLabelText('Your industry'), 'Yacht brokerage');
-    await fillBase(user);
     await user.click(screen.getByLabelText('I am employed by it'));
+    await next(user);
     await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
     await user.click(screen.getByLabelText('Under 50'));
     await user.click(screen.getByRole('checkbox'));
@@ -119,17 +156,20 @@ describe('<RequestAccess>', () => {
     await waitFor(() => expect(client.submit).toHaveBeenCalledWith(expect.objectContaining({ industry: 'other', industryOther: 'Yacht brokerage' })));
   });
 
-  it('NEGATIVE: without an industry nothing is sent and every-question error shows', async () => {
+  // [P90 · owner, Prompt 88, batch 1] moved: "Next is disabled until that step is complete". Without an industry the
+  // rep cannot leave step 2, so nothing can be sent (the "Please complete every question." message is no longer reachable).
+  it('NEGATIVE: without an industry the form cannot go past step 2 and nothing is sent', async () => {
     const user = userEvent.setup();
     const client = makeClient();
     render(<RequestAccess client={client} />);
     await fillBase(user);
+    await user.type(screen.getByLabelText('Company name'), 'Meridian');
+    await user.type(screen.getByLabelText('Role / job title'), 'Broker');
     await user.click(screen.getByLabelText('I am employed by it'));
-    await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
-    await user.click(screen.getByLabelText('Under 50'));
-    await user.click(screen.getByRole('checkbox'));
-    await user.click(screen.getByRole('button', { name: /request access/i }));
-    expect(await screen.findByText('Please complete every question.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Step 2 of 3')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /request access/i })).toBeNull();
     expect(client.submit).not.toHaveBeenCalled();
   });
 
@@ -157,11 +197,9 @@ describe('<RequestAccess>', () => {
       render(<RequestAccess client={client} referralsEnabled />);
       expect(screen.getByTestId('referral-note').textContent).toMatch(/TESTREF123/);
       await fillBase(user);
-      await user.click(screen.getByLabelText('I own or manage it'));
-      await user.type(screen.getByLabelText('Trade licence number'), 'TL-1');
+      await fillCompany(user, 'Recruitment', 'own', 'TL-1'); // [P42 · owner] Industry is required
       await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
       await user.click(screen.getByLabelText('Under 50'));
-      await user.click(screen.getByLabelText('Recruitment')); // [P42 · owner] Industry is required
       await user.click(screen.getByText(CONFIRMATION_TEXT));
       await user.click(screen.getByRole('button', { name: /request access/i }));
       await waitFor(() => expect(client.submit).toHaveBeenCalled());
@@ -181,11 +219,9 @@ describe('<RequestAccess>', () => {
       expect(screen.queryByTestId('referral-note')).toBeNull();
       expect(container.textContent).not.toMatch(/referral|TESTREF123/i);
       await fillBase(user);
-      await user.click(screen.getByLabelText('I own or manage it'));
-      await user.type(screen.getByLabelText('Trade licence number'), 'TL-1');
+      await fillCompany(user, 'Recruitment', 'own', 'TL-1');
       await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
       await user.click(screen.getByLabelText('Under 50'));
-      await user.click(screen.getByLabelText('Recruitment'));
       await user.click(screen.getByText(CONFIRMATION_TEXT));
       await user.click(screen.getByRole('button', { name: /request access/i }));
       await waitFor(() => expect(client.submit).toHaveBeenCalled());
@@ -200,20 +236,20 @@ describe('<RequestAccess>', () => {
   it('a submit after a game CTA tap sends one game_signup beacon; without the flag, none', async () => {
     const beacons: string[] = [];
     const readBlob = (b: Blob) => new Promise<string>((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.readAsText(b); });
-    Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: (_u: string, b: Blob) => { void readBlob(b).then((t) => beacons.push(t)); return true; } });
+    // [P90 · owner, Prompt 88, batch 1] the form also sends its step-reached events (to /api/visit) now; this test counts
+    // the game's beacon only (/api/game-event), as it always meant to
+    Object.defineProperty(navigator, 'sendBeacon', { configurable: true, value: (u: string, b: Blob) => { if (u.includes('game-event')) void readBlob(b).then((t) => beacons.push(t)); return true; } });
     const submitOnce = async () => {
       const user = userEvent.setup();
       const client = makeClient();
       const { unmount } = render(<RequestAccess client={client} />);
       await fillBase(user);
-      await user.click(screen.getByLabelText('I own or manage it'));
-      await user.type(screen.getByLabelText('Trade licence number'), 'TL-123');
+      await fillCompany(user, 'Insurance', 'own');
       await user.click(screen.getByLabelText('Clients of the company I own or manage.'));
       await user.click(screen.getByLabelText('50–200'));
-      await user.click(screen.getByLabelText('Insurance'));
       await user.click(screen.getByRole('checkbox'));
       await user.click(screen.getByRole('button', { name: /request access/i }));
-      await screen.findByText(/request has been recorded/i);
+      await screen.findByText(/We review requests within 2 business days/i); // [P90] the received line (was "…has been recorded…")
       unmount();
     };
     sessionStorage.clear();

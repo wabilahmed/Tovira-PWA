@@ -73,5 +73,8 @@ test('app shell still renders offline (no blank page)', async ({ page, context }
   await page.reload();
 
   // The cached shell renders the login screen even with no network.
-  await expect(page.getByRole('heading', { name: 'Tovira' })).toBeVisible();
+  // [P90 · owner, Prompt 88, batch 1] moved: the log-in screen's one heading is "Welcome back." (the logo is no longer
+  // the heading), with the Tovira logo above it.
+  await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible();
+  await expect(page.locator('.tov-logo')).toHaveText('Tovira');
 });

@@ -6,6 +6,10 @@
  */
 export type Plan = 'monthly' | 'annual';
 
+/** [P90-3 · owner, Prompt 88] The annual plan is offered nowhere in the app until its checkout is proven end to end
+ *  (Stripe has no yearly price yet: BLOCKERS [P89-annual]). Turn this on when it is. */
+export const ANNUAL_AVAILABLE: boolean = false;
+
 export const PLANS: Record<Plan, { id: Plan; price: string }> & { annual: { save: string } } = {
   monthly: { id: 'monthly', price: 'AED 299 / month' },
   annual: { id: 'annual', price: 'AED 2,990 / year', save: 'save AED 598' },

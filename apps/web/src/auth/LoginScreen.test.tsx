@@ -111,11 +111,13 @@ describe('<LoginScreen> referral entry', () => {
     expect(screen.queryByTestId('request-access-link')).toBeNull();
   });
 
-  it('hides sign-up and offers "Request beta access" when signup is disabled', () => {
+  it('hides sign-up and offers "Request access" when signup is disabled', () => {
     render(<LoginScreen referralsEnabled auth={fakeAuth()} onAuthed={() => {}} signupEnabled={false} />);
     expect(screen.queryByRole('button', { name: /sign up/i })).toBeNull();
     const link = screen.getByTestId('request-access-link');
-    expect(link).toHaveTextContent(/request beta access/i);
+    // [P90 · owner, Prompt 88, batch 1] moved: the line is "New here? Request access" (was "Need access? Request beta access")
+    expect(link).toHaveTextContent('Request access');
+    expect(link.closest('p')).toHaveTextContent('New here? Request access');
     expect(link).toHaveAttribute('href', '/request-access');
     // No signup form either: the terms-consent checkbox only exists in signup mode.
     expect(screen.queryByLabelText(/accept terms/i)).toBeNull();

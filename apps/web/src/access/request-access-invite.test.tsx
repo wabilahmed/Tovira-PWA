@@ -13,13 +13,19 @@ const PREFILL = { fullName: 'Sara Khan', workEmail: 'sara@emaar.example', compan
 function client(prefill: typeof PREFILL | null, approved = true): AccessRequestClient & { prefill: ReturnType<typeof vi.fn>; submit: ReturnType<typeof vi.fn> } {
   return { prefill: vi.fn(async () => prefill), submit: vi.fn(async () => ({ id: 'r1', approved })) };
 }
-async function complete(): Promise<void> {
+// [P90 · owner, Prompt 88, batch 1] The form is three steps now: these helpers walk them (step 1 about you, step 2 your
+// company, step 3 your clients); every assertion is as it was. `fresh` types the company and role (an invite prefills them).
+const next = async (): Promise<void> => { await userEvent.click(screen.getByRole('button', { name: 'Next' })); };
+async function complete(fresh = false): Promise<void> {
   await userEvent.type(screen.getByLabelText('Phone'), '+971 50 123 4567');
   // [P75 · owner] the form now requires a WhatsApp number with its country code (pin moved with the owner's new rule)
   await userEvent.selectOptions(screen.getByLabelText('Country code'), 'AE');
   await userEvent.type(screen.getByLabelText('WhatsApp number'), '050 123 4567');
+  await next();
+  if (fresh) { await userEvent.type(screen.getByLabelText('Company name'), 'Meridian'); await userEvent.type(screen.getByLabelText('Role / job title'), 'Broker'); }
   await userEvent.click(screen.getByRole('radio', { name: 'Property' }));
   await userEvent.click(screen.getByRole('radio', { name: /I am employed/i }));
+  await next();
   await userEvent.click(screen.getByRole('radio', { name: /My own clients/ }));
   await userEvent.click(screen.getByRole('radio', { name: 'Under 50' }));
   await userEvent.click(screen.getByRole('checkbox', { name: /I confirm the information/ })); // [P59-2] the confirmation, by name (an employed invitee has a second box)
@@ -32,14 +38,19 @@ describe('[P58-7] the request form from an invite', () => {
     render(<RequestAccess client={c} />);
     await waitFor(() => expect(screen.getByLabelText('Full name')).toHaveValue('Sara Khan'));
     expect(c.prefill).toHaveBeenCalledWith('tok123');
-    expect(screen.getByLabelText('Company name')).toHaveValue('Emaar');
-    expect(screen.getByLabelText('Role / job title')).toHaveValue('Head of Leasing');
     const email = screen.getByLabelText('Work email');
     expect(email).toHaveValue('sara@emaar.example');
     expect(email).toHaveAttribute('readonly');
     expect(screen.getByText('This invite is for sara@emaar.example.')).toBeInTheDocument();
     expect(window.location.search).toBe('');
     expect(screen.getByLabelText('Phone')).toHaveValue(''); // the rest is the lead's to complete
+    // [P90] the company and job title are on step 2
+    await userEvent.type(screen.getByLabelText('Phone'), '+971 50 123 4567');
+    await userEvent.selectOptions(screen.getByLabelText('Country code'), 'AE');
+    await userEvent.type(screen.getByLabelText('WhatsApp number'), '050 123 4567');
+    await next();
+    expect(screen.getByLabelText('Company name')).toHaveValue('Emaar');
+    expect(screen.getByLabelText('Role / job title')).toHaveValue('Head of Leasing');
   });
   it('submitting sends the token; approved at once, the lead is told to look for the set-password email', async () => {
     window.history.replaceState({}, '', '/request-access?invite=tok123');
@@ -62,9 +73,7 @@ describe('[P58-7] the request form from an invite', () => {
     expect(screen.queryByText(/This invite is for/)).toBeNull();
     await userEvent.type(screen.getByLabelText('Full name'), 'Dana Rep');
     await userEvent.type(screen.getByLabelText('Work email'), 'dana@brokerage.example');
-    await userEvent.type(screen.getByLabelText('Company name'), 'Meridian');
-    await userEvent.type(screen.getByLabelText('Role / job title'), 'Broker');
-    await complete();
+    await complete(true);
     await userEvent.click(screen.getByRole('button', { name: /request access/i }));
     expect(c.submit.mock.calls[0]![0]).not.toHaveProperty('inviteToken');
     expect(await screen.findByText(/We review requests within 2 business days/)).toBeInTheDocument();
@@ -98,13 +107,34 @@ describe('[P59-2] the employer\'s permission on the invite form', () => {
     window.history.replaceState({}, '', '/request-access?invite=tok123');
     render(<RequestAccess client={client(PREFILL)} />);
     await waitFor(() => expect(screen.getByLabelText('Full name')).toHaveValue('Sara Khan'));
+    // [P90] walk to step 3, where the boxes are
+    await userEvent.type(screen.getByLabelText('Phone'), '+971 50 123 4567');
+    await userEvent.selectOptions(screen.getByLabelText('Country code'), 'AE');
+    await userEvent.type(screen.getByLabelText('WhatsApp number'), '050 123 4567');
+    await next();
+    await userEvent.click(screen.getByRole('radio', { name: 'Property' }));
     await userEvent.click(screen.getByRole('radio', { name: /I own or manage it/i }));
+    await userEvent.type(screen.getByLabelText('Trade licence number'), 'TL-1');
+    await next();
+    expect(screen.getByRole('checkbox', { name: /I confirm the information/ })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: PERMISSION })).toBeNull();
   });
   it('NEGATIVE: the public form (no invite) never shows it; the NOC note is unchanged', async () => {
     render(<RequestAccess client={client(PREFILL)} />);
+    // [P90] the question is on step 2; the boxes are on step 3
+    await userEvent.type(screen.getByLabelText('Full name'), 'Dana Rep');
+    await userEvent.type(screen.getByLabelText('Work email'), 'dana@brokerage.example');
+    await userEvent.type(screen.getByLabelText('Phone'), '+971 50 123 4567');
+    await userEvent.selectOptions(screen.getByLabelText('Country code'), 'AE');
+    await userEvent.type(screen.getByLabelText('WhatsApp number'), '050 123 4567');
+    await next();
+    await userEvent.type(screen.getByLabelText('Company name'), 'Meridian');
+    await userEvent.type(screen.getByLabelText('Role / job title'), 'Broker');
+    await userEvent.click(screen.getByRole('radio', { name: 'Property' }));
     await userEvent.click(screen.getByRole('radio', { name: /I am employed/i }));
-    expect(screen.queryByRole('checkbox', { name: PERMISSION })).toBeNull();
     expect(screen.getByTestId('noc-note')).toBeInTheDocument();
+    await next();
+    expect(screen.getByRole('checkbox', { name: /I confirm the information/ })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: PERMISSION })).toBeNull();
   });
 });

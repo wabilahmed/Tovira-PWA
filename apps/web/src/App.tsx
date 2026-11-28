@@ -19,7 +19,7 @@ import { ClientsClient, anyExtractionInProgress, type ClientSummary, type NoteSu
 import { HttpClientPageClient, type ClientOverview } from './clients/page/clientPageClient.js';
 import { Accordion } from './ui/Accordion.js';
 import { ClientNameMenu } from './clients/page/ClientNameMenu.js';
-import { Page, PageHeader, Section, ListRow, Button, IconButton, SearchInput, Sheet, EmptyState } from './ui/index.js';
+import { Page, PageHeader, Section, ListRow, Button, IconButton, SearchInput, Sheet, EmptyState, LoadError, LOAD_FAILED } from './ui/index.js';
 
 /** [P36-6] The client-list sort orders. */
 const SORT_OPTIONS: Array<{ value: 'last' | 'name' | 'overdue'; label: string }> = [
@@ -54,7 +54,7 @@ import { resumePendingNotes } from './capture/resume.js';
 import { PromisesClient } from './promises/promisesClient.js';
 import { PromisesTracker } from './promises/PromisesTracker.js';
 import { ConfirmChitQueue, type StatusSuggestionsApi } from './confirm/ConfirmChitQueue.js';
-import { Locked } from './billing/Locked.js';
+import { Locked, PaymentLocked } from './billing/Locked.js';
 import { LOCKED } from './billing/gated.js';
 import { HeroClient } from './hero/heroClient.js';
 import { HeroInsights } from './hero/HeroInsights.js';
@@ -298,6 +298,7 @@ export function App(): JSX.Element {
   const [signupEnabled, setSignupEnabled] = useState(false);
   // [P46-3] REFERRALS_ENABLED (off by default): referral UI and copy show only when it is on.
   const [referralsEnabled, setReferralsEnabled] = useState(false);
+  const [startOnForgot, setStartOnForgot] = useState(false); // [P90] from an expired reset link
   useEffect(() => {
     void auth.signupEnabled().then(setSignupEnabled);
     void auth.referralsEnabled().then(setReferralsEnabled);
@@ -361,23 +362,27 @@ export function App(): JSX.Element {
           if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
           setResetToken(null);
         }}
+        /* [P90] an expired link's "Send a new link": the forgot-password screen */
+        onRequestNew={() => {
+          if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
+          setStartOnForgot(true);
+          setResetToken(null);
+        }}
       />
     );
   }
   if (verifyToken) {
     return (
-      <Centered>
-        <VerifyEmailPage
-          api={auth}
-          token={verifyToken}
-          onDone={() => {
-            if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
-            setVerifyToken(null);
-            // Re-read the session so a now-verified account drops the banner.
-            void auth.getSession().then(setSession);
-          }}
-        />
-      </Centered>
+      <VerifyEmailPage
+        api={auth}
+        token={verifyToken}
+        onDone={() => {
+          if (typeof window !== 'undefined') window.history.replaceState({}, '', '/app');
+          setVerifyToken(null);
+          // Re-read the session so a now-verified account drops the banner.
+          void auth.getSession().then(setSession);
+        }}
+      />
     );
   }
   // [AUDIT item 2] An unknown SPA path is a 404, not a silent fall-through to the app shell.
@@ -385,7 +390,7 @@ export function App(): JSX.Element {
     return <Centered><NotFound /></Centered>;
   }
   if (loading) return <Centered>Loading…</Centered>;
-  if (!session) return <LoginScreen auth={auth} onAuthed={setSession} signupEnabled={signupEnabled} referralsEnabled={referralsEnabled} />;
+  if (!session) return <LoginScreen auth={auth} onAuthed={setSession} signupEnabled={signupEnabled} referralsEnabled={referralsEnabled} initialMode={startOnForgot ? 'forgot' : 'login'} />;
 
   // [P46-6c.2] A rep approved from a hot lead answers the blank questions and ticks the confirmation before Clients.
   return (
@@ -401,6 +406,15 @@ export function App(): JSX.Element {
 
 function ClientsScreen({ session, onLogout, referralsEnabled = false }: { session: Session; onLogout: () => void; referralsEnabled?: boolean }): JSX.Element {
   const [clients, setClients] = useState<ClientSummary[]>([]);
+  // [P90-1 · owner, Prompt 88] A list that did not come back is an error with Try again, never "No clients yet.": a
+  // failed read keeps whatever was already loaded and raises the flag (shown only when there is nothing to show).
+  const [clientsFailed, setClientsFailed] = useState(false);
+  const reloadClients = async (): Promise<ClientSummary[]> => {
+    const r = await clientsApi.listResult();
+    if (r === LOAD_FAILED) { setClientsFailed(true); return []; }
+    setClientsFailed(false); setClients(r);
+    return r;
+  };
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<ClientSummary | null>(null);
   // [P37] The required first-login tour: shown whenever the account hasn't completed it (resuming at its saved
@@ -492,8 +506,7 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
     );
   }
   const openImportedClient = async (clientId: string): Promise<void> => {
-    const list = await clientsApi.list();
-    setClients(list);
+    const list = await reloadClients();
     setClientsAction(null);
     const c = list.find((x) => x.id === clientId);
     if (c) { setOpen(c); announce('chat', c.name); } // [P65] a chat for a new client: its page, and the toast
@@ -610,12 +623,12 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
   // browser (below) — the query is NEVER sent to the server, so a client name or phone number can't
   // leak into a CloudFront / ALB access log via the URL.
   useEffect(() => {
-    void clientsApi.list().then(setClients);
+    void reloadClients();
   }, []);
   // [P36-7] A status answered elsewhere (a To Confirm card) shows on the list the moment the rep comes back.
   useEffect(() => {
     if (view !== 'clients') return;
-    void clientsApi.list().then(setClients);
+    void reloadClients();
     loadSuggestions();
     loadRows();
   }, [view]);
@@ -799,6 +812,20 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
   }
 
   const needsSeeding = seeding !== null && !seeding.seeded;
+
+  // [P90-2 · owner, Prompt 88] Suspended (or ended) after a failed payment: the server refuses everything but the payment
+  // page, the export and sign-in, so every screen but Settings, Subscription and Account is one payment panel. Never
+  // "Your trial has ended", never an empty list.
+  if (billing && (billing.billingState === 'suspended' || billing.billingState === 'ended') && !['settings', 'subscription', 'account'].includes(view)) {
+    return (
+      <AppShell view={view} onNavigate={navigate} needsSeeding={false} badges={{ inventory: 0 }} moreRequest={moreRequest}>
+        <Page testId="payment-locked-page" label={VIEW_LABEL[view] ?? 'Tovira'}>
+          <PageHeader title={VIEW_LABEL[view] ?? 'Tovira'} />
+          <PaymentLocked ent={billing} onOpenSubscription={openSubscription} onOpenAccount={() => navigate('account')} />
+        </Page>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell
@@ -1033,7 +1060,10 @@ function ClientsScreen({ session, onLogout, referralsEnabled = false }: { sessio
           {renderProcessingToast()}
 
           {(search.active ? visibleHits.length === 0 : visibleClients.length === 0) ? (
-            clients.length === 0 ? (
+            clients.length === 0 && clientsFailed ? (
+              /* [P90-1] the list did not come back: an error with Try again, never "No clients yet." */
+              <LoadError what="your clients" onRetry={() => void reloadClients()} />
+            ) : clients.length === 0 ? (
               <EmptyState
                 data-testid="clients-empty"
                 title="No clients yet."

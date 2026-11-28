@@ -4,6 +4,7 @@ import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody, formatRange, daysSince } from '../format/dates.js';
 import { OutcomeControl, type OutcomeChoice } from '../outcomes/OutcomeControl.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
+import { Button } from '../ui/Button.js';
 import { aiText } from '../format/aiText.js';
 
 export interface MondayApi {
@@ -20,6 +21,7 @@ export interface MondayApi {
 export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: MondayApi; now?: number; onSetOutcome?: (clientId: string, choice: OutcomeChoice) => void | Promise<void> }): JSX.Element {
   const [digest, setDigest] = useState<Digest | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [attempt, setAttempt] = useState(0); // [P90-1] Try again
 
   useEffect(() => {
     let live = true;
@@ -28,11 +30,11 @@ export function MondayDigest({ api, now = Date.now(), onSetOutcome }: { api: Mon
       if (d) { setDigest(d); setState('ready'); } else setState('error');
     });
     return () => { live = false; };
-  }, [api]);
+  }, [api, attempt]);
 
   // [P39-8] Loading and error states sit in the page template too.
   if (state === 'loading') return <Page testId="week-page" label="The Monday Statement"><PageHeader title="The Monday Statement" /><p className="ui-secondary">Building the Monday Statement…</p></Page>;
-  if (state === 'error' || !digest) return <Page testId="week-page" label="The Monday Statement"><PageHeader title="The Monday Statement" /><p role="alert" className="ui-secondary">The Monday Statement could not be loaded. Try again in a moment.</p></Page>;
+  if (state === 'error' || !digest) return <Page testId="week-page" label="The Monday Statement"><PageHeader title="The Monday Statement" /><div role="alert" className="ui-empty" data-testid="load-error"><p className="ui-secondary">The Monday Statement could not be loaded. Try again in a moment.</p><Button onClick={() => { setState('loading'); setAttempt((n) => n + 1); }}>Try again</Button></div></Page>;
 
   // The server's Monday is authoritative; fall back to computing from `now`.
   const mondayMs = digest.weekOf ? Date.parse(digest.weekOf) : now - (((new Date(now).getDay() + 6) % 7) * 86_400_000);

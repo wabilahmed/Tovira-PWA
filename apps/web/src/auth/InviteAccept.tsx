@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type JSX } from 'react';
 import type { AuthClient } from './authClient.js';
-import { AuthShell } from './AuthShell.js';
+import { AuthShell, Mark } from './AuthShell.js';
 
 /** [BETA-6] The invite page: validate the token, set a password, and accept the terms. Reached at
  *  /invite?token=… (served by the SPA before the session gate, like /reset-password). */
@@ -28,7 +28,7 @@ export function InviteAccept({ auth, token, onDone }: { auth: AuthClient; token:
     });
   }, [auth, token]);
 
-  if (checking) return <AuthShell subtitle="Checking your invitation…"><span /></AuthShell>;
+  if (checking) return <AuthShell heading="Checking your invitation…" centered><span /></AuthShell>;
 
   // [BETA-8] An expired/invalid/used link lands here. We can't (and must not) reveal which — so we offer
   // to send a fresh link to the ORIGINAL invited address. The token carries the identity; no address is
@@ -44,8 +44,8 @@ export function InviteAccept({ auth, token, onDone }: { auth: AuthClient; token:
       else { setResendResult('error'); setResendMessage(res.message ?? null); }
     }
     return (
-      <AuthShell subtitle="This link has expired">
-        <div aria-live="polite" style={{ display: 'grid', gap: 'var(--space-3)', marginTop: 'var(--space-1)' }}>
+      <AuthShell heading="This invite has expired." centered>
+        <div aria-live="polite" style={{ display: 'grid', gap: 'var(--space-4)' }}>
           {resendResult === 'sent' ? (
             <p className="auth__intro">If this invitation is still open, we’ve sent a new link to the email address this invite was sent to. Check your inbox and spam folder.</p>
           ) : resendResult === 'rate_limited' ? (
@@ -64,8 +64,8 @@ export function InviteAccept({ auth, token, onDone }: { auth: AuthClient; token:
 
   if (done) {
     return (
-      <AuthShell subtitle="Your account is ready">
-        <div aria-live="polite" style={{ display: 'grid', gap: 'var(--space-3)', marginTop: 'var(--space-1)' }}>
+      <AuthShell heading="Your account is ready." centered>
+        <div aria-live="polite" style={{ display: 'grid', gap: 'var(--space-4)' }}>
           <p className="auth__intro">Your password is set and your account is active. You can now log in.</p>
           <button className="auth__submit" type="button" onClick={onDone}>Go to Tovira</button>
         </div>
@@ -88,7 +88,7 @@ export function InviteAccept({ auth, token, onDone }: { auth: AuthClient; token:
   }
 
   return (
-    <AuthShell subtitle="Set up your Tovira account">
+    <AuthShell heading={<>You&apos;re in. <Mark>Let&apos;s set you up.</Mark></>} lead="Choose a password and you're ready to add your first client.">
       <form className="auth__form" onSubmit={(e) => void onSubmit(e)} noValidate>
         <label className="auth__field">
           <span>Choose a password</span>

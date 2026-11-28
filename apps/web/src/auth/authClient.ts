@@ -149,7 +149,7 @@ export class AuthClient {
     }
   }
 
-  async resetPassword(token: string, password: string): Promise<{ ok: boolean; message?: string }> {
+  async resetPassword(token: string, password: string): Promise<{ ok: boolean; message?: string; expired?: boolean }> {
     try {
       const res = await fetch(this.url('/auth/reset-password'), {
         method: 'POST',
@@ -158,8 +158,9 @@ export class AuthClient {
         body: JSON.stringify({ token, password }),
       });
       if (res.ok) return { ok: true };
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, message: body.message ?? 'Could not reset your password.' };
+      const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+      // [P90] an invalid, used or expired link (the server's invalid_reset_token) gets its own screen
+      return { ok: false, message: body.message ?? 'Could not reset your password.', ...(body.error === 'invalid_reset_token' ? { expired: true } : {}) };
     } catch {
       return { ok: false, message: 'Network error. Please try again.' };
     }
@@ -229,8 +230,9 @@ export class AuthClient {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      throw new Error(body.message ?? 'Authentication failed.');
+      const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+      // [P90] the server's own code (e.g. invalid_credentials) rides along so the screen can word it
+      throw Object.assign(new Error(body.message ?? 'Authentication failed.'), { code: body.error ?? null, status: res.status });
     }
     const data = (await res.json()) as Session;
     setAuthHint(true);

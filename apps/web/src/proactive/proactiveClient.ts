@@ -1,3 +1,4 @@
+import { loadJson, type LoadFailed } from '../ui/load.js';
 /** Client for the in-app proactive surface: alerts + the cold list (P3-3/P3-5). */
 
 export interface ColdClient {
@@ -28,6 +29,11 @@ export class ProactiveClient {
     } catch {
       return [];
     }
+  }
+
+  /** [P90-1] The alerts, or LOAD_FAILED when they did not come back. */
+  listNotificationsResult(): Promise<Notification[] | LoadFailed> {
+    return loadJson(`${this.baseUrl}/notifications`, (b) => (b as { notifications: Notification[] }).notifications, []);
   }
 
   async listNotifications(): Promise<Notification[]> {

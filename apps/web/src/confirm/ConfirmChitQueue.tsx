@@ -10,12 +10,15 @@ import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { Button } from '../ui/Button.js';
 import { Section } from '../ui/layout.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
-import { EmptyState, Toast } from '../ui/feedback.js';
+import { EmptyState, LoadError, Toast } from '../ui/feedback.js';
+import { LOAD_FAILED } from '../ui/load.js';
 import type { KeptSuggestion } from '../promises/promisesClient.js';
 
 /** The subset of the promises client the confirmation queue needs. */
 export interface ConfirmQueueApi {
   listConfirmations(): Promise<OpenPromise[]>;
+  /** [P90-1] The same read, or LOAD_FAILED when it did not come back (preferred when present). */
+  listConfirmationsResult?(): Promise<OpenPromise[] | 'load_failed'>;
   confirm(id: string): Promise<boolean>;
   reject(id: string): Promise<boolean>;
 }
@@ -109,11 +112,16 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set()); // [P40-1] opened "N promises need a due date" cards
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
+  const [failed, setFailed] = useState(false); // [P90-1]
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
-    void api.listConfirmations().then((x) => {
-      if (live) setItems(x);
+    // [P90-1] its own screen says when the read failed; inside Today the queue stays quiet (Today reports its own)
+    void (api.listConfirmationsResult ? api.listConfirmationsResult() : api.listConfirmations()).then((x) => {
+      if (!live) return;
+      if (x === LOAD_FAILED) { setFailed(true); return; }
+      setFailed(false); setItems(x);
     });
     if (captures) void captures.listCaptures().then((x) => { if (live) setHeld(x); });
     if (kept) void kept.listKept().then((x) => { if (live) setLooksSent(x); });
@@ -124,7 +132,7 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
     return () => {
       live = false;
     };
-  }, [api, captures, kept, statusSuggestions, dates, samePerson]);
+  }, [api, captures, kept, statusSuggestions, dates, samePerson, attempt]);
 
   async function answerDate(p: OpenPromise, a: { dueDate: string } | { dateStatus: 'not_sure' | 'no_due_date' }): Promise<void> {
     if (dates && (await dates.answerDate(p.id, a))) {
@@ -171,6 +179,9 @@ export function ConfirmChitQueue({ api, heading = 'Needs your answer', captures,
   const header = standalone ? (
     <PageHeader title="Needs your answer" subtitle={total === 0 ? 'Nothing to answer' : `${total} to answer`} back={back} />
   ) : null;
+  if (failed && standalone) {
+    return <Page testId="confirm-page" label="Needs your answer"><PageHeader title="Needs your answer" back={back} /><LoadError what="what needs your answer" onRetry={() => setAttempt((n) => n + 1)} /></Page>;
+  }
   if (total === 0 && !undoKept) {
     return standalone ? <Page testId="confirm-page" label="Needs your answer">{header}<EmptyState title="Nothing to answer." data-testid="confirm-empty">When Tovira isn't sure about something, it asks you here.</EmptyState></Page> : null;
   }

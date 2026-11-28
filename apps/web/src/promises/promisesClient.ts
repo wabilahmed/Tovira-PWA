@@ -1,3 +1,4 @@
+import { loadJson, type LoadFailed } from '../ui/load.js';
 /** Client for the open-promises tracker + confirmation queue (P4-1 / P1-7). */
 
 export interface OpenPromise {
@@ -88,6 +89,18 @@ export class PromisesClient {
     } catch {
       return { promises: [], done: [], staleThresholdDays: 90 };
     }
+  }
+
+  /** [P90-1] The Promises read, or LOAD_FAILED when it did not come back. */
+  trackerResult(): Promise<{ promises: OpenPromise[]; done: OpenPromise[]; staleThresholdDays: number } | LoadFailed> {
+    return loadJson(`${this.baseUrl}/promises`, (x) => {
+      const b = x as { promises?: OpenPromise[]; done?: OpenPromise[]; staleThresholdDays?: number };
+      return { promises: b.promises ?? [], done: b.done ?? [], staleThresholdDays: b.staleThresholdDays ?? 90 };
+    }, { promises: [], done: [], staleThresholdDays: 90 });
+  }
+  /** [P90-1] The To Confirm read, or LOAD_FAILED when it did not come back. */
+  listConfirmationsResult(): Promise<OpenPromise[] | LoadFailed> {
+    return loadJson(`${this.baseUrl}/confirmations`, (b) => (b as { promises: OpenPromise[] }).promises, []);
   }
 
   listOpen(): Promise<OpenPromise[]> {

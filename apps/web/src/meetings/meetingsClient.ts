@@ -1,3 +1,4 @@
+import { loadJson, type LoadFailed } from '../ui/load.js';
 /** Client for meetings — list, natural-language parse, create, delete (P3-1). */
 
 export interface Meeting {
@@ -24,6 +25,11 @@ export type ParseResult =
 
 export class MeetingsClient {
   constructor(private readonly baseUrl: string = '') {}
+
+  /** [P90-1] The meetings, or LOAD_FAILED when they did not come back. */
+  listResult(): Promise<Meeting[] | LoadFailed> {
+    return loadJson(`${this.baseUrl}/meetings`, (b) => (b as { meetings: Meeting[] }).meetings, []);
+  }
 
   async list(): Promise<Meeting[]> {
     try {

@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from 'react';
 import type { OpenPromise } from './promisesClient.js';
 import { hapticTick } from '../haptics.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
+import { LOAD_FAILED, type LoadFailed } from '../ui/load.js';
+import { LoadError } from '../ui/feedback.js';
 import { Badge, Button, Chip, ChipGroup, EmptyState, ListRow, Sheet, Toast } from '../ui/index.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { DateCard } from '../confirm/ConfirmChit.js';
@@ -21,6 +23,8 @@ export interface PromisesApi {
   restore(id: string): Promise<boolean>;
   /** [P46-6b] Open + done promises and the "older" window in one read (preferred over listOpen when present). */
   tracker?(): Promise<{ promises: OpenPromise[]; done: OpenPromise[]; staleThresholdDays: number }>;
+  /** [P90-1] The same read, or LOAD_FAILED when it did not come back (preferred when present). */
+  trackerResult?(): Promise<{ promises: OpenPromise[]; done: OpenPromise[]; staleThresholdDays: number } | LoadFailed>;
   /** [P40-1] Answer "when is it due?" for a promise whose date is to confirm. */
   answerDate?(id: string, answer: DateAnswer): Promise<boolean>;
 }
@@ -44,6 +48,8 @@ export function PromisesTracker({ api, now = Date.now(), back }: { api: Promises
   const [done, setDone] = useState<OpenPromise[]>([]);
   const [olderDays, setOlderDays] = useState(90);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false); // [P90-1]
+  const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('open');
   const [sheet, setSheet] = useState<{ p: OpenPromise; where: Where } | null>(null);
@@ -54,9 +60,11 @@ export function PromisesTracker({ api, now = Date.now(), back }: { api: Promises
 
   useEffect(() => {
     let live = true;
-    const openP = api.tracker ? api.tracker() : api.listOpen().then((promises) => ({ promises, done: [] as OpenPromise[], staleThresholdDays: 90 }));
+    const openP = api.trackerResult ? api.trackerResult() : api.tracker ? api.tracker() : api.listOpen().then((promises) => ({ promises, done: [] as OpenPromise[], staleThresholdDays: 90 }));
     void Promise.all([openP, api.listConfirmations()]).then(([t, pend]) => {
       if (!live) return;
+      if (t === LOAD_FAILED) { setFailed(true); setLoading(false); return; }
+      setFailed(false);
       setOpen(t.promises);
       setDone(t.done);
       setOlderDays(t.staleThresholdDays);
@@ -64,7 +72,7 @@ export function PromisesTracker({ api, now = Date.now(), back }: { api: Promises
       setLoading(false);
     });
     return () => { live = false; };
-  }, [api]);
+  }, [api, attempt]);
 
   const close = (): void => setSheet(null);
   async function markDone(p: OpenPromise): Promise<void> {
@@ -124,6 +132,7 @@ export function PromisesTracker({ api, now = Date.now(), back }: { api: Promises
 
   const header = <PageHeader title="Promises" {...(back ? { back } : {})} />;
   if (loading) return <Page testId="promises-page" label="Promises">{header}<p className="ui-secondary">Loading your promises…</p></Page>;
+  if (failed) return <Page testId="promises-page" label="Promises">{header}<LoadError what="your promises" onRetry={() => { setLoading(true); setAttempt((n) => n + 1); }} /></Page>;
 
   // [PROMISE-STALE] Active = not stale; stale (overdue past the window) sits behind "Older than N days".
   const active = open.filter((p) => !p.stale);

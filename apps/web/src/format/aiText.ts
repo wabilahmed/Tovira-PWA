@@ -14,6 +14,8 @@ const EM_DASH = '\u2014';
  *   "Her husband — the decision maker — prefers"  → "Her husband, the decision maker, prefers"
  */
 export function aiText(text: string): string {
+  // [P90-4] a stored value that is not text (an old-format object) shows as nothing; it never crashes the screen
+  if (typeof text !== 'string') return '';
   let s = humanizeIsoDates(text);
   if (!s.includes(EM_DASH)) return s;
   s = s.replace(/^\s*\u2014\s*/, '').replace(/\s*\u2014\s*$/, (m) => (m.trim() ? '.' : ''));

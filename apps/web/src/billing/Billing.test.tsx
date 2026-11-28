@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { PLANS } from './plans.js';
 import { Billing, type BillingApi } from './Billing.js';
 import type { Entitlement } from './billingClient.js';
 
@@ -12,19 +13,22 @@ function makeApi(status: Entitlement | null, url: string | null = 'https://check
 }
 
 describe('<Billing>', () => {
-  it('shows trial days remaining and monthly + annual Subscribe buttons', async () => {
+  // [P90-3 · owner, Prompt 88] moved: "hide the annual price until annual checkout is proven end to end": monthly only
+  it('shows trial days remaining and the monthly Subscribe button (annual hidden until its checkout is proven)', async () => {
     render(<Billing api={makeApi({ entitled: true, status: 'trialing', trialEndsAt: NOW + 3 * DAY })} now={NOW} />);
     expect(await screen.findByTestId('trial-status')).toHaveTextContent(/3 days left/i);
     expect(screen.getByRole('button', { name: /subscribe monthly/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /subscribe annually/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /subscribe annually/i })).toBeNull();
   });
 
   // [P5-5] the annual price is shown as a yearly charge, never as a monthly one.
-  it('shows the annual price as yearly, never as a monthly charge', async () => {
-    render(<Billing api={makeApi({ entitled: false, status: 'none', trialEndsAt: 0 })} now={NOW} />);
-    const annual = await screen.findByRole('button', { name: /subscribe annually/i });
-    expect(annual).toHaveTextContent(/AED 2,990 \/ year/);
-    expect(annual).not.toHaveTextContent(/2,990 \/ month/);
+  // [P90-3 · owner, Prompt 88] moved: with the annual plan hidden, the rule is kept on the shared price itself (the one
+  // place the button reads it from), and the screen never shows the yearly figure as a monthly charge.
+  it('the annual price is a yearly charge, never a monthly one', async () => {
+    expect(PLANS.annual.price).toBe('AED 2,990 / year');
+    const { container } = render(<Billing api={makeApi({ entitled: false, status: 'none', trialEndsAt: 0 })} now={NOW} />);
+    await screen.findByRole('button', { name: /subscribe monthly/i });
+    expect(container.textContent).not.toMatch(/2,990 \/ month/);
   });
 
   it('shows the subscribed state and hides Subscribe when active', async () => {
@@ -65,15 +69,14 @@ describe('<Billing>', () => {
   });
 
   // POSITIVE: each plan starts checkout for that plan and redirects.
-  it('starts monthly and annual checkout for the chosen plan', async () => {
+  // [P90-3 · owner, Prompt 88] moved: monthly only while the annual plan is hidden
+  it('starts monthly checkout', async () => {
     const user = userEvent.setup();
     const onRedirect = vi.fn();
     const api = makeApi({ entitled: true, status: 'trialing', trialEndsAt: NOW + DAY }, 'https://checkout.test/go');
     render(<Billing api={api} now={NOW} onRedirect={onRedirect} />);
     await user.click(await screen.findByRole('button', { name: /subscribe monthly/i }));
     await waitFor(() => expect(api.checkout).toHaveBeenCalledWith('monthly'));
-    await user.click(screen.getByRole('button', { name: /subscribe annually/i }));
-    await waitFor(() => expect(api.checkout).toHaveBeenCalledWith('annual'));
     expect(onRedirect).toHaveBeenCalledWith('https://checkout.test/go');
   });
 

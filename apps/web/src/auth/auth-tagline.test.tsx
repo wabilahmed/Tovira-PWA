@@ -7,10 +7,13 @@ import { AuthShell } from './AuthShell.js';
 // [P62-2 · owner] The app's tagline is "Memory for sales people whose clients stay for years." everywhere it appears; the
 // old "Your deal, Our memory, Instant success." is gone from the app (and from emails, P61-5).
 describe('[P62-2] the tagline', () => {
-  it('the sign-in and request-form header shows the new line', () => {
-    render(<AuthShell subtitle="Request beta access"><p>x</p></AuthShell>);
-    // [P69 · owner] memory is no longer the headline: the tagline is the promise
-    expect(screen.getByText('What each client cares about, in front of you when it matters.')).toBeInTheDocument();
+  // [P90 · owner, Prompt 88, batch 1] moved: "Remove the tagline under the logo". The signed-out header is the logo and
+  // "Home"; no tagline at all (the P69 line "What each client cares about, in front of you when it matters." is gone
+  // from these screens, and the older lines stay gone).
+  it('the sign-in and request-form header shows no tagline', () => {
+    const { container } = render(<AuthShell subtitle="Request beta access"><p>x</p></AuthShell>);
+    expect(screen.queryByText('What each client cares about, in front of you when it matters.')).toBeNull();
+    expect(container.querySelector('.auth__tagline')).toBeNull();
     expect(screen.queryByText(/memory for sales people/i)).toBeNull();
   });
   it('NEGATIVE: the old tagline appears nowhere in the web app\'s source or pages', () => {

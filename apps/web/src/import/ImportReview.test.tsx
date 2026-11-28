@@ -172,8 +172,9 @@ describe('<ImportReview>', () => {
       upsell={{ shortfall: true, n: 3, canTopUp: false, recommendedOptionId: null, options: [] }}
     />);
     expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent('Subscribing gives you 10,000 messages a month.'); // [P37 · owner] was "…to the full AED 60."; [P83] in messages
-    await userEvent.click(screen.getByTestId('subscribe-annual'));
-    expect(onSubscribe).toHaveBeenLastCalledWith('annual');
+    // [P90-3 · owner, Prompt 88] moved: the annual plan is hidden until its checkout is proven, so the prompt offers monthly only
+    await userEvent.click(screen.getByTestId('subscribe-monthly'));
+    expect(onSubscribe).toHaveBeenLastCalledWith('monthly');
     await userEvent.click(screen.getByTestId('subscribe-monthly'));
     expect(onSubscribe).toHaveBeenLastCalledWith('monthly');
     expect(screen.queryByText(/\+\d+%/)).toBeNull(); // no top-up option (percentage) buttons for a trial — the tell of a top-up price

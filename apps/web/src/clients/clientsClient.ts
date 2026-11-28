@@ -1,3 +1,4 @@
+import { loadJson, type LoadFailed } from '../ui/load.js';
 import type { SamePersonCard } from '../confirm/ConfirmChitQueue.js';
 import type { RenameResult } from './page/ClientNameMenu.js';
 import { LOCKED, type Locked } from '../billing/gated.js';
@@ -149,6 +150,11 @@ export class ClientsClient {
     } catch {
       return [];
     }
+  }
+
+  /** [P90-1] The list, or LOAD_FAILED when it did not come back (never an empty list for a failure). */
+  listResult(): Promise<ClientSummary[] | LoadFailed> {
+    return loadJson(this.url('/clients'), (b) => (b as { clients: ClientSummary[] }).clients, []);
   }
 
   async create(name: string, phone?: string, extras?: { title?: string | null; email?: string | null }): Promise<ClientSummary> {

@@ -4,6 +4,8 @@ import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { formatBody } from '../format/dates.js';
 import { Badge, Card, IconButton, Page, PageHeader, Section } from '../ui/index.js';
 import { aiText } from '../format/aiText.js';
+import { LOAD_FAILED, type LoadFailed } from '../ui/load.js';
+import { LoadError } from '../ui/feedback.js';
 
 export interface HeroApi {
   status(): Promise<GateState | null>;
@@ -11,6 +13,8 @@ export interface HeroApi {
   risk(): Promise<RiskItem[]>;
   today(): Promise<{ actions: TodayAction[]; refreshesRemaining: number | null }>;
   refreshToday(): Promise<{ actions: TodayAction[]; refreshesRemaining: number } | 'rate_limited' | null>;
+  /** [P90-1] Today's list, or LOAD_FAILED when it did not come back (preferred over today() when present). */
+  todayResult?(): Promise<{ actions: TodayAction[]; refreshesRemaining: number | null } | LoadFailed>;
   /** [P47-2] Report the going-quiet cards shown (the alert reached the rep). Optional for older mocks. */
   coldShown?(clientIds: string[]): Promise<void>;
 }
@@ -56,6 +60,8 @@ export function HeroInsights({ api, now = () => new Date(), top, needsAnswer }: 
   const [actions, setActions] = useState<TodayAction[]>([]);
   const [risk, setRisk] = useState<RiskItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false); // [P90-1] the day's list did not come back: an error, never "nothing today"
+  const [attempt, setAttempt] = useState(0);
   // [P34-5] No counter while a refresh is left; at zero the button is disabled with the overnight copy.
   const [outOfRefreshes, setOutOfRefreshes] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,8 +69,10 @@ export function HeroInsights({ api, now = () => new Date(), top, needsAnswer }: 
   useEffect(() => {
     let live = true;
     // [P39-5] Patterns are not on Today: they carry no message receipt. Only risk reasons with one are shown.
-    void Promise.all([api.status(), api.today(), api.risk()]).then(([s, t, r]) => {
+    void Promise.all([api.status(), api.todayResult ? api.todayResult() : api.today(), api.risk()]).then(([s, t, r]) => {
       if (!live) return;
+      if (t === LOAD_FAILED) { setFailed(true); setLoading(false); return; }
+      setFailed(false);
       setStatus(s);
       setActions(Array.isArray(t?.actions) ? t.actions : []); // a malformed body never crashes the screen
       setOutOfRefreshes(t?.refreshesRemaining === 0);
@@ -74,7 +82,7 @@ export function HeroInsights({ api, now = () => new Date(), top, needsAnswer }: 
     return () => {
       live = false;
     };
-  }, [api]);
+  }, [api, attempt]);
 
   // [P47-2] The going-quiet cards on screen reached the rep: report each client once per visit.
   const reported = useRef(new Set<string>());
@@ -103,12 +111,13 @@ export function HeroInsights({ api, now = () => new Date(), top, needsAnswer }: 
     <PageHeader
       title="Today"
       subtitle={todaySubtitle(now())}
-      action={!loading && (
+      action={!loading && !failed && (
         <IconButton label="Refresh" onClick={() => void refresh()} disabled={refreshing || outOfRefreshes} aria-busy={refreshing || undefined}>↻</IconButton>
       )}
     />
   );
   if (loading) return <Page testId="today-page" label="Today">{header}<p className="ui-secondary">Working out your day…</p></Page>;
+  if (failed) return <Page testId="today-page" label="Today">{header}<LoadError what="your day" onRetry={() => { setLoading(true); setAttempt((n) => n + 1); }} /></Page>;
 
   // A client is listed only with at least one reason that has its receipt.
   const atRisk = risk

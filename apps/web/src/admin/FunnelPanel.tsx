@@ -49,6 +49,20 @@ export function VisitsSection({ visits: v }: { visits: VisitReport }): JSX.Eleme
           <p style={{ margin: 0 }}>{`${pctOf(v.submittedShare ?? 0)} submitted the form (${v.submitted} of ${v.landingVisitors})`}</p>
         </>
       )}
+      {/* [P90 · owner, Prompt 88] the three steps of the request form, and how many went on from each */}
+      {v.requestSteps && (() => {
+        const r = v.requestSteps;
+        const went = (n: number, of: number, from: string): string => (of > 0 ? ` (${pctOf(n / of)} of ${from})` : '');
+        return (
+          <div data-testid="funnel-request-steps" className="ui-stack ui-gap-1">
+            <p style={{ margin: 0 }}><strong>Request form</strong></p>
+            <p className="ui-secondary" style={{ margin: 0 }}>{`Step 1 reached: ${r.step1}`}</p>
+            <p className="ui-secondary" style={{ margin: 0 }}>{`Step 2 reached: ${r.step2}${went(r.step2, r.step1, 'step 1')}`}</p>
+            <p className="ui-secondary" style={{ margin: 0 }}>{`Step 3 reached: ${r.step3}${went(r.step3, r.step2, 'step 2')}`}</p>
+            <p className="ui-secondary" style={{ margin: 0 }}>{`Submitted: ${r.submitted}${went(r.submitted, r.step3, 'step 3')}`}</p>
+          </div>
+        );
+      })()}
       <p className="ui-secondary" style={{ margin: 0 }}>{`Phone ${v.devices.phone} · Desktop ${v.devices.desktop}`}</p>
       <p className="ui-secondary" style={{ margin: 0 }}>{(Object.keys(PAGE_LABEL) as Array<keyof VisitReport['byPage']>).map((k) => `${PAGE_LABEL[k]} ${v.byPage[k]}`).join(' · ')}</p>
       {v.days.length > 0 && (

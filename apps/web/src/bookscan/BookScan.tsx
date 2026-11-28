@@ -4,6 +4,7 @@ import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { daysSince } from '../format/dates.js';
 import { findingId, appendFindings } from './streaming.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
+import { Button } from '../ui/Button.js';
 
 export interface BookScanApi {
   scan(): Promise<BookScanReport | null>;
@@ -24,6 +25,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
   const [report, setReport] = useState<BookScanReport | null>(null);
   const [shown, setShown] = useState<BookScanItem[]>([]); // append-only, arrival order — never re-sorted
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [attempt, setAttempt] = useState(0); // [P90-1] Try again
 
   // Poll until the scan is finished (done), then stop — a scan that polls forever is a battery + cost
   // problem. Re-runs on remount (fresh api), so returning to the screen shows current state, not stale.
@@ -43,7 +45,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
     void tick();
     timer.id = setInterval(() => { void tick(); }, POLL_MS);
     return () => { live = false; stop(); };
-  }, [api]);
+  }, [api, attempt]);
 
   // Accumulate append-only: keep every finding already shown in place, add new ones at the end.
   useEffect(() => {
@@ -51,7 +53,7 @@ export function BookScan({ api, now = Date.now() }: { api: BookScanApi; now?: nu
   }, [report]);
 
   if (state === 'loading') return <Page testId="bookscan-page" label="Book Scan"><PageHeader title="Book Scan" /><p className="ui-secondary">Scanning your history…</p></Page>;
-  if (state === 'error' || !report) return <Page testId="bookscan-page" label="Book Scan"><PageHeader title="Book Scan" /><p role="alert" className="ui-secondary">Couldn’t run the scan. Please try again.</p></Page>;
+  if (state === 'error' || !report) return <Page testId="bookscan-page" label="Book Scan"><PageHeader title="Book Scan" /><div role="alert" className="ui-empty" data-testid="load-error"><p className="ui-secondary">Couldn’t run the scan. Please try again.</p><Button onClick={() => { setState('loading'); setAttempt((n) => n + 1); }}>Try again</Button></div></Page>;
 
   // [BOOKSCAN-STREAM] Still working iff a chat is queued/processing. The empty state is shown ONLY when
   // the scan is FINISHED with nothing found — mid-scan-zero must read as "still scanning", never "empty".

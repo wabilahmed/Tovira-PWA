@@ -153,9 +153,9 @@ describe('<App> integration', () => {
     await user.click(await screen.findByRole('button', { name: /meridian/i })); // open the client
     await user.click(await screen.findByRole('button', { name: /pre-meeting brief/i }));
     expect(await screen.findByText(/your trial has ended/i)).toBeInTheDocument();
-    // The Locked card offers both plans; the annual button starts checkout.
-    expect(screen.getByTestId('subscribe-monthly')).toBeInTheDocument();
-    await user.click(screen.getByTestId('subscribe-annual'));
+    // The Locked card's plan button starts checkout.
+    // [P90-3 · owner, Prompt 88] moved: the annual plan is hidden until its checkout is proven, so the prompt offers monthly only
+    await user.click(screen.getByTestId('subscribe-monthly'));
     await waitFor(() => expect((globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.some((c) => String(c[0]).includes('/billing/checkout'))).toBe(true));
   });
 

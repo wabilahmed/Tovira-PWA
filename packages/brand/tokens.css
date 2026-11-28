@@ -187,6 +187,7 @@
   --brass-ink: #FFFFFF;
   --brass-surface: rgba(10, 10, 10, 0.06);
   --highlight-text: #0A0A0A;
+  --highlight: #FFE45C;         /* [P90] the marker (plan/brand.md): key words of a headline only, never a button or a background */
 
   --claret: #9e3b33;
   --claret-line: #c99b96;

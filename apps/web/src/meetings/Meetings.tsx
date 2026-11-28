@@ -4,9 +4,13 @@ import type { Meeting, ParseResult } from './meetingsClient.js';
 import { formatDateTime } from '../format/dates.js';
 import { shortDay } from '../confirm/cardCopy.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
+import { LOAD_FAILED, type LoadFailed } from '../ui/load.js';
+import { LoadError } from '../ui/feedback.js';
 
 export interface MeetingsApi {
   list(): Promise<Meeting[]>;
+  /** [P90-1] The same read, or LOAD_FAILED when it did not come back (preferred when present). */
+  listResult?(): Promise<Meeting[] | LoadFailed>;
   parse(text: string): Promise<ParseResult | null>;
   createForClient(clientId: string, meeting: { datetime: string | null; datetimeRaw: string; title: string | null }): Promise<Meeting | null>;
   remove(id: string): Promise<boolean>;
@@ -41,7 +45,11 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
 
   const nameOf = (id: string): string => clients.find((c) => c.id === id)?.name ?? 'a client';
 
-  const load = (): Promise<void> => api.list().then((m) => { setMeetings(m); setLoading(false); });
+  const [failed, setFailed] = useState(false); // [P90-1]
+  const load = (): Promise<void> => (api.listResult ? api.listResult() : api.list()).then((m) => {
+    if (m === LOAD_FAILED) { setFailed(true); setLoading(false); return; }
+    setFailed(false); setMeetings(m); setLoading(false);
+  });
   useEffect(() => {
     void load();
   }, [api]);
@@ -225,6 +233,8 @@ export function Meetings({ api, clients, onCreateClient, timeZone }: { api: Meet
 
       {loading ? (
         <p>Loading meetings…</p>
+      ) : failed ? (
+        <LoadError what="your meetings" onRetry={() => { setLoading(true); void load(); }} />
       ) : meetings.length === 0 ? (
         <p style={{ color: 'var(--text-secondary)' }}>No meetings scheduled.</p>
       ) : (

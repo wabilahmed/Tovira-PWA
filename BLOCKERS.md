@@ -215,3 +215,37 @@ The seven game pages are static files at `game/index.html` and `game/<industry>/
 ## [P89 → P88-2] When the restriction registry ships
 - Migration 0121 adds `route`, `beat` and `place` (text and smallint) to game_events.
 - The registry on `p88-2-restriction-registry` must add the text columns `route` and `place`, as not-derived from messages (cookieless counts), or its guard fails on rebase.
+
+## [P90-4] Owner: run the concerns-format check in prod (28 Nov, Prompt 88)
+- **Why:** the pre-meeting brief crashed in the browser on a note whose concerns are stored as `{ text }` objects (the repo demo seed's old shape).
+- **Fixed regardless:** the brief now answers with plain text whatever the stored shape (`brief-service.ts`), and `aiText` never throws on a value that is not text.
+- **Not known:** whether prod holds any such note. The extraction prompt asks for text, but the stored-output check only requires a list.
+- **Run (read-only, counts only, no content):** `AWS_PROFILE=prospera scripts/ops/run-backfill.sh --script concerns-format-check`
+- **If the count is above zero:** nothing more to fix for the brief. Say so, and I will check the other readers of concerns (What they care about already skips anything that is not text).
+
+## [P90-3] The annual plan is hidden in the app until annual checkout is proven (28 Nov, Prompt 88)
+- **Owner:** "The trial Subscription screen: hide the annual price until annual checkout is proven end to end."
+- **Done:** one switch, `ANNUAL_AVAILABLE` in `apps/web/src/billing/plans.ts`, is off. The trial Subscription screen and every Subscribe prompt (trial ended, messages used up, locked screens) offer the monthly plan only.
+- **Wider than asked:** the same dead-end button sat on the Subscribe prompts, so they follow the same switch.
+- **Left as it was:** the checkout disclosure sentence ("monthly plans each month, yearly plans each year"), which mirrors the Terms.
+- **To bring it back:** create the yearly Stripe price ([P89-annual]), prove a test-mode checkout, then set the switch to true.
+
+## [P90-5] A rep cannot delete one client (findings only, 28 Nov, Prompt 88)
+- **In the app:** a rep can delete a single promise, a single meeting, or the whole account. There is no button and no API route to delete one client and what was derived from it.
+- **Privacy Policy:** conversations "are deleted when you close your account"; "You can ask us to give you a copy of your data, correct it, delete it"; a person in a chat can ask for erasure, which the operator handles.
+- **Terms:** "Capture, briefs, export and deletion always continue to work"; "If you close your account, everything is deleted immediately and cannot be recovered."
+- **So:** neither page promises a per-client delete in the app. A rep who wants one client gone today must ask by email or close the account.
+- **Decide:** whether to build "Delete this client" (the client, its notes and recordings, promises, meetings, pointers, embeddings and ledger entries, in one transaction).
+
+## [P90-1] What counts as a failed load (28 Nov, Prompt 88)
+- A list request that throws (offline) or answers anything but 200 is a failed load: the screen shows an error with "Try again", never its empty state. That includes 401, 403, 404 and 5xx.
+- A 402 is not a failure: it means the feature is paused or locked, which each screen already explains.
+- A refresh that fails keeps the clients already on screen.
+- Not covered: a client page's own note list and the small cards inside Today (the To Confirm preview stays quiet when its read fails; Today reports its own).
+
+## [P90] Signed-out screens, batch 1: what differs from the reference (28 Nov, Prompt 88)
+- **Field borders** use the form-field edge token (#6B6B70), darker than the reference's #CFCFCF, so a field clears 3:1 contrast (the P71 rule).
+- **Pills** are 44px tall (the reference draws 40px; the rule in the prompt is 44px).
+- **An approved invitee's received screen** keeps its own sentence ("Your access is approved: we have emailed … a link to set your password.") under the heading "Request received." "You're in the queue." would be wrong for someone already approved.
+- **The shared shell also restyles** the checkout return pages and the hot-lead answers screen, which use the same frame. Their wording is unchanged; their old sub-heading is now the heading.
+- **"Please complete every question."** can no longer be reached: Next and Request access are disabled until the step is complete.

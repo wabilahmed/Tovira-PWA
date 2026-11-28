@@ -115,7 +115,12 @@ export class BriefService {
     const personalNotes = notes.flatMap((n) =>
       extractedOf(n.extracted).personal_facts.map((pf) => withExtractedReceipt(pf, n.createdAt)),
     );
-    const concerns = extracted.flatMap((f) => f.concerns);
+    // [P90-4] Plain text whatever the stored shape: the old `{ text }` shape (the demo seed) becomes its text; anything
+    // else that is not text is left out (the browser crashed on an object here).
+    const concerns = extracted.flatMap((f) => (Array.isArray(f.concerns) ? (f.concerns as unknown[]) : [])).flatMap((c): string[] => {
+      const t = typeof c === 'string' ? c : c && typeof c === 'object' && !Array.isArray(c) && typeof (c as { text?: unknown }).text === 'string' ? (c as { text: string }).text : '';
+      return t.trim() ? [t] : [];
+    });
 
     const recentContext: RecentItem[] = notes.slice(0, 5).map((n) => ({
       noteId: n.id,

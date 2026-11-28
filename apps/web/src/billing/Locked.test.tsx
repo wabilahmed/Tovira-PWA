@@ -11,8 +11,9 @@ describe('<Locked>', () => {
     render(<Locked onSubscribe={onSubscribe} />);
     expect(screen.getByRole('status')).toHaveTextContent(/your trial has ended\. subscribe to reopen your book\./i);
     expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent('Subscribing gives you 10,000 messages a month.'); // [P37 · owner] was "…to the full AED 60."; [P83] in messages
-    await userEvent.click(screen.getByTestId('subscribe-annual'));
-    expect(onSubscribe).toHaveBeenLastCalledWith('annual');
+    // [P90-3 · owner, Prompt 88] moved: the annual plan is hidden until its checkout is proven, so the prompt offers monthly only
+    await userEvent.click(screen.getByTestId('subscribe-monthly'));
+    expect(onSubscribe).toHaveBeenLastCalledWith('monthly');
   });
 
   // [P16-3a] An account that never had a trial (status 'none') must NOT be told its trial "ended".

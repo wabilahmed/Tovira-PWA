@@ -39,6 +39,8 @@ export interface VisitReport {
   utm: Array<{ source: string; campaign: string | null; views: number }>;
   landingVisitors: number; reachedRequest: number; submitted: number;
   reachedRequestShare: number | null; submittedShare: number | null;
+  /** [P90] times each step of the request form was reached, and requests submitted (absent on an older API) */
+  requestSteps?: { step1: number; step2: number; step3: number; submitted: number };
 }
 /** [P71-T] The landing game funnel (see apps/api/src/services/visits/game-events.ts). */
 export interface GameStep { key: 'view' | 'start' | 'chat1' | 'chat5' | 'end' | 'cta' | 'signup'; label: string; n: number; dropPct: number | null }

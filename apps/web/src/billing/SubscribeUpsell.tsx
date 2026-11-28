@@ -8,7 +8,7 @@
  * import, and the locked surfaces — so the copy and prices are identical in all of them. Prices come
  * from the shared PLANS source (apps/web/src/billing/plans.ts), never hardcoded here.
  */
-import { PLANS, type Plan } from './plans.js';
+import { ANNUAL_AVAILABLE, PLANS, type Plan } from './plans.js';
 
 /** The reassurance line: subscribing resets a trial's used allowance to a full month. No AED figure — the
  *  allowance's dirham value is never shown to reps (guarded by no-ai-cost-figures.guard.test.ts). */
@@ -17,18 +17,22 @@ export const ALLOWANCE_RESET_LINE = 'Subscribing gives you 10,000 messages a mon
 export function SubscribeNow({ onSubscribe }: { onSubscribe?: (plan: Plan) => void }): JSX.Element {
   return (
     <div data-testid="subscribe-upsell" style={{ display: 'grid', gap: 'var(--space-2)', justifyItems: 'start' }}>
-      {/* Yearly is the primary action (the better deal); monthly is the secondary. */}
+      {/* Yearly is the primary action (the better deal); monthly is the secondary. [P90-3] Yearly only once its
+          checkout is proven; until then monthly is the one action. */}
+      {ANNUAL_AVAILABLE && (
+        <button
+          type="button"
+          className="tov-primary"
+          data-testid="subscribe-annual"
+          style={{ maxWidth: '100%', whiteSpace: 'normal' }}
+          onClick={() => onSubscribe?.(PLANS.annual.id)}
+        >
+          {PLANS.annual.price} · {PLANS.annual.save}
+        </button>
+      )}
       <button
         type="button"
-        className="tov-primary"
-        data-testid="subscribe-annual"
-        style={{ maxWidth: '100%', whiteSpace: 'normal' }}
-        onClick={() => onSubscribe?.(PLANS.annual.id)}
-      >
-        {PLANS.annual.price} · {PLANS.annual.save}
-      </button>
-      <button
-        type="button"
+        className={ANNUAL_AVAILABLE ? undefined : 'tov-primary'}
         data-testid="subscribe-monthly"
         style={{ maxWidth: '100%', whiteSpace: 'normal' }}
         onClick={() => onSubscribe?.(PLANS.monthly.id)}

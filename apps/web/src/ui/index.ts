@@ -9,5 +9,6 @@ export { Chip, ChipGroup } from './Chips.js';
 export { Tabs } from './Tabs.js';
 export { TextInput, TextArea, SearchInput, Select, FileButton, formatSize } from './inputs.js';
 export { Sheet } from './Sheet.js';
-export { Banner, Toast, EmptyState } from './feedback.js';
+export { Banner, Toast, EmptyState, LoadError } from './feedback.js';
+export { LOAD_FAILED, isLoadFailure, loadJson, type LoadFailed } from './load.js';
 export { Accordion } from './Accordion.js';

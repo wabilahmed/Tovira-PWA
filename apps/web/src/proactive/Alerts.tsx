@@ -4,10 +4,14 @@ import { daysSince } from '../format/dates.js';
 import { OutcomeControl, type OutcomeChoice } from '../outcomes/OutcomeControl.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
 import { Button } from '../ui/Button.js';
+import { LOAD_FAILED, type LoadFailed } from '../ui/load.js';
+import { LoadError } from '../ui/feedback.js';
 
 export interface ProactiveApi {
   listCold(): Promise<ColdClient[]>;
   listNotifications(): Promise<Notification[]>;
+  /** [P90-1] The same read, or LOAD_FAILED when it did not come back (preferred when present). */
+  listNotificationsResult?(): Promise<Notification[] | LoadFailed>;
   runScan(): Promise<boolean>;
 }
 
@@ -33,8 +37,11 @@ export function Alerts({ api, now = Date.now(), onSetOutcome }: { api: Proactive
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
 
+  const [failed, setFailed] = useState(false); // [P90-1]
   const load = (): Promise<void> =>
-    Promise.all([api.listNotifications(), api.listCold()]).then(([n, c]) => {
+    Promise.all([api.listNotificationsResult ? api.listNotificationsResult() : api.listNotifications(), api.listCold()]).then(([n, c]) => {
+      if (n === LOAD_FAILED) { setFailed(true); setLoading(false); return; }
+      setFailed(false);
       setNotifications(collapseDigests(n)); // [P20-5] one "Your day", not a stack of them
       setCold(c);
       setLoading(false);
@@ -58,6 +65,7 @@ export function Alerts({ api, now = Date.now(), onSetOutcome }: { api: Proactive
   }
 
   if (loading) return <Page testId="alerts-page" label="Alerts"><PageHeader title="Alerts" /><p className="ui-secondary">Loading alerts…</p></Page>;
+  if (failed) return <Page testId="alerts-page" label="Alerts"><PageHeader title="Alerts" /><LoadError what="your alerts" onRetry={() => { setLoading(true); void load(); }} /></Page>;
 
   return (
     <Page testId="alerts-page" label="Alerts">

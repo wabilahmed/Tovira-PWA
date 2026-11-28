@@ -5,20 +5,17 @@ import { SubscribeNow, ALLOWANCE_RESET_LINE } from './SubscribeUpsell.js';
 import { PLANS } from './plans.js';
 
 describe('<SubscribeNow>', () => {
-  it('offers both plans, each starting checkout for the right plan, with the reset line', async () => {
+  // [P90-3 · owner, Prompt 88] moved: "hide the annual price until annual checkout is proven end to end". The prompt
+  // offered both plans with yearly as the primary action; now monthly is the one action (and the primary one).
+  it('offers the monthly plan, starting checkout for it, with the reset line', async () => {
     const onSubscribe = vi.fn();
     render(<SubscribeNow onSubscribe={onSubscribe} />);
 
-    const yearly = screen.getByRole('button', { name: /AED 2,990 \/ year/i });
+    expect(screen.queryByRole('button', { name: /AED 2,990 \/ year/i })).toBeNull();
     const monthly = screen.getByRole('button', { name: /AED 299 \/ month/i });
-    expect(yearly).toHaveTextContent(/save AED 598/i);
-    // the yearly plan is the visually primary action
-    expect(yearly).toHaveClass('tov-primary');
-    expect(monthly).not.toHaveClass('tov-primary');
+    expect(monthly).toHaveClass('tov-primary');
     expect(screen.getByTestId('subscribe-upsell')).toHaveTextContent(ALLOWANCE_RESET_LINE);
 
-    await userEvent.click(yearly);
-    expect(onSubscribe).toHaveBeenLastCalledWith('annual');
     await userEvent.click(monthly);
     expect(onSubscribe).toHaveBeenLastCalledWith('monthly');
   });
@@ -26,6 +23,6 @@ describe('<SubscribeNow>', () => {
   it('shows the prices from the shared PLANS source (no divergent hardcoded numbers)', () => {
     render(<SubscribeNow onSubscribe={vi.fn()} />);
     expect(screen.getByRole('button', { name: new RegExp(PLANS.monthly.price.replace('/', '\\/'), 'i') })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: new RegExp(PLANS.annual.price.replace('/', '\\/'), 'i') })).toBeInTheDocument();
+    expect(PLANS.annual.price).toBe('AED 2,990 / year'); // [P90-3] kept in the shared source for when it returns
   });
 });

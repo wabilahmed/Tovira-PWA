@@ -10,8 +10,13 @@ import { createHash, randomBytes } from 'node:crypto';
  */
 export const VISIT_PAGES = ['landing', 'request_access', 'sign_in', 'privacy'] as const;
 export type VisitPage = (typeof VISIT_PAGES)[number];
+/** [P90 · owner, Prompt 88] The three steps of the request form, each sent once when reached. Not page views. */
+export const REQUEST_STEPS = ['request_step_1', 'request_step_2', 'request_step_3'] as const;
+export type RequestStep = (typeof REQUEST_STEPS)[number];
 /** Recorded by the server when a request form is submitted (never sent by a page). */
-export type VisitEvent = VisitPage | 'submitted';
+export type VisitEvent = VisitPage | RequestStep | 'submitted';
+/** A page view: not the server's own 'submitted' record, and not a form step. */
+const isPageView = (v: { page: VisitEvent }): boolean => (VISIT_PAGES as readonly string[]).includes(v.page);
 export type Device = 'phone' | 'desktop';
 
 export interface PageView { day: string; page: VisitEvent; referrerDomain: string | null; utmSource: string | null; utmCampaign: string | null; device: Device; visitorHash: string | null }
@@ -59,6 +64,7 @@ export class VisitService {
 
   /** A page view from a page's beacon. Returns whether it was counted. */
   async hit(i: { page: unknown; referrer?: unknown; utmSource?: unknown; utmCampaign?: unknown; ip: string; ua: string }): Promise<boolean> {
+    if (REQUEST_STEPS.includes(i.page as RequestStep)) return this.record(i.page as RequestStep, { ip: i.ip, ua: i.ua }); // a step carries nothing else
     if (!VISIT_PAGES.includes(i.page as VisitPage)) return false;
     return this.record(i.page as VisitPage, i);
   }
@@ -100,7 +106,8 @@ export class VisitService {
     for (const r of await this.store.rollups(since)) days.set(r.day, r);
     const live = views.filter((v) => v.day === today);
     if (live.length > 0 || !days.has(today)) days.set(today, rollupOf(today, live));
-    const pageViews = views.filter((v) => v.page !== 'submitted');
+    const pageViews = views.filter(isPageView);
+    const count = (p: VisitEvent): number => views.filter((v) => v.page === p).length;
     const referrers = new Map<string, number>();
     for (const v of pageViews) if (v.referrerDomain) referrers.set(v.referrerDomain, (referrers.get(v.referrerDomain) ?? 0) + 1);
     const perDay = [...days.values()].sort((a, b) => a.day.localeCompare(b.day));
@@ -119,6 +126,7 @@ export class VisitService {
       submitted,
       reachedRequestShare: landing > 0 ? reached / landing : null,
       submittedShare: landing > 0 ? submitted / landing : null,
+      requestSteps: { step1: count('request_step_1'), step2: count('request_step_2'), step3: count('request_step_3'), submitted: count('submitted') },
     };
   }
 }
@@ -135,6 +143,8 @@ export interface VisitReport {
   submitted: number;
   reachedRequestShare: number | null;
   submittedShare: number | null;
+  /** [P90] How many times each step of the request form was reached, and how many requests were submitted (events, not people). */
+  requestSteps: { step1: number; step2: number; step3: number; submitted: number };
 }
 
 function topUtm(views: PageView[]): VisitReport['utm'] {
@@ -150,7 +160,7 @@ function topUtm(views: PageView[]): VisitReport['utm'] {
 
 /** One day's counts from its views (while the day's hashes are still held). */
 export function rollupOf(day: string, views: PageView[]): DayRollup {
-  const pv = views.filter((v) => v.page !== 'submitted');
+  const pv = views.filter(isPageView);
   const set = (f: (v: PageView) => boolean) => new Set(views.filter(f).map((v) => v.visitorHash).filter((h): h is string => !!h));
   const landing = set((v) => v.page === 'landing');
   const request = set((v) => v.page === 'request_access');

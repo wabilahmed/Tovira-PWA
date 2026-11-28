@@ -6,12 +6,16 @@ import { whatsappLink } from '../whatsapp/waLink.js';
 import { shareDraft, type InventoryItem, type InventoryFilter, type ShareResult, type InventoryShare, type MatchSuggestion as Match } from './inventoryClient.js';
 import { ItemMatches } from './ItemMatches.js';
 import { Page, PageHeader } from '../ui/PageHeader.js';
+import { LOAD_FAILED, type LoadFailed } from '../ui/load.js';
+import { LoadError } from '../ui/feedback.js';
 import { Badge, Button, EmptyState, Sheet, TextArea, TextInput } from '../ui/index.js';
 
 export interface InventoryClientRef { id: string; name: string; phone: string | null }
 
 export interface InventoryApi {
   list(status?: InventoryFilter): Promise<InventoryItem[] | Locked>;
+  /** [P90-1] The same read, or LOAD_FAILED when it did not come back (preferred when present). */
+  listResult?(status?: InventoryFilter): Promise<InventoryItem[] | Locked | LoadFailed>;
   create(title: string, description: string, quantity: number | null): Promise<InventoryItem>;
   edit(id: string, patch: Partial<{ title: string; description: string; quantity: number | null }>): Promise<InventoryItem | null>;
   share(itemId: string, clientId: string): Promise<ShareResult | null>;
@@ -62,9 +66,12 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
     openLink(whatsappLink(shareDraft(client?.name ?? 'there', item.title, item.description), client?.phone ?? undefined));
   }
 
+  const [failed, setFailed] = useState(false); // [P90-1]
   async function load(f: InventoryFilter): Promise<void> {
-    const res = await api.list(f);
+    const res = await (api.listResult ? api.listResult(f) : api.list(f));
     if (res === LOCKED) { setLocked(true); return; }
+    if (res === LOAD_FAILED) { setFailed(true); return; }
+    setFailed(false);
     setLocked(false);
     setItems(res);
   }
@@ -117,7 +124,9 @@ export function Inventory({ api, clients = [], onSubscribe, openLink = (url) => 
 
       {warning && <p role="status" className="ui-secondary">{warning}</p>}
 
-      {items.length === 0 ? (
+      {failed ? (
+        <LoadError what="your inventory" onRetry={() => void load(filter)} />
+      ) : items.length === 0 ? (
         filter === 'active' ? (
           <EmptyState data-testid="inventory-empty" title="Nothing listed yet.">
             <span className="ui-block">When a client asks for something like an item here, Tovira suggests it on their page.</span>

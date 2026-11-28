@@ -20,8 +20,9 @@ describe('<FollowUpDraft>', () => {
     await user.click(screen.getByRole('button', { name: /draft follow-up/i }));
     expect(await screen.findByText(/your trial has ended/i)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument(); // not an error
-    await user.click(screen.getByTestId('subscribe-annual'));
-    expect(onSubscribe).toHaveBeenLastCalledWith('annual');
+    // [P90-3 · owner, Prompt 88] moved: the annual plan is hidden until its checkout is proven, so the prompt offers monthly only
+    await user.click(screen.getByTestId('subscribe-monthly'));
+    expect(onSubscribe).toHaveBeenLastCalledWith('monthly');
   });
 
   // [P18-10g] A never-trialed account (status 'none') must NOT read "Your trial has ended" in the

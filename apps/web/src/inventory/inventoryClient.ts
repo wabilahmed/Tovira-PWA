@@ -1,3 +1,4 @@
+import { LOAD_FAILED, type LoadFailed } from '../ui/load.js';
 import { LOCKED, type Locked } from '../billing/gated.js';
 
 export interface InventoryItem {
@@ -48,6 +49,18 @@ export interface MatchSuggestion {
 export class InventoryClient {
   constructor(private readonly baseUrl: string = '') {}
   private url(path: string): string { return `${this.baseUrl}${path}`; }
+
+  /** [P90-1] The items, LOCKED on a 402, or LOAD_FAILED when they did not come back. */
+  async listResult(status?: InventoryFilter): Promise<InventoryItem[] | Locked | LoadFailed> {
+    try {
+      const res = await fetch(this.url(`/inventory${status ? `?status=${status}` : ''}`), { credentials: 'include' });
+      if (res.status === 402) return LOCKED;
+      if (res.status !== 200) return LOAD_FAILED;
+      return ((await res.json()) as { items: InventoryItem[] }).items;
+    } catch {
+      return LOAD_FAILED;
+    }
+  }
 
   async list(status?: InventoryFilter): Promise<InventoryItem[] | Locked> {
     try {

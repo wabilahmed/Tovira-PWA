@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { createElement } from 'react';
 import { PRIVACY_VERSION, TERMS_VERSION } from '../../api/src/services/legal/versions.js';
 import { RequestAccess } from './access/RequestAccess.js';
@@ -44,8 +44,16 @@ describe('[P75] the Privacy page: the WhatsApp line', () => {
 });
 
 describe('[P75] the request form: the WhatsApp sentence', () => {
+  // [P90 · owner, Prompt 88, batch 1] moved: the form is three steps and the sentence sits on the last one, by the
+  // Request access button. The sentence itself is unchanged, character for character.
   it('says the approved line, word for word, and no longer says "only to review your request"', () => {
     render(createElement(RequestAccess, { client: { submit: async () => ({ id: 'x' }) } }));
+    const type = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    type('Full name', 'Dana Rep'); type('Work email', 'dana@example.com'); type('Phone', '+971 50 123 4567'); type('Country code', 'AE'); type('WhatsApp number', '050 123 4567');
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    type('Company name', 'Meridian'); type('Role / job title', 'Broker');
+    fireEvent.click(screen.getByLabelText('Insurance')); fireEvent.click(screen.getByLabelText('I am employed by it'));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     const hint = screen.getByText((_, el) => el?.tagName === 'P' && (el.textContent ?? '').startsWith('We use the details above'));
     expect(hint.textContent).toBe(`${FORM_LINE} See our Privacy Policy for how we handle your personal data.`);
     expect(document.body.textContent).not.toContain('only to review your request');

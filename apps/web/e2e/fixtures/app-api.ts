@@ -44,6 +44,14 @@ const ROUTES: Array<[RegExp, unknown]> = [
   [/^\/api\/confirmations$/, { promises: [promise('q1', 'c2', LONG_NAME, 'Send the ID photos of both buyers and the passport copies', 'client', null, 'next week', { confirmed: false })], meetings: [], moveSuggestions: [] }],
   [/^\/api\/inventory\/matches/, { suggestions: [], badge: 0 }],
   [/^\/api\/push\/config$/, { vapidPublicKey: '' }],
+  // [P90-1 · owner, Prompt 88] A request that does not come back is now an error screen, never an empty one, so the
+  // stub answers Today's reads too (they were left to the 404 before, which Today showed as "nothing today").
+  [/^\/api\/today$/, { actions: [], refreshesRemaining: 1 }],
+  [/^\/api\/hero\/status$/, { unlocked: false, counts: { clients: 4, notes: 5 }, needed: { clients: 1, notes: 15 }, thresholds: { clients: 5, notes: 20 }, message: 'Patterns appear once you have 20 notes. You have 5.' }],
+  [/^\/api\/hero\/risk$/, { atRisk: [] }],
+  [/^\/api\/notifications$/, { notifications: [] }],
+  [/^\/api\/meetings$/, { meetings: [] }],
+  [/^\/api\/inventory$/, { items: [] }],
 ];
 
 /** Answer every /api call from the stub (404 for anything unlisted). Service workers must be blocked by the caller. */

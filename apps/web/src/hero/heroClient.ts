@@ -1,3 +1,4 @@
+import { loadJson, type LoadFailed } from '../ui/load.js';
 /** Client for the hero features: today, cross-client patterns, risk (P4b-*). */
 
 export interface GateState {
@@ -83,6 +84,14 @@ export class HeroClient {
       },
       { actions: [], refreshesRemaining: null },
     );
+  }
+
+  /** [P90-1] Today's list, or LOAD_FAILED when it did not come back. A 402 (the list is paused) is the empty list. */
+  todayResult(): Promise<{ actions: TodayAction[]; refreshesRemaining: number | null } | LoadFailed> {
+    return loadJson(`${this.baseUrl}/today`, (b) => {
+      const body = b as { actions: TodayAction[]; refreshesRemaining?: number };
+      return { actions: body.actions, refreshesRemaining: typeof body.refreshesRemaining === 'number' ? body.refreshesRemaining : null };
+    }, { actions: [], refreshesRemaining: null });
   }
 
   /** [P47-2] Today showed these going-quiet cards: the alert reached the rep (the server re-checks each). Best effort. */

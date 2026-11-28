@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Badge, Banner, Chip, ChipGroup, EmptyState, ListRow, Page, PageHeader, Section } from '../ui/index.js';
+import { Badge, Banner, Button, Chip, ChipGroup, EmptyState, ListRow, Page, PageHeader, Section } from '../ui/index.js';
 import { ReceiptThread } from '../receipts/ReceiptThread.js';
 import { leadStatusLabel } from '../clients/LeadStatus.js';
 import type { FindApi, FindItem, FindQuery, FindResult, WantingBy, WantingOptions } from './findClient.js';
@@ -101,17 +101,18 @@ function WantingStep({ api, onBack, onPick }: { api: FindApi; onBack: () => void
 function FindResults({ api, button, filter, onBack, onOpenClient }: { api: FindApi; button: FindButton; filter?: { by: WantingBy; value: string; label: string }; onBack: () => void; onOpenClient: (id: string) => void }): JSX.Element {
   const [result, setResult] = useState<FindResult | 'paused' | null | undefined>(undefined);
   const [chip, setChip] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0); // [P90-1] Try again
   useEffect(() => {
     let live = true;
     void api.run(button.id as FindQuery, filter ? { by: filter.by, value: filter.value } : undefined).then((r) => { if (live) setResult(r); });
     return () => { live = false; };
-  }, [api, button.id, filter?.by, filter?.value]);
+  }, [api, button.id, filter?.by, filter?.value, attempt]);
 
   const title = filter ? `What clients need: ${filter.label}` : button.label;
   const header = <PageHeader title={title} back={{ label: filter ? 'What clients need…' : 'Find', onBack }} subtitle={result && result !== 'paused' ? countLine(result.count, button) : undefined} />;
   if (result === undefined) return <Page testId="find-result" label={title}>{header}<p className="ui-secondary">Loading…</p></Page>;
   if (result === 'paused') return <Page testId="find-result" label={title}>{header}<Banner tone="warning">Find is paused while your subscription is inactive.</Banner></Page>;
-  if (result === null) return <Page testId="find-result" label={title}>{header}<Banner tone="danger">Couldn't load this. Try again.</Banner></Page>;
+  if (result === null) return <Page testId="find-result" label={title}>{header}<Banner tone="danger" actions={<Button size="sm" onClick={() => { setResult(undefined); setAttempt((n) => n + 1); }}>Try again</Button>}>Couldn't load this.</Banner></Page>;
 
   const tags = [...new Set(result.items.flatMap((i) => i.tags))];
   const shown = chip ? result.items.filter((i) => i.tags.includes(chip)) : result.items;

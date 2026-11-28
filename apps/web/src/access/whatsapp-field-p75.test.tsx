@@ -11,16 +11,22 @@ import type { AccessRequestClient } from './requestAccessClient.js';
  */
 const makeClient = (): AccessRequestClient & { submit: ReturnType<typeof vi.fn> } => ({ submit: vi.fn().mockResolvedValue({ id: 'req-1' }) });
 
-async function fillRest(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+// [P90 · owner, Prompt 88, batch 1] The form is three steps now; the WhatsApp number is on step 1 and is checked when the
+// rep taps Next (the same rule and messages as on submit before).
+async function fillStep1(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.type(screen.getByLabelText('Full name'), 'Dana Rep');
   await user.type(screen.getByLabelText('Work email'), 'dana@brokerage.ae');
   await user.type(screen.getByLabelText('Phone'), '+971 50 123 4567');
+}
+async function fillRest(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('button', { name: 'Next' }));
   await user.type(screen.getByLabelText('Company name'), 'Meridian');
   await user.type(screen.getByLabelText('Role / job title'), 'Broker');
+  await user.click(screen.getByLabelText('Insurance'));
   await user.click(screen.getByLabelText('I am employed by it'));
+  await user.click(screen.getByRole('button', { name: 'Next' }));
   await user.click(screen.getByLabelText('My own clients. I hold the relationship directly.'));
   await user.click(screen.getByLabelText('50–200'));
-  await user.click(screen.getByLabelText('Insurance'));
   await user.click(screen.getByRole('checkbox'));
 }
 
@@ -70,9 +76,10 @@ describe('[P75] the form field', () => {
     const user = userEvent.setup();
     const client = makeClient();
     render(<RequestAccess client={client} />);
-    await fillRest(user);
+    await fillStep1(user);
     await user.selectOptions(screen.getByLabelText('Country code'), 'GB');
     await user.type(screen.getByLabelText('WhatsApp number'), '07911 123456');
+    await fillRest(user);
     await user.click(screen.getByRole('button', { name: /request access/i }));
     await waitFor(() => expect(client.submit).toHaveBeenCalledTimes(1));
     expect(client.submit.mock.calls[0]![0]).toMatchObject({ whatsappNumber: '+447911123456' });
@@ -82,17 +89,19 @@ describe('[P75] the form field', () => {
     const user = userEvent.setup();
     const client = makeClient();
     render(<RequestAccess client={client} />);
-    await fillRest(user);
-    await user.click(screen.getByRole('button', { name: /request access/i }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Please choose your country code and enter your WhatsApp number.');
+    await fillStep1(user);
+    // [P90] no number at all: Next is disabled (the step is not complete), so the rep cannot go on
+    const next = screen.getByRole('button', { name: 'Next' });
+    expect(next).toBeDisabled();
     await user.type(screen.getByLabelText('WhatsApp number'), '07911 123456');
-    await user.click(screen.getByRole('button', { name: /request access/i }));
+    await user.click(next);
     expect(screen.getByRole('alert')).toHaveTextContent('Please choose your country code and enter your WhatsApp number.');
     await user.selectOptions(screen.getByLabelText('Country code'), 'AE');
     await user.clear(screen.getByLabelText('WhatsApp number'));
     await user.type(screen.getByLabelText('WhatsApp number'), '050 12');
-    await user.click(screen.getByRole('button', { name: /request access/i }));
+    await user.click(next);
     expect(screen.getByRole('alert')).toHaveTextContent('That doesn’t look like a WhatsApp number. Check the country code and the number.');
+    expect(screen.getByText('Step 1 of 3')).toBeInTheDocument(); // still on step 1
     expect(client.submit).not.toHaveBeenCalled();
   });
 });

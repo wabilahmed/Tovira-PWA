@@ -17,7 +17,10 @@ describe('[EMAIL-VERIFY] VerifyEmailPage', () => {
   it('shows the failure message on a bad/expired token (no crash, still lets you continue)', async () => {
     const api = { verifyEmail: vi.fn().mockResolvedValue({ ok: false, message: 'This verification link is invalid or has expired.' }), resendVerification: vi.fn() };
     render(<VerifyEmailPage api={api} token="bad" onDone={vi.fn()} />);
-    expect(await screen.findByRole('alert')).toHaveTextContent(/invalid or has expired/i);
+    // [P90 · owner, Prompt 88, batch 1] moved: the screen says "That link has run out." and where to get a new one (was the server's
+    // "This verification link is invalid or has expired." in red)
+    expect(await screen.findByRole('heading', { name: 'That link has run out.' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent("You can ask for a new one from Settings once you're signed in.");
     expect(screen.getByRole('button', { name: /continue to tovira/i })).toBeInTheDocument();
   });
 });

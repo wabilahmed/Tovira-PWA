@@ -29,3 +29,11 @@ describe('[P46-4] aiText', () => {
     expect(aiText('')).toBe('');
   });
 });
+
+// [P90-4 · owner, Prompt 88] The pre-meeting brief crashed on a stored concern that was an object, not text.
+describe('[P90-4] aiText and a value that is not text', () => {
+  it('NEGATIVE: an object, null or a number shows as nothing and never throws', () => {
+    for (const v of [{ text: 'x' }, null, undefined, 7, ['a']]) expect(aiText(v as unknown as string)).toBe('');
+  });
+  it('text is unchanged', () => { expect(aiText('Timeline is tight')).toBe('Timeline is tight'); });
+});

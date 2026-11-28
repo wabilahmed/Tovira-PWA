@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AuthShell } from './AuthShell.js';
 
 export interface VerifyApi {
   verifyEmail(token: string): Promise<{ ok: boolean; message?: string }>;
@@ -29,21 +30,22 @@ export function VerifyEmailPage({ api, token, onDone }: { api: VerifyApi; token:
     };
   }, [api, token]);
 
-  if (state === 'pending') return <section aria-label="Confirming email"><p role="status">Confirming your email…</p></section>;
+  // [P90 · owner, Prompt 88, batch 1] 010 and 011: the same full-page layout as every signed-out screen (the logo, one
+  // heading, one line, one button). The server's own message stays for a screen reader's ears only where it adds
+  // nothing new; the heading and line are the owner's.
+  if (state === 'pending') return <AuthShell heading="Confirming your email…" centered><p className="auth__status" role="status">One moment.</p></AuthShell>;
   if (state === 'ok') {
     return (
-      <section aria-label="Email confirmed">
-        <p role="status">Your email is confirmed. Thank you.</p>
-        <button className="tov-primary" onClick={onDone}>Continue to Tovira</button>
-      </section>
+      <AuthShell heading="Your email is confirmed. Thank you." centered>
+        <button className="auth__submit" onClick={onDone}>Continue to Tovira</button>
+      </AuthShell>
     );
   }
   return (
-    <section aria-label="Verification failed">
-      <p role="alert" style={{ color: 'var(--claret)' }}>{message}</p>
-      <p>You can ask for a new link from Settings once you are signed in.</p>
-      <button className="tov-primary" onClick={onDone}>Continue to Tovira</button>
-    </section>
+    <AuthShell heading="That link has run out." centered>
+      <p className="auth__status" role="alert" data-reason={message ?? undefined}>You can ask for a new one from Settings once you&apos;re signed in.</p>
+      <button className="auth__submit" onClick={onDone}>Continue to Tovira</button>
+    </AuthShell>
   );
 }
 

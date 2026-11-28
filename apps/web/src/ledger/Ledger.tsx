@@ -62,7 +62,7 @@ export function Ledger({ api, now = Date.now(), back, onOpenInventory }: {
 
   const header = <PageHeader title="The Ledger" subtitle="What Tovira helped you win" {...(back ? { back } : {})} />;
   if (state === 'loading') return <Page testId="ledger-page" label="The Ledger">{header}<p className="ui-secondary">Loading your ledger…</p></Page>;
-  if (state === 'error' || !data) return <Page testId="ledger-page" label="The Ledger">{header}<p role="alert" className="ui-secondary">Couldn’t load your ledger.</p></Page>;
+  if (state === 'error' || !data) return <Page testId="ledger-page" label="The Ledger">{header}<div role="alert" className="ui-empty" data-testid="load-error"><p className="ui-secondary">Couldn’t load your ledger.</p><Button onClick={() => { setState('loading'); void load(); }}>Try again</Button></div></Page>;
 
   async function saveValue(id: string, value: number | null): Promise<boolean> {
     const ok = await api.setEntryDealValue(id, value);

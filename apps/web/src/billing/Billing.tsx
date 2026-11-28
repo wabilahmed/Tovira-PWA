@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Entitlement } from './billingClient.js';
 import { formatStamp } from '../format/dates.js';
-import { PLANS } from './plans.js';
+import { ANNUAL_AVAILABLE, PLANS } from './plans.js';
 
 export interface BillingApi {
   status(): Promise<Entitlement | null>;
@@ -105,9 +105,11 @@ export function Billing({
             <button className="tov-primary" data-tour="subscribe" onClick={() => void subscribe('monthly')} disabled={busy}>
               {busy ? 'Starting…' : <>Subscribe monthly: <span className="tov-mono">{PLANS.monthly.price}</span></>}
             </button>
-            <button className="tov-link" onClick={() => void subscribe('annual')} disabled={busy}>
-              {busy ? 'Starting…' : <>Subscribe annually: <span className="tov-mono">{PLANS.annual.price}</span> (2 months free)</>}
-            </button>
+            {ANNUAL_AVAILABLE && (
+              <button className="tov-link" onClick={() => void subscribe('annual')} disabled={busy}>
+                {busy ? 'Starting…' : <>Subscribe annually: <span className="tov-mono">{PLANS.annual.price}</span> (2 months free)</>}
+              </button>
+            )}
           </div>
           {/* [TASK 3] Checkout disclosure beside the plans. Grounded in the real behaviour: prices are in AED
               and nothing is added on top ([P32] Prospera is not VAT-registered, so no VAT wording — the

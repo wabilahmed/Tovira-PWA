@@ -93,7 +93,8 @@ describe('<Inventory>', () => {
 
   it('a lapsed trial (402 → LOCKED) shows the Locked card but keeps the add form usable', async () => {
     render(<Inventory api={makeApi({ list: vi.fn().mockResolvedValue(LOCKED) })} onSubscribe={vi.fn()} />);
-    await waitFor(() => expect(screen.getByTestId('subscribe-annual')).toBeInTheDocument()); // Locked card's plan buttons
+    // [P90-3 · owner, Prompt 88] moved: the annual plan is hidden until its checkout is proven, so the prompt offers monthly only
+    await waitFor(() => expect(screen.getByTestId('subscribe-monthly')).toBeInTheDocument()); // Locked card's plan button
     // [P46-1 · owner] the add form is the "+ Add item" sheet
     await userEvent.click(screen.getByRole('button', { name: '+ Add item' }));
     expect(screen.getByLabelText('Title')).toBeInTheDocument();

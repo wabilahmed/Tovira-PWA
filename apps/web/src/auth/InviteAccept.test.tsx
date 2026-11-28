@@ -16,7 +16,8 @@ describe('<InviteAccept>', () => {
     const auth = client({ inviteStatus: vi.fn().mockResolvedValue({ valid: false, termsVersion: '', privacyVersion: '' }) });
     const user = userEvent.setup();
     render(<InviteAccept auth={auth} token="expired-token" onDone={() => {}} />);
-    expect(await screen.findByText(/this link has expired/i)).toBeTruthy();
+    // [P90 · owner, Prompt 88, batch 1] moved: the heading is "This invite has expired." (was the sub-heading "This link has expired")
+    expect(await screen.findByRole('heading', { name: 'This invite has expired.' })).toBeTruthy();
     // The copy makes clear the new link goes to the email the invite was sent to — never one typed here.
     expect(screen.getByText(/email address this invite was sent to/i)).toBeTruthy();
     // There is NO address field to supply a different recipient.
@@ -34,7 +35,7 @@ describe('<InviteAccept>', () => {
     });
     const user = userEvent.setup();
     render(<InviteAccept auth={auth} token="expired-token" onDone={() => {}} />);
-    await screen.findByText(/this link has expired/i);
+    await screen.findByRole('heading', { name: 'This invite has expired.' }); // [P90 · owner, Prompt 88, batch 1] moved: the new heading
     await user.click(screen.getByRole('button', { name: /send a new link/i }));
     expect(await screen.findByText(/already sent a few links today/i)).toBeTruthy();
     expect(screen.getByText(/hello@tovira\.io/i)).toBeTruthy();
@@ -44,7 +45,7 @@ describe('<InviteAccept>', () => {
     const auth = client();
     const user = userEvent.setup();
     render(<InviteAccept auth={auth} token="good" onDone={() => {}} />);
-    await screen.findByText(/Set up your Tovira account/i);
+    await screen.findByRole('heading', { name: "You're in. Let's set you up." }); // [P90 · owner, Prompt 88, batch 1] moved: the new heading (was "Set up your Tovira account")
     expect(screen.getByText(/version 2026-09-22/i)).toBeTruthy();
     expect(screen.getByText(/Terms of Service/i).closest('a')!.getAttribute('href')).toBe('/terms');
 
@@ -63,7 +64,7 @@ describe('<InviteAccept>', () => {
     const auth = client({ acceptInvite: vi.fn().mockResolvedValue({ ok: false, message: 'This invitation link is invalid, has expired, or has already been used.' }) });
     const user = userEvent.setup();
     render(<InviteAccept auth={auth} token="good" onDone={() => {}} />);
-    await screen.findByText(/Set up your Tovira account/i);
+    await screen.findByRole('heading', { name: "You're in. Let's set you up." }); // [P90 · owner, Prompt 88, batch 1] moved: the new heading (was "Set up your Tovira account")
     await user.type(screen.getByLabelText(/Choose a password/i), 'password123');
     await user.click(screen.getByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: /set password/i }));
